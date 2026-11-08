@@ -1108,6 +1108,8 @@
     <string name="ctrl_joycon_vr">Joy-Conit VR-ohjaimina</string>
     <string name="ctrl_joycon_vr_hint">Kun SteamVR on käynnissä, jokainen Joy-Con toimii kätenä. Osoita sillä eteenpäin ja pidä Home- tai Capture-painiketta pohjassa keskittääksesi sen uudelleen.</string>
     <string name="setup_animations">Animaatiot</string>
+    <string name="setup_low_storage_warning">Varoita, kun tallennustila on vähissä</string>
+    <string name="setup_low_storage_warning_hint">Kysy ennen Steamin käynnistämistä, kun vapaata tilaa on alle 10 Gt.</string>
     <string name="ctrl_layout">Asettelu</string>
     <string name="ctrl_edit">Muokkaa</string>
     <string name="ctrl_reset">Palauta</string>
@@ -2972,6 +2974,7 @@
     <string name="storage_low_title">Vain %1$s vapaana</string>
     <string name="storage_low_body">Steam tarvitsee tilaa päivityksille ja shadervälimuistille. Alle 10 GB:ssä pelipäivitykset voivat keskeytyä puolivälissä.</string>
     <string name="storage_low_safe">%1$s voidaan vapauttaa turvallisesti.</string>
+    <string name="storage_low_never">Älä varoita enää</string>
     <string name="storage_free_up">Vapauta tilaa</string>
     <string name="storage_play_anyway">Pelaa silti</string>
     <plurals name="storage_games_installed">

@@ -1120,6 +1120,8 @@
     <string name="ctrl_joycon_vr">Joy-Con як VR-контролери</string>
     <string name="ctrl_joycon_vr_hint">Поки працює SteamVR, кожен Joy-Con стає рукою. Спрямуйте його вперед і утримуйте Home або Capture, щоб знову його відцентрувати.</string>
     <string name="setup_animations">Анімації</string>
+    <string name="setup_low_storage_warning">Попереджати про брак місця</string>
+    <string name="setup_low_storage_warning_hint">Питати перед запуском Steam, якщо вільно менше 10 ГБ.</string>
     <string name="ctrl_layout">Розкладка</string>
     <string name="ctrl_edit">Змінити</string>
     <string name="ctrl_reset">Скинути</string>
@@ -3030,6 +3032,7 @@
     <string name="storage_low_title">Вільно лише %1$s</string>
     <string name="storage_low_body">Steam потрібне місце для оновлень і кешу шейдерів. Нижче 10 GB оновлення ігор можуть зірватися на півдорозі.</string>
     <string name="storage_low_safe">%1$s можна безпечно звільнити.</string>
+    <string name="storage_low_never">Більше не попереджати</string>
     <string name="storage_free_up">Звільнити місце</string>
     <string name="storage_play_anyway">Грати все одно</string>
     <plurals name="storage_games_installed">

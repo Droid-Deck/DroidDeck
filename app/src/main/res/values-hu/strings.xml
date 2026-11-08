@@ -1108,6 +1108,8 @@
     <string name="ctrl_joycon_vr">Joy-Conok VR-kontrollerként</string>
     <string name="ctrl_joycon_vr_hint">Amíg a SteamVR fut, minden Joy-Con egy kéz lesz. Irányítsa előre, és tartsa lenyomva a Home vagy a Capture gombot az újraközpontosításhoz.</string>
     <string name="setup_animations">Animációk</string>
+    <string name="setup_low_storage_warning">Figyelmeztetés kevés tárhely esetén</string>
+    <string name="setup_low_storage_warning_hint">Rákérdezés a Steam indítása előtt, ha 10 GB-nál kevesebb a szabad hely.</string>
     <string name="ctrl_layout">Elrendezés</string>
     <string name="ctrl_edit">Szerkesztés</string>
     <string name="ctrl_reset">Visszaállítás</string>
@@ -2972,6 +2974,7 @@
     <string name="storage_low_title">Csak %1$s szabad</string>
     <string name="storage_low_body">A Steamnek hely kell a frissítésekhez és a shader-gyorsítótárhoz. 10 GB alatt a játékfrissítések félúton meghiúsulhatnak.</string>
     <string name="storage_low_safe">%1$s biztonságosan felszabadítható.</string>
+    <string name="storage_low_never">Ne figyelmeztessen többé</string>
     <string name="storage_free_up">Hely felszabadítása</string>
     <string name="storage_play_anyway">Játék így is</string>
     <plurals name="storage_games_installed">

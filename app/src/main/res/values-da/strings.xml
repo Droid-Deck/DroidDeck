@@ -1108,6 +1108,8 @@
     <string name="ctrl_joycon_vr">Joy-Cons som VR-controllere</string>
     <string name="ctrl_joycon_vr_hint">Mens SteamVR kører, bliver hver Joy-Con en hånd. Peg den fremad, og hold Home eller Capture nede for at centrere den igen.</string>
     <string name="setup_animations">Animationer</string>
+    <string name="setup_low_storage_warning">Advar, når lagerpladsen er lav</string>
+    <string name="setup_low_storage_warning_hint">Spørg, før Steam startes, når den ledige plads er under 10 GB.</string>
     <string name="ctrl_layout">Layout</string>
     <string name="ctrl_edit">Rediger</string>
     <string name="ctrl_reset">Nulstil</string>
@@ -2972,6 +2974,7 @@
     <string name="storage_low_title">Kun %1$s ledig</string>
     <string name="storage_low_body">Steam har brug for plads til opdateringer og shadercache. Under 10 GB kan spilopdateringer mislykkes halvvejs.</string>
     <string name="storage_low_safe">%1$s kan frigøres sikkert.</string>
+    <string name="storage_low_never">Advar mig ikke igen</string>
     <string name="storage_free_up">Frigør plads</string>
     <string name="storage_play_anyway">Spil alligevel</string>
     <plurals name="storage_games_installed">

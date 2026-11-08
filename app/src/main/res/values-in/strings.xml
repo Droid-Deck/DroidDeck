@@ -1102,6 +1102,8 @@
     <string name="ctrl_joycon_vr">Joy-Con sebagai pengontrol VR</string>
     <string name="ctrl_joycon_vr_hint">Saat SteamVR berjalan, setiap Joy-Con menjadi tangan. Arahkan ke depan lalu tahan Home atau Capture untuk memusatkannya kembali.</string>
     <string name="setup_animations">Animasi</string>
+    <string name="setup_low_storage_warning">Peringatkan saat penyimpanan hampir penuh</string>
+    <string name="setup_low_storage_warning_hint">Tanya sebelum memulai Steam saat ruang kosong di bawah 10 GB.</string>
     <string name="ctrl_layout">Tata letak</string>
     <string name="ctrl_edit">Edit</string>
     <string name="ctrl_reset">Reset</string>
@@ -2943,6 +2945,7 @@
     <string name="storage_low_title">Hanya %1$s kosong</string>
     <string name="storage_low_body">Steam butuh ruang untuk pembaruan dan cache shader. Di bawah 10 GB, pembaruan gim bisa gagal di tengah.</string>
     <string name="storage_low_safe">%1$s bisa dikosongkan dengan aman.</string>
+    <string name="storage_low_never">Jangan peringatkan saya lagi</string>
     <string name="storage_free_up">Kosongkan ruang</string>
     <string name="storage_play_anyway">Tetap main</string>
     <plurals name="storage_games_installed">

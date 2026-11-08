@@ -1132,6 +1132,8 @@
     <string name="ctrl_joycon_vr">أجهزة Joy-Con كوحدات تحكم VR</string>
     <string name="ctrl_joycon_vr_hint">أثناء تشغيل SteamVR، يصبح كل Joy-Con يدًا. وجّهه إلى الأمام واضغط مطولًا على Home أو Capture لإعادة توسيطه.</string>
     <string name="setup_animations">الرسوم المتحركة</string>
+    <string name="setup_low_storage_warning">التحذير عند انخفاض مساحة التخزين</string>
+    <string name="setup_low_storage_warning_hint">اسأل قبل تشغيل Steam عندما تكون المساحة الحرة أقل من 10 جيجابايت.</string>
     <string name="ctrl_layout">التخطيط</string>
     <string name="ctrl_edit">تعديل</string>
     <string name="ctrl_reset">إعادة ضبط</string>
@@ -3088,6 +3090,7 @@
     <string name="storage_low_title">المتاح %1$s فقط</string>
     <string name="storage_low_body">يحتاج Steam مساحة للتحديثات وذاكرة الشيدرات. تحت 10 GB قد تفشل تحديثات الألعاب في المنتصف.</string>
     <string name="storage_low_safe">يمكن تحرير %1$s بأمان.</string>
+    <string name="storage_low_never">لا تحذرني من هذا مرة أخرى</string>
     <string name="storage_free_up">تحرير مساحة</string>
     <string name="storage_play_anyway">اللعب على أي حال</string>
     <plurals name="storage_games_installed">

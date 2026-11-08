@@ -755,7 +755,7 @@ private fun ToolList(tools: List<ToolUsage>, sessionRunning: Boolean, onRemove: 
 }
 
 @Composable
-internal fun LowSpaceDialog(free: Long, onFreeUp: () -> Unit, onPlay: () -> Unit, onDismiss: () -> Unit) {
+internal fun LowSpaceDialog(free: Long, warn: Boolean, onWarnChange: (Boolean) -> Unit, onFreeUp: () -> Unit, onPlay: () -> Unit, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val report = StorageState.report
@@ -770,6 +770,7 @@ internal fun LowSpaceDialog(free: Long, onFreeUp: () -> Unit, onPlay: () -> Unit
                 if (report != null && StorageState.safeBytes(report) > 0) Text(
                     stringResource(R.string.storage_low_safe, gb(StorageState.safeBytes(report))), fontSize = 13.sp, color = pal.good,
                 )
+                DialogToggleRow(stringResource(R.string.storage_low_never), !warn) { onWarnChange(!it) }
             }
         },
         confirmButton = { FocusText(stringResource(R.string.storage_free_up), pal.signal, modifier = Modifier.focusRequester(focus), onClick = onFreeUp) },

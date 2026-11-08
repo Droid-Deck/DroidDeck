@@ -1100,6 +1100,8 @@
     <string name="ctrl_joycon_vr">VR kumandası olarak Joy-Con\'lar</string>
     <string name="ctrl_joycon_vr_hint">SteamVR çalışırken her Joy-Con bir el olur. Öne doğrultun ve yeniden ortalamak için Home veya Capture düğmesini basılı tutun.</string>
     <string name="setup_animations">Animasyonlar</string>
+    <string name="setup_low_storage_warning">Depolama azaldığında uyar</string>
+    <string name="setup_low_storage_warning_hint">Boş alan 10 GB\'ın altındayken Steam\'i başlatmadan önce sor.</string>
     <string name="ctrl_layout">Düzen</string>
     <string name="ctrl_edit">Düzenle</string>
     <string name="ctrl_reset">Sıfırla</string>
@@ -2972,6 +2974,7 @@
     <string name="storage_low_title">Yalnızca %1$s boş</string>
     <string name="storage_low_body">Steam\'in güncellemeler ve gölgelendirici önbellekleri için yere ihtiyacı var. 10 GB\'ın altında oyun güncellemeleri yarıda başarısız olabilir.</string>
     <string name="storage_low_safe">%1$s güvenle boşaltılabilir.</string>
+    <string name="storage_low_never">Bir daha uyarma</string>
     <string name="storage_free_up">Yer aç</string>
     <string name="storage_play_anyway">Yine de oyna</string>
     <plurals name="storage_games_installed">
