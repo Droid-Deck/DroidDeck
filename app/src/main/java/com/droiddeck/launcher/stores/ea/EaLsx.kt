@@ -68,6 +68,8 @@ object EaLsx {
 
     @Volatile var game: Game? = null
     @Volatile private var account: Account? = null
+    /** The one session of the current launch that may act for the account. */
+    private val holder = java.util.concurrent.atomic.AtomicReference<Any?>(null)
     private var server: ServerSocket? = null
     private val lock = Any()
     private const val MAX_CLIENTS = 8
@@ -76,6 +78,7 @@ object EaLsx {
 
     fun start(context: Context, game: Game): Boolean {
         this.game = game
+        holder.set(null)
         account = AppAccount(context.applicationContext)
         synchronized(lock) {
             if (server?.isClosed == false) return true
@@ -98,6 +101,7 @@ object EaLsx {
             server = null
             game = null
             account = null
+            holder.set(null)
             for (socket in open) runCatching { socket.close() }
             open.clear()
         }
@@ -192,6 +196,7 @@ object EaLsx {
         } catch (e: Exception) {
             why = e.javaClass.simpleName
         } finally {
+            holder.compareAndSet(session, null)
             note("game disconnected ($why)")
             runCatching { client.close() }
         }
@@ -278,8 +283,9 @@ object EaLsx {
                 val version = m.attrs["version"].orEmpty()
                 val seed = EaCrypto.challengeSeed(version, answer) ?: 0
                 val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
-                session.trusted = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
-                note("challenge version '$version' content '$content' ${if (session.trusted) "matches" else "does not match"} the prepared game")
+                val matches = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
+                session.trusted = matches && holder.compareAndSet(null, session)
+                note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; else -> "does not match the prepared game" }}")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
                 tag("ChallengeAccepted", "response" to answer)
