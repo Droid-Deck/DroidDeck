@@ -126,7 +126,7 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
-            if (clients.incrementAndGet() > MAX_CLIENTS) {
+            if (clients.incrementAndGet() > MAX_CLIENTS && !evictUntrusted()) {
                 clients.decrementAndGet()
                 runCatching { client.close() }
                 continue
@@ -154,9 +154,19 @@ object EaLsx {
         if (local == port && remote == PORT) f.getOrNull(7)?.toIntOrNull() else null
     }
 
-    private class Session(val output: OutputStream, val verified: Boolean) {
+    /** Frees a slot for a new connection by closing the oldest session that never became trusted. */
+    private fun evictUntrusted(): Boolean {
+        val victim = synchronized(sessions) { sessions.firstOrNull { !it.trusted } } ?: return false
+        runCatching { victim.socket.close() }
+        return true
+    }
+
+    private val sessions = LinkedHashSet<Session>()
+
+    private class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
+        val connectedAt = System.currentTimeMillis()
         var key: ByteArray? = null
-        var trusted = false
+        @Volatile var trusted = false
         var pending: ByteArray? = null
 
         @Synchronized
@@ -174,16 +184,22 @@ object EaLsx {
     private fun serve(client: Socket, verified: Boolean) {
         client.tcpNoDelay = true
         client.soTimeout = HANDSHAKE_TIMEOUT_MS
-        val session = Session(client.getOutputStream(), verified)
+        val session = Session(client, client.getOutputStream(), verified)
         val seen = LinkedHashSet<String>()
         var why = "closed by the game"
         note("game connected")
+        synchronized(sessions) { sessions += session }
         try {
             session.send("<LSX><Event sender=\"$SENDER\"><Challenge build=\"release\" key=\"$CHALLENGE_KEY\" version=\"$CHALLENGE_VERSION\"/></Event></LSX>")
             val input = client.getInputStream()
             val pending = ByteArrayOutputStream()
             val chunk = ByteArray(16 * 1024)
             while (true) {
+                if (session.key == null) {
+                    val left = session.connectedAt + HANDSHAKE_TIMEOUT_MS - System.currentTimeMillis()
+                    if (left <= 0) throw java.net.SocketTimeoutException()
+                    client.soTimeout = left.toInt()
+                }
                 val n = input.read(chunk)
                 if (n < 0) break
                 pending.write(chunk, 0, n)
@@ -209,6 +225,7 @@ object EaLsx {
             why = e.javaClass.simpleName
         } finally {
             holder.compareAndSet(session, null)
+            synchronized(sessions) { sessions -= session }
             note("game disconnected ($why)")
             runCatching { client.close() }
         }
