@@ -558,6 +558,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var frameGenInventoryIds: Set<Long>? = null
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
@@ -2419,10 +2420,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val cachedIds = LibraryCache.load(this)
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
-        val currentIds = Library.launchableGames(this)
-            .mapNotNull { it.profileKey.toLongOrNull() }
-            .toSet()
-        val activeAppId = AgentGuest.activeSteamAppId(this, cachedIds + currentIds)
+
+        var ids = frameGenInventoryIds
+        if (ids == null) {
+            val currentIds = runCatching {
+                Library.launchableGames(this)
+                    .mapNotNull { it.profileKey.toLongOrNull() }
+                    .toSet()
+            }.getOrNull()
+
+            ids = cachedIds + (currentIds ?: emptySet())
+            if (currentIds != null) {
+                frameGenInventoryIds = ids
+            }
+        }
+
+        val activeAppId = AgentGuest.activeSteamAppId(this, cachedIds + ids)
         return FrameGen.mode(this, activeAppId?.toString())
     }
 
