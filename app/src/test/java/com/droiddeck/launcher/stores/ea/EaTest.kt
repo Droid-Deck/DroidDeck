@@ -137,6 +137,14 @@ class EaTest {
         EaLsx.stop()
     }
 
+    @Test fun aSessionFromAnOlderLaunchCannotBecomeTrusted() {
+        val old = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), true)
+        EaLsx.generation++
+        EaLsx.promote(old, true)
+        assertFalse(old.trusted)
+        EaLsx.stop()
+    }
+
     @Test fun lateExitDoesNotStopANewerLaunch() {
         val game = EaLsx.Game("Origin.OFR.2", "2", "Two", "1", "en_US", null, 0)
         EaLsx.game = game

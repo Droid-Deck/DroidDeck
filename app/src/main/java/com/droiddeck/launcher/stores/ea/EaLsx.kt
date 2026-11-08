@@ -70,7 +70,7 @@ object EaLsx {
     @Volatile private var account: Account? = null
     /** The one session of the current launch that may act for the account. */
     /** Bumped whenever the launch changes; a connection accepted under an older one is not admitted. */
-    @Volatile private var generation = 0
+    @Volatile internal var generation = 0
     private val holder = java.util.concurrent.atomic.AtomicReference<Any?>(null)
     private var server: ServerSocket? = null
     private val lock = Any()
@@ -82,9 +82,12 @@ object EaLsx {
             closeSessions()
             this.game = game
             account = AppAccount(context.applicationContext)
-            if (server?.isClosed == false) return true
+            runCatching { server?.close() }
             return try {
-                val socket = ServerSocket(PORT, 8, InetAddress.getByName("127.0.0.1")).apply { reuseAddress = true }
+                val socket = ServerSocket().apply {
+                    reuseAddress = true
+                    bind(java.net.InetSocketAddress(InetAddress.getByName("127.0.0.1"), PORT), 8)
+                }
                 server = socket
                 Thread({ accept(socket) }, "ea-lsx").apply { isDaemon = true }.start()
                 Log.i(TAG, "listening on $PORT")
@@ -122,7 +125,6 @@ object EaLsx {
 
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
-            val born = generation
             val client = runCatching { socket.accept() }.getOrNull() ?: continue
             val verified = ownerUid(client)?.let { it == android.os.Process.myUid() }
             if (verified == false) {
@@ -131,7 +133,7 @@ object EaLsx {
                 continue
             }
             val session = runCatching { Session(client, client.getOutputStream(), verified == true) }.getOrNull()
-            val live = session != null && synchronized(lock) { server === socket && born == generation && admit(session).also { if (it) open += client } }
+            val live = session != null && synchronized(lock) { server === socket && admit(session).also { if (it) open += client } }
             if (!live) {
                 runCatching { client.close() }
                 continue
@@ -178,10 +180,11 @@ object EaLsx {
 
     /** Trust and eviction exclude each other: an evicted session never becomes trusted, a trusted one is never evicted. */
     internal fun promote(session: Session, matches: Boolean) {
-        synchronized(sessions) { session.trusted = matches && !session.evicted && holder.compareAndSet(null, session) }
+        synchronized(sessions) { session.trusted = matches && !session.evicted && session.born == generation && holder.compareAndSet(null, session) }
     }
 
     internal class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
+        val born = generation
         val connectedAt = System.currentTimeMillis()
         @Volatile var evicted = false
         @Volatile var claimed = false
