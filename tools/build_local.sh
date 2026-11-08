@@ -148,6 +148,7 @@ docker run --rm --platform "${docker_platform}" \
         external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
         aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
+        bash tools/linuxfs/lse-emu/build.sh "$d"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do

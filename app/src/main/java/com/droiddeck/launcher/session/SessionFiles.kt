@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.CpuFeatures
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.DesktopCatalog
@@ -18,6 +19,10 @@ object SessionFiles {
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
     private const val STAGED_LEDGER = "usr/local/.droiddeck-staged"
+    internal const val LSE_EMU = "usr/local/lib/droiddeck-lse/liblse_emu.so"
+
+    internal fun lsePreload(lacksAtomics: Boolean, staged: Boolean): String =
+        if (lacksAtomics && staged) "/$LSE_EMU\n" else ""
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     internal val DESKTOP_FILES = arrayOf(
@@ -195,6 +200,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
+            LSE_EMU to LSE_EMU,
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
@@ -252,7 +258,8 @@ object SessionFiles {
         }
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
-        val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
+        val preload = StringBuilder(lsePreload(CpuFeatures.lacksAtomics, File(root, LSE_EMU).isFile))
+        preload.append("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }

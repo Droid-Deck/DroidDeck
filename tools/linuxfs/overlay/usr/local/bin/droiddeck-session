@@ -11,6 +11,10 @@ if [ "${BL_RAISE_NOFILE:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ]; then
   unset bl_nofile_was
 fi
 export HOME=${HOME:-/root}
+if grep -qs '/liblse_emu\.so$' /etc/ld.so.preload; then
+  export LSE_EMU=1 LSE_EMU_PATCH=1
+  [ -n "${BL_DEBUG_DIR:-}" ] && export LSE_EMU_LOG=${LSE_EMU_LOG:-$BL_DEBUG_DIR/lse_emu.log}
+fi
 mode=${1:-desktop}
 shift || true
 step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
@@ -30,6 +34,7 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   echo "== uid=$(id -u) size=${BL_WIDTH:-?}x${BL_HEIGHT:-?} icd=${VK_ICD_FILENAMES:-none}"
   echo "== gamescope: $(gamescope --version 2>&1 | head -1) at $(command -v gamescope)"
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
+  [ "${LSE_EMU:-}" = 1 ] && echo "== cpu: no LSE atomics (ARMv8.0); liblse_emu.so emulates them (log: ${LSE_EMU_LOG:-off})"
 fi
 
 start_diagnostic_inventory() {

@@ -295,6 +295,9 @@ jobs:
           aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
 
+      - name: Build the LSE atomics emulator for ARMv8.0 CPUs
+        run: bash tools/linuxfs/lse-emu/build.sh app/src/main/assets/linuxfs
+
       - name: Check the preloads
         run: |
           set -euo pipefail
