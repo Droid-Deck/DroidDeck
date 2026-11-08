@@ -124,6 +124,12 @@ def deep_rock_gdk_raytracing(game):
 
 
 @fix
+def ff7_rebirth_feature_level(game):
+    if "ff7rebirth_.exe" in game.files or game.stem in ("ff7rebirth_", "ff7rebirth_-win64-shipping"):
+        return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Final Fantasy VII Rebirth: D3D12 feature level 12_2 (the device-reported level fails its DX12 check)"
+
+
+@fix
 def arkham_city_x87(game):
     if "batmanac.exe" in game.files:
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"

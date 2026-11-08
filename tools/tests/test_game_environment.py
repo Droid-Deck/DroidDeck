@@ -1415,6 +1415,19 @@ class GameEnvironmentTest(unittest.TestCase):
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FFVII Rebirth"
+            shipping = root / "ff7rebirth_/Binaries/Win64/ff7rebirth_-Win64-Shipping.exe"
+            shipping.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth_.exe", shipping):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
