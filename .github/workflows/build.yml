@@ -785,11 +785,18 @@ jobs:
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
 
-  python-tests:
-    name: Python and native regression tests
+  python-runner:
     needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
+  python-tests:
+    name: Python and native regression tests
+    needs: [source, python-runner]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ${{ fromJSON(needs.python-runner.outputs.labels) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
