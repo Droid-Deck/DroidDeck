@@ -642,13 +642,7 @@ case $mode in
     fi
     case ${target,,} in
       *.appimage)
-        export APPIMAGE_EXTRACT_AND_RUN=1
-        chmod +x "$target" 2>/dev/null
-        if [ ${#fex[@]} -eq 0 ] && [ -x /usr/local/lib/droiddeck/uruntime ]; then
-          export TARGET_APPIMAGE=$target
-          run_program /usr/local/lib/droiddeck/uruntime "$@"
-        fi
-        run_program "${fex[@]}" "$target" "$@"
+        run_program /usr/local/bin/droiddeck-appimage-exec "$target" "$@"
         ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
