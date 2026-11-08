@@ -18,9 +18,10 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
         val logo: File? = null,
+        val installedAt: Long = 0L,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
@@ -31,6 +32,7 @@ object Library {
         }
     }
     const val ADDED = "added"
+    private const val PLAYED = "added_games_played"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
     const val BATTLENET_LAUNCHER = "battlenet-launcher"
@@ -218,8 +220,17 @@ object Library {
                     AddedGames.guestPath(context, g.folder).let { it == null || it !in claimed })
         }
         val played = shortcutsLastPlayed(SessionPrefs.steamRoot(context, arch))
-        return (steam + own.map { g -> addedGame(context, g, roots, played[g.appId] ?: 0L) }).distinctBy { it.gameId }
+        return (steam + own.map { g -> addedGame(context, g, roots, maxOf(played[g.appId] ?: 0L, recordedPlay(context, g.gameId))) }).distinctBy { it.gameId }
     }
+
+    fun recordPlayed(context: Context, game: SteamGame) {
+        if (game.library != ADDED) return
+        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).edit()
+            .putLong(game.gameIdString, System.currentTimeMillis() / 1000).apply()
+    }
+
+    internal fun recordedPlay(context: Context, gameId: Long): Long =
+        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).getLong(java.lang.Long.toUnsignedString(gameId), 0L)
 
     internal fun shortcutsLastPlayed(root: File): Map<Long, Long> = runCatching {
         val config = AddedGames.accountConfig(root) ?: return emptyMap()
@@ -255,6 +266,7 @@ object Library {
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
                 logo = art.logo,
+                installedAt = g.folder.lastModified(),
             )
         }
 

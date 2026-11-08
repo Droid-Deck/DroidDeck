@@ -45,6 +45,18 @@ class LibraryShortcutsLastPlayedTest {
         assertEquals(mapOf(3388195926L to 1792931476L, 1234L to 1700000000L), Library.shortcutsLastPlayed(root))
     }
 
+    @Test fun aLaunchedAddedGameRemembersItsPlayTime() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val added = Library.SteamGame(-1, "World of Warcraft", null, Library.ADDED, gameId = 0xC0FFEE0002000000uL.toLong())
+        val steam = Library.SteamGame(570, "Dota 2", null, "/steam")
+        assertEquals(0L, Library.recordedPlay(context, added.gameId))
+        val before = System.currentTimeMillis() / 1000
+        Library.recordPlayed(context, added)
+        Library.recordPlayed(context, steam)
+        assert(Library.recordedPlay(context, added.gameId) >= before)
+        assertEquals(0L, Library.recordedPlay(context, steam.gameId))
+    }
+
     @Test fun missingOrBrokenShortcutsGiveNothing() {
         val root = steamRoot()
         assertEquals(emptyMap<Long, Long>(), Library.shortcutsLastPlayed(root))
