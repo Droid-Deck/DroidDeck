@@ -5,6 +5,7 @@ import binascii
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import subprocess
@@ -352,6 +353,7 @@ def prepare_gog(sidecar, compat_data, launch_dir):
 
 GOG_SCRIPTS = "goggame-*.script"
 GOG_REGISTRY_MARK = ".droiddeck-gog-registry"
+GOG_SUPPORT_MARK = ".droiddeck-gog-support"
 GOG_ROOTS = {"HKEY_LOCAL_MACHINE": "HKEY_LOCAL_MACHINE", "HKLM": "HKEY_LOCAL_MACHINE",
              "HKEY_CURRENT_USER": "HKEY_CURRENT_USER", "HKCU": "HKEY_CURRENT_USER",
              "HKEY_CLASSES_ROOT": "HKEY_CLASSES_ROOT", "HKCR": "HKEY_CLASSES_ROOT"}
@@ -611,6 +613,107 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=Non
         return "import-failed" + note
 
 
+def gog_support_actions(folder):
+    found = []
+    for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
+        product = script.name[len("goggame-"):-len(".script")]
+        try:
+            actions = json.loads(script.read_text(encoding="utf-8-sig")).get("actions")
+        except (OSError, ValueError, AttributeError):
+            continue
+        for action in actions if isinstance(actions, list) else []:
+            install = action.get("install") if isinstance(action, dict) else None
+            if isinstance(install, dict) and install.get("action") == "supportData" \
+                    and isinstance(install.get("arguments"), dict):
+                found.append((product, install["arguments"]))
+    return found
+
+
+def gog_support_bases(folder, product, pfx):
+    user = Path(pfx) / "drive_c" / "users" / "steamuser"
+    support = Path(folder) / "support" / product
+    return {"app": Path(folder), "supportdir": support, "support": support,
+            "userdocs": user / "Documents", "localappdata": user / "AppData" / "Local"}
+
+
+def gog_support_path(text, bases):
+    match = re.fullmatch(r"\{(\w+)\}(.*)", text) if isinstance(text, str) else None
+    if not match or match.group(1).lower() not in bases:
+        return None
+    parts = [part for part in re.split(r"[\\/]+", match.group(2)) if part]
+    if any(part in (".", "..") for part in parts):
+        return None
+    path = bases[match.group(1).lower()]
+    for part in parts:
+        exact = path / part
+        if not exact.exists() and path.is_dir():
+            exact = next((child for child in path.iterdir() if child.name.lower() == part.lower()), exact)
+        path = exact
+    return path
+
+
+def gog_copy_file(source, target):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_symlink():
+        target.unlink()
+    shutil.copy2(source, target, follow_symlinks=False)
+
+
+def gog_support_data(folder, compat_data, proton):
+    actions = gog_support_actions(folder)
+    if not actions:
+        return "none"
+    pfx = Path(compat_data) / "pfx" if compat_data else None
+    if not pfx or not (pfx / "drive_c" / "users" / "steamuser").is_dir():
+        made = create_prefix(compat_data, proton)
+        if made not in ("present", "created") or not (pfx / "drive_c" / "users" / "steamuser").is_dir():
+            return "no-prefix"
+    stamp = hashlib.sha256(json.dumps(actions, sort_keys=True).encode("utf-8")).hexdigest()
+    marker = pfx / GOG_SUPPORT_MARK
+    try:
+        if marker.is_file() and marker.read_text() == stamp:
+            return "ready"
+    except OSError:
+        pass
+    copied = skipped = missing = 0
+    for product, arguments in actions:
+        bases = gog_support_bases(folder, product, pfx)
+        target = gog_support_path(arguments.get("target"), bases)
+        source = gog_support_path(arguments["source"], bases) if "source" in arguments else None
+        if target is None or ("source" in arguments and source is None):
+            skipped += 1
+            continue
+        try:
+            if source is None:
+                target.mkdir(parents=True, exist_ok=True)
+            elif not source.exists():
+                missing += 1
+            elif source.is_dir():
+                for top, dirs, files in os.walk(source):
+                    for name in sorted(files + [d for d in dirs if (Path(top) / d).is_symlink()]):
+                        item = Path(top) / name
+                        destination = target / item.relative_to(source)
+                        if destination.exists() and not arguments.get("overwrite"):
+                            continue
+                        gog_copy_file(item, destination)
+                        copied += 1
+                target.mkdir(parents=True, exist_ok=True)
+            elif target.exists() and not target.is_symlink() and not arguments.get("overwrite"):
+                continue
+            else:
+                gog_copy_file(source, target)
+                copied += 1
+        except OSError:
+            skipped += 1
+    note = "".join(" %s=%d" % (name, count) for name, count in (("skipped", skipped), ("missing", missing)) if count)
+    if not skipped:
+        try:
+            marker.write_text(stamp)
+        except OSError:
+            pass
+    return "copied=%d%s" % (copied, note)
+
+
 def main(argv):
     if os.environ.get("DROIDDECK_GOG_MAINTENANCE") == "1":
         return 0
@@ -654,6 +757,7 @@ def main(argv):
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+        log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
