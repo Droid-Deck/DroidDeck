@@ -78,10 +78,10 @@ object EaLsx {
     private val WHITESPACE = Regex("[ \t]+")
 
     fun start(context: Context, game: Game): Boolean {
-        synchronized(lock) { closeSessions() }
-        this.game = game
-        account = AppAccount(context.applicationContext)
         synchronized(lock) {
+            closeSessions()
+            this.game = game
+            account = AppAccount(context.applicationContext)
             if (server?.isClosed == false) return true
             return try {
                 val socket = ServerSocket(PORT, 8, InetAddress.getByName("127.0.0.1")).apply { reuseAddress = true }
@@ -122,6 +122,7 @@ object EaLsx {
 
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
+            val born = generation
             val client = runCatching { socket.accept() }.getOrNull() ?: continue
             val verified = ownerUid(client)?.let { it == android.os.Process.myUid() }
             if (verified == false) {
@@ -129,7 +130,6 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
-            val born = generation
             val session = runCatching { Session(client, client.getOutputStream(), verified == true) }.getOrNull()
             val live = session != null && synchronized(lock) { server === socket && born == generation && admit(session).also { if (it) open += client } }
             if (!live) {
