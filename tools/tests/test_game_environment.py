@@ -804,9 +804,11 @@ class GameEnvironmentTest(unittest.TestCase):
                 MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
             finally:
                 MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(calls[0][0][1], str(root))
-            self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0][0], ["/proton", "run", "cmd.exe", "/c", "exit", "0"])
+            self.assertEqual(calls[0][1], env)
+            self.assertEqual(calls[1][0][1], str(root))
+            self.assertEqual(calls[1][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
 
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
@@ -869,11 +871,11 @@ class GameEnvironmentTest(unittest.TestCase):
                                         env=env, text=True, capture_output=True)
                 return result.returncode, len(runs.read_text().splitlines()) if runs.exists() else 0
 
-            self.assertEqual(evaluate("3"), (3, 1))
+            self.assertEqual(evaluate("3"), (3, 2))
             self.assertFalse((prefix / ".droiddeck-install-scripts").exists())
-            self.assertEqual(evaluate(), (0, 2))
-            self.assertEqual(evaluate(), (0, 2))
-            self.assertEqual(evaluate("changed"), (0, 3))
+            self.assertEqual(evaluate(), (0, 4))
+            self.assertEqual(evaluate(), (0, 5))
+            self.assertEqual(evaluate("changed"), (0, 7))
 
     def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
         bridge = {"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}

@@ -711,6 +711,8 @@ def mark_install_scripts(command, env):
     if not scripts:
         return []
     try:
+        subprocess.run([command[0], "run", "cmd.exe", "/c", "exit", "0"], env=env,
+                       stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
