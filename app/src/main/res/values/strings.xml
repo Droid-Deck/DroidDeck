@@ -1152,6 +1152,16 @@
     <string name="agent_send">Send</string>
     <string name="agent_new">New conversation</string>
     <string name="agent_stop">Stop</string>
+    <string name="agent_storage_title">Storage</string>
+    <string name="agent_storage_remove">Remove</string>
+    <string name="agent_storage_confirm">Remove now</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">DroidDeck source</string>
+    <string name="agent_storage_caches">Download caches</string>
+    <string name="agent_storage_source_warning">Changes that are not pushed are lost</string>
+    <string name="agent_storage_caches_warning">Builds download these again</string>
+    <string name="agent_storage_reinstall_warning">Setup can install it again; sign-ins are kept</string>
     <string name="agent_resumed">DroidDeck restarted on your Lab build. Continue where you left off.</string>
     <string name="agent_empty">Ask it why a game won\'t start, to explain a log, or to change DroidDeck and try the change on this device.</string>
     <string name="agent_failed">Stopped: %1$s</string>
