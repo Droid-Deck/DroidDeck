@@ -35,7 +35,7 @@ object UbisoftLaunch {
             .put("email", me?.optString("email").orEmpty())
             .put("country", me?.optString("country")?.takeIf { it.isNotEmpty() } ?: "US")
         val appId = runCatching { UbisoftAuth.request(ENTITLEMENTS, "GET", auth, s.sessionId) }.getOrNull()?.takeIf { it.ok }
-            ?.let { applicationId(it.body, product) }.orEmpty()
+            ?.let { applicationId(it.body, product) } ?: sidecar.extra["appId"].orEmpty()
         StoresState.logLine("Ubisoft: launch ticket for $product ready (${native.optJSONArray("owned")?.length() ?: 0} products, appId ${if (appId.isEmpty()) "unknown" else "found"})")
         return JSONObject().put("ok", true)
             .put("productId", product)

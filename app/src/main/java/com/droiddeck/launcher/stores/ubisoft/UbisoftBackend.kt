@@ -49,6 +49,11 @@ object UbisoftBackend : StoreBackend {
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
         val app = context.applicationContext
+        item.extra[STEAM_APP]?.takeIf { item.extra["productId"] == null }?.let { steam ->
+            StoresState.logLine("Ubisoft: ${item.title} is owned on Steam; installing Steam app $steam")
+            installInSteam(app, steam)
+            return
+        }
         if (!UbisoftNative.ready()) {
             StoresState.logLine(UbisoftNative.ENGINE_MISSING)
             StoresState.post { StoresState.problems[store] = UbisoftNative.ENGINE_MISSING }
@@ -61,6 +66,19 @@ object UbisoftBackend : StoreBackend {
     }
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
+
+    const val STEAM_APP = "steamAppId"
+
+    /** Steam asks to install a game it does not have when told to run it. */
+    private fun installInSteam(app: Context, steamAppId: String) {
+        if (com.droiddeck.launcher.session.SessionState.running) {
+            if (!com.droiddeck.launcher.session.SessionService.launchGame(app, steamAppId)) StoresState.logLine("Ubisoft: Steam is busy; install Steam app $steamAppId there")
+            return
+        }
+        app.startActivity(Intent(app, com.droiddeck.launcher.SessionActivity::class.java)
+            .putExtra(com.droiddeck.launcher.session.SessionService.EXTRA_STEAM_URL, com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(steamAppId))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 }
 
 internal class UbisoftLogin(override val userAgent: String) : StoreLoginActivity.Flow {
@@ -113,9 +131,29 @@ object UbisoftLibrary {
     /** Base games with a manifest, by UbiServices space; add-ons and bundles share spaces with their game. */
     internal fun ownedBySpace(owned: JSONObject?): Map<String, JSONObject> {
         val list = owned?.optJSONArray("games") ?: return emptyMap()
+        val games = (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+            .filter { it.optString("manifest").isNotEmpty() && it.optInt("productType") == 0 && it.optBoolean("owned", true) }
+        val out = LinkedHashMap<String, JSONObject>()
+        for (key in listOf("spaceId")) for (g in games) {
+            val space = g.optString(key).takeIf { it.isNotEmpty() } ?: continue
+            out.putIfAbsent(space, g)
+        }
+        return out
+    }
+
+    private val STEAM_ID = Regex("""^\s*steam_app_id:\s*['"]?(\d+)""", RegexOption.MULTILINE)
+    private val THIRD_PARTY = Regex("""^\s*third_party_platform:\s*\r?\n\s+name:\s*['"]?Steam\b""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE))
+
+    /** The Steam app of a product Ubisoft says is owned and installed through Steam. */
+    internal fun steamApp(configuration: String): String? =
+        if (THIRD_PARTY.containsMatchIn(configuration)) STEAM_ID.find(configuration)?.groupValues?.get(1) else null
+
+    /** Owned games Ubisoft delivers through Steam, by UbiServices space. */
+    internal fun steamBySpace(owned: JSONObject?): Map<String, String> {
+        val list = owned?.optJSONArray("games") ?: return emptyMap()
         return (0 until list.length()).mapNotNull { list.optJSONObject(it) }
-            .filter { it.optString("spaceId").isNotEmpty() && it.optString("manifest").isNotEmpty() && it.optInt("productType") == 0 && it.optBoolean("owned", true) }
-            .groupBy { it.optString("spaceId") }.mapValues { it.value.first() }
+            .filter { it.optInt("productType") == 0 && it.optBoolean("owned", true) && it.optString("spaceId").isNotEmpty() }
+            .mapNotNull { o -> steamApp(o.optString("configuration"))?.let { o.optString("spaceId") to it } }.toMap()
     }
 
     private val RELATIVE = Regex("""relative:\s*['"]?([^'"\r\n]+?)['"]?\s*$""", RegexOption.MULTILINE)
@@ -161,23 +199,22 @@ object UbisoftLibrary {
             val owned = UbisoftNative.call("owned", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId))
             owned?.optString("error")?.takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: ownership: $it") }
             val bySpace = ownedBySpace(owned)
-            owned?.optJSONArray("games")?.let { list ->
-                val bySpaceAll = (0 until list.length()).mapNotNull { list.optJSONObject(it) }.groupBy { it.optString("spaceId") }
-                for (g in all.distinctBy { it.id }.filter { it.id !in bySpace }) {
-                    val seen = bySpaceAll[g.id].orEmpty().joinToString(";") {
-                        "${it.optLong("productId")}:t${it.optInt("productType")}:s${it.optInt("state")}:o${it.optBoolean("owned", true)}:m${it.optString("manifest").isNotEmpty()}"
-                    }
-                    StoresState.logLine("Ubisoft: no download for ${g.title} (${g.id.take(8)}): ${seen.ifEmpty { "not in ownership" }}")
-                }
+            owned?.takeIf { it.optInt("manifestsAsked") > 0 }?.let {
+                StoresState.logLine("Ubisoft: latest manifests: ${it.optInt("manifestsFound")} of ${it.optInt("manifestsAsked")} ${it.optString("manifestError")}".trim())
             }
             fun download(o: JSONObject) = listOfNotNull(
                 "productId" to o.optLong("productId").toString(),
                 o.optString("manifest").takeIf { it.isNotEmpty() }?.let { "manifest" to it },
+                o.optString("appId").takeIf { it.isNotEmpty() }?.let { "appId" to it },
                 executable(o.optString("configuration"))?.let { "exe" to it },
             )
             val listed = all.distinctBy { it.id }
-            val matched = listed.map { g -> bySpace[g.id]?.let { g.copy(extra = g.extra + download(it)) } ?: g }
-            val unlisted = bySpace.filterKeys { space -> listed.none { it.id == space } }.mapNotNull { (space, o) ->
+            val onSteam = steamBySpace(owned)
+            val matched = listed.map { g -> bySpace[g.id]?.let { g.copy(extra = g.extra + download(it)) } ?: onSteam[g.id]?.let { g.copy(extra = g.extra + (UbisoftBackend.STEAM_APP to it)) } ?: g }
+                .let { games -> games.filter { g -> g.extra["productId"] == null || games.first { it.extra["productId"] == g.extra["productId"] } === g } }
+                .let { games -> games.filter { g -> g.extra["productId"] != null || games.none { it !== g && it.title == g.title && it.extra["productId"] != null } } }
+            val products = matched.mapNotNull { it.extra["productId"] }.toSet()
+            val unlisted = bySpace.filterKeys { space -> listed.none { it.id == space } }.filterValues { it.optLong("productId").toString() !in products }.mapNotNull { (space, o) ->
                 val title = title(o.optString("configuration")) ?: return@mapNotNull null
                 CatalogItem(Store.UBISOFT, space, title, null, owned = true, extra = mapOf("spaceId" to space) + download(o))
             }
@@ -191,7 +228,7 @@ object UbisoftLibrary {
                 StoresState.shelves[Store.UBISOFT] = com.droiddeck.launcher.stores.StoreShelves(
                     trending = games.sortedByDescending { it.extra.containsKey("productId") }, art = games.mapNotNull { it.imageUrl })
             }
-            StoresState.logLine("Ubisoft: ${games.size} owned games")
+            StoresState.logLine("Ubisoft: ${games.size} owned games; on Steam: " + games.filter { it.extra.containsKey(UbisoftBackend.STEAM_APP) }.joinToString(", ") { "${it.title}=${it.extra[UbisoftBackend.STEAM_APP]}" })
         } catch (e: Exception) {
             StoresState.logLine("Ubisoft: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")
             StoresState.post { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_failed) }

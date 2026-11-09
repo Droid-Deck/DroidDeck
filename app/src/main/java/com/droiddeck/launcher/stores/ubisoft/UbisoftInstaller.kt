@@ -82,6 +82,6 @@ internal class UbisoftInstaller(
     }
 
     private companion object {
-        val KEPT = setOf("productId", "spaceId", "manifest")
+        val KEPT = setOf("productId", "spaceId", "manifest", "appId")
     }
 }

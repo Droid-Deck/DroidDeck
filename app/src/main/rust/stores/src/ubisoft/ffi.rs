@@ -25,8 +25,19 @@ fn owned(ticket: &str, session: &str) -> Result<serde_json::Value, String> {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
     rt.block_on(async {
         let mut d = super::demux::Demux::connect(ticket).await?;
-        let (_, games) = super::service::Ownership::open(&mut d, ticket, session).await?;
-        Ok(json!({ "games": games.iter().map(|g| g.to_json()).collect::<Vec<_>>() }))
+        let (mut ownership, mut games) = super::service::Ownership::open(&mut d, ticket, session).await?;
+        let missing: Vec<u32> = games.iter().filter(|g| g.owned && g.product_type == 0 && g.manifest.is_empty()).map(|g| g.product_id).collect();
+        let (found, manifest_error) = match ownership.latest_manifests(&mut d, &missing).await {
+            Ok(m) => (m, String::new()),
+            Err(e) => (Vec::new(), e),
+        };
+        for (product, manifest) in &found {
+            if let Some(g) = games.iter_mut().find(|g| g.product_id == *product) {
+                g.manifest = manifest.clone();
+            }
+        }
+        Ok(json!({ "games": games.iter().map(|g| g.to_json()).collect::<Vec<_>>(),
+                   "manifestsAsked": missing.len(), "manifestsFound": found.len(), "manifestError": manifest_error }))
     })
 }
 

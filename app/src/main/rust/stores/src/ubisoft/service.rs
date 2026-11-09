@@ -11,6 +11,12 @@ pub struct Owned {
     pub state: u32,
     pub owned: bool,
     pub configuration: String,
+    pub app_id: String,
+    pub partner: u32,
+    pub activation: u32,
+    pub locked_by_subscription: bool,
+    pub associations: Vec<u32>,
+    pub download_id: u32,
 }
 
 impl Owned {
@@ -23,7 +29,9 @@ impl Owned {
         json!({
             "productId": self.product_id, "spaceId": self.space_id, "manifest": self.manifest,
             "productType": self.product_type, "state": self.state, "owned": self.owned,
-            "configuration": self.configuration,
+            "configuration": self.configuration, "appId": self.app_id,
+            "partner": self.partner, "activation": self.activation, "lockedBySubscription": self.locked_by_subscription,
+            "associations": self.associations, "downloadId": self.download_id,
         })
     }
 }
@@ -43,6 +51,12 @@ fn owned_game(b: &[u8]) -> Result<Owned, String> {
         state: pb::num(&f, 13).unwrap_or(0) as u32,
         owned: pb::num(&f, 20).map(|v| v == 1).unwrap_or(true),
         configuration: pb::string(&f, 17).unwrap_or_default(),
+        app_id: pb::string(&f, 31).unwrap_or_default(),
+        partner: pb::num(&f, 38).unwrap_or(0) as u32,
+        activation: pb::num(&f, 36).unwrap_or(0) as u32,
+        locked_by_subscription: pb::num(&f, 37) == Some(1),
+        associations: f.iter().filter_map(|(n, v)| match v { pb::Value::Varint(x) if *n == 16 => Some(*x as u32), _ => None }).collect(),
+        download_id: pb::num(&f, 5).unwrap_or(0) as u32,
     })
 }
 
@@ -68,6 +82,36 @@ impl Ownership {
             }
         }
         Ok((Ownership { conn, next: 2 }, games))
+    }
+
+    /// The latest manifest of each product that has one, for games whose ownership entry leaves it out.
+    pub async fn latest_manifests(&mut self, d: &mut Demux, products: &[u32]) -> Result<Vec<(u32, String)>, String> {
+        if products.is_empty() {
+            return Ok(Vec::new());
+        }
+        let id = self.next;
+        self.next += 1;
+        let mut req = Msg::new();
+        for p in products {
+            req = req.uint(1, *p as u64);
+        }
+        let raw = d.call(self.conn, Msg::new().msg(1, Msg::new().uint(1, id).msg(10, req))).await?;
+        let rsp = pb::fields(pb::sub(&pb::fields(&raw)?, 1).ok_or("no ownership answer")?)?;
+        let m = pb::fields(pb::sub(&rsp, 10).ok_or("no manifest answer")?)?;
+        if pb::num(&m, 1) != Some(1) {
+            return Err("Ubisoft would not list the latest manifests".into());
+        }
+        let mut out = Vec::new();
+        for entry in pb::subs(&m, 2) {
+            let e = pb::fields(entry)?;
+            if pb::num(&e, 1) != Some(1) {
+                continue;
+            }
+            if let (Some(product), Some(manifest)) = (pb::num(&e, 2), pb::string(&e, 3).filter(|s| !s.is_empty())) {
+                out.push((product as u32, manifest));
+            }
+        }
+        Ok(out)
     }
 
     /// The ticket a game receives in its launcher session (`GetUplayPCTicket`).
