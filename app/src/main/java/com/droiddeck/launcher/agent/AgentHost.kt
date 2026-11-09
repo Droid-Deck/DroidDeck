@@ -131,7 +131,7 @@ object AgentHost {
      * proot over the installed rootfs, without a session. Loopback adb is connected first so
      * droiddeckctl reaches the app.
      */
-    fun guest(app: Context, command: List<String>, workdir: String = "/root"): ProcessBuilder {
+    fun guest(app: Context, command: List<String>, workdir: String = "/root", connectAdb: Boolean = true): ProcessBuilder {
         val adb = AgentAdb.prepare(app)
         val env = listOf(
             "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
@@ -140,7 +140,9 @@ object AgentHost {
         )
         val shell = listOf(
             "/bin/sh", "-c",
-            "adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; cd \"$1\" 2>/dev/null; shift; exec \"$@\"", "sh", workdir,
+            // proot ends the adb server with the command, so each command that needs adb connects it.
+            (if (connectAdb) "adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " else "") +
+                "cd \"$1\" 2>/dev/null; shift; exec \"$@\"", "sh", workdir,
         )
         val proot = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), env + shell + command)
         return ProcessBuilder(proot).redirectErrorStream(true).apply {

@@ -44,16 +44,18 @@ object AgentSetup {
         if (!runtimeInstalled) return
         AgentHost.refresh(app)
         val harness = AgentHost.harness
+        val probes = mutableListOf<Pair<Step, List<String>>>()
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {
                 Step.INSTALL -> set(step, if (AgentHost.guestFileExists(app, harness.binary)) Status.DONE else Status.TODO)
                 Step.BUILD_TOOLS -> set(step, if (AgentHost.guestFileExists(app, "/root/aapt2/aapt2") &&
                     AgentHost.guestFileExists(app, "$CHECKOUT/.git")) Status.DONE else Status.TODO)
-                Step.CONNECTION -> probe(app, step, listOf("sh", "-c", "adb -s \"\$ADB_SERIAL\" get-state | grep -q device"))
-                Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probe(app, step, harness.signedIn) else set(step, Status.TODO)
-                Step.GITHUB -> probe(app, step, listOf("gh", "auth", "status"))
+                Step.CONNECTION -> probes += step to listOf("sh", "-c", "adb -s \"\$ADB_SERIAL\" get-state | grep -q device")
+                Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
+                Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
             }
         }
+        Thread({ for ((step, command) in probes) probe(app, step, command) }, "agent-checks").start()
     }
 
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
@@ -98,18 +100,16 @@ object AgentSetup {
     }
 
     private fun probe(app: Context, step: Step, command: List<String>) {
-        Thread({
-            val ok = runCatching {
-                val child = AgentHost.guest(app, command).start()
-                child.outputStream.close()
-                child.inputStream.readBytes()
-                child.waitFor(60, TimeUnit.SECONDS) && child.exitValue() == 0
-            }.getOrDefault(false)
-            main.post {
-                if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
-                if (ready) AgentHost.prefs(app).edit().putBoolean(COMPLETED_KEY, true).apply()
-            }
-        }, "agent-check-${step.name.lowercase()}").start()
+        val ok = runCatching {
+            val child = AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION).start()
+            child.outputStream.close()
+            child.inputStream.readBytes()
+            child.waitFor(60, TimeUnit.SECONDS) && child.exitValue() == 0
+        }.getOrDefault(false)
+        main.post {
+            if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
+            if (ready) AgentHost.prefs(app).edit().putBoolean(COMPLETED_KEY, true).apply()
+        }
     }
 
     private fun set(step: Step, value: Status) {
