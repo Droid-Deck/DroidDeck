@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Downloader shader-cache</string>
     <string name="bottom_downloads_paused">På pause</string>
     <string name="bottom_downloads_queued">Venter på at starte</string>
-    <string name="bottom_page_notifications">Notifikationer</string>
-    <string name="bottom_notifications_listener">DroidDecks nederste skærm</string>
-    <string name="bottom_notifications_why">Vis beskeder og andre notifikationer her, mens du spiller. De bliver kun på denne skærm og gemmes ikke. Android spørger én gang: siden for notifikationsadgang åbnes på denne skærm; slå DroidDeck til der, så vender denne side selv tilbage.</string>
-    <string name="bottom_notifications_allow">Tillad notifikationsadgang</string>
-    <string name="bottom_notifications_none">Ingen notifikationer.</string>
-    <string name="bottom_notifications_count">%1$d notifikationer</string>
-    <string name="bottom_notifications_clear">Ryd</string>
     <string name="bottom_page_screenshots">Skærmbilleder</string>
     <string name="stats_fps_needs_hud">FPS kræver, at HUD er slået til</string>
     <string name="stats_speed">Hastighed</string>

@@ -1801,13 +1801,6 @@
     <string name="bottom_downloads_shader">Se descarcă cache-ul de shadere</string>
     <string name="bottom_downloads_paused">Întrerupt</string>
     <string name="bottom_downloads_queued">Așteaptă să înceapă</string>
-    <string name="bottom_page_notifications">Notificări</string>
-    <string name="bottom_notifications_listener">Ecranul de jos DroidDeck</string>
-    <string name="bottom_notifications_why">Afișează aici mesajele și alte notificări în timp ce te joci. Rămân doar pe acest ecran și nu sunt salvate. Android întreabă o singură dată: pagina sa de acces la notificări se deschide pe acest ecran; activează DroidDeck acolo, iar această pagină revine singură.</string>
-    <string name="bottom_notifications_allow">Permite accesul la notificări</string>
-    <string name="bottom_notifications_none">Nicio notificare.</string>
-    <string name="bottom_notifications_count">Notificări: %1$d</string>
-    <string name="bottom_notifications_clear">Șterge</string>
     <string name="bottom_page_screenshots">Capturi de ecran</string>
     <string name="stats_fps_needs_hud">FPS necesită HUD-ul activat</string>
     <string name="stats_speed">Viteză</string>

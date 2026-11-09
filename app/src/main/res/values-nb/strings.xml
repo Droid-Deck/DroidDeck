@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Laster ned shaderbuffer</string>
     <string name="bottom_downloads_paused">Pauset</string>
     <string name="bottom_downloads_queued">Venter på å starte</string>
-    <string name="bottom_page_notifications">Varslinger</string>
-    <string name="bottom_notifications_listener">DroidDeck nedre skjerm</string>
-    <string name="bottom_notifications_why">Vis meldinger og andre varslinger her mens du spiller. De vises bare på denne skjermen og lagres ikke. Android spør én gang: siden for varseltilgang åpnes på denne skjermen; slå på DroidDeck der, så kommer denne siden tilbake av seg selv.</string>
-    <string name="bottom_notifications_allow">Tillat varseltilgang</string>
-    <string name="bottom_notifications_none">Ingen varslinger.</string>
-    <string name="bottom_notifications_count">%1$d varslinger</string>
-    <string name="bottom_notifications_clear">Fjern</string>
     <string name="bottom_page_screenshots">Skjermbilder</string>
     <string name="stats_fps_needs_hud">FPS krever at HUD-en er på</string>
     <string name="stats_speed">Fart</string>

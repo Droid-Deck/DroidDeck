@@ -3445,49 +3445,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
-        openSettings = ::openSettingsBelow,
         runningGame = { gestureGame },
     ))
-
-    private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
-        val presentation = secondScreenPresentation
-        if (presentation == null) {
-            if (!bottomOutputActive) return
-            listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
-                runCatching { startActivity(android.content.Intent(it)) }
-                    .onFailure { e -> Log.w(TAG, "could not open ${it.action}", e) }
-                    .isSuccess
-            }
-            return
-        }
-        val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
-        val opened = listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
-            runCatching { startActivity(android.content.Intent(it).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK), options.toBundle()) }
-                .onFailure { e -> Log.w(TAG, "could not open ${it.action} on display ${presentation.display.displayId}", e) }
-                .isSuccess
-        }
-        if (!opened) return
-        presentation.hide()
-        var checks = 0
-        fun showAgain() {
-            try {
-                presentation.show()
-            } catch (e: Exception) {
-                Log.w(TAG, "could not show the dashboard again", e)
-                if (secondScreenPresentation === presentation) closeSecondScreen(reset = true)
-            }
-        }
-        uiHandler.postDelayed(object : Runnable {
-            override fun run() {
-                if (secondScreenPresentation !== presentation || presentation.isShowing) return
-                if (done()) {
-                    showAgain()
-                    return
-                }
-                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS) else showAgain()
-            }
-        }, SETTINGS_WATCH_MS)
-    }
 
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {
         val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
@@ -5470,8 +5429,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val PAUSED_FRAME_REDRAW_MS = 150L
-        private const val SETTINGS_WATCH_MS = 1_000L
-        private const val SETTINGS_WATCH_CHECKS = 600
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"

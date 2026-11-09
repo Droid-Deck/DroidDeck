@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Shadercache downloaden</string>
     <string name="bottom_downloads_paused">Gepauzeerd</string>
     <string name="bottom_downloads_queued">Wacht om te starten</string>
-    <string name="bottom_page_notifications">Meldingen</string>
-    <string name="bottom_notifications_listener">DroidDeck onderste scherm</string>
-    <string name="bottom_notifications_why">Toon berichten en andere meldingen hier terwijl je speelt. Ze blijven alleen op dit scherm en worden niet opgeslagen. Android vraagt dit één keer: de pagina voor meldingstoegang opent op dit scherm; zet DroidDeck daar aan en deze pagina komt vanzelf terug.</string>
-    <string name="bottom_notifications_allow">Meldingstoegang toestaan</string>
-    <string name="bottom_notifications_none">Geen meldingen.</string>
-    <string name="bottom_notifications_count">%1$d meldingen</string>
-    <string name="bottom_notifications_clear">Wissen</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">Voor FPS moet de HUD aan staan</string>
     <string name="stats_speed">Snelheid</string>

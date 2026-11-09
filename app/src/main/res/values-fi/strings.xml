@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Ladataan sävytinvälimuistia</string>
     <string name="bottom_downloads_paused">Keskeytetty</string>
     <string name="bottom_downloads_queued">Odottaa alkamista</string>
-    <string name="bottom_page_notifications">Ilmoitukset</string>
-    <string name="bottom_notifications_listener">DroidDeckin alanäyttö</string>
-    <string name="bottom_notifications_why">Näytä viestit ja muut ilmoitukset täällä pelatessasi. Ne näkyvät vain tällä näytöllä, eikä niitä tallenneta. Android kysyy kerran: sen ilmoitusten käyttöoikeussivu avautuu tälle näytölle; kytke DroidDeck siellä päälle, niin tämä sivu palaa itsestään.</string>
-    <string name="bottom_notifications_allow">Salli ilmoitusten käyttö</string>
-    <string name="bottom_notifications_none">Ei ilmoituksia.</string>
-    <string name="bottom_notifications_count">Ilmoituksia: %1$d</string>
-    <string name="bottom_notifications_clear">Tyhjennä</string>
     <string name="bottom_page_screenshots">Kuvakaappaukset</string>
     <string name="stats_fps_needs_hud">FPS vaatii HUD:n päälle</string>
     <string name="stats_speed">Nopeus</string>

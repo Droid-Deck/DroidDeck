@@ -1825,13 +1825,6 @@
     <string name="bottom_downloads_shader">Stahování mezipaměti shaderů</string>
     <string name="bottom_downloads_paused">Pozastaveno</string>
     <string name="bottom_downloads_queued">Čeká na spuštění</string>
-    <string name="bottom_page_notifications">Oznámení</string>
-    <string name="bottom_notifications_listener">Spodní obrazovka DroidDeck</string>
-    <string name="bottom_notifications_why">Zobrazujte zde zprávy a další oznámení během hraní. Zůstávají jen na této obrazovce a neukládají se. Android se zeptá jednou: na této obrazovce se otevře jeho stránka přístupu k oznámením; zapněte tam DroidDeck a tato stránka se sama vrátí.</string>
-    <string name="bottom_notifications_allow">Povolit přístup k oznámením</string>
-    <string name="bottom_notifications_none">Žádná oznámení.</string>
-    <string name="bottom_notifications_count">Oznámení: %1$d</string>
-    <string name="bottom_notifications_clear">Vymazat</string>
     <string name="bottom_page_screenshots">Snímky obrazovky</string>
     <string name="stats_fps_needs_hud">FPS vyžaduje zapnutý HUD</string>
     <string name="stats_speed">Rychlost</string>

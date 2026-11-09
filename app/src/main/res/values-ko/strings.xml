@@ -1753,13 +1753,6 @@
     <string name="bottom_downloads_shader">셰이더 캐시 다운로드 중</string>
     <string name="bottom_downloads_paused">일시 중지됨</string>
     <string name="bottom_downloads_queued">시작 대기 중</string>
-    <string name="bottom_page_notifications">알림</string>
-    <string name="bottom_notifications_listener">DroidDeck 하단 화면</string>
-    <string name="bottom_notifications_why">플레이하는 동안 메시지와 기타 알림을 여기에 표시합니다. 알림은 이 화면에만 표시되며 저장되지 않습니다. Android에서 한 번만 묻습니다. 이 화면에 알림 접근 권한 페이지가 열리면 DroidDeck을 켜세요. 그러면 이 페이지로 자동으로 돌아옵니다.</string>
-    <string name="bottom_notifications_allow">알림 접근 허용</string>
-    <string name="bottom_notifications_none">알림이 없습니다.</string>
-    <string name="bottom_notifications_count">알림 %1$d개</string>
-    <string name="bottom_notifications_clear">지우기</string>
     <string name="bottom_page_screenshots">스크린샷</string>
     <string name="stats_fps_needs_hud">FPS를 보려면 HUD를 켜야 합니다</string>
     <string name="stats_speed">속도</string>
