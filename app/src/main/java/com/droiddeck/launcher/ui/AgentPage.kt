@@ -122,7 +122,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         var focused by remember { mutableStateOf(false) }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp).clip(Shape16).background(colors.surface)
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp).clip(Shape16).background(colors.surface)
                 .border(1.dp, if (focused) pal.primary else pal.line, Shape16).padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         ) {
             Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
