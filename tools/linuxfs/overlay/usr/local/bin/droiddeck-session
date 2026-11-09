@@ -1245,8 +1245,9 @@ case $mode in
       done
       [ "${#game}" -gt 10 ] && shortcut=1
       _bl_ready_end=$((SECONDS + 30))
-      while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 30 ] && [ "$SECONDS" -lt "$_bl_ready_end" ]; do
+      while [ "$waited" -lt 30 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
         timeout "$((_bl_ready_end - SECONDS))" /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 && break
+        [ "$((_bl_ready_end - SECONDS))" -gt 1 ] || break
         sleep 1
         waited=$((waited + 1))
       done

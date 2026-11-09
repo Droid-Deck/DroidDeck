@@ -74,7 +74,7 @@ class SteamColdLaunchTest(unittest.TestCase):
         return [l for l in result.stdout.splitlines() if "launching the requested game" in l]
 
     def test_a_shortcut_that_takes_focus_is_handed_over_once_without_waiting_for_the_overview(self):
-        result = self.run_launch(SHORTCUT, focus="769 769 4242")
+        result = self.run_launch(SHORTCUT, focus="769 4242")
         self.assertEqual(SHORTCUT, (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
         self.assertEqual(["--steam-ready"], self.agent_args.read_text().splitlines())
@@ -96,6 +96,11 @@ class SteamColdLaunchTest(unittest.TestCase):
     def test_a_steam_that_never_reports_ready_still_gets_the_launch(self):
         result = self.run_launch("413150", ready_status=1)
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+
+    def test_a_focus_change_does_not_end_the_readiness_wait(self):
+        result = self.run_launch("413150", focus="769 4242", ready_status=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
         self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
 
