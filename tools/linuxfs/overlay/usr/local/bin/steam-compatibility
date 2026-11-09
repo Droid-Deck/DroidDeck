@@ -1086,7 +1086,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices | set(tools)) - {"0"}, key=app_order):
         name = current.get(app, "")
         if app in tools and "linux" in tools[app] and "windows" not in tools[app]:
-            if name and (name.lower() in runnable or unrunnable(name, runnable)):
+            if name and (name.lower() in runnable or unrunnable(name, runnable) or name.lower().startswith("ge-proton")):
                 changes[app] = None
             continue
         if app in overrides:

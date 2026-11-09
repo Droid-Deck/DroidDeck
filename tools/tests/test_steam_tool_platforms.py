@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -71,6 +72,55 @@ class ToolPlatformsTest(unittest.TestCase):
         self.assertEqual(auto["900001"], TOOL)
         self.assertEqual(auto["976730"], TOOL)
 
+    def test_removed_ge_proton_is_cleared_with_or_without_saved_ownership(self):
+        for saved in ({}, {"1826330": "GE-Proton11-7"}):
+            with self.subTest(saved=saved):
+                changes, auto = self.plan({"0": TOOL, "1826330": "GE-Proton11-7"}, saved)
+                self.assertIsNone(changes["1826330"])
+                self.assertNotIn("1826330", auto)
+
+    def test_removed_ge_proton_game_selection_survives(self):
+        changes, auto = self.plan({"0": TOOL, "976730": "GE-Proton11-7"})
+        self.assertNotIn("976730", changes)
+        self.assertNotIn("976730", auto)
+
+    def test_saved_native_selections_survive(self):
+        for name in (COMPAT["FEX_TOOL"], "custom-native"):
+            with self.subTest(name=name):
+                changes, auto = self.plan({"0": TOOL, "1826330": name}, {"1826330": name})
+                self.assertNotIn("1826330", changes)
+                self.assertNotIn("1826330", auto)
+
+    def test_main_watches_cache_updates_and_replacements(self):
+        class StopWatching(BaseException):
+            pass
+
+        watchers = []
+
+        def capture(files):
+            watcher = live.LIVE["Watcher"](files)
+            watchers.append(watcher)
+            raise StopWatching()
+
+        namespace = live.LIVE["main"].__globals__
+        with mock.patch.dict(namespace, Watcher=capture), mock.patch.dict(os.environ, BL_CDP_PORT="1"), \
+                mock.patch.object(live.LIVE["sys"], "argv", ["compat", str(self.steam)]):
+            with self.assertRaises(StopWatching):
+                live.LIVE["main"]()
+        watcher = watchers[0]
+        if watcher.fd >= 0:
+            self.addCleanup(os.close, watcher.fd)
+        self.assertFalse(watcher.changed())
+        self.entries[900006] = ("linux", "", "tool")
+        self.write_appinfo()
+        self.assertTrue(watcher.changed())
+        self.assertIn("900006", self.platforms())
+        cache = self.steam / "appcache/appinfo.vdf"
+        replacement = cache.with_suffix(".tmp")
+        replacement.write_bytes(cache.read_bytes())
+        replacement.replace(cache)
+        self.assertTrue(watcher.changed())
+
     def test_linux_tool_requests_cannot_restore_windows_platform(self):
         changes, auto = self.plan({"0": TOOL, "1826330": TOOL}, overrides={"1826330": TOOL})
         self.assertIsNone(changes["1826330"])
@@ -119,6 +169,16 @@ class ToolPlatformsTest(unittest.TestCase):
         self.reconcile(page)
         self.assertEqual(page.sets, [])
         self.assertEqual(page.mapping["976730"], "custom-game")
+
+    def test_live_removed_ge_proton_is_cleared_and_stays_cleared(self):
+        page = live.FakePage({"0": TOOL, "1826330": "GE-Proton11-7"}, [TOOL])
+        (self.state / "state.json").write_text(json.dumps({"auto": {"1826330": "GE-Proton11-7"}}))
+        state = self.reconcile(page)
+        self.assertIn(("1826330", ""), page.sets)
+        self.assertNotIn("1826330", state["auto"])
+        page.sets.clear()
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
 
     def test_live_refused_tools_are_not_written(self):
         page = live.FakePage({"0": TOOL, "1826330": TOOL}, [TOOL], refused={"1826330", "900001"})
