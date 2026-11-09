@@ -182,7 +182,7 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
-        withoutNativeSession(env, rootfs)
+        withoutRootfsSettings(env, rootfs)
         val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
         if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
@@ -192,9 +192,18 @@ object BwrapSpawner {
         return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env, envTool ?: "/usr/bin/env")
     }
 
-    /** A native session's Flatpak passes the hook's settings for the session's own root on; a sandbox has its own. */
-    internal fun withoutNativeSession(env: MutableMap<String, String>, rootfs: String) {
+    private val ROOTFS_PIPEWIRE = listOf("PIPEWIRE_MODULE_DIR", "SPA_PLUGIN_DIR", "PIPEWIRE_CONFIG_DIR")
+
+    /**
+     * The session's Flatpak passes settings for the session's own root on: the native hook's,
+     * DroidDeck's PipeWire build, which a runtime does not have (its apps found no PipeWire plugins),
+     * and the session's video driver for SDL.
+     */
+    internal fun withoutRootfsSettings(env: MutableMap<String, String>, rootfs: String) {
         env.keys.removeAll { it.startsWith("DDNATV_") }
+        for (key in ROOTFS_PIPEWIRE) if (env[key]?.startsWith("/usr/local/lib/droiddeck-pipewire") == true) env.remove(key)
+        // the session's choice of X11 for SDL, in an app that Flatpak gave Wayland and no X display
+        if (env["SDL_VIDEODRIVER"] == "x11" && env["DISPLAY"].isNullOrEmpty() && !env["WAYLAND_DISPLAY"].isNullOrEmpty()) env.remove("SDL_VIDEODRIVER")
         env["LD_PRELOAD"]?.let { preload ->
             val kept = preload.split(':').filter { it.isNotEmpty() && it != rootfs && !it.startsWith("$rootfs/") }
             if (kept.isEmpty()) env.remove("LD_PRELOAD") else env["LD_PRELOAD"] = kept.joinToString(":")
@@ -395,16 +404,42 @@ object BwrapSpawner {
         }
         val program = host(plan.envTool).canonicalFile.takeIf { it.isFile } ?: return null
         linkMounts(plan)
+        writeRunpathConf(plan, ::host)
         val launch = listOf(loader.path, "--argv0", program.name, program.path, "-i") +
             plan.env.map { (k, v) -> "$k=$v" } + plan.argv
         val env = linkedMapOf(
             "DDNATV_ROOT" to sandbox,
+            "DDNATV_LINK_ROOT" to rootfs.path,
             "DDNATV_BINDS" to plan.binds.joinToString("|") { "${it.host}:${it.guest}" },
             "DDNATV_HOSTNAME" to SessionPrefs.guestHostname(context),
             "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },
             "LD_PRELOAD" to hook.path,
         ).filterValues { it.isNotEmpty() }
         return (NativeGuest.simulator(rootfs)?.let { listOf(it.path) + launch } ?: launch) to env
+    }
+
+    private val runpathDirs = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * ld.so opens a library's absolute RUNPATH (libpulse's pulseaudio/ directory) without the hook,
+     * on Android's own filesystem, so those directories are listed for the hook in the sandbox's
+     * ld.so.conf too, as [NativeGuest.syncLibraryDirs] does for the rootfs. A checkout never changes.
+     */
+    private fun writeRunpathConf(plan: Plan, host: (String) -> File) {
+        val confDir = inRoot(plan.root, "/run/flatpak/ld.so.conf.d")?.takeIf { it.isDirectory } ?: return
+        val dirs = sortedSetOf<String>()
+        for (top in listOf("/usr/lib", "/app/lib")) {
+            val real = host(top).takeIf { it.isDirectory }?.canonicalFile ?: continue
+            dirs += runpathDirs.getOrPut(real.path) {
+                real.walkTopDown().maxDepth(4).onEnter { !Files.isSymbolicLink(it.toPath()) }
+                    .filter { it.isFile && ".so" in it.name && !Files.isSymbolicLink(it.toPath()) }
+                    .flatMap { runCatching { ElfRunpath.read(it) }.getOrDefault(emptyList()) }
+                    .filter { it.startsWith("/usr/") || it.startsWith("/app/") || it.startsWith("/lib") }
+                    .distinct().toList()
+            }
+        }
+        if (dirs.isEmpty()) return
+        runCatching { File(confDir, "runtime-999-droiddeck-runpath.conf").writeText(dirs.joinToString("\n", postfix = "\n")) }
     }
 
     /** A runtime extension's apply_extra runs in a sandbox with nothing but the extension itself. */

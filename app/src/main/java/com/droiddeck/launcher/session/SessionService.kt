@@ -684,6 +684,7 @@ class SessionService : Service() {
 
         val sessionBindSpecs = LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds)
         val command = if (nativeUserland) {
+            LinuxRuntime.rememberSessionBinds(sessionBindSpecs)
             com.droiddeck.launcher.runtime.NativeGuest.command(root, guest.first(), guest.drop(1))
         } else {
             LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest)

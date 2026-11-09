@@ -155,6 +155,11 @@ public final class LinuxRuntime {
 
     private static volatile List<String> lastBinds;
 
+    /** The mounts of a session started without proot, which sandboxes and root helpers see too. */
+    public static void rememberSessionBinds(List<String> binds) {
+        lastBinds = binds;
+    }
+
     public static List<String> lastBinds(Context context) {
         List<String> binds = lastBinds;
         if (binds != null) return binds;
