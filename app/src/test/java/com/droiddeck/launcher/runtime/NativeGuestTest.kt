@@ -50,41 +50,36 @@ class NativeGuestTest {
     )
 
     @Test
-    fun aProotDriveLinkToTheSdLibraryPointsAtTheCard() {
-        assertEquals("/mnt/media_rw/CARD/files/steam", NativeGuest.hostLinkTarget("/mnt/droiddeck-sd", linkRoot, sdBinds))
-        assertEquals("/data/user/0/app/files/steam-libraries/x/steamapps/compatdata/1",
-            NativeGuest.hostLinkTarget("/mnt/droiddeck-sd/steamapps/compatdata/1", linkRoot, sdBinds))
+    fun aDriveLinkToTheCardGetsItsGuestPathBack() {
+        assertEquals("/mnt/droiddeck-sd", NativeGuest.guestLinkTarget("/mnt/media_rw/CARD/files/steam", linkRoot, sdBinds))
+        assertEquals("/mnt/droiddeck-sd/steamapps/compatdata/1",
+            NativeGuest.guestLinkTarget("/data/user/0/app/files/steam-libraries/x/steamapps/compatdata/1", linkRoot, sdBinds))
     }
 
     @Test
-    fun aRootDriveLinkPointsAtTheRootfs() {
-        assertEquals(linkRoot, NativeGuest.hostLinkTarget("/", linkRoot, sdBinds))
+    fun aDriveLinkIntoTheRootfsGetsItsGuestPathBack() {
+        assertEquals("/", NativeGuest.guestLinkTarget(linkRoot, linkRoot, sdBinds))
+        assertEquals("/root/Games", NativeGuest.guestLinkTarget("$linkRoot/root/Games", linkRoot, sdBinds))
     }
 
     @Test
-    fun linksTheKernelAlreadyFollowsStayAsTheyAre() {
-        assertEquals(null, NativeGuest.hostLinkTarget(linkRoot, linkRoot, sdBinds))
-        assertEquals(null, NativeGuest.hostLinkTarget("/mnt/media_rw/CARD/files/steam", linkRoot, sdBinds))
-        assertEquals(null, NativeGuest.hostLinkTarget("/storage/emulated/0/Games", linkRoot, sdBinds))
-        assertEquals(null, NativeGuest.hostLinkTarget("../drive_c", linkRoot, sdBinds))
+    fun guestPathsStayAsTheyAre() {
+        assertEquals(null, NativeGuest.guestLinkTarget("/mnt/droiddeck-sd", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.guestLinkTarget("/", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.guestLinkTarget("../drive_c", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.guestLinkTarget("/storage/emulated/0/Games", linkRoot, sdBinds))
     }
 
     @Test
-    fun aLinkIntoAnIdentityMountStaysAsItIs() {
-        val binds = sdBinds + listOf("/odd/place:/odd/place", "/bare/mount")
-        assertEquals(null, NativeGuest.hostLinkTarget("/odd/place/games", linkRoot, binds))
-        assertEquals(null, NativeGuest.hostLinkTarget("/bare/mount", linkRoot, binds))
+    fun aSiblingOfAMountSourceIsNotPartOfIt() {
+        assertEquals(null, NativeGuest.guestLinkTarget("/mnt/media_rw/CARD/files/steamx", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.guestLinkTarget("${linkRoot}x/root", linkRoot, sdBinds))
     }
 
     @Test
-    fun aSiblingOfAMountIsNotPartOfIt() {
-        assertEquals(null, NativeGuest.hostLinkTarget("/mnt/droiddeck-sdx", linkRoot, sdBinds))
-        assertEquals("$linkRoot/opt/droiddeck-sdx", NativeGuest.hostLinkTarget("/opt/droiddeck-sdx", linkRoot, sdBinds + "/real/opt:/opt/droiddeck-sd"))
-    }
-
-    @Test
-    fun aMountInsideAnIdentityMountStillMapsItsPaths() {
-        val binds = listOf("/odd/place", "/real/sd:/odd/place/sd")
-        assertEquals("/real/sd/x", NativeGuest.hostLinkTarget("/odd/place/sd/x", linkRoot, binds))
+    fun theFirstOfMountsSharingASourceIsTheGuestPath() {
+        val binds = sdBinds + "/data/user/0/app/files/steam-libraries/x/steamapps/compatdata:/mnt/bannerlator-sd/steamapps/compatdata"
+        assertEquals("/mnt/droiddeck-sd/steamapps/compatdata/2",
+            NativeGuest.guestLinkTarget("/data/user/0/app/files/steam-libraries/x/steamapps/compatdata/2", linkRoot, binds))
     }
 }

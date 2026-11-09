@@ -112,6 +112,15 @@ object NativeGuest {
         stamp.writeText(signature)
     }
 
+    /** What a rootfs needs before anything runs in it natively; cheap once done. */
+    fun prepare(context: Context, root: File) {
+        val relinked = relinkAbsoluteSymlinks(context, root)
+        if (relinked > 0) android.util.Log.i(TAG, "native userland: $relinked absolute symlinks made relative")
+        val patched = patchForSeccomp(root)
+        if (patched > 0) android.util.Log.i(TAG, "native userland: $patched system call sites in ld.so and libc answer Android's blocked calls")
+        syncLibraryDirs(root)
+    }
+
     /** See [ElfSeccompPatch]: the linker and libc must survive Android's seccomp filter before the hook loads. */
     fun patchForSeccomp(root: File): Int =
         listOf("usr/lib/ld-linux-aarch64.so.1", "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
@@ -166,27 +175,32 @@ object NativeGuest {
         return rewritten
     }
 
-    /** Where the kernel finds guest path [target] in a session with [binds] ("src:dst"), or null when it already does. */
-    fun hostLinkTarget(target: String, root: String, binds: List<String>): String? {
-        if (!target.startsWith("/") || target == root || target.startsWith("$root/")) return null
-        val mounts = binds.mapNotNull { spec ->
+    /**
+     * The guest path that host path [target] stands for in a session with [binds] ("src:dst"), or null
+     * when it is a guest path already: the rootfs, or the longest mount source holding it (the first
+     * such mount when several share a source).
+     */
+    fun guestLinkTarget(target: String, root: String, binds: List<String>): String? {
+        if (!target.startsWith("/")) return null
+        fun under(path: String, dir: String) = path == dir || path.startsWith("$dir/")
+        var best: Pair<String, String>? = if (under(target, root)) root to "/" else null
+        for (spec in binds) {
             val colon = spec.indexOf(':')
-            val src = (if (colon < 0) spec else spec.substring(0, colon)).trimEnd('/')
-            val dst = (if (colon < 0) spec else spec.substring(colon + 1)).trimEnd('/')
-            if (src.isEmpty() || dst.isEmpty()) null else src to dst
+            if (colon < 0) continue
+            val src = spec.substring(0, colon).trimEnd('/')
+            val dst = spec.substring(colon + 1).trimEnd('/').ifEmpty { "/" }
+            if (src.isEmpty() || src == dst || !under(target, src)) continue
+            if (best == null || src.length > best.first.length) best = src to dst
         }
-        if (mounts.any { (src, dst) -> src != dst && (target == src || target.startsWith("$src/")) }) return null
-        mounts.filter { (_, dst) -> target == dst || target.startsWith("$dst/") }.maxByOrNull { it.second.length }
-            ?.let { (src, dst) -> return if (src == dst) null else src + target.removePrefix(dst) }
-        if (HOST_LINK_TARGETS.any { target == it || target.startsWith("$it/") }) return null
-        return root + if (target == "/") "" else target
+        val (src, dst) = best ?: return null
+        val rest = target.removePrefix(src)
+        return if (rest.isEmpty()) dst else dst.trimEnd('/') + rest
     }
 
     /**
-     * Wine prefixes' drive links (dosdevices) hold guest paths when proot made them ("s:" ->
-     * /mnt/droiddeck-sd), and the kernel follows them as they are: Wine could not open Sekiro's
-     * folder on the SD card library after a proot session. Proton keeps a link whose target reads
-     * back as the one it wants, so they are made to point at the real places here.
+     * Wine prefixes' drive links (dosdevices) hold guest paths ("s:" -> /mnt/droiddeck-sd), which
+     * proot follows and the hook follows inside a mount. Earlier native sessions made them point at
+     * their real places, which proot cannot see: those are given their guest paths back.
      */
     fun relinkPrefixDrives(root: File, binds: List<String>): Int {
         val compatdata = listOf(File(root, "root/.local/share/Steam/steamapps/compatdata")) + binds.mapNotNull { spec ->
@@ -210,10 +224,10 @@ object NativeGuest {
             for (link in links) {
                 try {
                     if (!Files.isSymbolicLink(link)) continue
-                    val host = hostLinkTarget(Files.readSymbolicLink(link).toString(), root.path, binds) ?: continue
+                    val guest = guestLinkTarget(Files.readSymbolicLink(link).toString(), root.path, binds) ?: continue
                     val temp = link.resolveSibling(".relink-" + link.fileName)
                     Files.deleteIfExists(temp)
-                    Files.createSymbolicLink(temp, java.nio.file.Paths.get(host))
+                    Files.createSymbolicLink(temp, java.nio.file.Paths.get(guest))
                     Files.move(temp, link, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
                     rewritten++
                 } catch (_: java.io.IOException) {
