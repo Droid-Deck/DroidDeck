@@ -1084,6 +1084,7 @@ class Helper:
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
+            tools = COMPAT["tool_platforms"](self.steam_root)
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
@@ -1091,7 +1092,7 @@ class Helper:
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             picked = COMPAT["picked_apps"](state)
             runnable = {t["name"].lower() for t in live}
-            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices | set(tools), key=COMPAT["app_order"])
             asked = [app for app, request in COMPAT["game_requests"]().items() if COMPAT["valid_game_request"](app, request)]
             apps = sorted(set(apps) | set(asked), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
@@ -1105,6 +1106,7 @@ class Helper:
                 if isinstance(state.get("auto"), dict):
                     state["auto"] = prior_auto
                 native_choices -= refused
+                tools = {app: platforms for app, platforms in tools.items() if app not in refused}
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](
@@ -1137,7 +1139,7 @@ class Helper:
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, listed, default,
                 COMPAT["followers"](state, current), native, picks, overrides,
-                prior_auto.keys(), native_choices)
+                prior_auto.keys(), native_choices, tools)
             changes = dict(moved, **changes)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
