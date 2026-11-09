@@ -360,7 +360,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                         ?: activity.getString(R.string.upd_current_status)
                     gpu.family == GpuInfo.Family.POWERVR && (pair == null || !pair.complete) -> {
                         // RADV is not published right now: the Xclipse falls back to the system route.
-                        SessionPrefs.ensurePowerVrAutoDrivers(activity)
+                        if (gpu.name.contains("Xclipse", ignoreCase = true) && DriverPairs.xclipseNeedsUpstream(gpu.name)) {
+                            SessionPrefs.ensurePowerVrAutoDrivers(activity, powerVr = true, autoOwnedOnly = true)
+                        } else {
+                            SessionPrefs.ensurePowerVrAutoDrivers(activity)
+                        }
                         autoStatus = activity.getString(R.string.drivers_powervr_builtin)
                         refreshDrivers()
                     }

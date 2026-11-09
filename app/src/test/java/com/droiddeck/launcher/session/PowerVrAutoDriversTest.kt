@@ -28,11 +28,31 @@ class PowerVrAutoDriversTest {
         assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
     }
 
-    @Test fun explicitManualChoicesRemainOnPowerVr() {
-        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_MANUAL)
-        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true)
+    @Test fun nonXclipsePowerVrKeepsManualPair() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = true)
         assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun unsupportedXclipseClearsAnAutoOwnedOldPair() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setLinuxDriver(context, "old-linux")
+        SessionPrefs.setAndroidDriver(context, "old-display")
+        SessionPrefs.setGpuAutoInstalled(context, setOf("old-display", "old-linux"))
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = true)
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun unsupportedXclipseKeepsAManualPair() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_MANUAL)
+        SessionPrefs.setLinuxDriver(context, "old-linux")
+        SessionPrefs.setAndroidDriver(context, "old-display")
+        SessionPrefs.setGpuAutoInstalled(context, setOf("old-display", "old-linux"))
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = true)
+        assertEquals("old-linux", SessionPrefs.linuxDriver(context))
+        assertEquals("old-display", SessionPrefs.androidDriver(context))
     }
 
     @Test fun adrenoAutoChoicesRemain() {

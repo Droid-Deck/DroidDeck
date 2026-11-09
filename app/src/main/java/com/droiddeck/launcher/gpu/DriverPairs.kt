@@ -114,7 +114,7 @@ object DriverPairs {
     }
 
     /** Old RADV-Xclipse supports only the documented 530, 920, and 940 models. */
-    private fun xclipseNeedsUpstream(name: String): Boolean =
+    internal fun xclipseNeedsUpstream(name: String): Boolean =
         XCLIPSE_MODEL.find(name)?.groupValues?.get(1) !in SUPPORTED_XCLIPSE_MODELS
 
     fun autoEligible(gpu: GpuInfo, sdk: Int = android.os.Build.VERSION.SDK_INT): Boolean =

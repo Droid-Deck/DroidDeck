@@ -543,8 +543,11 @@ object SessionPrefs {
         ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
     }
 
-    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean, autoOwnedOnly: Boolean = false) {
         if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        if (autoOwnedOnly && setOf(androidDriver(context), linuxDriver(context))
+                .filter { it.isNotEmpty() && it != TurnipDriver.AUTO }
+                .any { it !in gpuAutoInstalled(context) }) return
         prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
 
