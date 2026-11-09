@@ -30,7 +30,14 @@ object AgentNative {
             Thread { drain(process.inputStream, out) },
             Thread { drain(process.errorStream, err) },
         ).onEach { it.isDaemon = true; it.start() }
-        process.outputStream.use { stdin -> request.optString("stdin").takeIf { it.isNotEmpty() }?.let { stdin.write(it.toByteArray()) } }
+        // written beside the wait: a program that never reads more than a pipe holds would block it
+        val input = request.optString("stdin").toByteArray()
+        Thread {
+            try {
+                process.outputStream.use { stdin -> if (input.isNotEmpty()) stdin.write(input) }
+            } catch (_: java.io.IOException) {
+            }
+        }.apply { isDaemon = true; start() }
         val finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
         if (!finished) process.destroyForcibly().waitFor()
         readers.forEach { it.join(2000) }
