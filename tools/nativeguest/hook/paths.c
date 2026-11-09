@@ -579,6 +579,8 @@ static size_t append_rootfs_lib_dirs_missing_from(char *out, size_t outsz, size_
         const char *full = rewrite_path_in_root(k_rootfs_lib_dirs[i], buf, sizeof(buf));
         size_t n = strlen(full);
         if (have && have[0] != '\0' && lib_dir_list_has(have, full, n)) continue;
+        // whole directories only: a cut-off one would be searched in the wrong place
+        if (used + (separate ? 1 : 0) + n >= outsz) continue;
         if (separate) used = ddnatv_append(out, outsz, used, ":", 1);
         separate = 1;
         used = ddnatv_append(out, outsz, used, full, n);
