@@ -63,7 +63,6 @@ object AgentSetup {
         val command = when (step) {
             Step.CONNECTION -> return
             Step.INSTALL -> {
-                installHelpers(app)
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
                     "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
@@ -76,6 +75,7 @@ object AgentSetup {
         detail.remove(step)
         Thread({
             val result = runCatching {
+                if (step == Step.INSTALL) installHelpers(app)
                 val child = AgentHost.guest(app, command).start()
                 child.outputStream.close()
                 child.inputStream.bufferedReader().forEachLine { line ->

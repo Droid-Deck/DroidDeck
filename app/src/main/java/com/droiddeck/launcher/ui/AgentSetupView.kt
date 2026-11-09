@@ -61,7 +61,8 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                     },
                     title, detail, divider = index < steps.lastIndex,
                 ) {
-                    if (status == Status.TODO || status == Status.FAILED) {
+                    val blocked = step == Step.SIGN_IN && AgentSetup.status[Step.INSTALL] != Status.DONE
+                    if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
                         val label = stringResource(if (status == Status.FAILED) R.string.agent_setup_retry else action(step))
                         val run = { if (step == Step.CONNECTION) pair(context) else AgentSetup.run(context, step) }
                         if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
