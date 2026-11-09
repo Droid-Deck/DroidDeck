@@ -22,7 +22,15 @@ static const int blocked[] = {99, 100, 97, 217, 218, 219, 268, 277, 280, 293, 14
 int main(int argc, char **argv) {
     int skip[MAX_ALLOWED], nskip = 0, arg = 1;
     if (argc > 3 && strcmp(argv[1], "-a") == 0) {
-        for (char *p = strtok(argv[2], ","); p && nskip < MAX_ALLOWED; p = strtok(NULL, ",")) skip[nskip++] = atoi(p);
+        for (char *p = strtok(argv[2], ","); p; p = strtok(NULL, ",")) {
+            char *end = NULL;
+            long nr = strtol(p, &end, 10);
+            if (end == p || *end != '\0' || nr < 0 || nr > 1023 || nskip == MAX_ALLOWED) {
+                fprintf(stderr, "seccomp-sim: -a takes up to %d system call numbers, not %s\n", MAX_ALLOWED, p);
+                return 2;
+            }
+            skip[nskip++] = (int)nr;
+        }
         arg = 3;
     }
     if (arg >= argc) return 2;

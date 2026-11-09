@@ -596,7 +596,9 @@ char *getcwd(char *buf, size_t size) {
     return res;
 }
 
+extern void __chk_fail(void) __attribute__((__noreturn__));
 char *__getcwd_chk(char *buf, size_t size, size_t buflen) {
+    if (size > buflen) __chk_fail();
     return getcwd(buf, size);
 }
 
