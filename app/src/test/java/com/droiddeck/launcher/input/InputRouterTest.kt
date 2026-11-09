@@ -146,7 +146,26 @@ class InputRouterTest {
         val source = router.pad(InputRole.PHYSICAL)
         val raw = PadState()
         for (value in listOf(.6f, .5f, .4f, .6f, .3f, .6f)) { raw.leftTrigger = value; source.route(raw) }
+        assertEquals(listOf("MENU"), output.events)
+        raw.leftTrigger = 0f; source.route(raw)
         assertEquals(listOf("MENU", "MENU"), output.events)
+    }
+
+    @Test fun commandsFireOnReleaseAndNotWhenCancelled() {
+        router.setProfile(bind(InputControl.A, InputAction.Command(InputCommand.KEYBOARD), InputRole.PRIMARY))
+        val button = router.channel(InputRole.PRIMARY, InputControl.A)
+        button.update(1f)
+        assertTrue(output.events.isEmpty())
+        button.update(0f)
+        assertEquals(listOf("KEYBOARD"), output.events)
+        button.update(1f)
+        button.release()
+        button.update(0f)
+        router.releaseAll()
+        button.update(1f)
+        router.releaseAll()
+        button.update(0f)
+        assertEquals(listOf("KEYBOARD"), output.events)
     }
 
     @Test fun pointerTicksOnlyWhileMovingAndOrdinaryKeysDoNotWaitForTick() {

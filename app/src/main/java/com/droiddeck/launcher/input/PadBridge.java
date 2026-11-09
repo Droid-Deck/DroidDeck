@@ -405,8 +405,14 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_C:
                 if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.L4 : DeckControls.R4, pressed);
                 break;
-            case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
-            case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
+            case KeyEvent.KEYCODE_BUTTON_L2:
+                pad.leftTrigger = keyTrigger(pad.leftTrigger, pressed, event.getRepeatCount(),
+                        analogTrigger(event.getDevice(), MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE));
+                break;
+            case KeyEvent.KEYCODE_BUTTON_R2:
+                pad.rightTrigger = keyTrigger(pad.rightTrigger, pressed, event.getRepeatCount(),
+                        analogTrigger(event.getDevice(), MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS));
+                break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
             case KeyEvent.KEYCODE_DPAD_RIGHT: pad.right = pressed; break;
             case KeyEvent.KEYCODE_DPAD_DOWN: pad.down = pressed; break;
@@ -545,6 +551,16 @@ public final class PadBridge {
         publish(slot);
         InputTiming.end(timing);
         return true;
+    }
+
+    static float keyTrigger(float current, boolean pressed, int repeatCount, boolean analog) {
+        if (analog || repeatCount > 0) return current;
+        return pressed ? 1f : 0f;
+    }
+
+    static boolean analogTrigger(InputDevice device, int... axes) {
+        return wiredXboxLayout(device, InputDevice.SOURCE_JOYSTICK)
+                || hasAxis(device, InputDevice.SOURCE_JOYSTICK, axes);
     }
 
     static boolean hasAxis(InputDevice device, int source, int... axes) {
@@ -1126,14 +1142,17 @@ public final class PadBridge {
     }
 
     public static boolean wiredXboxLayout(MotionEvent event) {
-        InputDevice device = event.getDevice();
+        return wiredXboxLayout(event.getDevice(), event.getSource());
+    }
+
+    static boolean wiredXboxLayout(InputDevice device, int source) {
         return device != null
                 && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
                 || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
-                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
+                && device.getMotionRange(MotionEvent.AXIS_RX, source) != null
+                && device.getMotionRange(MotionEvent.AXIS_RY, source) != null
+                && device.getMotionRange(MotionEvent.AXIS_Z, source) != null
+                && device.getMotionRange(MotionEvent.AXIS_RZ, source) != null;
     }
 
     public static float leftTrigger(MotionEvent event, boolean wired) {

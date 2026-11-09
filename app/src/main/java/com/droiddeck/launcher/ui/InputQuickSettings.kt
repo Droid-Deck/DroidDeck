@@ -3,7 +3,6 @@ package com.droiddeck.launcher.ui
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
@@ -40,7 +39,7 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
     val profiles = listOf(InputProfiles.AUTO to stringResource(R.string.input_quick_auto, if (desktop) library.profile(library.desktop).name else library.profile(library.steam).name)) +
         library.profiles.map { it.id to it.name } + if (mixed) listOf("mixed" to stringResource(R.string.input_quick_mixed, active.name)) else emptyList()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.weight(1f).clickable { expanded = !expanded }.padding(14.dp).testTag("input-profile-expand"),
+        Row(Modifier.weight(1f).focusRow { expanded = !expanded }.padding(14.dp).testTag("input-profile-expand"),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (expanded) "▾" else "▸", color = MaterialTheme.colorScheme.onSurface)
             Text(stringResource(R.string.input_profile), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
@@ -74,9 +73,9 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
         var name by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { naming = false }, title = { Text(stringResource(R.string.input_save_combination)) },
             text = { OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(stringResource(R.string.input_name)) }) },
-            confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { update(null) { it.saveSelection(desktop, name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
-            dismissButton = { TextButton(onClick = { naming = false }) { Text(stringResource(R.string.common_cancel)) } })
+            confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { update(null) { it.saveSelection(desktop, name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
+            dismissButton = { PadTextButton(onClick = { naming = false }) { Text(stringResource(R.string.common_cancel)) } })
     }
     failure?.let { message -> AlertDialog(onDismissRequest = { failure = null }, title = { Text(stringResource(R.string.input_save_failed)) },
-        text = { Text(message) }, confirmButton = { TextButton(onClick = { failure = null }) { Text(stringResource(R.string.common_ok)) } }) }
+        text = { Text(message) }, confirmButton = { PadTextButton(onClick = { failure = null }) { Text(stringResource(R.string.common_ok)) } }) }
 }

@@ -19,11 +19,12 @@ class InputLibraryTest {
         for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @Test fun freshLibraryHasOnlyTheMainGamepadAndTwoLowerScreenLayouts() {
+    @Test fun freshLibraryHasTheMainGamepadAndTheStockLowerScreenLayouts() {
         val library = InputLibraries.read(context)
         assertEquals(listOf("game", "desktop"), library.profiles.map { it.id })
-        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.DECK, InputLibraries.TRACKPAD), library.layouts.map { it.id }.toSet())
-        assertEquals(6, library.bindings.size)
+        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.TRACKPAD) + DeckPanel.entries.map { it.layout }, library.layouts.map { it.id }.toSet())
+        assertEquals(10, library.bindings.size)
+        for (panel in DeckPanel.entries) assertEquals(panel.layout, library.panelLayout(false, panel.bindings)?.id)
         assertEquals(InputLibraries.DECK, library.activeLayout(false, InputRole.SECONDARY)?.id)
         assertEquals(InputLibraries.TRACKPAD, library.activeLayout(true, InputRole.SECONDARY)?.id)
         assertEquals(InputAction.Pointer(), library.compileActive(true).action(InputRole.PHYSICAL, InputControl.LS))
@@ -32,22 +33,18 @@ class InputLibraryTest {
         val desktop = library.activeLayout(true, InputRole.SECONDARY)!!
         val pad = desktop.elements.single { it.kind == InputElementKind.TRACKPAD }
         assertTrue(pad.mouseGestures)
-        assertEquals(3, desktop.elements.size)
+        assertEquals(1, desktop.elements.size)
         assertEquals(InputAction.Pointer(), library.compileActive(true).elementAction(InputRole.SECONDARY, pad.id, pad.control))
         assertEquals(InputAction.MouseButton(272), library.compileActive(true).elementClickAction(InputRole.SECONDARY, pad))
         val game = library.activeLayout(false, InputRole.SECONDARY)!!
-        assertEquals(9, game.elements.size)
+        assertEquals(6, game.elements.size)
         assertEquals(setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD), game.elements.filter { it.kind == InputElementKind.TRACKPAD }.map { it.control }.toSet())
         for (control in listOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)) {
             val element = game.elements.single { it.control == control }
             assertEquals(InputAction.Native(), library.compileActive(false).elementAction(InputRole.SECONDARY, element.id, element.control))
         }
-        for ((isDesktop, commands) in listOf(true to listOf(InputCommand.MENU, InputCommand.KEYBOARD),
-            false to listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.MENU))) {
-            val elements = library.activeLayout(isDesktop, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }
-            assertEquals(commands.map { InputAction.Command(it) }, elements.map { library.compileActive(isDesktop).elementAction(InputRole.SECONDARY, it.id, it.control) })
-            assertTrue(elements.all { InputButtonIcons.has(it.icon) && it.icon > 255 })
-        }
+        for (layout in InputStockLayouts.layouts()) assertTrue(layout.elements.none { it.id.startsWith("command:") })
+        assertTrue(game.elements.filter { it.kind == InputElementKind.TRACKPAD }.all { it.y == .02f })
         assertEquals(library, InputLibraries.decode(InputLibraries.encode(library)))
     }
 
@@ -71,11 +68,11 @@ class InputLibraryTest {
         assertEquals(original, InputLibraries.read(context))
     }
 
-    @Test fun resettingDefaultActionsKeepsTheMenuAndKeyboardCommands() {
+    @Test fun resettingDefaultActionsKeepsTheStockPanelActions() {
         val library = InputLibraries.read(context)
         for (id in listOf("game", "desktop")) {
             val reset = library.resetProfile(id).validate()
-            for (element in library.layout(id, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }) {
+            for (element in library.layout(id, InputRole.SECONDARY)!!.elements) {
                 assertEquals(library.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control),
                     reset.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control))
             }
@@ -266,10 +263,118 @@ class InputLibraryTest {
         ControllerPrefs.setTarget(context, "b", ControllerPrefs.OFF)
         val elements = LegacyGamepadLayout(context, 1200, 800).elements()
         val stick = elements.first { it.control == InputControl.LS }
-        assertEquals(.4f, stick.x + stick.width / 2f, .0001f)
+        assertEquals(.4f, stick.x + stick.width - stick.height * 800f / 1200f / 2f, .0001f)
         assertEquals(.5f, stick.y + stick.height / 2f, .0001f)
         assertFalse(elements.any { it.control == InputControl.GUIDE || it.control == InputControl.B })
         assertTrue(elements.all { it == it.bounded() })
+    }
+
+    @Test fun gamepadControlsAreRoundWithShoulderPillsAndACompactKeyboard() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        val density = context.resources.displayMetrics.density
+        for (element in elements.filter { it.id.startsWith("legacy:") }) {
+            val shoulder = element.control in setOf(InputControl.LB, InputControl.RB, InputControl.LT, InputControl.RT)
+            assertEquals(element.control.id, if (shoulder) InputButtonShape.PILL else InputButtonShape.CIRCLE, element.buttonShape)
+        }
+        val keyboard = elements.single { it.id == "builtin:keyboard" }
+        assertEquals(InputButtonIcons.KEYBOARD, keyboard.icon)
+        assertEquals(InputButtonShape.CIRCLE, keyboard.buttonShape)
+        assertEquals(36 * density / 1200f, keyboard.width, .0001f)
+        assertEquals(90 * density / 1200f, keyboard.x + keyboard.width / 2f, .0001f)
+        assertEquals(1f - 34 * density / 800f, keyboard.y + keyboard.height / 2f, .0001f)
+    }
+
+    @Test fun dpadButtonsMatchTheFaceButtonsInSizeAndSpacing() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        fun centre(c: InputControl) = elements.single { it.id == "legacy:${c.id}" }.let { (it.x + it.width / 2f) * 1200 to (it.y + it.height / 2f) * 800 }
+        fun size(c: InputControl) = elements.single { it.id == "legacy:${c.id}" }.width * 1200
+        assertEquals(size(InputControl.A), size(InputControl.UP), .01f)
+        assertEquals(centre(InputControl.A).second - centre(InputControl.Y).second, centre(InputControl.DOWN).second - centre(InputControl.UP).second, .01f)
+        assertEquals(centre(InputControl.B).first - centre(InputControl.X).first, centre(InputControl.RIGHT).first - centre(InputControl.LEFT).first, .01f)
+    }
+
+    @Test fun anUntouchedSavedDpadIsResizedAroundItsCentreAndAMovedOneIsKept() {
+        val fresh = LegacyGamepadLayout(context, 1200, 800)
+        val target = fresh.elements().filter { it.control in setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT) }
+        val cx = target.map { it.x + it.width / 2f }.average().toFloat()
+        val cy = target.map { it.y + it.height / 2f }.average().toFloat()
+        val scale = 26f / 30f
+        val old = target.map { e ->
+            val ex = cx + (e.x + e.width / 2f - cx) * 52f / 50f
+            val ey = cy + (e.y + e.height / 2f - cy) * 52f / 50f
+            e.copy(x = ex - e.width * scale / 2f, y = ey - e.height * scale / 2f, width = e.width * scale, height = e.height * scale, buttonShape = InputButtonShape.ROUNDED)
+        }
+        val restyled = fresh.restyle(old)
+        for ((want, got) in target.zip(restyled)) {
+            assertEquals(want.x, got.x, .0005f); assertEquals(want.y, got.y, .0005f)
+            assertEquals(want.width, got.width, .0005f); assertEquals(InputButtonShape.CIRCLE, got.buttonShape)
+        }
+        val moved = old.mapIndexed { i, e -> if (i == 0) e.copy(buttonShape = InputButtonShape.RECTANGLE) else e }
+        assertEquals(moved.drop(1).map { it.width }, fresh.restyle(moved).drop(1).map { it.width })
+        val shifted = old.mapIndexed { i, e -> if (i == 0) e.copy(x = e.x + .03f) else e }
+        assertEquals(shifted.map { listOf(it.x, it.y, it.width, it.height) }, fresh.restyle(shifted).map { listOf(it.x, it.y, it.width, it.height) })
+    }
+
+    @Test fun stickTouchAreasReachFurtherOutwardButKeepTheirInnerEdge() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        for (control in listOf(InputControl.LS, InputControl.RS)) {
+            val stick = elements.single { it.control == control }
+            assertEquals(control.id, stick.height * 800f * 1.25f, stick.width * 1200f, 1f)
+        }
+        val left = elements.single { it.control == InputControl.LS }
+        val right = elements.single { it.control == InputControl.RS }
+        ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (.3f to .5f), "rs" to (.7f to .5f)))
+        val placed = LegacyGamepadLayout(context, 1200, 800).elements()
+        val ls = placed.single { it.control == InputControl.LS }
+        val rs = placed.single { it.control == InputControl.RS }
+        assertEquals(.3f, ls.x + ls.width - ls.height * 800f / 1200f / 2f, .0001f)
+        assertEquals(.7f, rs.x + rs.height * 800f / 1200f / 2f, .0001f)
+        assertTrue(left.width > left.height * 800f / 1200f && right.width > right.height * 800f / 1200f)
+    }
+
+    @Test fun adaptiveSticksToggleChangesOnlyTheSticksOfThatLayout() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.single { it.id == InputLibraries.OVERLAY }
+        assertEquals(true, overlay.adaptiveSticks)
+        InputLibraries.setAdaptiveSticks(context, overlay.id, false)
+        val off = InputLibraries.read(context)
+        val changed = off.layouts.single { it.id == overlay.id }
+        assertEquals(false, changed.adaptiveSticks)
+        assertFalse(ControllerPrefs.read(context).adaptiveSticks)
+        assertEquals(overlay.elements.filter { it.kind != InputElementKind.STICK }, changed.elements.filter { it.kind != InputElementKind.STICK })
+        assertEquals(library.layouts.filter { it.id != overlay.id }, off.layouts.filter { it.id != overlay.id })
+        assertNull(off.layouts.single { it.id == InputLibraries.DECK }.adaptiveSticks)
+        assertTrue(InputLibraries.setAdaptiveSticks(context, overlay.id, true))
+        assertEquals(true, InputLibraries.read(context).layouts.single { it.id == overlay.id }.adaptiveSticks)
+        prefs.edit().putString("library", JSONObject().put("version", 99).toString()).commit()
+        assertFalse(InputLibraries.setAdaptiveSticks(context, overlay.id, false))
+        assertTrue(ControllerPrefs.read(context).adaptiveSticks)
+    }
+
+    @Test fun savedGamepadsFromTheFirstUnifiedBuildGetTheRoundLookOnce() {
+        val fresh = InputLibraries.read(context)
+        val overlay = fresh.layouts.single { it.id == InputLibraries.OVERLAY }
+        val old = overlay.copy(elements = overlay.elements.map { e ->
+            if (e.id == "builtin:keyboard") InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f, "builtin:keyboard", name = "Keyboard")
+            else if (e.control == InputControl.A) e.copy(buttonShape = InputButtonShape.RECTANGLE, x = .5f)
+            else e.copy(buttonShape = InputButtonShape.ROUNDED)
+        })
+        val custom = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f)))
+        val stored = fresh.withLayout(old).withLayout(custom)
+        val renamed = InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f, "builtin:keyboard", name = "Keys")
+        assertEquals(renamed, LegacyGamepadLayout(context, 1200, 800).restyle(listOf(renamed)).single())
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 8).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val restyled = upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements
+        assertEquals(overlay.elements.single { it.id == "builtin:keyboard" }, restyled.single { it.id == "builtin:keyboard" })
+        assertEquals(InputButtonShape.RECTANGLE, restyled.single { it.control == InputControl.A && it.id.startsWith("legacy:") }.buttonShape)
+        assertEquals(.5f, restyled.single { it.control == InputControl.A && it.id.startsWith("legacy:") }.x, .0001f)
+        assertEquals(InputButtonShape.PILL, restyled.single { it.control == InputControl.LB }.buttonShape)
+        assertEquals(InputButtonShape.CIRCLE, restyled.single { it.control == InputControl.UP }.buttonShape)
+        assertEquals(InputButtonShape.ROUNDED, upgraded.layouts.single { it.id == "mine" }.elements.single().buttonShape)
+        assertEquals(upgraded, InputLibraries.read(context))
+        for (desktop in listOf(false, true))
+            assertEquals(InputAction.Command(InputCommand.KEYBOARD), upgraded.compileActive(desktop).elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
     }
 
     @Test fun quickPartsAreModeSpecificAndDoNotEditSavedProfiles() {
@@ -352,7 +457,7 @@ class InputLibraryTest {
         assertTrue(upgraded.layout("game", InputRole.SECONDARY)!!.editable)
         val output = upgraded.compile("game")
         assertEquals(InputAction.Keys(listOf(57)), output.elementAction(InputRole.SECONDARY, "legacy:l4", InputControl.L4))
-        assertEquals(InputAction.Command(InputCommand.MENU), output.elementAction(InputRole.SECONDARY, "command:0", InputControl.A))
+        assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layout("game", InputRole.SECONDARY)!!.elements)
         assertEquals(upgraded, InputLibraries.read(context))
     }
 
@@ -365,7 +470,9 @@ class InputLibraryTest {
             val copy = changed.layout("game", role)!!
             assertNotEquals(layout.id, copy.id)
             assertEquals(layout.elements, copy.elements)
-            assertEquals(InputAction.Command(InputCommand.MENU), changed.compile("game").elementAction(role, "command:0", InputControl.A))
+            val stock = InputStockLayouts.presets(listOf(layout)).single()
+            for (element in layout.elements) assertEquals(stock.elements[element.id] ?: stock.controls[element.control] ?: InputAction.Native(),
+                changed.compile("game").elementAction(role, element.id, element.control))
         }
     }
 
@@ -411,5 +518,78 @@ class InputLibraryTest {
         InputLibraries.update(context) { it.withLayout(it.layouts.single { l -> l.id == "mine" }.let { l -> l.copy(style = l.style.copy(tint = null)) }) }
         assertNull(InputLibraries.read(context).layouts.single { it.id == "mine" }.style.tint)
         assertEquals(InputLibraries.read(context), InputLibraries.read(context))
+    }
+
+    @Test fun versionTenStockPanelsReturnToGrayOnce() {
+        val fresh = InputLibraries.read(context)
+        val blue = fresh.layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
+            .map { it.copy(style = it.style.copy(tint = ControllerPrefs.STEAM_BLUE)) }
+        val old = JSONObject(InputLibraries.encode(blue.fold(fresh) { library, layout -> library.withLayout(layout) })).put("version", 10)
+        prefs.edit().putString("library", old.toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertNull(upgraded.layouts.single { it.id == InputLibraries.DECK }.style.tint)
+        assertNull(upgraded.layouts.single { it.id == InputLibraries.TRACKPAD }.style.tint)
+        assertEquals(ControllerPrefs.STEAM_BLUE, upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.style.tint)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+    private fun versionElevenPanel(layout: SavedInputLayout, commands: List<Int>, padTop: Float = .14f) = layout.copy(elements = commands.mapIndexed { position, i ->
+        InputSurfaceElement(InputControl.A, .02f + position * .3f, .01f, .28f, .11f, "command:$i", name = "Command $i", icon = InputButtonIcons.MENU)
+    } + layout.elements.map { if (it.kind == InputElementKind.TRACKPAD) it.copy(y = padTop, height = it.y + it.height - padTop) else it })
+
+    private fun versionElevenLibrary(change: (InputLibrary) -> InputLibrary = { it }): InputLibrary {
+        val fresh = InputLibraries.read(context)
+        val stock = InputStockLayouts.layouts()
+        var old = fresh.copy(layouts = fresh.layouts.filter { it.id == InputLibraries.OVERLAY || it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD },
+            bindings = fresh.bindings.filter { b -> DeckPanel.entries.none { it != DeckPanel.BOTH && it.bindings == b.id } })
+        old = old.withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.DECK }, listOf(2, 3, 0)))
+            .withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.TRACKPAD }, listOf(0, 1)))
+        old = old.copy(bindings = old.bindings.map { b ->
+            when (b.layoutId) {
+                InputLibraries.DECK -> b.copy(elements = b.elements + mapOf("command:0" to InputAction.Command(InputCommand.MENU), "command:2" to InputAction.Command(InputCommand.STEAM)))
+                InputLibraries.TRACKPAD -> b.copy(elements = b.elements + ("command:1" to InputAction.Command(InputCommand.KEYBOARD)))
+                else -> b
+            }
+        })
+        return change(old).validate()
+    }
+
+    private fun storeVersionEleven(library: InputLibrary) {
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(library)).put("version", 11).toString()).commit()
+    }
+
+    @Test fun versionTwelveMovesStockPanelCommandsToTheBarAndAddsTheDeckTabs() {
+        val mine = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "command:0", name = "Menu")),
+            screen = InputLayoutScreen.SECONDARY)
+        val minePreset = SavedInputBindings("mine.bindings", "Mine", false, mine.id, elements = mapOf("command:0" to InputAction.Command(InputCommand.MENU)))
+        val old = versionElevenLibrary { it.withLayout(mine).withPreset(minePreset) }
+        assertTrue(old.layouts.single { it.id == InputLibraries.DECK }.elements.any { it.id.startsWith("command:") })
+        storeVersionEleven(old)
+        val upgraded = InputLibraries.read(context)
+        val stock = InputStockLayouts.layouts()
+        for (id in listOf(InputLibraries.DECK, InputLibraries.TRACKPAD))
+            assertEquals(stock.single { it.id == id }.elements, upgraded.layouts.single { it.id == id }.elements)
+        assertTrue(upgraded.bindings.filter { it.layoutId == InputLibraries.DECK || it.layoutId == InputLibraries.TRACKPAD }
+            .all { b -> b.elements.keys.none { it.startsWith("command:") } })
+        assertEquals(InputAction.Pointer(), upgraded.preset(InputStockLayouts.TRACKPAD).elements["legacy:right-pad"])
+        assertEquals(mine, upgraded.layouts.single { it.id == mine.id })
+        assertEquals(minePreset, upgraded.preset(minePreset.id))
+        for (panel in DeckPanel.entries) {
+            assertEquals(stock.single { it.id == panel.layout }, upgraded.layouts.single { it.id == panel.layout })
+            assertEquals(panel.layout, upgraded.preset(panel.bindings).layoutId)
+        }
+        assertEquals(old.profiles, upgraded.profiles)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
+    @Test fun versionTwelveLeavesEditedStockPanelsAlone() {
+        val old = versionElevenLibrary { library ->
+            val trackpad = library.layouts.single { it.id == InputLibraries.TRACKPAD }
+            library.withLayout(trackpad.copy(elements = trackpad.elements.map { if (it.kind == InputElementKind.TRACKPAD) it.copy(x = .1f, width = .8f) else it }))
+        }
+        storeVersionEleven(old)
+        val upgraded = InputLibraries.read(context)
+        assertEquals(old.layouts.single { it.id == InputLibraries.TRACKPAD }, upgraded.layouts.single { it.id == InputLibraries.TRACKPAD })
+        assertEquals(old.preset(InputStockLayouts.TRACKPAD), upgraded.preset(InputStockLayouts.TRACKPAD))
+        assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layouts.single { it.id == InputLibraries.DECK }.elements)
     }
 }

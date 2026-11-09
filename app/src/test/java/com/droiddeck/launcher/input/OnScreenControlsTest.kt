@@ -25,7 +25,7 @@ class OnScreenControlsTest {
     private var time = 1000L
     @Before fun setup() {
         view = OnScreenControls(context, bridge)
-        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button)))
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button), aspect = ASPECT))
         measure(view)
     }
     @After fun close() { view.releaseAll(); bridge.stop() }
@@ -102,7 +102,7 @@ class OnScreenControlsTest {
 
     @Test fun floatingAndFixedSticksUseTheirConfiguredOrigin() {
         for (floating in listOf(true, false)) {
-            view.updateLayout(SavedInputLayout("test", "Test", listOf(left.copy(floating = floating))))
+            view.updateLayout(SavedInputLayout("test", "Test", listOf(left.copy(floating = floating)), aspect = ASPECT))
             measure(view)
             touch(MotionEvent.ACTION_DOWN, 3 to (230f to 300f))
             assertEquals(if (floating) 0f else .5f, state().leftX, .001f)
@@ -110,16 +110,18 @@ class OnScreenControlsTest {
         }
     }
 
-    @Test fun systemOnlyVisibilityUsesTheSameLayoutAndReleasesOtherButtons() {
+    @Test fun systemOnlyVisibilityMovesSteamAndQamToTheBottomCornersAndReleasesOtherButtons() {
         val guide = InputSurfaceElement(InputControl.GUIDE, .4f, .7f, .1f, .2f)
-        view.updateLayout(SavedInputLayout("test", "Test", listOf(button, guide)))
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(button, guide), aspect = ASPECT))
         measure(view)
         touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
         view.setButtonsOnly(true)
         measure(view)
         assertFalse(state().isDown(PadState.A))
         assertFalse(view.takesTouchAt(800f, 250f))
-        assertTrue(view.takesTouchAt(450f, 480f))
+        assertFalse(view.takesTouchAt(450f, 480f))
+        assertTrue(view.takesTouchAt(44f, 556f))
+        assertTrue(view.takesTouchAt(956f, 556f))
     }
 
     @Test fun aCancelledSecondFingerDoesNotArmAStickClick() {
@@ -174,6 +176,58 @@ class OnScreenControlsTest {
         touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
         assertFalse(state().isDown(PadState.L3))
     }
+
+    @Test fun theQuickToggleHidesEverythingButTheKeyboardAndShowsItAgain() {
+        val keyboard = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, "builtin:keyboard", name = "Keyboard")
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, keyboard), aspect = ASPECT))
+        measure(view)
+        val density = context.resources.displayMetrics.density
+        val x = 34 * density
+        val y = 600 - 34 * density
+        assertTrue(view.takesTouchAt(x, y))
+        touch(MotionEvent.ACTION_UP, 4 to (x to y))
+        touch(MotionEvent.ACTION_DOWN, 5 to (x to y)); touch(MotionEvent.ACTION_CANCEL, 5 to (x to y)); touch(MotionEvent.ACTION_UP, 5 to (x to y))
+        assertFalse(view.isQuickHidden)
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y)); touch(MotionEvent.ACTION_UP, 1 to (x to y))
+        measure(view)
+        assertTrue(view.isQuickHidden)
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertTrue(view.takesTouchAt(450f, 270f))
+        touch(MotionEvent.ACTION_DOWN, 2 to (800f to 250f)); touch(MotionEvent.ACTION_UP, 2 to (800f to 250f))
+        assertTrue(view.isQuickHidden)
+        touch(MotionEvent.ACTION_DOWN, 3 to (x to y)); touch(MotionEvent.ACTION_UP, 3 to (x to y))
+        measure(view)
+        assertFalse(view.isQuickHidden)
+        assertTrue(view.takesTouchAt(800f, 250f))
+        view.setButtonsOnly(true)
+        measure(view)
+        touch(MotionEvent.ACTION_DOWN, 6 to (x to y)); touch(MotionEvent.ACTION_UP, 6 to (x to y))
+        assertFalse(view.isQuickHidden)
+    }
+
+    @Test fun hidingTheGamepadKeepsAlwaysShownKeysDrawnAndTouchable() {
+        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, key), aspect = ASPECT))
+        measure(view)
+        assertTrue(view.hasPinned)
+        view.setPinnedOnly(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertFalse(view.takesTouchAt(200f, 300f))
+        view.setPinnedOnly(false)
+        measure(view)
+        assertTrue(view.takesTouchAt(800f, 250f))
+        assertTrue(view.takesTouchAt(500f, 90f))
+        view.setQuickHidden(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button), aspect = ASPECT))
+        assertFalse(view.hasPinned)
+    }
+
+    private companion object { const val ASPECT = 1000f / 600f }
 
     private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {
         val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()

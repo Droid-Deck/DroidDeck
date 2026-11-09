@@ -11,8 +11,16 @@ if [ -n "${BL_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
   export XDG_SESSION_TYPE=x11
   socket=(--nosocket=wayland --socket=x11)
 fi
+app=
+for arg in "$@"; do
+  case $arg in -*) ;; *) app=$arg; break ;; esac
+done
+gpu=("${BASH_SOURCE[0]%/*}/droiddeck-game-gpu")
+location=
+[ -n "$app" ] && location=$(flatpak info --show-location "$app" 2>/dev/null)
+[ -n "$location" ] && gpu+=(--for "$location/files")
 echo "== flatpak run ${socket[*]} $*"
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
-  exec dbus-run-session -- flatpak run "${socket[@]}" "$@"
+  exec "${gpu[@]}" -- dbus-run-session -- flatpak run "${socket[@]}" "$@"
 fi
-exec flatpak run "${socket[@]}" "$@"
+exec "${gpu[@]}" -- flatpak run "${socket[@]}" "$@"

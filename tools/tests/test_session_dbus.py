@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,15 +12,71 @@ ROOT = Path(__file__).resolve().parents[2]
 SESSION = ROOT / "tools/linuxfs/overlay/usr/local/bin/droiddeck-session"
 
 FIXTURE = '''#!/usr/bin/env python3
-import json, os, subprocess, sys
+import ctypes, json, os, signal, subprocess, sys, time
+
+
+def stat_ppid(pid):
+    try:
+        with open(f"/proc/{pid}/stat", "r", encoding="utf-8") as f:
+            data = f.read()
+        return int(data.rsplit(") ", 1)[1].split()[1])
+    except (FileNotFoundError, IndexError, ProcessLookupError, ValueError):
+        return None
+
+
+def wait_orphan(pid, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            wpid, status = os.waitpid(pid, os.WNOHANG)
+            if wpid == pid:
+                return status
+        except ChildProcessError:
+            return None
+        time.sleep(0.05)
+    return None
+
+
+libc = ctypes.CDLL(None, use_errno=True)
+if libc.prctl(36, 1, 0, 0, 0) != 0:
+    raise OSError(ctypes.get_errno(), "prctl(PR_SET_CHILD_SUBREAPER) failed")
 
 harness = sys.argv[1]
+fpid = os.getpid()
 sib = subprocess.Popen(["sleep", "60"])
+orphan_pid = None
+orphan_adopted = False
+orphan_reaped = False
+orphan_killed = False
+out, rc = "", None
 try:
+    helper = (
+        "import subprocess; "
+        "p = subprocess.Popen(['sleep', '60'], start_new_session=True, "
+        "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+        "print(p.pid)"
+    )
+    spawner = subprocess.run([sys.executable, "-c", helper],
+                             capture_output=True, text=True, check=True, timeout=5)
+    orphan_pid = int(spawner.stdout.strip())
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if stat_ppid(orphan_pid) == fpid:
+            orphan_adopted = True
+            break
+        time.sleep(0.05)
     res = subprocess.run(["bash", harness, "steam"],
                          env=dict(os.environ, BL_INSIDE="1"),
                          capture_output=True, text=True, timeout=15)
     out, rc = res.stdout, res.returncode
+    if orphan_adopted:
+        status = wait_orphan(orphan_pid)
+        orphan_reaped = status is not None
+        orphan_killed = (
+            orphan_reaped
+            and os.WIFSIGNALED(status)
+            and os.WTERMSIG(status) == signal.SIGKILL
+        )
 except subprocess.TimeoutExpired as exc:
     out = exc.stdout or ""
     if isinstance(out, bytes):
@@ -28,7 +85,16 @@ except subprocess.TimeoutExpired as exc:
 finally:
     alive = sib.poll() is None
     sib.kill()
-    sib.wait()
+    try:
+        sib.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    if orphan_pid is not None and not orphan_reaped:
+        try:
+            os.kill(orphan_pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        wait_orphan(orphan_pid)
 
 ppid = bus = None
 for line in out.splitlines():
@@ -37,11 +103,13 @@ for line in out.splitlines():
     elif line.startswith("BUS="):
         bus = line[4:]
 print(json.dumps({
-    "fixture_pid": os.getpid(),
+    "fixture_pid": fpid,
     "inner_ppid": ppid,
     "inner_bus": bus,
     "fixture_bus": os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""),
     "sibling_killed": not alive,
+    "orphan_adopted": orphan_adopted,
+    "orphan_killed": orphan_killed,
     "inner_rc": rc,
 }))
 '''
@@ -85,8 +153,10 @@ def build_harness():
 
 
 @unittest.skipUnless(
-    shutil.which("dbus-run-session") and shutil.which("bash"),
-    "missing required tools: dbus-run-session and bash must both be on PATH",
+    sys.platform.startswith("linux")
+    and shutil.which("dbus-run-session")
+    and shutil.which("bash"),
+    "requires Linux and dbus-run-session and bash on PATH",
 )
 class SessionDBusTest(unittest.TestCase):
     def _run(self, inherited):
@@ -114,6 +184,8 @@ class SessionDBusTest(unittest.TestCase):
         self.assertTrue(data["fixture_bus"])
         self.assertEqual(data["inner_bus"], data["fixture_bus"])
         self.assertTrue(data["sibling_killed"])
+        self.assertTrue(data["orphan_adopted"])
+        self.assertTrue(data["orphan_killed"])
         self.assertEqual(data["inner_rc"], 0)
 
     def test_fresh_bus(self):

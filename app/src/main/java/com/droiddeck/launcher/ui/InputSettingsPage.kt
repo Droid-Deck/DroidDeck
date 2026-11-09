@@ -1,7 +1,15 @@
 package com.droiddeck.launcher.ui
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.DisplayMetrics
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +27,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun InputSettingsDialog(onBack: () -> Unit, onChanged: () -> Unit) {
@@ -86,7 +97,9 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     LaunchedEffect(surface) { onSurfaceEditing(surface) }
     DisposableEffect(Unit) { onDispose { onSurfaceEditing(false) } }
     var managingLayout by remember { mutableStateOf<SavedInputLayout?>(null) }
+    var exporting by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val controller = rememberControllerSettings()
     var oscMode by remember { mutableStateOf(SessionPrefs.oscMode(context)) }
     fun update(change: (InputLibrary) -> InputLibrary): Boolean = runCatching { InputLibraries.update(context, change) }
@@ -105,6 +118,27 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     val profile = library.profile(profileId)
     val preset = library.preset(profile.binding(role))
     val layout = library.layout(profileId, role)
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val target = role
+        scope.launch {
+            val raw = withContext(Dispatchers.IO) { readLayoutFile(context, uri) }
+            val metrics = inputDisplayMetrics(context, target)
+            val imported = raw?.let { InputLayoutFile.import(context, it, layoutFileName(context, uri) ?: context.getString(R.string.ctrl_layout),
+                if (target == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY, layout?.style ?: InputSurfaceStyle(),
+                metrics.widthPixels, metrics.heightPixels, metrics.density) }
+            if (imported == null) error = context.getString(R.string.input_layout_import_failed)
+            else if (update { it.withLayout(imported.first).withPreset(imported.second).chooseLayout(profileId, target, imported.first.id) }) go(InputPage.SOURCE)
+        }
+    }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val text = exporting
+        exporting = null
+        if (uri != null && text != null) scope.launch {
+            val saved = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } != null }.getOrDefault(false) }
+            if (!saved) error = context.getString(R.string.input_save_failed)
+        }
+    }
     fun rename(title: Int, name: String, save: (String) -> Unit) {
         naming = InputNameRequest(title, name) { value, _, _ -> save(value) }
     }
@@ -116,7 +150,17 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
         }
     }
     fun editPart(nextRole: InputRole) { role = nextRole; bindingsTab = 0; go(InputPage.SOURCE) }
+    val pageFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(page, role, profileId, edit != null, surface) {
+        if (!settled) { settled = true; return@LaunchedEffect }
+        if (surface || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
+        repeat(2) { withFrameNanos { } }
+        runCatching { pageFocus.requestFocus() }
+    }
     val editing = edit
+    Box(Modifier.focusRequester(pageFocus).focusGroup()) {
     if (editing != null) {
         val b = library.preset(editing.preset)
         var elementProperties by remember(editing) { mutableStateOf(editing.element) }
@@ -125,7 +169,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             ?: b.controls[editing.control] ?: InputAction.Native()
         InputActionEditor(editing.control, current, if (editing.click) stringResource(R.string.input_click_name, editing.element!!.name)
             else editing.element?.name ?: editing.key?.label ?: editing.control.label,
-            properties = { if (!editing.click) elementProperties?.let { e -> InputElementProperties(e) { elementProperties = it } } },
+            properties = { action -> if (!editing.click) elementProperties?.let { e -> InputElementProperties(e, action) { elementProperties = it } } },
             onBack = { edit = null }, element = editing.element, nativeTargets = editing.key == null, click = editing.click,
             detail = if (library.usersOfBindings(b.id).size > 1) stringResource(R.string.input_shared_detail, b.name, library.usersOfBindings(b.id).size)
                 else "${profile.name} · ${roleLabel(role)}", onSave = { action ->
@@ -177,7 +221,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             p.id == library.desktop -> stringResource(R.string.input_default_desktop)
                             else -> null
                         }, Modifier.testTag("input-profile-${p.id}")) { profileId = p.id; go(InputPage.PROFILE) }
-                        TextButton(onClick = { newProfile(false) }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_profile)) }
+                        PadTextButton(onClick = { newProfile(false) }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_profile)) }
                     }
                     SettingsGroup(stringResource(R.string.input_device_settings)) {
                         ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, controller.rumble) { ControllerPrefs.setRumble(context, it); onChanged() }
@@ -197,7 +241,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text(timing)
                                 Text(stringResource(R.string.input_measure_instructions), style = MaterialTheme.typography.bodySmall)
-                            } }, confirmButton = { TextButton(onClick = { reading = false }) { Text(stringResource(R.string.common_close)) } })
+                            } }, confirmButton = { PadTextButton(onClick = { reading = false }) { Text(stringResource(R.string.common_close)) } })
                     }
                 }
                 InputPage.PROFILE -> {
@@ -237,6 +281,8 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
                                 format = { "$it%" }) { opacity -> update { it.withLayout(layout.copy(style = layout.style.copy(opacity = opacity))) } }
+                            for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,
+                                button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
                     }
@@ -260,7 +306,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             else {
                                 for (b in preset.keys) {
                                     InputNavigationRow(b.key.label, actionLabel(b.action)) { edit = InputBindingEdit(preset.id, InputControl.A, key = b.key) }
-                                    TextButton(onClick = { update { it.withPreset(preset.copy(keys = preset.keys - b)) } }) { Text(stringResource(R.string.input_remove_binding)) }
+                                    PadTextButton(onClick = { update { it.withPreset(preset.copy(keys = preset.keys - b)) } }) { Text(stringResource(R.string.input_remove_binding)) }
                                 }
                                 InputNavigationRow(stringResource(R.string.input_capture), stringResource(R.string.input_capture_hint)) { capture = true }
                             }
@@ -287,13 +333,17 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                                 reuse = InputReuseRequest(saved.name, layoutOnly = true) { shared -> if (update { it.useLayout(profileId, role, saved.id, shared) }) go(InputPage.SOURCE) }
                             }
                         }
-                        if (other.isNotEmpty()) TextButton(onClick = { showOther = !showOther }, modifier = Modifier.padding(8.dp)) {
+                        if (other.isNotEmpty()) PadTextButton(onClick = { showOther = !showOther }, modifier = Modifier.padding(8.dp)) {
                             Text(stringResource(if (showOther) R.string.input_hide_other_layouts else R.string.input_other_layouts, other.size))
                         }
-                        TextButton(onClick = { naming = InputNameRequest(R.string.input_new_layout, "") { name, _, _ ->
-                            val created = SavedInputLayout(newInputId(), name, screen = if (role == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY)
-                            if (update { it.withLayout(created).useLayout(profileId, role, created.id, shared = true) }) { go(InputPage.SOURCE); surface = true }
-                        } }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_layout)) }
+                        Row {
+                            PadTextButton(onClick = { naming = InputNameRequest(R.string.input_new_layout, "") { name, _, _ ->
+                                val created = SavedInputLayout(newInputId(), name, screen = if (role == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY)
+                                if (update { it.withLayout(created).useLayout(profileId, role, created.id, shared = true) }) { go(InputPage.SOURCE); surface = true }
+                            } }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_layout)) }
+                            PadTextButton(onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) },
+                                modifier = Modifier.padding(8.dp).testTag("input-layout-import")) { Text(stringResource(R.string.boot_movie_import)) }
+                        }
                     }
 
                 }
@@ -309,6 +359,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             }
         }
     }
+    }
     managingLayout?.let { saved -> AlertDialog(onDismissRequest = { managingLayout = null }, title = { Text(saved.name) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.input_layout_count, saved.elements.size))
@@ -316,12 +367,22 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                 managingLayout = null
                 rename(R.string.input_rename_layout, saved.name) { name -> update { it.withLayout(saved.copy(name = name)) } }
             }
+            val exported = remember(saved, library) {
+                val metrics = inputDisplayMetrics(context, if (saved.screen == InputLayoutScreen.SECONDARY) InputRole.SECONDARY else InputRole.PRIMARY)
+                InputLayoutFile.export(saved, library.bindings.firstOrNull { it.id == preset.id && it.layoutId == saved.id }
+                    ?: library.bindings.firstOrNull { it.layoutId == saved.id }, metrics.widthPixels, metrics.heightPixels)
+            }
+            if (exported != null) SecondaryButton(stringResource(R.string.screen_key_layout_export)) {
+                managingLayout = null
+                exporting = exported
+                exporter.launch(InputLayoutFile.fileName(saved))
+            }
             val used = library.usersOfLayout(saved.id).isNotEmpty() || library.bindings.any { it.layoutId == saved.id && library.selectedBindings(it.id) }
             if (!used && saved.editable) SecondaryButton(stringResource(R.string.input_delete)) {
                 managingLayout = null
                 confirmation = InputConfirmation(context.getString(R.string.input_delete), context.getString(R.string.input_delete_layout_detail, saved.name)) { update { it.removeLayout(saved.id) } }
             }
-        } }, confirmButton = { TextButton(onClick = { managingLayout = null }) { Text(stringResource(R.string.common_close)) } }) }
+        } }, confirmButton = { PadTextButton(onClick = { managingLayout = null }) { Text(stringResource(R.string.common_close)) } }) }
     if (capture) InputCaptureDialog(onDismiss = { capture = false }) { capture = false; edit = InputBindingEdit(preset.id, InputControl.A, key = it) }
     if (surface) InputSurfaceDialog(profileId, onDismiss = { surface = false; library = InputLibraries.read(context) }, onChanged = {
         library = InputLibraries.read(context); onChanged()
@@ -329,10 +390,10 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     naming?.let { request -> key(request) { InputNameDialog(request) { naming = null } } }
     reuse?.let { request -> key(request) { InputReuseDialog(request) { reuse = null } } }
     confirmation?.let { request -> AlertDialog(onDismissRequest = { confirmation = null }, title = { Text(request.title) },
-        text = { Text(request.detail) }, confirmButton = { TextButton(onClick = { confirmation = null; request.action() }) { Text(stringResource(R.string.common_ok)) } },
-        dismissButton = { TextButton(onClick = { confirmation = null }) { Text(stringResource(R.string.common_cancel)) } }) }
+        text = { Text(request.detail) }, confirmButton = { PadTextButton(onClick = { confirmation = null; request.action() }) { Text(stringResource(R.string.common_ok)) } },
+        dismissButton = { PadTextButton(onClick = { confirmation = null }) { Text(stringResource(R.string.common_cancel)) } }) }
     error?.let { message -> AlertDialog(onDismissRequest = { error = null }, title = { Text(stringResource(R.string.input_save_failed)) },
-        text = { Text(message) }, confirmButton = { TextButton(onClick = { error = null }) { Text(stringResource(R.string.common_ok)) } }) }
+        text = { Text(message) }, confirmButton = { PadTextButton(onClick = { error = null }) { Text(stringResource(R.string.common_ok)) } }) }
 }
 
 @Composable
@@ -345,14 +406,14 @@ private fun InputNameDialog(request: InputNameRequest, onDismiss: () -> Unit) {
         OutlinedTextField(name, { name = it.take(80) }, label = { Text(stringResource(R.string.input_name)) }, singleLine = true, modifier = Modifier.testTag("input-name"))
         if (request.sources.isNotEmpty()) ChoiceRow(host, "input-copy-source", stringResource(R.string.input_start_from), null, request.sources, source) { source = it }
         if (request.offerSharing) {
-            Row(Modifier.fillMaxWidth().clickable { shared = !shared }, verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(shared, { shared = it }, Modifier.testTag("input-share-physical"))
+            Row(Modifier.fillMaxWidth().focusRow(role = Role.Checkbox, checked = shared) { shared = !shared }.testTag("input-share-physical"), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(shared, null)
                 Text(stringResource(R.string.input_share_physical))
             }
             Text(stringResource(R.string.input_new_independent_hint), style = MaterialTheme.typography.bodySmall)
         }
-    } }, confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { request.save(name.trim(), source, shared); onDismiss() }) { Text(stringResource(R.string.gesture_save_changes)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } })
+    } }, confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { request.save(name.trim(), source, shared); onDismiss() }) { Text(stringResource(R.string.gesture_save_changes)) } },
+        dismissButton = { PadTextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } })
 }
 
 @Composable
@@ -360,12 +421,12 @@ private fun InputReuseDialog(request: InputReuseRequest, onDismiss: () -> Unit) 
     var shared by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(request.name) }, text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(stringResource(if (request.layoutOnly) R.string.input_reuse_layout_detail else R.string.input_reuse_part_detail))
-        for (link in listOf(false, true)) Row(Modifier.fillMaxWidth().clickable { shared = link }, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(shared == link, { shared = link })
+        for (link in listOf(false, true)) Row(Modifier.fillMaxWidth().focusRow(role = Role.RadioButton, checked = shared == link) { shared = link }, verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(shared == link, null)
             Text(stringResource(if (link) R.string.input_keep_shared else R.string.input_independent_copy))
         }
-    } }, confirmButton = { TextButton(onClick = { request.apply(shared); onDismiss() }) { Text(stringResource(R.string.common_ok)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } })
+    } }, confirmButton = { PadTextButton(onClick = { request.apply(shared); onDismiss() }) { Text(stringResource(R.string.common_ok)) } },
+        dismissButton = { PadTextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } })
 }
 
 @Composable
@@ -375,7 +436,7 @@ private fun InputControlGrid(preset: SavedInputBindings, available: List<InputCo
         val columns = if (maxWidth < 480.dp) 2 else 4
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             for (row in controls.chunked(columns)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (control in row) OutlinedCard(onClick = { onPick(control) }, modifier = Modifier.weight(1f).testTag("input-binding-${control.id}")) {
+                for (control in row) OutlinedCard(onClick = { onPick(control) }, modifier = Modifier.weight(1f).controllerConfirm { onPick(control) }.testTag("input-binding-${control.id}")) {
                     Column(Modifier.padding(12.dp).heightIn(min = 48.dp)) {
                         Text(control.label, style = MaterialTheme.typography.titleMedium)
                         Text(actionLabel(preset.controls[control] ?: InputAction.Native()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -389,7 +450,7 @@ private fun InputControlGrid(preset: SavedInputBindings, available: List<InputCo
 
 @Composable
 private fun InputNavigationRow(title: String, detail: String?, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
-    Row(modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).heightIn(min = 64.dp).padding(14.dp),
+    Row(modifier.fillMaxWidth().focusRow(RoundedCornerShape(0.dp), onClick = onClick).heightIn(min = 64.dp).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         leading?.invoke()
         Column(Modifier.weight(1f)) {
@@ -399,6 +460,38 @@ private fun InputNavigationRow(title: String, detail: String?, modifier: Modifie
         Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+internal fun quickButtonLabel(button: InputCommand) = when (button) {
+    InputCommand.STEAM -> R.string.ctrl_steam_button
+    InputCommand.QUICK_ACCESS -> R.string.ctrl_qam_button
+    else -> R.string.ctrl_keyboard_button
+}
+
+@Suppress("DEPRECATION")
+internal fun inputDisplayMetrics(context: Context, role: InputRole): DisplayMetrics = DisplayMetrics().also { metrics ->
+    (context.findActivity() as? com.droiddeck.launcher.SessionActivity)?.inputEditorDisplay(role)?.getRealMetrics(metrics)
+        ?: metrics.setTo(context.resources.displayMetrics)
+}
+
+private fun readLayoutFile(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            out.write(buffer, 0, read)
+            if (out.size() > 1_000_000) return@use null
+        }
+        out.toString(Charsets.UTF_8.name())
+    }
+}.getOrNull()
+
+private fun layoutFileName(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0)?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotEmpty() } else null
+    }
+}.getOrNull()
 
 @Composable
 internal fun roleLabel(role: InputRole) = stringResource(when (role) {

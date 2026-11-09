@@ -11,6 +11,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     private val gestureRight = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(273)) else null
     private val gestureMiddle = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(274)) else null
     val mouseGestures get() = element.mouseGestures && route?.action is InputAction.Pointer
+    val directions get() = route?.action as? InputAction.Directions
 
     fun gestureContact(touching: Boolean) { if (!closed) route?.update(0f, 0f, touching) }
     fun pointerDelta(dx: Float, dy: Float) {
@@ -69,6 +70,12 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         nativePad = toPad; nativeDeck = toDeck
         if (element.toggle) onStateChanged()
         InputTiming.end(timing)
+    }
+
+    fun cancel() {
+        if (closed) return
+        route?.takeIf { it.action is InputAction.Command }?.release()
+        update(0f)
     }
 
     fun click(down: Boolean) {

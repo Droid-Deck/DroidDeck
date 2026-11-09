@@ -136,11 +136,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  components:
-    name: Prepare verified components
+  components-runner:
     needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
+  components:
+    name: Prepare verified components
+    needs: [source, components-runner]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -306,6 +313,11 @@ jobs:
       - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
         run: python3 tools/components/prepare.py dirt-ws2
 
+      - name: Cache graphics driver inputs
+        uses: actions/cache@v4
+        with:
+          path: app/build/quest-inputs
+          key: quest-inputs-${{ hashFiles('tools/quest/build-driver.py') }}
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components
@@ -318,11 +330,18 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  build-runner:
+    needs: [components]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   build:
-    needs: [source, components, xbox]
+    needs: [source, components, xbox, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}
@@ -544,9 +563,11 @@ jobs:
       - name: Cache checksum-pinned pack inputs
         uses: actions/cache@v4
         with:
-          path: ~/.cache/droiddeck-pack-inputs
-          key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
-          restore-keys: pack-inputs-v1-
+          path: |
+            ~/.cache/droiddeck-pack-inputs
+            ~/.cache/droiddeck-build
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
           python3 tools/powervr/fetch.py

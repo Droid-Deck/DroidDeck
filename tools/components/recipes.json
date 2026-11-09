@@ -146,6 +146,9 @@
       "app/src/main/jniLibs/arm64-v8a/libproot.so",
       "app/src/main/jniLibs/arm64-v8a/libproot-loader.so"
     ],
+    "packages": [
+      "gawk"
+    ],
     "ndk": true
   },
   "comet": {

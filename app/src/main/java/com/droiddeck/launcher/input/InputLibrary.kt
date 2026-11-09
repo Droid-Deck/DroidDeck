@@ -9,15 +9,26 @@ enum class InputLayoutScreen { MAIN, SECONDARY, BOTH;
         if (role == InputRole.PRIMARY) this == MAIN else this == SECONDARY)
 }
 
-data class InputSurfaceStyle(val tint: Int? = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100)
+data class InputSurfaceStyle(val tint: Int? = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100, val hidden: Set<InputCommand> = emptySet()) {
+    fun hides(element: InputSurfaceElement) = element.quickButton?.let { it in hidden } == true
+    fun shown(elements: List<InputSurfaceElement>) = if (hidden.isEmpty()) elements else elements.filterNot(::hides)
+}
 
 data class SavedInputLayout(
     val id: String, val name: String, val elements: List<InputSurfaceElement> = emptyList(),
     val template: InputLayoutTemplate = InputLayoutTemplate.CUSTOM,
     val style: InputSurfaceStyle = InputSurfaceStyle(),
     val screen: InputLayoutScreen = InputLayoutScreen.BOTH,
+    val aspect: Float = 0f,
+    val origin: String? = null,
+    val scale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
+    fun withQuickButton(button: InputCommand, shown: Boolean) =
+        copy(style = style.copy(hidden = if (shown) style.hidden - button else style.hidden + button))
+    fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
+    val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
     fun supports(role: InputRole) = screen.supports(role) && when (template) {
         InputLayoutTemplate.OVERLAY -> role == InputRole.PRIMARY
         InputLayoutTemplate.DECK, InputLayoutTemplate.TRACKPAD -> role == InputRole.SECONDARY
@@ -80,7 +91,12 @@ data class InputLibrary(
         return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId(isDesktop)).parts.getValue(role)
     }
     fun activeLayout(isDesktop: Boolean, role: InputRole) = activePart(isDesktop, role).layout?.let { id -> layouts.first { it.id == id } }
-    fun compileActive(isDesktop: Boolean): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith { preset(activePart(isDesktop, it).bindings) })
+    fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
+        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
+    fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
+    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
+        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
+    })
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))
@@ -126,7 +142,7 @@ data class InputLibrary(
         if (shared) return withProfile(target.copy(parts = target.parts + (role to source)))
         val sourceLayout = layout(sourceId, role)
         val name = (target.name + " / " + role.name.lowercase()).take(80)
-        val copiedLayout = sourceLayout?.takeIf { it.editable }?.copy(id = newInputId(), name = name)
+        val copiedLayout = sourceLayout?.takeIf { it.editable }?.derived(newInputId(), name)
         val copiedBindings = preset(source.bindings).copy(id = newInputId(), name = name,
             layoutId = copiedLayout?.id ?: preset(source.bindings).layoutId)
         return (if (copiedLayout == null) this else withLayout(copiedLayout)).withPreset(copiedBindings)
@@ -137,7 +153,7 @@ data class InputLibrary(
         val source = layouts.first { it.id == layoutId }
         require(source.supports(role))
         val target = profile(profileId)
-        val layout = if (shared || !source.editable) source else source.copy(id = newInputId(), name = (target.name + " / " + source.name).take(80))
+        val layout = if (shared || !source.editable) source else source.derived(newInputId(), (target.name + " / " + source.name).take(80))
         val previous = preset(target.binding(role))
         val actions = if (previous.compatible(source)) previous else bindings.firstOrNull { it.compatible(source) } ?: SavedInputBindings(newInputId(), target.name, false,
             controls = if (source.editable) emptyMap() else InputProfile.defaults(target.base).bindings[role].orEmpty(),
@@ -175,7 +191,7 @@ data class InputLibrary(
     fun copyLayout(id: String, name: String, newId: String = newInputId()): InputLibrary {
         val source = layouts.first { it.id == id }
         require(source.editable)
-        return withLayout(source.copy(id = newId, name = inputName(name)))
+        return withLayout(source.derived(newId, inputName(name)))
     }
 
     fun removeProfile(id: String): InputLibrary {
@@ -221,7 +237,9 @@ data class InputLibrary(
         require(selected == InputProfiles.AUTO || profiles.any { it.id == selected })
         require(profiles.any { it.id == steam } && profiles.any { it.id == desktop })
         for (layout in layouts) {
-            require(layout.style.opacity in 1..100)
+            require(layout.style.opacity in 1..100 && layout.style.hidden.all { it in QUICK_BUTTONS })
+            require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
+            require(layout.scale.isFinite() && layout.scale in .5f..2f)
             inputName(layout.name); require(layout.elements.size <= 64); unique(layout.elements.map { it.id })
             for (e in layout.elements) {
                 inputName(e.name)

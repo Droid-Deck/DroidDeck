@@ -354,7 +354,7 @@ class SessionSecondScreenTest {
                 SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {}, actions(steam, displays) { selected += it })
             }
         }
-        val modes = listOf(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.TERMINAL)
+        val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
         for (mode in modes) {
             compose.onNodeWithText(context.getString(mode.label)).performScrollTo().assertIsDisplayed().performClick()
         }
@@ -376,7 +376,7 @@ class SessionSecondScreenTest {
             isHomeApp = false, androidApps = emptyList(), hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
-            onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
+            suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},

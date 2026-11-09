@@ -20,6 +20,7 @@ class InputSurfaceSourceTest {
         override fun pointer(dx: Float, dy: Float) { events += "pointer" }
         override fun scroll(steps: Int) { events += "scroll" }
         override fun command(command: InputCommand) { events += command.name }
+        override fun command(command: InputCommand, role: InputRole) { events += "${command.name}:$role" }
         override fun requestMotion() {}
     })
     private val bridge = PadBridge(File(RuntimeEnvironment.getApplication().cacheDir, "element-input"))
@@ -32,6 +33,18 @@ class InputSurfaceSourceTest {
         bridge.setInputProfile(InputProfile("test", elements = mapOf(InputRole.SECONDARY to mapOf(*actions))))
     }
     private fun state() = JoyConPadTest.RecordingWriter.pads[0] ?: PadState()
+
+    @Test fun aCommandCarriesTheRoleOfTheSurfaceThatSentIt() {
+        val keyboard = InputAction.Command(InputCommand.KEYBOARD)
+        bridge.setInputProfile(InputProfile("test", elements = mapOf(InputRole.PRIMARY to mapOf("builtin:keyboard" to keyboard),
+            InputRole.SECONDARY to mapOf("builtin:keyboard" to keyboard))))
+        val element = button("builtin:keyboard")
+        val primary = InputSurfaceSource(bridge, InputRole.PRIMARY, element).also { sources += it }
+        val secondary = source(element)
+        primary.update(1f); primary.update(0f)
+        secondary.update(1f); secondary.update(0f)
+        assertEquals(listOf("KEYBOARD:PRIMARY", "KEYBOARD:SECONDARY"), events)
+    }
 
     @Test fun toggleUsesSharedOwnershipAndReleasesOnMenuAndProfileChange() {
         bind("first" to InputAction.Keys(listOf(29)), "second" to InputAction.Keys(listOf(29)))

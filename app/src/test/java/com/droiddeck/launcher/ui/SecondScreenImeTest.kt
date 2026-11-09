@@ -1,6 +1,6 @@
 package com.droiddeck.launcher.ui
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.hardware.display.DisplayManager
 import android.os.Looper
 import android.view.Display
@@ -128,7 +128,7 @@ class SecondScreenImeTest {
         panel.requestKeyboard(forField)
         val host: KeyboardHost = ReflectionHelpers.getField(panel, "keyboardHost")
         val root: View = ReflectionHelpers.getField(panel, "root")
-        val owner = Robolectric.buildActivity(Activity::class.java).setup()
+        val owner = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         try {
             (root.parent as ViewGroup).removeView(root)
             owner.get().setContentView(root)
@@ -154,7 +154,7 @@ class SecondScreenImeTest {
         val panel: SecondScreenPresentation,
         val host: KeyboardHost,
         val connection: InputConnection,
-        val owner: ActivityController<Activity>,
+        val owner: ActivityController<ComponentActivity>,
     ) {
         fun close() {
             panel.closeControls()
