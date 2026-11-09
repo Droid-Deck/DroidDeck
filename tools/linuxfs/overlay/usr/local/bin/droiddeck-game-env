@@ -719,7 +719,9 @@ def mark_install_scripts(command, env):
         except (OSError, subprocess.SubprocessError) as error:
             print("droiddeck-game-env: prefix initialization failed (%s)" % error, file=sys.stderr)
         try:
-            wineserver = os.path.join(os.path.dirname(command[0]), "files/bin-arm64/wineserver")
+            tool = os.path.dirname(command[0])
+            wineserver = next((path for path in (os.path.join(tool, "files", name, "wineserver") for name in ("bin-arm64", "bin"))
+                               if os.access(path, os.X_OK)), os.path.join(tool, "files/bin-arm64/wineserver"))
             subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),
                            stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
         except (OSError, subprocess.SubprocessError) as error:
