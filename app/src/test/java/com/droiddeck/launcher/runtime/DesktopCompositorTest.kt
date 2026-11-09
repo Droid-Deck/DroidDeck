@@ -78,4 +78,29 @@ class DesktopCompositorTest {
         assertFalse(lastWritten(dir).exists())
         assertFalse(backup(dir).exists())
     }
+
+    @Test fun aMarkerThatCannotBeWrittenKeepsTheBackup() {
+        val dir = root()
+        marker(dir).writeText("opengl\n")
+        // A directory where the note goes makes its write fail, after the backup was made.
+        assertTrue(lastWritten(dir).mkdirs())
+        try {
+            assertFalse(DesktopCompositor.setForceSoftwareAt(dir, true))
+            assertEquals("opengl", text(marker(dir)))
+            assertEquals("opengl", text(backup(dir)))
+        } finally {
+            lastWritten(dir).delete()
+        }
+        // The marker is unchanged text, so the switch still recognises it and a reset can put it back.
+        assertTrue(DesktopCompositor.setForceSoftwareAt(dir, false))
+        assertEquals("opengl", text(marker(dir)))
+        assertFalse(backup(dir).exists())
+    }
+
+    @Test fun aDesktopThatIsNotInstalledHasNoSwitch() {
+        val dir = root()
+        assertFalse(DesktopCompositor.installedAt(dir))
+        marker(dir).writeText("opengl\n")
+        assertTrue(DesktopCompositor.installedAt(dir))
+    }
 }

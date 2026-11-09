@@ -38,6 +38,11 @@ object DesktopCompositor {
 
     internal fun forceSoftwareAt(root: File): Boolean = text(marker(root)) == SOFTWARE
 
+    /** Whether there is a marker to change at all: a desktop that is not installed has none. */
+    fun installed(context: Context): Boolean = installedAt(LinuxRuntime.rootDir(context))
+
+    internal fun installedAt(root: File): Boolean = marker(root).isFile
+
     /**
      * Whether this switch has to stay put: the marker says `software`, nothing here put it there, so
      * there is no backup that turning the switch off could put back.
@@ -58,8 +63,10 @@ object DesktopCompositor {
             if (current != SOFTWARE) {
                 marker.copyTo(backup, overwrite = true)
             }
-            marker.writeText("$SOFTWARE\n")
+            // The note of what this wrote goes down first: without it the switch no longer recognises
+            // the marker as its own and turning it off would leave the marker alone for good.
             lastWritten.writeText("$SOFTWARE\n")
+            marker.writeText("$SOFTWARE\n")
         } else {
             if (text(lastWritten) != current) {
                 Log.w(TAG, "kwin-compositor changed outside the switch; leaving it as it is")

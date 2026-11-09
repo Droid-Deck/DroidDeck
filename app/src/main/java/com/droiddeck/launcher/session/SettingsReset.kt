@@ -6,6 +6,7 @@ import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.InputProfiles
+import com.droiddeck.launcher.runtime.DesktopCompositor
 import com.droiddeck.launcher.runtime.LinuxRuntime
 
 object SettingsReset {
@@ -68,8 +69,10 @@ object SettingsReset {
         QuestExperimental.initialize(context)
         runCatching { OfflineMode.apply(context, LinuxRuntime.rootDir(context)) }
             .onFailure { ok = false; Log.w(TAG, "Could not turn offline mode off", it) }
-        runCatching { com.droiddeck.launcher.runtime.DesktopCompositor.setForceSoftware(context, false) }
-            .onFailure { ok = false; Log.w(TAG, "Could not put the desktop compositor back", it) }
+        if (DesktopCompositor.installed(context) && !DesktopCompositor.setForceSoftware(context, false)) {
+            ok = false
+            Log.w(TAG, "Could not put the desktop compositor back")
+        }
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { ok = false; Log.w(TAG, "Could not update game environment", it) }
         Log.i(TAG, "settings reset (game profiles: $gameProfiles, ok: $ok)")
