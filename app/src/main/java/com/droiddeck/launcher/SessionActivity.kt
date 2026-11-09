@@ -556,6 +556,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
     @Volatile private var frameGenInventoryRevision = -1L
     private val frameGenInventoryLock = Any()
@@ -2496,15 +2497,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun applyFrameGen(force: Boolean = false) {
+        if (force) frameGenForcePending.set(true)
+        val request = frameGenRequests.incrementAndGet()
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
-        val request = frameGenRequests.incrementAndGet()
         Thread({
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
+                val forcePending = frameGenForcePending.getAndSet(false)
                 val lastAppliedHz = appliedFrameGenHz
-                if (!force && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
+                if (!forcePending && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
                     lastAppliedHz != null && kotlin.math.abs(lastAppliedHz - hz) <= 0.1f
                 ) {
                     null
