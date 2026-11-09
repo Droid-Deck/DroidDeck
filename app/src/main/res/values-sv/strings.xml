@@ -3660,4 +3660,5 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+    <string name="epic_third_party_managed">Installeras via %1$s</string>
 </resources>

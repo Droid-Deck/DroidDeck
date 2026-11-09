@@ -3699,4 +3699,5 @@
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>
+    <string name="epic_third_party_managed">S’installe via %1$s</string>
 </resources>

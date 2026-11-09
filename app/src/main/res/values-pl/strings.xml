@@ -3738,4 +3738,5 @@
     <string name="input_reset_positions">Resetuj położenie</string>
     <string name="input_show_label">Pokaż etykietę</string>
     <string name="input_layout_import_failed">Nie można zaimportować tego układu</string>
+    <string name="epic_third_party_managed">Instalacja przez %1$s</string>
 </resources>
