@@ -927,6 +927,45 @@ def steam_shortcut_state(agent_dir, game_id, timeout=6):
         time.sleep(min(0.5, max(0, deadline - time.monotonic())))
 
 
+def steam_ready(agent_dir):
+    expression = """(() => {
+        const store = globalThis.appStore;
+        const apps = globalThis.SteamClient?.Apps;
+        if (!store?.m_bIsInitialized || typeof apps?.GetActiveGameActions !== 'function') return false;
+        const active = apps.GetActiveGameActions() || [];
+        const ids = Array.isArray(active) ? active : Object.keys(active).map(Number);
+        return ids.every(id => {
+            const details = apps.GetGameActionDetails?.(id);
+            const appid = details?.unAppID ?? details?.appid ?? details?.appID;
+            const task = details?.strTaskName ?? details?.strTask ?? '';
+            return String(appid) !== '769' && task !== 'ShowInterstitials';
+        });
+    })()"""
+    return cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value") is True
+
+
+def steam_clear_pending_interstitial(agent_dir, app_id):
+    if not isinstance(app_id, str) or not app_id.isascii() or not app_id.isdigit() or int(app_id) <= 0:
+        raise AgentError("INVALID_APP_ID", "appId must be a positive decimal Steam app id")
+    expression = """(() => {
+        const apps = globalThis.SteamClient?.Apps;
+        if (typeof apps?.GetActiveGameActions !== 'function' || typeof apps.ContinueGameAction !== 'function') return false;
+        const active = apps.GetActiveGameActions() || [];
+        const ids = Array.isArray(active) ? active : Object.keys(active).map(Number);
+        for (const id of ids) {
+            const details = apps.GetGameActionDetails?.(id);
+            const appid = details?.unAppID ?? details?.appid ?? details?.appID;
+            const task = details?.strTaskName ?? details?.strTask ?? '';
+            if (String(appid) === %s && task === 'ShowInterstitials') {
+                apps.ContinueGameAction(id, 'ShowInterstitials');
+                return true;
+            }
+        }
+        return false;
+    })()""" % json.dumps(app_id)
+    return cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value") is True
+
+
 def game_pids(app_id):
     wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
     me = os.getpid()
@@ -1261,6 +1300,19 @@ def main(argv):
             return 1
         print(state)
         return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
+    if argv and argv[0] == "--steam-ready":
+        try:
+            return 0 if steam_ready(Path(base) / "agent") else 1
+        except (AgentError, OSError, ValueError):
+            return 1
+    if argv and argv[0] == "--steam-clear-pending-interstitial":
+        if len(argv) != 2:
+            print("usage: droiddeck-agent --steam-clear-pending-interstitial <appid>", file=sys.stderr)
+            return 2
+        try:
+            return 0 if steam_clear_pending_interstitial(Path(base) / "agent", argv[1]) else 1
+        except (AgentError, OSError, ValueError):
+            return 1
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

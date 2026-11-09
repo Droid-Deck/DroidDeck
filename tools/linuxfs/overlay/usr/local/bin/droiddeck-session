@@ -1233,7 +1233,7 @@ case $mode in
       done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)
     ) &
     steam_hold_launch() {
-      local game=$1 shortcut= waited=0 status=0
+      local game=$1 shortcut= waited=0 status=0 ready=1
       _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
       _bl_starting() { pgrep -f "reaper SteamLaunch AppId=$(((game >> 32) & 0xffffffff))( |$)" >/dev/null 2>&1; }
       _bl_hand_off() {
@@ -1244,7 +1244,13 @@ case $mode in
         sleep 1
       done
       [ "${#game}" -gt 10 ] && shortcut=1
-      [ -n "$shortcut" ] || sleep 4
+      while [ "$(_bl_focused)" = 769 ] && [ "$SECONDS" -lt "$_bl_end" ]; do
+        ready=0
+        /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 || ready=$?
+        [ "$ready" -eq 0 ] && break
+        sleep 1
+      done
+      [ "$ready" -eq 0 ] || return 0
       echo "== steam: interface up; launching the requested game $game"
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
@@ -1264,8 +1270,9 @@ case $mode in
       elif _bl_starting; then
         echo "== steam: the requested game started while waiting; not launching again"
       elif [ "$(_bl_focused)" = 769 ]; then
-        echo "== steam: launching the requested game again $game (overview status $status)"
-        _bl_hand_off
+        echo "== steam: clearing the pending launch interstitial for $game (overview status $status)"
+        /usr/local/bin/droiddeck-agent --steam-clear-pending-interstitial "$(((game >> 32) & 0xffffffff))" >/dev/null 2>&1 ||
+          echo "== steam: no pending launch interstitial was available for $game"
       else
         echo "== steam: the game took focus while waiting; not launching again"
       fi

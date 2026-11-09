@@ -457,6 +457,21 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(1, agent.main(["--steam-shortcut-state", game_id]))
             self.assertEqual(2, agent.main(["--steam-shortcut-state"]))
 
+    def test_steam_ready_uses_steams_initialized_store_and_active_actions(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": True}) as evaluate:
+            self.assertTrue(agent.steam_ready(self.dir))
+        self.assertIn("m_bIsInitialized", evaluate.call_args.args[1])
+        self.assertIn("GetActiveGameActions", evaluate.call_args.args[1])
+        self.assertFalse(evaluate.call_args.kwargs["await_promise"])
+
+    def test_pending_interstitial_is_continued_by_steam(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": True}) as evaluate:
+            self.assertTrue(agent.steam_clear_pending_interstitial(self.dir, "3551182975"))
+        expression = evaluate.call_args.args[1]
+        self.assertIn("ContinueGameAction", expression)
+        self.assertIn("ShowInterstitials", expression)
+        self.assertIn('"3551182975"', expression)
+
     def test_asleep_command_reports_steams_own_sleep_state(self):
         with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
