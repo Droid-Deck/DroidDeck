@@ -3609,7 +3609,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val width = sessionRoot.width
         val height = sessionRoot.height
         val wanted = controlsBelowWanted()
-        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
+        val tabRow = unfoldedColumn?.getChildAt(0)?.height?.let {
+            it - (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()
+        } ?: 0
+        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow)
             else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (params.height != gameHeight) {
@@ -3635,8 +3638,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             panel = OnScreenControls(this, padBridge, dock).also { it.updateLayout(primaryInputLayout) }
             val column = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                addView(unfoldedBar(), android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()))
+                addView(unfoldedBar().apply {
+                    addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                        if (bottom - top != oldBottom - oldTop) post { applyUnfoldedControls() }
+                    }
+                }, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
                 addView(panel, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             }
             sessionRoot.addView(column, sessionRoot.indexOfChild(surfaceView) + 1)
