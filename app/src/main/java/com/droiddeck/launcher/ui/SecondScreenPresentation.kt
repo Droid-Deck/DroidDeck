@@ -364,7 +364,7 @@ class SecondScreenPresentation(
 
     private fun renderTerminal() {
         bar(SecondScreenMode.TERMINAL)
-        val panel = SessionTerminalPanel(context)
+        val panel = SessionTerminalPanel(context, keepShell = true)
         terminalPanel = panel
         root.addView(panel, weightParams())
     }

@@ -21,7 +21,7 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 
-class SessionTerminalPanel(context: Context) : LinearLayout(context) {
+class SessionTerminalPanel(context: Context, private val keepShell: Boolean = false) : LinearLayout(context) {
     private var terminalSession: TerminalSession? = null
     private var terminalView: TerminalView? = null
     private var terminalPid = -1
@@ -45,7 +45,8 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
             isFocusableInTouchMode = true
         }
         terminalView = view
-        val session = SessionTerminal.create(terminalClient)
+        val session = (if (keepShell) SessionTerminal.reuse(terminalClient) else null)
+            ?: SessionTerminal.create(terminalClient)?.also { if (keepShell) SessionTerminal.keep(it) }
         if (session == null) {
             addView(TextView(context).apply {
                 text = context.getString(R.string.second_terminal_not_ready)
@@ -121,8 +122,12 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(view.windowToken, 0)
         }
-        val pid = terminalPid.takeIf { it > 1 } ?: (terminalSession?.pid ?: -1)
-        if (pid > 1) SessionService.stopTerminalProcess(context, pid)
+        val session = terminalSession
+        if (!keepShell || session?.isRunning != true) {
+            val pid = terminalPid.takeIf { it > 1 } ?: (session?.pid ?: -1)
+            if (pid > 1) SessionService.stopTerminalProcess(context, pid)
+            SessionTerminal.release(session)
+        }
         terminalPid = -1
         terminalSession = null
         terminalView = null
@@ -140,6 +145,7 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
         override fun onSessionFinished(finishedSession: TerminalSession) {
             val pid = terminalPid.takeIf { it > 1 } ?: finishedSession.pid
             if (pid > 1) SessionService.terminalProcessExited(context, pid)
+            SessionTerminal.release(finishedSession)
             terminalPid = -1
             terminalView?.onScreenUpdated()
         }
