@@ -16,6 +16,7 @@ internal object GogContent {
 
     fun token(context: Context) = GogAuth.validToken(context) ?: error("Sign in to GOG and retry")
 
+    @JvmStatic
     fun builds(id: String, token: String): JSONObject {
         val result = json("$SYSTEM/products/$id/os/windows/builds?generation=2", token)
         if (result.optJSONArray("items")?.length() != 0) return result
@@ -33,6 +34,17 @@ internal object GogContent {
     @JvmStatic
     fun depotProducts(depot: JSONObject, baseProductId: String): List<String> =
         depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId").ifEmpty { baseProductId })
+
+    @JvmStatic
+    fun clientCredentials(manifest: JSONObject): Pair<String, String>? {
+        val clientId = manifest.optString("clientId")
+        val clientSecret = manifest.optString("clientSecret")
+        return clientId.takeIf { it.isNotBlank() }?.let { id -> clientSecret.takeIf { it.isNotBlank() }?.let { id to it } }
+    }
+
+    @JvmStatic
+    fun tempExecutable(manifest: JSONObject): String? = manifest.optJSONArray("products")?.optJSONObject(0)
+        ?.optString("temp_executable")?.takeIf { it.isNotBlank() }
 
     @JvmStatic
     fun installProducts(baseProductId: String, depots: JSONArray, installed: List<String>, token: String,
@@ -61,6 +73,7 @@ internal object GogContent {
         } finally { connection.disconnect() }
     })
 
+    @JvmStatic
     fun json(url: String, token: String? = null): JSONObject {
         require(URL(url).protocol == "https") { "GOG metadata requires HTTPS" }
         val connection = URL(url).openConnection() as HttpURLConnection
@@ -81,9 +94,11 @@ internal object GogContent {
 
     fun snapshot(old: GogInstallRecord, build: GogBuild, token: String,
         ownership: (String) -> Set<String>? = { ownedProductIds(it) },
-        metadata: (String, String?) -> JSONObject = ::json): GogInstallRecord {
+        metadata: (String, String?) -> JSONObject = ::json,
+        onManifest: (JSONObject) -> Unit = {}): GogInstallRecord {
         check(build.link.isNotBlank()) { "GOG build manifest is unavailable" }
         val manifest = metadata(build.link, token)
+        onManifest(manifest)
         val files = JSONArray()
         val depots = if (build.generation == 1) manifest.optJSONObject("product")?.optJSONArray("depots") ?: manifest.optJSONArray("depot") else manifest.optJSONArray("depots")
         check(depots != null) { "GOG build has no depot list" }

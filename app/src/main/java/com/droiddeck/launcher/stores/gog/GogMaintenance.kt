@@ -377,7 +377,10 @@ internal object GogMaintenance {
         val build = GogBuild.select(builds) ?: return null
         folder.mkdirs()
         val old = GogInstallRecord(game.gameId, "depot", language = language)
-        val target = GogContent.snapshot(old, build, GogContent.token(context))
+        var credentials: Pair<String, String>? = null
+        val target = GogContent.snapshot(old, build, GogContent.token(context), onManifest = { manifest ->
+            credentials = GogContent.clientCredentials(manifest)
+        })
         GogFiles.validate(target.files, folder)
         val bytes = target.files.objects().sumOf { it.optJSONArray("chunks")?.objects()?.sumOf { c -> c.optLong("compressedSize") }?.takeIf { n -> n > 0 } ?: it.optLong("size") }
         val disk = target.files.objects().sumOf { it.optLong("size") }
@@ -386,7 +389,11 @@ internal object GogMaintenance {
         transfer(context, Proposal(folder, old, target, GogOperation.UPDATE, bytes, disk), null, cancelled, callback)
         if (cancelled.get()) return null
         target.write(folder)
-        val task = GogDownloadManager.pickTask(folder, game.gameId, null, game.title)
+        credentials?.let { (clientId, clientSecret) ->
+            GogPrefs.get(context).edit().putString("client_id_${game.gameId}", clientId)
+                .putString("client_secret_${game.gameId}", clientSecret).apply()
+        }
+        val task = GogDownloadManager.pickTask(folder, game.gameId, GogContent.tempExecutable(target.manifest), game.title)
         val result = GogDownloadManager.Result(task?.path ?: "", build.id, disk)
         result.workDir = task?.workDir
         result.language = target.language

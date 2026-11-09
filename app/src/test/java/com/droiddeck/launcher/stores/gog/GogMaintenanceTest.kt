@@ -41,6 +41,13 @@ class GogMaintenanceTest {
         assertEquals(setOf("1"), allowed)
     }
 
+    @Test fun installManifestCredentialsAndTempExecutableAreExtractedBeforeSanitizing() {
+        val manifest = JSONObject("""{"clientId":"client","clientSecret":"secret","products":[{"temp_executable":"bin/game.exe"}]}""")
+        assertEquals("client" to "secret", GogContent.clientCredentials(manifest))
+        assertEquals("bin/game.exe", GogContent.tempExecutable(GogContent.sanitize(manifest)))
+        assertFalse(GogContent.sanitize(manifest).toString().contains("secret"))
+    }
+
     @Test fun emptyProductIdDepotUsesBaseAndDlcFilesKeepTheirProduct() {
         val build = GogBuild("1", "", 2, "", "https://example.invalid/build")
         val snapshot = GogContent.snapshot(GogInstallRecord("1", "depot"), build, "unused", ownership = { setOf("2") }, metadata = { url, _ ->
@@ -245,7 +252,7 @@ class GogMaintenanceTest {
         fun fixture(name: String) = JSONObject(javaClass.classLoader!!.getResource("gog/$name")!!.readText())
         val build = GogBuild("3301", "", 1, "", "https://example.invalid/repository.json")
         val requested = ArrayList<String>()
-        val snapshot = GogContent.snapshot(GogInstallRecord("1207658940", "depot"), build, "unused") { url, _ ->
+        val snapshot = GogContent.snapshot(GogInstallRecord("1207658940", "depot"), build, "unused", metadata = { url, _ ->
             requested.add(url)
             when {
                 url == build.link -> fixture("rayman-gen1-repository.json")
@@ -253,7 +260,7 @@ class GogMaintenanceTest {
                 url.endsWith("ec88140c-2589-41a0-bbf3-8fc1f215fe5a.json") -> fixture("rayman-gen1-english-excerpt.json")
                 else -> error("Unexpected metadata: $url")
             }
-        }
+        })
         assertEquals("3301", snapshot.build)
         assertEquals(1, snapshot.generation)
         assertEquals(4, snapshot.files.length())
