@@ -71,10 +71,14 @@ object NativeGuest {
         ).filterValues { it.isNotEmpty() }
     }
 
+    /** Where guest directory [cwd] is, through the session's mounts ([binds], "src:dst"); the rootfs if it is nowhere. */
+    fun workingDirectory(root: File, binds: List<String>, cwd: String): File =
+        File(BwrapSpawner.hostPath(binds.map { BwrapSpawner.Bind.parse(it) }, root.path, cwd)).takeIf { it.isDirectory } ?: root
+
     /** A process for [guest] (argv) started as proot would with [binds], in guest directory [cwd]. */
     fun processBuilder(context: Context, root: File, binds: List<String>, guest: List<String>, cwd: String = "/root"): ProcessBuilder =
         ProcessBuilder(command(root, guest.first(), guest.drop(1)))
-            .directory(File(root, cwd.removePrefix("/")).takeIf { it.isDirectory } ?: root)
+            .directory(workingDirectory(root, binds, cwd))
             .also { builder ->
                 builder.environment().apply {
                     remove("LD_AUDIT")

@@ -13,6 +13,19 @@ class NativeGuestTest {
     }
 
     @Test
+    fun aWorkingDirectoryInAMountIsItsSource() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val storage = Files.createTempDirectory("storage").toFile()
+        File(root, "root").mkdirs()
+        // a mount spec is "src:dst"; Windows' drive letters cannot be written in one
+        org.junit.Assume.assumeFalse(storage.path.contains(':'))
+        val binds = listOf("${storage.path}:/root/Storage", "/proc")
+        assertEquals(storage, NativeGuest.workingDirectory(root, binds, "/root/Storage"))
+        assertEquals(File(root, "root"), NativeGuest.workingDirectory(root, binds, "/root"))
+        assertEquals(root, NativeGuest.workingDirectory(root, binds, "/nowhere"))
+    }
+
+    @Test
     fun commandRunsTheProgramThroughTheRootfsLoader() {
         val root = rootWithLoader()
         val command = NativeGuest.command(root, "/usr/bin/env", listOf("-i", "A=1"))
