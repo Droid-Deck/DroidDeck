@@ -552,53 +552,89 @@ int fstat(int fd, struct stat *statbuf) {
     return ret;
 }
 
-// Glibc __xstat compatibility hooks
+// Glibc __xstat compatibility hooks, what programs built against glibc before 2.33 call (Firefox):
+// they present owners like stat() does, or Firefox saw $HOME owned by the app's uid while geteuid()
+// said 0 and refused to start ("as root in a regular user's session").
 int __xstat(int ver, const char *pathname, struct stat *statbuf) {
     static int (*orig___xstat)(int, const char *, struct stat *) = NULL;
     if (!orig___xstat) orig___xstat = (int (*)(int, const char *, struct stat *))dlsym(RTLD_NEXT, "__xstat");
+    if (!orig___xstat) return stat(pathname, statbuf);
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    return orig___xstat ? orig___xstat(ver, target, statbuf) : stat(target, statbuf);
+    int ret = orig___xstat(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    if (ret == 0) apply_stat_emulation(statbuf);
+    return ret;
 }
 
 int __xstat64(int ver, const char *pathname, struct stat64 *statbuf) {
     static int (*orig___xstat64)(int, const char *, struct stat64 *) = NULL;
     if (!orig___xstat64) orig___xstat64 = (int (*)(int, const char *, struct stat64 *))dlsym(RTLD_NEXT, "__xstat64");
+    if (!orig___xstat64) return stat(pathname, (struct stat *)statbuf);
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    return orig___xstat64 ? orig___xstat64(ver, target, statbuf) : stat(target, (struct stat *)statbuf);
+    int ret = orig___xstat64(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
+    return ret;
 }
 
 int __lxstat(int ver, const char *pathname, struct stat *statbuf) {
     static int (*orig___lxstat)(int, const char *, struct stat *) = NULL;
     if (!orig___lxstat) orig___lxstat = (int (*)(int, const char *, struct stat *))dlsym(RTLD_NEXT, "__lxstat");
+    if (!orig___lxstat) return lstat(pathname, statbuf);
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    return orig___lxstat ? orig___lxstat(ver, target, statbuf) : lstat(target, statbuf);
+    int ret = orig___lxstat(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    if (ret == 0) apply_stat_emulation(statbuf);
+    return ret;
 }
 
 int __lxstat64(int ver, const char *pathname, struct stat64 *statbuf) {
     static int (*orig___lxstat64)(int, const char *, struct stat64 *) = NULL;
     if (!orig___lxstat64) orig___lxstat64 = (int (*)(int, const char *, struct stat64 *))dlsym(RTLD_NEXT, "__lxstat64");
+    if (!orig___lxstat64) return lstat(pathname, (struct stat *)statbuf);
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    return orig___lxstat64 ? orig___lxstat64(ver, target, statbuf) : lstat(target, (struct stat *)statbuf);
+    int ret = orig___lxstat64(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
+    return ret;
+}
+
+int __fxstat(int ver, int fd, struct stat *statbuf) {
+    static int (*orig___fxstat)(int, int, struct stat *) = NULL;
+    if (!orig___fxstat) orig___fxstat = (int (*)(int, int, struct stat *))dlsym(RTLD_NEXT, "__fxstat");
+    if (!orig___fxstat) return fstat(fd, statbuf);
+    int ret = orig___fxstat(ver, fd, statbuf);
+    if (ret == 0) apply_stat_emulation(statbuf);
+    return ret;
+}
+
+int __fxstat64(int ver, int fd, struct stat64 *statbuf) {
+    static int (*orig___fxstat64)(int, int, struct stat64 *) = NULL;
+    if (!orig___fxstat64) orig___fxstat64 = (int (*)(int, int, struct stat64 *))dlsym(RTLD_NEXT, "__fxstat64");
+    if (!orig___fxstat64) return fstat(fd, (struct stat *)statbuf);
+    int ret = orig___fxstat64(ver, fd, statbuf);
+    if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
+    return ret;
 }
 
 int __fxstatat(int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
     static int (*orig___fxstatat)(int, int, const char *, struct stat *, int) = NULL;
     if (!orig___fxstatat) orig___fxstatat = (int (*)(int, int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "__fxstatat");
+    if (!orig___fxstatat) return fstatat(dirfd, pathname, statbuf, flags);
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
-    return orig___fxstatat ? orig___fxstatat(ver, dirfd, target, statbuf, flags) : fstatat(dirfd, target, statbuf, flags);
+    int ret = orig___fxstatat(ver, dirfd, target, statbuf, flags);
+    if (ret == 0) apply_stat_emulation(statbuf);
+    return ret;
 }
 
 int __fxstatat64(int ver, int dirfd, const char *pathname, struct stat64 *statbuf, int flags) {
     static int (*orig___fxstatat64)(int, int, const char *, struct stat64 *, int) = NULL;
     if (!orig___fxstatat64) orig___fxstatat64 = (int (*)(int, int, const char *, struct stat64 *, int))dlsym(RTLD_NEXT, "__fxstatat64");
+    if (!orig___fxstatat64) return fstatat(dirfd, pathname, (struct stat *)statbuf, flags);
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
-    return orig___fxstatat64 ? orig___fxstatat64(ver, dirfd, target, statbuf, flags) : fstatat(dirfd, target, (struct stat *)statbuf, flags);
+    int ret = orig___fxstatat64(ver, dirfd, target, statbuf, flags);
+    if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
+    return ret;
 }
 
 // Hook statx
