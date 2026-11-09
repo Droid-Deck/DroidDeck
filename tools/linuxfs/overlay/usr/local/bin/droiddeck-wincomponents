@@ -59,7 +59,13 @@ def component(store, cid):
             if entry.is_file() and not entry.is_symlink():
                 files.append(("drive_c/" + entry.relative_to(drive).as_posix(), entry))
     requires = [r for r in meta.get("requires", []) if valid_id(r)]
-    return [str(o) for o in meta.get("overrides", [])], files, requires, registry_values(root)
+    overrides = [str(o) for o in meta.get("overrides", [])]
+    values = registry_values(root)
+    if any(o.strip().lower() == "mscoree=n" for o in overrides) and any(
+            rel.lower().startswith("drive_c/windows/microsoft.net/assembly/") for rel, _ in files):
+        values.append({"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": "*",
+                       "type": "sz", "data": "Gac=n"})
+    return overrides, files, requires, values
 
 
 def registry_values(root):

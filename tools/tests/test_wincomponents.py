@@ -284,6 +284,23 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(MODULE["overrides_value"](names), "mscoree=n,b")
         self.assertIn("mscoree=n has no native DLL in the prefix; using n,b", notes)
 
+    def test_framework_gac_component_disables_windows_gac_for_mono(self):
+        self.component("dotnet48", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4.0_4.0.0.0__b77a5c561934e089/System.dll": b"system",
+        })
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("dotnet48")
+        self.apply()
+        self.assertIn(
+            '"*"="Gac=n"',
+            user.read_text(),
+        )
+        self.pick()
+        self.apply()
+        self.assertNotIn('"*"="Gac=n"', user.read_text())
+
     def test_a_wine_placeholder_file_is_not_a_native_dll(self):
         self.component("dotnet48", ["mscoree=n"], {})
         for arch in ("system32", "syswow64"):
