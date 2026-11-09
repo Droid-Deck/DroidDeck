@@ -263,6 +263,11 @@ class GogMaintenanceTest {
         File(folder, "Game.bin").writeText("original")
         assertThrows(IllegalArgumentException::class.java) { GogFiles.validate(JSONArray("""[{"path":"game.bin"}]"""), folder) }
         assertThrows(IllegalArgumentException::class.java) { GogFiles.validate(JSONArray("""[{"path":".droiddeck-store.json"}]"""), folder) }
+        val data = File(folder, "Data").apply { mkdirs() }
+        val installed = JSONArray()
+        for (i in 0 until 2000) { File(data, "Part$i.bin").writeText(""); installed.put(JSONObject().put("path", "Data/Part$i.bin")) }
+        GogFiles.validate(installed, folder)
+        assertThrows(IllegalArgumentException::class.java) { GogFiles.validate(JSONArray("""[{"path":"Data/Part0.bin"},{"path":"Data/part1.bin"}]"""), folder) }
         val outside = temporary.newFolder()
         try { Files.createSymbolicLink(File(folder, "link").toPath(), outside.toPath()) }
         catch (_: java.nio.file.FileSystemException) { return }

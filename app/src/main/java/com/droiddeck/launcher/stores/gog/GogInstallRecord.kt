@@ -124,6 +124,7 @@ internal object GogFiles {
     fun validate(files: JSONArray, folder: File) {
         val paths = HashSet<String>()
         val components = HashMap<String, String>()
+        val listings = HashMap<File, Map<String, List<String>>>()
         for (file in files.objects()) {
             val path = file.getString("path").replace('\\', '/')
             inside(folder, path)
@@ -135,7 +136,8 @@ internal object GogFiles {
                 relative = if (relative.isEmpty()) part else "$relative/$part"
                 val previous = components.putIfAbsent(relative.lowercase(Locale.ROOT), relative)
                 require(previous == null || previous == relative) { "GOG directory paths differ only by case: $path" }
-                require(parent.list()?.none { it != part && it.equals(part, true) } != false) { "An existing path differs only by case: $path" }
+                val existing = listings.getOrPut(parent) { parent.list().orEmpty().groupBy { it.lowercase(Locale.ROOT) } }
+                require(existing[part.lowercase(Locale.ROOT)].orEmpty().all { it == part }) { "An existing path differs only by case: $path" }
                 parent = File(parent, part)
             }
         }
