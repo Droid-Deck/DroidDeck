@@ -119,10 +119,10 @@ object EaLaunch {
             }
         }
         if (core != null && notes.isNotEmpty() && notes.none { it.endsWith(":ok") }) runCatching {
-            val rows = EaApi.legacyEntitlements(access)
-            com.droiddeck.launcher.stores.StoresState.logLine("ea legacy entitlements for $id: ${rows.size} rows")
-            for (r in rows) com.droiddeck.launcher.stores.StoresState.logLine("ea legacy " + listOf("productId", "entitlementTag", "entitlementType", "externalType", "groupName", "status", "statusReasonCode", "originPermissions", "isSubscription", "useCount", "version", "grantDate").joinToString(" ") { k -> "$k=${r.optString(k)}" } + " cdKey=" + (if (r.optString("cdKey").let { it.isNotEmpty() && it != "null" }) "yes" else "no"))
-        }.onFailure { com.droiddeck.launcher.stores.StoresState.logLine("ea legacy entitlements for $id: ${it.javaClass.simpleName} ${it.message.orEmpty().take(300)}") }
+            val rows = EaApi.legacyEntitlements(access).filter { it.optString("productId") == id }
+            val types = rows.joinToString(",") { it.optString("entitlementType") + "/" + it.optString("entitlementTag") + "/" + it.optString("status") }
+            com.droiddeck.launcher.stores.StoresState.logLine("ea $id has no licence; entitlements: ${types.ifEmpty { "none" }}")
+        }
         val licenseNote = if (core == null) "none-needed" else "v$hashVersion " + notes.joinToString(",")
         Log.i(TAG, "prepared $id lsx=$lsx legacy=$legacy opaque=${opaque.isNotEmpty()} licence=$licenseNote")
         return reply.put("ok", true).put("lsx", lsx).put("license", licenseNote).put("licenses", licenses)
