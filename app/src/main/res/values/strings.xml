@@ -1144,6 +1144,14 @@
     <string name="lab_off_title">Lab build turned off</string>
     <string name="lab_off_other_install">It was built for another version of DroidDeck. It is kept in Updates.</string>
     <string name="lab_off_did_not_start">DroidDeck did not start on it twice</string>
+    <string name="rail_agent">Agent</string>
+    <string name="agent_channel_name">Agent</string>
+    <string name="agent_working">Agent is working</string>
+    <string name="agent_missing">Install Claude Code in the Linux userland to use the agent.</string>
+    <string name="agent_hint">Ask about a game, a crash, or a change to DroidDeck</string>
+    <string name="agent_send">Send</string>
+    <string name="agent_new">New conversation</string>
+    <string name="agent_failed">Stopped: %1$s</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
