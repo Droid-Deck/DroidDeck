@@ -12,6 +12,27 @@
 
 static int (*get_real_sigaction(void))(int, const struct sigaction *, struct sigaction *);
 
+// A program's own SIGSYS handler, for the traps of a seccomp filter it installed itself (Firefox's
+// and Chromium's sandboxes emulate the calls they trap there). Android's app filter traps with data
+// 0; such a sandbox's traps carry their own nonzero data, which the kernel gives as si_errno.
+static struct sigaction g_app_sigsys;
+static int g_app_sigsys_set = 0;
+
+static void remember_app_sigsys(const struct sigaction *act, struct sigaction *oldact) {
+    if (oldact) {
+        if (g_app_sigsys_set) {
+            *oldact = g_app_sigsys;
+        } else {
+            memset(oldact, 0, sizeof(*oldact));
+            oldact->sa_handler = SIG_DFL;
+        }
+    }
+    if (act) {
+        g_app_sigsys = *act;
+        g_app_sigsys_set = act->sa_handler != SIG_DFL && act->sa_handler != SIG_IGN;
+    }
+}
+
 // Intercept SECCOMP blocked syscalls (SIGSYS), resolve sandbox/landlock gracefully, and advance PC
 static void ddnatv_sigsys_handler(int sig, siginfo_t *info, void *ctx) {
     if (!ctx || !info) return;
@@ -25,6 +46,11 @@ static void ddnatv_sigsys_handler(int sig, siginfo_t *info, void *ctx) {
             real_sig(sig, &sa_dfl, NULL);
         }
         raise(sig);
+        return;
+    }
+    if (info->si_errno != 0 && g_app_sigsys_set) {
+        if (g_app_sigsys.sa_flags & SA_SIGINFO) g_app_sigsys.sa_sigaction(sig, info, ctx);
+        else g_app_sigsys.sa_handler(sig);
         return;
     }
     ucontext_t *uctx = (ucontext_t *)ctx;
@@ -132,11 +158,7 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
         if (act && act->sa_sigaction == ddnatv_sigsys_handler) {
             return real_sig(signum, act, oldact);
         }
-        if (oldact) {
-            memset(oldact, 0, sizeof(*oldact));
-            oldact->sa_sigaction = ddnatv_sigsys_handler;
-            oldact->sa_flags = SA_SIGINFO | SA_RESTART;
-        }
+        remember_app_sigsys(act, oldact);
         return 0;
     }
     return real_sig(signum, act, oldact);
@@ -150,11 +172,7 @@ int rt_sigaction(int signum, const struct sigaction *act, struct sigaction *olda
         if (act && act->sa_sigaction == ddnatv_sigsys_handler) {
             return orig_rt_sigaction ? orig_rt_sigaction(signum, act, oldact, sigsetsize) : 0;
         }
-        if (oldact) {
-            memset(oldact, 0, sizeof(*oldact));
-            oldact->sa_sigaction = ddnatv_sigsys_handler;
-            oldact->sa_flags = SA_SIGINFO | SA_RESTART;
-        }
+        remember_app_sigsys(act, oldact);
         return 0;
     }
     return orig_rt_sigaction ? orig_rt_sigaction(signum, act, oldact, sigsetsize) : -1;
@@ -169,7 +187,11 @@ sighandler_t signal(int signum, sighandler_t handler) {
     static sighandler_t (*orig_signal)(int, sighandler_t) = NULL;
     if (!orig_signal) orig_signal = (sighandler_t (*)(int, sighandler_t))dlsym(RTLD_NEXT, "signal");
     if (signum == SIGSYS) {
-        return (sighandler_t)ddnatv_sigsys_handler;
+        struct sigaction act, old;
+        memset(&act, 0, sizeof(act));
+        act.sa_handler = handler;
+        remember_app_sigsys(&act, &old);
+        return old.sa_handler;
     }
     return orig_signal ? orig_signal(signum, handler) : NULL;
 }
