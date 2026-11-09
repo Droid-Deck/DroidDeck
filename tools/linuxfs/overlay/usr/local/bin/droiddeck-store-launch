@@ -284,6 +284,83 @@ def exited(argv, code=0):
     return 0
 
 
+UBISOFT_DIR = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
+UBISOFT_CLIENT = "upc.exe"
+UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
+UBISOFT_CACHE = Path(os.environ.get("HOME") or "/root") / ".cache/droiddeck/ubisoft"
+UBISOFT_INSTALL_WAIT = 900
+UBISOFT_KEY = "[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\%d]"
+MIN_INSTALLER = 1 << 20
+
+
+def ubisoft_client(compat_data):
+    return Path(compat_data) / "pfx" / UBISOFT_DIR / UBISOFT_CLIENT
+
+
+def fetch_installer(url=UBISOFT_INSTALLER_URL, folder=UBISOFT_CACHE):
+    target = folder / "UbisoftConnectInstaller.exe"
+    if target.is_file() and target.stat().st_size >= MIN_INSTALLER:
+        return target
+    import urllib.request
+    folder.mkdir(parents=True, exist_ok=True)
+    part = target.with_name(target.name + ".part")
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(request, timeout=60) as reply, open(part, "wb") as out:
+        shutil.copyfileobj(reply, out)
+    if part.stat().st_size < MIN_INSTALLER:
+        part.unlink()
+        raise OSError("installer too small")
+    os.replace(part, target)
+    return target
+
+
+def install_connect(compat_data, proton, wait=UBISOFT_INSTALL_WAIT):
+    if ubisoft_client(compat_data).is_file():
+        return "present"
+    if not proton or not Path(proton).is_file():
+        return "no-proton"
+    made = create_prefix(compat_data, proton)
+    if made not in ("present", "created"):
+        return "prefix-" + made
+    try:
+        installer = fetch_installer()
+    except OSError as error:
+        return "download-failed-" + type(error).__name__
+    log("ubisoft: installing Ubisoft Connect")
+    try:
+        subprocess.run([proton, "run", windows_path(str(installer)), "/S"], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=wait)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "failed"
+    return "installed" if ubisoft_client(compat_data).is_file() else "not-installed"
+
+
+def register_ubisoft(folder, sidecar, compat_data):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    try:
+        product = int(str(extra.get("productId") or ""))
+    except ValueError:
+        return "no-product"
+    reg = Path(compat_data) / "pfx" / "system.reg"
+    if not wait_for_server(reg.parent):
+        return "server-running"
+    path = windows_path(str(folder)).replace("\\", "/").rstrip("/") + "/"
+    if not set_value(reg, UBISOFT_KEY % product, "InstallDir", path):
+        return "no-registry"
+    return "registered %d" % product
+
+
+def prepare_ubisoft(folder, sidecar, compat_data, proton):
+    if not compat_data:
+        return "no-prefix"
+    state = install_connect(compat_data, proton)
+    if not ubisoft_client(compat_data).is_file():
+        return "connect " + state
+    return "connect %s, %s" % (state, register_ubisoft(folder, sidecar, compat_data))
+
+
 COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 
 
@@ -771,6 +848,8 @@ def main(argv):
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+    if store == "ubisoft":
+        log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", ""))))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:

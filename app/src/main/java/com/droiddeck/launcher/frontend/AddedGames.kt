@@ -457,7 +457,11 @@ object AddedGames {
                 steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId,
                 source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id,
                 exeUncertain = sidecar == null && chosen == null && adopted == null && ranking.uncertain,
-                launchOptions = if (sidecar == null) SessionPrefs.addedGameLaunch(context, folder.path) else "",
+                launchOptions = when {
+                    sidecar == null -> SessionPrefs.addedGameLaunch(context, folder.path)
+                    sidecar.store == Store.UBISOFT -> com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.launchOptions(context)
+                    else -> ""
+                },
                 single = single != null))
         }
     }

@@ -797,3 +797,59 @@ class GogRegistry(unittest.TestCase):
                 store.main([str(folder / store.LAUNCHER)])
                 apply.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
                 support.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+
+
+class Ubisoft(unittest.TestCase):
+    def prefix(self, root):
+        compat_data = Path(root) / 'compatdata/2929927072'
+        (compat_data / 'pfx').mkdir(parents=True)
+        (compat_data / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
+        return compat_data
+
+    def connect(self, compat_data):
+        client = store.ubisoft_client(compat_data)
+        client.parent.mkdir(parents=True)
+        client.write_bytes(b'MZ')
+
+    def test_an_installed_connect_is_not_installed_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            compat_data = self.prefix(root)
+            self.connect(compat_data)
+            with patch.object(store.subprocess, 'run') as run:
+                self.assertEqual('present', store.install_connect(str(compat_data), '/proton'))
+            run.assert_not_called()
+
+    def test_the_game_folder_is_registered_under_its_product(self):
+        with tempfile.TemporaryDirectory() as root:
+            compat_data = self.prefix(root)
+            self.connect(compat_data)
+            folder = Path(root) / 'Games/Stores/Ubisoft/Splinter Cell'
+            folder.mkdir(parents=True)
+            sidecar = {'store': 'ubisoft', 'id': '109', 'extra': {'productId': '109'}}
+            self.assertEqual('connect present, registered 109', store.prepare_ubisoft(folder, sidecar, str(compat_data), '/proton'))
+            reg = (compat_data / 'pfx/system.reg').read_text()
+            self.assertIn('[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\109]', reg)
+            self.assertIn('"InstallDir"="Z:%s/"' % folder, reg)
+            store.prepare_ubisoft(folder, sidecar, str(compat_data), '/proton')
+            self.assertEqual(1, (compat_data / 'pfx/system.reg').read_text().count('"InstallDir"'))
+
+    def test_a_game_without_a_product_is_not_registered(self):
+        with tempfile.TemporaryDirectory() as root:
+            compat_data = self.prefix(root)
+            self.connect(compat_data)
+            self.assertEqual('connect present, no-product', store.prepare_ubisoft(Path(root), {'store': 'ubisoft', 'id': 'x'}, str(compat_data), '/proton'))
+
+    def test_a_missing_connect_is_downloaded_and_installed_silently(self):
+        with tempfile.TemporaryDirectory() as root:
+            compat_data = self.prefix(root)
+            (compat_data / 'pfx/user.reg').write_text('')
+            proton = Path(root) / 'proton'
+            proton.write_text('')
+            installer = Path(root) / 'UbisoftConnectInstaller.exe'
+
+            def run(command, **_kwargs):
+                self.assertEqual([str(proton), 'run', store.windows_path(str(installer)), '/S'], command)
+                self.connect(compat_data)
+
+            with patch.object(store, 'fetch_installer', return_value=installer), patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertEqual('installed', store.install_connect(str(compat_data), str(proton)))
