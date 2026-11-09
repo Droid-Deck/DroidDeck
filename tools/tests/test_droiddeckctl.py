@@ -792,5 +792,48 @@ class ScenarioTest(FakeAdbTest):
         self.assertEqual([{"appId": 7, "timeout": 15.0}] * 2, [c["request"] for c in self.calls("quit")])
 
 
+class ProviderFallbackTest(unittest.TestCase):
+    MISSING = "/system/bin/sh: content: inaccessible or not found\n"
+
+    def adb(self, answers):
+        calls = []
+
+        def run(adb, serial, *args, timeout=None):
+            calls.append(args)
+            for prefix, (code, out, err) in answers:
+                if " ".join(args).startswith(" ".join(prefix)):
+                    return unittest.mock.Mock(returncode=code, stdout=out.encode(), stderr=err.encode())
+            raise AssertionError(f"unexpected adb call {args}")
+        return calls, unittest.mock.patch.object(ctl, "run_adb", run)
+
+    def test_a_command_that_prints_the_shell_error_is_not_run_again(self):
+        result = 'Result: Bundle[{json={"ok":true,"stdout":{"text":"' + self.MISSING.strip() + '"}}}]'
+        calls, patch = self.adb([(["shell", "content"], (0, result, ""))])
+        with patch:
+            self.assertTrue(ctl.provider_call("adb", "s", "native", request={"argv": ["x"]})["ok"])
+        self.assertEqual(1, len(calls))
+
+    def test_a_shell_without_content_uses_the_broadcast(self):
+        calls, patch = self.adb([
+            (["shell", "content"], (127, "", self.MISSING)),
+            (["shell", "pidof"], (0, "4940\n", "")),
+            (["shell", "am", "broadcast"], (0, "Broadcast completed", "")),
+            (["shell"], (0, '{"ok": true}', "")),
+        ])
+        with patch:
+            self.assertTrue(ctl.provider_call("adb", "s", "state")["ok"])
+        self.assertEqual(["shell", "am", "broadcast"], list(calls[2][:3]))
+
+    def test_the_broadcast_needs_the_app_running(self):
+        calls, patch = self.adb([
+            (["shell", "content"], (127, "", self.MISSING)),
+            (["shell", "pidof"], (1, "", "")),
+        ])
+        with patch, self.assertRaises(ctl.ControlError) as raised:
+            ctl.provider_call("adb", "s", "state")
+        self.assertEqual("APP_NOT_RUNNING", raised.exception.code)
+        self.assertFalse(any(c[:3] == ("shell", "am", "broadcast") for c in calls))
+
+
 if __name__ == "__main__":
     unittest.main()
