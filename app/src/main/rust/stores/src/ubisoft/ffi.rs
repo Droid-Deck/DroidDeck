@@ -30,11 +30,27 @@ fn owned(ticket: &str, session: &str) -> Result<serde_json::Value, String> {
     })
 }
 
+fn launch(ticket: &str, session: &str, product: u32) -> Result<serde_json::Value, String> {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+    rt.block_on(async {
+        let mut d = super::demux::Demux::connect(ticket).await?;
+        let (mut ownership, games) = super::service::Ownership::open(&mut d, ticket, session).await?;
+        if !games.iter().any(|g| g.product_id == product && g.owned) {
+            return Err("Ubisoft says this account does not own the game".into());
+        }
+        let pc_ticket = ownership.pc_ticket(&mut d, product, ticket, session).await?;
+        let owned: Vec<u32> = games.iter().filter(|g| g.in_session()).map(|g| g.product_id).collect();
+        Ok(json!({ "ticket": pc_ticket, "owned": owned }))
+    })
+}
+
 fn call(op: &str, request: &str) -> String {
     let parsed: serde_json::Value = serde_json::from_str(request).unwrap_or(serde_json::Value::Null);
     let s = |k: &str| parsed.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let answer = match op {
         "owned" => owned(&s("ticket"), &s("sessionId")).unwrap_or_else(|e| json!({ "error": e })),
+        "launch" => launch(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32)
+            .unwrap_or_else(|e| json!({ "error": e })),
         _ => json!({ "error": format!("unknown operation {op}") }),
     };
     answer.to_string()

@@ -14,6 +14,11 @@ pub struct Owned {
 }
 
 impl Owned {
+    /// Whether Connect lists the product among the session's owned ids: owned games and add-ons that are released.
+    pub fn in_session(&self) -> bool {
+        self.owned && self.product_type <= 1 && (self.state == 0 || self.state == 3)
+    }
+
     pub fn to_json(&self) -> Json {
         json!({
             "productId": self.product_id, "spaceId": self.space_id, "manifest": self.manifest,
@@ -63,6 +68,24 @@ impl Ownership {
             }
         }
         Ok((Ownership { conn, next: 2 }, games))
+    }
+
+    /// The ticket a game receives in its launcher session (`GetUplayPCTicket`).
+    pub async fn pc_ticket(&mut self, d: &mut Demux, product_id: u32, ticket: &str, session_id: &str) -> Result<String, String> {
+        let id = self.next;
+        self.next += 1;
+        let info = Msg::new().uint(1, product_id as u64).uint(2, 0).uint(3, product_id as u64);
+        let mut req = Msg::new().uint(1, id).msg(14, info).text(30, ticket);
+        if !session_id.is_empty() {
+            req = req.text(31, session_id);
+        }
+        let raw = d.call(self.conn, Msg::new().msg(1, req)).await?;
+        let rsp = pb::fields(pb::sub(&pb::fields(&raw)?, 1).ok_or("no ownership answer")?)?;
+        let t = pb::fields(pb::sub(&rsp, 13).ok_or("no game ticket answer")?)?;
+        if pb::num(&t, 1) != Some(1) {
+            return Err(format!("Ubisoft would not issue a game ticket (code {})", pb::num(&t, 3).unwrap_or(0)));
+        }
+        pb::string(&t, 2).filter(|s| !s.is_empty()).ok_or_else(|| "Ubisoft sent an empty game ticket".into())
     }
 
     pub async fn token(&mut self, d: &mut Demux, product_id: u32) -> Result<String, String> {

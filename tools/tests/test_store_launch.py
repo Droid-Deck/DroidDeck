@@ -800,56 +800,84 @@ class GogRegistry(unittest.TestCase):
 
 
 class Ubisoft(unittest.TestCase):
-    def prefix(self, root):
-        compat_data = Path(root) / 'compatdata/2929927072'
-        (compat_data / 'pfx').mkdir(parents=True)
-        (compat_data / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
-        return compat_data
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.compat_data = self.root / 'compatdata/2929927072'
+        (self.compat_data / 'pfx').mkdir(parents=True)
+        (self.compat_data / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
+        (self.compat_data / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
+        self.folder = self.root / 'Games/Stores/Ubisoft/Splinter Cell'
+        (self.folder / 'system').mkdir(parents=True)
+        self.sidecar = {'store': 'ubisoft', 'id': 'space-1', 'exe': 'system/SplinterCell.exe', 'extra': {'productId': '109'}}
+        service = self.root / 'droiddeck-upc.exe'
+        service.write_bytes(b'MZ')
+        for patcher in (patch.object(store, 'UBISOFT_SERVICE', service), patch.object(store, 'UBISOFT_CACHE', self.root / 'cache'),
+                        patch.object(store, 'wait_for_server', return_value=True)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
-    def connect(self, compat_data):
-        client = store.ubisoft_client(compat_data)
-        client.parent.mkdir(parents=True)
-        client.write_bytes(b'MZ')
+    def tearDown(self):
+        self.tmp.cleanup()
 
-    def test_an_installed_connect_is_not_installed_again(self):
-        with tempfile.TemporaryDirectory() as root:
-            compat_data = self.prefix(root)
-            self.connect(compat_data)
-            with patch.object(store.subprocess, 'run') as run:
-                self.assertEqual('present', store.install_connect(str(compat_data), '/proton'))
-            run.assert_not_called()
+    def runtime(self):
+        folder = store.ubisoft_runtime_dir(self.compat_data)
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in store.UBISOFT_RUNTIME:
+            (folder / name).write_bytes(b'MZ')
 
-    def test_the_game_folder_is_registered_under_its_product(self):
-        with tempfile.TemporaryDirectory() as root:
-            compat_data = self.prefix(root)
-            self.connect(compat_data)
-            folder = Path(root) / 'Games/Stores/Ubisoft/Splinter Cell'
-            folder.mkdir(parents=True)
-            sidecar = {'store': 'ubisoft', 'id': '109', 'extra': {'productId': '109'}}
-            self.assertEqual('connect present, registered 109', store.prepare_ubisoft(folder, sidecar, str(compat_data), '/proton'))
-            reg = (compat_data / 'pfx/system.reg').read_text()
-            self.assertIn('[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\109]', reg)
-            self.assertIn('"InstallDir"="Z:%s/"' % folder, reg)
-            store.prepare_ubisoft(folder, sidecar, str(compat_data), '/proton')
-            self.assertEqual(1, (compat_data / 'pfx/system.reg').read_text().count('"InstallDir"'))
+    def answer(self, *_args, **_kwargs):
+        return {'ok': True, 'ticket': 'PC', 'owned': [82, 109], 'appId': 'app',
+                'account': {'userId': 'u1', 'username': 'name', 'nameOnPlatform': 'name', 'email': 'e@x', 'country': 'US'}}
 
-    def test_a_game_without_a_product_is_not_registered(self):
-        with tempfile.TemporaryDirectory() as root:
-            compat_data = self.prefix(root)
-            self.connect(compat_data)
-            self.assertEqual('connect present, no-product', store.prepare_ubisoft(Path(root), {'store': 'ubisoft', 'id': 'x'}, str(compat_data), '/proton'))
+    def prepare(self, ask_app):
+        return store.prepare_ubisoft(self.folder, self.sidecar, str(self.compat_data), str(self.root / 'launch'), '/proton', ask_app=ask_app)
 
-    def test_a_missing_connect_is_downloaded_and_installed_silently(self):
-        with tempfile.TemporaryDirectory() as root:
-            compat_data = self.prefix(root)
-            (compat_data / 'pfx/user.reg').write_text('')
-            proton = Path(root) / 'proton'
-            proton.write_text('')
-            installer = Path(root) / 'UbisoftConnectInstaller.exe'
+    def test_an_extracted_runtime_is_not_extracted_again(self):
+        self.runtime()
+        with patch.object(store.subprocess, 'run') as run:
+            self.assertEqual('present', store.install_runtime(str(self.compat_data)))
+        run.assert_not_called()
 
-            def run(command, **_kwargs):
-                self.assertEqual([str(proton), 'run', store.windows_path(str(installer)), '/S'], command)
-                self.connect(compat_data)
+    def test_the_runtime_comes_from_the_installer_through_7z(self):
+        installer = self.root / 'UbisoftConnectInstaller.exe'
 
-            with patch.object(store, 'fetch_installer', return_value=installer), patch.object(store.subprocess, 'run', side_effect=run):
-                self.assertEqual('installed', store.install_connect(str(compat_data), str(proton)))
+        def run(command, **_kwargs):
+            self.assertEqual(['7z', 'e', '-y'], command[:3])
+            self.assertEqual(str(installer), command[4])
+            out = Path(command[3][2:])
+            for name in command[5:]:
+                (out / name).write_bytes(b'MZ')
+
+        (self.root / 'cache').mkdir()
+        with patch.object(store, 'fetch_installer', return_value=installer), patch.object(store.subprocess, 'run', side_effect=run):
+            self.assertEqual('installed', store.install_runtime(str(self.compat_data)))
+        self.assertTrue(store.ubisoft_runtime_ready(str(self.compat_data)))
+
+    def test_a_launch_registers_the_game_and_writes_the_session_for_the_service(self):
+        self.runtime()
+        result = self.prepare(self.answer)
+        self.assertEqual('runtime present, registered 109, session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        for view in ('[Software\\\\Ubisoft\\\\Launcher]', '[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher]'):
+            self.assertIn(view, reg)
+        self.assertIn('[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\109]', reg)
+        self.assertIn('"InstallDir"="C:\\\\Program Files (x86)\\\\Ubisoft\\\\Ubisoft Game Launcher\\\\"', reg)
+        launch = json.loads((self.folder / store.UBISOFT_LAUNCH).read_text())
+        self.assertEqual(109, launch['productId'])
+        self.assertEqual('PC', launch['ticket'])
+        self.assertEqual([82, 109], launch['owned'])
+        self.assertEqual(store.windows_path(str(self.folder / 'system/SplinterCell.exe')), launch['exe'])
+        self.assertEqual('C:/users/steamuser/Saved Games/Ubisoft/u1/109/', launch['saves'])
+        self.assertTrue((self.compat_data / 'pfx/drive_c/users/steamuser/Saved Games/Ubisoft/u1/109').is_dir())
+
+    def test_without_a_session_the_launch_file_is_removed_and_the_game_starts_as_is(self):
+        self.runtime()
+        (self.folder / store.UBISOFT_LAUNCH).write_text('{}')
+        result = self.prepare(lambda *_a, **_k: {'ok': False, 'reason': 'signed-out'})
+        self.assertEqual('runtime present, registered 109, session signed-out', result)
+        self.assertFalse((self.folder / store.UBISOFT_LAUNCH).exists())
+
+    def test_a_game_without_a_product_is_left_alone(self):
+        self.sidecar['extra'] = {}
+        self.assertEqual('no-product', self.prepare(self.answer))

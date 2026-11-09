@@ -285,16 +285,30 @@ def exited(argv, code=0):
 
 
 UBISOFT_DIR = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
-UBISOFT_CLIENT = "upc.exe"
+UBISOFT_WINDOWS_DIR = "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\"
 UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
 UBISOFT_CACHE = Path(os.environ.get("HOME") or "/root") / ".cache/droiddeck/ubisoft"
-UBISOFT_INSTALL_WAIT = 900
-UBISOFT_KEY = "[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\%d]"
+UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
+UBISOFT_SERVICE = Path("/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe")
+UBISOFT_ASK_WAIT = 45.0
+UBISOFT_EXTRACT_WAIT = 300
+# Ubisoft's own game-side runtime from the Connect installer, unmodified: the API and aux DLLs the
+# game's loader opens from InstallDir, the starter it re-executes into, and the starter's imports.
+UBISOFT_RUNTIME = ("uplay_r1.dll", "uplay_r164.dll", "uplay_aux_r1.dll", "uplay_aux_r164.dll",
+                   "uplay_r2.dll", "uplay_r264.dll", "ubiorbitapi_r2.dll", "ubiorbitapi_r264.dll",
+                   "UbisoftGameLauncher.exe", "UbisoftGameLauncher64.exe", "discord-rpc.x86.dll",
+                   "discord-rpc.x64.dll", "steam_api.dll", "steam_api64.dll")
+UBISOFT_VIEWS = ("[Software\\\\Ubisoft\\\\Launcher%s]", "[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher%s]")
 MIN_INSTALLER = 1 << 20
 
 
-def ubisoft_client(compat_data):
-    return Path(compat_data) / "pfx" / UBISOFT_DIR / UBISOFT_CLIENT
+def ubisoft_runtime_dir(compat_data):
+    return Path(compat_data) / "pfx" / UBISOFT_DIR
+
+
+def ubisoft_runtime_ready(compat_data):
+    folder = ubisoft_runtime_dir(compat_data)
+    return all((folder / name).is_file() for name in UBISOFT_RUNTIME)
 
 
 def fetch_installer(url=UBISOFT_INSTALLER_URL, folder=UBISOFT_CACHE):
@@ -314,52 +328,113 @@ def fetch_installer(url=UBISOFT_INSTALLER_URL, folder=UBISOFT_CACHE):
     return target
 
 
-def install_connect(compat_data, proton, wait=UBISOFT_INSTALL_WAIT):
-    if ubisoft_client(compat_data).is_file():
+def install_runtime(compat_data, wait=UBISOFT_EXTRACT_WAIT):
+    if ubisoft_runtime_ready(compat_data):
         return "present"
-    if not proton or not Path(proton).is_file():
-        return "no-proton"
-    made = create_prefix(compat_data, proton)
-    if made not in ("present", "created"):
-        return "prefix-" + made
+    if not (Path(compat_data) / "pfx").is_dir():
+        return "no-prefix"
     try:
         installer = fetch_installer()
     except OSError as error:
         return "download-failed-" + type(error).__name__
-    log("ubisoft: installing Ubisoft Connect")
-    try:
-        subprocess.run([proton, "run", windows_path(str(installer)), "/S"], stdin=subprocess.DEVNULL,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=wait)
-    except subprocess.TimeoutExpired:
-        return "timeout"
-    except OSError:
-        return "failed"
-    return "installed" if ubisoft_client(compat_data).is_file() else "not-installed"
+    target = ubisoft_runtime_dir(compat_data)
+    target.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="droiddeck-ubisoft-", dir=str(UBISOFT_CACHE)) as tmp:
+        try:
+            subprocess.run(["7z", "e", "-y", "-o" + tmp, str(installer)] + list(UBISOFT_RUNTIME), stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=wait)
+        except subprocess.TimeoutExpired:
+            return "extract-timeout"
+        except OSError:
+            return "no-7z"
+        missing = [name for name in UBISOFT_RUNTIME if not (Path(tmp) / name).is_file()]
+        if missing:
+            return "extract-missing-" + ",".join(missing)
+        for name in UBISOFT_RUNTIME:
+            shutil.copyfile(Path(tmp) / name, target / name)
+    return "installed" if ubisoft_runtime_ready(compat_data) else "copy-failed"
 
 
-def register_ubisoft(folder, sidecar, compat_data):
+def ubisoft_product(sidecar):
     extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
     try:
-        product = int(str(extra.get("productId") or ""))
+        return int(str(extra.get("productId") or ""))
     except ValueError:
-        return "no-product"
+        return None
+
+
+def ubisoft_install_dir(folder):
+    return windows_path(str(folder)).replace("\\", "/").rstrip("/") + "/"
+
+
+def register_ubisoft(folder, product, compat_data):
     reg = Path(compat_data) / "pfx" / "system.reg"
+    if not reg.is_file():
+        return "no-registry"
     if not wait_for_server(reg.parent):
         return "server-running"
-    path = windows_path(str(folder)).replace("\\", "/").rstrip("/") + "/"
-    if not set_value(reg, UBISOFT_KEY % product, "InstallDir", path):
-        return "no-registry"
+    for view in UBISOFT_VIEWS:
+        set_value(reg, view % "", "InstallDir", UBISOFT_WINDOWS_DIR)
+        set_value(reg, view % ("\\\\Installs\\\\%d" % product), "InstallDir", ubisoft_install_dir(folder))
     return "registered %d" % product
 
 
-def prepare_ubisoft(folder, sidecar, compat_data, proton):
+def ubisoft_launch(folder, sidecar, product, compat_data, answer):
+    """The launch file droiddeck-upc.exe reads: the game, the account and this launch's ticket."""
+    account = answer.get("account") if isinstance(answer.get("account"), dict) else {}
+    user = str(account.get("userId") or "user")
+    saves = Path(compat_data) / "pfx" / "drive_c/users/steamuser/Saved Games/Ubisoft" / user / str(product)
+    saves.mkdir(parents=True, exist_ok=True)
+    exe = str(sidecar.get("exe") or "").replace("\\", "/")
+    workdir = folder / str(sidecar.get("workdir")) if sidecar.get("workdir") else folder
+    UBISOFT_CACHE.mkdir(parents=True, exist_ok=True)
+    return {
+        "productId": product,
+        "exe": windows_path(str(folder / exe)),
+        "args": " ".join(str(a) for a in sidecar.get("args") or []),
+        "workdir": windows_path(str(workdir)),
+        "account": account,
+        "ticket": str(answer.get("ticket") or ""),
+        "owned": [int(i) for i in answer.get("owned") or [] if str(i).isdigit()],
+        "appId": str(answer.get("appId") or ""),
+        "saves": "C:/users/steamuser/Saved Games/Ubisoft/%s/%d/" % (user, product),
+        "language": str(answer.get("language") or "en-US"),
+        "bridge": windows_path(str(UBISOFT_CACHE / ("bridge-%d" % product))),
+        "log": windows_path(str(UBISOFT_CACHE / ("upc-%d.log" % product))),
+    }
+
+
+def prepare_ubisoft(folder, sidecar, compat_data, launch_dir, proton="", ask_app=None):
+    launch = folder / UBISOFT_LAUNCH
+    try:
+        launch.unlink()
+    except OSError:
+        pass
     if not compat_data:
         return "no-prefix"
-    state = install_connect(compat_data, proton)
-    if not ubisoft_client(compat_data).is_file():
-        return "connect " + state
-    return "connect %s, %s" % (state, register_ubisoft(folder, sidecar, compat_data))
-
+    product = ubisoft_product(sidecar)
+    if product is None:
+        return "no-product"
+    if not UBISOFT_SERVICE.is_file():
+        return "no-service"
+    made = create_prefix(compat_data, proton) if not (Path(compat_data) / "pfx/user.reg").is_file() else "present"
+    if made not in ("present", "created"):
+        return "prefix " + made
+    runtime = install_runtime(compat_data)
+    if not ubisoft_runtime_ready(compat_data):
+        return "runtime " + runtime
+    registry = register_ubisoft(folder, product, compat_data)
+    if not launch_dir:
+        return "runtime %s, %s, no-channel" % (runtime, registry)
+    answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "ubisoft-launch", "store": "ubisoft", "id": str(sidecar.get("id"))},
+                              timeout=UBISOFT_ASK_WAIT)
+    if not isinstance(answer, dict) or not answer.get("ok") or not answer.get("ticket"):
+        reason = "timeout" if answer is None else str(answer.get("reason") or "refused")
+        return "runtime %s, %s, session %s" % (runtime, registry, reason)
+    tmp = launch.with_name(launch.name + ".tmp")
+    tmp.write_text(json.dumps(ubisoft_launch(folder, sidecar, product, compat_data, answer)))
+    os.replace(tmp, launch)
+    return "runtime %s, %s, session ready" % (runtime, registry)
 
 COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 
@@ -849,7 +924,7 @@ def main(argv):
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "ubisoft":
-        log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", ""))))
+        log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:

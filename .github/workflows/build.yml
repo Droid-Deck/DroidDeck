@@ -536,6 +536,12 @@ jobs:
           command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
           cargo ndk --version
 
+      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/ubisoft-launcher/build.sh
+
       - name: Cache the CMake build tree
         uses: actions/cache@v4
         with:
@@ -791,6 +797,9 @@ jobs:
           set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
+      - name: Ubisoft launcher service host unit tests
+        timeout-minutes: 10
+        run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests

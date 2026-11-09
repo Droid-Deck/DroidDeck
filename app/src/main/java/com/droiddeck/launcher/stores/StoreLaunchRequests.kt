@@ -69,6 +69,15 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
             }
+            "ubisoft-launch" -> {
+                val id = request.optString("id")
+                if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
+                else {
+                    lastLaunched = Store.UBISOFT to id
+                    runCatching { com.droiddeck.launcher.stores.ubisoft.UbisoftLaunch.prepare(app, id) }
+                        .getOrElse { JSONObject().put("ok", false).put("reason", it.javaClass.simpleName) }
+                }
+            }
             "cloud-down" -> {
                 val store = Store.byId(request.optString("store"))
                 val id = request.optString("id")
