@@ -18,6 +18,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -766,8 +767,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             )
                         }
                         SessionDrawerPage.AGENT -> AgentPage(
-                            Modifier.fillMaxWidth().height(460.dp).padding(horizontal = 14.dp),
+                            Modifier.fillMaxWidth()
+                                .height((LocalConfiguration.current.screenHeightDp - 190).coerceAtLeast(240).dp)
+                                .padding(horizontal = 14.dp),
                             inputModifier = focus.track(page, "agent-input"),
+                            visible = open,
                         )
                         SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {

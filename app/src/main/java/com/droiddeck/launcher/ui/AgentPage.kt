@@ -54,10 +54,10 @@ import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 
 @Composable
-internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier) {
+internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true) {
     val context = LocalContext.current
     remember { AgentHost.refresh(context) }
-    LaunchedEffect(AgentHost.unseen) { AgentHost.seen() }
+    LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
     if (AgentHost.state == AgentHost.State.MISSING) {
         Column(modifier) { Note(stringResource(R.string.agent_missing)) }
         return

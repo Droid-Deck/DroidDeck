@@ -111,7 +111,8 @@ object AgentHost {
         val guest = listOf(
             "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin",
             "ADB_SERIAL=127.0.0.1:5555", "BROWSER=/root/.local/bin/android-open",
-            "/bin/sh", "-c", "cd \"$1\" && shift && exec \"$@\"", "sh", workspace,
+            // A fresh adb server lists the device's own adbd as emulator-5554; droiddeckctl needs the serial connected.
+            "/bin/sh", "-c", "adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; cd \"$1\" && shift && exec \"$@\"", "sh", workspace,
         ) + claude
         val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), guest)
         val builder = ProcessBuilder(command).redirectErrorStream(true)
