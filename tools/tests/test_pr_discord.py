@@ -14,17 +14,30 @@ class PrDiscordTest(unittest.TestCase):
         self.discord.request.return_value = {"id": "1557547293375332465"}
         self.github = patch.object(module, "github").start()
         self.addCleanup(patch.stopall)
-        self.github.side_effect = lambda path, method="GET", body=None: self.pull if "/pulls/" in path else self.comment
+        def github_request(path, method="GET", body=None):
+            if "/pulls/" in path:
+                return self.pull
+            if "/commits/" in path:
+                return {"commit": {"message": "Fix reconnect behavior\n\nMore details"}}
+            if path.endswith("/issues/comments/10"):
+                if method == "PATCH":
+                    self.comment["body"] = body["body"]
+                return self.comment
+            return self.comment
+        self.github.side_effect = github_request
         patch.object(module, "report_comment", return_value=self.comment).start()
 
-    def publish(self):
-        module.sync("publish", "Droid-Deck/DroidDeck", "410", self.discord, "a" * 40,
+    def publish(self, sha=None):
+        if sha is not None:
+            self.pull["head"]["sha"] = sha
+        sha = sha or "a" * 40
+        module.sync("publish", "Droid-Deck/DroidDeck", "410", self.discord, sha,
                     "https://github.com/Droid-Deck/DroidDeck-CI/releases/download/pr-410/build.apk",
                     "https://github.com/Droid-Deck/DroidDeck-CI/releases/tag/pr-410")
 
     def save_state(self):
         self.comment["body"] += '\n<!-- droiddeck-discord: ' + json.dumps({
-            "webhook_id": self.discord.id, "message_id": "1557547293375332465"}) + ' -->'
+            "webhook_id": self.discord.id, "message_id": "1557547293375332465", "sha": "a" * 40}) + ' -->'
 
     def test_create_confirmed_message_and_persist_reference(self):
         self.publish()
@@ -36,12 +49,76 @@ class PrDiscordTest(unittest.TestCase):
         self.assertEqual("1557547293375332465", module.saved_message(saved, self.discord.id))
         self.assertIn("Build download", saved)
 
-    def test_new_build_updates_existing_message(self):
+    def test_same_build_updates_existing_message_without_duplicate(self):
         self.save_state()
         self.publish()
         self.assertEqual("PATCH", self.discord.request.call_args.args[0])
         saved = self.github.call_args.args[2]["body"]
         self.assertEqual(1, len(module.STATE.findall(saved)))
+        self.assertIn('"sha": "' + "a" * 40 + '"', saved)
+
+    def test_new_commit_retires_old_message_and_posts_replacement(self):
+        self.save_state()
+        old_content = module.build_content("Droid-Deck/DroidDeck", "410", self.pull["title"], "a" * 40,
+                                           "apk", "release")
+        self.discord.request.side_effect = [
+            {"content": old_content}, {"id": "1557547293375332465"}, {"id": "1557547293375332466"}]
+        self.publish("b" * 40)
+        calls = self.discord.request.call_args_list
+        self.assertEqual(["GET", "PATCH", "POST"], [call.args[0] for call in calls])
+        self.assertIn("**Superseded by `bbbbbbb`**", calls[1].args[2]["content"])
+        self.assertIn("~~Download:", calls[1].args[2]["content"])
+        self.assertIn("Latest commit: Fix reconnect behavior", calls[2].args[2]["content"])
+        saved = self.github.call_args.args[2]["body"]
+        self.assertEqual("1557547293375332466", module.saved_message(saved, self.discord.id))
+        self.assertIn('"sha": "' + "b" * 40 + '"', saved)
+
+    def test_publish_supersede_rerun_and_close_lifecycle(self):
+        messages = {}
+        created = []
+        next_id = 1
+
+        def discord_request(method, suffix="", body=None):
+            nonlocal next_id
+            if method == "POST":
+                message_id = str(1557547293375332465 + next_id)
+                next_id += 1
+                messages[message_id] = {"id": message_id, "content": body["content"]}
+                created.append(message_id)
+                return messages[message_id]
+            message_id = suffix.split("/")[-1]
+            if method == "GET":
+                return messages.get(message_id)
+            if method == "PATCH":
+                if message_id not in messages:
+                    return None
+                messages[message_id].update(body)
+                return messages[message_id]
+            self.fail(f"Unexpected Discord method: {method}")
+
+        self.discord.request.side_effect = discord_request
+        self.publish("a" * 40)
+        first_id = created[-1]
+        self.publish("b" * 40)
+        second_id = created[-1]
+        self.publish("b" * 40)
+        self.assertEqual(2, len(created))
+        self.assertIn("**Superseded by `bbbbbbb`**", messages[first_id]["content"])
+        self.assertIn("`bbbbbbb`", messages[second_id]["content"])
+
+        self.pull.update(state="closed", merged=True)
+        module.sync("retire", "Droid-Deck/DroidDeck", "410", self.discord)
+        self.assertTrue(messages[second_id]["content"].startswith("**Merged**"))
+        self.assertIn("~~Latest commit:", messages[second_id]["content"])
+
+    def test_legacy_state_uses_embedded_short_sha_to_supersede(self):
+        self.save_state()
+        self.comment["body"] = self.comment["body"].replace(', "sha": "' + "a" * 40 + '"', '')
+        old_content = "**Signed test build** `pr-410` · `aaaaaaa`\nold build"
+        self.discord.request.side_effect = [
+            {"content": old_content}, {"id": "1557547293375332465"}, {"id": "1557547293375332466"}]
+        self.publish("b" * 40)
+        self.assertEqual(["GET", "PATCH", "POST"], [call.args[0] for call in self.discord.request.call_args_list])
 
     def test_deleted_message_is_recreated(self):
         self.save_state()
@@ -77,6 +154,10 @@ class PrDiscordTest(unittest.TestCase):
         self.save_state()
         module.sync("retire", "Droid-Deck/DroidDeck", "410", self.discord)
         self.discord.request.assert_not_called()
+
+    def test_superseded_content_is_idempotent(self):
+        once = module.retired_content("first\n\nlast", superseded_by="a" * 40)
+        self.assertEqual(once, module.retired_content(once, superseded_by="a" * 40))
 
     def test_old_build_without_saved_id_is_not_guessed(self):
         self.pull["state"] = "closed"
@@ -152,6 +233,12 @@ class PrDiscordTest(unittest.TestCase):
                                        "https://github.com/Droid-Deck/DroidDeck-CI/releases/tag/pr-410", "~" * 10000)
         self.assertLessEqual(len(content), 1800)
         self.assertLessEqual(len(module.retired_content(content, True)), 2000)
+
+    def test_commit_subject_is_sanitized_and_uses_only_first_line(self):
+        content = module.build_content("Droid-Deck/DroidDeck", "410", "title", "a" * 40,
+                                       "apk", "release", commit_message="Fix *input* @everyone\nDetails")
+        self.assertIn(r"Latest commit: Fix \*input\* @everyone", content)
+        self.assertNotIn("Details", content)
 
 
 original_report = module.report_comment
