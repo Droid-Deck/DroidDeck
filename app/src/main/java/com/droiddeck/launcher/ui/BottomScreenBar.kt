@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.DeckPanel
+import com.droiddeck.launcher.input.InputToolbarStyle
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 
@@ -96,7 +97,7 @@ private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
         val fits = maxWidth >= needed
         Row(
             Modifier.fillMaxSize().then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState()))
-                .padding(horizontal = BAR_PAD, vertical = 10.dp),
+                .padding(horizontal = BAR_PAD, vertical = InputToolbarStyle.TOP.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(BAR_GAP),
         ) {
@@ -162,7 +163,7 @@ internal fun BarButton(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape((InputToolbarStyle.BUTTON / 2).dp)
     val accent = if (danger) colors.error else pal.signal
     val tint = when {
         active -> pal.onSignal
@@ -174,7 +175,7 @@ internal fun BarButton(
         hot -> accent.copy(alpha = 0.14f)
         else -> Color.Transparent
     }
-    val sized = if (label != null) Modifier.height(44.dp).widthIn(min = 44.dp) else Modifier.size(44.dp)
+    val sized = if (label != null) Modifier.height(InputToolbarStyle.BUTTON.dp).widthIn(min = InputToolbarStyle.BUTTON.dp) else Modifier.size(InputToolbarStyle.BUTTON.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.then(sized).semantics { contentDescription = description }
@@ -185,10 +186,10 @@ internal fun BarButton(
             .controllerConfirm(onClick = onConfirm ?: onClick),
     ) {
         when {
-            label != null -> Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = tint,
-                maxLines = 1, modifier = Modifier.padding(horizontal = 14.dp))
-            icon != null -> Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-            vector != null -> Icon(vector, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            label != null -> Text(label, style = InputToolbarStyle.textStyle, color = tint,
+                maxLines = 1, modifier = Modifier.padding(horizontal = InputToolbarStyle.TEXT_PADDING.dp))
+            icon != null -> Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(InputToolbarStyle.ICON.dp))
+            vector != null -> Icon(vector, contentDescription = null, tint = tint, modifier = Modifier.size(InputToolbarStyle.ICON.dp))
         }
         if (shortcut != null) Text(
             shortcut, fontSize = 8.sp, lineHeight = 9.sp, color = colors.onSurfaceVariant,
@@ -197,10 +198,10 @@ internal fun BarButton(
     }
 }
 
-internal val BAR_HEIGHT = 64.dp
-private val BAR_PAD = 12.dp
-private val BAR_GAP = 8.dp
-private val BUTTON = 44.dp
+internal val BAR_HEIGHT = InputToolbarStyle.HEIGHT.dp
+private val BAR_PAD = InputToolbarStyle.PADDING.dp
+private val BAR_GAP = InputToolbarStyle.GAP.dp
+private val BUTTON = InputToolbarStyle.BUTTON.dp
 private val STEAM_WIDTH = 80.dp
 private val MIN_TITLE = 72.dp
 

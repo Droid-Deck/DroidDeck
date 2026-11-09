@@ -33,6 +33,7 @@ internal fun commandLabel(command: InputCommand) = stringResource(when (command)
     InputCommand.KEYBOARD -> R.string.input_command_keyboard
     InputCommand.STEAM -> R.string.input_command_steam
     InputCommand.QUICK_ACCESS -> R.string.input_command_qam
+    InputCommand.SWAP_SCREENS -> R.string.swap_screens
 })
 
 @Composable

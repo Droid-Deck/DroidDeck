@@ -18,7 +18,7 @@ enum class InputElementKind(val control: InputControl) {
     }
 }
 
-enum class InputButtonShape { ROUNDED, PILL, CIRCLE, RECTANGLE }
+enum class InputButtonShape { ROUNDED, PILL, CIRCLE, RECTANGLE, TOOLBAR }
 
 data class InputSurfaceElement(
     val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float,

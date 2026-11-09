@@ -11,12 +11,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.input.DeckPanel
 import com.droiddeck.launcher.input.InputLibraries
 import com.droiddeck.launcher.input.InputSurfaceElement
+import com.droiddeck.launcher.input.InputStockLayouts
+import com.droiddeck.launcher.input.InputToolbarStyle
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
@@ -40,7 +43,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], qualifiers = "w800dp-h600dp")
+@Config(sdk = [28], qualifiers = "w800dp-h600dp", shadows = [com.droiddeck.launcher.input.SessionInputPointerTest.WriterShadow::class])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class SecondScreenBarTest {
     @get:Rule val compose = createRobolectricComposeRule()
@@ -63,7 +66,7 @@ class SecondScreenBarTest {
     private fun presentation(swap: (() -> Unit)? = {}): SecondScreenPresentation {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        return SecondScreenPresentation(activity, display, {}, {}, {}, onMenu = {}, onSwap = swap)
+        return SecondScreenPresentation(activity, display, {}, {}, onMenu = {}, onSwap = swap)
     }
 
     private fun descendants(view: View): Sequence<View> = sequence {
@@ -74,6 +77,25 @@ class SecondScreenBarTest {
     private fun rootChildren(panel: SecondScreenPresentation): List<View> {
         val root: ViewGroup = ReflectionHelpers.getField(panel, "root")
         return (0 until root.childCount).map { root.getChildAt(it) }
+    }
+
+    @Test @Config(qualifiers = "w538dp-h468dp-369dpi")
+    fun stockProfileButtonsMatchTheExistingBarCoordinates() {
+        val model = BottomBarModel("Profile controls", {}, {}, {}, {},
+            listOf(BarExtra("Swap screens", icon = R.drawable.ic_bottom_swap, onClick = {})))
+        compose.setContent { DroidDeckTheme { BottomScreenBar(model) } }
+        val width = compose.onRoot().fetchSemanticsNode().size.width
+        val height = context.resources.displayMetrics.heightPixels
+        val layout = InputStockLayouts.withToolbar(InputStockLayouts.layouts().first { it.id == InputLibraries.DECK },
+            width, height, context.resources.displayMetrics.density, InputToolbarStyle.labelWidth(context, "STEAM"))
+        for ((id, tag) in listOf("menu" to "menu", "steam" to "steam", "quick_access" to "qam")) {
+            val bounds = compose.onNodeWithTag("bottom-bar-$tag").fetchSemanticsNode().boundsInRoot
+            val element = layout.elements.single { it.id == "command:$id" }
+            assertEquals(bounds.left.toInt(), (element.x * width).toInt())
+            assertEquals(bounds.top.toInt(), (element.y * height).toInt())
+            assertEquals(bounds.width.toInt(), (element.width * width).toInt())
+            assertEquals(bounds.height.toInt(), (element.height * height).toInt())
+        }
     }
 
     @Test fun trackpadPanelHasTheBarWithTheKeyboardToggleState() {
@@ -87,7 +109,7 @@ class SecondScreenBarTest {
             assertTrue(children[1] is InputSurfaceView)
             val bar = panel.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!
             assertEquals(context.getString(R.string.second_mode_keyboard_trackpad), bar.title)
-            assertNotNull(bar.onClose); assertNotNull(bar.onMenu); assertNotNull(bar.onSteam); assertNotNull(bar.onQam)
+            assertNull(bar.onClose); assertNotNull(bar.onMenu); assertNotNull(bar.onSteam); assertNotNull(bar.onQam)
             assertNull(bar.tabs)
             val keyboard = bar.extras.single()
             assertEquals(context.getString(R.string.second_show_keyboard), keyboard.description)
@@ -99,7 +121,7 @@ class SecondScreenBarTest {
         } finally { panel.closeControls() }
     }
 
-    @Test fun deckPanelHasTheBarWithSwapAndTabsAndProfileControlsKeepTheBar() {
+    @Test fun legacyDeckPanelHasItsBarButProfileControlsUseTheWholeScreen() {
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.deckPad = true
         var swaps = 0
@@ -116,14 +138,8 @@ class SecondScreenBarTest {
             assertEquals(DeckPanel.entries.map { context.getString(it.label) }, bar.tabs!!.labels)
             assertEquals(DeckPanel.BOTH.ordinal, bar.tabs!!.selected)
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
-            val profile = panel.barModel(SecondScreenMode.CUSTOM_CONTROLS)!!
-            assertEquals(context.getString(R.string.input_profile_controls_mode), profile.title)
-            assertEquals(listOf(context.getString(R.string.swap_screens)), profile.extras.map { it.description })
-            assertNotNull(profile.onClose); assertNotNull(profile.onMenu)
-            profile.extras.single().onClick()
-            assertEquals(2, swaps)
-            assertTrue(rootChildren(panel)[0] is ComposeView)
-            assertTrue(rootChildren(panel)[1] is InputSurfaceView)
+            assertNull(panel.barModel(SecondScreenMode.CUSTOM_CONTROLS))
+            assertTrue(rootChildren(panel)[0] is InputSurfaceView)
         } finally { panel.closeControls() }
         val noSwap = presentation(swap = null)
         try {
@@ -144,12 +160,12 @@ class SecondScreenBarTest {
                     panel.showMode(panelMode)
                     val bar = panel.barModel(panelMode)!!
                     assertNull(bar.onSteam); assertNull(bar.onQam)
-                    assertNotNull(bar.onClose); assertNotNull(bar.onMenu)
+                    assertNull(bar.onClose); assertNotNull(bar.onMenu)
                 }
             } finally { panel.closeControls() }
         }
         val stock = InputLibraries.read(context).layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
-        assertTrue(stock.all { layout -> layout.elements.none { it.id.startsWith("command:") } })
+        assertTrue(stock.all { layout -> layout.elements.any { it.id == "command:menu" } })
     }
 
     @Test fun deckTabsSwitchTheLayoutAndAreRemembered() {
@@ -224,19 +240,18 @@ class SecondScreenBarTest {
         compose.onNodeWithText(context.getString(R.string.second_mode_deck_controls)).assertIsDisplayed()
         compose.onNodeWithTag("bottom-bar-tabs").assertIsDisplayed()
         compose.onNodeWithTag("bottom-bar-steam").assertDoesNotExist()
-        compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
+        compose.onNodeWithTag("bottom-bar-close").assertDoesNotExist()
     }
 
-    @Test fun swappedTopScreenProfileControlsHaveTheBarWithSwap() {
+    @Test fun swappedTopScreenProfileControlsDoNotHaveAnExternalBar() {
         SessionState.mode = SessionService.MODE_STEAM
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate").value = SecondScreenMode.CUSTOM_CONTROLS
         val method = SessionActivity::class.java.getDeclaredMethod("SwappedTopPanel", androidx.compose.runtime.Composer::class.java, Int::class.javaPrimitiveType)
         method.isAccessible = true
         compose.setContent { DroidDeckTheme { method.invoke(activity, currentComposer, 0) } }
-        compose.onNodeWithText(context.getString(R.string.input_profile_controls_mode)).assertIsDisplayed()
-        compose.onNodeWithContentDescription(context.getString(R.string.swap_screens)).assertIsDisplayed()
-        compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
+        compose.onNodeWithTag("bottom-bar-close").assertDoesNotExist()
+        compose.onNodeWithTag("bottom-bar-menu").assertDoesNotExist()
     }
 
     @Test fun theBottomPanelWaitsUnderAnOpenInputEditorAndReturnsWhenItCloses() {
@@ -258,7 +273,7 @@ class SecondScreenBarTest {
         activity.inputWindowShown(id)
         show()
         assertNull(panel())
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, mode.value)
+        assertEquals(SecondScreenMode.CUSTOM_CONTROLS, mode.value)
         activity.inputWindowClosed(id)
         assertNull(panel())
         activity.inputWindowClosed(id)

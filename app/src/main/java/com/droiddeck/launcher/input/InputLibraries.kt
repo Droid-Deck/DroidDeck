@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 14
+    private const val VERSION = 15
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -24,7 +24,7 @@ object InputLibraries {
         val p = prefs(context)
         val raw = p.getString(KEY, null)
         val decoded = raw?.let(::decode)
-        if (raw != null && decoded == null) return scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
+        if (raw != null && decoded == null) return profileToolbars(context, scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context)))))
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
@@ -33,6 +33,7 @@ object InputLibraries {
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
+        if (version < 15) library = profileToolbars(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -140,7 +141,7 @@ object InputLibraries {
 
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
         val origin = layout.origin ?: layout.id
-        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }
+        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return InputStockLayouts.withToolbar(context, it).elements }
         if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
             val (surfaceContext, metrics) = primaryDisplay(context)
             val size = if (origin == OVERLAY) listOf(metrics.widthPixels, metrics.heightPixels)
@@ -258,7 +259,7 @@ object InputLibraries {
         for (stock in InputStockLayouts.layouts().filter { it.id == DECK || it.id == TRACKPAD }) {
             val saved = result.layouts.firstOrNull { it.id == stock.id } ?: continue
             val (commands, rest) = saved.elements.partition { it.id.startsWith("command:") }
-            val untouched = commands.isNotEmpty() && commands.all { it.control == InputControl.A && it.kind == InputElementKind.BUTTON } &&
+            val untouched = commands.isNotEmpty() && commands.all { it.control == InputControl.A && it.kind == InputElementKind.BUTTON && it.buttonShape != InputButtonShape.TOOLBAR } &&
                 rest.size == stock.elements.size && rest.all { e -> stock.elements.any { s -> s.id == e.id && s.copy(y = e.y, height = e.height) == e &&
                     kotlin.math.abs(s.y + s.height - e.y - e.height) < 1e-3f } }
             if (untouched) result = result.withLayout(saved.copy(elements = stock.elements))
@@ -273,6 +274,31 @@ object InputLibraries {
         val saved = library.layouts.firstOrNull { it.id == DeckPanel.GAMEPAD.layout } ?: return library
         if (saved.elements != InputStockLayouts.gamepad(leftPad = false, rightStick = false)) return library
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
+    }
+
+    private fun profileToolbars(context: Context, library: InputLibrary): InputLibrary {
+        var result = library
+        for (stock in InputStockLayouts.layouts()) {
+            val saved = result.layouts.firstOrNull { it.id == stock.id } ?: continue
+            val oldElements = if (saved.id == DeckPanel.GAMEPAD.layout) InputStockLayouts.gamepad(
+                SessionPrefs.gamepadSurface(context, right = false) == SessionPrefs.SURFACE_TRACKPAD,
+                SessionPrefs.gamepadSurface(context, right = true) == SessionPrefs.SURFACE_STICK) else stock.elements
+            if (saved.elements != oldElements) continue
+            val updated = InputStockLayouts.withToolbar(context, saved)
+            val commands = InputStockLayouts.actions(updated).filterKeys { it.startsWith("command:") }
+            result = result.withLayout(updated).let { next -> next.copy(bindings = next.bindings.map { preset ->
+                if (preset.layoutId == saved.id) preset.copy(elements = preset.elements + commands) else preset
+            }) }
+        }
+        for (desktop in listOf(false, true)) {
+            val panel = when (SessionPrefs.secondScreenPanel(context, desktop)) {
+                SecondScreenMode.KEYBOARD_TRACKPAD.id -> InputStockLayouts.TRACKPAD
+                SecondScreenMode.DECK_CONTROLS.id -> SessionPrefs.deckPanel(context).bindings
+                else -> null
+            }
+            if (panel != null && result.bindings.any { it.id == panel }) result = result.selectPart(desktop, InputRole.SECONDARY, panel)
+        }
+        return result
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {

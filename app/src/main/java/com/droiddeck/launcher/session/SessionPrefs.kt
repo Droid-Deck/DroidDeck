@@ -119,6 +119,13 @@ object SessionPrefs {
         prefs(context).edit().putString(secondScreenPanelKey(desktop), mode).apply()
     }
 
+    fun secondScreenEnabled(context: Context, desktop: Boolean): Boolean =
+        prefs(context).getBoolean("secondScreenEnabled.${if (desktop) "desktop" else "game"}", true)
+
+    fun setSecondScreenEnabled(context: Context, desktop: Boolean, enabled: Boolean) {
+        prefs(context).edit().putBoolean("secondScreenEnabled.${if (desktop) "desktop" else "game"}", enabled).apply()
+    }
+
     private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */

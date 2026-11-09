@@ -67,9 +67,9 @@ class SessionSecondScreenTest {
         SessionState.deckPad = previousDeckPad
     }
 
-    @Test fun desktopMenuOffersTheExistingTrackpadAndTerminal() = checkModes(steam = false)
+    @Test fun desktopMenuOffersProfileControlsAndTerminal() = checkModes(steam = false)
 
-    @Test fun steamMenuKeepsTheExistingTrackpadAndTerminal() = checkModes(steam = true)
+    @Test fun steamMenuOffersProfileControlsAndTerminal() = checkModes(steam = true)
 
     @Test fun desktopQuickMenuChangesTheRunningDesktopLayout() = checkQuickSelection(steam = false, desktop = true, direct = true)
 
@@ -136,7 +136,7 @@ class SessionSecondScreenTest {
         SessionState.mode = SessionService.MODE_STEAM
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
+        val panel = SecondScreenPresentation(activity, display, {}, {})
         try {
             panel.show()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
@@ -158,7 +158,7 @@ class SessionSecondScreenTest {
     @Test fun profileRefreshLeavesTerminalAndDashboardIntact() {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {}, dashboard = { androidx.compose.material3.Text("Dashboard") })
+        val panel = SecondScreenPresentation(activity, display, {}, {}, dashboard = { androidx.compose.material3.Text("Dashboard") })
         try {
             panel.show()
             for (mode in listOf(SecondScreenMode.TERMINAL, SecondScreenMode.DASHBOARD)) {
@@ -178,7 +178,7 @@ class SessionSecondScreenTest {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
         var closed = 0
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {}, onKeyboardClosed = { closed++ })
+        val panel = SecondScreenPresentation(activity, display, {}, {}, onKeyboardClosed = { closed++ })
         try {
             panel.show()
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
@@ -209,7 +209,7 @@ class SessionSecondScreenTest {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
         var lost = 0
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
+        val panel = SecondScreenPresentation(activity, display, {}, {})
         try {
             panel.show()
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
@@ -313,7 +313,7 @@ class SessionSecondScreenTest {
         val original = InputLibraries.update(context) { it.chooseLayout("desktop", InputRole.SECONDARY, InputLibraries.DECK) }
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
+        val panel = SecondScreenPresentation(activity, display, {}, {})
         val open = androidx.compose.runtime.mutableStateOf(true)
         try {
             panel.show()
@@ -354,7 +354,7 @@ class SessionSecondScreenTest {
                 SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {}, actions(steam, displays) { selected += it })
             }
         }
-        val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
+        val modes = listOf(SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
         for (mode in modes) {
             compose.onNodeWithText(context.getString(mode.label)).performScrollTo().assertIsDisplayed().performClick()
         }
