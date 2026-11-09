@@ -564,14 +564,16 @@ static int dns_lookup(const char *name, int qtype, unsigned char *out, int *serv
     int max = (int)(sizeof(servers) / sizeof(servers[0]));
     int count = 0;
     ddnatv_dns_server_t s;
+    // the network's own servers in resolv.conf's order first, its IPv6 ones too: the first IPv4 one
+    // (get_primary_dns) can be the app's public fallback, which must not see private names first
+    ddnatv_dns_server_t network[DDNATV_DNS_MAX_SERVERS];
+    int network_count = get_dns_servers(network, DDNATV_DNS_MAX_SERVERS);
+    for (int i = 0; i < network_count; i++) add_dns_server(servers, &count, max, &network[i]);
     char primary[INET_ADDRSTRLEN];
     in_addr_t p_dns = get_primary_dns(); // also covers net.dns1 of older Android versions
     if (inet_ntop(AF_INET, &p_dns, primary, sizeof(primary)) && dns_server_from_string(primary, &s)) {
         add_dns_server(servers, &count, max, &s);
     }
-    ddnatv_dns_server_t network[DDNATV_DNS_MAX_SERVERS];
-    int network_count = get_dns_servers(network, DDNATV_DNS_MAX_SERVERS);
-    for (int i = 0; i < network_count; i++) add_dns_server(servers, &count, max, &network[i]);
     for (size_t i = 0; i < sizeof(k_public_dns) / sizeof(k_public_dns[0]); i++) {
         if (dns_server_from_string(k_public_dns[i], &s)) add_dns_server(servers, &count, max, &s);
     }
