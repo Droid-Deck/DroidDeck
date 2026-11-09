@@ -221,6 +221,42 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags) {
     return orig_sendmsg ? orig_sendmsg(sockfd, msg, flags) : -1;
 }
 
+static void present_peer_as_root(struct ucred *cred) {
+    if (cred->uid == (uid_t)call_orig_syscall(DDNATV_NR_REAL_GETUID, 0, 0, 0, 0, 0, 0)) cred->uid = 0;
+    if (cred->gid == (gid_t)call_orig_syscall(DDNATV_NR_REAL_GETGID, 0, 0, 0, 0, 0, 0)) cred->gid = 0;
+}
+
+// A server compares a peer's credentials with the user the peer claims, which is getuid()'s 0
+// here, while the kernel reports the app's ids: dbus-daemon refused every EXTERNAL login ("Did not
+// receive a reply"), so the Plasma desktop never started.
+int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen) {
+    static int (*orig_getsockopt)(int, int, int, void *, socklen_t *) = NULL;
+    if (!orig_getsockopt) orig_getsockopt = (int (*)(int, int, int, void *, socklen_t *))dlsym(RTLD_NEXT, "getsockopt");
+    if (!orig_getsockopt) {
+        errno = ENOSYS;
+        return -1;
+    }
+    int ret = orig_getsockopt(sockfd, level, optname, optval, optlen);
+    if (ret == 0 && level == SOL_SOCKET && optname == SO_PEERCRED && optval && optlen && *optlen >= sizeof(struct ucred)) {
+        struct ucred cred;
+        memcpy(&cred, optval, sizeof(cred));
+        present_peer_as_root(&cred);
+        memcpy(optval, &cred, sizeof(cred));
+    }
+    return ret;
+}
+
+static void received_credentials_as_root(struct msghdr *msg) {
+    if (!msg || !msg->msg_control || msg->msg_controllen < sizeof(struct cmsghdr)) return;
+    for (struct cmsghdr *c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
+        if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_CREDENTIALS || c->cmsg_len < CMSG_LEN(sizeof(struct ucred))) continue;
+        struct ucred cred;
+        memcpy(&cred, CMSG_DATA(c), sizeof(cred));
+        present_peer_as_root(&cred);
+        memcpy(CMSG_DATA(c), &cred, sizeof(cred));
+    }
+}
+
 ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
                  struct sockaddr *src_addr, socklen_t *addrlen) {
     static ssize_t (*orig_recvfrom)(int, void *, size_t, int, struct sockaddr *, socklen_t *) = NULL;
@@ -251,6 +287,7 @@ ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags) {
 
     socklen_t cap = msg ? msg->msg_namelen : 0;
     ssize_t ret = orig_recvmsg ? orig_recvmsg(sockfd, msg, flags) : -1;
+    if (ret >= 0) received_credentials_as_root(msg);
     if (ret > 0 && msg && msg->msg_name) {
         int saved_errno = errno;
         restore_dns_source(sockfd, (struct sockaddr *)msg->msg_name, cap, &msg->msg_namelen);

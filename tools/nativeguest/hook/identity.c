@@ -715,11 +715,17 @@ int DDNATV_NSS_SYM(getgrnam_r)(const char *name, struct group *grp, char *buf, s
 // setgid() only pretend to), and sshd's unprivileged part checks after dropping them that it cannot
 // take them back, which ended it ("permanently_set_uid: was able to restore old [e]gid"). Like apt's
 // sandbox user (APT::Sandbox::User "root"), it then runs as the rest does.
+//
+// The app's own ids are root's as well: the rootfs lists root with them for proot, and a server
+// that allows "localuser:root" compares getpwnam("root") with a peer's credentials, which the hook
+// reports as 0. Xwayland refused gamescope's own connection when the two disagreed.
 static struct passwd *present_privsep_user_as_root(struct passwd *pwd) {
     if (pwd && pwd->pw_name && strcmp(pwd->pw_name, "sshd") == 0) {
         pwd->pw_uid = 0;
         pwd->pw_gid = 0;
     }
+    if (pwd && pwd->pw_uid == real_uid()) pwd->pw_uid = 0;
+    if (pwd && pwd->pw_gid == real_gid()) pwd->pw_gid = 0;
     return pwd;
 }
 
@@ -728,11 +734,11 @@ struct passwd *DDNATV_NSS_SYM(getpwuid)(uid_t uid) {
     static struct passwd *(*orig_getpwuid)(uid_t) = NULL;
     if (!orig_getpwuid) orig_getpwuid = (struct passwd *(*)(uid_t))dlsym(RTLD_NEXT, "getpwuid");
     struct passwd *res = orig_getpwuid ? orig_getpwuid(uid) : NULL;
-    if (res) return res;
+    if (res) return present_privsep_user_as_root(res);
 #endif
 
     int err = ddnatv_lookup_passwd(NULL, uid, 0, &s_pwd_storage, s_pwd_buf, sizeof(s_pwd_buf));
-    if (err == 0) return &s_pwd_storage;
+    if (err == 0) return present_privsep_user_as_root(&s_pwd_storage);
     return NULL;
 }
 
