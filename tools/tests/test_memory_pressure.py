@@ -229,9 +229,34 @@ echo "backoff:$_bl_tier_backoff"
         self.assertEqual(['send:1:game', 'send:1:game'], self.run_policy('''
 _bl_tier_backoff=300
 SECONDS=0; bl_session_pressure
-swap=0
 SECONDS=20; bl_session_pressure
 SECONDS=30; bl_session_pressure
+'''))
+
+    def test_nearly_out_of_memory_still_backs_off_when_the_game_reads_its_pageout_back(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:game', 'backoff:60', 'send:1:game'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+SECONDS=59; bl_session_pressure
+SECONDS=60; bl_session_pressure
+SECONDS=90; bl_session_pressure
+'''))
+
+    def test_nearly_out_of_memory_retries_a_skipped_pageout_after_30_seconds(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:game', 'send:1:game'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
+_bl_tier_backoff=300
+saved=$rss; rss=$((128 * 1024))
+SECONDS=330; bl_session_pressure
+rss=$saved
+SECONDS=359; bl_session_pressure
+SECONDS=360; bl_session_pressure
 '''))
 
     def test_small_swap_headroom_skips_the_pageout(self):
