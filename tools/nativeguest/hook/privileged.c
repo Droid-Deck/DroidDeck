@@ -515,6 +515,8 @@ static int close_range_all(unsigned int first, unsigned int last, int flags) {
     return 0;
 }
 
+static __thread int t_syscall_redirect = 0;
+
 long syscall(long number, ...) {
     va_list ap;
     va_start(ap, number);
@@ -605,13 +607,29 @@ long syscall(long number, ...) {
 
 #ifdef __NR_close_range
     if (number == __NR_close_range) {
-        return (long)close_range((unsigned int)arg1, (unsigned int)arg2, (int)arg3);
+        // libblsession's close_range() calls syscall() again: the nested call goes straight to the kernel
+        if (t_syscall_redirect) return call_orig_syscall(number, arg1, arg2, arg3, 0, 0, 0);
+        t_syscall_redirect++;
+        long ret = (long)close_range((unsigned int)arg1, (unsigned int)arg2, (int)arg3);
+        t_syscall_redirect--;
+        return ret;
     }
 #endif
 
 #ifdef __NR_openat2
     if (number == __NR_openat2) {
-        return (long)openat2((int)arg1, (const char *)arg2, (struct ddnatv_open_how *)arg3, (size_t)arg4);
+        // libblsession's openat2() calls syscall() again (an endless loop until the stack ran out): the nested
+        // call maps the path and goes straight to the kernel
+        if (t_syscall_redirect) {
+            char nested_buf[PATH_MAX];
+            const char *path = (const char *)arg2;
+            if (path && path[0] == '/') path = rewrite_path(path, nested_buf, sizeof(nested_buf));
+            return call_orig_syscall(number, arg1, (unsigned long)path, arg3, arg4, 0, 0);
+        }
+        t_syscall_redirect++;
+        long ret = (long)openat2((int)arg1, (const char *)arg2, (struct ddnatv_open_how *)arg3, (size_t)arg4);
+        t_syscall_redirect--;
+        return ret;
     }
 #endif
 
@@ -629,7 +647,16 @@ long syscall(long number, ...) {
 
 #if defined(__NR_faccessat)
     if (number == __NR_faccessat) {
-        return (long)faccessat((int)arg1, (const char *)arg2, (int)arg3, 0);
+        if (t_syscall_redirect) {
+            char nested_buf[PATH_MAX];
+            const char *path = (const char *)arg2;
+            if (path && path[0] == '/') path = rewrite_path(path, nested_buf, sizeof(nested_buf));
+            return call_orig_syscall(number, arg1, (unsigned long)path, arg3, 0, 0, 0);
+        }
+        t_syscall_redirect++;
+        long ret = (long)faccessat((int)arg1, (const char *)arg2, (int)arg3, 0);
+        t_syscall_redirect--;
+        return ret;
     }
 #endif
 
