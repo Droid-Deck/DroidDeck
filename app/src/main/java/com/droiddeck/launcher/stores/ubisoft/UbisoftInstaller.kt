@@ -70,7 +70,8 @@ internal class UbisoftInstaller(
         val sidecar = StoreGameSidecar(
             Store.UBISOFT, item.id, item.title, exe = exe,
             installVersion = item.extra["manifest"].orEmpty(), installedAt = System.currentTimeMillis(),
-            cover = cover, hero = item.imageUrl, extra = item.extra.filterKeys { it in KEPT }, cloud = false,
+            cover = cover, hero = item.imageUrl, cloud = false,
+            extra = item.extra.filterKeys { it in KEPT } + listOfNotNull(outcome.result?.optJSONArray("chunks")?.let { UbisoftLaunch.CHUNKS to it.toString() }),
         )
         StoreInstalls.complete(app, folder, sidecar, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) })
         return folder.path

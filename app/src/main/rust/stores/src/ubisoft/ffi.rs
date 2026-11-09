@@ -81,6 +81,10 @@ fn call(op: &str, request: &str) -> String {
         "owned" => owned(&s("ticket"), &s("sessionId")).unwrap_or_else(|e| json!({ "error": e })),
         "denuvo" => denuvo(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32, &s("challenge"))
             .unwrap_or_else(|e| json!({ "error": e })),
+        "chunks" => install::Request::from_json(&parsed)
+            .and_then(|r| install::chunks(&r))
+            .map(|c| json!({ "chunks": install::chunks_json(&c) }))
+            .unwrap_or_else(|e| json!({ "error": e })),
         "launch" => launch(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32)
             .unwrap_or_else(|e| json!({ "error": e })),
         _ => json!({ "error": format!("unknown operation {op}") }),

@@ -403,6 +403,7 @@ def ubisoft_launch(folder, sidecar, product, compat_data, answer):
         "ticket": str(answer.get("ticket") or ""),
         "owned": [int(i) for i in answer.get("owned") or [] if str(i).isdigit()],
         "appId": str(answer.get("appId") or ""),
+        "chunks": [c for c in answer.get("chunks") or [] if isinstance(c, dict) and isinstance(c.get("id"), int)],
         "saves": "C:/users/steamuser/Saved Games/Ubisoft/%s/%d/" % (user, product),
         "language": str(answer.get("language") or "en-US"),
         "bridge": windows_path(str(UBISOFT_CACHE / ("bridge-%d" % product))),

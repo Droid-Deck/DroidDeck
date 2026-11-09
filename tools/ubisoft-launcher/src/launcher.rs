@@ -40,6 +40,8 @@ pub struct Config {
     pub language: String,
     pub bridge: String,
     pub log: String,
+    /// Installed chunks of the game's manifest: id and tags.
+    pub chunks: Vec<(u32, String)>,
 }
 
 fn s(j: &Json, k: &str) -> String {
@@ -76,6 +78,9 @@ impl Config {
             language: Some(s(&j, "language")).filter(|l| !l.is_empty()).unwrap_or_else(|| "en-US".into()),
             bridge: s(&j, "bridge"),
             log: s(&j, "log"),
+            chunks: j.get("chunks").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|c| {
+                Some((c.get("id")?.as_u64()? as u32, c.get("tags").and_then(|t| t.as_str()).unwrap_or("").to_string()))
+            }).collect()).unwrap_or_default(),
         };
         if c.exe.is_empty() || c.ticket.is_empty() {
             return Err("config: exe and ticket are required".into());
@@ -116,6 +121,15 @@ impl Config {
         Msg::new().msg(2, Msg::new().msg(1, granted)).0
     }
 
+    /// `Chunks`: every installed chunk, marked downloaded.
+    fn chunks(&self) -> Msg {
+        let mut m = Msg::new();
+        for (id, tags) in &self.chunks {
+            m = m.msg(1, Msg::new().uint(1, *id as u64).uint(2, 1).text(3, tags));
+        }
+        m
+    }
+
     /// `Rsp.initProcessRsp` for the game announcing its process.
     pub fn init_process(&self) -> Vec<u8> {
         Msg::new().msg(13, Msg::new().uint(1, 1).uint(3, 1).uint(4, 3).uint(6, 0)).0
@@ -138,6 +152,7 @@ impl Config {
             .msg(6, Msg::new().uint(1, self.product as u64).text(2, ""))
             .uint(7, 0)
             .text(8, &self.ticket)
+            .msg(14, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language))
             .msg(11, Msg::new().uint(1, 0))
             .uint(12, 0)
             .msg(15, Msg::new().uint(1, 1).uint(2, 3))
@@ -154,7 +169,7 @@ impl Config {
 
     /// `Rsp.installerRsp.initInstallerRsp`.
     pub fn installer(&self) -> Vec<u8> {
-        Msg::new().msg(10, Msg::new().msg(1, Msg::new().uint(1, 1).text(2, "").text(3, &self.language))).0
+        Msg::new().msg(10, Msg::new().msg(1, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language))).0
     }
 
     pub fn service_hello(&self) -> Vec<u8> {
@@ -225,7 +240,7 @@ mod tests {
     fn config() -> Config {
         Config::parse(r#"{"productId":109,"exe":"Z:/games/sc/system/splintercell.exe","workdir":"Z:/games/sc","ticket":"T",
             "account":{"userId":"u1","username":"name","nameOnPlatform":"name","email":"e@x","country":"US"},
-            "owned":[82],"appId":"a-b","saves":"Z:/saves/u1/109"}"#).unwrap()
+            "owned":[82],"appId":"a-b","saves":"Z:/saves/u1/109","chunks":[{"id":0,"tags":""},{"id":64,"tags":"custo05"}]}"#).unwrap()
     }
 
     #[test]
@@ -262,6 +277,11 @@ mod tests {
         let account = pb::fields(pb::sub(&init, 2).unwrap()).unwrap();
         assert_eq!(pb::sub(&account, 1), Some(&b"u1"[..]));
         assert_eq!(pb::sub(&account, 5), Some(&b""[..]));
+        let install = pb::fields(pb::sub(&init, 14).unwrap()).unwrap();
+        assert_eq!(pb::num(&install, 1), Some(1));
+        let chunks = pb::fields(pb::sub(&install, 2).unwrap()).unwrap();
+        let second = pb::fields(match &chunks[1].1 { Value::Bytes(b) => b, _ => panic!() }).unwrap();
+        assert_eq!((pb::num(&second, 1), pb::num(&second, 2), pb::sub(&second, 3)), (Some(64), Some(1), Some(&b"custo05"[..])));
     }
 
     #[test]

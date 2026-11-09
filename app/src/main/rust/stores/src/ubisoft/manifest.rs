@@ -24,10 +24,20 @@ pub struct File {
     pub slices: Vec<Slice>,
 }
 
+/// A chunk the install keeps, as the game's launcher session reports it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Chunk {
+    pub id: u32,
+    pub tags: String,
+}
+
 #[derive(Debug)]
 pub struct Manifest {
     pub compression: u64,
     pub files: Vec<File>,
+    pub chunks: Vec<Chunk>,
+    /// Files of chunks left out: other languages, and add-ons the account does not own.
+    pub skipped: Vec<String>,
 }
 
 fn file(b: &[u8]) -> Result<File, String> {
@@ -61,24 +71,41 @@ fn file(b: &[u8]) -> Result<File, String> {
     })
 }
 
-/// Files of the chunks to install: those for every language, plus the language asked for.
+/// Files of the chunks to install: those for every language plus the language asked for, of the
+/// game itself or an optional add-on in `owned` (every add-on when `owned` is empty).
 pub fn parse(decoded: &[u8], language: &str) -> Result<Manifest, String> {
+    parse_owned(decoded, language, &[])
+}
+
+pub fn parse_owned(decoded: &[u8], language: &str, owned: &[u32]) -> Result<Manifest, String> {
     let m = pb::fields(decoded)?;
     let wanted = language.to_ascii_lowercase();
     let prefix = wanted.split(['-', '_']).next().unwrap_or("").to_string();
     let mut files = Vec::new();
+    let mut chunks = Vec::new();
+    let mut skipped = Vec::new();
     for c in pb::subs(&m, 4) {
         let c = pb::fields(c)?;
         let lang = pb::string(&c, 5).unwrap_or_default().to_ascii_lowercase();
-        let keep = lang.is_empty() || lang == wanted || (!prefix.is_empty() && lang.split(['-', '_']).next() == Some(prefix.as_str()));
-        if !keep {
+        let mut products: Vec<u32> = c.iter().filter_map(|(n, v)| match v { pb::Value::Varint(x) if *n == 8 => Some(*x as u32), _ => None }).collect();
+        products.extend(pb::num(&c, 4).map(|v| v as u32));
+        let in_language = lang.is_empty() || lang == wanted || (!prefix.is_empty() && lang.split(['-', '_']).next() == Some(prefix.as_str()));
+        let optional = pb::num(&c, 2) == Some(1);
+        let owned_product = !optional || owned.is_empty() || products.is_empty() || products.iter().any(|p| owned.contains(p));
+        if !(in_language && owned_product) {
+            for f in pb::subs(&c, 3) {
+                skipped.push(file(f)?.name);
+            }
             continue;
         }
+        chunks.push(Chunk { id: pb::num(&c, 1).unwrap_or(0) as u32, tags: pb::string(&c, 7).unwrap_or_default() });
         for f in pb::subs(&c, 3) {
             files.push(file(f)?);
         }
     }
-    Ok(Manifest { compression: pb::num(&m, 21).unwrap_or(0), files })
+    let kept: std::collections::HashSet<&str> = files.iter().map(|f| f.name.as_str()).collect();
+    skipped.retain(|n| !kept.contains(n.as_str()));
+    Ok(Manifest { compression: pb::num(&m, 21).unwrap_or(0), files, chunks, skipped })
 }
 
 pub fn decode(downloaded: &[u8]) -> Result<Vec<u8>, String> {
@@ -154,6 +181,21 @@ mod tests {
         assert_eq!(names, ["Game/game.exe", "en.pak"]);
         assert_eq!(parsed.compression, ZSTD);
         assert_eq!(parsed.files[0].slices[0], Slice { size: 10, download_size: Some(4), download_sha1: vec![0xBB], content_sha1: vec![0xAA], offset: 0 });
+    }
+
+    #[test]
+    fn leaves_out_add_ons_the_account_does_not_own() {
+        let f = |name: &str| Msg::new().text(1, name).uint(2, 10).flag(3, false);
+        let m = Msg::new()
+            .msg(4, Msg::new().uint(1, 1).uint(2, 0).msg(3, f("base.forge")).uint(4, 9999))
+            .msg(4, Msg::new().uint(1, 2).uint(2, 1).msg(3, f("dlc_24/east.forge")).uint(4, 5450))
+            .msg(4, Msg::new().uint(1, 3).uint(2, 1).msg(3, f("dlc_25/west.forge")).uint(8, 5451).uint(8, 5452))
+            .uint(21, ZSTD);
+        let parsed = parse_owned(&m.0, "en-US", &[5405, 5452]).unwrap();
+        let names: Vec<_> = parsed.files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["base.forge", "dlc_25/west.forge"]);
+        assert_eq!(parsed.skipped, ["dlc_24/east.forge"]);
+        assert_eq!(parsed.chunks.iter().map(|c| c.id).collect::<Vec<_>>(), [1, 3]);
     }
 
     #[test]

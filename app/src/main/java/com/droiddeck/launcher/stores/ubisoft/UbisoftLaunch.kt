@@ -14,9 +14,10 @@ object UbisoftLaunch {
     private const val ME = "https://public-ubiservices.ubi.com/v3/users/me"
 
     fun prepare(app: Context, id: String): JSONObject {
-        val sidecar = StoreInstallRoot.gameFolders(app).firstNotNullOfOrNull { f ->
-            StoreGameSidecar.read(f)?.takeIf { it.store == Store.UBISOFT && it.id == id }
+        val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f ->
+            StoreGameSidecar.read(f)?.let { it.store == Store.UBISOFT && it.id == id } == true
         } ?: return failure("not-installed")
+        val sidecar = StoreGameSidecar.read(folder) ?: return failure("not-installed")
         val product = sidecar.extra["productId"]?.toLongOrNull() ?: return failure("no-product")
         val s = UbisoftAuth.current(app) ?: return failure("signed-out")
         val native = UbisoftNative.call("launch", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId).put("productId", product))
@@ -37,6 +38,14 @@ object UbisoftLaunch {
         val appId = runCatching { UbisoftAuth.request(ENTITLEMENTS, "GET", auth, s.sessionId) }.getOrNull()?.takeIf { it.ok }
             ?.let { applicationId(it.body, product) } ?: sidecar.extra["appId"].orEmpty()
         StoresState.logLine("Ubisoft: launch ticket for $product ready (${native.optJSONArray("owned")?.length() ?: 0} products, appId ${if (appId.isEmpty()) "unknown" else "found"})")
+        val language = com.droiddeck.launcher.stores.StoreLanguage.localeFor(null, app).let { "${it.language}-${it.country}" }
+        val chunks = sidecar.extra[CHUNKS]?.let { runCatching { JSONArray(it) }.getOrNull() }
+            ?: UbisoftNative.call("chunks", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId).put("productId", product)
+                .put("manifest", sidecar.extra["manifest"] ?: sidecar.installVersion).put("folder", folder.path).put("language", language))
+                ?.let { r ->
+                    r.optString("error").takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: chunks for $product: $it") }
+                    r.optJSONArray("chunks")
+                }?.also { runCatching { StoreGameSidecar.read(folder)?.let { sc -> sc.copy(extra = sc.extra + (CHUNKS to it.toString())).write(folder) } } }
         UbisoftActivation.watch(app, product)
         return JSONObject().put("ok", true)
             .put("productId", product)
@@ -44,7 +53,11 @@ object UbisoftLaunch {
             .put("owned", native.optJSONArray("owned") ?: JSONArray())
             .put("account", account)
             .put("appId", appId)
+            .put("language", language)
+            .put("chunks", chunks ?: JSONArray())
     }
+
+    const val CHUNKS = "chunks"
 
     /** The entitlement's `applicationId` for the product; the list sits under one of a few keys depending on the API version. */
     internal fun applicationId(body: String, product: Long): String? {

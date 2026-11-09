@@ -42,11 +42,16 @@ impl Request {
 pub struct Done {
     pub files: usize,
     pub bytes: u64,
+    pub chunks: Vec<manifest::Chunk>,
+}
+
+pub fn chunks_json(chunks: &[manifest::Chunk]) -> Json {
+    Json::Array(chunks.iter().map(|c| json!({ "id": c.id, "tags": c.tags })).collect())
 }
 
 impl Done {
     pub fn to_json(&self) -> Json {
-        json!({ "files": self.files, "bytes": self.bytes })
+        json!({ "files": self.files, "bytes": self.bytes, "chunks": chunks_json(&self.chunks) })
     }
 }
 
@@ -152,6 +157,38 @@ impl Session {
     }
 }
 
+/// The chunks an install of the manifest keeps, without downloading the game.
+pub fn chunks(req: &Request) -> Result<Vec<manifest::Chunk>, String> {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+    rt.block_on(async {
+        let (mut sess, owned) = Session::open(req).await?;
+        let manifest_id = if req.manifest.is_empty() {
+            owned.iter().find(|o| o.product_id == req.product_id).map(|o| o.manifest.clone()).unwrap_or_default()
+        } else {
+            req.manifest.clone()
+        };
+        if manifest_id.is_empty() {
+            return Err("Ubisoft lists no download for this game".to_string());
+        }
+        let client = reqwest::Client::builder().timeout(Duration::from_secs(120)).build().map_err(|e| e.to_string())?;
+        struct Quiet;
+        impl Events for Quiet {
+            fn log(&self, _: &str) {}
+            fn status(&self, _: &str) {}
+            fn checking(&self, _: u64, _: u64, _: u32, _: u32) {}
+            fn sizes(&self, _: u64, _: u64) {}
+            fn progress(&self, _: u64, _: u64, _: u32, _: u32) {}
+            fn before_replace(&self) -> bool { false }
+        }
+        let urls = sess.sign(req, &[format!("manifests/{manifest_id}.manifest")], &Quiet).await?;
+        let raw = fetch(&client, urls.first().map(|v| v.as_slice()).unwrap_or_default()).await?;
+        let language = if req.language.is_empty() { "en-US" } else { req.language.as_str() };
+        let mut owned_ids: Vec<u32> = owned.iter().filter(|o| o.owned).map(|o| o.product_id).collect();
+        owned_ids.push(req.product_id);
+        Ok(manifest::parse_owned(&manifest::decode(&raw)?, language, &owned_ids)?.chunks)
+    })
+}
+
 pub fn run(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Result<Done, Stop> {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| Stop::Failed(e.to_string()))?;
     rt.block_on(install(req, cancel, events))
@@ -176,8 +213,17 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
     let raw = fetch(&client, urls.first().map(|v| v.as_slice()).unwrap_or_default()).await.map_err(fail)?;
     let decoded = manifest::decode(&raw).map_err(fail)?;
     let language = if req.language.is_empty() { "en-US" } else { req.language.as_str() };
-    let m = manifest::parse(&decoded, language).map_err(fail)?;
-    events.log(&format!("ubisoft: manifest {manifest_id} files={} compression={}", m.files.len(), m.compression));
+    let mut owned_ids: Vec<u32> = owned.iter().filter(|o| o.owned).map(|o| o.product_id).collect();
+    owned_ids.push(req.product_id);
+    let m = manifest::parse_owned(&decoded, language, &owned_ids).map_err(fail)?;
+    events.log(&format!("ubisoft: manifest {manifest_id} files={} chunks={} skipped={} compression={}", m.files.len(), m.chunks.len(), m.skipped.len(), m.compression));
+    for name in &m.skipped {
+        if let Ok(path) = safe_path(&req.folder, name) {
+            if path.is_file() && std::fs::remove_file(&path).is_ok() {
+                events.log(&format!("ubisoft: removed {name}, which this install leaves out"));
+            }
+        }
+    }
 
     std::fs::create_dir_all(&req.folder).map_err(|e| Stop::Failed(format!("Could not create the game folder: {e}")))?;
     let total: u64 = m.files.iter().map(|f| f.size).sum();
@@ -297,7 +343,7 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
         finished_files += 1;
     }
     events.progress(total, total, finished_files, files_total);
-    Ok(Done { files: m.files.len(), bytes: total })
+    Ok(Done { files: m.files.len(), bytes: total, chunks: m.chunks.clone() })
 }
 
 #[cfg(test)]
