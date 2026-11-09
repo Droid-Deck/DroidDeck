@@ -517,7 +517,12 @@ def apply_config(env, config, app_id, fixes=None):
         if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
             value = entries.get(name, env.get(name)) + ";" + value
         entries[name] = value
-    entries.update(config.get("games", {}).get(app_id, {}))
+    game = config.get("games", {}).get(app_id, {})
+    fix = (fixes or {}).get("WINEDLLOVERRIDES")
+    if fix and isinstance(game.get("WINEDLLOVERRIDES"), str):
+        own = game["WINEDLLOVERRIDES"]
+        game = dict(game, WINEDLLOVERRIDES=fix + ";" + own if own else fix)
+    entries.update(game)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError("invalid environment name")

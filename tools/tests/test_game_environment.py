@@ -1496,6 +1496,28 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(result["FEX_TSOENABLED"], "0")
         self.assertEqual(result["WINEDLLOVERRIDES"], "dxgi=n;libsentry=d")
 
+    def test_game_dll_overrides_follow_droiddecks_own(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "windowscodecs,windowscodecsext=n"}}}
+        result = MODULE["apply_config"]({}, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "msvcp100=n,b;windowscodecs,windowscodecsext=n")
+
+    def test_game_dll_overrides_edge_cases(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        env = {"WINEDLLOVERRIDES": "dxgi=n"}
+        for game, shared, expected in (
+            ({"WINEDLLOVERRIDES": "msvcp100=b"}, {}, "msvcp100=n,b;msvcp100=b"),
+            ({"WINEDLLOVERRIDES": ""}, {}, "msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": None}, {}, None),
+            ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "msvcp100=n,b;d3d9=n"),
+            ({}, {}, "dxgi=n;msvcp100=n,b"),
+        ):
+            with self.subTest(game=game, shared=shared):
+                config = {"version": 1, "shared": shared, "games": {"42": game, "43": {"WINEDLLOVERRIDES": "d3d11=n"}}}
+                result = MODULE["apply_config"](env, config, "42", fixes)
+                self.assertEqual(result.get("WINEDLLOVERRIDES"), expected)
+                self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], "d3d11=n")
+
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
         for entries in ({"A": "ok", "BAD=KEY": "x"}, {"A": "bad\0value"}, {"A": 1}):
