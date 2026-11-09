@@ -785,7 +785,14 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
         if not argv:
             raise ControlError("native needs a command after --", "INVALID_ARGUMENTS")
-        env = dict(item.partition("=")[::2] for item in args.env or [])
+        if not 0 < args.timeout <= 600:
+            raise ControlError("--timeout must be more than 0 and at most 600 seconds", "INVALID_ARGUMENTS")
+        env = {}
+        for item in args.env or []:
+            key, sep, value = item.partition("=")
+            if not sep:
+                raise ControlError(f"--env takes KEY=VALUE, not {item}", "INVALID_ARGUMENTS")
+            env[key] = value
         request = {"argv": argv, "timeout": args.timeout, "env": env}
         if args.cwd:
             request["cwd"] = args.cwd

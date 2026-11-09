@@ -64,6 +64,12 @@ class NativeGuestTest {
     }
 
     @Test
+    fun aSiblingOfAMountIsNotPartOfIt() {
+        assertEquals(null, NativeGuest.hostLinkTarget("/mnt/droiddeck-sdx", linkRoot, sdBinds))
+        assertEquals("$linkRoot/opt/droiddeck-sdx", NativeGuest.hostLinkTarget("/opt/droiddeck-sdx", linkRoot, sdBinds + "/real/opt:/opt/droiddeck-sd"))
+    }
+
+    @Test
     fun aMountInsideAnIdentityMountStillMapsItsPaths() {
         val binds = listOf("/odd/place", "/real/sd:/odd/place/sd")
         assertEquals("/real/sd/x", NativeGuest.hostLinkTarget("/odd/place/sd/x", linkRoot, binds))
