@@ -121,6 +121,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
+import com.droiddeck.launcher.session.SessionLoadingDecision
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -2435,6 +2436,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun watchSession() {
         val handler = Handler(Looper.getMainLooper())
         var ticks = 0
+        val loadingStartedAt = SystemClock.elapsedRealtime()
         val poll = object : Runnable {
             override fun run() {
                 if (!watching) return
@@ -2444,6 +2446,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionState.stopRequested = false
                     SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
                     collectStartArtifacts("session start cancelled")
+                    finish()
+                    return
+                }
+                if (loading.visible && !loading.ended && !SessionState.running && !installingRuntime &&
+                    SessionLoadingDecision.shouldReturnToLauncher(
+                        loadingStartedAt, SystemClock.elapsedRealtime(), SessionState.running, SessionState.phase)) {
                     finish()
                     return
                 }
@@ -2471,8 +2479,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val hint = sessionExitHint(status)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (status == 0) SessionState.relaunch?.let { next ->
-                    SessionState.relaunch = null
+                if (status == 0) SessionState.takeRelaunch()?.let { next ->
                     next.putExtra(EXTRA_RETURN_HOME, intent.getBooleanExtra(EXTRA_RETURN_HOME, false))
                     next.putExtra(EXTRA_LINK_TASK, intent.getIntExtra(EXTRA_LINK_TASK, -1))
                     setIntent(next)
