@@ -521,7 +521,11 @@ def apply_config(env, config, app_id, fixes=None):
     fix = (fixes or {}).get("WINEDLLOVERRIDES")
     if fix and isinstance(game.get("WINEDLLOVERRIDES"), str):
         own = game["WINEDLLOVERRIDES"]
-        game = dict(game, WINEDLLOVERRIDES=fix + ";" + own if own else fix)
+        combined = fix + ";" + own if own else fix
+        if len(combined) > 8192:
+            print("droiddeck-game-env: game WINEDLLOVERRIDES too long to add DroidDeck's overrides; using the game value only", file=sys.stderr)
+            combined = own
+        game = dict(game, WINEDLLOVERRIDES=combined)
     entries.update(game)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):

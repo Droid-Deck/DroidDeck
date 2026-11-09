@@ -1511,12 +1511,19 @@ class GameEnvironmentTest(unittest.TestCase):
             ({"WINEDLLOVERRIDES": None}, {}, None),
             ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "msvcp100=n,b;d3d9=n"),
             ({}, {}, "dxgi=n;msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": "x" * 8179}, {}, "msvcp100=n,b;" + "x" * 8179),
         ):
             with self.subTest(game=game, shared=shared):
                 config = {"version": 1, "shared": shared, "games": {"42": game, "43": {"WINEDLLOVERRIDES": "d3d11=n"}}}
                 result = MODULE["apply_config"](env, config, "42", fixes)
                 self.assertEqual(result.get("WINEDLLOVERRIDES"), expected)
                 self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], "d3d11=n")
+        stderr = io.StringIO()
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "x" * 8192}}}
+        with mock.patch("sys.stderr", stderr):
+            result = MODULE["apply_config"](env, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "x" * 8192)
+        self.assertIn("too long", stderr.getvalue())
 
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
