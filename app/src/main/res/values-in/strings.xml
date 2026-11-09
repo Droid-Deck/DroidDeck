@@ -1055,7 +1055,7 @@
     <string name="gate_enter_manually">Masukkan alamat secara manual</string>
     <string name="gate_from_computer">Dari komputer dengan ADB:</string>
     <string name="gate_copy_command">Salin perintah</string>
-    <string name="gate_sidequest_steps">Hubungkan headset ke komputer dan buka SideQuest. Pilih “Run ADB Command”, lalu “Custom Command”, tempel perintah ini, dan pilih “Run Command”.</string>
+    <string name="gate_sidequest_steps">Hubungkan headset ke komputer dan buka SideQuest. Pilih “Run ADB Command”, lalu “Custom Command”, ketik perintah yang ditampilkan di bawah, dan pilih “Run Command”.</string>
     <string name="gate_choose_display">Pilih tampilan tempat membuka Setelan Android.</string>
     <string name="gate_main_screen">Layar utama</string>
     <string name="wadb_finding_port">Berhasil dipasangkan. Mencari port Debugging nirkabel…</string>

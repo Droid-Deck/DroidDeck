@@ -1085,7 +1085,7 @@
     <string name="gate_enter_manually">إدخال العنوان يدويًا</string>
     <string name="gate_from_computer">من جهاز كمبيوتر يحتوي على ADB:</string>
     <string name="gate_copy_command">نسخ الأمر</string>
-    <string name="gate_sidequest_steps">وصّل النظارة بالكمبيوتر وافتح SideQuest. اختر “Run ADB Command” ثم “Custom Command”، والصق هذا الأمر واختر “Run Command”.</string>
+    <string name="gate_sidequest_steps">وصّل النظارة بالكمبيوتر وافتح SideQuest. اختر “Run ADB Command” ثم “Custom Command”، واكتب الأمر الظاهر أدناه، ثم اختر “Run Command”.</string>
     <string name="gate_choose_display">اختر الشاشة التي ستُفتَح فيها إعدادات Android.</string>
     <string name="gate_main_screen">الشاشة الرئيسية</string>
     <string name="wadb_finding_port">تم الإقران. جارٍ البحث عن منفذ تصحيح الأخطاء اللاسلكي…</string>

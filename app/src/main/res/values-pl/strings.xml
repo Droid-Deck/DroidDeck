@@ -1073,7 +1073,7 @@
     <string name="gate_enter_manually">Wpisz adres ręcznie</string>
     <string name="gate_from_computer">Z komputera z ADB:</string>
     <string name="gate_copy_command">Kopiuj polecenie</string>
-    <string name="gate_sidequest_steps">Podłącz gogle do komputera i otwórz SideQuest. Wybierz „Run ADB Command”, potem „Custom Command”, wklej to polecenie i wybierz „Run Command”.</string>
+    <string name="gate_sidequest_steps">Podłącz gogle do komputera i otwórz SideQuest. Wybierz „Run ADB Command”, potem „Custom Command”, wpisz polecenie widoczne poniżej i wybierz „Run Command”.</string>
     <string name="gate_choose_display">Wybierz, na którym ekranie otworzyć Ustawienia Androida.</string>
     <string name="gate_main_screen">Ekran główny</string>
     <string name="wadb_finding_port">Sparowano. Wyszukiwanie portu debugowania bezprzewodowego…</string>

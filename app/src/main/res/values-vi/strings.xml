@@ -1055,7 +1055,7 @@
     <string name="gate_enter_manually">Nhập địa chỉ thủ công</string>
     <string name="gate_from_computer">Từ một máy tính có ADB:</string>
     <string name="gate_copy_command">Sao chép lệnh</string>
-    <string name="gate_sidequest_steps">Kết nối kính với máy tính và mở SideQuest. Chọn “Run ADB Command”, rồi “Custom Command”, dán lệnh này và chọn “Run Command”.</string>
+    <string name="gate_sidequest_steps">Kết nối kính với máy tính và mở SideQuest. Chọn “Run ADB Command”, rồi “Custom Command”, nhập lệnh hiển thị bên dưới và chọn “Run Command”.</string>
     <string name="gate_choose_display">Chọn màn hình để mở Android Settings.</string>
     <string name="gate_main_screen">Màn hình chính</string>
     <string name="wadb_finding_port">Đã ghép nối. Đang tìm cổng Gỡ lỗi qua mạng không dây…</string>

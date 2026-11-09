@@ -1067,7 +1067,7 @@
     <string name="gate_enter_manually">Introducir dirección manualmente</string>
     <string name="gate_from_computer">Desde un ordenador con ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
-    <string name="gate_sidequest_steps">Conecta el visor a un ordenador y abre SideQuest. Elige «Run ADB Command» y luego «Custom Command», pega esto y selecciona «Run Command».</string>
+    <string name="gate_sidequest_steps">Conecta el visor a un ordenador y abre SideQuest. Elige «Run ADB Command» y luego «Custom Command», escribe el comando que aparece abajo y selecciona «Run Command».</string>
     <string name="gate_choose_display">Elige en qué pantalla abrir los Ajustes de Android.</string>
     <string name="gate_main_screen">Pantalla principal</string>
     <string name="wadb_finding_port">Vinculado. Buscando el puerto de la Depuración inalámbrica…</string>

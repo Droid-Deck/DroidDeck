@@ -1061,7 +1061,7 @@
     <string name="gate_enter_manually">Skriv inn adresse manuelt</string>
     <string name="gate_from_computer">Fra en datamaskin med ADB:</string>
     <string name="gate_copy_command">Kopier kommando</string>
-    <string name="gate_sidequest_steps">Koble headsettet til en datamaskin og åpne SideQuest. Velg «Run ADB Command», deretter «Custom Command», lim inn dette og velg «Run Command».</string>
+    <string name="gate_sidequest_steps">Koble headsettet til en datamaskin og åpne SideQuest. Velg «Run ADB Command», deretter «Custom Command», skriv inn kommandoen vist nedenfor og velg «Run Command».</string>
     <string name="gate_choose_display">Velg hvilken skjerm Android-innstillinger skal åpnes på.</string>
     <string name="gate_main_screen">Hovedskjerm</string>
     <string name="wadb_finding_port">Koblet sammen. Finner porten for trådløs feilsøking…</string>

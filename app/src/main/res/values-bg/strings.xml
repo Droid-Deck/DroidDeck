@@ -1061,7 +1061,7 @@
     <string name="gate_enter_manually">Ръчно въвеждане на адреса</string>
     <string name="gate_from_computer">От компютър с ADB:</string>
     <string name="gate_copy_command">Копиране на командата</string>
-    <string name="gate_sidequest_steps">Свържете шлема с компютър и отворете SideQuest. Изберете „Run ADB Command“, после „Custom Command“, поставете това и изберете „Run Command“.</string>
+    <string name="gate_sidequest_steps">Свържете шлема с компютър и отворете SideQuest. Изберете „Run ADB Command“, после „Custom Command“, въведете командата, показана по-долу, и изберете „Run Command“.</string>
     <string name="gate_choose_display">Изберете на кой екран да се отворят настройките на Android.</string>
     <string name="gate_main_screen">Основен екран</string>
     <string name="wadb_finding_port">Сдвоено. Търсене на порта за безжично отстраняване на грешки…</string>

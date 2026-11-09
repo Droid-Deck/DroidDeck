@@ -1059,7 +1059,7 @@
     <string name="gate_enter_manually">Digitar endereço manualmente</string>
     <string name="gate_from_computer">De um computador com ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
-    <string name="gate_sidequest_steps">Conecte o headset a um computador e abra o SideQuest. Escolha “Run ADB Command”, depois “Custom Command”, cole isto e selecione “Run Command”.</string>
+    <string name="gate_sidequest_steps">Conecte o headset a um computador e abra o SideQuest. Escolha “Run ADB Command”, depois “Custom Command”, digite o comando mostrado abaixo e selecione “Run Command”.</string>
     <string name="gate_choose_display">Escolha em qual tela abrir as Configurações do Android.</string>
     <string name="gate_main_screen">Tela principal</string>
     <string name="wadb_finding_port">Pareado. Procurando a porta da Depuração por Wi-Fi…</string>

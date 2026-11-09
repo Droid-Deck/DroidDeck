@@ -1059,7 +1059,7 @@
     <string name="gate_enter_manually">Inserisci l\'indirizzo manualmente</string>
     <string name="gate_from_computer">Da un computer con ADB:</string>
     <string name="gate_copy_command">Copia comando</string>
-    <string name="gate_sidequest_steps">Collega il visore a un computer e apri SideQuest. Scegli “Run ADB Command”, poi “Custom Command”, incolla questo e seleziona “Run Command”.</string>
+    <string name="gate_sidequest_steps">Collega il visore a un computer e apri SideQuest. Scegli “Run ADB Command”, poi “Custom Command”, digita il comando mostrato sotto e seleziona “Run Command”.</string>
     <string name="gate_choose_display">Scegli su quale schermo aprire le Impostazioni di Android.</string>
     <string name="gate_main_screen">Schermo principale</string>
     <string name="wadb_finding_port">Accoppiato. Ricerca della porta del Debug wireless…</string>

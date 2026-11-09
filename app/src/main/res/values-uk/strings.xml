@@ -1073,7 +1073,7 @@
     <string name="gate_enter_manually">Ввести адресу вручну</string>
     <string name="gate_from_computer">З комп’ютера з ADB:</string>
     <string name="gate_copy_command">Копіювати команду</string>
-    <string name="gate_sidequest_steps">Підключіть шолом до комп’ютера й відкрийте SideQuest. Виберіть «Run ADB Command», потім «Custom Command», вставте цю команду й виберіть «Run Command».</string>
+    <string name="gate_sidequest_steps">Підключіть шолом до комп’ютера й відкрийте SideQuest. Виберіть «Run ADB Command», потім «Custom Command», введіть команду, показану нижче, і виберіть «Run Command».</string>
     <string name="gate_choose_display">Виберіть, на якому екрані відкрити налаштування Android.</string>
     <string name="gate_main_screen">Головний екран</string>
     <string name="wadb_finding_port">Поєднано. Пошук порту бездротового налагодження…</string>

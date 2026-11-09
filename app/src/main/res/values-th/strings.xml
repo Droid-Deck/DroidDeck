@@ -1055,7 +1055,7 @@
     <string name="gate_enter_manually">กรอกที่อยู่ด้วยตัวเอง</string>
     <string name="gate_from_computer">จากคอมพิวเตอร์ที่มี ADB:</string>
     <string name="gate_copy_command">คัดลอกคำสั่ง</string>
-    <string name="gate_sidequest_steps">เชื่อมต่อแว่นกับคอมพิวเตอร์แล้วเปิด SideQuest เลือก “Run ADB Command” จากนั้น “Custom Command” วางคำสั่งนี้แล้วเลือก “Run Command”</string>
+    <string name="gate_sidequest_steps">เชื่อมต่อแว่นกับคอมพิวเตอร์แล้วเปิด SideQuest เลือก “Run ADB Command” จากนั้น “Custom Command” พิมพ์คำสั่งที่แสดงด้านล่างแล้วเลือก “Run Command”</string>
     <string name="gate_choose_display">เลือกหน้าจอที่จะเปิดการตั้งค่า Android</string>
     <string name="gate_main_screen">หน้าจอหลัก</string>
     <string name="wadb_finding_port">จับคู่แล้ว กำลังค้นหาพอร์ตของ Wireless debugging…</string>

@@ -1061,7 +1061,7 @@
     <string name="gate_enter_manually">Cím kézi megadása</string>
     <string name="gate_from_computer">Egy ADB-vel rendelkező számítógépről:</string>
     <string name="gate_copy_command">Parancs másolása</string>
-    <string name="gate_sidequest_steps">Csatlakoztasd a headsetet egy számítógéphez, és nyisd meg a SideQuestet. Válaszd a „Run ADB Command”, majd a „Custom Command” lehetőséget, illeszd be ezt, és válaszd a „Run Command” gombot.</string>
+    <string name="gate_sidequest_steps">Csatlakoztasd a headsetet egy számítógéphez, és nyisd meg a SideQuestet. Válaszd a „Run ADB Command”, majd a „Custom Command” lehetőséget, írd be az alább látható parancsot, és válaszd a „Run Command” gombot.</string>
     <string name="gate_choose_display">Válassza ki, melyik kijelzőn nyíljon meg az Android Beállítások.</string>
     <string name="gate_main_screen">Fő képernyő</string>
     <string name="wadb_finding_port">Párosítva. A vezeték nélküli hibakeresés portjának keresése…</string>

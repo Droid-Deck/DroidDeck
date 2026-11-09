@@ -1061,7 +1061,7 @@
     <string name="gate_enter_manually">एड्रेस खुद डालें</string>
     <string name="gate_from_computer">ADB वाले कंप्यूटर से:</string>
     <string name="gate_copy_command">कमांड कॉपी करें</string>
-    <string name="gate_sidequest_steps">हेडसेट को कंप्यूटर से जोड़ें और SideQuest खोलें। “Run ADB Command”, फिर “Custom Command” चुनें, इसे पेस्ट करें और “Run Command” चुनें।</string>
+    <string name="gate_sidequest_steps">हेडसेट को कंप्यूटर से जोड़ें और SideQuest खोलें। “Run ADB Command”, फिर “Custom Command” चुनें, नीचे दिखाया गया कमांड टाइप करें और “Run Command” चुनें।</string>
     <string name="gate_choose_display">Android Settings किस डिस्प्ले पर खोलना है चुनें।</string>
     <string name="gate_main_screen">मुख्य स्क्रीन</string>
     <string name="wadb_finding_port">पेयर हो गया। वायरलेस डीबगिंग का पोर्ट खोजा जा रहा है…</string>

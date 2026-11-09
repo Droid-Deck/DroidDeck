@@ -1055,7 +1055,7 @@
     <string name="gate_enter_manually">手動輸入位址</string>
     <string name="gate_from_computer">在已安裝 ADB 的電腦上：</string>
     <string name="gate_copy_command">複製指令</string>
-    <string name="gate_sidequest_steps">將頭戴裝置連接到電腦並開啟 SideQuest。依次選擇「Run ADB Command」和「Custom Command」，貼上此指令，然後選擇「Run Command」。</string>
+    <string name="gate_sidequest_steps">將頭戴裝置連接到電腦並開啟 SideQuest。依次選擇「Run ADB Command」和「Custom Command」，輸入下方顯示的指令，然後選擇「Run Command」。</string>
     <string name="gate_choose_display">選擇要在哪個螢幕開啟 Android 設定。</string>
     <string name="gate_main_screen">主螢幕</string>
     <string name="wadb_finding_port">已配對，正在尋找無線偵錯連接埠…</string>
