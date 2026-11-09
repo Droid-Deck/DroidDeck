@@ -69,9 +69,11 @@ object AgentHost {
         }
     }
 
+    /** Switches the agent CLI; a conversation belongs to one CLI, so a new one starts. */
     fun choose(context: Context, choice: AgentHarness) {
         if (choice == harness || state == State.WORKING) return
-        prefs(context).edit().putString(HARNESS_KEY, choice.id).remove(CONVERSATION_KEY).apply()
+        forget(context)
+        prefs(context).edit().putString(HARNESS_KEY, choice.id).apply()
         refresh(context)
     }
 

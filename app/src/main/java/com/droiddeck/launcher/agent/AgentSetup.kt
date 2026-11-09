@@ -29,9 +29,9 @@ object AgentSetup {
     val ready: Boolean get() = Step.entries.filter { it.required }.all { status[it] == Status.DONE }
 
     /** Set once the required steps have all passed, so the chat opens without waiting for the checks. */
-    fun completed(context: Context) = AgentHost.prefs(context).getBoolean(COMPLETED_KEY, false)
+    fun completed(context: Context) = AgentHost.prefs(context).getBoolean(completedKey(), false)
 
-    private const val COMPLETED_KEY = "setup_completed"
+    private fun completedKey() = "setup_completed_${AgentHost.harness.id}"
 
     private val main = Handler(Looper.getMainLooper())
     private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
@@ -111,7 +111,7 @@ object AgentSetup {
             if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
             val last = output.lines().lastOrNull { it.isNotBlank() }?.trim()?.take(160)
             if (!ok && step.required && last != null) detail[step] = last else if (ok) detail.remove(step)
-            if (ready) AgentHost.prefs(app).edit().putBoolean(COMPLETED_KEY, true).apply()
+            if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(), true).apply()
         }
     }
 
