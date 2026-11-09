@@ -30,6 +30,16 @@ class EpicLibraryTest {
         assertEquals(listOf(game), EpicLibrary.fromCacheJson(text))
     }
 
+    @Test fun thirdPartyLauncherIsCarriedToCatalogItems() {
+        val game = EpicLibrary.gameFrom(
+            JSONObject().put("appName", "Fig").put("namespace", "ns").put("catalogItemId", "cat"),
+            JSONObject().put("thirdPartyManagedApp", "EA app"),
+            null,
+        )
+        assertEquals("EA app", game.thirdPartyManagedApp)
+        assertEquals("EA app", EpicLibrary.toCatalogItem(app, game).extra["thirdPartyManagedApp"])
+    }
+
     @Test fun readingSkipsDedupsSortsAndCapsSizes() {
         val text = JSONArray()
             .put(JSONObject().put("appName", "b").put("title", "beta").put("installSize", (1L shl 41)))
@@ -55,7 +65,7 @@ class EpicLibraryTest {
         assertEquals("Hi", item.description)
         assertTrue(item.owned)
         assertEquals("https://store.epicgames.com/en-US/browse?q=Fig+%26+Co", item.storeUrl)
-        assertEquals(mapOf("namespace" to "ns", "catalogItemId" to "cat", "version" to ""), item.extra)
+        assertEquals(mapOf("namespace" to "ns", "catalogItemId" to "cat", "version" to "", "thirdPartyManagedApp" to ""), item.extra)
         val old = EpicLibrary.toCatalogItem(app, EpicGame("Old", "ns", "c", "Old", artSquare = "wide", installSize = 9L))
         assertEquals("2001", old.releaseDate)
         assertEquals(9L, old.sizeBytes)

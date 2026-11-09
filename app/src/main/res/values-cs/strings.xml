@@ -3738,4 +3738,5 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
+    <string name="epic_third_party_managed">Instaluje se přes %1$s</string>
 </resources>

@@ -3699,4 +3699,5 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+    <string name="epic_third_party_managed">Se instalează prin %1$s</string>
 </resources>

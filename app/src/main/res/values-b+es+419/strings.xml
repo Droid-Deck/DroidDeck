@@ -3672,4 +3672,5 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se pudo importar esta disposición</string>
+    <string name="epic_third_party_managed">Se instala mediante %1$s</string>
 </resources>

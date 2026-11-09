@@ -3634,4 +3634,5 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+    <string name="epic_third_party_managed">通过 %1$s 安装</string>
 </resources>

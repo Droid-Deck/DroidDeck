@@ -84,6 +84,11 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
             Store.EPIC, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes,
             location = StoreInstallRoot.labelFor(app, folder),
         )
+        val launcher = item.extra["thirdPartyManagedApp"].orEmpty()
+        if (launcher.isNotBlank()) {
+            DownloadQueue.recordFailed(app, entry, app.getString(R.string.epic_third_party_managed, launcher))
+            return
+        }
         DownloadQueue.enqueue(app, entry) { EpicInstaller(app, item, folder) }
     }
 

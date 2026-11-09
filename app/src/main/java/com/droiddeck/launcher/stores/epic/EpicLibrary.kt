@@ -26,6 +26,7 @@ data class EpicGame(
     val publisher: String = "",
     val isDlc: Boolean = false,
     val artLogo: String = "",
+    val thirdPartyManagedApp: String = "",
 )
 
 object EpicLibrary {
@@ -52,7 +53,10 @@ object EpicLibrary {
                 .put("developer", g.developer).put("description", g.description).put("version", g.version)
                 .put("installSize", g.installSize).put("canRunOffline", g.canRunOffline)
                 .put("releaseDate", g.releaseDate).put("publisher", g.publisher)
-                .apply { if (g.artLogo.isNotEmpty()) put("artLogo", g.artLogo) },
+                .apply {
+                    if (g.artLogo.isNotEmpty()) put("artLogo", g.artLogo)
+                    if (g.thirdPartyManagedApp.isNotEmpty()) put("thirdPartyManagedApp", g.thirdPartyManagedApp)
+                },
         )
     }.toString()
 
@@ -76,6 +80,7 @@ object EpicLibrary {
                 releaseDate = o.optString("releaseDate", ""),
                 publisher = o.optString("publisher", ""),
                 artLogo = o.optString("artLogo", ""),
+                thirdPartyManagedApp = o.optString("thirdPartyManagedApp", ""),
             )
         }
         return tidy(games)
@@ -108,7 +113,12 @@ object EpicLibrary {
             owned = true,
             sizeBytes = prefs.getLong("size_${game.appName}", 0L).takeIf { it > 0 } ?: game.installSize,
             storeUrl = "https://store.epicgames.com/en-US/browse?q=" + URLEncoder.encode(title, "UTF-8"),
-            extra = mapOf("namespace" to game.namespace, "catalogItemId" to game.catalogItemId, "version" to game.version),
+            extra = mapOf(
+                "namespace" to game.namespace,
+                "catalogItemId" to game.catalogItemId,
+                "version" to game.version,
+                "thirdPartyManagedApp" to game.thirdPartyManagedApp,
+            ),
             logoUrl = game.artLogo.ifEmpty { null },
         )
     }
@@ -133,6 +143,7 @@ object EpicLibrary {
             publisher = pick("publisher", before?.publisher.orEmpty()),
             isDlc = d.optBoolean("dlc", false),
             artLogo = pick("logo", before?.artLogo.orEmpty()),
+            thirdPartyManagedApp = pick("thirdPartyManagedApp", before?.thirdPartyManagedApp.orEmpty()),
         )
     }
 
