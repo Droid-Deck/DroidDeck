@@ -2445,7 +2445,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                FrameGen.apply(this, mode, hz)
+                FrameGen.apply(this, mode, hz).also { problem ->
+                    appliedFrameGenMode =
+                        if (problem == null) mode else FrameGen.Mode.OFF
+                }
             }
             val state = Lossless.state(this)
             runOnUiThread {

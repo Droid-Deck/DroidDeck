@@ -338,6 +338,7 @@ public final class WaylandCompositor {
     public static native int nativeFrameGenProblem();
     public static native String nativeFrameGenCapsReason();
 
+    public static native boolean nativeFrameGenActive();
     public static native float[] nativeFrameGenStats();
 
     public static native long nativeHudFrameTimes(float[] out);
