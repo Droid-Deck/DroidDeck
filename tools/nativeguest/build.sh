@@ -5,7 +5,11 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 out=${1:?output path}
 cc=${2:-aarch64-linux-gnu-gcc}
+gen=$(mktemp -d)
+trap 'rm -rf "$gen"' EXIT
+mkdir -p "$gen/gosys"
+bash "$here/build-gosys.sh" "$gen/gosys/gosys_blob.h"
 "$cc" -std=gnu11 -shared -fPIC -O2 -fno-delete-null-pointer-checks -Wall -Wno-nonnull-compare \
-    -Wno-format-truncation -Wno-stringop-truncation -Wl,-z,max-page-size=16384 \
+    -Wno-format-truncation -Wno-stringop-truncation -Wl,-z,max-page-size=16384 -I "$gen" \
     -o "$out" "$here/ddnatv-hook.c" -ldl
 "${cc%gcc}strip" --strip-unneeded "$out"
