@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+    <string name="input_hide_tools">टूल छिपाएँ</string>
+    <string name="input_tools">टूल</string>
+    <string name="input_editor_add">+ जोड़ें</string>
+    <string name="input_editor_undo">पहले जैसा करें</string>
+    <string name="input_editor_done">हो गया</string>
+    <string name="input_editor_hint">स्थान बदलने के लिए खींचें। आकार बदलने के लिए कोने को खींचें। कार्रवाई असाइन करने के लिए गुण टैप करें।</string>
 </resources>

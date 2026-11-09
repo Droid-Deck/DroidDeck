@@ -3699,4 +3699,10 @@
     <string name="input_reset_positions">Redefinir posições</string>
     <string name="input_show_label">Mostrar rótulo</string>
     <string name="input_layout_import_failed">Não foi possível importar este layout</string>
+    <string name="input_hide_tools">Ocultar ferramentas</string>
+    <string name="input_tools">Ferramentas</string>
+    <string name="input_editor_add">+ Adicionar</string>
+    <string name="input_editor_undo">Desfazer</string>
+    <string name="input_editor_done">Concluído</string>
+    <string name="input_editor_hint">Arraste para mover. Arraste um canto para redimensionar. Toque em Propriedades para atribuir uma ação.</string>
 </resources>

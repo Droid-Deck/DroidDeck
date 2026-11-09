@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Tilbakestill plasseringer</string>
     <string name="input_show_label">Vis etikett</string>
     <string name="input_layout_import_failed">Kunne ikke importere dette oppsettet</string>
+    <string name="input_hide_tools">Skjul verktøy</string>
+    <string name="input_tools">Verktøy</string>
+    <string name="input_editor_add">+ Legg til</string>
+    <string name="input_editor_undo">Angre</string>
+    <string name="input_editor_done">Ferdig</string>
+    <string name="input_editor_hint">Dra for å flytte. Dra i et hjørne for å endre størrelsen. Trykk på Egenskaper for å tilordne en handling.</string>
 </resources>

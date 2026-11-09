@@ -3821,4 +3821,10 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+    <string name="input_hide_tools">Скрыть инструменты</string>
+    <string name="input_tools">Инструменты</string>
+    <string name="input_editor_add">+ Добавить</string>
+    <string name="input_editor_undo">Отменить</string>
+    <string name="input_editor_done">Готово</string>
+    <string name="input_editor_hint">Перетащите для перемещения. Перетащите угол для изменения размера. Нажмите «Свойства», чтобы назначить действие.</string>
 </resources>

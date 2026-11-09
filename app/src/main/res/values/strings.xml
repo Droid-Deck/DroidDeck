@@ -3821,4 +3821,10 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+    <string name="input_hide_tools">Hide tools</string>
+    <string name="input_tools">Tools</string>
+    <string name="input_editor_add">+ Add</string>
+    <string name="input_editor_undo">Undo</string>
+    <string name="input_editor_done">Done</string>
+    <string name="input_editor_hint">Drag to move. Drag a corner to resize. Tap Properties to assign an action.</string>
 </resources>

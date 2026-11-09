@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+    <string name="input_hide_tools">Eszközök elrejtése</string>
+    <string name="input_tools">Eszközök</string>
+    <string name="input_editor_add">+ Hozzáadás</string>
+    <string name="input_editor_undo">Visszavonás</string>
+    <string name="input_editor_done">Kész</string>
+    <string name="input_editor_hint">Húzással mozgatható. A méretezéshez húzza a sarkot. Művelet hozzárendeléséhez koppintson a Tulajdonságok elemre.</string>
 </resources>

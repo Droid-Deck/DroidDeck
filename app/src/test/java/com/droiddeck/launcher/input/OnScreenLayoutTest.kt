@@ -49,6 +49,42 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
+        val layout = gamepad()
+        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
+            val game = OnScreenLayout.elements(context, layout, w, h, Rect())
+            val editor = OnScreenLayout.editorElements(context, layout, w, h)
+            assertEquals(game.map { it.id }, editor.map { it.id })
+            game.zip(editor).forEach { (gameElement, editorElement) ->
+                assertArrayEquals(px(gameElement, w, h), px(editorElement, w, h), .001f)
+            }
+        }
+    }
+
+    @Test fun editedGeneratedAndCustomLayoutsKeepTheirPixelRectsAcrossRefreshes() {
+        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
+            val generated = gamepad()
+            val generatedEdit = generated.elements.map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
+            val generatedSaved = generated.copy(elements = generatedEdit, aspect = w.toFloat() / h)
+            val generatedPixels = px(OnScreenLayout.elements(context, generatedSaved, w, h, Rect()).first { it.id == "legacy:a" }, w, h)
+            val generatedRefresh = px(OnScreenLayout.editorElements(context, generatedSaved, w, h, edited = true).first { it.id == "legacy:a" }, w, h)
+            assertArrayEquals(generatedPixels, generatedRefresh, .001f)
+
+            val custom = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.A, .3f, .4f, .12f, .12f)), aspect = w.toFloat() / h)
+            val customRefresh = OnScreenLayout.editorElements(context, custom, w, h, edited = true)
+            assertArrayEquals(px(customRefresh.single(), w, h), px(OnScreenLayout.editorElements(context, custom.copy(elements = customRefresh), w, h, edited = true).single(), w, h), .001f)
+        }
+    }
+
+    @Test fun resetPositionsRestoresGeneratedGeometryAfterAnEdit() {
+        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
+            val original = gamepad()
+            val moved = original.copy(elements = original.elements.map { if (it.id == "legacy:a") it.copy(x = .3f) else it }, aspect = w.toFloat() / h)
+            val reset = LegacyGamepadLayout(context, w, h).regenerate(moved.elements)
+            assertEquals(LegacyGamepadLayout(context, w, h).regenerate(original.elements), OnScreenLayout.elements(context, moved.copy(elements = reset), w, h, Rect()))
+        }
+    }
+
     @Test fun regenerationKeepsTheUsersButtonStylesAndRemovedButtons() {
         val layout = gamepad().let { g -> g.copy(elements = g.elements.filterNot { it.id == "legacy:y" }.map { if (it.id == "legacy:a") it.copy(opacity = .4f, icon = 0, name = "Jump") else it }) }
         val placed = OnScreenLayout.elements(context, layout, 2000, 1000, Rect())

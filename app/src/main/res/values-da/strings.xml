@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
+    <string name="input_hide_tools">Skjul værktøjer</string>
+    <string name="input_tools">Værktøjer</string>
+    <string name="input_editor_add">+ Tilføj</string>
+    <string name="input_editor_undo">Fortryd</string>
+    <string name="input_editor_done">Færdig</string>
+    <string name="input_editor_hint">Træk for at flytte. Træk i et hjørne for at ændre størrelsen. Tryk på Egenskaber for at tildele en handling.</string>
 </resources>

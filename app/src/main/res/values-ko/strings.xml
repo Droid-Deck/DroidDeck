@@ -3630,4 +3630,10 @@
     <string name="input_reset_positions">위치 초기화</string>
     <string name="input_show_label">라벨 표시</string>
     <string name="input_layout_import_failed">이 레이아웃을 가져올 수 없습니다</string>
+    <string name="input_hide_tools">도구 숨기기</string>
+    <string name="input_tools">도구</string>
+    <string name="input_editor_add">+ 추가</string>
+    <string name="input_editor_undo">실행 취소</string>
+    <string name="input_editor_done">완료</string>
+    <string name="input_editor_hint">드래그하여 이동합니다. 모서리를 드래그하여 크기를 조절합니다. 속성을 눌러 동작을 지정합니다.</string>
 </resources>

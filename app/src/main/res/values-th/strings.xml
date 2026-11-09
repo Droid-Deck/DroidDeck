@@ -3630,4 +3630,10 @@
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>
+    <string name="input_hide_tools">ซ่อนเครื่องมือ</string>
+    <string name="input_tools">เครื่องมือ</string>
+    <string name="input_editor_add">+ เพิ่ม</string>
+    <string name="input_editor_undo">เลิกทำ</string>
+    <string name="input_editor_done">เสร็จสิ้น</string>
+    <string name="input_editor_hint">ลากเพื่อย้าย ลากมุมเพื่อปรับขนาด แตะคุณสมบัติเพื่อกำหนดการทำงาน</string>
 </resources>

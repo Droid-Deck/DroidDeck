@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>
+    <string name="input_hide_tools">Tools verbergen</string>
+    <string name="input_tools">Tools</string>
+    <string name="input_editor_add">+ Toevoegen</string>
+    <string name="input_editor_undo">Ongedaan maken</string>
+    <string name="input_editor_done">Gereed</string>
+    <string name="input_editor_hint">Sleep om te verplaatsen. Sleep een hoek om het formaat te wijzigen. Tik op Eigenschappen om een actie toe te wijzen.</string>
 </resources>

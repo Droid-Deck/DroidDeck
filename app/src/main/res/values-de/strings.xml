@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Positionen zurücksetzen</string>
     <string name="input_show_label">Beschriftung anzeigen</string>
     <string name="input_layout_import_failed">Dieses Layout konnte nicht importiert werden</string>
+    <string name="input_hide_tools">Werkzeuge ausblenden</string>
+    <string name="input_tools">Werkzeuge</string>
+    <string name="input_editor_add">+ Hinzufügen</string>
+    <string name="input_editor_undo">Rückgängig</string>
+    <string name="input_editor_done">Fertig</string>
+    <string name="input_editor_hint">Zum Verschieben ziehen. Ziehe an einer Ecke zum Ändern der Größe. Tippe auf Eigenschaften, um eine Aktion zuzuweisen.</string>
 </resources>

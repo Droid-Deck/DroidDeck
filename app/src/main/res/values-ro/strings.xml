@@ -3699,4 +3699,10 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+    <string name="input_hide_tools">Ascunde instrumentele</string>
+    <string name="input_tools">Instrumente</string>
+    <string name="input_editor_add">+ Adaugă</string>
+    <string name="input_editor_undo">Anulează</string>
+    <string name="input_editor_done">Gata</string>
+    <string name="input_editor_hint">Trage pentru a muta. Trage de un colț pentru a redimensiona. Atinge Proprietăți pentru a atribui o acțiune.</string>
 </resources>
