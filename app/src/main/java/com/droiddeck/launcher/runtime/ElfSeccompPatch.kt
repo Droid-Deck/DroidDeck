@@ -47,11 +47,15 @@ object ElfSeccompPatch {
                     var next = pos + 4
                     val limit = minOf(end, pos + 4 + WINDOW * 4)
                     while (next < limit) {
-                        if (buffer.getInt(next) == SVC) {
+                        val insn = buffer.getInt(next)
+                        if (insn == SVC) {
                             buffer.putInt(next, replacement)
                             patched++
                             break
                         }
+                        // A site patched before, or x8 set again: an svc after it is another call's
+                        // (a second run found clone3's thread exit there and turned it into -ENOSYS)
+                        if (insn == MOV_X0_ENOSYS || (insn and 0x1f) == 8) break
                         next += 4
                     }
                 }

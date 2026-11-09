@@ -33,6 +33,18 @@ class ElfSeccompPatchTest {
     }
 
     @Test
+    fun aSecondRunLeavesTheNextCallAlone() {
+        val svc = 0xd4000001.toInt()
+        val exit = 0xd2800ba8.toInt()
+        for (blocked in listOf(0xd2803668.toInt(), 0xd2800c68.toInt())) {
+            val data = elfWith(blocked, svc, 0xaa1303e0.toInt(), exit, svc)
+            assertEquals(1, ElfSeccompPatch.patch(data))
+            assertEquals(0, ElfSeccompPatch.patch(data))
+            assertEquals(svc, ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getInt(0x110))
+        }
+    }
+
+    @Test
     fun otherSystemCallsAreLeftAlone() {
         val svc = 0xd4000001.toInt()
         val data = elfWith(0xd2800ba8.toInt(), svc)
