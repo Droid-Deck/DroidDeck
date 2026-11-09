@@ -6,7 +6,6 @@ import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.StoresState
 import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Answers Denuvo activations for a running Ubisoft game. droiddeck-upc.exe writes the challenge
@@ -15,26 +14,32 @@ import java.util.concurrent.ConcurrentHashMap
 object UbisoftActivation {
     private const val POLL_MS = 250L
     private const val IDLE_MS = 60_000L
-    private val watching = ConcurrentHashMap.newKeySet<Long>()
+    private val watching = HashMap<Long, Long>()
 
     fun bridge(context: Context, product: Long) = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/ubisoft/bridge-$product")
 
+    /** Starts answering the product's activations; stale requests are cleared before this returns. */
     fun watch(app: Context, product: Long) {
-        if (!watching.add(product)) return
+        val dir = bridge(app, product)
+        synchronized(watching) {
+            val running = watching.containsKey(product)
+            watching[product] = System.currentTimeMillis()
+            if (running) return
+            dir.mkdirs()
+            dir.listFiles()?.forEach { it.delete() }
+        }
         Thread({
-            try {
-                val dir = bridge(app, product).apply { mkdirs() }
-                dir.listFiles()?.forEach { it.delete() }
-                var idleSince = 0L
-                while (true) {
-                    dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it) }
-                    if (SessionState.running) idleSince = 0L
-                    else if (idleSince == 0L) idleSince = System.currentTimeMillis()
-                    else if (System.currentTimeMillis() - idleSince > IDLE_MS) break
-                    Thread.sleep(POLL_MS)
+            var idleSince = 0L
+            while (true) {
+                runCatching { dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it) } }
+                    .onFailure { StoresState.logLine("Ubisoft: activation for $product: ${it.javaClass.simpleName}") }
+                val now = System.currentTimeMillis()
+                if (SessionState.running) idleSince = 0L
+                else if (idleSince == 0L) idleSince = now
+                else if (now - idleSince > IDLE_MS) synchronized(watching) {
+                    if (now - (watching[product] ?: 0L) > IDLE_MS) { watching.remove(product); return@Thread }
                 }
-            } finally {
-                watching.remove(product)
+                runCatching { Thread.sleep(POLL_MS) }
             }
         }, "ubisoft-activation-$product").start()
     }

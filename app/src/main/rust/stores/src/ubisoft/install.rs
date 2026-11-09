@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -93,6 +93,19 @@ pub fn checked(method: u64, raw: &[u8], s: &manifest::Slice) -> Result<Vec<u8>, 
         return Err("a slice failed its content checksum".into());
     }
     Ok(out)
+}
+
+/// Whether a file of the right size already holds every slice the manifest lists for it.
+fn already_installed(path: &Path, f: &File) -> bool {
+    if f.slices.iter().any(|s| s.content_sha1.len() != 20 || s.size == 0) {
+        return true;
+    }
+    let Ok(mut file) = std::fs::File::open(path) else { return false };
+    let mut buf = Vec::new();
+    f.slices.iter().all(|s| {
+        buf.resize(s.size as usize, 0);
+        file.seek(SeekFrom::Start(s.offset)).is_ok() && file.read_exact(&mut buf).is_ok() && sha1(&buf) == s.content_sha1
+    })
 }
 
 fn slice_hash(s: &manifest::Slice) -> String {
@@ -261,7 +274,7 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
             done_files += 1;
             continue;
         }
-        if std::fs::metadata(&path).map(|md| md.len() == f.size).unwrap_or(false) {
+        if std::fs::metadata(&path).map(|md| md.len() == f.size).unwrap_or(false) && already_installed(&path, f) {
             done_bytes += f.size;
             done_files += 1;
             continue;

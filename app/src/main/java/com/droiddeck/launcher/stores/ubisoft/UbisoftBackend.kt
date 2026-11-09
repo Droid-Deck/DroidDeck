@@ -17,7 +17,6 @@ import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.WebCookies
 import org.json.JSONObject
-import java.util.concurrent.atomic.AtomicBoolean
 
 object UbisoftBackend : StoreBackend {
     override val store: Store = Store.UBISOFT
@@ -107,9 +106,16 @@ object UbisoftLibrary {
     private const val GRAPHQL = "https://public-ubiservices.ubi.com/v1/profiles/me/uplay/graphql"
     private const val PAGE = 50
     private const val QUERY = "query OwnedGames(\$limit: Int, \$offset: Int) { viewer { games(limit: \$limit, offset: \$offset) { totalCount nodes { id spaceId name coverUrl backgroundUrl bannerUrl releaseDate } } } }"
-    private val running = AtomicBoolean(false)
+    private val generation = java.util.concurrent.atomic.AtomicInteger()
+    private val running = java.util.concurrent.atomic.AtomicReference<Int?>(null)
 
-    fun reset() {}
+    /** Forgets the signed-out account: its sync results are dropped and a new account may sync at once. */
+    fun reset() {
+        generation.incrementAndGet()
+        StoresState.post { StoresState.shelves.remove(Store.UBISOFT) }
+    }
+
+    private fun post(gen: Int, block: () -> Unit) = StoresState.post { if (generation.get() == gen) block() }
 
     internal fun parsePage(body: String): Pair<List<CatalogItem>, Int> {
         val o = JSONObject(body)
@@ -175,14 +181,15 @@ object UbisoftLibrary {
     }
 
     fun sync(app: Context, force: Boolean) {
-        if (!running.compareAndSet(false, true)) return
+        val gen = generation.get()
+        if (running.getAndSet(gen) == gen) return
         try {
             val s = UbisoftAuth.current(app)
             if (s == null) {
-                StoresState.post { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_sign_in) }
+                post(gen) { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_sign_in) }
                 return
             }
-            if (StoresState.library[Store.UBISOFT].isNullOrEmpty()) StoresState.post { StoresState.status[Store.UBISOFT] = app.getString(R.string.stores_sync_game_list) }
+            if (StoresState.library[Store.UBISOFT].isNullOrEmpty()) post(gen) { StoresState.status[Store.UBISOFT] = app.getString(R.string.stores_sync_game_list) }
             val all = ArrayList<CatalogItem>()
             var offset = 0
             while (true) {
@@ -221,7 +228,7 @@ object UbisoftLibrary {
             val games = (matched + unlisted).sortedBy { it.title.lowercase() }
             StoresState.logLine("Ubisoft: ${bySpace.size} downloadable products; " +
                 games.filter { it.extra.containsKey("productId") }.joinToString(", ") { "${it.title}=${it.extra["productId"]}" })
-            StoresState.post {
+            post(gen) {
                 StoresState.status.remove(Store.UBISOFT)
                 StoresState.problems.remove(Store.UBISOFT)
                 StoresState.library[Store.UBISOFT] = games
@@ -231,9 +238,9 @@ object UbisoftLibrary {
             StoresState.logLine("Ubisoft: ${games.size} owned games; on Steam: " + games.filter { it.extra.containsKey(UbisoftBackend.STEAM_APP) }.joinToString(", ") { "${it.title}=${it.extra[UbisoftBackend.STEAM_APP]}" })
         } catch (e: Exception) {
             StoresState.logLine("Ubisoft: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")
-            StoresState.post { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_failed) }
+            post(gen) { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_failed) }
         } finally {
-            running.set(false)
+            running.compareAndSet(gen, null)
         }
     }
 }
