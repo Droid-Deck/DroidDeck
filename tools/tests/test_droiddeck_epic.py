@@ -736,17 +736,28 @@ class BrokerTest(EpicTestCase):
         folder.mkdir()
         (folder / ".droiddeck-store.json").write_text(json.dumps({"store": "epic", "id": "Fig", "args": ["-x"]}))
         (folder / ".droiddeck-launch.bat").write_text('if exist "%~dp0.droiddeck-epic-args" goto client\r\n')
+        debug_dir = self.tmp / "session"
+        debug_dir.mkdir()
+        config = self.home / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"version": 1, "gameDebugLogs": True}))
         calls = []
 
         def popen(command, env=None, cwd=None, start_new_session=False):
-            calls.append((command, env.get("DROIDDECK_EPIC_HANDLED"), start_new_session))
+            calls.append((command, env.get("DROIDDECK_EPIC_HANDLED"), env.get("BL_DEBUG_DIR"),
+                          env.get("PROTON_LOG"), env.get("WINEDEBUG"), start_new_session))
             return mock.Mock(wait=mock.Mock(return_value=7))
 
         running = []
-        with mock.patch.object(subprocess, "Popen", popen):
-            code = G["run_game"]({"exe": str(folder / "Fig.exe"), "args": ["-epicapp=Fig"]}, {"PATH": "/usr/bin"}, running)
+        with mock.patch.dict(os.environ, {"HOME": str(self.home), "BL_DEBUG_DIR": str(debug_dir),
+                                          "PROTON_LOG": "0", "WINEDEBUG": "-all"}), \
+                mock.patch.object(subprocess, "Popen", popen):
+            code = G["run_game"]({"exe": str(folder / "Fig.exe"), "args": ["-epicapp=Fig"]},
+                                  {"PATH": "/usr/bin", "BL_DEBUG_DIR": str(debug_dir)}, running)
         self.assertEqual(7, code)
-        self.assertEqual(([G["PROTON_RUN"], str(folder / ".droiddeck-launch.bat")], "1", True), calls[0])
+        self.assertEqual(([G["PROTON_RUN"], str(folder / ".droiddeck-launch.bat")], "1", str(debug_dir), "1",
+                          mock.ANY, True), calls[0])
+        self.assertIn("+seh", calls[0][4])
         self.assertEqual([], running)
         self.assertEqual(b"-epicapp=Fig -x\r\n", (folder / ".droiddeck-epic-args").read_bytes())
 

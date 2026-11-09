@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+GAME_DEBUG_CHANNELS = (
+    "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
+)
+WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def game_debug_channels(*values):
+    selectors = {}
+    for value in values:
+        if not isinstance(value, str) or "\0" in value or len(value) > 8192:
+            continue
+        for part in value.split(","):
+            part = part.strip()
+            match = WINE_DEBUG_SELECTOR.fullmatch(part)
+            if match is None:
+                continue
+            key = (match[1] or "", match[3])
+            selectors.pop(key, None)
+            selectors[key] = part
+    for channel in GAME_DEBUG_CHANNELS:
+        key = ("", channel)
+        selectors.pop(key, None)
+        selectors[key] = "+" + channel
+    formatted = ",".join(selectors.values())
+    if len(formatted) > 8192:
+        formatted = ",".join("+" + channel for channel in GAME_DEBUG_CHANNELS)
+    return formatted
+
+
+def load_config():
+    try:
+        path = Path(os.environ.get("HOME") or "/root") / ".config/droiddeck/game-environment.json"
+        with path.open(encoding="utf-8") as source:
+            return json.load(source)
+    except (OSError, ValueError):
+        return None
+
+
+def session_debug_dir(env):
+    return env.get("BL_DEBUG_DIR", "")
+
+
+def apply_game_debug_logs(env, config=None, debug_dir=None):
+    if config is None:
+        config = load_config()
+    if not isinstance(config, dict) or config.get("version") != 1 or config.get("gameDebugLogs") is not True:
+        return env
+    if debug_dir is None:
+        debug_dir = session_debug_dir(env)
+    if (not isinstance(debug_dir, str) or "\0" in debug_dir or len(debug_dir) > 8192
+            or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
+        print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
+        return env
+    result = dict(env)
+    result.update({
+        "PROTON_LOG": "1",
+        "PROTON_LOG_DIR": debug_dir,
+        "PROTON_CRASH_REPORT_DIR": debug_dir,
+        "DXVK_LOG_PATH": debug_dir,
+        "DXVK_LOG_LEVEL": "debug",
+        "VKD3D_DEBUG": "info",
+        "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
+    })
+    return result
