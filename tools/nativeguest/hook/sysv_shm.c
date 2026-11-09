@@ -139,7 +139,11 @@ static int shm_mark_attached(int id, int attached) {
 static int shm_lock_dir(int op) {
     int fd = shm_open_file(".lock", O_RDWR | O_CREAT, 0600);
     if (fd < 0) return -1;
-    if (syscall(SYS_flock, fd, op) != 0) {
+    long rc;
+    do {
+        rc = syscall(SYS_flock, fd, op);
+    } while (rc != 0 && errno == EINTR);
+    if (rc != 0) {
         syscall(SYS_close, fd);
         return -1;
     }
