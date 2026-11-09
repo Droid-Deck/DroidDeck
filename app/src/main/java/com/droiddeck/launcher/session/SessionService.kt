@@ -689,8 +689,6 @@ class SessionService : Service() {
             LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest)
         }
 
-        // The terminal and the bottom desktop still start through proot, so they get proot's
-        // environment even when the session itself runs without it
         val prootEnv = HostEnvironment()
         prootEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
         prootEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
@@ -709,14 +707,18 @@ class SessionService : Service() {
             Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
             val drives = com.droiddeck.launcher.runtime.NativeGuest.relinkPrefixDrives(root, sessionBindSpecs)
             if (drives > 0) Log.i(TAG, "native userland: $drives Wine drive links made to point at their real places")
-            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs).forEach { (k, v) -> env[k] = v }
+            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs, SessionPrefs.guestHostname(this))
+                .forEach { (k, v) -> env[k] = v }
         } else prootEnv
 
-        val terminalCommand = LinuxRuntime.command(
-            this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest,
-        )
+        // The terminal and the bottom desktop run the way the session does: without proot when it does
+        val terminalCommand = if (nativeUserland) {
+            com.droiddeck.launcher.runtime.NativeGuest.command(root, shellGuest.first(), shellGuest.drop(1))
+        } else {
+            LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest)
+        }
         val terminalHostEnvironment = LinkedHashMap(System.getenv())
-        prootEnv.asArray().forEach { entry ->
+        hostEnv.asArray().forEach { entry ->
             val separator = entry.indexOf('=')
             if (separator > 0) terminalHostEnvironment[entry.substring(0, separator)] = entry.substring(separator + 1)
         }
@@ -724,7 +726,7 @@ class SessionService : Service() {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
             val (fastPathName, _) = ProotFastPath.hostEnv("")
             BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
-                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen,
+                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen, nativeUserland,
             ) { gen == sessionGen && SessionState.running }
         }
 
