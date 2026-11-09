@@ -560,7 +560,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
-    @Volatile private var appliedFrameGenMode: FrameGen.Mode = FrameGen.Mode.OFF
+    private val frameGenInventoryLock = Any()
+    @Volatile private var frameGenInventoryLastAttemptAt = 0L
+
+    @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
@@ -1646,13 +1649,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "drawer-components").start()
     }
 
-    private fun selectDrawerGameProfile(appId: Long?) {
-        drawerGameProfileFollowState.selectManually()
-        drawerGameProfileId = appId
-        frameGen = FrameGen.mode(this, appId?.toString())
+    private fun loadFrameGenFor(appId: Long?) {
+        val profileId = appId?.toString()
+        frameGen = FrameGen.mode(this, profileId)
         frameGenHasGameOverride = appId?.let {
             FrameGen.hasGameOverride(this, it.toString())
         } == true
+    }
+
+    private fun selectDrawerGameProfile(appId: Long?) {
+        drawerGameProfileFollowState.selectManually()
+        drawerGameProfileId = appId
+        loadFrameGenFor(appId)
         drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
         readDrawerTextureFiltering(appId)
         refreshDrawerGameProfile()
@@ -1725,10 +1733,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (refresh.followsSteam) {
             if (drawerGameProfileFollowState.followsSteam) {
                 drawerGameProfileId = result.selectedAppId
-                frameGen = FrameGen.mode(this, result.selectedAppId?.toString())
-                frameGenHasGameOverride = result.selectedAppId?.let {
-                    FrameGen.hasGameOverride(this, it.toString())
-                } == true
+                loadFrameGenFor(result.selectedAppId)
                 readDrawerTextureFiltering(result.selectedAppId)
             }
         }
@@ -1996,10 +2001,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
         routedTouchMode = nextRoutedTouchMode
         requestRelativeMouse()
-        frameGen = FrameGen.mode(this, drawerGameProfileId?.toString())
-        frameGenHasGameOverride = drawerGameProfileId?.let {
-            FrameGen.hasGameOverride(this, it.toString())
-        } == true
+        loadFrameGenFor(drawerGameProfileId)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
@@ -2434,19 +2436,42 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         var ids = frameGenInventoryIds
         if (ids == null) {
-            val currentIds = runCatching {
-                Library.launchableGames(this)
-                    .mapNotNull { it.profileKey.toLongOrNull() }
-                    .toSet()
-            }.getOrNull()
+            val now = SystemClock.elapsedRealtime()
+            val shouldScan = synchronized(frameGenInventoryLock) {
+                if (frameGenInventoryIds != null) {
+                    false
+                } else if (
+                    frameGenInventoryLastAttemptAt != 0L &&
+                    now - frameGenInventoryLastAttemptAt < 15_000L
+                ) {
+                    false
+                } else {
+                    frameGenInventoryLastAttemptAt = now
+                    true
+                }
+            }
 
-            ids = cachedIds + (currentIds ?: emptySet())
-            if (currentIds != null) {
-                frameGenInventoryIds = ids
+            if (shouldScan) {
+                val currentIds = runCatching {
+                    Library.launchableGames(this)
+                        .mapNotNull { it.profileKey.toLongOrNull() }
+                        .toSet()
+                }.getOrNull()
+
+                if (currentIds != null) {
+                    ids = cachedIds + currentIds
+                    frameGenInventoryIds = ids
+                }
+            }
+
+            if (ids == null) {
+                ids = frameGenInventoryIds ?: emptySet()
             }
         }
 
-        val activeAppId = AgentGuest.activeSteamAppId(this, cachedIds + ids)
+        val activeAppId = AgentGuest.activeSteamAppId(
+            this, cachedIds + (ids ?: emptySet())
+        )
         return FrameGen.mode(this, activeAppId?.toString())
     }
 
@@ -2458,7 +2483,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                if (!force && mode == appliedFrameGenMode) {
+                if (!force && appliedFrameGenMode != null && mode == appliedFrameGenMode) {
                     null
                 } else {
                     FrameGen.apply(this, mode, hz).also { problem ->
