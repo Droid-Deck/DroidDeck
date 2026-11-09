@@ -117,6 +117,10 @@ object DriverPairs {
     private fun xclipseNeedsUpstream(name: String): Boolean =
         XCLIPSE_MODEL.find(name)?.groupValues?.get(1) !in SUPPORTED_XCLIPSE_MODELS
 
+    fun autoEligible(gpu: GpuInfo, sdk: Int = android.os.Build.VERSION.SDK_INT): Boolean =
+        recommendedKey(gpu, emptyList(), sdk = sdk) != null ||
+            (gpu.family == Family.POWERVR && gpu.name.contains("Xclipse", ignoreCase = true))
+
     fun recommendedKey(
         gpu: GpuInfo, pairs: List<DriverPair>,
         rules: List<AutoPicks.Rule> = AutoPicks.BUILT_IN, bad: Set<String> = emptySet(),

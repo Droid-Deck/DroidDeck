@@ -228,6 +228,36 @@ class DriverPairsTest {
     }
 
     @Test
+    fun autoEligibilityDoesNotDependOnPublishedXclipsePairs() {
+        fun mali(name: String) = GpuInfo(name, 0, GpuInfo.familyOf(false, 0, mali = name), "", false)
+        val xclipse540 = GpuInfo("Samsung Xclipse 540", 0, Family.POWERVR, "", false)
+        val xclipse920 = GpuInfo("Samsung Xclipse 920", 0, Family.POWERVR, "", false)
+        val upstream = TurnipReleases.Asset("Non-Adreno", "r1", "RADV-Xclipse-upstream.zip", "https://example/upstream", 9_000_000,
+            false, "label", "0".repeat(64), DriverPairs.nonAdreno("RADV-Xclipse-upstream"), bundle = true)
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(upstream), emptyList(), emptyList(), 0L))
+        assertTrue(DriverPairs.autoEligible(xclipse540))
+        assertNull(DriverPairs.recommendedKey(xclipse540, emptyList()))
+        assertEquals(DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM, DriverPairs.recommendedKey(xclipse540, pairs))
+        assertTrue(DriverPairs.autoEligible(xclipse920))
+        assertEquals(DriverPairs.NAD_RADV_XCLIPSE, DriverPairs.recommendedKey(xclipse920, emptyList()))
+        assertTrue(DriverPairs.autoEligible(gpu(740)))
+        assertTrue(DriverPairs.autoEligible(mali("Mali-G57")))
+        assertFalse(DriverPairs.autoEligible(mali("Mali-G1-Ultra")))
+        assertFalse(DriverPairs.autoEligible(GpuInfo("PowerVR", 0, Family.POWERVR, "", false)))
+    }
+
+    @Test
+    fun autoEligibilityMatchesRecommendedKeyForAdrenoAndMali() {
+        fun mali(name: String) = GpuInfo(name, 0, GpuInfo.familyOf(false, 0, mali = name), "", false)
+        for (gpu in listOf(gpu(710), gpu(740), mali("Mali-G57"), mali("Mali-G925-Immortalis MC12"))) {
+            assertEquals(
+                DriverPairs.recommendedKey(gpu, emptyList(), sdk = 34) != null,
+                DriverPairs.autoEligible(gpu, sdk = 34),
+            )
+        }
+    }
+
+    @Test
     fun deviceBuildsAreOfferedOnlyForTheirMaliAndNeverByAuto() {
         fun bundle(id: String) = TurnipReleases.Asset("Non-Adreno", id.lowercase(), "$id-Pair.zip", "https://example/$id", 9_000_000,
             false, "label", "0".repeat(64), DriverPairs.nonAdreno(id), bundle = true)

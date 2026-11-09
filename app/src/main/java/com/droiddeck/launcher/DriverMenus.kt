@@ -313,7 +313,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             refreshDrivers()
             return
         }
-        if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null &&
+        if (gpu.family.mali && !DriverPairs.autoEligible(gpu) &&
             com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull() == null) {
             releaseChecking = true
             autoStatus = activity.getString(R.string.drivers_checking_latest)
@@ -329,14 +329,14 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             }, "gpu-name").start()
             return
         }
-        Log.i(TAG, "auto: ${gpu.name} (${gpu.family}) -> " + (DriverPairs.recommendedKey(gpu, emptyList()) ?: "no pair"))
-        if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null) {
+        Log.i(TAG, "auto: ${gpu.name} (${gpu.family}) eligible=${DriverPairs.autoEligible(gpu)}")
+        if (gpu.family.mali && !DriverPairs.autoEligible(gpu)) {
             // No PanVK build covers this Mali (e.g. the G1 series, arch v14): the phone's own driver.
             autoStatus = useMaliFallback(null)
             refreshDrivers()
             return
         }
-        if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
+        if (!DriverPairs.autoEligible(gpu)) {
             autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity, com.droiddeck.launcher.core.DeviceSupport.vkBridge(activity)).lowercase())
             return
         }
