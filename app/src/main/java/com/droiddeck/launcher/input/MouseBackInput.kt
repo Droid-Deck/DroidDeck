@@ -46,13 +46,14 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
     }
 
     companion object {
-        fun isExternalMouse(device: InputDevice?): Boolean = device != null &&
-            isExternalMouse(device.isVirtual, Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || device.isExternal, device.sources)
-
-        fun isExternalMouse(virtual: Boolean, external: Boolean, sources: Int): Boolean {
-            fun has(source: Int) = sources and source == source
-            return !virtual && external && (has(InputDevice.SOURCE_MOUSE) || has(InputDevice.SOURCE_MOUSE_RELATIVE)) &&
-                !has(InputDevice.SOURCE_TOUCHPAD)
+        fun isExternalMouse(device: InputDevice?): Boolean {
+            if (device == null || device.isVirtual || PadBridge.isSystemVirtualInputName(device.name) ||
+                PadBridge.isFromController(device) ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !device.isExternal)) return false
+            return (device.supportsSource(InputDevice.SOURCE_MOUSE) ||
+                device.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE)) &&
+                !device.supportsSource(InputDevice.SOURCE_TOUCHPAD) &&
+                !device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
         }
 
         fun isFromMouse(event: KeyEvent): Boolean =
