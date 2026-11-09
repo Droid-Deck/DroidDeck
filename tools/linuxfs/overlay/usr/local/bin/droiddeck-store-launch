@@ -287,7 +287,7 @@ def exited(argv, code=0):
 UBISOFT_DIR = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
 UBISOFT_WINDOWS_DIR = "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\"
 UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
-UBISOFT_CACHE = Path(os.environ.get("HOME") or "/root") / ".cache/droiddeck/ubisoft"
+UBISOFT_CACHE = Path("/root/.cache/droiddeck/ubisoft")
 UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
 UBISOFT_SERVICE = Path("/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe")
 UBISOFT_ASK_WAIT = 45.0
@@ -984,7 +984,14 @@ def main(argv):
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "ubisoft":
-        log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))
+        try:
+            log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))
+        except OSError as e:
+            try:
+                (folder / UBISOFT_LAUNCH).unlink()
+            except OSError:
+                pass
+            log("ubisoft %s: not prepared (%s), starting directly" % (game, e))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:

@@ -319,7 +319,7 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
         }
         let paths: Vec<String> = batch.iter().map(|j| j.path.clone()).collect();
         let signed = sess.sign(req, &paths, events).await.map_err(fail)?;
-        let results: Vec<Result<(usize, usize, Vec<u8>), String>> = stream::iter(batch.iter().zip(signed.into_iter()))
+        let mut slices = stream::iter(batch.iter().zip(signed.into_iter()))
             .map(|(job, urls)| {
                 let client = &client;
                 let m = &m;
@@ -327,13 +327,14 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
                     let s = &m.files[job.file].slices[job.slice];
                     let raw = fetch(client, &urls).await?;
                     let out = checked(m.compression, &raw, s).map_err(|e| format!("{}: {e}", m.files[job.file].name))?;
-                    Ok((job.file, job.slice, out))
+                    Ok::<_, String>((job.file, job.slice, out))
                 }
             })
-            .buffer_unordered(WINDOW)
-            .collect()
-            .await;
-        for r in results {
+            .buffer_unordered(WINDOW);
+        while let Some(r) = slices.next().await {
+            if cancel.load(Ordering::SeqCst) {
+                return Err(Stop::Cancelled);
+            }
             let (fi, si, data) = r.map_err(fail)?;
             let s = &m.files[fi].slices[si];
             {
@@ -352,10 +353,10 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
                 std::fs::rename(&part, &path).map_err(|e| Stop::Failed(format!("Could not finish {}: {e}", m.files[fi].name)))?;
                 finished_files += 1;
             }
-        }
-        if last_report.elapsed() > Duration::from_millis(250) {
-            events.progress(progress.load(Ordering::Relaxed), total, finished_files, files_total);
-            last_report = Instant::now();
+            if last_report.elapsed() > Duration::from_millis(250) {
+                events.progress(progress.load(Ordering::Relaxed), total, finished_files, files_total);
+                last_report = Instant::now();
+            }
         }
     }
     for i in pending.iter().copied().filter(|i| m.files[*i].slices.is_empty()) {

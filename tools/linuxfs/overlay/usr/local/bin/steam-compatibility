@@ -152,6 +152,9 @@ bl_components() {
   else
     cm_app=""
   fi
+  if [ "$cm_app" = 2929927072 ] && [[ "${SteamAppId:-}" =~ ^[0-9]{1,10}$ ]] && (( 10#$SteamAppId > 0 && 10#$SteamAppId <= 4294967295 )); then
+    cm_app=$((10#$SteamAppId))
+  fi
   if [ -z "$cm_app" ]; then
     echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2
     return 0

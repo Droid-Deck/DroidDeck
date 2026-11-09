@@ -88,6 +88,8 @@ object StoreLaunch {
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
         if (sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
         val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
+        if (exe == sidecar.exe && sidecar.launcher == LAUNCHER &&
+            runCatching { File(folder, LAUNCHER).readText() }.getOrNull() == launcherText(sidecar)) return sidecar
         return runCatching { writeLauncher(folder, sidecar.copy(exe = exe)).also { it.write(folder) } }.getOrDefault(sidecar)
     }
 
