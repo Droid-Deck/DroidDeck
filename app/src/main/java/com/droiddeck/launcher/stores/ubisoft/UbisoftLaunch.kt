@@ -39,18 +39,31 @@ object UbisoftLaunch {
             ?.let { applicationId(it.body, product) } ?: sidecar.extra["appId"].orEmpty()
         StoresState.logLine("Ubisoft: launch ticket for $product ready (${native.optJSONArray("owned")?.length() ?: 0} products, appId ${if (appId.isEmpty()) "unknown" else "found"})")
         val language = com.droiddeck.launcher.stores.StoreLanguage.localeFor(null, app).let { "${it.language}-${it.country}" }
-        val chunks = sidecar.extra[CHUNKS]?.let { runCatching { JSONArray(it) }.getOrNull() }
-            ?: UbisoftNative.call("chunks", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId).put("productId", product)
+        val cached = sidecar.extra[CHUNKS]?.let { runCatching { JSONArray(it) }.getOrNull() }
+        var setup = sidecar.extra[SETUP]?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val chunks = if (cached != null && setup != null) cached else
+            UbisoftNative.call("chunks", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId).put("productId", product)
                 .put("manifest", sidecar.extra["manifest"] ?: sidecar.installVersion).put("folder", folder.path).put("language", language))
                 ?.let { r ->
-                    r.optString("error").takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: chunks for $product: $it") }
+                    r.optString("error").takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: manifest for $product: $it") }
+                    setup = r.optJSONObject("setup")
                     r.optJSONArray("chunks")
-                }?.also { runCatching { StoreGameSidecar.read(folder)?.let { sc -> sc.copy(extra = sc.extra + (CHUNKS to it.toString())).write(folder) } } }
+                }?.also { c ->
+                    runCatching {
+                        StoreGameSidecar.read(folder)?.let { sc ->
+                            sc.copy(extra = sc.extra + (CHUNKS to c.toString()) + listOfNotNull(setup?.let { SETUP to it.toString() })).write(folder)
+                        }
+                        com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, Store.UBISOFT, id)
+                            ?.let { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(app, it) }
+                    }
+                } ?: cached
+        setup?.let { StoresState.logLine("Ubisoft: setup for $product: ${it.toString().take(1500)}") }
         UbisoftActivation.watch(app, product)
         return JSONObject().put("ok", true)
             .put("productId", product)
             .put("ticket", native.optString("ticket"))
             .put("owned", native.optJSONArray("owned") ?: JSONArray())
+            .put("products", native.optJSONArray("products") ?: JSONArray())
             .put("account", account)
             .put("appId", appId)
             .put("language", language)
@@ -58,6 +71,7 @@ object UbisoftLaunch {
     }
 
     const val CHUNKS = "chunks"
+    const val SETUP = "setup"
 
     /** The entitlement's `applicationId` for the product; the list sits under one of a few keys depending on the API version. */
     internal fun applicationId(body: String, product: Long): String? {

@@ -38,6 +38,10 @@ pub struct Manifest {
     pub chunks: Vec<Chunk>,
     /// Files of chunks left out: other languages, and add-ons the account does not own.
     pub skipped: Vec<String>,
+    /// Prerequisite installers Connect runs after an install: exe, arguments, description.
+    pub install_runs: Vec<(String, String, String)>,
+    /// Registry keys Connect writes for the game, with their string values as (name, value).
+    pub registry: Vec<(String, Vec<(String, String)>)>,
 }
 
 fn file(b: &[u8]) -> Result<File, String> {
@@ -105,7 +109,22 @@ pub fn parse_owned(decoded: &[u8], language: &str, owned: &[u32]) -> Result<Mani
     }
     let kept: std::collections::HashSet<&str> = files.iter().map(|f| f.name.as_str()).collect();
     skipped.retain(|n| !kept.contains(n.as_str()));
-    Ok(Manifest { compression: pb::num(&m, 21).unwrap_or(0), files, chunks, skipped })
+    let mut install_runs = Vec::new();
+    for r in pb::subs(&m, 2) {
+        let r = pb::fields(r)?;
+        install_runs.push((pb::string(&r, 1).unwrap_or_default(), pb::string(&r, 3).unwrap_or_default(), pb::string(&r, 4).unwrap_or_default()));
+    }
+    let mut registry = Vec::new();
+    for r in pb::subs(&m, 5) {
+        let r = pb::fields(r)?;
+        let mut values = Vec::new();
+        for e in pb::subs(&r, 3) {
+            let e = pb::fields(e)?;
+            values.push((pb::string(&e, 1).unwrap_or_default(), pb::string(&e, 2).unwrap_or_default()));
+        }
+        registry.push((pb::string(&r, 1).unwrap_or_default(), values));
+    }
+    Ok(Manifest { compression: pb::num(&m, 21).unwrap_or(0), files, chunks, skipped, install_runs, registry })
 }
 
 pub fn decode(downloaded: &[u8]) -> Result<Vec<u8>, String> {

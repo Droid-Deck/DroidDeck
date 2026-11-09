@@ -51,7 +51,8 @@ fn launch(ticket: &str, session: &str, product: u32) -> Result<serde_json::Value
         }
         let pc_ticket = ownership.pc_ticket(&mut d, product, ticket, session).await?;
         let owned: Vec<u32> = games.iter().filter(|g| g.in_session()).map(|g| g.product_id).collect();
-        Ok(json!({ "ticket": pc_ticket, "owned": owned }))
+        let products: Vec<_> = games.iter().filter(|g| g.in_session()).map(|g| json!({ "id": g.product_id, "type": g.product_type })).collect();
+        Ok(json!({ "ticket": pc_ticket, "owned": owned, "products": products }))
     })
 }
 
@@ -83,7 +84,7 @@ fn call(op: &str, request: &str) -> String {
             .unwrap_or_else(|e| json!({ "error": e })),
         "chunks" => install::Request::from_json(&parsed)
             .and_then(|r| install::chunks(&r))
-            .map(|c| json!({ "chunks": install::chunks_json(&c) }))
+            .map(|m| json!({ "chunks": install::chunks_json(&m.chunks), "setup": install::setup_json(&m) }))
             .unwrap_or_else(|e| json!({ "error": e })),
         "launch" => launch(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32)
             .unwrap_or_else(|e| json!({ "error": e })),

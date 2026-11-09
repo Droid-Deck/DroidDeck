@@ -293,11 +293,12 @@ UBISOFT_SERVICE = Path("/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe")
 UBISOFT_ASK_WAIT = 45.0
 UBISOFT_EXTRACT_WAIT = 300
 # Ubisoft's own game-side runtime from the Connect installer, unmodified: the API and aux DLLs the
-# game's loader opens from InstallDir, the starter it re-executes into, and the starter's imports.
+# game's loader opens from InstallDir, the starter it re-executes into and its imports, and the overlay
+# DLLs uplay_r1.dll loads even with the overlay off (its startup fails without them).
 UBISOFT_RUNTIME = ("uplay_r1.dll", "uplay_r164.dll", "uplay_aux_r1.dll", "uplay_aux_r164.dll",
                    "uplay_r2.dll", "uplay_r264.dll", "ubiorbitapi_r2.dll", "ubiorbitapi_r264.dll",
                    "UbisoftGameLauncher.exe", "UbisoftGameLauncher64.exe", "discord-rpc.x86.dll",
-                   "discord-rpc.x64.dll", "steam_api.dll", "steam_api64.dll")
+                   "discord-rpc.x64.dll", "steam_api.dll", "steam_api64.dll", "overlay.dll", "overlay64.dll")
 UBISOFT_VIEWS = ("[Software\\\\Ubisoft\\\\Launcher%s]", "[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher%s]")
 MIN_INSTALLER = 1 << 20
 
@@ -402,6 +403,7 @@ def ubisoft_launch(folder, sidecar, product, compat_data, answer):
         "account": account,
         "ticket": str(answer.get("ticket") or ""),
         "owned": [int(i) for i in answer.get("owned") or [] if str(i).isdigit()],
+        "products": [p for p in answer.get("products") or [] if isinstance(p, dict) and isinstance(p.get("id"), int)],
         "appId": str(answer.get("appId") or ""),
         "chunks": [c for c in answer.get("chunks") or [] if isinstance(c, dict) and isinstance(c.get("id"), int)],
         "saves": "C:/users/steamuser/Saved Games/Ubisoft/%s/%d/" % (user, product),

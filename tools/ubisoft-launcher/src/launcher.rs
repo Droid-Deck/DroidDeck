@@ -21,6 +21,8 @@ pub const QUIET: &[&str] = &[
 ];
 /// The add-on list Connect returns from the aux init; the game echoes it back.
 const AUX_ADDONS: [u64; 3] = [3367, 3368, 3962];
+/// `OverlayInjectionMethod_None`.
+const OVERLAY_NONE: u64 = 1;
 const HWSCORE: &str = "C:/ProgramData/Ubisoft/Ubisoft Game Launcher/cache//statistics/hwscore";
 
 pub struct Config {
@@ -42,6 +44,8 @@ pub struct Config {
     pub log: String,
     /// Installed chunks of the game's manifest: id and tags.
     pub chunks: Vec<(u32, String)>,
+    /// Owned products and their ownership type (0 game, 1 add-on).
+    pub products: Vec<(u32, u32)>,
 }
 
 fn s(j: &Json, k: &str) -> String {
@@ -81,6 +85,9 @@ impl Config {
             chunks: j.get("chunks").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|c| {
                 Some((c.get("id")?.as_u64()? as u32, c.get("tags").and_then(|t| t.as_str()).unwrap_or("").to_string()))
             }).collect()).unwrap_or_default(),
+            products: j.get("products").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|p| {
+                Some((p.get("id")?.as_u64()? as u32, p.get("type").and_then(|t| t.as_u64()).unwrap_or(0) as u32))
+            }).collect()).unwrap_or_default(),
         };
         if c.exe.is_empty() || c.ticket.is_empty() {
             return Err("config: exe and ticket are required".into());
@@ -112,7 +119,7 @@ impl Config {
             .msg(1, Msg::new().uint(1, 1).uint(2, 113).uint(3, 0).uint(4, 1).uint(5, 0))
             .msg(1, Msg::new().uint(1, 3).uint(2, 123).uint(3, 0).uint(4, 0).uint(5, 0));
         let granted = Msg::new()
-            .uint(1, 1)
+            .uint(1, 0)
             .uint(2, 0)
             .text(3, &self.reply_exe(&requested))
             .text(4, &self.root())
@@ -130,9 +137,10 @@ impl Config {
         m
     }
 
-    /// `Rsp.initProcessRsp` for the game announcing its process.
+    /// `Rsp.initProcessRsp` for the game announcing its process. The overlay is reported off
+    /// everywhere: with it on, `uplay_r1.dll` loads `overlay.dll` and fails its startup without it.
     pub fn init_process(&self) -> Vec<u8> {
-        Msg::new().msg(13, Msg::new().uint(1, 1).uint(3, 1).uint(4, 3).uint(6, 0)).0
+        Msg::new().msg(13, Msg::new().uint(1, 1).uint(3, 0).uint(4, OVERLAY_NONE).uint(6, 0)).0
     }
 
     /// `Rsp.initRsp`: the account, its products and the PC ticket.
@@ -155,7 +163,7 @@ impl Config {
             .msg(14, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language))
             .msg(11, Msg::new().uint(1, 0))
             .uint(12, 0)
-            .msg(15, Msg::new().uint(1, 1).uint(2, 3))
+            .msg(15, Msg::new().uint(1, 0).uint(2, OVERLAY_NONE))
             .msg(16, Msg::new().uint(1, 6211).uint(2, 22395).float(3, 1.0))
             .msg(17, Msg::new().text(1, &self.saves))
             .bytes(18, b"")
@@ -172,14 +180,59 @@ impl Config {
         Msg::new().msg(10, Msg::new().msg(1, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language))).0
     }
 
+    /// `Rsp.productRsp.getProductListRsp`: every owned product as owned, playable and purchased.
+    pub fn product_list(&self, request_id: u64) -> Vec<u8> {
+        let mut list = Msg::new().uint(1, request_id).uint(2, 1);
+        let products: Vec<(u32, u32)> = if self.products.is_empty() { self.owned.iter().map(|id| (*id, 0)).collect() } else { self.products.clone() };
+        for (id, kind) in products {
+            list = list.msg(3, Msg::new().uint(1, id as u64).uint(2, if kind == 1 { 2 } else { 1 }).uint(3, 1).uint(4, 3).uint(6, 1));
+        }
+        Msg::new().msg(15, Msg::new().msg(1, list)).0
+    }
+
     pub fn service_hello(&self) -> Vec<u8> {
         Msg::new().msg(3, Msg::new().uint(1, 1).msg(3, Msg::new().text(1, HWSCORE))).0
     }
 }
 
+/// Requests answered with only their id and a result: (`Req` field, its request) to (`Rsp` field, its
+/// response, `OperationResult`). 1 is ok and 4 not found.
+const ACKNOWLEDGED: &[(u32, u32, u32, u32, u64)] = &[
+    (8, 1, 5, 1, 1),   // achievements: list (none)
+    (8, 2, 5, 2, 4),   // achievements: image
+    (8, 3, 5, 3, 1),   // achievements: earn
+    (9, 1, 6, 1, 1),   // overlay: show
+    (9, 2, 6, 2, 1),   // overlay: shop url
+    (9, 4, 6, 3, 1),   // overlay: browser url
+    (9, 5, 6, 4, 1),   // overlay: notification
+    (9, 6, 6, 5, 1),   // overlay: friend invitation
+    (9, 7, 6, 6, 1),   // overlay: friend selection
+    (9, 8, 6, 8, 1),   // overlay: micro app
+    (10, 1, 7, 1, 4),  // avatar
+    (20, 1, 14, 1, 1), // store products (none)
+    (23, 3, 15, 5, 1), // track add-on
+    (25, 1, 17, 1, 4), // user lookup
+    (25, 3, 17, 3, 1), // rich presence
+    (25, 4, 17, 4, 1), // played with
+];
+
+/// The id-and-result answer to a request in [ACKNOWLEDGED], with a name for the log.
+pub fn acknowledge(body: &[u8]) -> Option<(Vec<u8>, String)> {
+    let f = pb::fields(body)?;
+    for &(req, sub, rsp, rsp_sub, result) in ACKNOWLEDGED {
+        let Some(inner) = pb::sub(&f, req).and_then(pb::fields) else { continue };
+        let Some(leaf) = pb::sub(&inner, sub).and_then(pb::fields) else { continue };
+        let id = pb::num(&leaf, 1).unwrap_or(0);
+        let answer = Msg::new().msg(rsp, Msg::new().msg(rsp_sub, Msg::new().uint(1, id).uint(2, result))).0;
+        return Some((answer, format!("{req}.{sub} id {id} -> {result}")));
+    }
+    None
+}
+
 pub enum SessionReq {
     Init,
     Installer,
+    ProductList(u64),
     Other,
 }
 
@@ -187,6 +240,10 @@ pub fn session_request(body: &[u8]) -> SessionReq {
     match pb::fields(body) {
         Some(f) if pb::sub(&f, 13).and_then(pb::fields).is_some_and(|i| pb::has(&i, 1)) => SessionReq::Installer,
         Some(f) if pb::has(&f, 1) => SessionReq::Init,
+        Some(f) => match pb::sub(&f, 23).and_then(pb::fields).and_then(|p| pb::sub(&p, 1).and_then(pb::fields)) {
+            Some(list) => SessionReq::ProductList(pb::num(&list, 1).unwrap_or(0)),
+            None => SessionReq::Other,
+        },
         _ => SessionReq::Other,
     }
 }
@@ -257,7 +314,7 @@ mod tests {
         let req = Msg::new().msg(1, Msg::new().msg(1, Msg::new().uint(1, 13389).uint(2, 109).text(10, "Z:/games/sc/system/splintercell.exe")));
         let rsp = c.game_start(&req.0);
         let granted = pb::fields(pb::sub(&pb::fields(pb::sub(&pb::fields(&rsp).unwrap(), 2).unwrap()).unwrap(), 1).unwrap()).unwrap();
-        assert_eq!(pb::num(&granted, 1), Some(1));
+        assert_eq!(pb::num(&granted, 1), Some(0));
         assert_eq!(pb::sub(&granted, 3), Some(&b"Z:/games/sc//system/splintercell.exe"[..]));
         assert_eq!(pb::sub(&granted, 4), Some(&b"Z:/games/sc/"[..]));
         assert_eq!(pb::num(&granted, 8), Some(3));
@@ -288,6 +345,11 @@ mod tests {
     fn requests_are_told_apart() {
         assert!(matches!(session_request(&Msg::new().msg(1, Msg::new().uint(1, 109)).0), SessionReq::Init));
         assert!(matches!(session_request(&Msg::new().msg(13, Msg::new().bytes(1, b"")).0), SessionReq::Installer));
+        assert!(matches!(session_request(&[0xba, 0x01, 0x06, 0x0a, 0x04, 0x08, 0x80, 0x80, 0x04]), SessionReq::ProductList(65536)));
+        let (answer, _) = acknowledge(&[0x42, 0x08, 0x0a, 0x06, 0x08, 0x80, 0x80, 0x08, 0x10, 0x00]).unwrap();
+        let rsp = pb::fields(pb::sub(&pb::fields(pb::sub(&pb::fields(&answer).unwrap(), 5).unwrap()).unwrap(), 1).unwrap()).unwrap();
+        assert_eq!((pb::num(&rsp, 1), pb::num(&rsp, 2)), (Some(0x20000), Some(1)));
+        assert!(acknowledge(&Msg::new().msg(1, Msg::new().uint(1, 1)).0).is_none());
         assert_eq!(announced(&Msg::new().msg(2, Msg::new().uint(1, 109).uint(2, 4242).uint(5, 1)).0), Some((109, 4242)));
         let activate = Msg::new().uint(1, 2).msg(3, Msg::new().msg(2, Msg::new().bytes(2, b"challenge").uint(3, 0)));
         assert!(matches!(aux_request(&activate.0), AuxReq::Activate(2, b"challenge")));

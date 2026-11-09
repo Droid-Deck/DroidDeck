@@ -17,17 +17,27 @@ SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
-def game_id(env):
-    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
-    if not prefix:
-        return None
-    value = prefix.rsplit("/", 1)[-1]
-    if not re.fullmatch(r"-?[0-9]+", value):
+# Prefixes several games share; the game itself is the Steam app being launched.
+SHARED_PREFIXES = {"2929927072"}
+
+
+def app_number(value):
+    if not re.fullmatch(r"-?[0-9]+", value or ""):
         return None
     number = int(value)
     if not -(2**31) <= number < 2**32 or number == 0:
         return None
     return str(number % 2**32)
+
+
+def game_id(env):
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return None
+    found = app_number(prefix.rsplit("/", 1)[-1])
+    if found in SHARED_PREFIXES:
+        return app_number(env.get("SteamAppId", "")) or found
+    return found
 
 
 DOTNET_FEX = {

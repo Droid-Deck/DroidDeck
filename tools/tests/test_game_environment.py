@@ -1580,6 +1580,10 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIsNone(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": prefix}))
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42/"}), "42")
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/-1"}), "4294967295")
+        shared = {"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072", "SteamAppId": "2424921676"}
+        self.assertEqual(MODULE["game_id"](shared), "2424921676")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072"}), "2929927072")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42", "SteamAppId": "7"}), "42")
 
     def test_launch_reads_updates_preserves_argv_and_does_not_execute_values(self):
         with tempfile.TemporaryDirectory() as tmp:

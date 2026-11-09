@@ -16,7 +16,7 @@ from the public notes in [Foxtrot47/Ubisoft-Connect-RE](https://github.com/Foxtr
 
 | Piece | Where | Job |
 |---|---|---|
-| Ubisoft runtime | `C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\` in the shared prefix | Ubisoft's own `uplay_r1(64).dll`, `uplay_aux_r1(64).dll`, `uplay_r2(64).dll`, `ubiorbitapi_r2(64).dll`, `UbisoftGameLauncher(64).exe` and the starter's imports (`discord-rpc.x86/x64.dll`, `steam_api(64).dll`). `droiddeck-store-launch` extracts exactly these 14 files with `7z` from the official `UbisoftConnectInstaller.exe`, then deletes the installer |
+| Ubisoft runtime | `C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\` in the shared prefix | Ubisoft's own `uplay_r1(64).dll`, `uplay_aux_r1(64).dll`, `uplay_r2(64).dll`, `ubiorbitapi_r2(64).dll`, `UbisoftGameLauncher(64).exe`, the starter's imports (`discord-rpc.x86/x64.dll`, `steam_api(64).dll`) and `overlay(64).dll`. `droiddeck-store-launch` extracts exactly these 16 files with `7z` from the official `UbisoftConnectInstaller.exe`, then deletes the installer |
 | Registry | `HKLM\Software\[Wow6432Node\]Ubisoft\Launcher` | `InstallDir` points at the runtime folder in both views; `Installs\<productId>\InstallDir` points at the game, with forward slashes and a trailing slash, as Connect writes it |
 | Shared prefix | `compatdata/2929927072` | Every Ubisoft game runs here (`UbisoftConnect.launchOptions` sets `STEAM_COMPAT_DATA_PATH`), so the runtime is extracted once |
 | Launch file | `<game>/.droiddeck-ubisoft.json` | Written by `droiddeck-store-launch` before every launch from the app's `ubisoft-launch` answer: the account, the owned product ids, a fresh PC ticket, the entitlement's application id and the save folder. Removed first, so a failed refresh falls back to starting the game directly |
@@ -32,8 +32,8 @@ followed by a proto2 message, except on `uplay_service_ipc_pipe_`.
 
 | Pipe | Client | Exchange |
 |---|---|---|
-| `game_start_ipc_pipe_` | `UbisoftGameLauncher.exe` | `game_starter.Upstream{1:{1:{1: build, 2: product, 10: exe, 11: arguments, ...}}}` → `Downstream{2:{1:{1:1, 2:0, 3: <root>/ + "/" + <exe under root>, 4: <root>/, 8:3, 9:{1:{1,113,0,1,0} 1:{3,123,0,0,0}}}}}` |
-| `uplay_api_process_ipc_pipe_` | game | `Req.initProcessReq{1: product, 2: game pid, 5: env set}` → `Rsp.initProcessRsp(13){1:1, 3:1, 4:3, 6:0}`. Kept open. Answering it is what releases the starter (below) |
+| `game_start_ipc_pipe_` | `UbisoftGameLauncher.exe` | `game_starter.Upstream{1:{1:{1: build, 2: product, 10: exe, 11: arguments, ...}}}` → `Downstream{2:{1:{1:0 (overlay off), 2:0, 3: <root>/ + "/" + <exe under root>, 4: <root>/, 8:3, 9:{1:{1,113,0,1,0} 1:{3,123,0,0,0}}}}}` |
+| `uplay_api_process_ipc_pipe_` | game | `Req.initProcessReq{1: product, 2: game pid, 5: env set}` → `Rsp.initProcessRsp(13){1:1, 3:0 (overlay off), 4:3, 6:0}`. Kept open. Answering it is what releases the starter (below) |
 | `uplay_ipc_pipe_` | game (`uplay_r1.dll`) | `Req.initReq(1)` → `Rsp.initRsp(1)`, answered every time it is asked. `Req.installerReq(13)` with `initInstallerReq` → `Rsp.installerRsp(10){1:{1:1, 2:"", 3: language}}` |
 | `uplay_aux_ipc_pipe_` | `uplay_aux_r1(64).dll` (Denuvo) | `{1: rid, 2: init}` → `{1: rid, 2:{1:1, 2: pid, 3:3367, 3:3368, 3:3962}}`; `{1: rid, 3:{2:{2: challenge}}}` → `{1: rid, 3:{2:{2:1, 3:0, 4: game token, 5:""}}}` |
 | `uplay_service_ipc_pipe_` | Ubisoft helpers | Server sends `{3:{1:1, 3:{1: <hwscore path>}}}` once, then only reads, unframed |
@@ -51,9 +51,14 @@ followed by a proto2 message, except on `uplay_service_ipc_pipe_`.
 | 6 gameCdKeys | `{1: product, 2: ""}` |
 | 7 isInOfflineMode | 0 |
 | 8 upcTicket | the PC ticket from `GetUplayPCTicket`, never the Denuvo token |
-| 11, 12, 15, 16, 18, 19, 21, 23 | the values a real launch carries (`{1:0}`, 0, overlay `{1:1, 2:3}`, hardware score `{6211, 22395, 1.0f}`, empty, `{1:1, 2:1}`, `{2:1}`, empty) |
+| 11, 12, 15, 16, 18, 19, 21, 23 | the values a real launch carries (`{1:0}`, 0, overlay `{1:0, 2:3}`, hardware score `{6211, 22395, 1.0f}`, empty, `{1:1, 2:1}`, `{2:1}`, empty) |
 | 17 storage | `{1: "C:/users/steamuser/Saved Games/Ubisoft/<userId>/<product>/"}`; the game appends file names directly, so the trailing slash matters |
 | 22 ubiServices | `{1: applicationId}` from the account's entitlements, left out when unknown |
+
+The overlay is reported off in all three places. `uplay_r1.dll` still loads `overlay.dll` from the
+runtime folder right after the session arrives, whatever the session says; without that file it gives up
+with `UplayAPI [ERROR]: Startup failed: cannot load uplay library` (Assassin's Creed Chronicles: China
+then sits on a black screen and aborts with code 3 after about 160 s), so the runtime includes it.
 
 ## Start sequence
 

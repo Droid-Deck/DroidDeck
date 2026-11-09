@@ -2,6 +2,8 @@
 //!
 //! Usage: droiddeck-upc.exe <launch.json>
 
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod launcher;
 mod pb;
 #[cfg(windows)]
@@ -148,7 +150,17 @@ mod service {
                     send(&pipe, &state.cfg.installer());
                     state.say("session: installer init answered");
                 }
-                SessionReq::Other => state.say(&format!("session: {} B request {} not handled", req.len(), hex(&req, 24))),
+                SessionReq::ProductList(id) => {
+                    send(&pipe, &state.cfg.product_list(id));
+                    state.say(&format!("session: product list {id} answered"));
+                }
+                SessionReq::Other => match launcher::acknowledge(&req) {
+                    Some((answer, what)) => {
+                        send(&pipe, &answer);
+                        state.say(&format!("session: {what}"));
+                    }
+                    None => state.say(&format!("session: {} B request {} not handled", req.len(), hex(&req, 24))),
+                },
             }
         }
         state.say("session: closed");

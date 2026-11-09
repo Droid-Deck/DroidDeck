@@ -43,15 +43,23 @@ pub struct Done {
     pub files: usize,
     pub bytes: u64,
     pub chunks: Vec<manifest::Chunk>,
+    pub setup: Json,
 }
 
 pub fn chunks_json(chunks: &[manifest::Chunk]) -> Json {
     Json::Array(chunks.iter().map(|c| json!({ "id": c.id, "tags": c.tags })).collect())
 }
 
+pub fn setup_json(m: &manifest::Manifest) -> Json {
+    json!({
+        "installRuns": m.install_runs.iter().map(|(exe, args, what)| json!({ "exe": exe, "arguments": args, "description": what })).collect::<Vec<_>>(),
+        "registry": m.registry.iter().map(|(key, values)| json!({ "key": key, "values": values.iter().map(|(n, v)| json!({ "name": n, "value": v })).collect::<Vec<_>>() })).collect::<Vec<_>>(),
+    })
+}
+
 impl Done {
     pub fn to_json(&self) -> Json {
-        json!({ "files": self.files, "bytes": self.bytes, "chunks": chunks_json(&self.chunks) })
+        json!({ "files": self.files, "bytes": self.bytes, "chunks": chunks_json(&self.chunks), "setup": self.setup.clone() })
     }
 }
 
@@ -125,7 +133,22 @@ struct Session {
 const RECONNECTS: usize = 4;
 
 impl Session {
+    /// Opens a session, retrying a few times: Demux drops a connection now and then right after another closes.
     async fn open(req: &Request) -> Result<(Self, Vec<super::service::Owned>), String> {
+        let mut last = String::new();
+        for attempt in 0..3u32 {
+            if attempt > 0 {
+                tokio::time::sleep(Duration::from_secs(2 << attempt)).await;
+            }
+            match Self::open_once(req).await {
+                Ok(s) => return Ok(s),
+                Err(e) => last = e,
+            }
+        }
+        Err(last)
+    }
+
+    async fn open_once(req: &Request) -> Result<(Self, Vec<super::service::Owned>), String> {
         let mut d = Demux::connect(&req.ticket).await?;
         let (mut own, owned) = Ownership::open(&mut d, &req.ticket, &req.session_id).await?;
         let token = own.token(&mut d, req.product_id).await?;
@@ -157,8 +180,8 @@ impl Session {
     }
 }
 
-/// The chunks an install of the manifest keeps, without downloading the game.
-pub fn chunks(req: &Request) -> Result<Vec<manifest::Chunk>, String> {
+/// The manifest of an install, without downloading the game.
+pub fn chunks(req: &Request) -> Result<manifest::Manifest, String> {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
     rt.block_on(async {
         let (mut sess, owned) = Session::open(req).await?;
@@ -185,7 +208,7 @@ pub fn chunks(req: &Request) -> Result<Vec<manifest::Chunk>, String> {
         let language = if req.language.is_empty() { "en-US" } else { req.language.as_str() };
         let mut owned_ids: Vec<u32> = owned.iter().filter(|o| o.owned).map(|o| o.product_id).collect();
         owned_ids.push(req.product_id);
-        Ok(manifest::parse_owned(&manifest::decode(&raw)?, language, &owned_ids)?.chunks)
+        Ok(manifest::parse_owned(&manifest::decode(&raw)?, language, &owned_ids)?)
     })
 }
 
@@ -343,7 +366,7 @@ async fn install(req: &Request, cancel: &AtomicBool, events: &dyn Events) -> Res
         finished_files += 1;
     }
     events.progress(total, total, finished_files, files_total);
-    Ok(Done { files: m.files.len(), bytes: total, chunks: m.chunks.clone() })
+    Ok(Done { files: m.files.len(), bytes: total, chunks: m.chunks.clone(), setup: setup_json(&m) })
 }
 
 #[cfg(test)]
