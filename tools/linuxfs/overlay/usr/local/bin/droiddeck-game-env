@@ -878,7 +878,51 @@ def pe_machine(path):
     return int.from_bytes(header[4:6], "little")
 
 
-def repair_foreign_system_dlls(prefix, proton):
+def native_first(mode):
+    first = mode.strip().lower().split(",")[0].strip()
+    return first in ("n", "native")
+
+
+def env_native_dlls(value):
+    names = set()
+    for entry in (value or "").split(";"):
+        listed, sep, mode = entry.partition("=")
+        if sep and native_first(mode):
+            names.update(n.strip().lower() for n in listed.split(",") if n.strip())
+    return names
+
+
+def prefix_native_dlls(compat, module):
+    names = set()
+    try:
+        registry = module["RegistryFile"](Path(compat) / "pfx/user.reg")
+        span = registry.section(r"Software\Wine\DllOverrides")
+        if span is None:
+            return names
+        for line in registry.lines[span[0]:span[1]]:
+            name = registry.value_name(line)
+            mode = module["reg_string"](line)
+            if name and mode is not None and native_first(mode):
+                names.add(name)
+    except (OSError, ValueError):
+        pass
+    return names
+
+
+def protected_system_dlls(compat, env):
+    owned, native = set(), env_native_dlls(env.get("WINEDLLOVERRIDES"))
+    try:
+        module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
+        for key in module["load_state"](Path(compat)).get("files", {}):
+            owned.add(str(key).replace("\\", "/").lower())
+        native |= prefix_native_dlls(compat, module)
+    except Exception:
+        pass
+    return owned, native
+
+
+def repair_foreign_system_dlls(prefix, proton, env=None):
+    owned, native = protected_system_dlls(prefix, env or {})
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
     if not (dist / "aarch64-unix").is_dir():
@@ -894,6 +938,8 @@ def repair_foreign_system_dlls(prefix, proton):
             path = windows / folder / name
             source = builtins / name
             if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
+                continue
+            if "drive_c/windows/%s/%s" % (folder, name.lower()) in owned or name.lower()[:-4] in native:
                 continue
             machine = pe_machine(path)
             if machine is None or machine in machines:
@@ -1211,7 +1257,7 @@ def main():
     prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     if prefix_path and command:
         try:
-            fixed = repair_foreign_system_dlls(prefix_path, command[0])
+            fixed = repair_foreign_system_dlls(prefix_path, command[0], env)
         except OSError as error:
             fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)

@@ -2644,6 +2644,32 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
 
+    def test_component_owned_dll_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
+            state = {"files": {"drive_c/windows/system32/ucrtbase.dll": {}}}
+            (compat / ".droiddeck-wincomponents.json").write_text(json.dumps(state))
+            fixed = self.run_repair(compat, proton)
+            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)"], fixed)
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+
+    def test_native_first_overrides_in_env_or_user_reg_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
+            env = {"WINEDLLOVERRIDES": "foo=d;ucrtbase,bar=n,b"}
+            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)"],
+                             MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            (windows / "system32/rpcrt4.dll.foreign-arch").rename(windows / "system32/rpcrt4.dll")
+            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"rpcrt4"="native,builtin"\n"ucrtbase"="builtin"\n'
+            (compat / "pfx/user.reg").write_text(reg)
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
+
     def test_non_arm64_proton_and_missing_prefix_are_untouched(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp, arm=False)
