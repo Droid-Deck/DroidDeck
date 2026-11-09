@@ -106,6 +106,18 @@ class PadPartialAxesTest {
         assertEquals(0f, pad().rightTrigger)
     }
 
+    @Test fun leftTriggerFallsBackToBrakeWhenDedicatedAxisIsZero() {
+        val device = device(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)
+        motion(device, MotionEvent.AXIS_LTRIGGER to 0f, MotionEvent.AXIS_BRAKE to 0.7f)
+        assertEquals(0.7f, pad().leftTrigger)
+    }
+
+    @Test fun rightTriggerFallsBackToGasWhenDedicatedAxisIsZero() {
+        val device = device(MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)
+        motion(device, MotionEvent.AXIS_RTRIGGER to 0f, MotionEvent.AXIS_GAS to 0.8f)
+        assertEquals(0.8f, pad().rightTrigger)
+    }
+
     @Test fun onlyZRzAxesProvideTheRightStick() {
         val device = device(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
         motion(device, MotionEvent.AXIS_Z to 0.6f, MotionEvent.AXIS_RZ to -0.6f)
@@ -139,6 +151,34 @@ class PadPartialAxesTest {
         assertEquals(-0.6f, pad().rightY)
         assertEquals(1f, pad().leftTrigger)
         assertEquals(1f, pad().rightTrigger)
+    }
+
+    @Test fun movingFirstEventDoesNotLockTheWrongStickPair() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to 1f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to 0f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun dedicatedRightTriggerWinsOverSignedRightTrigger() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z,
+            MotionEvent.AXIS_RZ, MotionEvent.AXIS_RTRIGGER)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f,
+            MotionEvent.AXIS_RTRIGGER to 0.7f)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0.7f, pad().rightTrigger)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
     }
 
     @Test fun sticksWithoutTriggerOrHatAxesPreserveAllDigitalControls() {

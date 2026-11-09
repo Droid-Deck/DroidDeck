@@ -94,10 +94,11 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         sticks.leftY = event.getAxisValue(MotionEvent.AXIS_Y)
         sticks.rightX = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RX else MotionEvent.AXIS_Z)
         sticks.rightY = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
-        val signed = PadBridge.signedZTriggers(event, wired, rxRyStick)
-        if (hasTriggerAxes(event) || signed) {
-            sticks.leftTrigger = PadBridge.leftTrigger(event, signed)
-            sticks.rightTrigger = PadBridge.rightTrigger(event, signed)
+        val signedLeft = PadBridge.signedZTriggers(event, wired, rxRyStick, true)
+        val signedRight = PadBridge.signedZTriggers(event, wired, rxRyStick, false)
+        if (hasTriggerAxes(event) || signedLeft || signedRight) {
+            sticks.leftTrigger = PadBridge.triggerValue(event, wired, rxRyStick, true)
+            sticks.rightTrigger = PadBridge.triggerValue(event, wired, rxRyStick, false)
         }
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
         val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
@@ -211,6 +212,7 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
     private fun hasTriggerAxes(event: android.view.InputEvent): Boolean = triggerAxes.getOrPut(event.deviceId) {
         val device = event.device ?: return@getOrPut true
         device.getMotionRange(MotionEvent.AXIS_LTRIGGER) != null || device.getMotionRange(MotionEvent.AXIS_BRAKE) != null ||
+            device.getMotionRange(MotionEvent.AXIS_RTRIGGER) != null || device.getMotionRange(MotionEvent.AXIS_GAS) != null ||
             (event is MotionEvent && wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) })
     }
 
