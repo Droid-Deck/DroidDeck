@@ -162,11 +162,12 @@ _bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 
 _bl_pressure_at=-1 _bl_packed=-1
 rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive=999 started=100 complete=1
 step() { :; }
+meminfo=''' + repr(str(self.root / 'meminfo')) + '''
 bl_proc_start() { _bl_start=; case " $alive " in *" $1 "*) _bl_start=$started; return 0 ;; esac; return 1; }
 nap() { echo "nap:$1"; }
 bl_session_others() { _bl_session=(321 654); }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$swap; }
-bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=$complete; }
+bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); next_available=${available_after:-$(( $(awk '/^MemAvailable:/ { print $2 }' "$meminfo") / 1024 + 128 ))}; sed -i "s/^MemAvailable:.*/MemAvailable: $((next_available * 1024)) kB/" "$meminfo"; _bl_pageout_complete=$complete; }
 ''' + functions + '\nbl_memory_read\n' + body
         result = run_bash(harness)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -222,6 +223,48 @@ echo "backoff:$_bl_tier_backoff"
 _bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_targets=(999) _bl_tier_swaps=($((1024 * 1024))) _bl_tier_starts=(100) _bl_tier_pushed=$((1024 * 1024)) swap=0
 SECONDS=240; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_no_gain_pageout_doubles_the_tier_wait(self):
+        self.assertEqual(['send:1:game', 'backoff:60', 'send:1:game', 'backoff:120'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+SECONDS=30; bl_session_pressure
+SECONDS=60; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_meaningful_available_gain_keeps_the_tier_wait(self):
+        self.assertEqual(['send:1:game', 'backoff:30', 'send:1:game', 'backoff:30'], self.run_policy('''
+available_after=1300
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=1600
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_recovered_available_memory_resets_the_tier_wait(self):
+        self.assertEqual(['send:1:game', 'backoff:60', 'backoff:30', 'send:1:game'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=2000
+sed -i "s/^MemAvailable:.*/MemAvailable: 2048000 kB/" "$meminfo"
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=1024
+sed -i "s/^MemAvailable:.*/MemAvailable: 1048576 kB/" "$meminfo"
+SECONDS=60; bl_session_pressure
+'''))
+
+    def test_critical_memory_still_compresses_after_a_no_gain_pass(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:game', 'send:1:game'], self.run_policy('''
+available_after=512
+SECONDS=0; bl_session_pressure
+SECONDS=30; bl_session_pressure
 '''))
 
     def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):

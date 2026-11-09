@@ -901,9 +901,12 @@ case $mode in
         }
         bl_session_pressure() {
           bl_memory_read
+          [ "$_bl_available" -lt "$_bl_headroom" ] || _bl_tier_backoff=30
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
-          local _wait=$_bl_tier_backoff _before _pids _targets
-          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
+          local _wait=$_bl_tier_backoff _before _available_before _pids _targets _gain _min_gain
+          if [ "$_bl_available" -lt $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ]; then
+            _wait=30
+          fi
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
             bl_tier_readback
@@ -924,11 +927,23 @@ case $mode in
             step "zRAM: low-memory page-out skipped, swap headroom too small ($((_bl_swap_free / 1024)) MB free)"
             return 0
           fi
-          _targets=("${_pids[@]}") _before=$_bl_swap
+          _targets=("${_pids[@]}") _before=$_bl_swap _available_before=$_bl_available
           bl_zram_send 1 "low memory (available $((_bl_available / 1024)) MB), compressing idle game memory" game
           bl_zram_usage "${_targets[@]}" > /dev/null
           _bl_tier_pushed=$((_bl_swap - _before))
           bl_tier_note "${_targets[@]}"
+          if [ "${_bl_pageout_complete:-0}" = 1 ]; then
+            bl_memory_read
+            _gain=$((_bl_available - _available_before))
+            _min_gain=$((_bl_tier_headroom / 16))
+            [ "$_min_gain" -ge $((16 * 1024)) ] || _min_gain=$((16 * 1024))
+            if [ "$_gain" -lt "$_min_gain" ]; then
+              _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
+              _bl_tier_at=$SECONDS _bl_tier_pushed=0
+              step "zRAM: low-memory page-out gained only $((_gain / 1024)) MB available, next try in ${_bl_tier_backoff} s"
+              return 0
+            fi
+          fi
           if [ "${_bl_pageout_complete:-0}" = 1 ] && [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
             _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
           fi

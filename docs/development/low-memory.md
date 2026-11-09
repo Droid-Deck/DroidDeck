@@ -59,9 +59,13 @@ can wait up to 12 seconds for acknowledgements. While a game runs and available 
 twice that level, memory is read every second instead of every five. Requests are at least 30 seconds apart and need the same swap reserve as launcher
 requests. When the session has read back more than half of what the previous request compressed,
 that memory is in use: the request is skipped and the wait doubles, up to five minutes. A
-request whose memory stayed compressed resets it to 30 seconds. Below half the headroom the
-wait is ignored and only the 30-second spacing applies. The state resets when the game exits. Devices above 13 GiB keep the
-launcher-only behaviour.
+completed request must also raise `MemAvailable` by at least one sixteenth of the tier
+headroom, with a 16 MiB minimum; otherwise the same wait doubles because the pass did not
+provide meaningful system headroom. A request whose memory stayed compressed or whose
+available memory recovers resets the wait to 30 seconds. Below half the headroom the wait is
+ignored and only the 30-second spacing applies, so critical pressure can still trigger a
+request. The state resets when the game exits. Devices above 13 GiB keep the launcher-only
+behaviour.
 
 Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
 entering the world in World of Warcraft: Forever, one run each:
