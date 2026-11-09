@@ -143,7 +143,7 @@ object AgentHost {
         val shell = listOf(
             "/bin/sh", "-c",
             // proot ends the adb server with the command, so each command that needs adb connects it.
-            (if (connectAdb) "adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " else "") +
+            (if (connectAdb) "adb start-server >/dev/null 2>&1; adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " else "") +
                 "cd \"$1\" 2>/dev/null; shift; exec \"$@\"", "sh", workdir,
         )
         val proot = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), env + shell + command)

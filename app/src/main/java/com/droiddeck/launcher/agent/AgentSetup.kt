@@ -50,7 +50,9 @@ object AgentSetup {
                 Step.INSTALL -> set(step, if (AgentHost.guestFileExists(app, harness.binary)) Status.DONE else Status.TODO)
                 Step.BUILD_TOOLS -> set(step, if (AgentHost.guestFileExists(app, "/root/aapt2/aapt2") &&
                     AgentHost.guestFileExists(app, "$CHECKOUT/.git")) Status.DONE else Status.TODO)
-                Step.CONNECTION -> probes += step to listOf("sh", "-c", "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device")
+                Step.CONNECTION -> probes += step to listOf("sh", "-c",
+                    "for i in 1 2 3; do adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " +
+                        "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device && exit 0; sleep 1; done; exit 1")
                 Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
                 Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
             }
