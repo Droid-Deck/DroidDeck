@@ -14,6 +14,8 @@ object AgentNative {
     fun run(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         val root = LinuxRuntime.rootDir(context)
         com.droiddeck.launcher.session.SessionFiles.stage(context, root)
+        // with the setting off, staging leaves the rootfs as proot wants it
+        if (!com.droiddeck.launcher.session.SessionPrefs.nativeUserland(context)) NativeGuest.prepare(context, root)
         if (!NativeGuest.available(root)) throw AgentException("NATIVE_UNAVAILABLE", "The rootfs has no native hook or glibc loader yet; start a session once")
         val argvJson = request.optJSONArray("argv") ?: throw AgentException("INVALID_REQUEST", "argv is required")
         val argv = (0 until argvJson.length()).map { argvJson.getString(it) }
