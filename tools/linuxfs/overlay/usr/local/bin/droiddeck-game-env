@@ -883,12 +883,17 @@ def native_first(mode):
     return first in ("n", "native")
 
 
+def dll_override_name(name):
+    name = name.strip().lower()
+    return name[:-4] if name.endswith(".dll") else name
+
+
 def env_native_dlls(value):
     names = set()
     for entry in (value or "").split(";"):
         listed, sep, mode = entry.partition("=")
         if sep and native_first(mode):
-            names.update(n.strip().lower() for n in listed.split(",") if n.strip())
+            names.update(dll_override_name(n) for n in listed.split(",") if n.strip())
     return names
 
 
@@ -903,7 +908,7 @@ def prefix_native_dlls(compat, module):
             name = registry.value_name(line)
             mode = module["reg_string"](line)
             if name and mode is not None and native_first(mode):
-                names.add(name)
+                names.add(dll_override_name(name))
     except (OSError, ValueError):
         pass
     return names
@@ -935,12 +940,17 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
     for folder, (libdir, machines) in PE_MACHINES.items():
         builtins = dist / libdir
         try:
+            builtin_names = {name.lower(): name for name in os.listdir(builtins)}
+        except OSError:
+            continue
+        try:
             names = sorted(os.listdir(windows / folder))
         except OSError:
             continue
         for name in names:
             path = windows / folder / name
-            source = builtins / name
+            builtin_name = builtin_names.get(name.lower())
+            source = builtins / builtin_name if builtin_name else builtins / name
             if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
                 continue
             if "drive_c/windows/%s/%s" % (folder, name.lower()) in owned or name.lower()[:-4] in native:

@@ -2616,13 +2616,13 @@ class ForeignSystemDllTest(unittest.TestCase):
     def test_x64_dll_in_arm64_system32_is_replaced_by_the_builtin(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
-            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/UCRTBASE.DLL").write_bytes(pe_image(0x8664))
             (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0xAA64))
             fixed = self.run_repair(compat, proton)
-            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
-            self.assertTrue((windows / "system32/ucrtbase.dll").is_symlink())
-            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
-            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll.foreign-arch"))
+            self.assertEqual(["system32/UCRTBASE.DLL (machine 0x8664)"], fixed)
+            self.assertTrue((windows / "system32/UCRTBASE.DLL").is_symlink())
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL"))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL.foreign-arch"))
             self.assertFalse((windows / "system32/rpcrt4.dll").is_symlink())
             self.assertEqual([], self.run_repair(compat, proton))
 
@@ -2665,7 +2665,7 @@ class ForeignSystemDllTest(unittest.TestCase):
                              MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
             (windows / "system32/rpcrt4.dll.foreign-arch").rename(windows / "system32/rpcrt4.dll")
-            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"rpcrt4"="native,builtin"\n"ucrtbase"="builtin"\n'
+            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"RPCRT4.DLL"="native,builtin"\n"ucrtbase"="builtin"\n'
             (compat / "pfx/user.reg").write_text(reg)
             self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
