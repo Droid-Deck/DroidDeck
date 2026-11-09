@@ -1965,13 +1965,6 @@
     <string name="bottom_downloads_shader">Downloading shader cache</string>
     <string name="bottom_downloads_paused">Paused</string>
     <string name="bottom_downloads_queued">Waiting to start</string>
-    <string name="bottom_page_notifications">Notifications</string>
-    <string name="bottom_notifications_listener">DroidDeck bottom screen</string>
-    <string name="bottom_notifications_why">Show messages and other notifications here while you play. They stay on this screen only and are not saved. Android asks once: its notification access page opens on this screen; turn DroidDeck on there and this page comes back by itself.</string>
-    <string name="bottom_notifications_allow">Allow notification access</string>
-    <string name="bottom_notifications_none">No notifications.</string>
-    <string name="bottom_notifications_count">%1$d notifications</string>
-    <string name="bottom_notifications_clear">Clear</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">FPS needs the HUD on</string>
     <string name="stats_speed">Speed</string>

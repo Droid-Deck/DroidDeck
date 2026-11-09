@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Λήψη cache shader</string>
     <string name="bottom_downloads_paused">Σε παύση</string>
     <string name="bottom_downloads_queued">Αναμονή για έναρξη</string>
-    <string name="bottom_page_notifications">Ειδοποιήσεις</string>
-    <string name="bottom_notifications_listener">DroidDeck – κάτω οθόνη</string>
-    <string name="bottom_notifications_why">Εμφάνιση μηνυμάτων και άλλων ειδοποιήσεων εδώ ενώ παίζετε. Παραμένουν μόνο σε αυτή την οθόνη και δεν αποθηκεύονται. Το Android ρωτά μία φορά: η σελίδα πρόσβασης ειδοποιήσεων ανοίγει σε αυτή την οθόνη· ενεργοποιήστε εκεί το DroidDeck και αυτή η σελίδα επιστρέφει μόνη της.</string>
-    <string name="bottom_notifications_allow">Αποδοχή πρόσβασης ειδοποιήσεων</string>
-    <string name="bottom_notifications_none">Δεν υπάρχουν ειδοποιήσεις.</string>
-    <string name="bottom_notifications_count">%1$d ειδοποιήσεις</string>
-    <string name="bottom_notifications_clear">Απαλοιφή</string>
     <string name="bottom_page_screenshots">Στιγμιότυπα οθόνης</string>
     <string name="stats_fps_needs_hud">Τα FPS απαιτούν ενεργό HUD</string>
     <string name="stats_speed">Ταχύτητα</string>

@@ -1769,13 +1769,6 @@
     <string name="bottom_downloads_shader">Gölgelendirici önbelleği indiriliyor</string>
     <string name="bottom_downloads_paused">Duraklatıldı</string>
     <string name="bottom_downloads_queued">Başlamayı bekliyor</string>
-    <string name="bottom_page_notifications">Bildirimler</string>
-    <string name="bottom_notifications_listener">DroidDeck alt ekranı</string>
-    <string name="bottom_notifications_why">Oynarken mesajları ve diğer bildirimleri burada görün. Yalnızca bu ekranda kalırlar ve kaydedilmezler. Android bunu bir kez sorar: bildirim erişimi sayfası bu ekranda açılır; orada DroidDeck\'i açın, bu sayfa kendiliğinden geri gelir.</string>
-    <string name="bottom_notifications_allow">Bildirim erişimine izin ver</string>
-    <string name="bottom_notifications_none">Bildirim yok.</string>
-    <string name="bottom_notifications_count">%1$d bildirim</string>
-    <string name="bottom_notifications_clear">Temizle</string>
     <string name="bottom_page_screenshots">Ekran görüntüleri</string>
     <string name="stats_fps_needs_hud">FPS için HUD açık olmalı</string>
     <string name="stats_speed">Hız</string>

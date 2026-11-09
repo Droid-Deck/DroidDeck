@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Laddar ned shadercache</string>
     <string name="bottom_downloads_paused">Pausad</string>
     <string name="bottom_downloads_queued">Väntar på att starta</string>
-    <string name="bottom_page_notifications">Aviseringar</string>
-    <string name="bottom_notifications_listener">DroidDecks nedre skärm</string>
-    <string name="bottom_notifications_why">Visa meddelanden och andra aviseringar här medan du spelar. De visas bara på den här skärmen och sparas inte. Android frågar en gång: sidan för aviseringsåtkomst öppnas på den här skärmen; slå på DroidDeck där så kommer den här sidan tillbaka av sig själv.</string>
-    <string name="bottom_notifications_allow">Tillåt aviseringsåtkomst</string>
-    <string name="bottom_notifications_none">Inga aviseringar.</string>
-    <string name="bottom_notifications_count">%1$d aviseringar</string>
-    <string name="bottom_notifications_clear">Rensa</string>
     <string name="bottom_page_screenshots">Skärmbilder</string>
     <string name="stats_fps_needs_hud">FPS kräver att HUD:en är på</string>
     <string name="stats_speed">Hastighet</string>

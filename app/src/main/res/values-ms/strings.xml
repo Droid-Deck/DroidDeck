@@ -1753,13 +1753,6 @@
     <string name="bottom_downloads_shader">Memuat turun cache shader</string>
     <string name="bottom_downloads_paused">Dijeda</string>
     <string name="bottom_downloads_queued">Menunggu untuk bermula</string>
-    <string name="bottom_page_notifications">Pemberitahuan</string>
-    <string name="bottom_notifications_listener">Skrin bawah DroidDeck</string>
-    <string name="bottom_notifications_why">Paparkan mesej dan pemberitahuan lain di sini semasa anda bermain. Ia hanya kekal pada skrin ini dan tidak disimpan. Android bertanya sekali sahaja: halaman akses pemberitahuannya dibuka pada skrin ini; hidupkan DroidDeck di sana dan halaman ini akan kembali dengan sendirinya.</string>
-    <string name="bottom_notifications_allow">Benarkan akses pemberitahuan</string>
-    <string name="bottom_notifications_none">Tiada pemberitahuan.</string>
-    <string name="bottom_notifications_count">%1$d pemberitahuan</string>
-    <string name="bottom_notifications_clear">Kosongkan</string>
     <string name="bottom_page_screenshots">Tangkapan skrin</string>
     <string name="stats_fps_needs_hud">FPS memerlukan HUD dihidupkan</string>
     <string name="stats_speed">Kelajuan</string>

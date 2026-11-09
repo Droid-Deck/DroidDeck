@@ -1753,13 +1753,6 @@
     <string name="bottom_downloads_shader">กำลังดาวน์โหลดแคชเชเดอร์</string>
     <string name="bottom_downloads_paused">หยุดชั่วคราว</string>
     <string name="bottom_downloads_queued">กำลังรอเริ่ม</string>
-    <string name="bottom_page_notifications">การแจ้งเตือน</string>
-    <string name="bottom_notifications_listener">หน้าจอล่างของ DroidDeck</string>
-    <string name="bottom_notifications_why">แสดงข้อความและการแจ้งเตือนอื่นๆ ที่นี่ขณะที่คุณเล่น การแจ้งเตือนจะแสดงบนหน้าจอนี้เท่านั้นและจะไม่ถูกบันทึก Android จะถามเพียงครั้งเดียว: หน้าการเข้าถึงการแจ้งเตือนจะเปิดขึ้นบนหน้าจอนี้ เปิด DroidDeck ที่นั่น แล้วหน้านี้จะกลับมาเอง</string>
-    <string name="bottom_notifications_allow">อนุญาตการเข้าถึงการแจ้งเตือน</string>
-    <string name="bottom_notifications_none">ไม่มีการแจ้งเตือน</string>
-    <string name="bottom_notifications_count">การแจ้งเตือน %1$d รายการ</string>
-    <string name="bottom_notifications_clear">ล้าง</string>
     <string name="bottom_page_screenshots">ภาพหน้าจอ</string>
     <string name="stats_fps_needs_hud">ต้องเปิด HUD เพื่อแสดง FPS</string>
     <string name="stats_speed">ความเร็ว</string>
