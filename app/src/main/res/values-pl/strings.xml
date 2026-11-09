@@ -1825,13 +1825,6 @@
     <string name="bottom_downloads_shader">Pobieranie pamięci podręcznej shaderów</string>
     <string name="bottom_downloads_paused">Wstrzymano</string>
     <string name="bottom_downloads_queued">Oczekuje na rozpoczęcie</string>
-    <string name="bottom_page_notifications">Powiadomienia</string>
-    <string name="bottom_notifications_listener">Dolny ekran DroidDeck</string>
-    <string name="bottom_notifications_why">Wyświetlaj tu wiadomości i inne powiadomienia podczas gry. Pozostają tylko na tym ekranie i nie są zapisywane. Android zapyta raz: na tym ekranie otworzy się jego strona dostępu do powiadomień; włącz tam DroidDeck, a ta strona wróci sama.</string>
-    <string name="bottom_notifications_allow">Zezwól na dostęp do powiadomień</string>
-    <string name="bottom_notifications_none">Brak powiadomień.</string>
-    <string name="bottom_notifications_count">Powiadomienia: %1$d</string>
-    <string name="bottom_notifications_clear">Wyczyść</string>
     <string name="bottom_page_screenshots">Zrzuty ekranu</string>
     <string name="stats_fps_needs_hud">FPS wymaga włączonego HUD</string>
     <string name="stats_speed">Prędkość</string>

@@ -1793,13 +1793,6 @@
     <string name="bottom_downloads_shader">A transferir a cache de shaders</string>
     <string name="bottom_downloads_paused">Em pausa</string>
     <string name="bottom_downloads_queued">A aguardar início</string>
-    <string name="bottom_page_notifications">Notificações</string>
-    <string name="bottom_notifications_listener">Ecrã inferior do DroidDeck</string>
-    <string name="bottom_notifications_why">Mostre aqui mensagens e outras notificações enquanto joga. Ficam apenas neste ecrã e não são guardadas. O Android pergunta uma vez: a página de acesso às notificações abre neste ecrã; ative lá o DroidDeck e esta página volta automaticamente.</string>
-    <string name="bottom_notifications_allow">Permitir acesso às notificações</string>
-    <string name="bottom_notifications_none">Sem notificações.</string>
-    <string name="bottom_notifications_count">%1$d notificações</string>
-    <string name="bottom_notifications_clear">Limpar</string>
     <string name="bottom_page_screenshots">Capturas de ecrã</string>
     <string name="stats_fps_needs_hud">O FPS requer o HUD ativado</string>
     <string name="stats_speed">Velocidade</string>

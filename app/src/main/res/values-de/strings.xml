@@ -1769,13 +1769,6 @@
     <string name="bottom_downloads_shader">Shader-Cache wird heruntergeladen</string>
     <string name="bottom_downloads_paused">Pausiert</string>
     <string name="bottom_downloads_queued">Wartet auf Start</string>
-    <string name="bottom_page_notifications">Benachrichtigungen</string>
-    <string name="bottom_notifications_listener">DroidDeck – unterer Bildschirm</string>
-    <string name="bottom_notifications_why">Zeigt Nachrichten und andere Benachrichtigungen hier an, während du spielst. Sie bleiben nur auf diesem Bildschirm und werden nicht gespeichert. Android fragt einmal: Die Seite für den Benachrichtigungszugriff öffnet sich auf diesem Bildschirm; aktiviere dort DroidDeck, dann kehrt diese Seite von selbst zurück.</string>
-    <string name="bottom_notifications_allow">Benachrichtigungszugriff erlauben</string>
-    <string name="bottom_notifications_none">Keine Benachrichtigungen.</string>
-    <string name="bottom_notifications_count">%1$d Benachrichtigungen</string>
-    <string name="bottom_notifications_clear">Löschen</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">FPS benötigt das aktive HUD</string>
     <string name="stats_speed">Geschwindigkeit</string>

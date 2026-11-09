@@ -1888,13 +1888,6 @@
     <string name="bottom_downloads_shader">Загрузка кэша шейдеров</string>
     <string name="bottom_downloads_paused">Приостановлено</string>
     <string name="bottom_downloads_queued">Ожидает начала</string>
-    <string name="bottom_page_notifications">Уведомления</string>
-    <string name="bottom_notifications_listener">Нижний экран DroidDeck</string>
-    <string name="bottom_notifications_why">Показывает сообщения и другие уведомления здесь, пока вы играете. Они отображаются только на этом экране и не сохраняются. Android спросит один раз: на этом экране откроется страница доступа к уведомлениям; включите там DroidDeck, и эта страница вернется сама.</string>
-    <string name="bottom_notifications_allow">Разрешить доступ к уведомлениям</string>
-    <string name="bottom_notifications_none">Нет уведомлений.</string>
-    <string name="bottom_notifications_count">Уведомлений: %1$d</string>
-    <string name="bottom_notifications_clear">Очистить</string>
     <string name="bottom_page_screenshots">Скриншоты</string>
     <string name="stats_fps_needs_hud">Для FPS нужно включить HUD</string>
     <string name="stats_speed">Скорость</string>
