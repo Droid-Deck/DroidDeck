@@ -95,10 +95,10 @@ pub fn checked(method: u64, raw: &[u8], s: &manifest::Slice) -> Result<Vec<u8>, 
     Ok(out)
 }
 
-/// Whether a file of the right size already holds every slice the manifest lists for it.
+/// Whether a file of the right size already holds every slice the manifest lists for it; a file that cannot be checked is fetched again.
 fn already_installed(path: &Path, f: &File) -> bool {
     if f.slices.iter().any(|s| s.content_sha1.len() != 20 || s.size == 0) {
-        return true;
+        return false;
     }
     let Ok(mut file) = std::fs::File::open(path) else { return false };
     let mut buf = Vec::new();
