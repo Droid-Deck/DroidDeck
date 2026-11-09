@@ -100,5 +100,7 @@ echo "Lab build ready: $name ($(du -h "$lab/next/overlay.apk" | cut -f1)) in $((
 device cmd package compile -m verify -f $pkg >/dev/null
 progress restarting
 echo "Restarting DroidDeck on the Lab build"
+# The app's own agent ends with the app, so it is told to carry on once the app is back.
+if [ -n "${DD_AGENT:-}" ]; then mkdir -p "/data/user/0/$pkg/files/agent" && : > "/data/user/0/$pkg/files/agent/resume"; fi
 device "nohup sh -c 'sleep 3; monkey -p $pkg -c android.intent.category.LAUNCHER 1' >/dev/null 2>&1 &"
 for pid in $(device pidof $pkg); do kill "$pid" 2>/dev/null || true; done
