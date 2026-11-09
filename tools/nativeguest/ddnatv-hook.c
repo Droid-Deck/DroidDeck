@@ -20,6 +20,7 @@
 #include <ucontext.h>
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
+#include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
 #include <sys/un.h>

@@ -121,14 +121,32 @@ static void shm_remove(int id, long key) {
     shm_unlink_file(name);
 }
 
-static void shm_mark_attached(int id, int attached) {
+static int shm_mark_attached(int id, int attached) {
     char name[48];
     snprintf(name, sizeof(name), "att-%d-%d", id, (int)getpid());
     if (!attached) {
         shm_unlink_file(name);
-        return;
+        return 0;
     }
     int fd = shm_open_file(name, O_WRONLY | O_CREAT, 0600);
+    if (fd < 0) return -1;
+    syscall(SYS_close, fd);
+    return 0;
+}
+
+// The collector holds this exclusively while it scans and removes, shmat() shared while it checks a
+// segment, maps it and marks itself, so that no segment is collected while it is being attached.
+static int shm_lock_dir(int op) {
+    int fd = shm_open_file(".lock", O_RDWR | O_CREAT, 0600);
+    if (fd < 0) return -1;
+    if (syscall(SYS_flock, fd, op) != 0) {
+        syscall(SYS_close, fd);
+        return -1;
+    }
+    return fd;
+}
+
+static void shm_unlock_dir(int fd) {
     if (fd >= 0) syscall(SYS_close, fd);
 }
 
@@ -137,8 +155,13 @@ static void shm_mark_attached(int id, int attached) {
 static void shm_collect(void) {
     char path[PATH_MAX];
     if (shm_path(path, sizeof(path), NULL) != 0) return;
+    int lock = shm_lock_dir(LOCK_EX);
+    if (lock < 0) return;
     int dfd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (dfd < 0) return;
+    if (dfd < 0) {
+        shm_unlock_dir(lock);
+        return;
+    }
     char dents[4096];
     int dead[64];
     int ndead = 0;
@@ -164,6 +187,7 @@ static void shm_collect(void) {
     }
     // a segment still attached somewhere is kept, as Linux keeps it until IPC_RMID
     int used[64] = { 0 };
+    syscall(SYS_close, dfd);
     dfd = ndead > 0 ? (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_DIRECTORY | O_CLOEXEC) : -1;
     if (dfd >= 0) {
         for (;;) {
@@ -186,11 +210,12 @@ static void shm_collect(void) {
             }
         }
     }
-    syscall(SYS_close, dfd);
+    if (dfd >= 0) syscall(SYS_close, dfd);
     for (int i = 0; i < ndead; i++) {
         struct shm_meta meta;
         if (!used[i] && shm_read_meta(dead[i], &meta) == 0) shm_remove(dead[i], meta.key);
     }
+    shm_unlock_dir(lock);
 }
 
 // A new segment: claims an id, makes its memory, then writes its description. Returns the id or -1.
@@ -359,8 +384,21 @@ int shmget(key_t key, size_t size, int shmflg) {
     return -1;
 }
 
+static void *shmat_locked(int shmid, const void *shmaddr, int shmflg);
+
 void *shmat(int shmid, const void *shmaddr, int shmflg) {
     init_ddnatv_hook();
+    int lock = g_ddnatv_root[0] != '\0' ? shm_lock_dir(LOCK_SH) : -1;
+    void *addr = shmat_locked(shmid, shmaddr, shmflg);
+    int saved = errno;
+    shm_unlock_dir(lock);
+    errno = saved;
+    return addr;
+}
+
+static int shm_attached_here_locked(int id);
+
+static void *shmat_locked(int shmid, const void *shmaddr, int shmflg) {
     struct shm_meta meta;
     if (g_ddnatv_root[0] == '\0' || shm_read_meta(shmid, &meta) != 0) {
         errno = EINVAL;
@@ -412,6 +450,14 @@ void *shmat(int shmid, const void *shmaddr, int shmflg) {
         saved = EINVAL;
     }
     pthread_mutex_lock(&g_shm_lock);
+    // the mark keeps the segment from being collected; without one the attach is undone
+    if (addr != MAP_FAILED && shm_mark_attached(shmid, 1) != 0) {
+        saved = errno;
+        if (shm_attached_here_locked(shmid) == 0) shm_mark_attached(shmid, 0);
+        munmap(addr, meta.size);
+        addr = MAP_FAILED;
+        if (saved != ENOMEM) saved = EINVAL;
+    }
     if (addr == MAP_FAILED) {
         g_shm_attach[slot].size = 0;
     } else {
@@ -420,15 +466,12 @@ void *shmat(int shmid, const void *shmaddr, int shmflg) {
         g_shm_attach[slot].id = shmid;
     }
     pthread_mutex_unlock(&g_shm_lock);
-    if (addr != MAP_FAILED) shm_mark_attached(shmid, 1);
     if (addr == MAP_FAILED) {
         errno = saved == ENOMEM ? ENOMEM : EINVAL;
         return (void *)-1;
     }
     return addr;
 }
-
-static int shm_attached_here(int id);
 
 int shmdt(const void *shmaddr) {
     pthread_mutex_lock(&g_shm_lock);
@@ -439,15 +482,24 @@ int shmdt(const void *shmaddr) {
             int id = g_shm_attach[i].id;
             g_shm_attach[i].addr = NULL;
             g_shm_attach[i].size = 0;
+            // counted and unmarked under the lock, so that an attach of this process meanwhile keeps its mark
+            if (shm_attached_here_locked(id) == 0) shm_mark_attached(id, 0);
             pthread_mutex_unlock(&g_shm_lock);
             munmap(addr, size);
-            if (shm_attached_here(id) == 0) shm_mark_attached(id, 0);
             return 0;
         }
     }
     pthread_mutex_unlock(&g_shm_lock);
     errno = EINVAL;
     return -1;
+}
+
+static int shm_attached_here_locked(int id) {
+    int count = 0;
+    for (int i = 0; i < SHM_MAX_ATTACH; i++) {
+        if (g_shm_attach[i].addr && g_shm_attach[i].id == id) count++;
+    }
+    return count;
 }
 
 static int shm_attached_here(int id) {
