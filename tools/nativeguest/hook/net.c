@@ -501,18 +501,12 @@ static struct addrinfo *alloc_addrinfo(const char *node, int family, const void 
     ai->ai_flags = DDNATV_ADDRINFO_MAGIC;
     ai->ai_family = family;
     ai->ai_socktype = socktype ? socktype : SOCK_STREAM;
-    ai->ai_protocol = protocol ? protocol : IPPROTO_TCP;
+    ai->ai_protocol = protocol;
     ai->ai_addrlen = len;
     ai->ai_addr = (struct sockaddr *)sa;
     ai->ai_canonname = node ? strdup(node) : NULL;
     ai->ai_next = NULL;
     return ai;
-}
-
-static struct addrinfo *alloc_one_addrinfo(const char *node, const char *ip_str, int port, int socktype, int protocol) {
-    struct in_addr a;
-    if (inet_pton(AF_INET, ip_str, &a) != 1) return NULL;
-    return alloc_addrinfo(node, AF_INET, &a, port, socktype, protocol);
 }
 
 static uint16_t generate_dns_txid(void) {
@@ -626,14 +620,91 @@ static int network_dns_is_ipv6_only(void) {
     return n > 0;
 }
 
-static int domain_matches(const char *node, const char *suffix) {
-    if (!node || !suffix) return 0;
-    size_t nlen = strlen(node);
-    size_t slen = strlen(suffix);
-    if (nlen < slen) return 0;
-    if (strcasecmp(node + (nlen - slen), suffix) != 0) return 0;
-    if (nlen == slen) return 1;
-    return (node[nlen - slen - 1] == '.');
+// glibc reads /etc/services with an open() of its own, which the path hooks never see, so a service
+// name was looked up where Android has no such file: getaddrinfo(host, "https") failed with
+// EAI_SERVICE. The rootfs's file is read here when glibc finds nothing. 0, ENOENT or ERANGE.
+static int ddnatv_lookup_service(const char *name, int port, const char *proto,
+                                 struct servent *out, char *buf, size_t buflen) {
+    char path_buf[PATH_MAX];
+    const char *path = rewrite_path("/etc/services", path_buf, sizeof(path_buf));
+    FILE *f = path ? fopen(path, "re") : NULL;
+    if (!f) return ENOENT;
+    char line[512];
+    int result = ENOENT;
+    while (result == ENOENT && fgets(line, sizeof(line), f)) {
+        char *hash = strchr(line, '#');
+        if (hash) *hash = '\0';
+        char *save = NULL;
+        char *svc = strtok_r(line, " \t\r\n", &save);
+        char *pp = svc ? strtok_r(NULL, " \t\r\n", &save) : NULL;
+        char *slash = pp ? strchr(pp, '/') : NULL;
+        if (!slash) continue;
+        *slash = '\0';
+        const char *svc_proto = slash + 1;
+        int svc_port = atoi(pp);
+        if (proto && strcmp(proto, svc_proto) != 0) continue;
+        char *aliases[16];
+        int naliases = 0;
+        int matched = name ? strcmp(svc, name) == 0 : svc_port == port;
+        for (char *a = strtok_r(NULL, " \t\r\n", &save); a && naliases < 15; a = strtok_r(NULL, " \t\r\n", &save)) {
+            aliases[naliases++] = a;
+            if (name && strcmp(a, name) == 0) matched = 1;
+        }
+        if (!matched) continue;
+        // buf holds the alias pointers, then the strings
+        size_t need = sizeof(char *) * (size_t)(naliases + 1) + strlen(svc) + 1 + strlen(svc_proto) + 1;
+        for (int i = 0; i < naliases; i++) need += strlen(aliases[i]) + 1;
+        if (need > buflen) { result = ERANGE; break; }
+        char **list = (char **)(void *)buf;
+        char *p = buf + sizeof(char *) * (size_t)(naliases + 1);
+        out->s_name = strcpy(p, svc); p += strlen(svc) + 1;
+        out->s_proto = strcpy(p, svc_proto); p += strlen(svc_proto) + 1;
+        for (int i = 0; i < naliases; i++) { list[i] = strcpy(p, aliases[i]); p += strlen(aliases[i]) + 1; }
+        list[naliases] = NULL;
+        out->s_aliases = list;
+        out->s_port = (int)htons((uint16_t)svc_port);
+        result = 0;
+    }
+    fclose(f);
+    return result;
+}
+
+int getservbyname_r(const char *name, const char *proto, struct servent *result_buf, char *buf, size_t buflen,
+                    struct servent **result) {
+    static int (*orig)(const char *, const char *, struct servent *, char *, size_t, struct servent **) = NULL;
+    if (!orig) orig = (int (*)(const char *, const char *, struct servent *, char *, size_t, struct servent **))dlsym(RTLD_NEXT, "getservbyname_r");
+    int ret = orig ? orig(name, proto, result_buf, buf, buflen, result) : ENOENT;
+    if (ret == 0 && result && *result) return 0;
+    if (!name || !result_buf || !buf) return ret;
+    int err = ddnatv_lookup_service(name, 0, proto, result_buf, buf, buflen);
+    if (result) *result = err == 0 ? result_buf : NULL;
+    return err == ERANGE ? ERANGE : 0;
+}
+
+int getservbyport_r(int port, const char *proto, struct servent *result_buf, char *buf, size_t buflen,
+                    struct servent **result) {
+    static int (*orig)(int, const char *, struct servent *, char *, size_t, struct servent **) = NULL;
+    if (!orig) orig = (int (*)(int, const char *, struct servent *, char *, size_t, struct servent **))dlsym(RTLD_NEXT, "getservbyport_r");
+    int ret = orig ? orig(port, proto, result_buf, buf, buflen, result) : ENOENT;
+    if (ret == 0 && result && *result) return 0;
+    if (!result_buf || !buf) return ret;
+    int err = ddnatv_lookup_service(NULL, ntohs((uint16_t)port), proto, result_buf, buf, buflen);
+    if (result) *result = err == 0 ? result_buf : NULL;
+    return err == ERANGE ? ERANGE : 0;
+}
+
+struct servent *getservbyname(const char *name, const char *proto) {
+    static __thread struct servent entry;
+    static __thread char buf[1024];
+    struct servent *found = NULL;
+    return getservbyname_r(name, proto, &entry, buf, sizeof(buf), &found) == 0 ? found : NULL;
+}
+
+struct servent *getservbyport(int port, const char *proto) {
+    static __thread struct servent entry;
+    static __thread char buf[1024];
+    struct servent *found = NULL;
+    return getservbyport_r(port, proto, &entry, buf, sizeof(buf), &found) == 0 ? found : NULL;
 }
 
 static int synthesize_fallback_addrinfo(const char *node, const char *service,
@@ -642,30 +713,26 @@ static int synthesize_fallback_addrinfo(const char *node, const char *service,
     if (!node || !res) return EAI_NONAME;
 
     int socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
-    int protocol = (hints && hints->ai_protocol) ? hints->ai_protocol : IPPROTO_TCP;
+    int protocol = (hints && hints->ai_protocol) ? hints->ai_protocol
+        : socktype == SOCK_DGRAM ? IPPROTO_UDP : socktype == SOCK_STREAM ? IPPROTO_TCP : 0;
     int family = hints ? hints->ai_family : AF_UNSPEC;
+    if (family != AF_UNSPEC && family != AF_INET && family != AF_INET6) return EAI_FAMILY;
 
-    int port = 80;
-    if (service) {
-        if (strcmp(service, "https") == 0 || strcmp(service, "443") == 0) {
-            port = 443;
-        } else if (strcmp(service, "http") == 0 || strcmp(service, "80") == 0) {
-            port = 80;
-        } else if (service[0] >= '0' && service[0] <= '9') {
-            int p = 0;
-            const char *sp = service;
-            while (*sp >= '0' && *sp <= '9') {
-                p = p * 10 + (*sp - '0');
-                sp++;
-            }
-            if (p > 0 && p < 65536) port = p;
+    // As glibc: no service is port 0, a number is that port, a name comes from /etc/services
+    int port = 0;
+    if (service && *service) {
+        char *end = NULL;
+        errno = 0;
+        long p = strtol(service, &end, 10);
+        if (end && *end == '\0' && errno == 0) {
+            if (p < 0 || p > 65535) return EAI_SERVICE;
+            port = (int)p;
         } else {
-            // A service name such as "ssh" or "domain", from /etc/services
             struct servent se, *found = NULL;
             char se_buf[1024];
-            if (getservbyname_r(service, socktype == SOCK_DGRAM ? "udp" : "tcp", &se, se_buf, sizeof(se_buf), &found) == 0 && found) {
-                port = ntohs((uint16_t)found->s_port);
-            }
+            if (getservbyname_r(service, socktype == SOCK_DGRAM ? "udp" : "tcp", &se, se_buf, sizeof(se_buf), &found) != 0 || !found)
+                return EAI_SERVICE;
+            port = ntohs((uint16_t)found->s_port);
         }
     }
 
