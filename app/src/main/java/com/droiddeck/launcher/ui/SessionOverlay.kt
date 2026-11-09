@@ -217,6 +217,7 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
+    val hasGameOverride: Boolean,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -567,9 +568,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         FrameGenMenu(
                                             host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
                                             gameProfileId = a.selectedGameProfileId?.toString(),
-                                            hasGameOverride = a.selectedGameProfileId?.let {
-                                                FrameGen.hasGameOverride(LocalContext.current, it.toString())
-                                            } == true,
+                                            hasGameOverride = a.hasGameOverride,
                                             onResetGame = a.onFrameGenReset,
                                         )
                                     }
