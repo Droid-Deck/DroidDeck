@@ -2207,6 +2207,7 @@
     <string name="display_desktop_compositor">Compositeur du bureau</string>
     <string name="display_software_rendering">Forcer le rendu logiciel</string>
     <string name="display_software_rendering_hint">Activer cette option peut corriger un écran noir ou des erreurs de rendu en mode bureau sur certains appareils, mais peut réduire les performances.</string>
+    <string name="display_software_rendering_locked">Conflit de configuration ; impossible à modifier</string>
     <string name="display_look_filter">%1$s Règle la mise à l\'échelle sur %2$s.</string>
     <string name="display_match_screen">Adapter à l\'écran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Suivre l\'écran (s\'adapte au pliage et au dépliage)</string>

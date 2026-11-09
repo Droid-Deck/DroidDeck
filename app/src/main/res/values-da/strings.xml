@@ -2182,6 +2182,7 @@
     <string name="display_desktop_compositor">Skrivebordskompositor</string>
     <string name="display_software_rendering">Tving softwaregengivelse</string>
     <string name="display_software_rendering_hint">Slået til kan dette afhjælpe sort skærm eller gengivelsesfejl i skrivebordstilstand på nogle enheder, men det kan forringe ydeevnen.</string>
+    <string name="display_software_rendering_locked">Konflikt i opsætningen; kan ikke ændres</string>
     <string name="display_look_filter">%1$s Indstiller skalering til %2$s.</string>
     <string name="display_match_screen">Match skærm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skærm (ændrer størrelse ved fold/udfold)</string>

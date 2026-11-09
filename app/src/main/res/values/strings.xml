@@ -2408,6 +2408,7 @@
     <string name="display_desktop_compositor">Desktop compositor</string>
     <string name="display_software_rendering">Force software rendering</string>
     <string name="display_software_rendering_hint">Turning this on may fix a black screen or rendering errors in desktop mode on some devices, but it may reduce performance.</string>
+    <string name="display_software_rendering_locked">Configuration conflict; it cannot be changed</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (resizes when folded or unfolded)</string>

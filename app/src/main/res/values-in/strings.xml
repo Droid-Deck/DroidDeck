@@ -2157,6 +2157,7 @@
     <string name="display_desktop_compositor">Kompositor desktop</string>
     <string name="display_software_rendering">Paksa rendering perangkat lunak</string>
     <string name="display_software_rendering_hint">Mengaktifkan ini dapat memperbaiki layar hitam atau kesalahan rendering di mode desktop pada sebagian perangkat, tetapi dapat menurunkan performa.</string>
+    <string name="display_software_rendering_locked">Konflik konfigurasi; tidak dapat diubah</string>
     <string name="display_look_filter">%1$s Mengatur skala ke %2$s.</string>
     <string name="display_match_screen">Sesuaikan layar (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikuti layar (ukuran berubah saat dilipat atau dibuka)</string>

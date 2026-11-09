@@ -2315,6 +2315,7 @@
     <string name="display_desktop_compositor">Композитор рабочего стола</string>
     <string name="display_software_rendering">Принудительная программная отрисовка</string>
     <string name="display_software_rendering_hint">Включение может устранить чёрный экран или ошибки отрисовки в режиме рабочего стола на некоторых устройствах, но может снизить производительность.</string>
+    <string name="display_software_rendering_locked">Конфликт настроек; изменить нельзя</string>
     <string name="display_look_filter">%1$s Устанавливает масштабирование: %2$s.</string>
     <string name="display_match_screen">По размеру экрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">По экрану (меняется при складывании и раскладывании)</string>

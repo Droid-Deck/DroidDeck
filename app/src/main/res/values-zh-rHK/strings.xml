@@ -2157,6 +2157,7 @@
     <string name="display_desktop_compositor">桌面合成器</string>
     <string name="display_software_rendering">強制軟件渲染</string>
     <string name="display_software_rendering_hint">開啟此選項可能改善部分裝置上桌面模式黑屏／渲染錯誤的情況，但可能降低效能</string>
+    <string name="display_software_rendering_locked">設定衝突，無法修改</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">配合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>

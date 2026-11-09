@@ -2406,6 +2406,7 @@ class FrontEndActivity : ComponentActivity() {
                 picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
                 stretch16x9 = if (mode == SessionService.MODE_STEAM) stretch16x9 else null,
                 forceSoftwareRendering = if (mode == SessionService.MODE_DESKTOP && desktopInstalled) forceSoftwareRendering else null,
+                forceSoftwareRenderingConflicted = mode == SessionService.MODE_DESKTOP && com.droiddeck.launcher.runtime.DesktopCompositor.conflicted(this),
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,

@@ -556,6 +556,16 @@ fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked
         ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
+/** A switch that is held in place, with [note] beside it saying why. */
+@Composable
+fun LockedToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, note: String, chipModifier: Modifier = Modifier) =
+    SettingsRow(label, hint) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(note, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = LocalPalette.current.error, maxLines = 1)
+            ToggleSwitch(checked, enabled = false, label, chipModifier.testTag("setting-$key")) { host.open = null }
+        }
+    }
+
 @Composable
 fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = null, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     val colors = MaterialTheme.colorScheme

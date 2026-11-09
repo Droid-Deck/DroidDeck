@@ -2199,6 +2199,7 @@
     <string name="display_desktop_compositor">Compositor da área de trabalho</string>
     <string name="display_software_rendering">Forçar renderização por software</string>
     <string name="display_software_rendering_hint">Ativar esta opção pode corrigir a tela preta ou erros de renderização no modo área de trabalho em alguns dispositivos, mas pode reduzir o desempenho.</string>
+    <string name="display_software_rendering_locked">Conflito de configuração; não é possível alterar</string>
     <string name="display_look_filter">%1$s Define a escala como %2$s.</string>
     <string name="display_match_screen">Igual à tela (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir a tela (redimensiona ao dobrar ou desdobrar)</string>

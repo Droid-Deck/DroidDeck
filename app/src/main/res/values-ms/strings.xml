@@ -2157,6 +2157,7 @@
     <string name="display_desktop_compositor">Kompositor desktop</string>
     <string name="display_software_rendering">Paksa pemaparan perisian</string>
     <string name="display_software_rendering_hint">Menghidupkan pilihan ini boleh membaiki skrin hitam atau ralat pemaparan dalam mod desktop pada sesetengah peranti, tetapi boleh mengurangkan prestasi.</string>
+    <string name="display_software_rendering_locked">Konflik konfigurasi; tidak boleh diubah</string>
     <string name="display_look_filter">%1$s Menetapkan penskalaan ke %2$s.</string>
     <string name="display_match_screen">Sepadan skrin (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikut skrin (mengubah saiz apabila dilipat atau dibuka)</string>

@@ -2232,6 +2232,7 @@
     <string name="display_desktop_compositor">Kompozytor pulpitu</string>
     <string name="display_software_rendering">Wymuś renderowanie programowe</string>
     <string name="display_software_rendering_hint">Włączenie tej opcji może naprawić czarny ekran lub błędy renderowania w trybie pulpitu na niektórych urządzeniach, ale może obniżyć wydajność.</string>
+    <string name="display_software_rendering_locked">Konflikt konfiguracji; nie można zmienić</string>
     <string name="display_look_filter">%1$s Ustawia skalowanie na %2$s.</string>
     <string name="display_match_screen">Dopasuj do ekranu (%1$d×%2$d)</string>
     <string name="display_follow_screen">Dopasuj do ekranu (zmienia rozmiar po złożeniu lub rozłożeniu)</string>

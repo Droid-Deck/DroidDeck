@@ -2157,6 +2157,7 @@
     <string name="display_desktop_compositor">คอมโพสิเตอร์เดสก์ท็อป</string>
     <string name="display_software_rendering">บังคับการเรนเดอร์ด้วยซอฟต์แวร์</string>
     <string name="display_software_rendering_hint">การเปิดตัวเลือกนี้อาจช่วยแก้หน้าจอดำหรือข้อผิดพลาดในการเรนเดอร์ในโหมดเดสก์ท็อปบนอุปกรณ์บางรุ่นได้ แต่อาจลดประสิทธิภาพ</string>
+    <string name="display_software_rendering_locked">การตั้งค่าขัดแย้งกัน จึงแก้ไขไม่ได้</string>
     <string name="display_look_filter">%1$s ตั้งการปรับขนาดเป็น %2$s</string>
     <string name="display_match_screen">พอดีหน้าจอ (%1$d×%2$d)</string>
     <string name="display_follow_screen">ตามหน้าจอ (ปรับขนาดเมื่อพับหรือกาง)</string>

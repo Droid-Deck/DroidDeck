@@ -2182,6 +2182,7 @@
     <string name="display_desktop_compositor">Bureaubladcompositor</string>
     <string name="display_software_rendering">Software-rendering forceren</string>
     <string name="display_software_rendering_hint">Dit inschakelen kan op sommige apparaten een zwart scherm of weergavefouten in de bureaubladmodus verhelpen, maar kan de prestaties verminderen.</string>
+    <string name="display_software_rendering_locked">Configuratieconflict; kan niet worden gewijzigd</string>
     <string name="display_look_filter">%1$s Zet schaling op %2$s.</string>
     <string name="display_match_screen">Schermformaat (%1$d×%2$d)</string>
     <string name="display_follow_screen">Scherm volgen (past formaat aan bij vouwen of uitvouwen)</string>

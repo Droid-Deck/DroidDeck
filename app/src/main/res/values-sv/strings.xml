@@ -2182,6 +2182,7 @@
     <string name="display_desktop_compositor">Skrivbordskompositör</string>
     <string name="display_software_rendering">Tvinga programvarurendering</string>
     <string name="display_software_rendering_hint">Om detta slås på kan det åtgärda en svart skärm eller renderingsfel i skrivbordsläget på vissa enheter, men prestandan kan försämras.</string>
+    <string name="display_software_rendering_locked">Konflikt i konfigurationen; kan inte ändras</string>
     <string name="display_look_filter">%1$s Ställer in skalning till %2$s.</string>
     <string name="display_match_screen">Matcha skärmen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Följ skärmen (ändrar storlek vid vikning)</string>

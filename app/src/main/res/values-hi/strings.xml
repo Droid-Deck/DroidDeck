@@ -2182,6 +2182,7 @@
     <string name="display_desktop_compositor">डेस्कटॉप कम्पोज़िटर</string>
     <string name="display_software_rendering">सॉफ़्टवेयर रेंडरिंग बाध्य करें</string>
     <string name="display_software_rendering_hint">इसे चालू करने से कुछ डिवाइस पर डेस्कटॉप मोड में काली स्क्रीन या रेंडरिंग त्रुटियाँ ठीक हो सकती हैं, लेकिन प्रदर्शन कम हो सकता है।</string>
+    <string name="display_software_rendering_locked">कॉन्फ़िगरेशन टकराव; इसे बदला नहीं जा सकता</string>
     <string name="display_look_filter">%1$s स्केलिंग को %2$s पर सेट करता है।</string>
     <string name="display_match_screen">स्क्रीन से मिलाएँ (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (खुलने या बंद होने पर आकार बदलता है)</string>
