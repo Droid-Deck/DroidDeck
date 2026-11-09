@@ -1736,7 +1736,6 @@
     <string name="theme_color_saturation">Saturation</string>
     <string name="theme_color_brightness">Brightness</string>
     <string name="theme_color_hex">Hex color</string>
-<string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -3817,5 +3816,5 @@
     <string name="input_layout_import_failed">Could not import this layout</string>
 
     <string name="theme_white_red">Scarlet Snow</string>
-    
+    <string name="theme_white_red_detail">White surfaces with red accents.</string>
 </resources>
