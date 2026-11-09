@@ -7,8 +7,11 @@ import com.droiddeck.launcher.session.EnhancedSessionLogShare
 import com.droiddeck.launcher.session.GpuClockPin
 
 class App : Application() {
-    override fun attachBaseContext(base: android.content.Context) =
+    override fun attachBaseContext(base: android.content.Context) {
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(base))
+        val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName() else packageName
+        com.droiddeck.launcher.lab.LabOverlay.load(this, process == packageName)
+    }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)

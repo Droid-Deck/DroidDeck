@@ -1121,6 +1121,8 @@
     <string name="upd_tests">Test builds</string>
     <string name="upd_tests_hint">Try a fix before it\'s released</string>
     <string name="upd_tests_none">None right now</string>
+    <string name="upd_lab">Lab build</string>
+    <string name="upd_lab_off">Tap to go back to the installed version</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>

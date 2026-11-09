@@ -280,6 +280,12 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
             if (tests.isEmpty()) stringResource(R.string.upd_tests_none) else pluralStringResource(R.plurals.upd_tests_count, tests.size, tests.size),
             u.follow.channel == Channel.TEST, enabled = tests.isNotEmpty() || u.follow.channel == Channel.TEST,
         ) { tests.firstOrNull()?.let { ua.onFollow(Follow(Channel.TEST, it.pr)) } }
+        com.droiddeck.launcher.lab.LabOverlay.active?.let { lab ->
+            val context = androidx.compose.ui.platform.LocalContext.current
+            ChannelCard(Icons.Outlined.Code, stringResource(R.string.upd_lab), lab.label, stringResource(R.string.upd_lab_off), true) {
+                com.droiddeck.launcher.lab.LabOverlay.turnOff(context)
+            }
+        }
         AnimatedVisibility(u.follow.channel == Channel.TEST && tests.isNotEmpty(), enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
