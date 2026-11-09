@@ -10,6 +10,9 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.LoginFlows
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
+import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.download.DownloadEntry
+import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.WebCookies
@@ -45,7 +48,16 @@ object UbisoftBackend : StoreBackend {
     override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
-        StoresState.logLine("Ubisoft: downloads are not in this build yet")
+        val app = context.applicationContext
+        if (!UbisoftNative.ready()) {
+            StoresState.logLine(UbisoftNative.ENGINE_MISSING)
+            StoresState.post { StoresState.problems[store] = UbisoftNative.ENGINE_MISSING }
+            return
+        }
+        val folder = StoreInstallRoot.folderFor(app, store, item.id, item.title, root)
+        val entry = DownloadEntry(store, item.id, item.title, cover = item.tallImageUrl ?: item.imageUrl,
+            bytesTotal = item.sizeBytes, location = StoreInstallRoot.labelFor(app, folder))
+        DownloadQueue.enqueue(app, entry) { UbisoftInstaller(app, item, folder) }
     }
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
@@ -98,6 +110,32 @@ object UbisoftLibrary {
         return items to games.optInt("totalCount", items.size)
     }
 
+    /** Base games with a manifest, by UbiServices space; add-ons and bundles share spaces with their game. */
+    internal fun ownedBySpace(owned: JSONObject?): Map<String, JSONObject> {
+        val list = owned?.optJSONArray("games") ?: return emptyMap()
+        return (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+            .filter { it.optString("spaceId").isNotEmpty() && it.optString("manifest").isNotEmpty() && it.optInt("productType") == 0 && it.optBoolean("owned", true) }
+            .groupBy { it.optString("spaceId") }.mapValues { it.value.first() }
+    }
+
+    private val RELATIVE = Regex("""relative:\s*['"]?([^'"\r\n]+?)['"]?\s*$""", RegexOption.MULTILINE)
+
+    private val NAME = Regex("""^\s{1,4}name:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE)
+
+    /** The product's name from its configuration, following a localisation key such as `l1` to its default text. */
+    internal fun title(configuration: String): String? {
+        val raw = NAME.find(configuration)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (!Regex("""l\d+""").matches(raw)) return raw
+        val local = configuration.indexOf("localizations:").takeIf { it >= 0 } ?: return raw
+        return Regex("""^\s+${raw}:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE).find(configuration, local)?.groupValues?.get(1)?.trim() ?: raw
+    }
+
+    /** The first launch path under `start_game` in a product's configuration. */
+    internal fun executable(configuration: String): String? {
+        val start = configuration.indexOf("start_game").takeIf { it >= 0 } ?: return null
+        return RELATIVE.find(configuration, start)?.groupValues?.get(1)?.trim()?.takeIf { it.endsWith(".exe", true) }
+    }
+
     fun sync(app: Context, force: Boolean) {
         if (!running.compareAndSet(false, true)) return
         try {
@@ -120,7 +158,23 @@ object UbisoftLibrary {
                 offset += PAGE
                 if (items.isEmpty() || offset >= total) break
             }
-            val games = all.distinctBy { it.id }.sortedBy { it.title.lowercase() }
+            val owned = UbisoftNative.call("owned", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId))
+            owned?.optString("error")?.takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: ownership: $it") }
+            val bySpace = ownedBySpace(owned)
+            fun download(o: JSONObject) = listOfNotNull(
+                "productId" to o.optLong("productId").toString(),
+                o.optString("manifest").takeIf { it.isNotEmpty() }?.let { "manifest" to it },
+                executable(o.optString("configuration"))?.let { "exe" to it },
+            )
+            val listed = all.distinctBy { it.id }
+            val matched = listed.map { g -> bySpace[g.id]?.let { g.copy(extra = g.extra + download(it)) } ?: g }
+            val unlisted = bySpace.filterKeys { space -> listed.none { it.id == space } }.mapNotNull { (space, o) ->
+                val title = title(o.optString("configuration")) ?: return@mapNotNull null
+                CatalogItem(Store.UBISOFT, space, title, null, owned = true, extra = mapOf("spaceId" to space) + download(o))
+            }
+            val games = (matched + unlisted).sortedBy { it.title.lowercase() }
+            StoresState.logLine("Ubisoft: ${bySpace.size} downloadable products; " +
+                games.filter { it.extra.containsKey("productId") }.joinToString(", ") { "${it.title}=${it.extra["productId"]}" })
             StoresState.post {
                 StoresState.status.remove(Store.UBISOFT)
                 StoresState.problems.remove(Store.UBISOFT)
