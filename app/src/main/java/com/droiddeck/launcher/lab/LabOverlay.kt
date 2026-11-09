@@ -33,6 +33,9 @@ object LabOverlay {
     private const val MAX_FAILED_STARTS = 2
     private const val STABLE_AFTER_MS = 10_000L
 
+    /** The installed APK's commit; this class always comes from the APK, never from a Lab build. */
+    val apkCommit: String = BuildConfig.SOURCE_COMMIT
+
     @Volatile var active: Info? = null
         private set
     @Volatile var skipped: String? = null
@@ -60,7 +63,7 @@ object LabOverlay {
             if (!apk.isFile || !meta.isFile) return
             val info = parse(meta.readText()) ?: return refuse(root, mainProcess, "unreadable overlay.json")
             // The APK's path changes with every install and update of the app.
-            if (info.baseCommit != BuildConfig.SOURCE_COMMIT || info.baseApk != app.applicationInfo.sourceDir)
+            if (info.baseCommit != apkCommit || info.baseApk != app.applicationInfo.sourceDir)
                 return refuse(root, mainProcess, "built for another install")
             if (Build.VERSION.SDK_INT < 30) return skip("needs Android 11")
             // Classes in an app image are loaded before attachBaseContext and would ignore the overlay;

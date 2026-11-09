@@ -1,0 +1,4 @@
+#!/bin/sh
+# Claude Code in the DroidDeck checkout, with sign-in links opened in Android's browser.
+export ADB_SERIAL=${ADB_SERIAL:-127.0.0.1:5555} PATH="$HOME/.local/bin:$PATH" BROWSER="$HOME/.local/bin/android-open"
+cd "$HOME/DroidDeck" && exec claude "$@"

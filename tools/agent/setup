@@ -1,0 +1,59 @@
+#!/bin/bash
+# Sets up the on-device agent inside DroidDeck's Linux userland: Claude Code, git and gh, loopback
+# adb for droiddeckctl, and the toolchain dd-lab-build uses to build Lab builds on the device.
+# Run it from the DroidDeck terminal, inside a checkout of the DroidDeck repository.
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get install -y --no-install-recommends git gh adb python3 zip unzip curl openjdk-17-jdk-headless qemu-user zipalign apksigner
+
+command -v claude >/dev/null || [ -x "$HOME/.local/bin/claude" ] || curl -fsSL https://claude.ai/install.sh | bash
+
+mkdir -p "$HOME/.local/bin"
+for tool in dd-agent dd-lab-build dd-gh-login android-open; do install -m755 "$here/$tool" "$HOME/.local/bin/$tool"; done
+grep -q 'droiddeck-agent-path' "$HOME/.bashrc" 2>/dev/null ||
+  printf '\n# droiddeck-agent-path\nexport PATH="$HOME/.local/bin:$PATH" ADB_SERIAL=127.0.0.1:5555 BROWSER="$HOME/.local/bin/android-open"\n' >> "$HOME/.bashrc"
+
+# Google publishes aapt2 for x86-64 Linux only; it runs here under qemu-user with Ubuntu's x86-64 runtime.
+agp=$(sed -n "s/.*com.android.tools.build:gradle:\([0-9.]*\).*/\1/p" build.gradle | head -1)
+aapt2=$(curl -fsSL "https://dl.google.com/android/maven2/com/android/tools/build/aapt2/maven-metadata.xml" |
+  grep -o "<version>$agp-[0-9]*</version>" | tail -1 | sed 's/<[^>]*>//g')
+x86=$HOME/x86root
+mkdir -p "$HOME/aapt2/x86" "$x86/etc"
+if [ ! -x "$HOME/aapt2/x86/aapt2" ]; then
+  curl -fsSL -o /tmp/aapt2.jar "https://dl.google.com/android/maven2/com/android/tools/build/aapt2/$aapt2/aapt2-$aapt2-linux.jar"
+  unzip -o -q /tmp/aapt2.jar aapt2 -d "$HOME/aapt2/x86"
+  chmod +x "$HOME/aapt2/x86/aapt2"
+fi
+if [ ! -e "$x86/lib64/ld-linux-x86-64.so.2" ]; then
+  codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+  curl -fsSL "http://archive.ubuntu.com/ubuntu/dists/$codename/main/binary-amd64/Packages.gz" | gunzip > /tmp/amd64-packages
+  for package in libc6 libgcc-s1 libstdc++6 zlib1g; do
+    file=$(awk -v p="$package" '$0 == "Package: " p {found = 1} found && /^Filename:/ {print $2; exit}' /tmp/amd64-packages)
+    curl -fsSL -o /tmp/$package.deb "http://archive.ubuntu.com/ubuntu/$file"
+    dpkg-deb -x /tmp/$package.deb "$x86"
+  done
+  ln -sfn usr/lib64 "$x86/lib64"
+  ln -sfn usr/lib "$x86/lib"
+  : > "$x86/etc/ld.so.preload"
+fi
+# AGP only accepts a custom aapt2 whose file is named aapt2.
+printf '#!/bin/sh\nexec qemu-x86_64 -L %s %s/aapt2/x86/aapt2 "$@"\n' "$x86" "$HOME" > "$HOME/aapt2/aapt2"
+chmod +x "$HOME/aapt2/aapt2"
+"$HOME/aapt2/aapt2" version
+
+sdk=$HOME/android-sdk
+if [ ! -x "$sdk/cmdline-tools/latest/bin/sdkmanager" ]; then
+  mkdir -p "$sdk/cmdline-tools"
+  curl -fsSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+  unzip -q -o /tmp/cmdline-tools.zip -d "$sdk/cmdline-tools"
+  rm -rf "$sdk/cmdline-tools/latest"
+  mv "$sdk/cmdline-tools/cmdline-tools" "$sdk/cmdline-tools/latest"
+fi
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+"$sdk/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
+
+adb connect 127.0.0.1:5555 || true
+echo "Done. Approve the USB debugging prompt if one appears, then run dd-agent."

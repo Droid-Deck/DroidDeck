@@ -1,0 +1,9 @@
+#!/bin/sh
+# Opens a URL in Android's browser on the bottom screen.
+url=$1
+[ -n "$url" ] || exit 1
+serial=${ADB_SERIAL:-127.0.0.1:5555}
+adb connect "$serial" >/dev/null 2>&1
+quoted=$(printf "%s" "$url" | sed "s/'/'\\''/g")
+adb -s "$serial" shell "am start --display 2 -a android.intent.action.VIEW -d '$quoted'" >/dev/null 2>&1 ||
+  echo "Open this on any device: $url" >&2
