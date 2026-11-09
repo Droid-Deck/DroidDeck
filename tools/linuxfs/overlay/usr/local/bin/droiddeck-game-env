@@ -376,7 +376,7 @@ def vram_cap(env):
     if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
         return env
     result = env.copy()
-    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    cap = "dxgi.maxDeviceMemory = {0}; d3d9.maxAvailableMemory = {0}".format(int(value))
     own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
     result["DXVK_CONFIG"] = cap + "; " + own if own else cap
     result["DROIDDECK_VRAM_CAP"] = "1"
