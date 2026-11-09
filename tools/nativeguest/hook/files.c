@@ -68,7 +68,7 @@ void *dlopen(const char *filename, int flags) {
     if (!orig_dlopen) return NULL;
 
     char buf[PATH_MAX];
-    const char *target = rewrite_path(filename, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(filename, buf, sizeof(buf));
     void *handle = orig_dlopen(target, flags);
     if (!handle && target[0] == '/' && !(flags & RTLD_NOLOAD)) {
         // Its dependencies may be in its RUNPATH, which ld.so looked for outside the rootfs
@@ -103,7 +103,7 @@ int open(const char *pathname, int flags, ...) {
         }
     }
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
+    const char *target = ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf));
     if (open_needs_mode(flags)) {
         va_list args;
         va_start(args, flags);
@@ -131,7 +131,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
         }
     }
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = (pathname && pathname[0] == '/') ? ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     if (open_needs_mode(flags)) {
         va_list args;
         va_start(args, flags);
@@ -275,7 +275,7 @@ FILE *fopen(const char *pathname, const char *mode) {
     static FILE *(*orig_fopen)(const char *, const char *) = NULL;
     if (!orig_fopen) orig_fopen = (FILE *(*)(const char *, const char *))dlsym(RTLD_NEXT, "fopen");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(pathname, buf, sizeof(buf));
     return orig_fopen(target, mode);
 }
 
@@ -284,7 +284,7 @@ FILE *freopen(const char *pathname, const char *mode, FILE *stream) {
     static FILE *(*orig_freopen)(const char *, const char *, FILE *) = NULL;
     if (!orig_freopen) orig_freopen = (FILE *(*)(const char *, const char *, FILE *))dlsym(RTLD_NEXT, "freopen");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(pathname, buf, sizeof(buf));
     return orig_freopen(target, mode, stream);
 }
 
@@ -465,7 +465,7 @@ DIR *opendir(const char *name) {
     static DIR *(*orig_opendir)(const char *) = NULL;
     if (!orig_opendir) orig_opendir = (DIR *(*)(const char *))dlsym(RTLD_NEXT, "opendir");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(name, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(name, buf, sizeof(buf));
     return orig_opendir(target);
 }
 
@@ -474,7 +474,7 @@ int stat(const char *pathname, struct stat *statbuf) {
     static int (*orig_stat)(const char *, struct stat *) = NULL;
     if (!orig_stat) orig_stat = (int (*)(const char *, struct stat *))dlsym(RTLD_NEXT, "stat");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(pathname, buf, sizeof(buf));
     int ret = orig_stat ? orig_stat(target, statbuf) : -1;
     if (ret != 0 && errno == ENOENT) {
         char alt[PATH_MAX];
@@ -523,7 +523,7 @@ int fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags) {
     if (!orig_fstatat) orig_fstatat = (int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat");
     DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = (pathname && pathname[0] == '/') ? ((flags & AT_SYMLINK_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_fstatat ? orig_fstatat(dirfd, target, statbuf, flags) : -1;
     char alt[PATH_MAX];
     if (ret != 0 && errno == ENOENT && pathname && pathname[0] == '/') {
@@ -567,7 +567,7 @@ int __xstat(int ver, const char *pathname, struct stat *statbuf) {
     if (!orig___xstat) orig___xstat = (int (*)(int, const char *, struct stat *))dlsym(RTLD_NEXT, "__xstat");
     if (!orig___xstat) return stat(pathname, statbuf);
     char buf[PATH_MAX];
-    int ret = orig___xstat(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    int ret = orig___xstat(ver, rewrite_path_follow(pathname, buf, sizeof(buf)), statbuf);
     if (ret == 0) apply_stat_emulation(statbuf);
     return ret;
 }
@@ -577,7 +577,7 @@ int __xstat64(int ver, const char *pathname, struct stat64 *statbuf) {
     if (!orig___xstat64) orig___xstat64 = (int (*)(int, const char *, struct stat64 *))dlsym(RTLD_NEXT, "__xstat64");
     if (!orig___xstat64) return stat(pathname, (struct stat *)statbuf);
     char buf[PATH_MAX];
-    int ret = orig___xstat64(ver, rewrite_path(pathname, buf, sizeof(buf)), statbuf);
+    int ret = orig___xstat64(ver, rewrite_path_follow(pathname, buf, sizeof(buf)), statbuf);
     if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
     return ret;
 }
@@ -626,7 +626,7 @@ int __fxstatat(int ver, int dirfd, const char *pathname, struct stat *statbuf, i
     if (!orig___fxstatat) return fstatat(dirfd, pathname, statbuf, flags);
     DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = (pathname && pathname[0] == '/') ? ((flags & AT_SYMLINK_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig___fxstatat(ver, dirfd, target, statbuf, flags);
     if (ret == 0) apply_stat_emulation(statbuf);
     return ret;
@@ -638,7 +638,7 @@ int __fxstatat64(int ver, int dirfd, const char *pathname, struct stat64 *statbu
     if (!orig___fxstatat64) return fstatat(dirfd, pathname, (struct stat *)statbuf, flags);
     DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = (pathname && pathname[0] == '/') ? ((flags & AT_SYMLINK_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig___fxstatat64(ver, dirfd, target, statbuf, flags);
     if (ret == 0) apply_stat_emulation((struct stat *)statbuf);
     return ret;
@@ -654,7 +654,7 @@ int statx(int dirfd, const char *pathname, int flags, unsigned int mask, struct 
     if (!orig_statx) orig_statx = (int (*)(int, const char *, int, unsigned int, struct statx *))dlsym(RTLD_NEXT, "statx");
     DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = (pathname && pathname[0] == '/') ? ((flags & AT_SYMLINK_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_statx ? orig_statx(dirfd, target, flags, mask, statxbuf) : -1;
     if (ret == 0 && statxbuf && hardlinks_maybe_any()) {
         const unsigned int needed = STATX_INO | STATX_NLINK | STATX_MTIME;

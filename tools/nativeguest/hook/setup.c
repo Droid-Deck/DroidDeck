@@ -36,6 +36,12 @@ static void init_ddnatv_hook(void) {
     ddnatv_load_binds(getenv("DDNATV_BINDS"));
     const char *hostname = getenv("DDNATV_HOSTNAME");
     if (hostname && hostname[0] && strlen(hostname) < sizeof(g_hostname)) ddnatv_copy_cstr(g_hostname, sizeof(g_hostname), hostname);
+    const char *link_root = getenv("DDNATV_LINK_ROOT");
+    if (link_root && link_root[0] == '/' && strlen(link_root) < sizeof(g_link_root)) {
+        ddnatv_copy_cstr(g_link_root, sizeof(g_link_root), link_root);
+        g_link_root_len = strlen(g_link_root);
+        while (g_link_root_len > 1 && g_link_root[g_link_root_len - 1] == '/') g_link_root[--g_link_root_len] = 0;
+    }
     const char *preload = getenv("DDNATV_PRELOAD");
     if (preload && preload[0] && g_ddnatv_root_len > 0) {
         size_t libs = 1;
@@ -212,6 +218,42 @@ static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) 
     if (path[0] != '/') return path;
     init_ddnatv_hook();
     return rewrite_path_in_root(path, buffer, bufsize);
+}
+
+// rewrite_path() for calls that follow a symbolic link in the last component. In a mount whose
+// source is elsewhere the kernel would follow the link's absolute guest target on Android's own
+// tree (a Flatpak app's /app/bin/PINBALL.DAT -> /app/extra/Pinball/PINBALL.DAT), so the link is
+// followed in the guest's view first. The rootfs's own links were made relative already.
+static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize) {
+    if (!path) return NULL;
+    if (path[0] != '/') return path;
+    init_ddnatv_hook();
+    int moved = 0;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (path[1] == b->dst[1] && is_path_prefix(path, b->dst, b->dst_len)) { moved = !b->identity; break; }
+    }
+    char from_source[PATH_MAX];
+    if (!moved) {
+        // or a mount's real place, as /proc/self/exe and getcwd() give it (a Flatpak app's checkout)
+        const struct ddnatv_bind *best = NULL;
+        for (int i = 0; i < g_nbinds; i++) {
+            const struct ddnatv_bind *b = &g_binds[i];
+            if (b->identity || !is_path_prefix(path, b->src, b->src_len)) continue;
+            if (!best || b->src_len > best->src_len) best = b;
+        }
+        if (!best) return rewrite_path_in_root(path, buffer, bufsize);
+        size_t n = ddnatv_append(from_source, sizeof(from_source), 0, best->dst, best->dst_len);
+        ddnatv_append(from_source, sizeof(from_source), n, path + best->src_len, strlen(path + best->src_len));
+        path = from_source;
+    }
+    char guest[PATH_MAX];
+    const char *followed = follow_guest_link(path, guest, sizeof(guest));
+    char mapped[PATH_MAX];
+    const char *host = rewrite_path_in_root(followed, mapped, sizeof(mapped));
+    // the result may be `followed` or `path` itself, which can live here
+    ddnatv_copy_cstr(buffer, bufsize, host);
+    return buffer;
 }
 
 // Whether the rootfs keeps bin (pair DDNATV_USRMERGE_BIN) or sbin as a symlink into /usr, as

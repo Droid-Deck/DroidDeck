@@ -34,6 +34,10 @@ static int g_nbinds = 0;
 static char *g_binds_raw = NULL;
 // The session's host name (DDNATV_HOSTNAME), what proot put in uname(): Android's kernel says "localhost"
 static char g_hostname[65];
+// A Flatpak sandbox's: the session's rootfs (DDNATV_LINK_ROOT), whose hook stored absolute guest
+// link targets as paths in it, as the kernel follows them there; in the sandbox they are guest paths
+static char g_link_root[PATH_MAX];
+static size_t g_link_root_len = 0;
 
 static int ddnatv_bind_longer_first(const void *a, const void *b) {
     const struct ddnatv_bind *x = a, *y = b;
@@ -260,6 +264,74 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
     return buffer;
 }
 
+// A link target the session's hook stored as a path in its rootfs, given back as the guest path it
+// stands for (see g_link_root). Rewrites target[0..len) in place; returns the new length.
+static size_t link_root_guest_target(char *target, size_t len) {
+    if (!g_link_root_len || len < g_link_root_len || memcmp(target, g_link_root, g_link_root_len) != 0) return len;
+    if (len == g_link_root_len) { target[0] = '/'; target[1] = '\0'; return 1; }
+    if (target[g_link_root_len] != '/') return len;
+    memmove(target, target + g_link_root_len, len - g_link_root_len + 1);
+    return len - g_link_root_len;
+}
+
+// The guest path a symbolic link at absolute guest path `path` leads to, followed in the guest's
+// view: the kernel resolves a relative target next to the link's real place, and in a mount that is
+// elsewhere (Flatpak's /run/user/0/wayland-0 -> ../../flatpak/wayland-0, where /run/flatpak/wayland-0
+// is another mount). Returns `path` when it is no link.
+static const char *follow_guest_link(const char *path, char *out, size_t outsz) {
+#if defined(__aarch64__)
+    const char *cur = path;
+    for (int depth = 0; depth < 8; depth++) {
+        char host_buf[PATH_MAX];
+        const char *host = rewrite_path_in_root(cur, host_buf, sizeof(host_buf));
+        // /dev/stdin and /dev/fd are mounts of /proc/self/fd, whose links ("pipe:[123]") only the kernel opens
+        if (strncmp(host, "/proc/", 6) == 0) return cur;
+        char target[PATH_MAX];
+        long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
+        if (n <= 0) return cur;
+        target[n] = '\0';
+        n = (long)link_root_guest_target(target, (size_t)n);
+        char joined[PATH_MAX];
+        if (target[0] == '/') {
+            ddnatv_copy_cstr(joined, sizeof(joined), target);
+        } else {
+            const char *slash = strrchr(cur, '/');
+            size_t dir_len = slash ? (size_t)(slash - cur) : 0;
+            size_t used = ddnatv_append(joined, sizeof(joined), 0, cur, dir_len);
+            used = ddnatv_append(joined, sizeof(joined), used, "/", 1);
+            ddnatv_append(joined, sizeof(joined), used, target, strlen(target));
+        }
+        // lexically, as the guest sees it
+        size_t len = 0;
+        out[0] = '\0';
+        for (const char *p = joined; *p;) {
+            while (*p == '/') p++;
+            const char *end = strchr(p, '/');
+            size_t part = end ? (size_t)(end - p) : strlen(p);
+            if (part == 0) break;
+            if (part == 1 && p[0] == '.') {
+            } else if (part == 2 && p[0] == '.' && p[1] == '.') {
+                while (len > 0 && out[len - 1] != '/') len--;
+                if (len > 0) len--;
+                out[len] = '\0';
+            } else if (len + 1 + part < outsz) {
+                out[len++] = '/';
+                memcpy(out + len, p, part);
+                len += part;
+                out[len] = '\0';
+            }
+            p += part;
+        }
+        if (len == 0) { out[0] = '/'; out[1] = '\0'; }
+        cur = out;
+    }
+    return cur;
+#else
+    (void)out; (void)outsz;
+    return path;
+#endif
+}
+
 // On ENOENT, stat()/lstat()/readlink() retry /usr/bin <-> /bin and /usr/sbin <-> /sbin, for
 // rootfs trees where bin and sbin are real directories. Returns 1 for the bin pair, 2 for the
 // sbin pair (with the other spelling in `alt`), 0 when `sub` is in neither.
@@ -383,6 +455,10 @@ static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
 
 static ssize_t postprocess_readlink(const char *linkpath, char *buf, ssize_t ret, size_t bufsiz) {
     if (ret <= 0) return ret;
+    if ((size_t)ret < bufsiz) {
+        buf[ret] = '\0';
+        ret = (ssize_t)link_root_guest_target(buf, (size_t)ret);
+    }
     ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz);
 
     // 1. Strip g_ddnatv_root if target starts with it

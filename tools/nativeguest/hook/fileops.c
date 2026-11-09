@@ -60,7 +60,7 @@ int chmod(const char *pathname, mode_t mode) {
     if (!orig_chmod) orig_chmod = (int (*)(const char *, mode_t))dlsym(RTLD_NEXT, "chmod");
     if (!orig_chmod) return -1;
     char buf[PATH_MAX];
-    const char *target = rewrite_path(pathname, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(pathname, buf, sizeof(buf));
     int ret = orig_chmod(target, mode);
     if (ret != 0 && ((mode & 06000) != 0 || errno == EPERM || errno == EACCES || errno == ENOSYS)) {
         ret = orig_chmod(target, mode & 01777);
@@ -159,6 +159,113 @@ int rmdir(const char *pathname) {
     int ret = orig_rmdir(target);
     if (ret != 0 && refused_in_repaired_dir(AT_FDCWD, target)) ret = orig_rmdir(target);
     return ret;
+}
+
+// glibc's remove() calls its internal unlinkat, which no preload can see: GLib's g_file_delete()
+// got ENOENT for every guest path, and Flatpak could not replace an app's "current" link
+int remove(const char *pathname) {
+    if (unlink(pathname) == 0) return 0;
+    if (errno != EISDIR) return -1;
+    return rmdir(pathname);
+}
+
+// glob() and nftw() walk directories with glibc's internal calls too. glob() is given the hook's
+// own through GLOB_ALTDIRFUNC; nftw() walks the mapped directory and its callback is given guest paths.
+static int glob_alt_stat(const char *path, void *st) { return stat(path, (struct stat *)st); }
+static int glob_alt_lstat(const char *path, void *st) { return lstat(path, (struct stat *)st); }
+static void *glob_alt_opendir(const char *path) { return opendir(path); }
+static void *glob_alt_readdir(void *dir) { return readdir((DIR *)dir); }
+static void glob_alt_closedir(void *dir) { closedir((DIR *)dir); }
+
+int glob(const char *pattern, int flags, int (*errfunc)(const char *, int), glob_t *pglob) {
+    static int (*orig_glob)(const char *, int, int (*)(const char *, int), glob_t *) = NULL;
+    if (!orig_glob) orig_glob = (int (*)(const char *, int, int (*)(const char *, int), glob_t *))dlsym(RTLD_NEXT, "glob");
+    if (pglob && !(flags & GLOB_ALTDIRFUNC)) {
+        init_ddnatv_hook();
+        pglob->gl_closedir = glob_alt_closedir;
+        pglob->gl_readdir = (struct dirent *(*)(void *))glob_alt_readdir;
+        pglob->gl_opendir = glob_alt_opendir;
+        pglob->gl_lstat = (int (*)(const char *, struct stat *))glob_alt_lstat;
+        pglob->gl_stat = (int (*)(const char *, struct stat *))glob_alt_stat;
+        flags |= GLOB_ALTDIRFUNC;
+    }
+    return orig_glob ? orig_glob(pattern, flags, errfunc, pglob) : GLOB_NOSPACE;
+}
+
+int glob64(const char *pattern, int flags, int (*errfunc)(const char *, int), glob64_t *pglob) {
+    return glob(pattern, flags, errfunc, (glob_t *)pglob);
+}
+
+static __thread struct {
+    const char *host, *guest;
+    size_t host_len, guest_len;
+    int (*nftw_fn)(const char *, const struct stat *, int, struct FTW *);
+    int (*ftw_fn)(const char *, const struct stat *, int);
+} t_walk;
+
+static const char *walk_guest_path(const char *path, char *buf, size_t size, int *base) {
+    if (!t_walk.host || strncmp(path, t_walk.host, t_walk.host_len) != 0) return path;
+    const char *rest = path + t_walk.host_len;
+    if (*rest != '\0' && *rest != '/') return path;
+    size_t n = ddnatv_append(buf, size, 0, t_walk.guest, t_walk.guest_len);
+    ddnatv_append(buf, size, n, rest, strlen(rest));
+    if (base) *base = *base - (int)t_walk.host_len + (int)t_walk.guest_len;
+    return buf;
+}
+
+static int walk_nftw_cb(const char *path, const struct stat *st, int type, struct FTW *ftwbuf) {
+    char buf[PATH_MAX];
+    struct FTW guest_ftw = *ftwbuf;
+    return t_walk.nftw_fn(walk_guest_path(path, buf, sizeof(buf), &guest_ftw.base), st, type, &guest_ftw);
+}
+
+static int walk_ftw_cb(const char *path, const struct stat *st, int type) {
+    char buf[PATH_MAX];
+    return t_walk.ftw_fn(walk_guest_path(path, buf, sizeof(buf), NULL), st, type);
+}
+
+int nftw(const char *dir, int (*fn)(const char *, const struct stat *, int, struct FTW *), int fds, int flags) {
+    static int (*orig_nftw)(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int) = NULL;
+    if (!orig_nftw) orig_nftw = (int (*)(const char *, int (*)(const char *, const struct stat *, int, struct FTW *), int, int))dlsym(RTLD_NEXT, "nftw");
+    if (!orig_nftw) { errno = ENOSYS; return -1; }
+    char buf[PATH_MAX];
+    const char *target = rewrite_path(dir, buf, sizeof(buf));
+    if (target == dir || !fn) return orig_nftw(dir, fn, fds, flags);
+    __typeof__(t_walk) saved = t_walk;
+    t_walk.host = target; t_walk.host_len = strlen(target);
+    while (t_walk.host_len > 1 && target[t_walk.host_len - 1] == '/') t_walk.host_len--;
+    t_walk.guest = dir; t_walk.guest_len = strlen(dir);
+    while (t_walk.guest_len > 1 && dir[t_walk.guest_len - 1] == '/') t_walk.guest_len--;
+    t_walk.nftw_fn = fn;
+    int ret = orig_nftw(target, walk_nftw_cb, fds, flags);
+    t_walk = saved;
+    return ret;
+}
+
+int nftw64(const char *dir, int (*fn)(const char *, const struct stat64 *, int, struct FTW *), int fds, int flags) {
+    return nftw(dir, (int (*)(const char *, const struct stat *, int, struct FTW *))fn, fds, flags);
+}
+
+int ftw(const char *dir, int (*fn)(const char *, const struct stat *, int), int fds) {
+    static int (*orig_ftw)(const char *, int (*)(const char *, const struct stat *, int), int) = NULL;
+    if (!orig_ftw) orig_ftw = (int (*)(const char *, int (*)(const char *, const struct stat *, int), int))dlsym(RTLD_NEXT, "ftw");
+    if (!orig_ftw) { errno = ENOSYS; return -1; }
+    char buf[PATH_MAX];
+    const char *target = rewrite_path(dir, buf, sizeof(buf));
+    if (target == dir || !fn) return orig_ftw(dir, fn, fds);
+    __typeof__(t_walk) saved = t_walk;
+    t_walk.host = target; t_walk.host_len = strlen(target);
+    while (t_walk.host_len > 1 && target[t_walk.host_len - 1] == '/') t_walk.host_len--;
+    t_walk.guest = dir; t_walk.guest_len = strlen(dir);
+    while (t_walk.guest_len > 1 && dir[t_walk.guest_len - 1] == '/') t_walk.guest_len--;
+    t_walk.ftw_fn = fn;
+    int ret = orig_ftw(target, walk_ftw_cb, fds);
+    t_walk = saved;
+    return ret;
+}
+
+int ftw64(const char *dir, int (*fn)(const char *, const struct stat64 *, int), int fds) {
+    return ftw(dir, (int (*)(const char *, const struct stat *, int))fn, fds);
 }
 
 // The app is root for the programs it runs, and root enters and writes every directory whatever its
@@ -378,7 +485,7 @@ ssize_t getxattr(const char *path, const char *name, void *value, size_t size) {
         return -1;
     }
     char pbuf[PATH_MAX];
-    return orig_getxattr ? orig_getxattr(rewrite_path(path, pbuf, sizeof(pbuf)), name, value, size) : -1;
+    return orig_getxattr ? orig_getxattr(rewrite_path_follow(path, pbuf, sizeof(pbuf)), name, value, size) : -1;
 }
 
 ssize_t lgetxattr(const char *path, const char *name, void *value, size_t size) {
@@ -396,7 +503,7 @@ ssize_t listxattr(const char *path, char *list, size_t size) {
     static ssize_t (*orig_listxattr)(const char *, char *, size_t) = NULL;
     if (!orig_listxattr) orig_listxattr = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "listxattr");
     char pbuf[PATH_MAX];
-    ssize_t ret = orig_listxattr ? orig_listxattr(rewrite_path(path, pbuf, sizeof(pbuf)), list, size) : -1;
+    ssize_t ret = orig_listxattr ? orig_listxattr(rewrite_path_follow(path, pbuf, sizeof(pbuf)), list, size) : -1;
     return size > 0 ? drop_selinux_xattr(list, ret) : ret;
 }
 
@@ -429,7 +536,7 @@ int setxattr(const char *path, const char *name, const void *value, size_t size,
     static int (*orig_setxattr)(const char *, const char *, const void *, size_t, int) = NULL;
     if (!orig_setxattr) orig_setxattr = (int (*)(const char *, const char *, const void *, size_t, int))dlsym(RTLD_NEXT, "setxattr");
     char pbuf[PATH_MAX];
-    return orig_setxattr ? orig_setxattr(rewrite_path(path, pbuf, sizeof(pbuf)), name, value, size, flags) : -1;
+    return orig_setxattr ? orig_setxattr(rewrite_path_follow(path, pbuf, sizeof(pbuf)), name, value, size, flags) : -1;
 }
 
 int lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags) {
@@ -505,7 +612,7 @@ int utime(const char *filename, const struct utimbuf *times) {
     static int (*orig_utime)(const char *, const struct utimbuf *) = NULL;
     if (!orig_utime) orig_utime = (int (*)(const char *, const struct utimbuf *))dlsym(RTLD_NEXT, "utime");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(filename, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(filename, buf, sizeof(buf));
     return orig_utime ? orig_utime(target, times) : -1;
 }
 
@@ -513,7 +620,7 @@ int utimes(const char *filename, const struct timeval times[2]) {
     static int (*orig_utimes)(const char *, const struct timeval[2]) = NULL;
     if (!orig_utimes) orig_utimes = (int (*)(const char *, const struct timeval[2]))dlsym(RTLD_NEXT, "utimes");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(filename, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(filename, buf, sizeof(buf));
     return orig_utimes ? orig_utimes(target, times) : -1;
 }
 
@@ -547,7 +654,7 @@ int truncate(const char *path, off_t length) {
     static int (*orig_truncate)(const char *, off_t) = NULL;
     if (!orig_truncate) orig_truncate = (int (*)(const char *, off_t))dlsym(RTLD_NEXT, "truncate");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(path, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(path, buf, sizeof(buf));
     return orig_truncate(target, length);
 }
 
@@ -556,7 +663,7 @@ int statfs(const char *path, struct statfs *buf) {
     static int (*orig_statfs)(const char *, struct statfs *) = NULL;
     if (!orig_statfs) orig_statfs = (int (*)(const char *, struct statfs *))dlsym(RTLD_NEXT, "statfs");
     char pbuf[PATH_MAX];
-    const char *target = rewrite_path(path, pbuf, sizeof(pbuf));
+    const char *target = rewrite_path_follow(path, pbuf, sizeof(pbuf));
     return orig_statfs ? orig_statfs(target, buf) : -1;
 }
 
@@ -564,7 +671,7 @@ int statvfs(const char *path, struct statvfs *buf) {
     static int (*orig_statvfs)(const char *, struct statvfs *) = NULL;
     if (!orig_statvfs) orig_statvfs = (int (*)(const char *, struct statvfs *))dlsym(RTLD_NEXT, "statvfs");
     char pbuf[PATH_MAX];
-    const char *target = rewrite_path(path, pbuf, sizeof(pbuf));
+    const char *target = rewrite_path_follow(path, pbuf, sizeof(pbuf));
     return orig_statvfs ? orig_statvfs(target, buf) : -1;
 }
 
@@ -573,7 +680,7 @@ int chdir(const char *path) {
     static int (*orig_chdir)(const char *) = NULL;
     if (!orig_chdir) orig_chdir = (int (*)(const char *))dlsym(RTLD_NEXT, "chdir");
     char buf[PATH_MAX];
-    const char *target = rewrite_path(path, buf, sizeof(buf));
+    const char *target = rewrite_path_follow(path, buf, sizeof(buf));
     return orig_chdir ? orig_chdir(target) : -1;
 }
 

@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <ftw.h>
+#include <glob.h>
 #include <limits.h>
 #include <errno.h>
 #include <signal.h>

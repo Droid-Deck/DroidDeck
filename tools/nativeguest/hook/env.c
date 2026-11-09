@@ -95,6 +95,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
     int has_nt = 0;
     int has_binds = 0;
     int has_hostname = 0;
+    int has_link_root = 0;
     int has_preload_list = 0;
     const char *preload_value = NULL;
     while (envp && envp[count]) {
@@ -123,6 +124,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
             else if (strncmp(e, "DDNATV_BINDS=", 13) == 0) has_binds = 1;
             else if (strncmp(e, "DDNATV_PRELOAD=", 15) == 0) has_preload_list = 1;
             else if (strncmp(e, "DDNATV_HOSTNAME=", 16) == 0) has_hostname = 1;
+            else if (strncmp(e, "DDNATV_LINK_ROOT=", 17) == 0) has_link_root = 1;
             else if (strncmp(e, "DPKG_DEB_THREADS_MAX=", 21) == 0) has_threads_max = 1;
             else if (strncmp(e, "DEBIAN_FRONTEND=", 16) == 0) has_frontend = 1;
             else if (strncmp(e, "DEBCONF_FRONTEND=", 17) == 0) has_debconf_frontend = 1;
@@ -134,7 +136,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         count++;
     }
 
-    char **new_env = calloc(count + 23, sizeof(char *));
+    char **new_env = calloc(count + 24, sizeof(char *));
     int dst = 0;
     for (int i = 0; i < count; i++) {
         if (has_preload && envp[i][0] == 'L' && strncmp(envp[i], "LD_PRELOAD=", 11) == 0) {
@@ -217,6 +219,14 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         char *str = malloc(PATH_MAX + 16);
         if (str) {
             snprintf(str, PATH_MAX + 16, "DDNATV_ROOT=%s", g_ddnatv_root);
+            new_env[dst++] = str;
+        }
+    }
+    if (!has_link_root && g_link_root_len) {
+        char *str = malloc(17 + g_link_root_len + 1);
+        if (str) {
+            memcpy(str, "DDNATV_LINK_ROOT=", 17);
+            memcpy(str + 17, g_link_root, g_link_root_len + 1);
             new_env[dst++] = str;
         }
     }

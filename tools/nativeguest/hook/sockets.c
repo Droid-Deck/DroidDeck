@@ -132,7 +132,14 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
             struct sockaddr_un mod_sun;
             memset(&mod_sun, 0, sizeof(mod_sun));
             mod_sun.sun_family = AF_UNIX;
-            rewrite_unix_socket_path(sun->sun_path, mod_sun.sun_path, sizeof(mod_sun.sun_path));
+            char guest[sizeof(sun->sun_path) + 1];
+            size_t max = addrlen - offsetof(struct sockaddr_un, sun_path);
+            if (max > sizeof(sun->sun_path)) max = sizeof(sun->sun_path);
+            memcpy(guest, sun->sun_path, max);
+            guest[max] = '\0';
+            char followed[PATH_MAX];
+            const char *path = guest[0] == '/' ? follow_guest_link(guest, followed, sizeof(followed)) : guest;
+            rewrite_unix_socket_path(path, mod_sun.sun_path, sizeof(mod_sun.sun_path));
             return orig_connect ? orig_connect(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
         }
     }
