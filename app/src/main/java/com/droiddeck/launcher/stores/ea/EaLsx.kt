@@ -126,13 +126,15 @@ object EaLsx {
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
             val client = runCatching { socket.accept() }.getOrNull() ?: continue
-            val verified = ownerUid(client)?.let { it == android.os.Process.myUid() }
+            val (owner, unreadable) = ownerUid(client)
+            val verified = owner?.let { it == android.os.Process.myUid() }
             if (verified == false) {
                 Log.w(TAG, "refused a connection from another app")
                 runCatching { client.close() }
                 continue
             }
-            val session = runCatching { Session(client, client.getOutputStream(), verified == true) }.getOrNull()
+            if (unreadable != null) note("peer cannot be identified: $unreadable")
+            val session = runCatching { Session(client, client.getOutputStream(), verified == true, unreadable != null) }.getOrNull()
             val live = session != null && synchronized(lock) { server === socket && admit(session).also { if (it) open += client } }
             if (!live) {
                 runCatching { client.close() }
@@ -146,11 +148,17 @@ object EaLsx {
      * The uid owning the connecting socket, or null where SELinux hides /proc/net. The guest runs
      * under this app's uid, so any other uid is another app; an unknown owner never gets credentials.
      */
-    private fun ownerUid(client: Socket): Int? {
+    /** The connecting socket's uid, or why Android hid socket ownership from this app (some builds deny /proc/net). */
+    private fun ownerUid(client: Socket): Pair<Int?, String?> {
         val port = client.port
-        return listOf("/proc/net/tcp6", "/proc/net/tcp").firstNotNullOfOrNull { path ->
-            runCatching { java.io.File(path).readLines() }.getOrNull()?.let { owner(it, port) }
+        var denied: String? = null
+        var read = false
+        for (path in listOf("/proc/net/tcp6", "/proc/net/tcp")) {
+            val lines = runCatching { java.io.File(path).readLines() }.onFailure { denied = "$path ${it.javaClass.simpleName}" }.getOrNull() ?: continue
+            read = true
+            owner(lines, port)?.let { return it to null }
         }
+        return null to if (read) null else denied ?: "no socket table"
     }
 
     internal fun owner(lines: List<String>, port: Int): Int? = lines.drop(1).firstNotNullOfOrNull { line ->
@@ -183,7 +191,7 @@ object EaLsx {
         synchronized(sessions) { session.trusted = matches && !session.evicted && session.born == generation && holder.compareAndSet(null, session) }
     }
 
-    internal class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
+    internal class Session(val socket: Socket, val output: OutputStream, val verified: Boolean, val unverifiable: Boolean = false) {
         val born = generation
         val connectedAt = System.currentTimeMillis()
         @Volatile var evicted = false
@@ -191,6 +199,9 @@ object EaLsx {
         var key: ByteArray? = null
         @Volatile var trusted = false
         var pending: ByteArray? = null
+
+        /** A peer Android names as another app never gets account data; one Android cannot name is judged by its claim alone. */
+        val mayTrust get() = (verified || unverifiable) && claimed
 
         @Synchronized
         fun send(xml: String) {
@@ -333,10 +344,10 @@ object EaLsx {
                 val version = m.attrs["version"].orEmpty()
                 val seed = EaCrypto.challengeSeed(version, answer) ?: 0
                 val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
-                session.claimed = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
-                val matches = session.verified && session.claimed
+                session.claimed = g != null && content.isNotEmpty() && (content == g.contentId || content == g.offerId || content in g.contentIds)
+                val matches = session.mayTrust
                 promote(session, matches)
-                note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; !session.verified -> "comes from an unverified peer"; else -> "does not match the prepared game" }}")
+                note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; !session.verified && !session.unverifiable -> "comes from an unverified peer"; else -> "does not match the prepared game" }}")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
                 tag("ChallengeAccepted", "response" to answer)

@@ -66,7 +66,7 @@ class EaManifest(
                         if (text.isNotEmpty()) when {
                             parent.equals("launcher", true) && tag.equals("filePath", true) -> path = text
                             parent.equals("launcher", true) && tag.equals("parameters", true) -> params = text
-                            parent.equals("launcher", true) && tag.equals("trial", true) -> trial = text.equals("true", true)
+                            parent.equals("launcher", true) && tag.equals("trial", true) -> trial = text.equals("true", true) || text == "1"
                             (parent.equals("touchup", true) || parent.equals("executable", true)) && tag.equals("filePath", true) -> touchupPath = text
                             (parent.equals("touchup", true) || parent.equals("executable", true)) && tag.equals("parameters", true) -> touchupParams = text
                             parent.equals("contentIDs", true) && tag.equals("contentID", true) -> contentIds += text

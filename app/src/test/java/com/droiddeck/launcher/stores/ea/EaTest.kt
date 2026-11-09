@@ -137,6 +137,16 @@ class EaTest {
         EaLsx.stop()
     }
 
+    @Test fun aPeerAndroidCannotNameIsTrustedOnlyForTheClaimedGame() {
+        val hidden = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), false, unverifiable = true)
+        assertFalse(hidden.mayTrust)
+        hidden.claimed = true
+        assertTrue(hidden.mayTrust)
+        val other = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), false)
+        other.claimed = true
+        assertFalse(other.mayTrust)
+    }
+
     @Test fun aSessionFromAnOlderLaunchCannotBecomeTrusted() {
         val old = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), true)
         EaLsx.generation++
@@ -252,6 +262,14 @@ class EaTest {
         assertEquals("RU", m.title("ru_RU"))
         assertEquals("Mass Effect 3", m.title("de_DE"))
         assertEquals("/__Installer/touchup.exe", m.touchupPath)
+    }
+
+    @Test fun aNumericTrialFlagKeepsTheTrialExeOut() {
+        val xml = """<DiPManifest version="4.0"><runtime>
+            <launcher uid="1-2"><filePath>[HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Need for Speed Heat\Install Dir]NeedForSpeedHeatTrial.exe</filePath><parameters /><trial>1</trial></launcher>
+            <launcher uid="2-2"><filePath>[HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Need for Speed Heat\Install Dir]NeedForSpeedHeat.exe</filePath><parameters /><trial>0</trial></launcher>
+            </runtime></DiPManifest>"""
+        assertTrue(EaManifest.parse(xml).launcher()!!.path.endsWith("NeedForSpeedHeat.exe"))
     }
 
     @Test fun aSyncRequestedWhileOneRunsIsNotLost() {
