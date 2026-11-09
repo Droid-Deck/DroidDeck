@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,8 +59,11 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
     val context = LocalContext.current
     remember { AgentHost.refresh(context) }
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
-    if (AgentHost.state == AgentHost.State.MISSING) {
-        Column(modifier) { Note(stringResource(R.string.agent_missing)) }
+    remember { com.droiddeck.launcher.agent.AgentSetup.check(context) }
+    var setup by rememberSaveable { mutableStateOf(false) }
+    if (setup || AgentHost.state == AgentHost.State.MISSING ||
+        !(com.droiddeck.launcher.agent.AgentSetup.ready || com.droiddeck.launcher.agent.AgentSetup.completed(context))) {
+        AgentSetupView(modifier, onDone = { setup = false })
         return
     }
     val colors = MaterialTheme.colorScheme
@@ -87,6 +91,9 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             IconButton(onClick = { AgentHost.forget(context) }, enabled = !working) {
                 Icon(Icons.Outlined.Add, stringResource(R.string.agent_new))
+            }
+            IconButton(onClick = { setup = true }, enabled = !working) {
+                Icon(androidx.compose.material.icons.Icons.Outlined.Settings, stringResource(R.string.agent_setup_title))
             }
             OutlinedTextField(
                 draft, { draft = it }, Modifier.weight(1f).then(inputModifier),

@@ -1,9 +1,9 @@
 package com.droiddeck.launcher.agent
 
 import com.droiddeck.launcher.agent.AgentHost.Entry
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,14 +14,14 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class AgentHostTest {
-    @Test fun theInitLineCarriesOnlyTheConversation() {
-        val event = AgentHost.parse("""{"type":"system","subtype":"init","session_id":"abc","tools":[]}""")!!
-        assertEquals("abc", event.session)
+    @Test fun claudeInitCarriesOnlyTheConversation() {
+        val event = ClaudeCode.parse("""{"type":"system","subtype":"init","session_id":"abc","tools":[]}""")!!
+        assertEquals("abc", event.conversation)
         assertEquals(emptyList<Entry>(), event.entries)
     }
 
-    @Test fun assistantTextAndToolUseBecomeEntries() {
-        val event = AgentHost.parse(
+    @Test fun claudeTextAndToolUseBecomeEntries() {
+        val event = ClaudeCode.parse(
             """{"type":"assistant","session_id":"abc","message":{"content":[
                 {"type":"text","text":"  Looking at the log.  "},
                 {"type":"tool_use","name":"Bash","input":{"command":"droiddeckctl state\nmore"}},
@@ -30,21 +30,41 @@ class AgentHostTest {
         assertEquals(listOf(Entry.Said("Looking at the log."), Entry.Used("Bash", "droiddeckctl state")), event.entries)
     }
 
-    @Test fun aResultEndsTheTurn() {
-        assertEquals(listOf(Entry.Finished(null)), AgentHost.parse("""{"type":"result","subtype":"success","is_error":false,"result":"done"}""")!!.entries)
+    @Test fun aClaudeResultEndsTheTurn() {
+        assertEquals(listOf(Entry.Finished(null)), ClaudeCode.parse("""{"type":"result","subtype":"success","is_error":false,"result":"done"}""")!!.entries)
         assertEquals(listOf(Entry.Finished("Invalid API key")),
-            AgentHost.parse("""{"type":"result","subtype":"success","is_error":true,"result":"Invalid API key"}""")!!.entries)
+            ClaudeCode.parse("""{"type":"result","subtype":"success","is_error":true,"result":"Invalid API key"}""")!!.entries)
+        assertNull(ClaudeCode.parse("not json"))
     }
 
-    @Test fun linesWithNothingToShowAreSkipped() {
-        assertNull(AgentHost.parse("not json"))
-        assertNull(AgentHost.parse("""{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}"""))
+    @Test fun claudeTurnsBypassPermissionsAndResume() {
+        val first = ClaudeCode.turn("hi", null)
+        assertTrue("bypassPermissions" in first && "--resume" !in first)
+        assertEquals("abc", ClaudeCode.turn("hi", "abc").let { it[it.indexOf("--resume") + 1] })
     }
 
-    @Test fun aMessageIsSentAsOneStreamJsonUserLine() {
-        val o = JSONObject(AgentHost.userMessage("why did it crash?"))
-        assertEquals("user", o.getString("type"))
-        assertEquals("why did it crash?", o.getJSONObject("message").getJSONArray("content").getJSONObject(0).getString("text"))
+    @Test fun codexEventsBecomeEntries() {
+        assertEquals("t1", Codex.parse("""{"type":"thread.started","thread_id":"t1"}""")!!.conversation)
+        assertEquals(listOf(Entry.Used("Shell", "uname -m")),
+            Codex.parse("""{"type":"item.started","item":{"id":"i1","type":"command_execution","command":"uname -m","status":"in_progress"}}""")!!.entries)
+        assertEquals(listOf(Entry.Said("It is aarch64.")),
+            Codex.parse("""{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"It is aarch64."}}""")!!.entries)
+        assertEquals(listOf(Entry.Used("Edit", "a.kt, b.kt")),
+            Codex.parse("""{"type":"item.completed","item":{"type":"file_change","changes":[{"path":"a.kt"},{"path":"b.kt"}]}}""")!!.entries)
+        assertEquals(listOf(Entry.Finished(null)), Codex.parse("""{"type":"turn.completed","usage":{}}""")!!.entries)
+        assertEquals(listOf(Entry.Finished("quota")), Codex.parse("""{"type":"turn.failed","error":{"message":"quota"}}""")!!.entries)
+        assertNull(Codex.parse("""{"type":"item.started","item":{"type":"reasoning"}}"""))
+    }
+
+    @Test fun codexTurnsSkipItsSandboxAndResume() {
+        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "hi"),
+            Codex.turn("hi", null))
+        assertEquals(listOf("exec", "resume", "t1"), Codex.turn("hi", "t1").subList(1, 4))
+    }
+
+    @Test fun anUnknownHarnessFallsBackToClaudeCode() {
+        assertEquals(Codex, AgentHarness.byId("codex"))
+        assertEquals(ClaudeCode, AgentHarness.byId("gone"))
     }
 
     @Test fun theTranscriptSurvivesARestart() {

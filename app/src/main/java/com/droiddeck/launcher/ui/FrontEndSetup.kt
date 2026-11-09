@@ -84,7 +84,7 @@ import com.droiddeck.launcher.stores.download.StoreDownloadTier
 import com.droiddeck.launcher.R
 
 
-private enum class CheckState { OK, WARN, BUSY }
+internal enum class CheckState { OK, WARN, BUSY }
 
 private const val STORAGE_TAB = 3
 private const val LAUNCHER_TAB = 2
@@ -97,7 +97,7 @@ private const val GLASSES_TAB = 6
 private const val SYNC_TAB = 4
 
 @Composable
-private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
+internal fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val tint = when (state) {
@@ -690,7 +690,7 @@ internal fun SetupPanel(
 }
 
 @Composable
-private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, checks: @Composable () -> Unit) {
+internal fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, checks: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ready = passing == total

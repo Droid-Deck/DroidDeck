@@ -125,7 +125,7 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
     if (s.gameStoresEnabled) add("stores")
     add("desktop")
-    if (com.droiddeck.launcher.agent.AgentHost.installed) add("agent")
+    if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
     if (s.isHomeApp) add("android-apps")
     add("setup"); add("updates")
