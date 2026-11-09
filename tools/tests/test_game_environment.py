@@ -2680,7 +2680,7 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertIn("system DLL repair skipped", stderr.getvalue())
             self.assertFalse((windows / "system32/ucrtbase.dll").is_symlink())
 
-    def test_existing_backup_is_kept_and_failed_final_replace_restores_the_original(self):
+    def test_newest_foreign_copy_is_the_only_backup_and_failed_final_replace_restores_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
             dll = windows / "system32/ucrtbase.dll"
@@ -2688,9 +2688,9 @@ class ForeignSystemDllTest(unittest.TestCase):
             backup = windows / "system32/ucrtbase.dll.foreign-arch"
             backup.write_bytes(pe_image(0x1234))
             self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
-            self.assertEqual(0x1234, MODULE["pe_machine"](backup))
+            self.assertEqual(0x8664, MODULE["pe_machine"](backup))
             self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
-            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll.foreign-arch.1"))
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch.1").exists())
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
             dll = windows / "system32/ucrtbase.dll"
@@ -2705,7 +2705,6 @@ class ForeignSystemDllTest(unittest.TestCase):
             with mock.patch("os.replace", side_effect=flaky_with_backup):
                 self.assertEqual([], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](dll))
-            self.assertEqual(0x1234, MODULE["pe_machine"](backup))
             self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch.1").exists())
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
