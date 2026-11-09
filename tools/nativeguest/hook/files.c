@@ -89,6 +89,114 @@ void *dlmopen(Lmid_t lmid, const char *filename, int flags) {
     return orig_dlmopen ? orig_dlmopen(lmid, target, flags) : NULL;
 }
 
+// /proc/<pid>/status (and a thread's) give the app's own ids, which every other call presents as
+// root: process monitors comparing them with getuid() showed none of the session's processes. Only
+// such tools are given root's there: Chromium (Steam's web helper) checks the ids of the processes it
+// sandboxes in those files, and with them all 0 every helper exited and Steam never drew a frame.
+static int reader_compares_process_ids(void) {
+    static const char *const k_readers[] = {
+        "ps", "top", "htop", "btop", "atop", "pgrep", "pkill", "pidof", "pstree", "w", "glances",
+        "ksystemstats", "plasma-systemmonitor", "ksysguard", "ksysguardd", "kinfocenter", "gnome-system-monitor",
+    };
+    const char *me = program_invocation_short_name;
+    if (!me) return 0;
+    for (size_t i = 0; i < sizeof(k_readers) / sizeof(k_readers[0]); i++) {
+        if (strcmp(me, k_readers[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+static int is_proc_status_path(const char *p) {
+    if (!p || strncmp(p, "/proc/", 6) != 0) return 0;
+    p += 6;
+    if (strncmp(p, "self/", 5) == 0) p += 5;
+    else if (strncmp(p, "thread-self/", 12) == 0) p += 12;
+    else {
+        if (*p < '0' || *p > '9') return 0;
+        while (*p >= '0' && *p <= '9') p++;
+        if (*p++ != '/') return 0;
+        if (strncmp(p, "task/", 5) == 0) {
+            p += 5;
+            if (*p < '0' || *p > '9') return 0;
+            while (*p >= '0' && *p <= '9') p++;
+            if (*p++ != '/') return 0;
+        }
+    }
+    return strcmp(p, "status") == 0;
+}
+
+static void proc_status_root_ids(char *text, size_t len, const char *field, unsigned long id) {
+    size_t flen = strlen(field);
+    for (size_t at = 0; at + flen <= len; at++) {
+        if ((at != 0 && text[at - 1] != '\n') || memcmp(text + at, field, flen) != 0) continue;
+        char *p = text + at + flen;
+        char *end = memchr(p, '\n', len - (size_t)(p - text));
+        if (!end) end = text + len;
+        char out[128];
+        size_t used = 0;
+        while (p < end && used + 24 < sizeof(out)) {
+            while (p < end && (*p == '\t' || *p == ' ')) out[used++] = *p++;
+            char *num = p;
+            while (p < end && *p >= '0' && *p <= '9') p++;
+            if (p == num) break;
+            unsigned long v = strtoul(num, NULL, 10);
+            used += (size_t)snprintf(out + used, sizeof(out) - used, "%lu", v == id ? 0UL : v);
+        }
+        if (p != end) return;
+        // the line shrinks or stays (an id becomes 0), so it is rewritten in place
+        size_t old_len = (size_t)(end - (text + at + flen));
+        if (used > old_len) return;
+        memcpy(text + at + flen, out, used);
+        memmove(text + at + flen + used, end, len - (size_t)(end - text) + 1);
+        return;
+    }
+}
+
+// The status file with the app's ids as root's, in a memory file; -2 when `path` is no such file
+// or is opened for writing.
+static int open_proc_status(const char *path, int flags) {
+    if ((flags & O_ACCMODE) != O_RDONLY || !is_proc_status_path(path) || !reader_compares_process_ids()) return -2;
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    char text[16384];
+    size_t len = 0;
+    for (;;) {
+        ssize_t n = (ssize_t)syscall(SYS_read, fd, text + len, sizeof(text) - 1 - len);
+        if (n <= 0) break;
+        len += (size_t)n;
+        if (len >= sizeof(text) - 1) break;
+    }
+    syscall(SYS_close, fd);
+    text[len] = '\0';
+    if (__atomic_load_n(&g_app_uid, __ATOMIC_RELAXED) == (uid_t)-1) load_app_ids();
+    proc_status_root_ids(text, len, "Uid:", (unsigned long)__atomic_load_n(&g_app_uid, __ATOMIC_RELAXED));
+    len = strlen(text);
+    proc_status_root_ids(text, len, "Gid:", (unsigned long)__atomic_load_n(&g_app_gid, __ATOMIC_RELAXED));
+    len = strlen(text);
+    int mfd = (int)syscall(SYS_memfd_create, "status", (flags & O_CLOEXEC) ? MFD_CLOEXEC : 0);
+    if (mfd < 0) return (int)syscall(SYS_openat, AT_FDCWD, path, flags, 0);
+    size_t written = 0;
+    while (written < len) {
+        ssize_t n = (ssize_t)syscall(SYS_write, mfd, text + written, len - written);
+        if (n <= 0) break;
+        written += (size_t)n;
+    }
+    syscall(SYS_lseek, mfd, 0, SEEK_SET);
+    return mfd;
+}
+
+// openat(dirfd, "status") with dirfd on /proc/<pid> or a thread of it
+static int open_proc_status_at(int dirfd, const char *name, int flags) {
+    if (dirfd < 0 || !name || strcmp(name, "status") != 0 || (flags & O_ACCMODE) != O_RDONLY) return -2;
+    char link[48], dir[PATH_MAX];
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", dirfd);
+    long n = syscall(SYS_readlinkat, AT_FDCWD, link, dir, sizeof(dir) - 8);
+    if (n <= 0) return -2;
+    dir[n] = '\0';
+    memcpy(dir + n, "/status", 8);
+    return open_proc_status(dir, flags);
+}
+
 // Hook open
 int open(const char *pathname, int flags, ...) {
     static int (*orig_open)(const char *, int, ...) = NULL;
@@ -102,6 +210,8 @@ int open(const char *pathname, int flags, ...) {
             pathname = exe_buf;
         }
     }
+    int status_fd = open_proc_status(pathname, flags);
+    if (status_fd != -2) return status_fd;
     char buf[PATH_MAX];
     const char *target = ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf));
     if (open_needs_mode(flags)) {
@@ -130,6 +240,8 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
             pathname = exe_buf;
         }
     }
+    int status_fd = (pathname && pathname[0] == '/') ? open_proc_status(pathname, flags) : open_proc_status_at(dirfd, pathname, flags);
+    if (status_fd != -2) return status_fd;
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     if (open_needs_mode(flags)) {
@@ -274,6 +386,11 @@ int fchmodat2(int dirfd, const char *pathname, mode_t mode, int flags) {
 FILE *fopen(const char *pathname, const char *mode) {
     static FILE *(*orig_fopen)(const char *, const char *) = NULL;
     if (!orig_fopen) orig_fopen = (FILE *(*)(const char *, const char *))dlsym(RTLD_NEXT, "fopen");
+    if (mode && mode[0] == 'r' && !strchr(mode, '+')) {
+        int status_fd = open_proc_status(pathname, O_RDONLY | (strchr(mode, 'e') ? O_CLOEXEC : 0));
+        if (status_fd >= 0) return fdopen(status_fd, mode);
+        if (status_fd == -1) return NULL;
+    }
     char buf[PATH_MAX];
     const char *target = rewrite_path_follow(pathname, buf, sizeof(buf));
     return orig_fopen(target, mode);
