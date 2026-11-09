@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ctypes as C
+import functools
 import json
 import os
 from pathlib import Path
@@ -434,13 +435,18 @@ def park(steamapps):
             print(f"droiddeck-steam-games: {appid} is not here this session; its install is set aside until it is")
 
 
+@functools.lru_cache(maxsize=1)
+def compatibility():
+    return runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "steam-compatibility"))
+
+
 def seed_install(steam_root, game, appid):
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
     name = f"DroidDeck-{appid}"
     target = common / name
     source = Path(game["folder"])
-    manifest_text = runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "steam-compatibility"))["manifest_text"]
+    manifest_text = compatibility()["manifest_text"]
     minimal = manifest_text(appid, game["name"], name)
     legacy = minimal.replace('    "Universe" "1"\n', '')
     # Steam checks every file of an import with no build before updating it, from scratch each time it is interrupted.
