@@ -118,6 +118,12 @@ static void init_ddnatv_hook(void) {
 // time it was read.
 __attribute__((constructor(103))) static void init_ddnatv_hook_early(void) {
     init_ddnatv_hook();
+    // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and
+    // the app's own checks of /proc/<pid>/comm (steam, wineserver), saw only "ld-linux-aarch64.so.1"
+    const char *name = program_invocation_short_name;
+    if (g_ddnatv_root[0] != '\0' && name && name[0] && strncmp(name, "ld-linux", 8) != 0) {
+        prctl(PR_SET_NAME, (unsigned long)name, 0, 0, 0);
+    }
 }
 
 void tzset(void) {
