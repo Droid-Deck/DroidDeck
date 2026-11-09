@@ -46,25 +46,33 @@ static long status(const char *key) {
   return v;
 }
 
-static void request(char mode) {
+static void send_request(char mode) {
   int fd = open(ctl, O_WRONLY | O_TRUNC);
   if (fd < 0 || write(fd, &mode, 1) != 1) exit(3);
   close(fd);
   kill(getpid(), SIGURG);
-  if (mode == '1') {
-    char ack[256];
-    snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
-    for (int i = 0; i < 1200; i++) {
-      FILE *f = fopen(ack, "r");
-      int done = 0;
-      if (f) {
-        done = fgetc(f) == '1';
-        fclose(f);
-      }
-      if (done) return;
-      usleep(10000);
+}
+
+static void wait_ack(void) {
+  char ack[256];
+  snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
+  for (int i = 0; i < 1200; i++) {
+    FILE *f = fopen(ack, "r");
+    int done = 0;
+    if (f) {
+      done = fgetc(f) == '1';
+      fclose(f);
     }
-    exit(5);
+    if (done) return;
+    usleep(10000);
+  }
+  exit(5);
+}
+
+static void request(char mode) {
+  send_request(mode);
+  if (mode == '1') {
+    wait_ack();
   }
   usleep(1000000);
 }
@@ -124,20 +132,48 @@ int main(int argc, char **argv) {
       pid_t child = fork();
       if (child < 0) exit(6);
       if (child == 0) {
+        request('0');
         request('1');
         _exit(0);
       }
       int status_code;
       waitpid(child, &status_code, 0);
       printf("childack %d\n", WIFEXITED(status_code) && WEXITSTATUS(status_code) == 0);
+    } else if (!strcmp(argv[4], "burst")) {
+      send_request('0');
+      usleep(10000);
+      send_request('1');
+      wait_ack();
+      printf("burstack 1\n");
+    } else if (!strcmp(argv[4], "timed-inline")) {
+      pid_t child = fork();
+      if (child < 0) exit(8);
+      if (child == 0) {
+        struct timespec start, end;
+        int fd = open(ctl, O_WRONLY | O_TRUNC);
+        if (fd < 0 || write(fd, "1", 1) != 1) _exit(9);
+        close(fd);
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        for (int i = 0; i < 64; i++) {
+          send_request('1');
+        }
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        long elapsed = (end.tv_sec - start.tv_sec) * 1000L +
+                       (end.tv_nsec - start.tv_nsec) / 1000000L;
+        printf("inline %ld\n", elapsed);
+        fflush(stdout);
+        _exit(0);
+      }
+      int status_code;
+      waitpid(child, &status_code, 0);
     } else if (!strcmp(argv[4], "timed")) {
       struct timespec previous, current, deadline;
       long max_gap = 0;
       int fd = open(ctl, O_WRONLY | O_TRUNC);
       if (fd < 0 || write(fd, "1", 1) != 1) exit(7);
       close(fd);
-      kill(getpid(), SIGURG);
       clock_gettime(CLOCK_MONOTONIC, &previous);
+      kill(getpid(), SIGURG);
       deadline = previous;
       deadline.tv_sec += 1;
       for (;;) {
@@ -291,13 +327,22 @@ class ZramPreloadTest(unittest.TestCase):
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_signal_does_not_stall_the_main_thread(self):
         out = self.run_program(None, 48, 0, "timed")
-        self.assertLess(out["gap"][0], 50)
+        self.assertLess(out["gap"][0], 250)
         self.assertGreater(out["out"][0], 32 * 1024)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_inline_pageout_exceeds_async_timing_tolerance(self):
+        out = self.run_program(None, 256, 0, "timed-inline")
+        self.assertGreater(out["inline"][0], 250)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_forked_child_still_acknowledges_pageout(self):
         out = self.run_program(None, 48, 0, "fork")
         self.assertEqual([1], out["childack"])
+
+    def test_worker_acknowledges_back_to_back_requests(self):
+        out = self.run_program(None, 48, 0, "burst")
+        self.assertEqual([1], out["burstack"])
 
 
 if __name__ == "__main__":

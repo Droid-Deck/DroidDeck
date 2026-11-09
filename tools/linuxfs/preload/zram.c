@@ -179,7 +179,8 @@ static void zr_handler(int sig, siginfo_t *info, void *context) {
   __atomic_store_n(&zr_pending, 1, __ATOMIC_SEQ_CST);
   if (__atomic_load_n(&zr_worker, __ATOMIC_ACQUIRE)) {
     zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAKE, 1, NULL, NULL, 0);
-  } else if (!__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
+  } else while (__atomic_load_n(&zr_pending, __ATOMIC_SEQ_CST)
+                && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
     __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
     zr_request();
     __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
