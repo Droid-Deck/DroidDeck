@@ -668,6 +668,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AgentGuest.readyListener = { requestRelativeMouse() }
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -2986,7 +2987,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applyRelativeMouse() {
         val wanted = desiredRelativeMouseMode
-        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), usingTouchpad())
+        val touchpadRoute = com.droiddeck.launcher.input.TouchRouter.decide(com.droiddeck.launcher.input.TouchRouter.Snapshot(
+            uiBlocking = false,
+            mode = routedTouchMode,
+            scrollLayer = false,
+            steamSession = SessionState.mode == SessionService.MODE_STEAM,
+            steamDesktopUi = SessionState.steamUi == "desktop",
+        )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
+        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
         if (appliedRelativeMouseMode == mode) return
         val request = org.json.JSONObject()
             .put("kind", "exec")
@@ -5359,6 +5367,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        AgentGuest.readyListener = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
