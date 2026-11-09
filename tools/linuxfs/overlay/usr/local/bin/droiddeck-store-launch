@@ -352,7 +352,13 @@ def install_runtime(compat_data, wait=UBISOFT_EXTRACT_WAIT):
             return "extract-missing-" + ",".join(missing)
         for name in UBISOFT_RUNTIME:
             shutil.copyfile(Path(tmp) / name, target / name)
-    return "installed" if ubisoft_runtime_ready(compat_data) else "copy-failed"
+    if not ubisoft_runtime_ready(compat_data):
+        return "copy-failed"
+    try:
+        installer.unlink()
+    except OSError:
+        pass
+    return "installed"
 
 
 def ubisoft_product(sidecar):

@@ -161,6 +161,15 @@ object UbisoftLibrary {
             val owned = UbisoftNative.call("owned", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId))
             owned?.optString("error")?.takeIf { it.isNotEmpty() }?.let { StoresState.logLine("Ubisoft: ownership: $it") }
             val bySpace = ownedBySpace(owned)
+            owned?.optJSONArray("games")?.let { list ->
+                val bySpaceAll = (0 until list.length()).mapNotNull { list.optJSONObject(it) }.groupBy { it.optString("spaceId") }
+                for (g in all.distinctBy { it.id }.filter { it.id !in bySpace }) {
+                    val seen = bySpaceAll[g.id].orEmpty().joinToString(";") {
+                        "${it.optLong("productId")}:t${it.optInt("productType")}:s${it.optInt("state")}:o${it.optBoolean("owned", true)}:m${it.optString("manifest").isNotEmpty()}"
+                    }
+                    StoresState.logLine("Ubisoft: no download for ${g.title} (${g.id.take(8)}): ${seen.ifEmpty { "not in ownership" }}")
+                }
+            }
             fun download(o: JSONObject) = listOfNotNull(
                 "productId" to o.optLong("productId").toString(),
                 o.optString("manifest").takeIf { it.isNotEmpty() }?.let { "manifest" to it },
