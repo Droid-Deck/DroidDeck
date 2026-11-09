@@ -457,7 +457,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET,
         )) || SessionState.mode == SessionService.MODE_DESKTOP
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
-    private var drawerGameInventoryRevision = 0L
+    @Volatile private var drawerGameInventoryRevision = 0L
     private var drawerGameFexPresetSaving by mutableStateOf(false)
     private var drawerGameNoSteamSaving by mutableStateOf(false)
     private val drawerGameProfileFollowState = GameProfileFollowState()
@@ -557,10 +557,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
+    @Volatile private var frameGenInventoryRevision = -1L
     private val frameGenInventoryLock = Any()
     @Volatile private var frameGenInventoryLastAttemptAt = 0L
 
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
+    @Volatile private var appliedFrameGenHz: Float? = null
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
@@ -2431,10 +2433,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
 
-        var ids = frameGenInventoryIds
+        var inventoryRevision = drawerGameInventoryRevision
+        var ids = synchronized(frameGenInventoryLock) {
+            if (frameGenInventoryRevision != inventoryRevision) {
+                frameGenInventoryIds = null
+                frameGenInventoryRevision = inventoryRevision
+            }
+            frameGenInventoryIds
+        }
         if (ids == null) {
             val now = SystemClock.elapsedRealtime()
             val shouldScan = synchronized(frameGenInventoryLock) {
+                val currentRevision = drawerGameInventoryRevision
+                if (frameGenInventoryRevision != currentRevision) {
+                    frameGenInventoryIds = null
+                    frameGenInventoryRevision = currentRevision
+                }
+                inventoryRevision = currentRevision
                 if (frameGenInventoryIds != null) {
                     false
                 } else if (
@@ -2456,13 +2471,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }.getOrNull()
 
                 if (currentIds != null) {
-                    ids = cachedIds + currentIds
-                    frameGenInventoryIds = ids
+                    synchronized(frameGenInventoryLock) {
+                        if (drawerGameInventoryRevision == inventoryRevision &&
+                            frameGenInventoryRevision == inventoryRevision
+                        ) {
+                            ids = cachedIds + currentIds
+                            frameGenInventoryIds = ids
+                        }
+                    }
                 }
             }
 
             if (ids == null) {
-                ids = frameGenInventoryIds ?: emptySet()
+                ids = synchronized(frameGenInventoryLock) {
+                    frameGenInventoryIds
+                } ?: emptySet()
             }
         }
 
@@ -2480,12 +2503,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                if (!force && appliedFrameGenMode != null && mode == appliedFrameGenMode) {
+                val lastAppliedHz = appliedFrameGenHz
+                if (!force && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
+                    lastAppliedHz != null && kotlin.math.abs(lastAppliedHz - hz) <= 0.1f
+                ) {
                     null
                 } else {
                     FrameGen.apply(this, mode, hz).also { problem ->
-                        appliedFrameGenMode =
-                            if (problem == null) mode else FrameGen.Mode.OFF
+                        if (problem == null) {
+                            appliedFrameGenMode = mode
+                            appliedFrameGenHz = hz
+                        } else {
+                            appliedFrameGenMode = null
+                            appliedFrameGenHz = null
+                        }
                     }
                 }
             }
@@ -4743,6 +4774,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        drawerGameInventoryRevision++
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
         }
