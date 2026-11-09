@@ -16,14 +16,17 @@
 
 static const int blocked[] = {99, 100, 97, 217, 218, 219, 268, 277, 280, 293, 143, 144, 145, 146, 147, 149, 151, 152, 159};
 
+#define MAX_ALLOWED 64
+#define NBLOCKED (sizeof(blocked) / sizeof(blocked[0]))
+
 int main(int argc, char **argv) {
-    int skip[64], nskip = 0, arg = 1;
+    int skip[MAX_ALLOWED], nskip = 0, arg = 1;
     if (argc > 3 && strcmp(argv[1], "-a") == 0) {
-        for (char *p = strtok(argv[2], ","); p && nskip < 64; p = strtok(NULL, ",")) skip[nskip++] = atoi(p);
+        for (char *p = strtok(argv[2], ","); p && nskip < MAX_ALLOWED; p = strtok(NULL, ",")) skip[nskip++] = atoi(p);
         arg = 3;
     }
     if (arg >= argc) return 2;
-    struct sock_filter filter[128];
+    struct sock_filter filter[4 + 2 * MAX_ALLOWED + 2 + 2 * NBLOCKED + 1];
     int n = 0;
     filter[n++] = (struct sock_filter)BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch));
     filter[n++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 1, 0);
@@ -35,7 +38,7 @@ int main(int argc, char **argv) {
     }
     filter[n++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 424, 0, 1);
     filter[n++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP);
-    for (size_t i = 0; i < sizeof(blocked) / sizeof(blocked[0]); i++) {
+    for (size_t i = 0; i < NBLOCKED; i++) {
         filter[n++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, blocked[i], 0, 1);
         filter[n++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP);
     }
