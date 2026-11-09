@@ -30,6 +30,7 @@
 #include <linux/uinput.h>
 #include <poll.h>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -208,23 +209,30 @@ struct FakeConfig {
   bool uinput_enabled;
 };
 
+// The first allocation here can start the host program's own allocator, which may call a hooked
+// function (mimalloc probes NUMA nodes with access()) and land back in config(). A guarded static
+// would throw a recursive-init error there, so the fields are filled without allocating and
+// published before anything that can allocate runs.
 static FakeConfig &config() {
-  static FakeConfig *cfg = [] {
-    auto *c = new FakeConfig();
-    const char *dir = getenv("FAKE_EVDEV_DIR");
-    c->hook_dir = dir ? dir : "/data/data/com.termux/files/home/fake-input";
-    c->udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
-    c->vibration_enabled =
-        getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
-    const char *identity = getenv("FAKE_EVDEV_IDENTITY");
-    c->xbox360_identity = identity && !strcmp(identity, "xbox360");
-    c->uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
-    pthread_atfork(controller_fork_prepare, controller_fork_parent,
-                   controller_fork_child);
-    Logger::init();
-    return c;
-  }();
-  return *cfg;
+  static FakeConfig cfg;
+  static std::atomic<int> state{0};
+  if (state.load(std::memory_order_acquire) == 2) return cfg;
+  int expected = 0;
+  if (!state.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
+    while (state.load(std::memory_order_acquire) != 2) sched_yield();
+    return cfg;
+  }
+  const char *dir = getenv("FAKE_EVDEV_DIR");
+  cfg.hook_dir = dir ? dir : "/data/data/com.termux/files/home/fake-input";
+  cfg.udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
+  cfg.vibration_enabled = getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
+  const char *identity = getenv("FAKE_EVDEV_IDENTITY");
+  cfg.xbox360_identity = identity && !strcmp(identity, "xbox360");
+  cfg.uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
+  state.store(2, std::memory_order_release);
+  pthread_atfork(controller_fork_prepare, controller_fork_parent, controller_fork_child);
+  Logger::init();
+  return cfg;
 }
 
 static std::recursive_mutex &controller_mutex() {
