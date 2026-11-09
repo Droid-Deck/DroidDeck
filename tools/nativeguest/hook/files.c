@@ -121,6 +121,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     static int (*orig_openat)(int, const char *, int, ...) = NULL;
     if (!orig_openat) orig_openat = (int (*)(int, const char *, int, ...))dlsym(RTLD_NEXT, "openat");
     init_ddnatv_hook();
+    DDNATV_AT_REMAP(dirfd, pathname);
     char exe_buf[PATH_MAX];
     if (is_proc_self_exe(pathname)) {
         if (g_real_exe[0] != '\0') {
@@ -513,6 +514,7 @@ int lstat(const char *pathname, struct stat *statbuf) {
 int fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags) {
     static int (*orig_fstatat)(int, const char *, struct stat *, int) = NULL;
     if (!orig_fstatat) orig_fstatat = (int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_fstatat ? orig_fstatat(dirfd, target, statbuf, flags) : -1;
@@ -607,6 +609,7 @@ int statx(int dirfd, const char *pathname, int flags, unsigned int mask, struct 
     __asm__ volatile("" : "+r"(pathname), "+r"(statxbuf));
     static int (*orig_statx)(int, const char *, int, unsigned int, struct statx *) = NULL;
     if (!orig_statx) orig_statx = (int (*)(int, const char *, int, unsigned int, struct statx *))dlsym(RTLD_NEXT, "statx");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_statx ? orig_statx(dirfd, target, flags, mask, statxbuf) : -1;

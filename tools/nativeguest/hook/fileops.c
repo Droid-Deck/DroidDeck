@@ -13,6 +13,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
         errno = EFAULT;
         return -1;
     }
+    DDNATV_AT_REMAP(dirfd, pathname);
 
     struct stat st;
     int stat_flags = (flags & AT_SYMLINK_NOFOLLOW) ? AT_SYMLINK_NOFOLLOW : 0;
@@ -328,6 +329,7 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     }
     static ssize_t (*orig_readlinkat)(int, const char *, char *, size_t) = NULL;
     if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char pbuf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, pbuf, sizeof(pbuf)) : pathname;
     ssize_t ret = orig_readlinkat ? orig_readlinkat(dirfd, target, buf, bufsiz) : -1;
