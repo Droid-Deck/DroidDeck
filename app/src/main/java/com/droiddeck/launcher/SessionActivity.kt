@@ -556,6 +556,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
+    @Volatile private var appliedFrameGenMode: FrameGen.Mode = FrameGen.Mode.OFF
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
