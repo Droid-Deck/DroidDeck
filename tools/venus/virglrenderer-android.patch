@@ -2,7 +2,7 @@ diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
 index ffe621b..01cd811 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
-@@ -227,6 +227,136 @@ vkr_gbm_get_fd_info_from_allocation_info(UNUSED struct vkr_physical_device *phys
+@@ -227,6 +227,190 @@ vkr_gbm_get_fd_info_from_allocation_info(UNUSED struct vkr_physical_device *phys
  
  #endif /* ENABLE_GBM_ALLOCATION */
  
@@ -12,9 +12,56 @@ index ffe621b..01cd811 100644
 +#include <linux/dma-heap.h>
 +#include <sys/ioctl.h>
 +#include <sys/socket.h>
++#include <pthread.h>
 +
 +static int vkr_dma_heap_fd = -1;
 +static int vkr_dma_heap_cached_fd = -1;
++struct vkr_android_dma_buf {
++   int fd;
++   size_t size;
++   bool cached;
++};
++
++#define VKR_ANDROID_DMA_BUF_POOL_MAX 16
++#define VKR_ANDROID_DMA_BUF_POOL_BYTES (64ULL * 1024ULL * 1024ULL)
++static pthread_mutex_t vkr_android_dma_buf_pool_lock = PTHREAD_MUTEX_INITIALIZER;
++static struct vkr_android_dma_buf vkr_android_dma_buf_pool[VKR_ANDROID_DMA_BUF_POOL_MAX];
++static size_t vkr_android_dma_buf_pool_bytes;
++static unsigned vkr_android_dma_buf_pool_count;
++
++static int
++vkr_android_take_dma_buf(size_t size, bool cached)
++{
++   int fd = -1;
++   pthread_mutex_lock(&vkr_android_dma_buf_pool_lock);
++   for (unsigned i = 0; i < vkr_android_dma_buf_pool_count; i++) {
++      if (vkr_android_dma_buf_pool[i].size == size && vkr_android_dma_buf_pool[i].cached == cached) {
++         fd = vkr_android_dma_buf_pool[i].fd;
++         vkr_android_dma_buf_pool_bytes -= size;
++         vkr_android_dma_buf_pool[i] = vkr_android_dma_buf_pool[--vkr_android_dma_buf_pool_count];
++         break;
++      }
++   }
++   pthread_mutex_unlock(&vkr_android_dma_buf_pool_lock);
++   return fd;
++}
++
++static void
++vkr_android_put_dma_buf(int fd, size_t size, bool cached)
++{
++   if (fd < 0)
++      return;
++   pthread_mutex_lock(&vkr_android_dma_buf_pool_lock);
++   if (vkr_android_dma_buf_pool_count < VKR_ANDROID_DMA_BUF_POOL_MAX &&
++       vkr_android_dma_buf_pool_bytes + size <= VKR_ANDROID_DMA_BUF_POOL_BYTES) {
++      vkr_android_dma_buf_pool[vkr_android_dma_buf_pool_count++] = (struct vkr_android_dma_buf){fd, size, cached};
++      vkr_android_dma_buf_pool_bytes += size;
++      fd = -1;
++   }
++   pthread_mutex_unlock(&vkr_android_dma_buf_pool_lock);
++   if (fd >= 0)
++      close(fd);
++}
 +
 +/* Uncached for coherent memory types: nobody brackets CPU access with
 + * DMA_BUF_IOCTL_SYNC (the guest maps the memory as host-coherent), so on a
@@ -101,10 +148,10 @@ index ffe621b..01cd811 100644
 +   call_once(&dma_heap_once_flag, vkr_dma_heap_init_once);
 +
 +   const size_t size = align(alloc_info->allocationSize, getpagesize());
++   int dma_buf_fd = vkr_android_take_dma_buf(size, cached);
 +   const int heap_fd =
 +      cached && vkr_dma_heap_cached_fd >= 0 ? vkr_dma_heap_cached_fd : vkr_dma_heap_fd;
-+   int dma_buf_fd = -1;
-+   if (heap_fd >= 0) {
++   if (dma_buf_fd < 0 && heap_fd >= 0) {
 +      struct dma_heap_allocation_data data = {
 +         .len = size,
 +         .fd_flags = O_RDWR | O_CLOEXEC,
@@ -134,12 +181,19 @@ index ffe621b..01cd811 100644
 +   };
 +   return VK_SUCCESS;
 +}
++
++static void
++vkr_android_release_dma_buf(int fd, uint64_t size, uint32_t property_flags)
++{
++   vkr_android_put_dma_buf(fd, align(size, getpagesize()),
++                           property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
++}
 +#endif /* __ANDROID__ */
 +
  static void
  vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
                                struct vn_command_vkAllocateMemory *args)
-@@ -281,7 +411,14 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+@@ -281,7 +465,14 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
     int udmabuf_fd = -1;
     void *gbm_bo = NULL;
     VkExportMemoryAllocateInfo local_export_info;
@@ -155,7 +209,7 @@ index ffe621b..01cd811 100644
        /* An implementation can support dma_buf import along with opaque fd export/import.
         * If the client driver is using external memory and requesting dma_buf, without
         * dma_buf fd export support, we must use gbm bo import path instead of forcing
-@@ -346,6 +483,13 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+@@ -346,6 +537,13 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
               */
              args->ret = vkr_udmabuf_get_fd_info_from_allocation_info(
                 physical_dev, alloc_info, &udmabuf_fd, &local_import_info);
@@ -169,7 +223,7 @@ index ffe621b..01cd811 100644
           } else {
              args->ret = vkr_gbm_get_fd_info_from_allocation_info(
                 physical_dev, alloc_info, &gbm_bo, &local_import_info);
-@@ -367,6 +511,12 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+@@ -367,6 +565,17 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
  
     struct vkr_device_memory *mem = vkr_device_memory_create_and_add(ctx, args);
     if (!mem) {
@@ -177,11 +231,32 @@ index ffe621b..01cd811 100644
 +              args->ret, mem_type_index, property_flags,
 +              (uint64_t)alloc_info->allocationSize,
 +              udmabuf_fd >= 0 ? ", imported dma-buf" : "");
-+      if (udmabuf_fd >= 0)
++      if (udmabuf_fd >= 0) {
++#ifdef __ANDROID__
++         vkr_android_release_dma_buf(udmabuf_fd, alloc_info->allocationSize, property_flags);
++#else
 +         close(udmabuf_fd);
++#endif
++      }
        if (local_import_info.fd >= 0)
           close(local_import_info.fd);
        if (gbm_bo)
+@@ -489,7 +692,13 @@ vkr_device_memory_release(struct vkr_device_memory *mem)
+ vkr_device_memory_release(struct vkr_device_memory *mem)
+ {
+    if (mem->gbm_bo)
+       vkr_gbm_bo_destroy(mem->gbm_bo);
+-   if (mem->udmabuf_fd >= 0)
+-      close(mem->udmabuf_fd);
++   if (mem->udmabuf_fd >= 0) {
++#ifdef __ANDROID__
++      if (mem->device->physical_device->android_dma_buf_import)
++         vkr_android_release_dma_buf(mem->udmabuf_fd, mem->allocation_size, mem->property_flags);
++      else
++#endif
++         close(mem->udmabuf_fd);
++   }
+ }
 diff --git a/src/venus/vkr_physical_device.c b/src/venus/vkr_physical_device.c
 index e2c3baa..69ec875 100644
 --- a/src/venus/vkr_physical_device.c
