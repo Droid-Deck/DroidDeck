@@ -859,6 +859,58 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
                  "/lib/wine/fakedlls", "/lib64/wine", "/lib64/wine/fakedlls", "/lib64/wine/x86_64-windows")
 
 
+PE_MACHINES = {"system32": ("aarch64-windows", frozenset((0xAA64, 0xA641))), "syswow64": ("i386-windows", frozenset((0x14C,)))}
+FOREIGN_SUFFIX = ".foreign-arch"
+
+
+def pe_machine(path):
+    try:
+        with open(path, "rb") as image:
+            head = image.read(64)
+            if head[:2] != b"MZ" or len(head) < 64:
+                return None
+            image.seek(int.from_bytes(head[60:64], "little"))
+            header = image.read(6)
+    except OSError:
+        return None
+    if header[:4] != b"PE\0\0" or len(header) < 6:
+        return None
+    return int.from_bytes(header[4:6], "little")
+
+
+def repair_foreign_system_dlls(prefix, proton):
+    dist = Path(proton).parent / "files/lib/wine"
+    windows = Path(prefix) / "pfx/drive_c/windows"
+    if not (dist / "aarch64-unix").is_dir():
+        return []
+    repaired = []
+    for folder, (libdir, machines) in PE_MACHINES.items():
+        builtins = dist / libdir
+        try:
+            names = sorted(os.listdir(windows / folder))
+        except OSError:
+            continue
+        for name in names:
+            path = windows / folder / name
+            source = builtins / name
+            if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
+                continue
+            machine = pe_machine(path)
+            if machine is None or machine in machines:
+                continue
+            link = windows / folder / (name + ".bl-new")
+            try:
+                os.symlink(os.path.relpath(source, path.parent), link)
+                os.replace(path, windows / folder / (name + FOREIGN_SUFFIX))
+                os.replace(link, path)
+            except OSError:
+                if link.is_symlink():
+                    link.unlink()
+                continue
+            repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
+    return repaired
+
+
 def is_wine_dll_link(path):
     try:
         return os.path.islink(path) and os.path.dirname(os.readlink(path)).endswith(WINE_DLL_DIRS)
@@ -1156,6 +1208,16 @@ def main():
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     debug_dir = env.get("BL_DEBUG_DIR", "")
+    prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if prefix_path and command:
+        try:
+            fixed = repair_foreign_system_dlls(prefix_path, command[0])
+        except OSError as error:
+            fixed = []
+            print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        if fixed:
+            print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
+                  file=sys.stderr)
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
