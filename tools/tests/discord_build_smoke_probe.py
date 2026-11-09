@@ -1,1 +1,1 @@
-BUILD_NOTICE_SMOKE_PROBE = "initial"
+BUILD_NOTICE_SMOKE_PROBE = "superseding"
