@@ -112,6 +112,7 @@ object EaLaunch {
                         "$content:ok"
                     } catch (e: Exception) {
                         Log.w(TAG, "licence $content for $id: ${e.message}")
+                        com.droiddeck.launcher.stores.StoresState.logLine("ea licence $content for $id v$hashVersion legacy=$legacy: ${e.message}")
                         "$content:refused"
                     }
                 }
