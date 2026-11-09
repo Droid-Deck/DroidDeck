@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "vk_present.h"
+#include "surface_format.h"
 #include "vk_loader.h"
 #include "vk_external_image_sync.h"
 #include "sc_layer.h"
@@ -819,8 +820,14 @@ static int swap_init_locked(void) {
     if (g_vk.GetPhysicalDeviceSurfaceFormatsKHR(g_pd, g_surface, &nfmt, fmts) < 0 || !nfmt) {
         free(fmts); SWLOGE("present: vkGetPhysicalDeviceSurfaceFormatsKHR failed"); return -1;
     }
+    uint32_t *sdr_formats = calloc(nfmt, sizeof(*sdr_formats));
+    if (!sdr_formats) { free(fmts); SWLOGE("present: no memory for surface formats"); return -1; }
+    for (uint32_t i = 0; i < nfmt; i++) sdr_formats[i] = fmts[i].format;
+    const VkFormat sdr_format = droiddeck_select_surface_format(sdr_formats, nfmt, VK_FORMAT_B8G8R8A8_UNORM);
+    free(sdr_formats);
     VkSurfaceFormatKHR chosen = fmts[0];
-    const VkSurfaceFormatKHR sdr_choice = fmts[0];
+    chosen.format = sdr_format;
+    const VkSurfaceFormatKHR sdr_choice = chosen;
     if (droiddeck_color_requested() && (!g_surface_formats_said || g_swap_hdr_want)) {
         g_surface_formats_said = 1;
         log_surface_formats(fmts, nfmt);
