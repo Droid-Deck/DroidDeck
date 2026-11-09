@@ -581,6 +581,8 @@
     <string name="perf_cap_off">Disattivo</string>
     <string name="perf_cap_auto">Predefinito del driver</string>
     <string name="perf_zram_client">Comprimi Steam durante il gioco</string>
+    <string name="perf_zram_idle">Comprimi la memoria inattiva del gioco</string>
+    <string name="perf_zram_idle_hint">Comprime la memoria inattiva del gioco quando la RAM scarseggia.</string>
     <string name="perf_zram_client_hint">20 s dopo l\'avvio di un gioco, il client Steam viene compresso in zRAM per lasciare più memoria al gioco e viene riletto quando il gioco si chiude. Disattivalo se la sessione si chiude poco dopo l\'avvio dei giochi. Un limite di RAM impostato sopra comprime comunque Steam quando la sessione lo supera.</string>
     <string name="perf_ram_cap">Limite RAM</string>
     <string name="perf_ram_cap_hint">Si applica mentre il client Steam è in esecuzione, in modalità Steam o dal desktop. Quando la sessione usa più di questo valore, Steam e poi gli altri processi supportati della sessione vengono compressi in zRAM. È un limite morbido: non viene chiuso nulla, ma i giochi possono scattare mentre le pagine vengono recuperate.</string>

@@ -579,6 +579,8 @@
     <string name="perf_cap_off">Ki</string>
     <string name="perf_cap_auto">Illesztőprogram alapértéke</string>
     <string name="perf_zram_client">A Steam tömörítése játék közben</string>
+    <string name="perf_zram_idle">Játék inaktív memóriájának tömörítése</string>
+    <string name="perf_zram_idle_hint">Kevés RAM esetén tömöríti a játék inaktív memóriáját.</string>
     <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
     <string name="perf_ram_cap">RAM-korlát</string>
     <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>

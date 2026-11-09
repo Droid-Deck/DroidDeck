@@ -577,6 +577,8 @@
     <string name="perf_cap_off">ปิด</string>
     <string name="perf_cap_auto">ค่าเริ่มต้นของไดรเวอร์</string>
     <string name="perf_zram_client">บีบอัด Steam ขณะเล่นเกม</string>
+    <string name="perf_zram_idle">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งาน</string>
+    <string name="perf_zram_idle_hint">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งานเมื่อ RAM เหลือน้อย</string>
     <string name="perf_zram_client_hint">20 วินาทีหลังเกมเริ่ม ไคลเอนต์ Steam จะถูกบีบอัดลงใน zRAM เพื่อเหลือหน่วยความจำให้เกมมากขึ้น และอ่านกลับเมื่อปิดเกม ปิดตัวเลือกนี้หากเซสชันปิดไปไม่นานหลังเริ่มเกม ขีดจำกัด RAM ด้านบนยังคงบีบอัด Steam เมื่อเซสชันใช้เกินขีดจำกัด</string>
     <string name="perf_ram_cap">ขีดจำกัด RAM</string>
     <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>

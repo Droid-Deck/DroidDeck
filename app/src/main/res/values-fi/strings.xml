@@ -579,6 +579,8 @@
     <string name="perf_cap_off">Pois</string>
     <string name="perf_cap_auto">Ajurin oletus</string>
     <string name="perf_zram_client">Pakkaa Steam pelin ollessa käynnissä</string>
+    <string name="perf_zram_idle">Pakkaa pelin käyttämätöntä muistia</string>
+    <string name="perf_zram_idle_hint">Siirtää pelin käyttämätöntä muistia zRAMiin, kun RAM-muisti vähenee.</string>
     <string name="perf_zram_client_hint">20 s pelin käynnistymisen jälkeen Steam-asiakasohjelma pakataan zRAMiin, jotta pelille jää enemmän muistia, ja luetaan takaisin, kun peli sulkeutuu. Poista tämä käytöstä, jos istunto sulkeutuu pian pelien käynnistymisen jälkeen. Yllä oleva RAM-raja pakkaa silti Steamin, kun istunto ylittää sen.</string>
     <string name="perf_ram_cap">RAM-raja</string>
     <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>

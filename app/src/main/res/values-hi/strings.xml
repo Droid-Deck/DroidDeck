@@ -579,6 +579,8 @@
     <string name="perf_cap_off">बंद</string>
     <string name="perf_cap_auto">ड्राइवर डिफ़ॉल्ट</string>
     <string name="perf_zram_client">गेम चलते समय Steam को कंप्रेस करें</string>
+    <string name="perf_zram_idle">गेम की निष्क्रिय मेमोरी को संपीड़ित करें</string>
+    <string name="perf_zram_idle_hint">RAM कम होने पर गेम की निष्क्रिय मेमोरी को पेज करता है।</string>
     <string name="perf_zram_client_hint">गेम शुरू होने के 20 s बाद, Steam क्लाइंट को zRAM में कंप्रेस किया जाता है ताकि गेम को ज़्यादा मेमोरी मिले, और गेम बंद होने पर वापस पढ़ा जाता है। अगर गेम शुरू होने के कुछ देर बाद सेशन बंद हो जाता है तो इसे बंद करें। ऊपर दी गई RAM सीमा पार होने पर भी Steam कंप्रेस होता है।</string>
     <string name="perf_ram_cap">RAM सीमा</string>
     <string name="perf_ram_cap_hint">Steam क्लाइंट चलते समय लागू होती है, Steam मोड में या डेस्कटॉप से। जब सेशन इससे ज़्यादा इस्तेमाल करता है, तो Steam और फिर सेशन की दूसरी समर्थित प्रोसेस zRAM में कंप्रेस होती हैं। यह सॉफ़्ट सीमा है: कुछ बंद नहीं होता, लेकिन पेज वापस आते समय गेम अटक सकते हैं।</string>

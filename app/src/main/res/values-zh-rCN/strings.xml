@@ -577,6 +577,8 @@
     <string name="perf_cap_off">关闭</string>
     <string name="perf_cap_auto">驱动默认</string>
     <string name="perf_zram_client">游戏运行时压缩 Steam</string>
+    <string name="perf_zram_idle">压缩游戏闲置内存</string>
+    <string name="perf_zram_idle_hint">RAM 较低时压缩游戏闲置内存。</string>
     <string name="perf_zram_client_hint">游戏启动 20 秒后，Steam 客户端会被压缩到 zRAM 中，为游戏腾出更多内存，并在游戏关闭时读回。如果会话在游戏启动后不久就关闭，请关闭此选项。设置了上方的 RAM 上限时，会话超出上限后仍会压缩 Steam。</string>
     <string name="perf_ram_cap">RAM 上限</string>
     <string name="perf_ram_cap_hint">在 Steam 客户端运行时生效，无论是 Steam 模式还是从桌面启动。会话使用量超过此值时，会先将 Steam、再将会话中其他受支持的进程压缩到 zRAM。这是软上限：不会关闭任何进程，但在页面读回时游戏可能卡顿。</string>

@@ -577,6 +577,8 @@
     <string name="perf_cap_off">끄기</string>
     <string name="perf_cap_auto">드라이버 기본값</string>
     <string name="perf_zram_client">게임 실행 중 Steam 압축</string>
+    <string name="perf_zram_idle">유휴 게임 메모리 압축</string>
+    <string name="perf_zram_idle_hint">RAM이 부족할 때 유휴 게임 메모리를 압축합니다.</string>
     <string name="perf_zram_client_hint">게임이 시작되고 20초 후 Steam 클라이언트를 zRAM으로 압축해 게임에 더 많은 메모리를 남기고, 게임이 종료되면 다시 읽어 들입니다. 게임 시작 직후 세션이 종료되면 이 옵션을 끄세요. 위의 RAM 제한을 설정하면 세션이 이를 초과할 때 여전히 Steam을 압축합니다.</string>
     <string name="perf_ram_cap">RAM 제한</string>
     <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>

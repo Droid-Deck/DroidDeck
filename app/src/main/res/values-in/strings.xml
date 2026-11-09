@@ -577,6 +577,8 @@
     <string name="perf_cap_off">Nonaktif</string>
     <string name="perf_cap_auto">Default driver</string>
     <string name="perf_zram_client">Kompres Steam saat gim berjalan</string>
+    <string name="perf_zram_idle">Kompres memori game yang tidak aktif</string>
+    <string name="perf_zram_idle_hint">Mengompres memori game yang tidak aktif saat RAM rendah.</string>
     <string name="perf_zram_client_hint">20 detik setelah gim dimulai, klien Steam dikompres ke zRAM agar gim mendapat lebih banyak memori, lalu dibaca kembali saat gim ditutup. Nonaktifkan jika sesi tertutup sesaat setelah gim dimulai. Batas RAM di atas tetap mengompres Steam saat sesi melampauinya.</string>
     <string name="perf_ram_cap">Batas RAM</string>
     <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>

@@ -583,6 +583,8 @@
     <string name="perf_cap_off">Вимк.</string>
     <string name="perf_cap_auto">Типово для драйвера</string>
     <string name="perf_zram_client">Стискати Steam під час гри</string>
+    <string name="perf_zram_idle">Стискати неактивну пам’ять гри</string>
+    <string name="perf_zram_idle_hint">Стискає неактивну пам’ять гри, коли мало RAM.</string>
     <string name="perf_zram_client_hint">Через 20 с після запуску гри клієнт Steam стискається в zRAM, щоб залишити грі більше памʼяті, і зчитується назад, коли гра закривається. Вимкніть, якщо сеанс закривається невдовзі після запуску ігор. Ліміт RAM вище все одно стискає Steam, коли сеанс його перевищує.</string>
     <string name="perf_ram_cap">Ліміт RAM</string>
     <string name="perf_ram_cap_hint">Діє, поки працює клієнт Steam, у режимі Steam або з робочого столу. Коли сеанс використовує більше цього значення, Steam, а потім інші підтримувані процеси сеансу стискаються в zRAM. Мʼякий ліміт: нічого не закривається, але ігри можуть підвисати, поки сторінки повертаються.</string>

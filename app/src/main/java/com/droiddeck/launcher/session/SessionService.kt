@@ -964,6 +964,7 @@ class SessionService : Service() {
             guest.add("BL_ZRAM=1")
             if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_RAM_CAP_MB=$it") }
             if (!SessionPrefs.zramClient(this)) guest.add("BL_ZRAM_CLIENT=0")
+            if (!SessionPrefs.zramIdle(this)) guest.add("BL_ZRAM_IDLE=0")
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")

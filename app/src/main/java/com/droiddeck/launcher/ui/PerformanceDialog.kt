@@ -48,6 +48,7 @@ fun PerformancePage(
     gpuClockPin: Boolean,
     ramCapMb: Int,
     zramClient: Boolean,
+    zramIdle: Boolean,
     vramCapMb: Int,
     deviceRamMb: Int,
     ramCapAvailable: Boolean,
@@ -69,6 +70,7 @@ fun PerformancePage(
     onGpuClockPin: (Boolean) -> Unit,
     onRamCapMb: (Int) -> Unit,
     onZramClient: (Boolean) -> Unit,
+    onZramIdle: (Boolean) -> Unit,
     onVramCapMb: (Int) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
@@ -137,6 +139,11 @@ fun PerformancePage(
             val top = (deviceRamMb / MEMORY_CAP_STEP_MB * MEMORY_CAP_STEP_MB).coerceAtLeast(MEMORY_CAP_STEP_MB)
             val off = stringResource(R.string.perf_cap_off)
             val auto = stringResource(R.string.perf_cap_auto)
+            ToggleRow(
+                host, "zramidle", stringResource(R.string.perf_zram_idle),
+                stringResource(R.string.perf_zram_idle_hint),
+                zramIdle, onChange = onZramIdle,
+            )
             ToggleRow(
                 host, "zramclient", stringResource(R.string.perf_zram_client),
                 if (ramCapAvailable) stringResource(R.string.perf_zram_client_hint) else stringResource(R.string.perf_ram_cap_unavailable),

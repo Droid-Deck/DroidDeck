@@ -900,6 +900,7 @@ case $mode in
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_mem_total" -le $((13 * 1024 * 1024)) ]
         }
         bl_session_pressure() {
+          [ "${BL_ZRAM_IDLE:-1}" = 1 ] || return 0
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
           local _wait=$_bl_tier_backoff _before _pids _targets

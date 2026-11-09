@@ -50,6 +50,9 @@ headroom, not a percentage: Android's `lmkd` killed a session on a 7.5 GiB devic
 kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
 2.6 seconds, so the request has to leave room for both.
 
+Performance > Compress idle game memory turns this off (`BL_ZRAM_IDLE=0`); launcher compression
+and the RAM cap are unaffected.
+
 The session request runs when available memory falls below a quarter of RAM (bounded to
 768–2560 MiB, 1.85 GiB on an 8 GB device), or below one and a half times that with at least 1%
 `some avg10` memory stall. One request pages out every session process that loaded

@@ -181,6 +181,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gamescopeRealtime by mutableStateOf(false)
     private var ramCapMb by mutableStateOf(0)
     private var zramClient by mutableStateOf(true)
+    private var zramIdle by mutableStateOf(true)
     private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -2553,7 +2554,7 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient,
+            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient, zramIdle = zramIdle,
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
             ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
@@ -2572,6 +2573,7 @@ class FrontEndActivity : ComponentActivity() {
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
             onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
+            onZramIdle = { on -> SessionPrefs.setZramIdle(this, on); zramIdle = on },
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
@@ -2793,6 +2795,7 @@ class FrontEndActivity : ComponentActivity() {
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         ramCapMb = SessionPrefs.ramCapMb(this)
         zramClient = SessionPrefs.zramClient(this)
+        zramIdle = SessionPrefs.zramIdle(this)
         vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)

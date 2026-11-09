@@ -577,6 +577,8 @@
     <string name="perf_cap_off">オフ</string>
     <string name="perf_cap_auto">ドライバーのデフォルト</string>
     <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
+    <string name="perf_zram_idle">ゲームのアイドルメモリを圧縮</string>
+    <string name="perf_zram_idle_hint">RAMが少ないときにゲームのアイドルメモリを圧縮します。</string>
     <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
     <string name="perf_ram_cap">RAM上限</string>
     <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>

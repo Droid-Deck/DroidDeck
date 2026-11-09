@@ -587,6 +587,8 @@
     <string name="perf_cap_off">إيقاف</string>
     <string name="perf_cap_auto">افتراضي برنامج التشغيل</string>
     <string name="perf_zram_client">ضغط Steam أثناء تشغيل لعبة</string>
+    <string name="perf_zram_idle">ضغط ذاكرة اللعبة الخاملة</string>
+    <string name="perf_zram_idle_hint">يرحّل ذاكرة اللعبة الخاملة عند انخفاض RAM.</string>
     <string name="perf_zram_client_hint">بعد 20 ثانية من بدء اللعبة، يُضغط عميل Steam في zRAM لترك ذاكرة أكبر للعبة، ثم يُقرأ مجددًا عند إغلاقها. أوقف هذا الخيار إذا كانت الجلسة تُغلَق بعد بدء الألعاب بقليل. يظل حد RAM أعلاه يضغط Steam عندما تتجاوزه الجلسة.</string>
     <string name="perf_ram_cap">حد RAM</string>
     <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>

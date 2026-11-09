@@ -732,6 +732,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("zramClient", on).apply()
     }
 
+    fun zramIdle(context: Context): Boolean = prefs(context).getBoolean("zramIdle", true)
+
+    fun setZramIdle(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("zramIdle", on).apply()
+    }
+
     fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
 
     fun setVramCapMb(context: Context, mb: Int) {

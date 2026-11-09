@@ -579,6 +579,8 @@
     <string name="perf_cap_off">Kapalı</string>
     <string name="perf_cap_auto">Sürücü varsayılanı</string>
     <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
+    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
+    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır.</string>
     <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
     <string name="perf_ram_cap">RAM sınırı</string>
     <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>

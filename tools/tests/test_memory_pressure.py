@@ -190,6 +190,9 @@ SECONDS=30; bl_session_pressure
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
 
+    def test_disabled_idle_compression_does_not_compress_the_session(self):
+        self.assertEqual([], self.run_policy('BL_ZRAM_IDLE=0; bl_session_pressure'))
+
     def test_enough_available_memory_does_not_compress_even_with_stalls(self):
         self.memory(available=3072, psi='5.00')
         self.assertEqual([], self.run_policy('bl_session_pressure'))
