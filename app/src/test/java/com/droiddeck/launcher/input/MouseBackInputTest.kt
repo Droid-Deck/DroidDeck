@@ -177,6 +177,13 @@ class MouseBackInputTest {
         assertFalse(MouseBackInput.isExternalMouse(null))
     }
 
+    @Test fun aMouseThatNamesItselfVirtualDoesNotCount() {
+        assertFalse(MouseBackInput.isExternalMouse(device("ODIN Station Virtual Mouse", 0x20004)))
+        assertFalse(MouseBackInput.isExternalMouse(device("VIRTUAL pointer", InputDevice.SOURCE_MOUSE)))
+        assertTrue(MouseBackInput.isExternalMouse(device("Virtuality Pro Mouse", InputDevice.SOURCE_MOUSE)))
+        assertTrue(MouseBackInput.isExternalMouse(device("Logitech MX Master 3", InputDevice.SOURCE_MOUSE)))
+    }
+
     @Test fun injectedBackIsLeftAloneWithoutAnExternalMouse() {
         val odinController = device("Odin Controller", 0x1000511)
         val controllerOnly = MouseBackInput(presses::add) { MouseBackInput.isExternalMouse(odinController) }

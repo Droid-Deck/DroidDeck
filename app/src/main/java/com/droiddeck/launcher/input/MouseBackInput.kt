@@ -48,6 +48,7 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
     companion object {
         fun isExternalMouse(device: InputDevice?): Boolean {
             if (device == null || device.isVirtual || PadBridge.isSystemVirtualInputName(device.name) ||
+                declaresVirtual(device.name) ||
                 PadBridge.isFromController(device) ||
                 (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !device.isExternal)) return false
             return (device.supportsSource(InputDevice.SOURCE_MOUSE) ||
@@ -55,6 +56,10 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
                 !device.supportsSource(InputDevice.SOURCE_TOUCHPAD) &&
                 !device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
         }
+
+        private val VIRTUAL_NAME = Regex("\\bvirtual\\b", RegexOption.IGNORE_CASE)
+
+        fun declaresVirtual(name: String?): Boolean = name != null && VIRTUAL_NAME.containsMatchIn(name)
 
         fun isFromMouse(event: KeyEvent): Boolean =
             event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)
