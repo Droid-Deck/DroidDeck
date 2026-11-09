@@ -74,9 +74,7 @@ static void app_sigill(int sig, siginfo_t *info, void *context) {
   ((ucontext_t *)context)->uc_mcontext.pc += 4;
 }
 
-int main(int argc, char **argv) {
-  int threads_wanted = argc > 1 ? atoi(argv[1]) : 4;
-  check(threads_wanted >= 1 && threads_wanted <= MAX_THREADS, "thread count");
+static __attribute__((noinline)) void single_forms(void) {
   uint64_t v = 0xF0;
   uint64_t old;
   __asm__ volatile("ldclral %x1, %x0, [%2]" : "=r"(old) : "r"((uint64_t)0x30), "r"(&v) : "memory");
@@ -104,6 +102,25 @@ int main(int argc, char **argv) {
 
   uint64_t missed = casal64(&v, 99, 1);
   check(missed == 7 && v == 7, "casal leaves memory alone on a mismatch");
+
+  uint32_t m = 1;
+  uint32_t mold;
+  uint64_t eq;
+  __asm__ volatile("cmp %w3, %w3\n\tldumax %w2, %w0, [%4]\n\tcset %1, eq"
+                   : "=&r"(mold), "=&r"(eq) : "r"((uint32_t)5), "r"((uint32_t)0), "r"(&m) : "memory", "cc");
+  check(mold == 1 && m == 5 && eq == 1, "ldumax leaves the condition flags alone");
+  int8_t b = -3;
+  int8_t bold;
+  __asm__ volatile("cmp %w3, %w3\n\tldsmaxb %w2, %w0, [%4]\n\tcset %1, eq"
+                   : "=&r"(bold), "=&r"(eq) : "r"((int32_t)-7), "r"((uint32_t)0), "r"(&b) : "memory", "cc");
+  check(bold == -3 && b == -3 && eq == 1, "ldsmaxb leaves the condition flags alone");
+}
+
+int main(int argc, char **argv) {
+  int threads_wanted = argc > 1 ? atoi(argv[1]) : 4;
+  check(threads_wanted >= 1 && threads_wanted <= MAX_THREADS, "thread count");
+  single_forms();
+  single_forms();
 
   pthread_t threads[MAX_THREADS];
   for (int i = 0; i < threads_wanted; i++) pthread_create(&threads[i], NULL, worker, NULL);

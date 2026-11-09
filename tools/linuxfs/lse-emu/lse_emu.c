@@ -246,6 +246,10 @@ static int gen(uint32_t *w, uintptr_t stub, uintptr_t ret, uint32_t i) {
 
     W(STP2(t0, t1));
     W(STR16(t2));
+    if (kind == 4) {                                     // cmp/csel below clobber NZCV, the real instruction does not
+        W(0xD53B4200u | t2);                             // mrs t2, nzcv
+        W(0xF9000C00u | (31u << 5) | t2);                // str t2,[sp,#24]
+    }
     int loop = n;
     W(ldx(size, acq, t0, rn));                           // t0 = old
     if (kind == 1) {
@@ -283,6 +287,10 @@ static int gen(uint32_t *w, uintptr_t stub, uintptr_t ret, uint32_t i) {
     }
     if (kind == 2) { if (rs != 31) W(MOVX(rs, t0)); }
     else if (rt != 31) W(MOVX(rt, t0));
+    if (kind == 4) {
+        W(0xF9400C00u | (31u << 5) | t2);                // ldr t2,[sp,#24]
+        W(0xD51B4200u | t2);                             // msr nzcv, t2
+    }
     W(LDR16(t2));
     W(LDP2(t0, t1));
     { int64_t off = (int64_t)ret - (int64_t)(stub + 4 * (uintptr_t)n);
