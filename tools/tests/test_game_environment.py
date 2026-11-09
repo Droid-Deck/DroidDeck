@@ -792,6 +792,8 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
             script = root / "legacycompat/evaluatorscript_409710.vdf"
             script.parent.mkdir(parents=True)
             script.write_text("{}")
@@ -800,19 +802,47 @@ class GameEnvironmentTest(unittest.TestCase):
             MODULE["mark_install_scripts"].__globals__["subprocess"].run = lambda args, **kw: calls.append((args, kw["env"]))
             try:
                 env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
-                evaluator = ["/proton", "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+                evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
                 MODULE["mark_install_scripts"](evaluator, env)
                 MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
-                self.assertEqual(len(calls), 2)
-                self.assertEqual(calls[0][0], ["/proton", "run", "cmd.exe", "/c", "exit", "0"])
+                self.assertEqual(len(calls), 3)
+                self.assertEqual(calls[0][0], [str(root / "proton"), "run", "cmd.exe", "/c", "exit", "0"])
                 self.assertEqual(calls[0][1], env)
-                self.assertEqual(calls[1][0][1], str(root))
-                self.assertEqual(calls[1][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[1][1]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                self.assertEqual(calls[1][1].get("DROIDDECK_SEED_SCRIPTS"), None)
+                self.assertEqual(calls[2][0][1], str(root))
+                self.assertEqual(calls[2][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
                 (root / "compatdata/409710/pfx").mkdir(parents=True)
                 (root / "compatdata/409710/pfx/system.reg").write_text("")
                 calls.clear()
                 MODULE["mark_install_scripts"](evaluator, env)
                 self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+            finally:
+                MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def test_the_install_script_seeder_runs_when_prefix_probe_times_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            calls = []
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+
+            def fake_run(args, **kwargs):
+                calls.append((args, kwargs["env"]))
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(args, 120)
+
+            MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+            try:
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                MODULE["mark_install_scripts"]([str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
             finally:
                 MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
 

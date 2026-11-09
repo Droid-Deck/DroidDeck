@@ -710,11 +710,21 @@ def mark_install_scripts(command, env):
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:
         return []
-    try:
-        data = env.get("STEAM_COMPAT_DATA_PATH")
-        if data and not os.path.isfile(os.path.join(data, "pfx", "system.reg")):
+    data = env.get("STEAM_COMPAT_DATA_PATH")
+    new_prefix = data and not os.path.isfile(os.path.join(data, "pfx", "system.reg"))
+    if new_prefix:
+        try:
             subprocess.run([command[0], "run", "cmd.exe", "/c", "exit", "0"], env=env,
                            stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: prefix initialization failed (%s)" % error, file=sys.stderr)
+        try:
+            wineserver = os.path.join(os.path.dirname(command[0]), "files/bin-arm64/wineserver")
+            subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: wineserver wait failed (%s)" % error, file=sys.stderr)
+    try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
