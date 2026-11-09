@@ -101,6 +101,12 @@ object AgentSetup {
         }, "agent-setup-${step.name.lowercase()}").start()
     }
 
+    /** Drops what the checks found, which belonged to the previous harness. */
+    fun forget() {
+        status.clear()
+        detail.clear()
+    }
+
     private fun probe(app: Context, step: Step, command: List<String>) {
         var output = ""
         val ok = runCatching {

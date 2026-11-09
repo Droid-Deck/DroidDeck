@@ -73,6 +73,7 @@ object AgentHost {
     fun choose(context: Context, choice: AgentHarness) {
         if (choice == harness || state == State.WORKING) return
         forget(context)
+        AgentSetup.forget()
         prefs(context).edit().putString(HARNESS_KEY, choice.id).apply()
         refresh(context)
     }
