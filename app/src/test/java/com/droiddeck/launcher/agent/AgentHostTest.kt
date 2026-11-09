@@ -67,6 +67,12 @@ class AgentHostTest {
         assertEquals(ClaudeCode, AgentHarness.byId("gone"))
     }
 
+    @Test fun aTurnWithoutAnEndWasInterrupted() {
+        assertTrue(AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Used("Bash", "dd-lab-build"))))
+        assertEquals(false, AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Finished(null))))
+        assertEquals(false, AgentHost.interrupted(emptyList()))
+    }
+
     @Test fun theTranscriptSurvivesARestart() {
         val entries = listOf(Entry.Asked("hi"), Entry.Said("hello"), Entry.Used("Read", "/root/x"), Entry.Finished(null), Entry.Finished("stopped"))
         val file = Files.createTempFile("transcript", ".jsonl").toFile()

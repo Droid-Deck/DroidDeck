@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -66,8 +67,25 @@ object AgentHost {
         if (!loaded) {
             loaded = true
             entries.addAll(readTranscript(transcript(context)))
+            resumeAfterRestart(context.applicationContext)
         }
     }
+
+    /**
+     * A Lab build restarts the app, which ends the agent's process mid-turn. dd-lab-build leaves
+     * [RESUME] when the app's own agent ran it, so the same conversation picks up on the new build.
+     */
+    private fun resumeAfterRestart(app: Context) {
+        val marker = File(app.filesDir, RESUME)
+        val claimed = File(app.filesDir, "$RESUME.claimed")
+        if (!marker.renameTo(claimed)) return
+        claimed.delete()
+        if (!installed || !interrupted(entries)) return
+        send(app, app.getString(R.string.agent_resumed))
+    }
+
+    @VisibleForTesting
+    internal fun interrupted(entries: List<Entry>) = entries.isNotEmpty() && entries.last() !is Entry.Finished
 
     /** Switches the agent CLI; a conversation belongs to one CLI, so a new one starts. */
     fun choose(context: Context, choice: AgentHarness) {
@@ -139,7 +157,7 @@ object AgentHost {
         val env = listOf(
             "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
             "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}",
-            "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
+            "DD_AGENT=1", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
         )
         val shell = listOf(
             "/bin/sh", "-c",
@@ -188,6 +206,7 @@ object AgentHost {
 
     private const val CONVERSATION_KEY = "session_id"
     private const val HARNESS_KEY = "harness"
+    private const val RESUME = "agent/resume"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
 

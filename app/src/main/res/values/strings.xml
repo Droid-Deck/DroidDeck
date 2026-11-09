@@ -1152,6 +1152,7 @@
     <string name="agent_send">Send</string>
     <string name="agent_new">New conversation</string>
     <string name="agent_stop">Stop</string>
+    <string name="agent_resumed">DroidDeck restarted on your Lab build. Continue where you left off.</string>
     <string name="agent_empty">Ask it why a game won\'t start, to explain a log, or to change DroidDeck and try the change on this device.</string>
     <string name="agent_failed">Stopped: %1$s</string>
     <string name="agent_setup_title">Set up the agent</string>
