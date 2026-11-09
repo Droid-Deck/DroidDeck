@@ -10,12 +10,13 @@
 //   id-N    the segment's description: "PID KEY MODE SIZE" (who made it, its key, its rights, its size)
 //   seg-N   its memory (a file of SIZE bytes, mapped MAP_SHARED)
 //   key-K   for a segment with a key: the N it belongs to (K in hex)
+//   att-N-P process P has the segment attached (made by shmat(), removed by its last shmdt())
 //
 // N is chosen at random and claimed with O_EXCL, so processes never pick the same one. IPC_RMID
 // removes the files at once: programs that attached the segment keep their mapping (as on Linux),
 // later attaches fail, which is what X programs expect (they remove a segment as soon as the X
-// server has attached it). The segments of processes that ended without removing theirs are deleted
-// by the next shmget() that creates one.
+// server has attached it). A segment whose maker and every process that attached it have ended
+// without removing it is deleted by the next shmget() that creates one.
 
 #ifndef DDNATV_HOST_TEST
 
@@ -120,8 +121,19 @@ static void shm_remove(int id, long key) {
     shm_unlink_file(name);
 }
 
-// Deletes the segments whose process has ended (a segment being written has no description yet and is
-// left alone).
+static void shm_mark_attached(int id, int attached) {
+    char name[48];
+    snprintf(name, sizeof(name), "att-%d-%d", id, (int)getpid());
+    if (!attached) {
+        shm_unlink_file(name);
+        return;
+    }
+    int fd = shm_open_file(name, O_WRONLY | O_CREAT, 0600);
+    if (fd >= 0) syscall(SYS_close, fd);
+}
+
+// Deletes the segments whose maker and attached processes have all ended (a segment being written
+// has no description yet and is left alone), and the marks of attached processes that have ended.
 static void shm_collect(void) {
     char path[PATH_MAX];
     if (shm_path(path, sizeof(path), NULL) != 0) return;
@@ -150,10 +162,34 @@ static void shm_collect(void) {
             at += reclen;
         }
     }
+    // a segment still attached somewhere is kept, as Linux keeps it until IPC_RMID
+    int used[64] = { 0 };
+    dfd = ndead > 0 ? (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_DIRECTORY | O_CLOEXEC) : -1;
+    if (dfd >= 0) {
+        for (;;) {
+            long n = syscall(SYS_getdents64, dfd, dents, sizeof(dents));
+            if (n <= 0) break;
+            for (long at = 0; at < n;) {
+                unsigned short reclen;
+                memcpy(&reclen, dents + at + 16, sizeof(reclen));
+                if (reclen == 0) break;
+                const char *entry = dents + at + 19;
+                int id = 0, pid = 0;
+                if (strncmp(entry, "att-", 4) == 0 && sscanf(entry + 4, "%d-%d", &id, &pid) == 2) {
+                    if (shm_process_alive(pid)) {
+                        for (int i = 0; i < ndead; i++) if (dead[i] == id) used[i] = 1;
+                    } else {
+                        shm_unlink_file(entry);
+                    }
+                }
+                at += reclen;
+            }
+        }
+    }
     syscall(SYS_close, dfd);
     for (int i = 0; i < ndead; i++) {
         struct shm_meta meta;
-        if (shm_read_meta(dead[i], &meta) == 0) shm_remove(dead[i], meta.key);
+        if (!used[i] && shm_read_meta(dead[i], &meta) == 0) shm_remove(dead[i], meta.key);
     }
 }
 
@@ -384,6 +420,7 @@ void *shmat(int shmid, const void *shmaddr, int shmflg) {
         g_shm_attach[slot].id = shmid;
     }
     pthread_mutex_unlock(&g_shm_lock);
+    if (addr != MAP_FAILED) shm_mark_attached(shmid, 1);
     if (addr == MAP_FAILED) {
         errno = saved == ENOMEM ? ENOMEM : EINVAL;
         return (void *)-1;
@@ -391,16 +428,20 @@ void *shmat(int shmid, const void *shmaddr, int shmflg) {
     return addr;
 }
 
+static int shm_attached_here(int id);
+
 int shmdt(const void *shmaddr) {
     pthread_mutex_lock(&g_shm_lock);
     for (int i = 0; i < SHM_MAX_ATTACH; i++) {
         if (g_shm_attach[i].addr && g_shm_attach[i].addr == shmaddr) {
             void *addr = g_shm_attach[i].addr;
             size_t size = g_shm_attach[i].size;
+            int id = g_shm_attach[i].id;
             g_shm_attach[i].addr = NULL;
             g_shm_attach[i].size = 0;
             pthread_mutex_unlock(&g_shm_lock);
             munmap(addr, size);
+            if (shm_attached_here(id) == 0) shm_mark_attached(id, 0);
             return 0;
         }
     }
