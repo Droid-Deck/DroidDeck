@@ -55,4 +55,17 @@ class NativeGuestTest {
         assertEquals(null, NativeGuest.hostLinkTarget("/storage/emulated/0/Games", linkRoot, sdBinds))
         assertEquals(null, NativeGuest.hostLinkTarget("../drive_c", linkRoot, sdBinds))
     }
+
+    @Test
+    fun aLinkIntoAnIdentityMountStaysAsItIs() {
+        val binds = sdBinds + listOf("/odd/place:/odd/place", "/bare/mount")
+        assertEquals(null, NativeGuest.hostLinkTarget("/odd/place/games", linkRoot, binds))
+        assertEquals(null, NativeGuest.hostLinkTarget("/bare/mount", linkRoot, binds))
+    }
+
+    @Test
+    fun aMountInsideAnIdentityMountStillMapsItsPaths() {
+        val binds = listOf("/odd/place", "/real/sd:/odd/place/sd")
+        assertEquals("/real/sd/x", NativeGuest.hostLinkTarget("/odd/place/sd/x", linkRoot, binds))
+    }
 }

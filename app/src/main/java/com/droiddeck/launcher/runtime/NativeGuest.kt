@@ -11,6 +11,7 @@ import java.nio.file.Files
  * calls Android's seccomp policy blocks, from inside the process.
  */
 object NativeGuest {
+    private const val TAG = "NativeGuest"
     const val HOOK = "usr/lib/libddnatv-hook.so"
     private val LIB_DIRS = listOf("usr/lib", "usr/lib/aarch64-linux-gnu", "usr/local/lib", "usr/lib/systemd")
 
@@ -100,7 +101,12 @@ object NativeGuest {
         listOf("usr/lib/ld-linux-aarch64.so.1", "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
             "usr/lib/aarch64-linux-gnu/libc.so.6", "usr/lib/libc.so.6")
             .map { File(root, it) }.filter { it.exists() }
-            .distinctBy { it.canonicalPath }.sumOf { runCatching { ElfSeccompPatch.patchFile(it) }.getOrDefault(0) }
+            .distinctBy { it.canonicalPath }.sumOf { file ->
+                runCatching { ElfSeccompPatch.patchFile(file) }.getOrElse {
+                    android.util.Log.e(TAG, "native userland: could not patch $file for Android's seccomp filter; programs will die with SIGSYS", it)
+                    0
+                }
+            }
 
     private val HOST_LINK_TARGETS = listOf("/proc", "/dev", "/sys", "/sdcard", "/storage", "/data", "/system", "/vendor", "/apex",
         "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt")
@@ -149,11 +155,13 @@ object NativeGuest {
         if (!target.startsWith("/") || target == root || target.startsWith("$root/")) return null
         val mounts = binds.mapNotNull { spec ->
             val colon = spec.indexOf(':')
-            if (colon <= 0) null else spec.substring(0, colon).trimEnd('/') to spec.substring(colon + 1).trimEnd('/')
-        }.filter { (src, dst) -> src != dst && dst.isNotEmpty() }
-        if (mounts.any { (src, _) -> target == src || target.startsWith("$src/") }) return null
+            val src = (if (colon < 0) spec else spec.substring(0, colon)).trimEnd('/')
+            val dst = (if (colon < 0) spec else spec.substring(colon + 1)).trimEnd('/')
+            if (src.isEmpty() || dst.isEmpty()) null else src to dst
+        }
+        if (mounts.any { (src, dst) -> src != dst && (target == src || target.startsWith("$src/")) }) return null
         mounts.filter { (_, dst) -> target == dst || target.startsWith("$dst/") }.maxByOrNull { it.second.length }
-            ?.let { (src, dst) -> return src + target.removePrefix(dst) }
+            ?.let { (src, dst) -> return if (src == dst) null else src + target.removePrefix(dst) }
         if (HOST_LINK_TARGETS.any { target == it || target.startsWith("$it/") }) return null
         return root + if (target == "/") "" else target
     }
@@ -172,7 +180,17 @@ object NativeGuest {
         var rewritten = 0
         for (prefix in compatdata.distinct().flatMap { it.listFiles()?.toList().orEmpty() }) {
             val devices = File(prefix, "pfx/dosdevices").toPath()
-            val links = try { Files.newDirectoryStream(devices).use { it.toList() } } catch (_: java.io.IOException) { continue }
+            val links = try {
+                Files.newDirectoryStream(devices).use { it.toList() }
+            } catch (e: java.nio.file.NoSuchFileException) {
+                continue
+            } catch (e: java.io.IOException) {
+                android.util.Log.w(TAG, "native userland: could not read the drive links of $prefix", e)
+                continue
+            } catch (e: java.nio.file.DirectoryIteratorException) {
+                android.util.Log.w(TAG, "native userland: could not read the drive links of $prefix", e)
+                continue
+            }
             for (link in links) {
                 try {
                     if (!Files.isSymbolicLink(link)) continue
