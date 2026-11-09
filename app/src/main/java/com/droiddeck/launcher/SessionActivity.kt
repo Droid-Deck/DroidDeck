@@ -2449,7 +2449,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     finish()
                     return
                 }
-                if (loading.visible && !loading.ended && !SessionState.running &&
+                if (loading.visible && !loading.ended && !SessionState.running && !installingRuntime &&
                     SessionLoadingDecision.shouldReturnToLauncher(
                         loadingStartedAt, SystemClock.elapsedRealtime(), SessionState.running, SessionState.phase)) {
                     finish()
