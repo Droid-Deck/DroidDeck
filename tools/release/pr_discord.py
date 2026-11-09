@@ -158,7 +158,7 @@ def sync(mode, repo, number, discord, sha="", apk="", release=""):
                                  "allowed_mentions": {"parse": []}, "flags": 4})
         return
     try:
-        commit = github(f"repos/{repo}/commits/{sha}")
+        commit = github(f"repos/{repo}/commits/{sha}") or {}
     except RuntimeError:
         commit = {}
     commit_message = (commit.get("commit") or {}).get("message", "")

@@ -250,6 +250,13 @@ class PrDiscordTest(unittest.TestCase):
         self.assertEqual("POST", self.discord.request.call_args.args[0])
         self.assertNotIn("Latest commit:", self.discord.request.call_args.args[2]["content"])
 
+    def test_empty_commit_response_does_not_block_announcement(self):
+        self.github.side_effect = lambda path, method="GET", body=None: (
+            self.pull if "/pulls/" in path else None if "/commits/" in path else self.comment)
+        self.publish()
+        self.assertEqual("POST", self.discord.request.call_args.args[0])
+        self.assertNotIn("Latest commit:", self.discord.request.call_args.args[2]["content"])
+
 
 original_report = module.report_comment
 
