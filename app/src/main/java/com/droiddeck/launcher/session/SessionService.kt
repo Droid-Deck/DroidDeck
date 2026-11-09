@@ -689,32 +689,34 @@ class SessionService : Service() {
             LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest)
         }
 
-        val hostEnv = HostEnvironment()
-        if (nativeUserland) {
+        // The terminal and the bottom desktop still start through proot, so they get proot's
+        // environment even when the session itself runs without it
+        val prootEnv = HostEnvironment()
+        prootEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
+        prootEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
+        if (SessionPrefs.prootNoSeccomp(this)) {
+            prootEnv["PROOT_NO_SECCOMP"] = "1"
+            if (!nativeUserland) Log.i(TAG, "proot: seccomp acceleration off by request")
+        }
+        fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> prootEnv[k] = v } }
+        for (key in listOf("PROOT_PROFILE", "PROOT_PROFILE_SLOW_US")) {
+            guest.lastOrNull { it.startsWith("$key=") }?.substringAfter('=')?.let { prootEnv[key] = it }
+        }
+        val prootLibs = LinuxRuntime.prootLibraryPath(this)
+        if (prootLibs.isNotEmpty()) prootEnv["LD_LIBRARY_PATH"] = prootLibs
+
+        val hostEnv = if (nativeUserland) HostEnvironment().also { env ->
             Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
             val drives = com.droiddeck.launcher.runtime.NativeGuest.relinkPrefixDrives(root, sessionBindSpecs)
             if (drives > 0) Log.i(TAG, "native userland: $drives Wine drive links made to point at their real places")
-            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs).forEach { (k, v) -> hostEnv[k] = v }
-        } else {
-        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
-        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
-        if (SessionPrefs.prootNoSeccomp(this)) {
-            hostEnv["PROOT_NO_SECCOMP"] = "1"
-            Log.i(TAG, "proot: seccomp acceleration off by request")
-        }
-        fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> hostEnv[k] = v } }
-        for (key in listOf("PROOT_PROFILE", "PROOT_PROFILE_SLOW_US")) {
-            guest.lastOrNull { it.startsWith("$key=") }?.substringAfter('=')?.let { hostEnv[key] = it }
-        }
-        val prootLibs = LinuxRuntime.prootLibraryPath(this)
-        if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
-        }
+            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs).forEach { (k, v) -> env[k] = v }
+        } else prootEnv
 
         val terminalCommand = LinuxRuntime.command(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest,
         )
         val terminalHostEnvironment = LinkedHashMap(System.getenv())
-        hostEnv.asArray().forEach { entry ->
+        prootEnv.asArray().forEach { entry ->
             val separator = entry.indexOf('=')
             if (separator > 0) terminalHostEnvironment[entry.substring(0, separator)] = entry.substring(separator + 1)
         }
@@ -722,7 +724,7 @@ class SessionService : Service() {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
             val (fastPathName, _) = ProotFastPath.hostEnv("")
             BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
-                hostEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen,
+                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen,
             ) { gen == sessionGen && SessionState.running }
         }
 
