@@ -151,4 +151,31 @@ class MouseBackInputTest {
         assertFalse(input.onKeyEvent(key(KeyEvent.ACTION_UP), toGuest = true))
         assertTrue(presses.isEmpty())
     }
+
+    private val mouseSources = InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_KEYBOARD
+
+    @Test fun anExternalMouseCounts() {
+        assertTrue(MouseBackInput.isExternalMouse(virtual = false, external = true, sources = mouseSources))
+        assertTrue(MouseBackInput.isExternalMouse(virtual = false, external = true, sources = InputDevice.SOURCE_MOUSE_RELATIVE))
+    }
+
+    @Test fun anInternalMouseCapableDeviceDoesNotCount() {
+        assertFalse(MouseBackInput.isExternalMouse(virtual = false, external = false, sources = mouseSources))
+    }
+
+    @Test fun virtualTouchpadAndNonMouseDevicesDoNotCount() {
+        assertFalse(MouseBackInput.isExternalMouse(virtual = true, external = true, sources = mouseSources))
+        assertFalse(MouseBackInput.isExternalMouse(virtual = false, external = true, sources = mouseSources or InputDevice.SOURCE_TOUCHPAD))
+        assertFalse(MouseBackInput.isExternalMouse(virtual = false, external = true, sources = InputDevice.SOURCE_GAMEPAD))
+        assertFalse(MouseBackInput.isExternalMouse(null))
+    }
+
+    @Test fun injectedBackIsLeftAloneWithoutAnExternalMouse() {
+        val internalOnly = MouseBackInput(presses::add) { MouseBackInput.isExternalMouse(false, false, mouseSources) }
+        assertFalse(internalOnly.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true))
+        assertTrue(presses.isEmpty())
+        val external = MouseBackInput(presses::add) { MouseBackInput.isExternalMouse(false, true, mouseSources) }
+        assertTrue(external.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true))
+        assertEquals(listOf(true), presses)
+    }
 }
