@@ -133,6 +133,20 @@ class ToolPlatformsTest(unittest.TestCase):
         (root / "appcache/appinfo.vdf").write_bytes(b"x")
         self.assertTrue(watcher.changed())
 
+    def test_watcher_follows_each_missing_directory_level(self):
+        root = self.root / "levels"
+        root.mkdir()
+        target = root / "sd/steamapps/appmanifest_1.acf"
+        watcher = live.LIVE["Watcher"]([str(target)])
+        self.assertGreaterEqual(watcher.fd, 0)
+        self.addCleanup(os.close, watcher.fd)
+        (root / "sd").mkdir()
+        watcher.changed()
+        (root / "sd/steamapps").mkdir()
+        self.assertTrue(watcher.changed())
+        target.write_bytes(b"x")
+        self.assertTrue(watcher.changed())
+
     def test_linux_tool_requests_cannot_restore_windows_platform(self):
         changes, auto = self.plan({"0": TOOL, "1826330": TOOL}, overrides={"1826330": TOOL})
         self.assertIsNone(changes["1826330"])
