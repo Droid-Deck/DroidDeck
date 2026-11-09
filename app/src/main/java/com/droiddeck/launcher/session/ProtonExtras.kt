@@ -275,14 +275,20 @@ object ProtonExtras {
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
-            val command = LinuxRuntime.command(context, null, runtimeDir, null, guest)
-            val process = ProcessBuilder(command)
-                .directory(root)
-                .redirectErrorStream(true)
-            val hostEnv = process.environment()
-            hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-            hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+            val process = if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
+                com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
+                    LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
+            } else {
+                ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
+                    .directory(root)
+                    .redirectErrorStream(true)
+                    .also { builder ->
+                        val hostEnv = builder.environment()
+                        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
+                        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
+                        LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+                    }
+            }
             val child = process.start()
             var placed: String? = null
             child.inputStream.bufferedReader().useLines { lines ->

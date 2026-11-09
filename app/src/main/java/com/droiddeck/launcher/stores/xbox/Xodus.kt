@@ -88,7 +88,8 @@ internal object Xodus {
             val fastPathPreloaded = runCatching {
                 File(root, "etc/ld.so.preload").useLines { lines -> lines.any { it.trim() == ProotFastPath.LIBRARY } }
             }.getOrDefault(false)
-            val fastPathKey = if (ProotFastPath.enabled(app) && fastPathPreloaded &&
+            val native = com.droiddeck.launcher.runtime.NativeGuest.enabled(app)
+            val fastPathKey = if (!native && ProotFastPath.enabled(app) && fastPathPreloaded &&
                 File(root, ProotFastPath.LIBRARY.removePrefix("/")).isFile) ProotFastPath.key(root, binds) else null
             val guestCommand = mutableListOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
@@ -98,12 +99,12 @@ internal object Xodus {
                 guestCommand.addAll(guestCommand.lastIndex, ProotFastPath.guestEnv(root, binds, key))
             }
             guestCommand.addAll(args)
-            val command = LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)
-            val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
+            val builder = if (native) com.droiddeck.launcher.runtime.NativeGuest.processBuilder(app, root, binds, guestCommand)
+            else ProcessBuilder(LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)).directory(LinuxRuntime.rootDir(app))
             if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
             builder.environment()["DROIDDECK_XBOX_CREDENTIAL_PORT"] = credentials.port.toString()
             builder.environment()["DROIDDECK_XBOX_CREDENTIAL_KEY"] = credentials.key
-            builder.environment().apply {
+            if (!native) builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
                 put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(app).path)

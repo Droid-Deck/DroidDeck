@@ -71,6 +71,17 @@ object NativeGuest {
         ).filterValues { it.isNotEmpty() }
     }
 
+    /** A process for [guest] (argv) started as proot would with [binds], in guest directory [cwd]. */
+    fun processBuilder(context: Context, root: File, binds: List<String>, guest: List<String>, cwd: String = "/root"): ProcessBuilder =
+        ProcessBuilder(command(root, guest.first(), guest.drop(1)))
+            .directory(File(root, cwd.removePrefix("/")).takeIf { it.isDirectory } ?: root)
+            .also { builder ->
+                builder.environment().apply {
+                    remove("LD_AUDIT")
+                    putAll(sessionEnvironment(root, binds, SessionPrefs.guestHostname(context)))
+                }
+            }
+
     private const val RUNPATH_CONF = "etc/ld.so.conf.d/zz-droiddeck-native.conf"
     private val SCAN_DIRS = listOf("usr/lib", "usr/local/lib", "opt")
 

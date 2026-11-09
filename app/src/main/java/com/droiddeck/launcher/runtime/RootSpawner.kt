@@ -113,20 +113,26 @@ object RootSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         if (argv.isEmpty()) throw IOException("no command")
         val cwd = request.optString("cwd", "/root").ifEmpty { "/root" }
-        val cmd = LinuxRuntime.prootPrefix(context, root, cwd, true)
-        cmd.add(1, "--link2symlink")
-        LinuxRuntime.lastBinds(context).filterNot { it.startsWith("/proc/self/fd/") }.forEach { cmd.add("-b"); cmd.add(it) }
-        cmd.add("/usr/bin/env")
-        cmd.add("-i")
-        request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> cmd.add("$k=${e.getString(k)}") } }
-        cmd.addAll(argv)
-        val builder = ProcessBuilder(cmd).directory(root)
-        builder.environment().apply {
-            clear()
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+        val binds = LinuxRuntime.lastBinds(context).filterNot { it.startsWith("/proc/self/fd/") }
+        val guest = mutableListOf("/usr/bin/env", "-i")
+        request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> guest.add("$k=${e.getString(k)}") } }
+        guest.addAll(argv)
+        val builder = if (NativeGuest.enabled(context)) {
+            NativeGuest.processBuilder(context, root, binds, guest, cwd)
+        } else {
+            val cmd = LinuxRuntime.prootPrefix(context, root, cwd, true)
+            cmd.add(1, "--link2symlink")
+            binds.forEach { cmd.add("-b"); cmd.add(it) }
+            cmd.addAll(guest)
+            ProcessBuilder(cmd).directory(root).also { b ->
+                b.environment().apply {
+                    clear()
+                    put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                    put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
+                    if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+                }
+            }
         }
         val streams = listOf(stdio(fds.getOrNull(0), false), stdio(fds.getOrNull(1), true), stdio(fds.getOrNull(2), true))
         try {
