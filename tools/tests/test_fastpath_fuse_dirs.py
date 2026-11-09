@@ -146,6 +146,17 @@ class FastPathFuseDirsTest(unittest.TestCase):
         self.assertEqual(["ok"] * 5, out)
         self.assertEqual(["new"], [p.name for p in data.iterdir()])
 
+    def test_folders_deleted_and_made_again_many_times_keep_descriptors_bounded(self):
+        data = self.card / "Games/steamapps/common/Game/Data"
+        ops = ["fuse"]
+        for _ in range(200):
+            ops += ["touch", "/mnt/card/Games/steamapps/common/Game/Data/x",
+                    "rm", "/mnt/card/Games/steamapps/common/Game/Data/x",
+                    "host-rmdir", str(data), "host-mkdir", str(data)]
+        out = self.ask(*ops, "fds")
+        self.assertEqual(["ok"] * 800, out[:-1])
+        self.assertLessEqual(int(out[-1]), 64)
+
     def test_descriptors_the_program_takes_over_are_left_alone(self):
         data = "/mnt/card/Games/steamapps/common/Game/Data"
         out = self.ask("fuse", "touch", f"{data}/a", "clobber", "touch", f"{data}/b",

@@ -418,7 +418,7 @@ static int host_bind(const char *h) {
 static unsigned hash_of(const char *s);
 #define DIRS 64
 #define DIR_FD_FLOOR 1000
-struct dirslot { unsigned hash; int fd, refs; char path[PATH_MAX]; char seen[PATH_MAX]; };
+struct dirslot { unsigned hash; int fd, refs; dev_t dev; ino_t ino; char path[PATH_MAX]; char seen[PATH_MAX]; };
 static struct dirslot dirs[DIRS];
 struct near { long fd; int slot, own; const char *name; };
 
@@ -440,6 +440,14 @@ static long fd_path(long fd, char *out) {
   long n = sc(SYS_readlinkat, AT_FDCWD, (long)link, (long)out, PATH_MAX - 1, 0);
   if (n <= 0 || n >= PATH_MAX - 1) return -1;
   out[n] = 0;
+  return 0;
+}
+
+static int fd_id(long fd, dev_t *dev, ino_t *ino) {
+  struct stat st;
+  if (sc(SYS_newfstatat, fd, (long)"", (long)&st, AT_EMPTY_PATH, 0) != 0) return -1;
+  *dev = st.st_dev;
+  *ino = st.st_ino;
   return 0;
 }
 
@@ -482,15 +490,20 @@ static int dir_keep(const char *dir, long fd, struct near *n) {
   n->slot = -1;
   n->own = 1;
   char seen[PATH_MAX];
-  if (fd_path(high, seen) < 0 || strlen(dir) >= PATH_MAX) return 0;
+  dev_t dev;
+  ino_t ino;
+  if (fd_path(high, seen) < 0 || fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX) return 0;
   unsigned h = hash_of(dir);
   struct dirslot *e = &dirs[h % DIRS];
   if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
   if (__atomic_load_n(&e->refs, __ATOMIC_ACQUIRE) == 0) {
-    char old[PATH_MAX];
-    if (e->fd > 0 && fd_path(e->fd, old) == 0 && strcmp(old, e->seen) == 0) sc(SYS_close, e->fd, 0, 0, 0, 0);
+    dev_t odev;
+    ino_t oino;
+    if (e->fd > 0 && fd_id(e->fd, &odev, &oino) == 0 && odev == e->dev && oino == e->ino) sc(SYS_close, e->fd, 0, 0, 0, 0);
     e->hash = h;
     e->fd = (int)high;
+    e->dev = dev;
+    e->ino = ino;
     e->refs = 1;
     strcpy(e->path, dir);
     strcpy(e->seen, seen);
