@@ -50,7 +50,11 @@ class HidMouseReportTest {
 
     @Test fun rejectsOutOfRangeReportCountsAndSizes() {
         assertNull(HidMouseReport.parse(bytes(
-            "05 01 09 02 a1 01 05 09 19 01 29 03 15 00 25 01 75 01 97 ff ff ff 7f 81 02 c0")))
+            "05 01 09 02 a1 01 05 09 19 01 29 03 15 00 25 01 75 01 96 01 10 81 02 " +
+            "05 01 09 30 09 31 15 81 25 7f 75 08 95 02 81 06 c0")))
+        assertNotNull(HidMouseReport.parse(bytes(
+            "05 01 09 02 a1 01 05 09 19 01 29 03 15 00 25 01 75 01 96 00 10 81 02 " +
+            "05 01 09 30 09 31 15 81 25 7f 75 08 95 02 81 06 c0")))
         assertNull(HidMouseReport.parse(bytes(
             "05 01 09 02 a1 01 05 01 09 30 09 31 15 81 25 7f 77 ff ff ff 7f 95 02 81 06 c0")))
     }
