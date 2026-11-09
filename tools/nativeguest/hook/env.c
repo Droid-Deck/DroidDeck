@@ -6,6 +6,8 @@
 
 #ifndef DDNATV_HOST_TEST
 
+static const char *ddnatv_hook_library(char *buf, size_t bufsz);
+
 static char **clean_env_for_system(char *const envp[]) {
     int count = 0;
     while (envp && envp[count]) count++;
@@ -173,10 +175,12 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         }
     }
 
-    if (!has_preload && g_ddnatv_root[0] != '\0') {
-        static const char hook_rel[] = "/usr/lib/libddnatv-hook.so";
+    char hook_buf[PATH_MAX];
+    const char *hook = (!has_preload && g_ddnatv_root[0] != '\0') ? ddnatv_hook_library(hook_buf, sizeof(hook_buf)) : NULL;
+    if (hook) {
+        size_t hook_len = strlen(hook);
         size_t host_len = g_preload_host ? strlen(g_preload_host) + 1 : 0;
-        size_t size = 11 + host_len + g_ddnatv_root_len + sizeof(hook_rel);
+        size_t size = 11 + host_len + hook_len + 1;
         char *str = malloc(size);
         if (str) {
             size_t n = ddnatv_append(str, size, 0, "LD_PRELOAD=", 11);
@@ -184,8 +188,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
                 n = ddnatv_append(str, size, n, g_preload_host, host_len - 1);
                 n = ddnatv_append(str, size, n, ":", 1);
             }
-            n = ddnatv_append(str, size, n, g_ddnatv_root, g_ddnatv_root_len);
-            ddnatv_append(str, size, n, hook_rel, sizeof(hook_rel) - 1);
+            ddnatv_append(str, size, n, hook, hook_len);
             new_env[dst++] = str;
         }
     }

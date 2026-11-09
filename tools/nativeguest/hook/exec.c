@@ -145,13 +145,24 @@ static int run_execve(orig_execve_f_type f, const char *path, char *const argv[]
 
 // ldconfig does nothing in The native userland (its cache is for paths that ld.so opens without the hook), but the
 // exec code reads /etc/ld.so.conf(.d) again when /etc/ld.so.cache changes: "sudo ldconfig" after an
-// edit of a .conf file marks it changed, as the real ldconfig would by writing it.
-static void ldconfig_mark_cache(void) {
+// edit of a .conf file marks it changed, as the real ldconfig would by writing it. A cache asked
+// for with -C is made (empty): Flatpak mounts the one it generates over /etc/ld.so.cache.
+static void ldconfig_mark_cache(char *const argv[]) {
     if (g_ddnatv_root[0] == '\0') return;
     char path[PATH_MAX];
-    size_t n = ddnatv_append(path, sizeof(path), 0, g_ddnatv_root, g_ddnatv_root_len);
-    ddnatv_append(path, sizeof(path), n, "/etc/ld.so.cache", 16);
-    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+    const char *cache = NULL;
+    for (int i = 1; argv && argv[i]; i++) {
+        if (strcmp(argv[i], "-C") == 0 && argv[i + 1]) cache = argv[++i];
+        else if (strncmp(argv[i], "-C", 2) == 0 && argv[i][2] != '\0') cache = argv[i] + 2;
+    }
+    const char *target = path;
+    if (cache) {
+        target = rewrite_path_in_root(cache, path, sizeof(path));
+    } else {
+        size_t n = ddnatv_append(path, sizeof(path), 0, g_ddnatv_root, g_ddnatv_root_len);
+        ddnatv_append(path, sizeof(path), n, "/etc/ld.so.cache", 16);
+    }
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, target, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
     if (fd < 0) return;
     syscall(SYS_utimensat, fd, NULL, NULL, 0);
     syscall(SYS_close, fd);
@@ -218,7 +229,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
         strcmp(prog_name, "update-desktop-database") == 0 ||
         strcmp(prog_name, "install-info") == 0 ||
         strcmp(prog_name, "install-sgmlcatalog") == 0) {
-        if (is_ldconfig_name(f_base) || is_ldconfig_name(prog_name)) ldconfig_mark_cache();
+        if (is_ldconfig_name(f_base) || is_ldconfig_name(prog_name)) ldconfig_mark_cache(argv);
         _exit(0);
     }
     if (strcmp(f_base, "mountpoint") == 0 || strcmp(prog_name, "mountpoint") == 0) {
@@ -756,7 +767,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
         strcmp(prog_name, "start-stop-daemon") == 0) {
         pid_t child = fork();
         if (child == 0) {
-            if (is_ldconfig_name(f_base) || is_ldconfig_name(prog_name)) ldconfig_mark_cache();
+            if (is_ldconfig_name(f_base) || is_ldconfig_name(prog_name)) ldconfig_mark_cache(argv);
             _exit(0);
         } else if (child > 0) {
             if (pid) *pid = child;

@@ -498,17 +498,14 @@ static int lib_dir_list_has(const char *list, const char *dir, size_t dir_len) {
 // is not found. Returns the new length.
 static size_t append_rootfs_lib_dirs_missing_from(char *out, size_t outsz, size_t used, int separate, const char *have) {
     for (size_t i = 0; i < sizeof(k_rootfs_lib_dirs) / sizeof(k_rootfs_lib_dirs[0]); i++) {
-        size_t dir_len = strlen(k_rootfs_lib_dirs[i]);
-        if (have && have[0] != '\0') {
-            char full[PATH_MAX];
-            size_t n = ddnatv_append(full, sizeof(full), 0, g_ddnatv_root, g_ddnatv_root_len);
-            n = ddnatv_append(full, sizeof(full), n, k_rootfs_lib_dirs[i], dir_len);
-            if (lib_dir_list_has(have, full, n)) continue;
-        }
+        // a Flatpak sandbox mounts /usr from its runtime
+        char buf[PATH_MAX];
+        const char *full = rewrite_path_in_root(k_rootfs_lib_dirs[i], buf, sizeof(buf));
+        size_t n = strlen(full);
+        if (have && have[0] != '\0' && lib_dir_list_has(have, full, n)) continue;
         if (separate) used = ddnatv_append(out, outsz, used, ":", 1);
         separate = 1;
-        used = ddnatv_append(out, outsz, used, g_ddnatv_root, g_ddnatv_root_len);
-        used = ddnatv_append(out, outsz, used, k_rootfs_lib_dirs[i], dir_len);
+        used = ddnatv_append(out, outsz, used, full, n);
     }
     return used;
 }

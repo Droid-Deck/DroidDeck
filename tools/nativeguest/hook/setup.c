@@ -38,7 +38,9 @@ static void init_ddnatv_hook(void) {
     if (hostname && hostname[0] && strlen(hostname) < sizeof(g_hostname)) ddnatv_copy_cstr(g_hostname, sizeof(g_hostname), hostname);
     const char *preload = getenv("DDNATV_PRELOAD");
     if (preload && preload[0] && g_ddnatv_root_len > 0) {
-        size_t cap = strlen(preload) + (g_ddnatv_root_len + 1) * 16 + 1;
+        size_t libs = 1;
+        for (const char *p = preload; *p; p++) libs += *p == ':';
+        size_t cap = libs * (PATH_MAX + 1);
         char *host = malloc(cap);
         if (host) {
             size_t used = 0;
@@ -47,10 +49,12 @@ static void init_ddnatv_hook(void) {
             char *save = NULL;
             for (char *lib = copy ? strtok_r(copy, ":", &save) : NULL; lib; lib = strtok_r(NULL, ":", &save)) {
                 if (lib[0] != '/') continue;
-                if (used + g_ddnatv_root_len + strlen(lib) + 2 > cap) break;
+                char mapped_buf[PATH_MAX];
+                const char *mapped = rewrite_path_in_root(lib, mapped_buf, sizeof(mapped_buf));
+                size_t mapped_len = strlen(mapped);
+                if (used + mapped_len + 2 > cap) break;
                 if (used) host[used++] = ':';
-                used = ddnatv_append(host, cap, used, g_ddnatv_root, g_ddnatv_root_len);
-                used = ddnatv_append(host, cap, used, lib, strlen(lib));
+                used = ddnatv_append(host, cap, used, mapped, mapped_len);
             }
             free(copy);
             g_preload_host = host;
