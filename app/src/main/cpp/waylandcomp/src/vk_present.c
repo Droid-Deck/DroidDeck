@@ -46,6 +46,7 @@ struct vkp_image {
 static ANativeWindow *g_window;
 static int g_ahb_import;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
+static int g_allow_driver_fallback;
 static int g_dev_state;
 static void device_lost(const char *where);
 static const char *vk_result_name(VkResult r);
@@ -249,6 +250,8 @@ void vk_present_set_driver(const char *driver_path, const char *library_name,
     g_library_name = library_name ? strdup(library_name) : NULL;
     g_native_lib_dir = native_lib_dir ? strdup(native_lib_dir) : NULL;
 }
+
+void vk_present_set_driver_fallback(int allow) { g_allow_driver_fallback = allow; }
 
 static void reset_sync(void) {
     VkSemaphoreCreateInfo semci = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -545,6 +548,18 @@ static int dev_init(void) {
     uint32_t npd = 0;
     g_vk.EnumeratePhysicalDevices(g_inst, &npd, NULL);
     if (!npd) {
+        if (g_allow_driver_fallback && g_driver_path && g_library_name) {
+            LOGE("present: display driver exposed no physical devices; retrying the system Vulkan driver");
+            g_vk.DestroyInstance(g_inst, NULL);
+            g_inst = VK_NULL_HANDLE;
+            vk_loader_close();
+            free(g_driver_path); g_driver_path = NULL;
+            free(g_library_name); g_library_name = NULL;
+            g_allow_driver_fallback = 0;
+            g_colorspace_ext = 0;
+            g_dev_state = 0;
+            return dev_init();
+        }
         LOGE("present: no physical devices"); g_dev_state = -1;
         set_fault("the display driver exposed no GPU to the app");
         return -1;

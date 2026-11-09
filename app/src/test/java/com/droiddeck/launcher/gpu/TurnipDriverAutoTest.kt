@@ -57,7 +57,12 @@ class TurnipDriverAutoTest {
             gpu(0, adreno = false) to "system",
             gpu(0) to "turnip25.1.0",
             gpu(650) to "turnip26.3.0-a6xx",
+            gpu(710) to "system",
+            gpu(720) to "system",
+            gpu(722) to "system",
             gpu(730) to "turnip25.1.0",
+            gpu(740) to "turnip25.1.0",
+            gpu(750) to "turnip25.1.0",
             gpu(850) to "turnip-sdk36",
         )) {
             var calls = 0

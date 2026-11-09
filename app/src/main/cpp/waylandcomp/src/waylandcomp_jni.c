@@ -252,12 +252,13 @@ static char *dup_jstr(JNIEnv *env, jstring s) {
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStartWithSurface(
         JNIEnv *env, jclass clazz, jobject surface, jstring xdgRuntimeDir,
-        jstring driverPath, jstring libraryName, jstring nativeLibDir) {
+        jstring driverPath, jstring libraryName, jstring nativeLibDir, jboolean allowDriverFallback) {
     set_runtime_dir(env, xdgRuntimeDir);
     char *dp = dup_jstr(env, driverPath);
     char *ln = dup_jstr(env, libraryName);
     char *nl = dup_jstr(env, nativeLibDir);
     vk_present_set_driver(dp, ln, nl);
+    vk_present_set_driver_fallback(allowDriverFallback == JNI_TRUE);
     free(dp); free(ln); free(nl);
     if (surface) {
         ANativeWindow *win = ANativeWindow_fromSurface(env, surface);

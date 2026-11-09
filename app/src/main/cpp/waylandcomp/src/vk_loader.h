@@ -43,6 +43,7 @@ extern struct vk_api g_vk;
 
 int vk_loader_open(const char *driver_path, const char *library_name,
                    const char *native_lib_dir);
+void vk_loader_close(void);
 void vk_loader_load_instance(VkInstance instance);
 void vk_loader_load_device(VkDevice device);
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void);

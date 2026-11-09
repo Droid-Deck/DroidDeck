@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <android/log.h>
+#include <string.h>
 
 #define TAG "DroidDeckWayland"
 
@@ -43,6 +44,13 @@ int vk_loader_open(const char *driver_path, const char *library_name,
     VK_GLOBAL_FUNCS(X)
 #undef X
     return g_vk.CreateInstance ? 0 : -1;
+}
+
+void vk_loader_close(void) {
+    if (g_handle) dlclose(g_handle);
+    g_handle = NULL;
+    g_gip = NULL;
+    memset(&g_vk, 0, sizeof(g_vk));
 }
 
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return g_gip; }
