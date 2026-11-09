@@ -1579,6 +1579,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">ล้าง</string>
     <string name="game_sync_err_runtime">ติดตั้งรันไทม์ก่อน</string>
     <string name="game_sync_err_steam_library">ไลบรารี Steam ไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_previous_sd">ไลบรารี SD ก่อนหน้าไม่พร้อมใช้งาน</string>

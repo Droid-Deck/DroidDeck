@@ -1579,6 +1579,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">지우기</string>
     <string name="game_sync_err_runtime">먼저 런타임을 설치하세요</string>
     <string name="game_sync_err_steam_library">Steam 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_previous_sd">이전 SD 라이브러리를 사용할 수 없습니다</string>

@@ -1579,6 +1579,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Kosongkan</string>
     <string name="game_sync_err_runtime">Pasang masa jalan dahulu</string>
     <string name="game_sync_err_steam_library">Pustaka Steam tidak tersedia</string>
     <string name="game_sync_err_previous_sd">Pustaka SD terdahulu tidak tersedia</string>

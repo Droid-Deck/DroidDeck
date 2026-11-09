@@ -1615,6 +1615,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Golește</string>
     <string name="game_sync_err_runtime">Instalează mai întâi mediul de execuție</string>
     <string name="game_sync_err_steam_library">Biblioteca Steam nu este disponibilă</string>
     <string name="game_sync_err_previous_sd">Biblioteca SD anterioară nu este disponibilă</string>

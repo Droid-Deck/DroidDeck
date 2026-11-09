@@ -1757,6 +1757,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Clear</string>
     <string name="game_sync_err_runtime">Install the runtime first</string>
     <string name="game_sync_err_steam_library">Steam library is unavailable</string>
     <string name="game_sync_err_previous_sd">Previous SD library is unavailable</string>

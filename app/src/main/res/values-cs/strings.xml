@@ -1633,6 +1633,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Vymazat</string>
     <string name="game_sync_err_runtime">Nejprve nainstalujte runtime</string>
     <string name="game_sync_err_steam_library">Knihovna Steamu není dostupná</string>
     <string name="game_sync_err_previous_sd">Předchozí knihovna na SD kartě není dostupná</string>

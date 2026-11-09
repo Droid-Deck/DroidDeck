@@ -82,6 +82,7 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
         key("→", "\u001b[C")
         key(context.getString(R.string.second_key_ctrl_c), "\u0003")
         key(context.getString(R.string.second_key_ctrl_d), "\u0004")
+        key(context.getString(R.string.second_key_clear), "\u000c")
         keyStrip.addView(keys)
         addView(keyStrip, LayoutParams(-1, -2))
 

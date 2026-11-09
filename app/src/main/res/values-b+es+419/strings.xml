@@ -1679,6 +1679,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Borrar</string>
     <string name="game_sync_err_runtime">Instala primero el runtime</string>
     <string name="game_sync_err_steam_library">La biblioteca de Steam no está disponible</string>
     <string name="game_sync_err_previous_sd">La biblioteca anterior de la SD no está disponible</string>

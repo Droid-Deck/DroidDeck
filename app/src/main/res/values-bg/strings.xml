@@ -1597,6 +1597,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Изчисти</string>
     <string name="game_sync_err_runtime">Инсталирай средата първо</string>
     <string name="game_sync_err_steam_library">Библиотеката на Steam не е достъпна</string>
     <string name="game_sync_err_previous_sd">Предишната SD библиотека не е достъпна</string>

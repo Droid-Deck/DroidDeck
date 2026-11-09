@@ -1589,6 +1589,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Temizle</string>
     <string name="game_sync_err_runtime">Önce çalışma ortamını yükleyin</string>
     <string name="game_sync_err_steam_library">Steam kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_previous_sd">Önceki SD kütüphanesi kullanılamıyor</string>

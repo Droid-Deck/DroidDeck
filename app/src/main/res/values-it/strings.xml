@@ -1607,6 +1607,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Pulisci</string>
     <string name="game_sync_err_runtime">Installa prima il runtime</string>
     <string name="game_sync_err_steam_library">La libreria di Steam non è disponibile</string>
     <string name="game_sync_err_previous_sd">La libreria SD precedente non è disponibile</string>

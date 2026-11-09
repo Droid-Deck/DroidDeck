@@ -1597,6 +1597,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Tøm</string>
     <string name="game_sync_err_runtime">Installer kjøretiden først</string>
     <string name="game_sync_err_steam_library">Steam-biblioteket er ikke tilgjengelig</string>
     <string name="game_sync_err_previous_sd">Det forrige SD-biblioteket er ikke tilgjengelig</string>

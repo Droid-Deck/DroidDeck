@@ -1669,6 +1669,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">مسح</string>
     <string name="game_sync_err_runtime">ثبِّت بيئة التشغيل أولاً</string>
     <string name="game_sync_err_steam_library">مكتبة Steam غير متاحة</string>
     <string name="game_sync_err_previous_sd">مكتبة SD السابقة غير متاحة</string>

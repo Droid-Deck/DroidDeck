@@ -1579,6 +1579,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Xóa</string>
     <string name="game_sync_err_runtime">Cài runtime trước</string>
     <string name="game_sync_err_steam_library">Thư viện Steam không khả dụng</string>
     <string name="game_sync_err_previous_sd">Thư viện SD trước đó không khả dụng</string>

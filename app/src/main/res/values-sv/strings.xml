@@ -1597,6 +1597,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Rensa</string>
     <string name="game_sync_err_runtime">Installera körmiljön först</string>
     <string name="game_sync_err_steam_library">Steam-biblioteket är inte tillgängligt</string>
     <string name="game_sync_err_previous_sd">Det tidigare SD-biblioteket är inte tillgängligt</string>

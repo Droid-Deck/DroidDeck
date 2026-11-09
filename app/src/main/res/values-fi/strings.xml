@@ -1597,6 +1597,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Tyhjennä</string>
     <string name="game_sync_err_runtime">Asenna ajoympäristö ensin</string>
     <string name="game_sync_err_steam_library">Steam-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_previous_sd">Aiempi SD-kirjasto ei ole käytettävissä</string>

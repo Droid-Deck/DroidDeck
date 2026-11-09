@@ -1589,6 +1589,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Strg+C</string>
     <string name="second_key_ctrl_d">Strg+D</string>
+    <string name="second_key_clear">Leeren</string>
     <string name="game_sync_err_runtime">Installiere zuerst die Laufzeit</string>
     <string name="game_sync_err_steam_library">Steam-Bibliothek ist nicht verfügbar</string>
     <string name="game_sync_err_previous_sd">Vorherige SD-Bibliothek ist nicht verfügbar</string>

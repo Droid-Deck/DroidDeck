@@ -1657,6 +1657,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">清屏</string>
     <string name="game_sync_err_runtime">请先安装运行时</string>
     <string name="game_sync_err_steam_library">Steam 库不可用</string>
     <string name="game_sync_err_previous_sd">之前的 SD 卡库不可用</string>

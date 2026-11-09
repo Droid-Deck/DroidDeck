@@ -1597,6 +1597,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Törlés</string>
     <string name="game_sync_err_runtime">Előbb telepítse a futtatókörnyezetet</string>
     <string name="game_sync_err_steam_library">A Steam-könyvtár nem elérhető</string>
     <string name="game_sync_err_previous_sd">A korábbi SD-könyvtár nem elérhető</string>
