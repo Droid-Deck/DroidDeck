@@ -32,6 +32,8 @@ struct ddnatv_bind {
 static struct ddnatv_bind *g_binds = NULL;
 static int g_nbinds = 0;
 static char *g_binds_raw = NULL;
+// The session's host name (DDNATV_HOSTNAME), what proot put in uname(): Android's kernel says "localhost"
+static char g_hostname[65];
 
 static int ddnatv_bind_longer_first(const void *a, const void *b) {
     const struct ddnatv_bind *x = a, *y = b;

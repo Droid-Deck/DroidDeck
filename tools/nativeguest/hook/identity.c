@@ -51,6 +51,32 @@ int getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups) {
     return -1;
 }
 
+// The session's host name, as proot's --kernel-release gave it: Steam names the device after it
+int uname(struct utsname *buf) {
+    static int (*orig_uname)(struct utsname *) = NULL;
+    if (!orig_uname) orig_uname = (int (*)(struct utsname *))dlsym(RTLD_NEXT, "uname");
+    int ret = orig_uname ? orig_uname(buf) : -1;
+    if (ret == 0 && buf && g_hostname[0]) {
+        ddnatv_copy_cstr(buf->nodename, sizeof(buf->nodename), g_hostname);
+        ddnatv_copy_cstr(buf->domainname, sizeof(buf->domainname), "localdomain");
+    }
+    return ret;
+}
+
+int gethostname(char *name, size_t len) {
+    static int (*orig_gethostname)(char *, size_t) = NULL;
+    if (!orig_gethostname) orig_gethostname = (int (*)(char *, size_t))dlsym(RTLD_NEXT, "gethostname");
+    if (!g_hostname[0]) return orig_gethostname ? orig_gethostname(name, len) : -1;
+    size_t n = strlen(g_hostname) + 1;
+    if (!name || n > len) {
+        if (name && len) memcpy(name, g_hostname, len);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(name, g_hostname, n);
+    return 0;
+}
+
 #endif /* !DDNATV_HOST_TEST */
 
 static uid_t real_uid(void) {

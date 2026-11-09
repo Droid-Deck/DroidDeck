@@ -59,10 +59,11 @@ object NativeGuest {
     }
 
     /** The environment of the session process: the hook's root, the mounts proot used to make, the preload list. */
-    fun sessionEnvironment(root: File, binds: List<String>): Map<String, String> {
+    fun sessionEnvironment(root: File, binds: List<String>, hostname: String? = null): Map<String, String> {
         val preload = preloadList(root)
         return linkedMapOf(
             "DDNATV_ROOT" to root.path,
+            "DDNATV_HOSTNAME" to hostname.orEmpty(),
             "DDNATV_BINDS" to binds.joinToString("|") { if (it.contains(':')) it else "$it:$it" },
             "DDNATV_PRELOAD" to preload.joinToString(":"),
             "LD_LIBRARY_PATH" to libraryPath(root),

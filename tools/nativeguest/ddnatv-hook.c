@@ -19,6 +19,7 @@
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
 #include <sys/socket.h>
+#include <sys/utsname.h>
 #include <sys/un.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>

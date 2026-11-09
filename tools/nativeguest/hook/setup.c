@@ -34,6 +34,8 @@ static void init_ddnatv_hook(void) {
         }
     }
     ddnatv_load_binds(getenv("DDNATV_BINDS"));
+    const char *hostname = getenv("DDNATV_HOSTNAME");
+    if (hostname && hostname[0] && strlen(hostname) < sizeof(g_hostname)) ddnatv_copy_cstr(g_hostname, sizeof(g_hostname), hostname);
     const char *preload = getenv("DDNATV_PRELOAD");
     if (preload && preload[0] && g_ddnatv_root_len > 0) {
         size_t cap = strlen(preload) + (g_ddnatv_root_len + 1) * 16 + 1;
