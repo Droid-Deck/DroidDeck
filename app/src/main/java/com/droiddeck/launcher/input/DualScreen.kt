@@ -82,6 +82,12 @@ object DualScreen {
     fun sessionDisplay(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         display(context, displayManager, primaryDisplayId, SessionPrefs.dualScreenSessionMode(context))
 
+    fun selectedSessionDisplay(displayManager: DisplayManager, primaryDisplayId: Int, selectedDisplayId: Int): Display? =
+        displayManager.getDisplay(selectedDisplayId)?.takeIf {
+            it.isValid && it.displayId != primaryDisplayId &&
+                (it.flags and Display.FLAG_PRESENTATION) != 0 && !taken(it.displayId)
+        }
+
     fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, mode: String = SessionPrefs.dualScreenMode(context)): Display? =
         when (mode) {
             MODE_OFF -> null

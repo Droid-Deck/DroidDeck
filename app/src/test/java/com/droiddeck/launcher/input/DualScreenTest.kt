@@ -29,6 +29,23 @@ class DualScreenTest {
         assertFalse(DualScreen.isBuiltIn(5, "AYN Thor"))
     }
 
+    @Test @Config(sdk = [34]) fun selectedInternalAndExternalDisplaysCanBeUsed() {
+        withDisplay(INTERNAL, "Bottom screen") { internal ->
+            assertEquals(internal.displayId, DualScreen.selectedSessionDisplay(displays, Display.DEFAULT_DISPLAY, internal.displayId)?.displayId)
+        }
+        withDisplay(EXTERNAL, "HDMI Screen") { external ->
+            assertEquals(external.displayId, DualScreen.selectedSessionDisplay(displays, Display.DEFAULT_DISPLAY, external.displayId)?.displayId)
+        }
+    }
+
+    @Test @Config(sdk = [34]) fun missingOrRemovedSelectedDisplaysCannotBeUsed() {
+        assertNull(DualScreen.selectedSessionDisplay(displays, Display.DEFAULT_DISPLAY, Display.INVALID_DISPLAY))
+        val id = ShadowDisplayManager.addDisplay("w640dp-h480dp", EXTERNAL)
+        shadowOf(displays.getDisplay(id)).setFlags(Display.FLAG_PRESENTATION)
+        ShadowDisplayManager.removeDisplay(id)
+        assertNull(DualScreen.selectedSessionDisplay(displays, Display.DEFAULT_DISPLAY, id))
+    }
+
     @Test fun knownModelsCountWhenTheTypeIsHidden() {
         assertTrue(DualScreen.isBuiltIn(null, "Retroid Pocket Duo"))
         assertTrue(DualScreen.isBuiltIn(null, " AYN Thor "))
