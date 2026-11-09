@@ -130,6 +130,7 @@ int chown(const char *pathname, uid_t owner, gid_t group) { (void)pathname; (voi
 int fchown(int fd, uid_t owner, gid_t group) { (void)fd; (void)owner; (void)group; return 0; }
 int lchown(const char *pathname, uid_t owner, gid_t group) { (void)pathname; (void)owner; (void)group; return 0; }
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+    DDNATV_AT_REMAP(dirfd, pathname);
     (void)dirfd; (void)pathname; (void)owner; (void)group; (void)flags; return 0;
 }
 int chroot(const char *path) { (void)path; return 0; }
@@ -139,6 +140,7 @@ int mkfifo(const char *pathname, mode_t mode);
 int mkfifoat(int dirfd, const char *pathname, mode_t mode);
 
 int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev) {
+    DDNATV_AT_REMAP(dirfd, pathname);
     (void)dev;
     if (!pathname) {
         errno = EFAULT;

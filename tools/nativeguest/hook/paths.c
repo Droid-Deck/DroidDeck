@@ -109,7 +109,10 @@ static int is_mapped_guest_path(const char *path) {
     if (!path || path[0] != '/') return 0;
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
-        if (!b->identity && is_path_prefix(path, b->dst, b->dst_len)) return 1;
+        if (b->identity) continue;
+        if (is_path_prefix(path, b->dst, b->dst_len)) return 1;
+        // its real place too: a relative program is made absolute from the real working directory
+        if (is_path_prefix(path, b->src, b->src_len) && get_rootfs_subpath(b->src) == NULL) return 1;
     }
     return 0;
 }
@@ -593,10 +596,11 @@ static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
     return NULL;
 }
 
-#define DDNATV_AT_REMAP(dirfd, pathname)                                          \
-    char ddnatv_at_buf[PATH_MAX];                                                 \
-    if (map_at((dirfd), (pathname), ddnatv_at_buf, sizeof(ddnatv_at_buf))) {      \
+#define DDNATV_AT_REMAP_NAMED(dirfd, pathname, buf)                               \
+    char buf[PATH_MAX];                                                           \
+    if (map_at((dirfd), (pathname), buf, sizeof(buf))) {                          \
         (dirfd) = AT_FDCWD;                                                       \
-        (pathname) = ddnatv_at_buf;                                               \
+        (pathname) = buf;                                                         \
     }
+#define DDNATV_AT_REMAP(dirfd, pathname) DDNATV_AT_REMAP_NAMED(dirfd, pathname, ddnatv_at_buf)
 #endif /* !DDNATV_HOST_TEST */

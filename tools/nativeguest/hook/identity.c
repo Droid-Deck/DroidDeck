@@ -764,7 +764,10 @@ int DDNATV_NSS_SYM(getpwuid_r)(uid_t uid, struct passwd *pwd, char *buf, size_t 
     int ret = g_test_orig_nss_r_ret;
     if (result) *result = (ret == 0 && g_test_orig_nss_r_found) ? pwd : NULL;
 #endif
-    if (ret == 0 && result && *result != NULL) return 0;
+    if (ret == 0 && result && *result != NULL) {
+        present_privsep_user_as_root(*result);
+        return 0;
+    }
     if (ret != 0 && ret != ENOENT) {
         if (result) *result = NULL;
         return ret;
@@ -772,6 +775,7 @@ int DDNATV_NSS_SYM(getpwuid_r)(uid_t uid, struct passwd *pwd, char *buf, size_t 
 
     int err = ddnatv_lookup_passwd(NULL, uid, 0, pwd, buf, buflen);
     if (err == 0) {
+        present_privsep_user_as_root(pwd);
         if (result) *result = pwd;
         return 0;
     }

@@ -93,6 +93,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
     static int (*orig_fchmodat)(int, const char *, mode_t, int) = NULL;
     if (!orig_fchmodat) orig_fchmodat = (int (*)(int, const char *, mode_t, int))dlsym(RTLD_NEXT, "fchmodat");
     if (!orig_fchmodat) return -1;
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_fchmodat(dirfd, target, mode, flags);
@@ -130,6 +131,7 @@ int unlink(const char *pathname) {
 int unlinkat(int dirfd, const char *pathname, int flags) {
     static int (*orig_unlinkat)(int, const char *, int) = NULL;
     if (!orig_unlinkat) orig_unlinkat = (int (*)(int, const char *, int))dlsym(RTLD_NEXT, "unlinkat");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     dev_t hl_dev = 0;
@@ -181,6 +183,7 @@ int mkdir(const char *pathname, mode_t mode) {
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
     static int (*orig_mkdirat)(int, const char *, mode_t) = NULL;
     if (!orig_mkdirat) orig_mkdirat = (int (*)(int, const char *, mode_t))dlsym(RTLD_NEXT, "mkdirat");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     int ret = orig_mkdirat(dirfd, target, mode | NEW_DIR_OWNER_RIGHTS);
@@ -250,6 +253,8 @@ int rename(const char *oldpath, const char *newpath) {
 int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
     static int (*orig_renameat)(int, const char *, int, const char *) = NULL;
     if (!orig_renameat) orig_renameat = (int (*)(int, const char *, int, const char *))dlsym(RTLD_NEXT, "renameat");
+    DDNATV_AT_REMAP_NAMED(olddirfd, oldpath, ddnatv_at_old);
+    DDNATV_AT_REMAP_NAMED(newdirfd, newpath, ddnatv_at_new);
     char buf1[PATH_MAX];
     char buf2[PATH_MAX];
     const char *target_old = (oldpath && oldpath[0] == '/') ? rewrite_path(oldpath, buf1, sizeof(buf1)) : oldpath;
@@ -279,6 +284,8 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
         orig_renameat2 = (int (*)(int, const char *, int, const char *, unsigned int))dlsym(RTLD_NEXT, "renameat2");
         if (!orig_renameat2) return renameat(olddirfd, oldpath, newdirfd, newpath);
     }
+    DDNATV_AT_REMAP_NAMED(olddirfd, oldpath, ddnatv_at_old);
+    DDNATV_AT_REMAP_NAMED(newdirfd, newpath, ddnatv_at_new);
     char buf1[PATH_MAX];
     char buf2[PATH_MAX];
     const char *target_old = (oldpath && oldpath[0] == '/') ? rewrite_path(oldpath, buf1, sizeof(buf1)) : oldpath;
@@ -323,13 +330,14 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
 
 // Hook readlinkat
 ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
+    static ssize_t (*orig_readlinkat)(int, const char *, char *, size_t) = NULL;
+    if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
+    DDNATV_AT_REMAP(dirfd, pathname);
+    // after the remap: "proc/self/exe" relative to a descriptor for "/" is /proc/self/exe as well
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
         if (exe_len >= 0) return exe_len;
     }
-    static ssize_t (*orig_readlinkat)(int, const char *, char *, size_t) = NULL;
-    if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
-    DDNATV_AT_REMAP(dirfd, pathname);
     char pbuf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, pbuf, sizeof(pbuf)) : pathname;
     ssize_t ret = orig_readlinkat ? orig_readlinkat(dirfd, target, buf, bufsiz) : -1;
@@ -461,6 +469,7 @@ int symlink(const char *target, const char *linkpath) {
 int symlinkat(const char *target, int newdirfd, const char *linkpath) {
     static int (*orig_symlinkat)(const char *, int, const char *) = NULL;
     if (!orig_symlinkat) orig_symlinkat = (int (*)(const char *, int, const char *))dlsym(RTLD_NEXT, "symlinkat");
+    DDNATV_AT_REMAP(newdirfd, linkpath);
     char pbuf[PATH_MAX], tbuf[PATH_MAX];
     const char *newlink = (linkpath && linkpath[0] == '/') ? rewrite_path(linkpath, pbuf, sizeof(pbuf)) : linkpath;
     const char *newtarget = (target && target[0] == '/') ? rewrite_path(target, tbuf, sizeof(tbuf)) : target;
@@ -473,6 +482,8 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
 int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
     static int (*orig_linkat)(int, const char *, int, const char *, int) = NULL;
     if (!orig_linkat) orig_linkat = (int (*)(int, const char *, int, const char *, int))dlsym(RTLD_NEXT, "linkat");
+    DDNATV_AT_REMAP_NAMED(olddirfd, oldpath, ddnatv_at_old);
+    DDNATV_AT_REMAP_NAMED(newdirfd, newpath, ddnatv_at_new);
     char obuf[PATH_MAX], nbuf[PATH_MAX];
     const char *rold = (oldpath && oldpath[0] == '/') ? rewrite_path(oldpath, obuf, sizeof(obuf)) : oldpath;
     const char *rnew = (newpath && newpath[0] == '/') ? rewrite_path(newpath, nbuf, sizeof(nbuf)) : newpath;
@@ -525,6 +536,7 @@ int futimesat(int dirfd, const char *pathname, const struct timeval times[2]) {
 int utimensat(int dirfd, const char *pathname, const struct timespec times[2], int flags) {
     static int (*orig_utimensat)(int, const char *, const struct timespec[2], int) = NULL;
     if (!orig_utimensat) orig_utimensat = (int (*)(int, const char *, const struct timespec[2], int))dlsym(RTLD_NEXT, "utimensat");
+    DDNATV_AT_REMAP(dirfd, pathname);
     char buf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, buf, sizeof(buf)) : pathname;
     return orig_utimensat ? orig_utimensat(dirfd, target, times, flags) : -1;
