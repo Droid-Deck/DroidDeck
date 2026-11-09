@@ -272,6 +272,8 @@ class GogMaintenanceTest {
         try { Files.createSymbolicLink(File(folder, "link").toPath(), outside.toPath()) }
         catch (_: java.nio.file.FileSystemException) { return }
         assertThrows(IllegalArgumentException::class.java) { GogFiles.inside(folder, "link/game.exe") }
+        assertThrows(IllegalArgumentException::class.java) { GogFiles.validate(JSONArray("""[{"path":"Data/Part0.bin"},{"path":"link/game.exe"}]"""), folder) }
+        assertThrows(IllegalArgumentException::class.java) { GogFiles.validate(JSONArray("""[{"path":"a/./file"}]"""), folder) }
     }
 
     @Test fun sameSizeCorruptionFailsVerificationAndLanguageVariantsRemainDistinct() {
