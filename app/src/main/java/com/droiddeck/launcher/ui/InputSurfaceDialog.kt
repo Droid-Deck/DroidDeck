@@ -253,7 +253,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
-            view.style = draft.layout.style.copy(hidden = emptySet()); view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
+            view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
             view.onBeginEdit = draft::checkpoint

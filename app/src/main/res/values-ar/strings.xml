@@ -3816,4 +3816,10 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+    <string name="input_hide_tools">إخفاء الأدوات</string>
+    <string name="input_tools">الأدوات</string>
+    <string name="input_editor_add">+ إضافة</string>
+    <string name="input_editor_undo">تراجع</string>
+    <string name="input_editor_done">تم</string>
+    <string name="input_editor_hint">اسحب للتحريك. اسحب زاوية لتغيير الحجم. اضغط على الخصائص لتعيين إجراء.</string>
 </resources>

@@ -3630,4 +3630,10 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
+    <string name="input_hide_tools">ツールを隠す</string>
+    <string name="input_tools">ツール</string>
+    <string name="input_editor_add">+ 追加</string>
+    <string name="input_editor_undo">元に戻す</string>
+    <string name="input_editor_done">完了</string>
+    <string name="input_editor_hint">ドラッグして移動します。角をドラッグしてサイズを変更します。プロパティをタップしてアクションを割り当てます。</string>
 </resources>

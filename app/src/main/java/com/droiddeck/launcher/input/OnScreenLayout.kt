@@ -41,6 +41,9 @@ object OnScreenLayout {
         return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
     }
 
+    fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
+        elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
+
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
         val w = width.toFloat()
         val h = height.toFloat()

@@ -3699,4 +3699,10 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se ha podido importar esta disposición</string>
+    <string name="input_hide_tools">Ocultar herramientas</string>
+    <string name="input_tools">Herramientas</string>
+    <string name="input_editor_add">+ Añadir</string>
+    <string name="input_editor_undo">Deshacer</string>
+    <string name="input_editor_done">Listo</string>
+    <string name="input_editor_hint">Arrastra para mover. Arrastra una esquina para cambiar el tamaño. Toca Propiedades para asignar una acción.</string>
 </resources>

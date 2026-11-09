@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Palauta sijainnit</string>
     <string name="input_show_label">Näytä nimi</string>
     <string name="input_layout_import_failed">Tätä asettelua ei voitu tuoda</string>
+    <string name="input_hide_tools">Piilota työkalut</string>
+    <string name="input_tools">Työkalut</string>
+    <string name="input_editor_add">+ Lisää</string>
+    <string name="input_editor_undo">Kumoa</string>
+    <string name="input_editor_done">Valmis</string>
+    <string name="input_editor_hint">Siirrä vetämällä. Muuta kokoa vetämällä kulmasta. Määritä toiminto napauttamalla Ominaisuudet.</string>
 </resources>

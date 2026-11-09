@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>
+    <string name="input_hide_tools">Скриване на инструментите</string>
+    <string name="input_tools">Инструменти</string>
+    <string name="input_editor_add">+ Добавяне</string>
+    <string name="input_editor_undo">Отмяна</string>
+    <string name="input_editor_done">Готово</string>
+    <string name="input_editor_hint">Плъзнете за преместване. Плъзнете ъгъл за промяна на размера. Докоснете Свойства, за да зададете действие.</string>
 </resources>

@@ -3738,4 +3738,10 @@
     <string name="input_reset_positions">Resetuj położenie</string>
     <string name="input_show_label">Pokaż etykietę</string>
     <string name="input_layout_import_failed">Nie można zaimportować tego układu</string>
+    <string name="input_hide_tools">Ukryj narzędzia</string>
+    <string name="input_tools">Narzędzia</string>
+    <string name="input_editor_add">+ Dodaj</string>
+    <string name="input_editor_undo">Cofnij</string>
+    <string name="input_editor_done">Gotowe</string>
+    <string name="input_editor_hint">Przeciągnij, aby przenieść. Przeciągnij róg, aby zmienić rozmiar. Dotknij Właściwości, aby przypisać działanie.</string>
 </resources>

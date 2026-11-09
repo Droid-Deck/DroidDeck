@@ -6,7 +6,6 @@
     <string name="input_click_name">%1$s · Click</string>
     <string name="input_buttons">Buttons</string>
     <string name="input_axes">Sticks, pads and triggers</string>
-    <string name="input_hide_tools">Hide tools</string>
     <string name="input_route_controller">Controller</string>
     <string name="input_controller_route_hint">Send controller input to Steam Input or the game.</string>
     <string name="input_disabled_hint">This element sends no controller, mouse or keyboard input.</string>
@@ -28,10 +27,6 @@
     <string name="input_element_trackpad">Trackpad</string>
     <string name="input_element_dpad">D-pad</string>
     <string name="input_element_trigger">Trigger</string>
-    <string name="input_editor_done">Done</string>
-    <string name="input_editor_undo">Undo</string>
-    <string name="input_editor_add">+ Add</string>
-    <string name="input_editor_hint">Drag to move. Drag a corner to resize. Tap Properties to assign an action.</string>
     <string name="input_editor_remote">Editing on your second screen</string>
     <string name="input_display_unavailable">The selected display is not available. Connect it to edit this layout at its actual size.</string>
     <string name="input_editor_discard">Discard unsaved layout changes?</string>
@@ -75,7 +70,6 @@
     <string name="input_independent_copy">Independent copy</string>
     <string name="input_floating_stick">Start stick at touch position</string>
     <string name="input_hide_idle">Hide stick when not in use</string>
-    <string name="input_tools">Tools</string>
     <string name="input_quick_auto">Auto (%1$s)</string>
     <string name="input_quick_mixed">Custom (%1$s)</string>
     <string name="input_save_combination">Save as new profile</string>

@@ -3634,4 +3634,10 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+    <string name="input_hide_tools">隐藏工具</string>
+    <string name="input_tools">工具</string>
+    <string name="input_editor_add">+ 添加</string>
+    <string name="input_editor_undo">撤销</string>
+    <string name="input_editor_done">完成</string>
+    <string name="input_editor_hint">拖动以移动。拖动角落以调整大小。点击属性以分配操作。</string>
 </resources>

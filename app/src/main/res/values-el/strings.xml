@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+    <string name="input_hide_tools">Απόκρυψη εργαλείων</string>
+    <string name="input_tools">Εργαλεία</string>
+    <string name="input_editor_add">+ Προσθήκη</string>
+    <string name="input_editor_undo">Αναίρεση</string>
+    <string name="input_editor_done">Τέλος</string>
+    <string name="input_editor_hint">Σύρετε για μετακίνηση. Σύρετε μια γωνία για αλλαγή μεγέθους. Πατήστε Ιδιότητες για να αντιστοιχίσετε ενέργεια.</string>
 </resources>

@@ -3630,4 +3630,10 @@
     <string name="input_reset_positions">Atur ulang posisi</string>
     <string name="input_show_label">Tampilkan label</string>
     <string name="input_layout_import_failed">Tata letak ini tidak dapat diimpor</string>
+    <string name="input_hide_tools">Sembunyikan alat</string>
+    <string name="input_tools">Alat</string>
+    <string name="input_editor_add">+ Tambah</string>
+    <string name="input_editor_undo">Urungkan</string>
+    <string name="input_editor_done">Selesai</string>
+    <string name="input_editor_hint">Seret untuk memindahkan. Seret sudut untuk mengubah ukuran. Ketuk Properti untuk menetapkan tindakan.</string>
 </resources>

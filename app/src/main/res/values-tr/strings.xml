@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Konumları sıfırla</string>
     <string name="input_show_label">Etiketi göster</string>
     <string name="input_layout_import_failed">Bu düzen içe aktarılamadı</string>
+    <string name="input_hide_tools">Araçları gizle</string>
+    <string name="input_tools">Araçlar</string>
+    <string name="input_editor_add">+ Ekle</string>
+    <string name="input_editor_undo">Geri al</string>
+    <string name="input_editor_done">Bitti</string>
+    <string name="input_editor_hint">Taşımak için sürükleyin. Yeniden boyutlandırmak için bir köşeyi sürükleyin. İşlem atamak için Özellikler\'e dokunun.</string>
 </resources>

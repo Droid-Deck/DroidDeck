@@ -3660,4 +3660,10 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+    <string name="input_hide_tools">Dölj verktyg</string>
+    <string name="input_tools">Verktyg</string>
+    <string name="input_editor_add">+ Lägg till</string>
+    <string name="input_editor_undo">Ångra</string>
+    <string name="input_editor_done">Klar</string>
+    <string name="input_editor_hint">Dra för att flytta. Dra i ett hörn för att ändra storlek. Tryck på Egenskaper för att tilldela en åtgärd.</string>
 </resources>

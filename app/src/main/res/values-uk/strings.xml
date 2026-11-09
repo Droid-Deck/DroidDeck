@@ -3738,4 +3738,10 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+    <string name="input_hide_tools">Сховати інструменти</string>
+    <string name="input_tools">Інструменти</string>
+    <string name="input_editor_add">+ Додати</string>
+    <string name="input_editor_undo">Скасувати</string>
+    <string name="input_editor_done">Готово</string>
+    <string name="input_editor_hint">Перетягніть для переміщення. Перетягніть кут, щоб змінити розмір. Натисніть «Властивості», щоб призначити дію.</string>
 </resources>
