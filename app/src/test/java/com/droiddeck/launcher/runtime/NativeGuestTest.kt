@@ -13,6 +13,20 @@ class NativeGuestTest {
     }
 
     @Test
+    fun theSeccompSwitchNamesAHelperAndItsArgumentsInTheRootfs() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        assertEquals(null, NativeGuest.simulator(root))
+        File(root, "usr/local/bin").mkdirs()
+        File(root, "usr/local/bin/seccomp-sim").writeText("")
+        File(root, "etc/droiddeck").mkdirs()
+        File(root, "etc/droiddeck/seccomp-sim").writeText("/usr/local/bin/seccomp-sim -f /etc/droiddeck/app.bpf\n")
+        assertEquals(listOf(File(root, "usr/local/bin/seccomp-sim").path, "-f", File(root, "etc/droiddeck/app.bpf").path),
+            NativeGuest.simulator(root))
+        File(root, "etc/droiddeck/seccomp-sim").writeText("/usr/local/bin/missing")
+        assertEquals(null, NativeGuest.simulator(root))
+    }
+
+    @Test
     fun aWorkingDirectoryInAMountIsItsSource() {
         val root = Files.createTempDirectory("rootfs").toFile()
         val storage = Files.createTempDirectory("storage").toFile()

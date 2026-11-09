@@ -415,7 +415,7 @@ object BwrapSpawner {
             "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },
             "LD_PRELOAD" to hook.path,
         ).filterValues { it.isNotEmpty() }
-        return (NativeGuest.simulator(rootfs)?.let { listOf(it.path) + launch } ?: launch) to env
+        return (NativeGuest.simulator(rootfs)?.let { it + launch } ?: launch) to env
     }
 
     private val runpathDirs = java.util.concurrent.ConcurrentHashMap<String, List<String>>()

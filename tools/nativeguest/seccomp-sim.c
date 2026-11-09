@@ -1,7 +1,9 @@
 // Runs a program under a seccomp filter that answers the system calls Android's app policy blocks
 // with SIGSYS, the way a stock app process does, for testing on builds that have no filter:
 //   seccomp-sim [-a NR,NR...] PROGRAM [ARGS...]
-// -a leaves the listed system calls allowed (to find which one kills a program).
+//   seccomp-sim -f FILTER PROGRAM [ARGS...]
+// -a leaves the listed system calls allowed (to find which one kills a program). -f installs a
+// filter as it is (raw struct sock_filter entries), such as the app filter a device's zygote makes.
 #define _GNU_SOURCE
 #include <errno.h>
 #include <linux/audit.h>
@@ -19,7 +21,32 @@ static const int blocked[] = {99, 100, 97, 217, 218, 219, 268, 277, 280, 293, 14
 #define MAX_ALLOWED 64
 #define NBLOCKED (sizeof(blocked) / sizeof(blocked[0]))
 
+static int run_filter_file(const char *path, char **argv) {
+    static struct sock_filter filter[BPF_MAXINSNS];
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        perror("seccomp-sim: -f");
+        return 2;
+    }
+    size_t n = fread(filter, sizeof(filter[0]), BPF_MAXINSNS, f);
+    int extra = fgetc(f) != EOF;
+    fclose(f);
+    if (n == 0 || extra) {
+        fprintf(stderr, "seccomp-sim: %s holds no filter of at most %d instructions\n", path, BPF_MAXINSNS);
+        return 2;
+    }
+    struct sock_fprog prog = { .len = (unsigned short)n, .filter = filter };
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+        perror("seccomp-sim");
+        return 1;
+    }
+    execv(argv[0], argv);
+    perror("seccomp-sim: exec");
+    return 127;
+}
+
 int main(int argc, char **argv) {
+    if (argc > 3 && strcmp(argv[1], "-f") == 0) return run_filter_file(argv[2], argv + 3);
     int skip[MAX_ALLOWED], nskip = 0, arg = 1;
     if (argc > 3 && strcmp(argv[1], "-a") == 0) {
         for (char *p = argv[2];; p++) {

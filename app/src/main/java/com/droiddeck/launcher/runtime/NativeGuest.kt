@@ -25,11 +25,18 @@ object NativeGuest {
         SessionPrefs.nativeUserland(context) && available(LinuxRuntime.rootDir(context))
 
     /**
-     * Development switch: a guest path in etc/droiddeck/seccomp-sim names a helper that applies Android's
-     * app seccomp filter before the program starts, for devices (eng builds) that run apps without one.
+     * Development switch: etc/droiddeck/seccomp-sim names a helper (a guest path, then its arguments)
+     * that applies Android's app seccomp filter before the program starts, for devices that run apps
+     * without one (eng builds, or a permissive SELinux, where zygote skips it). Guest paths among the
+     * arguments are given as their places in the rootfs, as the helper runs before the hook.
      */
-    fun simulator(root: File): File? = File(root, "etc/droiddeck/seccomp-sim").takeIf { it.isFile }
-        ?.readText()?.trim()?.takeIf { it.startsWith("/") }?.let { File(root, it.removePrefix("/")) }?.takeIf { it.isFile }
+    fun simulator(root: File): List<String>? {
+        val words = File(root, "etc/droiddeck/seccomp-sim").takeIf { it.isFile }?.readText()?.trim()
+            ?.split(Regex("\\s+"))?.filter { it.isNotEmpty() } ?: return null
+        val helper = words.firstOrNull()?.takeIf { it.startsWith("/") }?.let { File(root, it.removePrefix("/")) }
+            ?.takeIf { it.isFile } ?: return null
+        return listOf(helper.path) + words.drop(1).map { if (it.startsWith("/")) File(root, it.removePrefix("/")).path else it }
+    }
 
     fun hook(root: File): File = File(root, HOOK)
 
@@ -55,7 +62,7 @@ object NativeGuest {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
         val host = File(root, program.removePrefix("/"))
         val launch = listOf(loader.path, "--argv0", host.name, host.path) + args
-        return simulator(root)?.let { listOf(it.path) + launch } ?: launch
+        return simulator(root)?.let { it + launch } ?: launch
     }
 
     /** The environment of the session process: the hook's root, the mounts proot used to make, the preload list. */
