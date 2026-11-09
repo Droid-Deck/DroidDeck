@@ -529,12 +529,13 @@ public final class PadBridge {
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
-        if (wired || rxRyStick || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)) {
-            lt = leftTrigger(event, wired || rxRyStick);
+        boolean signed = signedZTriggers(event, wired, rxRyStick);
+        if (signed || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)) {
+            lt = leftTrigger(event, signed);
             pad.leftTrigger = lt;
         }
-        if (wired || rxRyStick || hasAxis(device, source, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)) {
-            rt = rightTrigger(event, wired || rxRyStick);
+        if (signed || hasAxis(device, source, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)) {
+            rt = rightTrigger(event, signed);
             pad.rightTrigger = rt;
         }
         if (hasAxis(device, source, MotionEvent.AXIS_HAT_X)) {
@@ -592,6 +593,15 @@ public final class PadBridge {
         boolean useRxRy = rxRyRest < zRzRest;
         layouts.put(event.getDeviceId(), useRxRy);
         return useRxRy;
+    }
+
+    static boolean signedZTriggers(MotionEvent event, boolean wired, boolean rxRyStick) {
+        if (wired) return true;
+        if (!rxRyStick) return false;
+        InputDevice device = event.getDevice();
+        int source = event.getSource();
+        return hasAxis(device, source, MotionEvent.AXIS_Z) && hasAxis(device, source, MotionEvent.AXIS_RZ)
+                && !hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE);
     }
 
     private static float restDistance(InputDevice device, int source, MotionEvent event, int xAxis, int yAxis) {

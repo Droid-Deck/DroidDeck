@@ -90,6 +90,22 @@ class PadPartialAxesTest {
         assertEquals(-0.6f, pad().rightY)
     }
 
+    @Test fun rxRyStickWithoutZRzKeepsTriggersReleased() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+    }
+
+    @Test fun rxRyStickReadsDedicatedTriggerAxes() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_LTRIGGER to 0.4f, MotionEvent.AXIS_RTRIGGER to 0f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(0.4f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+    }
+
     @Test fun onlyZRzAxesProvideTheRightStick() {
         val device = device(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
         motion(device, MotionEvent.AXIS_Z to 0.6f, MotionEvent.AXIS_RZ to -0.6f)
