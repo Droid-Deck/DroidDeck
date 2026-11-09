@@ -916,13 +916,17 @@ def protected_system_dlls(compat, env):
         for key in module["load_state"](Path(compat)).get("files", {}):
             owned.add(str(key).replace("\\", "/").lower())
         native |= prefix_native_dlls(compat, module)
-    except Exception:
-        pass
+    except Exception as error:
+        print("droiddeck-game-env: protected DLL lookup failed (%s); system DLL repair skipped" % error, file=sys.stderr)
+        return None
     return owned, native
 
 
 def repair_foreign_system_dlls(prefix, proton, env=None):
-    owned, native = protected_system_dlls(prefix, env or {})
+    protected = protected_system_dlls(prefix, env or {})
+    if protected is None:
+        return []
+    owned, native = protected
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
     if not (dist / "aarch64-unix").is_dir():
@@ -945,10 +949,19 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             if machine is None or machine in machines:
                 continue
             link = windows / folder / (name + ".bl-new")
+            backup = windows / folder / (name + FOREIGN_SUFFIX)
             try:
                 os.symlink(os.path.relpath(source, path.parent), link)
-                os.replace(path, windows / folder / (name + FOREIGN_SUFFIX))
-                os.replace(link, path)
+                if os.path.lexists(backup):
+                    os.unlink(path)
+                else:
+                    os.replace(path, backup)
+                try:
+                    os.replace(link, path)
+                except OSError:
+                    if not os.path.lexists(path) and os.path.lexists(backup):
+                        os.replace(backup, path)
+                    raise
             except OSError:
                 if link.is_symlink():
                     link.unlink()
