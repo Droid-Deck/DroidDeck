@@ -73,6 +73,14 @@ def installdirs(libraries):
     return found
 
 
+def populated(path):
+    try:
+        with os.scandir(path) as entries:
+            return next(entries, None) is not None
+    except OSError:
+        return False
+
+
 def adoptable(library, known):
     common = os.path.join(library, "steamapps", "common")
     try:
@@ -80,7 +88,7 @@ def adoptable(library, known):
     except OSError:
         return []
     return [n for n in names if n not in known and not n.startswith(".")
-            and os.path.isdir(os.path.join(common, n)) and os.listdir(os.path.join(common, n))]
+            and os.path.isdir(os.path.join(common, n)) and populated(os.path.join(common, n))]
 
 
 def adopt(steam_root, library):

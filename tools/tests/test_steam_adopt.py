@@ -89,6 +89,18 @@ class AdoptTest(unittest.TestCase):
         self.assertEqual(self.adopt(), 0)
         self.assertEqual(list((self.card / "steamapps").glob("appmanifest_*")), [])
 
+    def test_unreadable_game_folder_is_skipped_without_aborting(self):
+        self.folder("Unreadable")
+        real = library.os.scandir
+
+        def scandir(path):
+            if str(path).endswith("Unreadable"):
+                raise PermissionError(path)
+            return real(path)
+
+        with patch.object(library.os, "scandir", scandir):
+            self.assertEqual(library.adoptable(str(self.card), set()), [])
+
     def test_tool_type_app_is_skipped(self):
         self.folder("Proton Thing")
         self.assertEqual(self.adopt(), 0)

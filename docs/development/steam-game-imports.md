@@ -67,7 +67,7 @@ type wins over a demo; tools, DLC and ambiguous names are skipped) gets an
 `appmanifest_<id>.acf` with `Universe=1`, `StateFlags=4` and no build, so Steam verifies
 the existing files and downloads only what differs. Existing manifests are never
 rewritten, an app installed in another library is skipped, and only the added library is
-written to. Ownership is not read before the client runs; Steam enforces the licence.
+written to. Ownership is not read before the client runs; Steam enforces the license.
 
 ## Launcher artwork
 
