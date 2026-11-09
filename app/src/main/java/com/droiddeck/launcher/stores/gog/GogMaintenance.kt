@@ -396,17 +396,22 @@ internal object GogMaintenance {
     }
 
     @JvmStatic
-    fun captureDepot(id: String, folder: File, build: String, buildsJson: String, manifest: JSONObject, depots: JSONArray, language: String) {
+    fun captureDepot(id: String, folder: File, build: String, buildsJson: String, manifest: JSONObject, depots: JSONArray, productIds: JSONArray, language: String) {
         val selected = GogBuild.select(JSONObject(buildsJson), pinned = build)
         val files = JSONArray()
         for (depot in depots.strings()) for (item in JSONObject(depot).getJSONObject("depot").getJSONArray("items").objects()) {
             val chunks = item.optJSONArray("chunks") ?: continue
             files.put(JSONObject().put("path", item.getString("path").replace('\\', '/')).put("size", chunks.objects().sumOf { it.optLong("size") })
-                .put("md5", item.optString("md5")).put("chunks", chunks).put("product", id))
+                .put("md5", item.optString("md5")).put("chunks", chunks).put("product", productIds.strings().firstOrNull { it == JSONObject(depot).optString("productId") } ?: id))
         }
         GogFiles.validate(files, folder)
         GogInstallRecord(id, "depot", 2, build, selected?.version.orEmpty(), selected?.branch.orEmpty(), language,
-            manifest = GogContent.sanitize(manifest), files = files).write(folder)
+            products = productIds.strings(), manifest = GogContent.sanitize(manifest), files = files).write(folder)
+    }
+
+    @JvmStatic
+    fun captureGen1(id: String, folder: File, manifest: JSONObject, productIds: JSONArray, language: String) {
+        GogInstallRecord(id, "depot", 1, language = language, products = productIds.strings(), manifest = GogContent.sanitize(manifest)).write(folder)
     }
 
     @JvmStatic

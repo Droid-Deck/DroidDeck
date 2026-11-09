@@ -24,6 +24,28 @@ internal object GogContent {
 
     fun product(id: String, token: String): JSONObject = json("https://api.gog.com/products/$id?expand=downloads", token)
 
+    @JvmStatic
+    fun ownedProductIds(token: String): Set<String>? = runCatching {
+        val body = StoreNet.get("https://embed.gog.com/user/data/games", bearer = token) ?: return@runCatching null
+        JSONObject(body).optJSONArray("owned")?.strings()?.toSet() ?: emptySet()
+    }.getOrNull()
+
+    @JvmStatic
+    fun installProductIds(baseProductId: String, products: JSONArray?, owned: Set<String>?): Set<String> {
+        val result = linkedSetOf(baseProductId)
+        if (owned != null) for (product in products?.objects().orEmpty()) {
+            val id = product.optString("productId")
+            if (id.isNotEmpty() && id in owned) result.add(id)
+        }
+        return result
+    }
+
+    @JvmStatic
+    fun depotProductId(depot: JSONObject, baseProductId: String, products: Set<String>): String? {
+        val ids = depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId", baseProductId))
+        return ids.firstOrNull { it in products }
+    }
+
     fun downloadFilename(url: String): String = java.net.URLDecoder.decode(URL(url).path.substringAfterLast('/').replace("+", "%2B"), "UTF-8")
 
     fun resolveDownload(download: GogOfflineDownload, token: String): GogOfflineDownload = download.copy(parts = download.parts.map { part ->
@@ -69,8 +91,16 @@ internal object GogContent {
         check(depots != null) { "GOG build has no depot list" }
         val resolvedLanguage = StoreLanguage.pick(StoreLanguage.codesFromDepots(depots), old.language)
         val selectedBitness = if (depots.objects().any { it.optJSONArray("osBitness")?.strings()?.contains("64") == true }) "64" else "32"
-        val owned = if (old.products.any { it != old.id }) StoreNet.get("https://embed.gog.com/user/data/games", bearer = token)?.let { JSONObject(it).optJSONArray("owned")?.strings()?.toSet() } else emptySet()
-        val products = old.products.filter { it == old.id || owned?.contains(it) == true }
+        val candidates = JSONArray()
+        for (depot in depots.objects()) {
+            val ids = depot.optJSONArray("gameIDs")?.strings().orEmpty()
+            val productId = depot.optString("productId")
+            for (id in (ids + productId).filter { it.isNotEmpty() }.distinct()) candidates.put(JSONObject().put("productId", id))
+        }
+        val hasDlcCandidate = candidates.objects().any { it.optString("productId") != old.id }
+        val owned = if (hasDlcCandidate || old.products.any { it != old.id }) ownedProductIds(token) else emptySet()
+        val products = (old.products + installProductIds(old.id, candidates, owned)).distinct()
+            .filter { it == old.id || owned?.contains(it) == true || it in old.products }
         check(old.products.all { it == old.id || owned?.contains(it) == true }) { "Could not confirm ownership of installed GOG DLC" }
         for (depot in depots.objects()) {
             if (depot.has("redist")) continue

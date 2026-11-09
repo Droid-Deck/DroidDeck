@@ -26,6 +26,27 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GogMaintenanceTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun ownedDlcDepotIsSelected() {
+        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"},{\"productId\":\"3\"}]"), setOf("2"))
+        assertEquals("2", GogContent.depotProductId(JSONObject("{\"productId\":\"2\"}"), "1", allowed))
+    }
+
+    @Test fun unownedDlcDepotIsSkipped() {
+        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"}]"), emptySet())
+        assertNull(GogContent.depotProductId(JSONObject("{\"productId\":\"2\"}"), "1", allowed))
+    }
+
+    @Test fun ownershipFetchFailureFallsBackToBaseOnly() {
+        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"}]"), null)
+        assertEquals(setOf("1"), allowed)
+    }
+
+    @Test fun installRecordListsInstalledProducts() {
+        val folder = temporary.newFolder()
+        GogInstallRecord("1", "depot", products = listOf("1", "2")).write(folder)
+        assertEquals(listOf("1", "2"), GogInstallRecord.read(folder)!!.products)
+    }
+
     @Test fun selectsPublicBranchAndTreatsBuildIdsAsOpaque() {
         val builds = JSONObject("""{"items":[
           {"os":"windows","branch":"beta","build_id":"99","generation":2,"link":"https://example.invalid/beta"},

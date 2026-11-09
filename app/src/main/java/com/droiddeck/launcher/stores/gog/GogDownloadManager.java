@@ -149,16 +149,21 @@ public final class GogDownloadManager {
             cb.onProgress("Reading depot manifests…", 10);
             List<DepotFile> files = new ArrayList<>();
             List<String> depotJsons = new ArrayList<>();
-            JSONArray owned = new JSONArray();
+            java.util.Set<String> ownedIds = GogContent.ownedProductIds(token);
+            if (ownedIds == null) cb.onLog("gog: ownership unavailable; installing base product only");
+            java.util.Set<String> installProducts = GogContent.installProductIds(baseProductId, products, ownedIds);
+            List<String> installedProducts = new ArrayList<>();
             List<JSONObject> ownedDepots = new ArrayList<>();
+            JSONArray selected = new JSONArray();
             for (int i = 0; i < depots.length(); i++) {
                 JSONObject depot = depots.getJSONObject(i);
-                String depotPid = depot.optString("productId", "");
-                if (!depotPid.isEmpty() && !depotPid.equals(baseProductId)) continue;
-                owned.put(depot);
+                if (!depot.has("redist") && GogContent.depotProductId(depot, baseProductId, installProducts) == null) continue;
+                String product = GogContent.depotProductId(depot, baseProductId, installProducts);
+                if (product != null && !installedProducts.contains(product)) installedProducts.add(product);
                 ownedDepots.add(depot);
+                selected.put(depot);
             }
-            String resolved = StoreLanguage.pick(StoreLanguage.codesFromDepots(owned), language);
+            String resolved = StoreLanguage.pick(StoreLanguage.codesFromDepots(selected), language);
             cb.onLog("gog: language " + resolved);
             for (int i = 0; i < ownedDepots.size(); i++) {
                 if (cancelled.get()) return out;
@@ -255,7 +260,7 @@ public final class GogDownloadManager {
 
             cb.onProgress("Finishing…", 96);
             try {
-                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), resolved);
+                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), new JSONArray(installedProducts), resolved);
             } catch (Exception e) {
                 cb.onLog("gog: maintenance inventory not recorded: " + e.getMessage());
             }
@@ -368,9 +373,24 @@ public final class GogDownloadManager {
             JSONArray depots = manifest.optJSONArray("depot");
             if (depots == null) { out.error = "no depot array"; return out; }
             List<Gen1File> files = new ArrayList<>();
+            java.util.Set<String> ownedIds = GogContent.ownedProductIds(token);
+            if (ownedIds == null) cb.onLog("gog: ownership unavailable; installing base product only");
+            JSONArray manifestProducts = new JSONArray();
+            for (int i = 0; i < depots.length(); i++) {
+                JSONObject depot = depots.getJSONObject(i);
+                JSONArray ids = depot.optJSONArray("gameIDs");
+                if (ids != null) for (int j = 0; j < ids.length(); j++) manifestProducts.put(new JSONObject().put("productId", ids.optString(j)));
+                String productId = depot.optString("productId");
+                if (!productId.isEmpty()) manifestProducts.put(new JSONObject().put("productId", productId));
+            }
+            java.util.Set<String> installProducts = GogContent.installProductIds(game.gameId, manifestProducts, ownedIds);
+            List<String> installedProducts = new ArrayList<>();
             for (int i = 0; i < depots.length(); i++) {
                 JSONObject depot = depots.getJSONObject(i);
                 if (depot.optBoolean("support", false)) continue;
+                if (!depot.has("redist") && GogContent.depotProductId(depot, game.gameId, installProducts) == null) continue;
+                String product = GogContent.depotProductId(depot, game.gameId, installProducts);
+                if (product != null && !installedProducts.contains(product)) installedProducts.add(product);
                 JSONArray jFiles = depot.optJSONArray("files");
                 if (jFiles == null) continue;
                 for (int j = 0; j < jFiles.length(); j++) {
@@ -438,6 +458,7 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more files failed to download"; return out; }
             cb.onProgress("Finishing…", 96);
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"generation\":1}").getBytes("UTF-8"));
+            GogMaintenance.captureGen1(game.gameId, installPath, manifest, new JSONArray(installedProducts), language);
             GameTask task = pickTask(installPath, game.gameId, null, game.title);
             out.result = new Result(task == null ? "" : task.path, "", planned);
             if (task != null) out.result.workDir = task.workDir;
