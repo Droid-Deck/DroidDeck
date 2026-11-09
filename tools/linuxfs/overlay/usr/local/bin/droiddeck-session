@@ -909,7 +909,7 @@ case $mode in
             bl_tier_readback
             if [ "$_bl_tier_back" -le $((_bl_tier_pushed / 2)) ]; then
               _bl_tier_backoff=30
-            elif [ "$_urgent" = 0 ]; then
+            else
               _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
               _bl_tier_at=$SECONDS _bl_tier_pushed=0
               step "zRAM: the game read back most of its last page-out, next try in ${_bl_tier_backoff} s"
