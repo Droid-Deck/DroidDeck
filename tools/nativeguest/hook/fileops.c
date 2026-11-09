@@ -576,7 +576,12 @@ int fchdir(int fd) {
 char *getcwd(char *buf, size_t size) {
     static char *(*orig_getcwd)(char *, size_t) = NULL;
     if (!orig_getcwd) orig_getcwd = (char *(*)(char *, size_t))dlsym(RTLD_NEXT, "getcwd");
-    return orig_getcwd ? orig_getcwd(buf, size) : NULL;
+    char *res = orig_getcwd ? orig_getcwd(buf, size) : NULL;
+    if (res) {
+        size_t len = strlen(res);
+        guest_path_of_mount_source(res, len, buf ? size : len + 1);
+    }
+    return res;
 }
 
 char *__getcwd_chk(char *buf, size_t size, size_t buflen) {
@@ -621,6 +626,7 @@ char *realpath(const char *path, char *resolved_path) {
             }
         }
     }
+    if (res) guest_path_of_mount_source(res, strlen(res), resolved_path ? PATH_MAX : strlen(res) + 1);
     return res;
 }
 

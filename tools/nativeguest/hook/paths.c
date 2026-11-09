@@ -27,6 +27,7 @@ struct ddnatv_bind {
     char *src, *dst;
     size_t src_len, dst_len;
     int identity;
+    int order; // position in DDNATV_BINDS: the earlier of two mounts of one folder is its guest path
 };
 static struct ddnatv_bind g_binds[DDNATV_MAX_BINDS];
 static int g_nbinds = 0;
@@ -57,6 +58,7 @@ static void ddnatv_load_binds(const char *spec) {
         while (b->dst_len > 1 && b->dst[b->dst_len - 1] == '/') b->dst[--b->dst_len] = '\0';
         while (b->src_len > 1 && b->src[b->src_len - 1] == '/') b->src[--b->src_len] = '\0';
         b->identity = strcmp(b->src, b->dst) == 0;
+        b->order = g_nbinds - 1;
     }
     free(copy);
     qsort(g_binds, (size_t)g_nbinds, sizeof(g_binds[0]), ddnatv_bind_longer_first);
@@ -223,6 +225,13 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
         return path;
     }
 
+    // The real place of a mounted folder, which getcwd() and /proc/self/fd links answer for it: Steam
+    // made a game's path from one on the SD card library and found no sekiro.exe in the rootfs
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (!b->identity && path[1] == b->src[1] && is_path_prefix(path, b->src, b->src_len)) return path;
+    }
+
     // POSIX shared memory (/dev/shm) redirection to The native userland rootfs tmp/shm
     if (strncmp(path, "/dev/shm", 8) == 0 && (path[8] == '/' || path[8] == '\0')) {
         size_t n = ddnatv_append(buffer, bufsize, 0, g_ddnatv_root, g_ddnatv_root_len);
@@ -342,8 +351,30 @@ static int is_proc_fd_link(const char *path) {
     return *p == '\0';
 }
 
+// The guest path of a folder that a session mount puts outside the rootfs, for what the kernel
+// reports as its real place (getcwd(), /proc/self/cwd and fd links). Wine found no DOS drive for
+// Sekiro's folder on the SD card library ("starting in the Windows directory"), and the game quit.
+// Rewrites buf[0..len) in place when the guest path fits in cap; returns the new length.
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
+    const struct ddnatv_bind *best = NULL;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (b->identity || get_rootfs_subpath(b->src) != NULL || len < b->src_len) continue;
+        if (memcmp(buf, b->src, b->src_len) != 0 || (len > b->src_len && buf[b->src_len] != '/')) continue;
+        if (!best || b->src_len > best->src_len || (b->src_len == best->src_len && b->order < best->order)) best = b;
+    }
+    if (!best) return len;
+    size_t rest = len - best->src_len;
+    if (best->dst_len + rest + 1 > cap) return len;
+    memmove(buf + best->dst_len, buf + best->src_len, rest);
+    memcpy(buf, best->dst, best->dst_len);
+    buf[best->dst_len + rest] = '\0';
+    return best->dst_len + rest;
+}
+
 static ssize_t postprocess_readlink(const char *linkpath, char *buf, ssize_t ret, size_t bufsiz) {
     if (ret <= 0) return ret;
+    ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz);
 
     // 1. Strip g_ddnatv_root if target starts with it
     if (g_ddnatv_root_len > 0 && !is_proc_fd_link(linkpath)) {
