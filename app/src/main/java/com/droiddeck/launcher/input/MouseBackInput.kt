@@ -1,9 +1,9 @@
 package com.droiddeck.launcher.input
 
+import android.os.Build
 import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
-import android.os.Build
 
 /**
  * Some firmware turns a mouse's right button into Back. Most report it from the mouse itself; REDMAGIC's
