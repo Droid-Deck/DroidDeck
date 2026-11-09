@@ -68,6 +68,7 @@ object UbisoftLaunch {
             .put("appId", appId)
             .put("language", language)
             .put("chunks", chunks ?: JSONArray())
+            .put("registry", setup?.optJSONArray("registry") ?: JSONArray())
     }
 
     const val CHUNKS = "chunks"

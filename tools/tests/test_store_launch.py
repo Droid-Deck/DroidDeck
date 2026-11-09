@@ -857,7 +857,7 @@ class Ubisoft(unittest.TestCase):
     def test_a_launch_registers_the_game_and_writes_the_session_for_the_service(self):
         self.runtime()
         result = self.prepare(self.answer)
-        self.assertEqual('runtime present, registered 109, session ready', result)
+        self.assertEqual('runtime present, registered 109, 0 manifest value(s), session ready', result)
         reg = (self.compat_data / 'pfx/system.reg').read_text()
         for view in ('[Software\\\\Ubisoft\\\\Launcher]', '[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher]'):
             self.assertIn(view, reg)
@@ -881,3 +881,18 @@ class Ubisoft(unittest.TestCase):
     def test_a_game_without_a_product_is_left_alone(self):
         self.sidecar['extra'] = {}
         self.assertEqual('no-product', self.prepare(self.answer))
+
+    def test_the_manifest_registry_lands_in_both_views_with_the_install_folder_and_language(self):
+        self.runtime()
+        registry = [{'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Launcher\Installs\109\Language',
+                     'values': [{'name': 'French', 'value': 'fr-FR'}, {'name': 'English', 'value': 'en-US'}]},
+                    {'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Splinter Cell\GamePath', 'values': [{'name': '$INSTALL_DIR', 'value': ''}]}]
+        answer = dict(self.answer(), registry=registry, language='en-US')
+        result = self.prepare(lambda *_a, **_k: answer)
+        self.assertEqual('runtime present, registered 109, 4 manifest value(s), session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        self.assertIn(r'[SOFTWARE\\Wow6432Node\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn(r'[SOFTWARE\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn('"Language"="en-US"', reg)
+        folder = store.windows_path(str(self.folder)).replace('\\', '\\\\')
+        self.assertIn('"GamePath"="%s\\\\"' % folder, reg)

@@ -84,8 +84,11 @@ object StoreLaunch {
 
     /** Gives a Ubisoft game installed before it needed one the launcher that starts the launcher service. */
     fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
-        if (sidecar.store != Store.UBISOFT || sidecar.launcher == LAUNCHER || !sidecar.isInstalled) return sidecar
-        return runCatching { writeLauncher(folder, sidecar).also { it.write(folder) } }.getOrDefault(sidecar)
+        if (sidecar.store != Store.UBISOFT || !sidecar.isInstalled) return sidecar
+        val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
+        if (sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
+        val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
+        return runCatching { writeLauncher(folder, sidecar.copy(exe = exe)).also { it.write(folder) } }.getOrDefault(sidecar)
     }
 
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {

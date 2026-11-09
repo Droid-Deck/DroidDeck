@@ -386,6 +386,54 @@ def register_ubisoft(folder, product, compat_data):
     return "registered %d" % product
 
 
+UBISOFT_HIVES = {"HKEY_LOCAL_MACHINE": "system.reg", "HKEY_CURRENT_USER": "user.reg"}
+
+
+def manifest_value(values, folder, language):
+    """The value Connect writes for a manifest registry entry: the install folder, the entry for the
+    language being played, or the only entry there is."""
+    entries = [v for v in values if isinstance(v, dict)]
+    if not entries:
+        return None
+    names = [str(v.get("name") or "") for v in entries]
+    if "$INSTALL_DIR" in names:
+        return windows_path(str(folder)).rstrip("\\") + "\\"
+    for v in entries:
+        if str(v.get("value") or "").lower() == language.lower():
+            return str(v.get("value"))
+    prefix = language.split("-")[0].lower()
+    for v in entries:
+        if str(v.get("value") or "").lower().split("-")[0] == prefix:
+            return str(v.get("value"))
+    return str(entries[0].get("value") or entries[0].get("name") or "")
+
+
+def apply_manifest_registry(compat_data, registry, folder, language):
+    written = 0
+    for item in registry or []:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("key") or "").replace("/", "\\")
+        hive, _, rest = path.partition("\\")
+        target = UBISOFT_HIVES.get(hive.upper())
+        if not target or "\\" not in rest:
+            continue
+        subkey, _, name = rest.rpartition("\\")
+        value = manifest_value(item.get("values"), folder, language)
+        if value is None or not name:
+            continue
+        reg = Path(compat_data) / "pfx" / target
+        parts = subkey.split("\\")
+        views = [parts]
+        if target == "system.reg" and len(parts) > 1 and parts[0].lower() == "software" and parts[1].lower() != "wow6432node":
+            views.append(parts[:1] + ["Wow6432Node"] + parts[1:])
+        for view in views:
+            key = "[" + "\\\\".join(view) + "]"
+            if set_value(reg, key, name, value):
+                written += 1
+    return written
+
+
 def ubisoft_launch(folder, sidecar, product, compat_data, answer):
     """The launch file droiddeck-upc.exe reads: the game, the account and this launch's ticket."""
     account = answer.get("account") if isinstance(answer.get("account"), dict) else {}
@@ -440,10 +488,13 @@ def prepare_ubisoft(folder, sidecar, compat_data, launch_dir, proton="", ask_app
     if not isinstance(answer, dict) or not answer.get("ok") or not answer.get("ticket"):
         reason = "timeout" if answer is None else str(answer.get("reason") or "refused")
         return "runtime %s, %s, session %s" % (runtime, registry, reason)
+    written = 0
+    if answer.get("registry") and wait_for_server(Path(compat_data) / "pfx"):
+        written = apply_manifest_registry(compat_data, answer.get("registry"), folder, str(answer.get("language") or "en-US"))
     tmp = launch.with_name(launch.name + ".tmp")
     tmp.write_text(json.dumps(ubisoft_launch(folder, sidecar, product, compat_data, answer)))
     os.replace(tmp, launch)
-    return "runtime %s, %s, session ready" % (runtime, registry)
+    return "runtime %s, %s, %d manifest value(s), session ready" % (runtime, registry, written)
 
 COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 

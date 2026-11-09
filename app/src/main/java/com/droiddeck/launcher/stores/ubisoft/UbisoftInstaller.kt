@@ -64,7 +64,7 @@ internal class UbisoftInstaller(
         if (!outcome.success) throw IllegalStateException(outcome.error.ifEmpty { "The Ubisoft install failed" })
 
         handle.stage(DownloadStage.INSTALL, app.getString(R.string.stores_registering))
-        val configured = item.extra["exe"].orEmpty().replace('\\', '/').takeIf { it.isNotEmpty() && File(folder, it).isFile }
+        val configured = resolve(folder, item.extra["exe"].orEmpty())
         val exe = configured ?: StoreExe.pick(folder, null, item.title).ifEmpty { "game.exe" }
         handle.log("ubisoft: exe=$exe")
         val sidecar = StoreGameSidecar(
@@ -85,7 +85,20 @@ internal class UbisoftInstaller(
         if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
     }
 
-    private companion object {
+    internal companion object {
         val KEPT = setOf("productId", "spaceId", "manifest", "appId")
+
+        /** A configured exe the way Windows finds it: any letter case, else the same file name anywhere in the install. */
+        fun resolve(folder: File, configured: String): String? {
+            val rel = configured.replace('\\', '/').trimStart('/').takeIf { it.isNotEmpty() } ?: return null
+            var at = folder
+            for (part in rel.split('/')) {
+                at = at.listFiles()?.firstOrNull { it.name.equals(part, ignoreCase = true) } ?: return byName(folder, rel.substringAfterLast('/'))
+            }
+            return if (at.isFile) at.relativeTo(folder).invariantSeparatorsPath else byName(folder, rel.substringAfterLast('/'))
+        }
+
+        private fun byName(folder: File, name: String): String? =
+            folder.walkTopDown().maxDepth(5).firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }?.relativeTo(folder)?.invariantSeparatorsPath
     }
 }
