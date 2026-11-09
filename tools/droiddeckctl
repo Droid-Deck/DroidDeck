@@ -9,6 +9,7 @@ import gzip
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import struct
@@ -98,6 +99,29 @@ def encode_request(request: dict) -> str:
     return encoded
 
 
+def receiver_call(adb: str, serial: str, method: str, arg: str | None, request: dict | None, timeout: float) -> dict:
+    """The agent bridge through a broadcast, for shells without the `content` command."""
+    call_id = uuid.uuid4().hex[:16]
+    remote = f"/sdcard/Android/data/{PACKAGE}/files/agent-calls/{call_id}.json"
+    command = ["shell", "am", "broadcast", "-a", f"{PACKAGE}.AGENT_CALL", "-p", PACKAGE,
+               "--es", "method", method, "--es", "id", call_id]
+    if arg is not None:
+        command += ["--es", "arg", shlex.quote(arg)]
+    if request is not None:
+        command += ["--es", "request", encode_request(request)]
+    started = run_adb(adb, serial, *command, timeout=timeout + 30)
+    if started.returncode != 0:
+        raise ControlError((started.stdout + started.stderr).decode(errors="replace").strip() or "ADB broadcast failed", "ADB_FAILED")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = run_adb(adb, serial, "shell", f"cat {remote} 2>/dev/null && rm -f {remote}", timeout=30)
+        text = result.stdout.decode(errors="replace").strip()
+        if result.returncode == 0 and text:
+            return json.loads(text)
+        time.sleep(0.25)
+    raise ControlError(f"No answer to {method} within {timeout:g} s", "TIMEOUT")
+
+
 def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
                   timeout: float = 30) -> dict:
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
@@ -108,6 +132,8 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
         command.extend(["--extra", f"request:s:{encoded}"])
     result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
+    if "content: inaccessible or not found" in output:
+        return receiver_call(adb, serial, method, arg, request, timeout)
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
         raise ControlError(output.strip() or "ADB content call failed", "ADB_FAILED")
