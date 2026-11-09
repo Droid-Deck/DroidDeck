@@ -384,7 +384,8 @@ internal object GogMaintenance {
         GogFiles.validate(target.files, folder)
         val bytes = target.files.objects().sumOf { it.optJSONArray("chunks")?.objects()?.sumOf { c -> c.optLong("compressedSize") }?.takeIf { n -> n > 0 } ?: it.optLong("size") }
         val disk = target.files.objects().sumOf { it.optLong("size") }
-        check(!StoreInstallRoot.insufficientSpace(disk, StoreInstallRoot.availableBytes(folder))) { "Not enough free space for GOG installation" }
+        val remaining = GogEstimate.calculate(folder, old, target, JSONArray(), reuseChunks = GogNative.isAvailable()).required
+        check(!StoreInstallRoot.insufficientSpace(remaining, StoreInstallRoot.availableBytes(folder))) { "Not enough free space for GOG installation" }
         callback.onSizes(bytes, disk)
         transfer(context, Proposal(folder, old, target, GogOperation.UPDATE, bytes, disk), null, cancelled, callback)
         if (cancelled.get()) return null

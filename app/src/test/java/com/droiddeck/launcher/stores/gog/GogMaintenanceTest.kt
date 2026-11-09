@@ -308,6 +308,17 @@ class GogMaintenanceTest {
         assertThrows(IllegalArgumentException::class.java) { GogFiles.inside(folder, "link/game.exe") }
     }
 
+    @Test fun resumedInstallSpaceCountsOnlyFilesStillMissing() {
+        val folder = temporary.newFolder()
+        val done = File(folder, "done.bin").apply { writeText("verified") }
+        val files = JSONArray()
+            .put(JSONObject().put("path", done.name).put("size", done.length()).put("md5", GogFiles.hash(done)))
+            .put(JSONObject().put("path", "missing.bin").put("size", 12L).put("md5", "0".repeat(32)))
+        val missingOnly = GogInstallRecord("1", "depot", files = JSONArray().put(files.getJSONObject(1)))
+        fun required(target: GogInstallRecord) = GogEstimate.calculate(folder, GogInstallRecord("1", "depot"), target, JSONArray(), reuseChunks = false).required
+        assertEquals(required(missingOnly), required(GogInstallRecord("1", "depot", files = files)))
+    }
+
     @Test fun sameSizeCorruptionFailsVerificationAndLanguageVariantsRemainDistinct() {
         val folder = temporary.newFolder()
         val file = File(folder, "game.bin").apply { writeText("original") }
