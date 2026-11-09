@@ -240,6 +240,16 @@ class PrDiscordTest(unittest.TestCase):
         self.assertIn(r"Latest commit: Fix \*input\* @everyone", content)
         self.assertNotIn("Details", content)
 
+    def test_commit_lookup_failure_does_not_block_announcement(self):
+        def unavailable_commit(path, method="GET", body=None):
+            if "/commits/" in path:
+                raise RuntimeError("GitHub request failed")
+            return self.pull if "/pulls/" in path else self.comment
+        self.github.side_effect = unavailable_commit
+        self.publish()
+        self.assertEqual("POST", self.discord.request.call_args.args[0])
+        self.assertNotIn("Latest commit:", self.discord.request.call_args.args[2]["content"])
+
 
 original_report = module.report_comment
 

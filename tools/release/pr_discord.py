@@ -157,8 +157,11 @@ def sync(mode, repo, number, discord, sha="", apk="", release=""):
                                 {"content": retired_content(message["content"], pull.get("merged", False)),
                                  "allowed_mentions": {"parse": []}, "flags": 4})
         return
-    commit = github(f"repos/{repo}/commits/{sha}")
-    commit_message = commit.get("commit", {}).get("message", "")
+    try:
+        commit = github(f"repos/{repo}/commits/{sha}")
+    except RuntimeError:
+        commit = {}
+    commit_message = (commit.get("commit") or {}).get("message", "")
     content = build_content(repo, number, pull["title"], sha, apk, release, pull.get("body"), commit_message)
     if len(content) > 1800:
         raise RuntimeError("Discord announcement is too long")
