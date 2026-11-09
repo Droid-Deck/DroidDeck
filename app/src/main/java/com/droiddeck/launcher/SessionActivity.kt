@@ -1238,6 +1238,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             secondScreenNone = !bottomOutputActive && !dockDrawer(),
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
+            gameSwapBuiltIn = !::displayManager.isInitialized || displayManager.getDisplay(selectedSecondScreenDisplay)
+                ?.let(com.droiddeck.launcher.input.DualScreen::builtIn) ?: true,
             onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
             dashboardAvailable = bottomPages().isNotEmpty(),
             desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(),
