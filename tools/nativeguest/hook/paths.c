@@ -100,6 +100,18 @@ static inline const char *get_rootfs_subpath(const char *target) {
     return NULL;
 }
 
+// A guest path that a session mount puts outside the rootfs (/run/droiddeck, a game library): a
+// program or script there is the guest's, and a script's "#!/bin/sh" is the rootfs shell. The
+// kernel ran them with Android's /system/bin/sh, which found no /usr/bin/kwin_wayland.
+static int is_mapped_guest_path(const char *path) {
+    if (!path || path[0] != '/') return 0;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (!b->identity && is_path_prefix(path, b->dst, b->dst_len)) return 1;
+    }
+    return 0;
+}
+
 // Android's own mounts and files, which must never be redirected into the rootfs.
 // `path` starts with '/'; a prefix can only match when its second character does.
 static int is_android_host_path(const char *path) {

@@ -245,7 +245,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
     char resolved_target[PATH_MAX];
 
     // Only intercept binaries/scripts within DDNATV_ROOT
-    if (g_ddnatv_root[0] != '\0' && strncmp(target, g_ddnatv_root, g_ddnatv_root_len) == 0) {
+    if ((g_ddnatv_root[0] != '\0' && strncmp(target, g_ddnatv_root, g_ddnatv_root_len) == 0) || is_mapped_guest_path(filename)) {
         struct exec_probe probe;
         const char *elf_target = select_exec_target(target, resolved_target, sizeof(resolved_target), &probe);
         if (probe.is_elf && !probe.is_dynamic) static_elf = elf_target;
@@ -798,7 +798,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
     }
 
     char *const *orig_ep = envp ? envp : environ;
-    int in_root = g_ddnatv_root[0] != '\0' && strncmp(target, g_ddnatv_root, g_ddnatv_root_len) == 0;
+    int in_root = (g_ddnatv_root[0] != '\0' && strncmp(target, g_ddnatv_root, g_ddnatv_root_len) == 0) || is_mapped_guest_path(path);
 
     struct exec_probe probe;
     char resolved_target[PATH_MAX];
