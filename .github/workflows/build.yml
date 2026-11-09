@@ -536,12 +536,6 @@ jobs:
           command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
           cargo ndk --version
 
-      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
-        run: |
-          set -euo pipefail
-          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
-          bash tools/ubisoft-launcher/build.sh
-
       - name: Cache the CMake build tree
         uses: actions/cache@v4
         with:
@@ -560,6 +554,12 @@ jobs:
         env:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
+
+      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/ubisoft-launcher/build.sh
 
       - uses: actions/download-artifact@v4
         with:
