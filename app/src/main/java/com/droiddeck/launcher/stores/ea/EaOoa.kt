@@ -182,7 +182,7 @@ object EaOoa {
         if (requestType != null) params += "requestType" to requestType
         val url = LICENSES + "?" + params.joinToString("&") { (k, v) -> k + "=" + URLEncoder.encode(v, "UTF-8") }
         val reply = EaHttp.request(url, headers = mapOf("X-Requester-Id" to "Origin Online Activation", "User-Agent" to "EACTransaction"))
-        if (!reply.ok) throw IllegalStateException("EA refused the licence (${reply.status}): ${reply.text.take(160)}")
+        if (!reply.ok) throw IllegalStateException("EA refused the licence (${reply.status}): ${reply.text.replace(Regex("(eadmToken value=\")[^\"]*"), "$1<redacted>\"").take(600)}")
         val signature = reply.header("x-signature") ?: throw IllegalStateException("EA's licence had no signature")
         return parseLicense(String(EaCrypto.licenseDecrypt(reply.body), Charsets.UTF_8), signature)
     }

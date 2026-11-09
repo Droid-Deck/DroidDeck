@@ -233,6 +233,8 @@ object EaLibrary {
             val offers = withToken(app, token) { EaApi.offers(it, owned.map { o -> o.offerId }) }.associateBy { it.offerId }
             val picked = pick(owned, offers)
             StoresState.logLine("ea: ${owned.size} owned products, ${picked.size} games")
+            for ((o, offer) in picked) StoresState.logLine(
+                "ea: owned ${o.offerId} content=${offer.contentId} master=${offer.masterTitleId} mp=${offer.multiplayerId} via=${o.ownership.joinToString("+")} type=${o.gameType}")
             if (picked.isEmpty()) return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
             if (gen != generation.get()) return
             status(R.string.stores_sync_cover_art)
