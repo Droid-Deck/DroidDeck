@@ -118,6 +118,13 @@ object EaLaunch {
                 }
             }
         }
+        if (core != null && notes.isNotEmpty() && notes.none { it.endsWith(":ok") }) runCatching {
+            val rows = EaApi.entitlements(access, "")
+            com.droiddeck.launcher.stores.StoresState.logLine("ea entitlements for $id: ${rows.length()} rows")
+            for (i in 0 until minOf(rows.length(), 60)) rows.optJSONObject(i)?.let { r ->
+                com.droiddeck.launcher.stores.StoresState.logLine("ea entitlement " + listOf("id", "productId", "entitlementTag", "entitlementType", "groupName", "status", "useCount", "terminationDate").joinToString(" ") { k -> "$k=${r.optString(k)}" })
+            }
+        }.onFailure { com.droiddeck.launcher.stores.StoresState.logLine("ea entitlements for $id: ${it.javaClass.simpleName} ${it.message.orEmpty().take(200)}") }
         val licenseNote = if (core == null) "none-needed" else "v$hashVersion " + notes.joinToString(",")
         Log.i(TAG, "prepared $id lsx=$lsx legacy=$legacy opaque=${opaque.isNotEmpty()} licence=$licenseNote")
         return reply.put("ok", true).put("lsx", lsx).put("license", licenseNote).put("licenses", licenses)
