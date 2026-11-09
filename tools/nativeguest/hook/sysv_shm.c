@@ -388,7 +388,12 @@ static void *shmat_locked(int shmid, const void *shmaddr, int shmflg);
 
 void *shmat(int shmid, const void *shmaddr, int shmflg) {
     init_ddnatv_hook();
+    // without the lock the collector could remove the segment mid-attach
     int lock = g_ddnatv_root[0] != '\0' ? shm_lock_dir(LOCK_SH) : -1;
+    if (lock < 0) {
+        errno = EINVAL;
+        return (void *)-1;
+    }
     void *addr = shmat_locked(shmid, shmaddr, shmflg);
     int saved = errno;
     shm_unlock_dir(lock);
