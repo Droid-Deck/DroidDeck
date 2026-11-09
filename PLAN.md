@@ -4,7 +4,7 @@
 - `2dfc2c00`: Initial exploration pass of DroidDeck codebase and reference implementations (`HIDDeviceBLESteamController.java`, `hid-steam.c`, `SDL_hidapi_steam.c`, `controller_structs.h`, `SdlBridge`); produced `DESIGN.md` and initialized `PLAN.md`.
 - `81c3ad85`: Recorded pair-programming architectural decisions in `DESIGN.md` and `PLAN.md`.
 - `f961c5e9`: Implemented `com.droiddeck.launcher.input.steamcontroller` package (`SteamControllerModel`, `SteamControllerDebug`, `Sc2015PacketReassembler`, `Sc2015State`, `Sc2015ReportParser`) plus JVM unit tests (`Sc2015PacketReassemblerTest`, `Sc2015ReportParserTest`).
-- `6ebe1702`: Integrated Steam Controller 2015 BLE detection, MTU-23 handling, ValveMode switch (`{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}`), `CONNECTION_PRIORITY_HIGH`, fragmented notification reassembly, Triton 45-byte state translation, feature reply synthesis, and haptic pulse translation into `SteamControllerBle.kt`, with Robolectric unit tests in `SteamControllerBleTest.kt`.
+- `6ebe1702`: Integrated Steam Controller 2015 BLE detection, MTU-23 handling, ValveMode switch (`{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}`), `CONNECTION_PRIORITY_HIGH`, fragmented notification reassembly, Triton 45-byte state translation, and feature reply synthesis into `SteamControllerBle.kt`, with Robolectric unit tests in `SteamControllerBleTest.kt`.
 - `50c3185f`: Recorded Phases 1–4 commits and `preloads.lock.json` native C++ lock constraint in `PLAN.md`.
 - `d4622bf4`: Completed physical hardware verification on Steam Controller (2015 BLE `28de:1106`), gated hot-path debug logs behind lazy `SteamControllerDebug.log`, updated `DESIGN.md`, and added user/developer guide `docs/development/steam-controller-2015-ble.md`.
 
@@ -27,4 +27,4 @@
 4. **Connection Priority**:
    - **Decision**: Requests `BluetoothGatt.CONNECTION_PRIORITY_HIGH` upon entering ValveMode (`interval=12 latency=0` verified on Android 15).
 5. **Haptics/Rumble**:
-   - **Decision**: Translates Triton haptic/rumble output reports (`0x80`–`0x85`) into 10-byte 2015 BLE haptic pulse packets (`0x8F`) on `100F6C34` with 25ms rate limiting.
+   - **Decision**: Non-feature output reports are suppressed for `ORIGINAL_2015` in `SteamControllerBle.sendOutputReport` to protect the voice-coil actuators and keep the PR focused on input streaming.

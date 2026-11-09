@@ -23,7 +23,7 @@ The 2015 Steam Controller stores separate wireless pairings for its 2.4 GHz USB 
 | **Buttons, Stick, Analog Triggers, Rear Grips (`LG`/`RG`)** | Full support | Full support |
 | **Dual Trackpads (Touch + Coordinates + Click)** | Full 16-bit absolute coordinates | Full 16-bit absolute coordinates |
 | **IMU (Gyroscope + Accelerometer + Orientation)** | Supported (enabled on demand by Steam Input) | Supported |
-| **Haptics / Trackpad Pulse** | Supported (throttled to BLE GATT write throughput) | Full high-frequency audio haptics |
+| **Haptics / Trackpad Pulse** | Suppressed over BLE (output reports dropped to protect actuators) | Full high-frequency audio haptics |
 | **Battery Telemetry** | Voltage (mV) and percentage reported via Status Report `0x05` | Voltage and percentage reported |
 
 ---
@@ -43,7 +43,7 @@ Both the 2015 (`D0G`) and 2025 (`Triton`) controllers advertise the custom Valve
 1. **MTU Negotiation**: `requestMtu(517)` returns `mtu = 23` (`status = 0`) on the 2015 hardware. `SteamControllerBle` proceeds to service discovery regardless of negotiated MTU.
 2. **Characteristic Detection**: Presence of `100F6C33` selects `SteamControllerModel.ORIGINAL_2015`.
 3. **CCCD Subscription**: Writes `ENABLE_NOTIFICATION_VALUE` (`0x01, 0x00`) to `00002902-0000-1000-8000-00805F9B34FB` on `100F6C33`.
-4. **Native ValveMode Handshake**: Immediately after `onDescriptorWrite` succeeds, writes `{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}` to `100F6C34` using `WRITE_TYPE_DEFAULT` and refreshes every 3 seconds (`LIZARD_REFRESH_MS`).
+4. **Native ValveMode Handshake**: Immediately after `onDescriptorWrite` succeeds, writes `{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}` to `100F6C34` using `WRITE_TYPE_DEFAULT` once upon connection. Periodic 10 ms state re-emission is maintained by `keepAlive2015` to supply continuous packet numbers to Steam Input.
 5. **Packet Reassembly & Input Translation**:
    - [`Sc2015PacketReassembler`](../../app/src/main/java/com/droiddeck/launcher/input/steamcontroller/Sc2015PacketReassembler.kt) reassembles multi-fragment BLE notifications (`0x80..0x8F` continuation, `0xC0..0xCF` final segment).
    - [`Sc2015ReportParser`](../../app/src/main/java/com/droiddeck/launcher/input/steamcontroller/Sc2015ReportParser.kt) decodes variable-chunk Report `0x04` (`k_EBLEReportState`) and battery telemetry Report `0x05` (`k_EBLEReportStatus`), adapting state and feature reports into the 45-byte `FakeInputWriter` ring buffer.
