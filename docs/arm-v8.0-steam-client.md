@@ -77,13 +77,34 @@ refused, every site logs `mprotect-failed`, and execution stays on the slower tr
 
 - without the library the program dies with SIGILL
 - trapping alone runs every form and keeps the threaded counters exact
-- patching runs every form and patches every site, single threaded
+- patching runs every form twice, so the second run goes through the generated stubs, both
+  single threaded and with four threads
+- condition flags survive a patched `ldumax`/`ldsmaxb`, and `caspal` returns the current pair
+  on a mismatch
 - without `LSE_EMU=1`, and on `-cpu neoverse-n1`, the library stays out of the way
 - a SIGILL handler the program installs itself still runs for an unrelated `udf`
 
-Threaded patching segfaults under qemu-user, writing to the stub arena, which is mapped and
-writable. qemu write-protects pages it has translated code from, and that races when other
-threads run code on them. It needs checking on real hardware.
+The patch tests cannot run on an Apple Silicon Mac in an amd64 Docker container: qemu-aarch64
+there segfaults whenever code is written to an executable page after code on it has run, even
+in a ten line program without the library. CI runs them on x86 hardware.
+
+## Fixes over upstream
+
+The vendored copy carries two fixes found in review, both in the patched stubs and the
+emulation path:
+
+- `LDSMAX`/`LDSMIN`/`LDUMAX`/`LDUMIN` stubs used `cmp`/`csel` and overwrote NZCV. They now
+  save and restore it.
+- `CASP` with a 64-bit pair returned the `ldxp` result on a mismatch without a store. A 128-bit
+  `ldxp` is only single-copy atomic once a `stxp` succeeds, so a concurrent update could give
+  one old and one new half. Both the trap path and the stub now store the loaded pair back on a
+  mismatch and retry if that store fails, as libatomic does.
+
+Patching also replaces an LSE instruction with a `b` while other threads may be running it.
+The architecture only promises old-or-new behavior for such changes between a few instruction
+types, and `LDADD` is not one of them. Upstream accepts that and reports it working on a
+Cortex-A57. If it ever shows up as random crashes on a device, running with `LSE_EMU_PATCH=0`
+keeps every site on the trap path at the cost of speed.
 
 ## Testing on a device
 

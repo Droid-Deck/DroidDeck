@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ SYSROOT = Path("/usr/aarch64-linux-gnu")
 
 def toolchain():
     if not (shutil.which("aarch64-linux-gnu-gcc") and shutil.which("qemu-aarch64") and SYSROOT.is_dir()):
+        if os.environ.get("CI"):
+            raise AssertionError("CI must install gcc-aarch64-linux-gnu, libc6-dev-arm64-cross and qemu-user")
         raise unittest.SkipTest("needs aarch64-linux-gnu-gcc, libc6-dev-arm64-cross and qemu-user")
 
 
@@ -46,14 +49,18 @@ class LseEmuTest(unittest.TestCase):
         self.assertIn("lse ok", result.stdout)
         self.assertRegex(result.stderr, r"traps=[1-9]\d* patched=0 ")
 
-    def test_patching_runs_every_form_on_an_armv8_0_cpu(self):
-        # qemu-user write-protects translated code pages and races when other threads run them while the
-        # stub arena is written, so threaded patching is only meaningful on hardware.
+    def patched(self, threads):
         result = self.run_on("cortex-a57", f"LD_PRELOAD={self.library}", "LSE_EMU=1", "LSE_EMU_PATCH=1",
-                             "LSE_EMU_STATS=1", threads=1)
+                             "LSE_EMU_STATS=1", threads=threads)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("lse ok", result.stdout)
         self.assertRegex(result.stderr, r"patched=[1-9]\d* failed=0")
+
+    def test_patching_runs_every_form_on_an_armv8_0_cpu(self):
+        self.patched(threads=1)
+
+    def test_patching_stays_atomic_across_threads(self):
+        self.patched(threads=4)
 
     def test_it_stays_off_without_the_switch(self):
         result = self.run_on("cortex-a57", f"LD_PRELOAD={self.library}")

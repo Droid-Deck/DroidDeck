@@ -90,7 +90,10 @@ static void casp128(void *p, uint64_t *o0, uint64_t *o1,
         "   cbnz  %2, 2f\n"
         "   stlxp %w2, %9, %10, [%6]\n"
         "   cbnz  %w2, 1b\n"
-        "2: clrex\n"
+        "   b     3f\n"
+        "2: stlxp %w2, %0, %1, [%6]\n"               // a 128-bit ldxp is only single-copy atomic once a stxp succeeds
+        "   cbnz  %w2, 1b\n"
+        "3:\n"
         : "=&r"(a), "=&r"(b), "=&r"(t), "=&r"(s)
         : "0"(0), "1"(0), "r"(p), "r"(e0), "r"(e1), "r"(d0), "r"(d1)
         : "memory", "cc");
@@ -180,7 +183,7 @@ static uint32_t alu(unsigned op, unsigned d, unsigned n, unsigned m) {
     return base[op] | (m << 16) | (n << 5) | d;          // add, bic, eor, orr
 }
 
-// CASP{A}{L} Xs,Xs+1,Xt,Xt+1,[Xn] (64-bit pair): ldxp/ldaxp + compare + stxp/stlxp. Four scratch registers, no flag changes, 15 words.
+// CASP{A}{L} Xs,Xs+1,Xt,Xt+1,[Xn] (64-bit pair): ldxp/ldaxp + compare + stxp/stlxp. Four scratch registers, no flag changes, 16 words.
 static int gen_casp(uint32_t *w, uintptr_t stub, uintptr_t ret, unsigned sz,
                     unsigned rs, unsigned rt, unsigned rn, unsigned acq, unsigned rel) {
     // sz 1: 64-bit pair (LDXP x), sz 0: 32-bit pair (LDXP w, 8-byte aligned)
@@ -198,10 +201,11 @@ static int gen_casp(uint32_t *w, uintptr_t stub, uintptr_t ret, unsigned sz,
     W(EOR | (rs << 16) | (t0 << 5) | t2);                                   // eor t2,t0,rs
     W(EOR | ((rs + 1) << 16) | (t1 << 5) | t3);                             // eor t3,t1,rs+1
     W(ORR | (t3 << 16) | (t2 << 5) | t2);                                   // orr t2,t2,t3
-    W(0xB5000000u | (3u << 5) | t2);                                        // cbnz t2, clrex (+3)
-    W(STXP | (t2 << 16) | (rel << 15) | ((rt + 1) << 10) | (rn << 5) | rt); // stxp/stlxp w(t2),rt,rt+1,[rn]
-    W(0x35000000u | (((unsigned)(loop - n) & 0x7FFFF) << 5) | t2);          // cbnz w(t2), loop
-    W(0xD5033F5Fu);                                                         // clrex
+    W(0xB4000000u | (3u << 5) | t2);                                        // cbz t2, match (+3)
+    W(STXP | (t2 << 16) | (rel << 15) | (t1 << 10) | (rn << 5) | t0);       // mismatch: store the loaded pair back, which validates it
+    W(0x14000002u);                                                         // b check (+2)
+    W(STXP | (t2 << 16) | (rel << 15) | ((rt + 1) << 10) | (rn << 5) | rt); // match: stxp/stlxp w(t2),rt,rt+1,[rn]
+    W(0x35000000u | (((unsigned)(loop - n) & 0x7FFFF) << 5) | t2);          // check: cbnz w(t2), loop
     W(MOVX(rs, t0));
     W(MOVX(rs + 1, t1));
     W(0xA9410000u | (t3 << 10) | (31u << 5) | t2);                          // ldp t2,t3,[sp,#16]

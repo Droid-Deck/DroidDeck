@@ -12,7 +12,7 @@ if [ "${BL_RAISE_NOFILE:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ]; then
 fi
 export HOME=${HOME:-/root}
 if grep -qs '/liblse_emu\.so$' /etc/ld.so.preload; then
-  export LSE_EMU=1 LSE_EMU_PATCH=1
+  export LSE_EMU=1 LSE_EMU_PATCH=${LSE_EMU_PATCH:-1}
   [ -n "${BL_DEBUG_DIR:-}" ] && export LSE_EMU_LOG=${LSE_EMU_LOG:-$BL_DEBUG_DIR/lse_emu.log}
 fi
 mode=${1:-desktop}

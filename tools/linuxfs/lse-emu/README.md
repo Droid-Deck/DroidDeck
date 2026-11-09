@@ -1,9 +1,10 @@
 # LSE-Emu
 
 `lse_emu.c` is a copy of [SildurFX/LSE-Emu](https://github.com/SildurFX/LSE-Emu) at commit
-`8bc9548ac6fd24a8d506b266b17ba8d0e71a9b01` (GPL-3.0-or-later) with one fix: the patched stub
-for `LDSMAX`/`LDSMIN`/`LDUMAX`/`LDUMIN` saves and restores NZCV around its `cmp`/`csel`, since
-the real instructions leave the flags alone. Carry that fix forward until upstream has it.
+`8bc9548ac6fd24a8d506b266b17ba8d0e71a9b01` (GPL-3.0-or-later) with two fixes, listed in
+`docs/arm-v8.0-steam-client.md` under "Fixes over upstream": NZCV kept across the min/max
+stubs, and a store-back on `CASP` mismatches so the returned pair is atomic. Carry them forward
+until upstream has them.
 
 It is an `LD_PRELOAD` library that emulates the ARMv8.1 LSE atomic instructions (and `LDAPR`)
 on ARMv8.0 CPUs. A SIGILL handler performs each trapped instruction with an LL/SC loop. With

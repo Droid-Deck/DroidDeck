@@ -99,6 +99,9 @@ static __attribute__((noinline)) void single_forms(void) {
   register uint64_t e0 __asm__("x4") = 1, e1 __asm__("x5") = 2, d0 __asm__("x6") = 3, d1 __asm__("x7") = 4;
   __asm__ volatile("caspal x4, x5, x6, x7, [%4]" : "+r"(e0), "+r"(e1) : "r"(d0), "r"(d1), "r"(pair) : "memory");
   check(e0 == 1 && e1 == 2 && pair[0] == 3 && pair[1] == 4, "caspal");
+  register uint64_t m0 __asm__("x4") = 8, m1 __asm__("x5") = 9, n0 __asm__("x6") = 5, n1 __asm__("x7") = 6;
+  __asm__ volatile("caspal x4, x5, x6, x7, [%4]" : "+r"(m0), "+r"(m1) : "r"(n0), "r"(n1), "r"(pair) : "memory");
+  check(m0 == 3 && m1 == 4 && pair[0] == 3 && pair[1] == 4, "caspal returns the current pair on a mismatch");
 
   uint64_t missed = casal64(&v, 99, 1);
   check(missed == 7 && v == 7, "casal leaves memory alone on a mismatch");
