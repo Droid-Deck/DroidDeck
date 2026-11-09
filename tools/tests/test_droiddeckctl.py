@@ -328,6 +328,15 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("222", out["displays"][1]["physicalId"])
         self.assertEqual([1080, 1240], out["displays"][1]["size"])
 
+    def test_displays_named_with_their_unique_id(self):
+        text = DUMPSYS_DISPLAY.replace("mPrimaryDisplayDevice=Screen-2",
+                                       "mPrimaryDisplayDevice=Screen-2(local:222)")
+        self.configure({}, dumpsys_display=text)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"), "--display", "4")
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
+
     def test_unknown_display_is_an_error(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
         code, out = self.run_ctl("screenshot", str(self.dir / "x.png"), "--display", "9")
