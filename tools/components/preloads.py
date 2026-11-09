@@ -133,7 +133,8 @@ def artifact_bytes(origin, cache):
         if len(names) != 1:
             raise ValueError('Expected one original APK')
         with ZipFile(io.BytesIO(archive.read(names[0]))) as apk:
-            return {name: apk.read('assets/linuxfs/' + name) for name in FILES}
+            present = set(apk.namelist())
+            return {name: apk.read('assets/linuxfs/' + name) for name in FILES if 'assets/linuxfs/' + name in present}
 
 
 def validate_lock(data):
