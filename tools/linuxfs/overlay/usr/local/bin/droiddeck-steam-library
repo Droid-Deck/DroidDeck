@@ -2,8 +2,10 @@
 import json
 import os
 import re
+import runpy
 import sys
 
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 LIBRARIES = (("/mnt/droiddeck-sd", os.environ.get("BL_LIBRARY_LABEL", "SD Card")),)
 MAIN_LABEL = "Internal Storage"
 
@@ -48,6 +50,75 @@ def register(steam_root, library, label):
         f.write(text)
     print("droiddeck-steam-library: registered %s with %d game(s)" % (library, len(apps)))
     return len(apps)
+
+
+def installdirs(libraries):
+    found = set()
+    for library in libraries:
+        steamapps = os.path.join(library, "steamapps")
+        try:
+            names = os.listdir(steamapps)
+        except OSError:
+            continue
+        for name in names:
+            if not re.fullmatch(r"appmanifest_\d+\.acf", name):
+                continue
+            try:
+                with open(os.path.join(steamapps, name), encoding="utf-8", errors="replace") as f:
+                    m = re.search(r'"installdir"\s+"([^"]*)"', f.read(), re.I)
+            except OSError:
+                continue
+            if m:
+                found.add(m.group(1))
+    return found
+
+
+def adoptable(library, known):
+    common = os.path.join(library, "steamapps", "common")
+    try:
+        names = sorted(os.listdir(common))
+    except OSError:
+        return []
+    return [n for n in names if n not in known and not n.startswith(".")
+            and os.path.isdir(os.path.join(common, n)) and os.listdir(os.path.join(common, n))]
+
+
+def manifest_text(app, name, installdir):
+    title = name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    return ('"AppState"\n{\n    "appid" "%s"\n    "Universe" "1"\n    "name" "%s"\n    "StateFlags" "4"\n'
+            '    "installdir" "%s"\n    "AutoUpdateBehavior" "1"\n}\n' % (app, title, installdir))
+
+
+def adopt(steam_root, library):
+    compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
+    known = compat["libraries"](steam_root)
+    folders = adoptable(library, installdirs(known + [library]))
+    if not folders:
+        return 0
+    entries = compat["appinfo_entries"](os.path.join(steam_root, "appcache", "appinfo.vdf"))
+    by_dir = {}
+    for app, info in entries.items():
+        if app not in compat["NOT_GAMES"] and info["type"] in compat["PLAYABLE_TYPES"] and info["installdir"]:
+            by_dir.setdefault(info["installdir"], []).append((app, info))
+    steamapps = os.path.join(library, "steamapps")
+    adopted = 0
+    for folder in folders:
+        matches = by_dir.get(folder, [])
+        games = [m for m in matches if m[1]["type"] == "game"] or matches
+        if len(games) != 1:
+            continue
+        app, info = games[0]
+        if any(os.path.isfile(os.path.join(root, "steamapps", "appmanifest_%s.acf" % app))
+               for root in known + [library]):
+            continue
+        try:
+            with open(os.path.join(steamapps, "appmanifest_%s.acf" % app), "x", encoding="utf-8") as f:
+                f.write(manifest_text(app, info["name"] or folder, folder))
+        except OSError:
+            continue
+        adopted += 1
+        print("droiddeck-steam-library: adopted %s as app %s in %s" % (folder, app, library))
+    return adopted
 
 
 RETIRED = ("/mnt/bannerlator",)
@@ -176,6 +247,7 @@ def main():
     managed = libraries is not None
     for library, label in libraries if managed else LIBRARIES:
         if os.path.isdir(os.path.join(library, "steamapps")):
+            adopt(steam_root, library)
             register(steam_root, library, label)
             relabel(steam_root, library, label)
         else:

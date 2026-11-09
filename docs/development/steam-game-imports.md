@@ -58,6 +58,17 @@ inherit those routes. Managed shortcuts are replaced; user-created shortcuts and
 unreadable shortcut files are preserved. Both routes use the existing ARM64 Proton
 registration.
 
+## Adopting shared library folders
+
+At every session start, `droiddeck-steam-library` looks through `steamapps/common` of each
+added library for non-empty folders no manifest names. A folder whose name is the
+`config.installdir` of exactly one playable app in `appcache/appinfo.vdf` (the `game`
+type wins over a demo; tools, DLC and ambiguous names are skipped) gets an
+`appmanifest_<id>.acf` with `Universe=1`, `StateFlags=4` and no build, so Steam verifies
+the existing files and downloads only what differs. Existing manifests are never
+rewritten, an app installed in another library is skipped, and only the added library is
+written to. Ownership is not read before the client runs; Steam enforces the licence.
+
 ## Launcher artwork
 
 The installed Steam game scan lists each game's `appcache/librarycache/<appid>`

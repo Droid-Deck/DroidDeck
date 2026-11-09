@@ -884,7 +884,10 @@ def appinfo_entries(path, wanted=None):
         deck = common.get("steam_deck_compatibility")
         configuration = deck.get("configuration") if isinstance(deck, dict) else None
         recommended = configuration.get("recommended_runtime", "") if isinstance(configuration, dict) else ""
+        config = info.get("config") if isinstance(info.get("config"), dict) else {}
         entry = {
+            "name": str(common.get("name", "")),
+            "installdir": str(config.get("installdir", "")),
             "oslist": {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()},
             "osarch": str(common.get("osarch", "")).lower(),
             "type": str(common.get("type", "")).lower(),
