@@ -318,9 +318,8 @@ public final class TurnipDriver {
             Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");
             return null;
         }
-        String recommended = DriverPairs.recommendedKeyForAuto(context, gpu);
         if (gpu.getFamily() == GpuInfo.Family.A7XX_LOW) {
-            Log.i(TAG, "Adreno 710/720/722 Auto recommendation is " + recommended + "; leaving the display driver to the system");
+            Log.i(TAG, "no bundled display driver covers Adreno 710/720/722; leaving the display driver to the system");
             return null;
         }
         int model = gpu.getModel();

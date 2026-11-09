@@ -139,11 +139,6 @@ object DriverPairs {
             ?: keys.firstOrNull()
     }
 
-    @JvmStatic
-    fun recommendedKeyForAuto(context: android.content.Context, gpu: GpuInfo): String? = recommendedKey(
-        gpu, from(TurnipReleases.cached(context)), TurnipReleases.autoPicks(context), bad = AutoDriverTrial.bad(context),
-    )
-
     private fun maliKey(gpu: GpuInfo, pairs: List<DriverPair>, sdk: Int): String? {
         val family = when (gpu.family) {
             Family.MALI_JM -> NAD_MALI_JM
