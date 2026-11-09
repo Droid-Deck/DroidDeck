@@ -2690,6 +2690,23 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
             self.assertEqual(0x1234, MODULE["pe_machine"](backup))
             self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll.foreign-arch.1"))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            backup = windows / "system32/ucrtbase.dll.foreign-arch"
+            backup.write_bytes(pe_image(0x1234))
+            real = os.replace
+            def flaky_with_backup(src, dst):
+                if str(src).endswith(".bl-new"):
+                    raise OSError("boom")
+                return real(src, dst)
+            with mock.patch("os.replace", side_effect=flaky_with_backup):
+                self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertEqual(0x1234, MODULE["pe_machine"](backup))
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch.1").exists())
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
             dll = windows / "system32/ucrtbase.dll"

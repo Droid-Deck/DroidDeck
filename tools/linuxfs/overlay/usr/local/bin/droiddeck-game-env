@@ -950,12 +950,13 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
                 continue
             link = windows / folder / (name + ".bl-new")
             backup = windows / folder / (name + FOREIGN_SUFFIX)
+            serial = 1
+            while os.path.lexists(backup):
+                backup = windows / folder / ("%s%s.%d" % (name, FOREIGN_SUFFIX, serial))
+                serial += 1
             try:
                 os.symlink(os.path.relpath(source, path.parent), link)
-                if os.path.lexists(backup):
-                    os.unlink(path)
-                else:
-                    os.replace(path, backup)
+                os.replace(path, backup)
                 try:
                     os.replace(link, path)
                 except OSError:
