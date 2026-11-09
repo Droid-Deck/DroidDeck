@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import runpy
 import tempfile
 import unittest
 import zlib
@@ -23,6 +24,15 @@ def load(name):
 imports = load('droiddeck-steam-games')
 shortcuts = load('droiddeck-steam-shortcuts')
 library = load('droiddeck-steam-library')
+
+
+class ManifestTextTest(unittest.TestCase):
+    def test_minimal_and_bare_text_is_exact(self):
+        build = runpy.run_path(str(BIN / 'steam-compatibility'))['manifest_text']
+        minimal = ('"AppState"\n{\n    "appid" "7"\n    "Universe" "1"\n    "name" "A \\"B\\" C D"\n'
+                   '    "StateFlags" "4"\n    "installdir" "DroidDeck-7"\n}\n')
+        self.assertEqual(minimal, build(7, 'A "B"\nC\rD', 'DroidDeck-7'))
+        self.assertEqual(minimal[:-2] + '    "AutoUpdateBehavior" "1"\n}\n', build(7, 'A "B"\nC\rD', 'DroidDeck-7', True))
 
 
 class ImportsTest(unittest.TestCase):

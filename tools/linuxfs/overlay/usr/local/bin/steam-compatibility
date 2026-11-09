@@ -948,6 +948,13 @@ def native_targets(steam_root, apps):
     return targets
 
 
+def manifest_text(appid, name, installdir, bare=False):
+    title = name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    text = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
+            + f'    "StateFlags" "4"\n    "installdir" "{installdir}"\n' + '}\n')
+    return text[:-2] + '    "AutoUpdateBehavior" "1"\n}\n' if bare else text
+
+
 def app_manifest(steam_root, app):
     for library in libraries(steam_root):
         try:

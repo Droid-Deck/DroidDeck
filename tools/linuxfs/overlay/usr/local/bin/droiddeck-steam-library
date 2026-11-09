@@ -83,12 +83,6 @@ def adoptable(library, known):
             and os.path.isdir(os.path.join(common, n)) and os.listdir(os.path.join(common, n))]
 
 
-def manifest_text(app, name, installdir):
-    title = name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
-    return ('"AppState"\n{\n    "appid" "%s"\n    "Universe" "1"\n    "name" "%s"\n    "StateFlags" "4"\n'
-            '    "installdir" "%s"\n    "AutoUpdateBehavior" "1"\n}\n' % (app, title, installdir))
-
-
 def adopt(steam_root, library):
     compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
     known = compat["libraries"](steam_root)
@@ -113,7 +107,7 @@ def adopt(steam_root, library):
             continue
         try:
             with open(os.path.join(steamapps, "appmanifest_%s.acf" % app), "x", encoding="utf-8") as f:
-                f.write(manifest_text(app, info["name"] or folder, folder))
+                f.write(compat["manifest_text"](app, info["name"] or folder, folder, True))
         except OSError:
             continue
         adopted += 1

@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shlex
 import subprocess
 import sys
@@ -439,12 +440,11 @@ def seed_install(steam_root, game, appid):
     name = f"DroidDeck-{appid}"
     target = common / name
     source = Path(game["folder"])
-    title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
-    minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
-               + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
+    manifest_text = runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "steam-compatibility"))["manifest_text"]
+    minimal = manifest_text(appid, game["name"], name)
     legacy = minimal.replace('    "Universe" "1"\n', '')
     # Steam checks every file of an import with no build before updating it, from scratch each time it is interrupted.
-    bare = minimal[:-2] + '    "AutoUpdateBehavior" "1"\n}\n'
+    bare = manifest_text(appid, game["name"], name, True)
     build = installed_build(source, appid, name)
     if build is None:
         content = bare
