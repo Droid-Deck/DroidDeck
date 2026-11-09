@@ -659,6 +659,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceChanged(deviceId: Int) {
             joyConVr?.refresh()
             refreshControls()
+            requestRelativeMouse()
             refreshSecondScreenDisplays()
         }
     }
