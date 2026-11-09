@@ -357,6 +357,23 @@ SECONDS=30; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
 '''))
 
+    def test_read_back_wait_holds_above_the_critical_level(self):
+        self.assertEqual(['send:1:game', 't:60', 'send:1:game'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
+SECONDS=60; bl_session_pressure; echo t:60
+SECONDS=90; bl_session_pressure
+'''))
+
+    def test_a_no_gain_pageout_still_restarts_the_launcher_wait(self):
+        self.assertEqual(['send:1:game', 'backoff:60', 'client:0:0'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+echo "client:$_bl_pressure_at:$_bl_packed"
+'''))
+
     def test_an_incomplete_pageout_does_not_restart_the_launcher_wait(self):
         self.assertEqual(['send:1:game', 'client:-1:-1'], self.run_policy('''
 complete=0
