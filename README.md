@@ -36,7 +36,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 ## Install
 
-1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx is experimental. Mali, Xclipse, PowerVR and Adreno 710 are unsupported. No root needed.
+1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx, Mali, Xclipse and PowerVR are experimental. Adreno 710 is currently unsupported. No root needed.
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
 3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.9/DroidDeck-0.6.9.apk), install the Linux runtime, press **Play** and sign in to Steam.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
