@@ -264,7 +264,7 @@ object SessionFiles {
             if (patched > 0) Log.i(TAG, "native userland: $patched system call sites in ld.so and libc answer Android's blocked calls")
             com.droiddeck.launcher.runtime.NativeGuest.syncLibraryDirs(root)
         }
-        if (ProotFastPath.enabled(context) && !nativeUserland) {
+        if (ProotFastPath.enabled(context)) {
             val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
             preload.append(library + "\n")
             if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")

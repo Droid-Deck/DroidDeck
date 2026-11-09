@@ -189,9 +189,13 @@ fun PerformancePage(
             )
             ToggleRow(
                 host, "fastpath", stringResource(R.string.perf_fastpath),
-                if (prootNoSeccomp) stringResource(R.string.perf_fastpath_needs_seccomp)
-                else stringResource(R.string.perf_fastpath_hint),
-                prootFastPath && !prootNoSeccomp, enabled = !prootNoSeccomp, onChange = onProotFastPath,
+                when {
+                    nativeUserland -> stringResource(R.string.perf_fastpath_needs_proot)
+                    prootNoSeccomp -> stringResource(R.string.perf_fastpath_needs_seccomp)
+                    else -> stringResource(R.string.perf_fastpath_hint)
+                },
+                prootFastPath && !prootNoSeccomp && !nativeUserland, enabled = !prootNoSeccomp && !nativeUserland,
+                onChange = onProotFastPath,
             )
             ToggleRow(
                 host, "nativeuserland", stringResource(R.string.perf_native_userland),
