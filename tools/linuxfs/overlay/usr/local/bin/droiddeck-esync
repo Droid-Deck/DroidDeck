@@ -39,7 +39,8 @@ MIN_NOFILE = 8192
 LOG_LINES = 200
 LIVE_FILE = "prefixes.json"
 LIVE_ROWS = 200
-LIVE_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "BL_SYNC", "BL_FSYNC", "WINEFSYNC")
+LIVE_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "BL_SYNC", "BL_FSYNC", "WINEFSYNC", "BL_SEMPOOL")
+USER_KEYS = ("BL_SEMPOOL",)
 CACHE_ROWS = 512
 TEMP_AGE = 3600
 GC_GRACE = 600
@@ -165,6 +166,54 @@ def exports_hash(path):
     except (struct.error, IndexError) as error:
         raise ValueError("%s is a truncated ELF file (%s)" % (path, error))
     return hashlib.sha256(b"\n".join(sorted(names))).hexdigest()
+
+
+def semaphore_requests(path):
+    """create_semaphore and close_handle request numbers, read from the wineserver's request name table."""
+    try:
+        with open(path, "rb") as source:
+            data = source.read()
+        if data[:4] != b"\x7fELF" or data[4:6] != b"\x02\x01":
+            return None
+        phoff, shoff = struct.unpack_from("<QQ", data, 32)
+        phsize, phnum, shsize, shnum = struct.unpack_from("<HHHH", data, 54)
+        loads = []
+        for index in range(phnum):
+            kind, _, offset, vaddr, _, filesz = struct.unpack_from("<IIQQQQ", data, phoff + index * phsize)
+            if kind == 1:
+                loads.append((vaddr, offset, filesz))
+        relative = {}
+        for index in range(shnum):
+            section = struct.unpack_from("<IIQQQQIIQQ", data, shoff + index * shsize)
+            if section[1] != 4:
+                continue
+            for entry in range(section[4], section[4] + section[5] - 23, 24):
+                where, info, addend = struct.unpack_from("<QQq", data, entry)
+                if info & 0xffffffff == 1027:
+                    relative[where] = addend
+
+        def name_at(vaddr):
+            for start, offset, size in loads:
+                if start <= vaddr < start + size:
+                    begin = offset + vaddr - start
+                    end = data.find(b"\0", begin, begin + 64)
+                    return data[begin:end] if end > begin else None
+            return None
+
+        for first in sorted(where for where, target in relative.items() if name_at(target) == b"new_process"):
+            names = []
+            where = first
+            while where in relative:
+                name = name_at(relative[where])
+                if not name or not name.replace(b"_", b"").isalnum():
+                    break
+                names.append(name)
+                where += 8
+            if len(names) > 100 and names.count(b"create_semaphore") == 1 and names.count(b"close_handle") == 1:
+                return "%d,%d" % (names.index(b"create_semaphore"), names.index(b"close_handle"))
+    except (OSError, struct.error, ValueError):
+        pass
+    return None
 
 
 def stat_key(info):
@@ -714,6 +763,10 @@ def select(command, env):
         if kept is not None:
             return kept
         chosen = choose(root, command, env, tool, result)
+        if "BL_SEMPOOL" not in env:
+            requests = semaphore_requests(chosen[1].get("WINESERVER") or os.path.join(tool, WINESERVER))
+            if requests:
+                chosen[1]["BL_SEMPOOL"] = requests
         remember(root, env, tool, chosen)
         return chosen
     except Exception as error:
@@ -808,9 +861,12 @@ def keep_live(root, command, env, tool):
             pack = {"id": kept_pack}
         if pack is None or pack["id"] != kept_pack:
             return None
+    asked = {name: env[name] for name in USER_KEYS if name in env and not re.fullmatch(r"\s*[+-]?\d+,\s*[+-]?\d+", env[name])}
     command, env = list(command), dict(env)
     command[0] = kept_command
     for name in LIVE_KEYS:
+        if name in asked:
+            continue
         value = row["env"].get(name)
         if isinstance(value, str):
             env[name] = value
