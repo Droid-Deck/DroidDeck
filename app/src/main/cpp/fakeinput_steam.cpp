@@ -211,17 +211,19 @@ struct FakeConfig {
 
 // The first allocation here can start the host program's own allocator, which may call a hooked
 // function (mimalloc probes NUMA nodes with access()) and land back in config(). A guarded static
-// would throw a recursive-init error there, so the fields are filled without allocating and
-// published before anything that can allocate runs.
+// would throw a recursive-init error there, so the fields are filled without allocating, and a
+// reentry on the initializing thread gets them while other threads wait for the fork handlers.
 static FakeConfig &config() {
   static FakeConfig cfg;
   static std::atomic<int> state{0};
-  if (state.load(std::memory_order_acquire) == 2) return cfg;
+  static __thread bool initializing __attribute__((tls_model("initial-exec")));
+  if (state.load(std::memory_order_acquire) == 2 || initializing) return cfg;
   int expected = 0;
   if (!state.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
     while (state.load(std::memory_order_acquire) != 2) sched_yield();
     return cfg;
   }
+  initializing = true;
   const char *dir = getenv("FAKE_EVDEV_DIR");
   cfg.hook_dir = dir ? dir : "/data/data/com.termux/files/home/fake-input";
   cfg.udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
@@ -229,9 +231,10 @@ static FakeConfig &config() {
   const char *identity = getenv("FAKE_EVDEV_IDENTITY");
   cfg.xbox360_identity = identity && !strcmp(identity, "xbox360");
   cfg.uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
-  state.store(2, std::memory_order_release);
   pthread_atfork(controller_fork_prepare, controller_fork_parent, controller_fork_child);
   Logger::init();
+  state.store(2, std::memory_order_release);
+  initializing = false;
   return cfg;
 }
 
