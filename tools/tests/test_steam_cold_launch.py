@@ -41,7 +41,7 @@ class SteamColdLaunchTest(unittest.TestCase):
             "#!/bin/sh\n"
             "printf '%s\n' \"$@\" > \"$AGENT_ARGS\"\n"
             "n=$(cat \"$AGENT_COUNT\" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > \"$AGENT_COUNT\"\n"
-            "[ \"$1\" = --steam-ready ] && exit 0\n"
+            "[ \"$1\" = --steam-ready ] && exit \"${READY_STATUS:-0}\"\n"
             "exit \"$AGENT_STATUS\"\n")
         agent.chmod(0o755)
         sleep = self.bin / "sleep"
@@ -56,12 +56,13 @@ class SteamColdLaunchTest(unittest.TestCase):
         pgrep.chmod(0o755)
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
-    def run_launch(self, target, focus="769", helper_status=0, running_after=999):
+    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
-                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after))
+                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after),
+                   READY_STATUS=str(ready_status))
         script = self.block + "\nprintf 'ARG:%s\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -88,8 +89,15 @@ class SteamColdLaunchTest(unittest.TestCase):
 
     def test_a_timed_out_overview_still_gets_one_more_hand_off(self):
         result = self.run_launch(SHORTCUT, focus="769", helper_status=1)
-        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
         self.assertIn("overview status 1", result.stdout)
+        self.assertIn("launching the requested game again", result.stdout)
+
+    def test_a_steam_that_never_reports_ready_still_gets_the_launch(self):
+        result = self.run_launch("413150", ready_status=1)
+        self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
 
     def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
         result = self.run_launch(SHORTCUT, running_after=1)
@@ -131,7 +139,7 @@ class SteamColdLaunchTest(unittest.TestCase):
                    FOCUS="769", FOCUS_COUNT=str(self.focus_count))
         result = subprocess.run(["bash", "-c", script, "restart"], env=env, text=True, capture_output=True, timeout=10, check=True)
         self.assertEqual(SHORTCUT, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
-        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
 
     def test_non_game_steam_urls_remain_on_the_original_startup_arguments(self):
         url = "steam://open/library"

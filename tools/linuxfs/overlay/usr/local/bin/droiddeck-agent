@@ -930,16 +930,7 @@ def steam_shortcut_state(agent_dir, game_id, timeout=6):
 def steam_ready(agent_dir):
     expression = """(() => {
         const store = globalThis.appStore;
-        const apps = globalThis.SteamClient?.Apps;
-        if (!store?.m_bIsInitialized || typeof apps?.GetActiveGameActions !== 'function') return false;
-        const active = apps.GetActiveGameActions() || [];
-        const ids = Array.isArray(active) ? active : Object.keys(active).map(Number);
-        return ids.every(id => {
-            const details = apps.GetGameActionDetails?.(id);
-            const appid = details?.unAppID ?? details?.appid ?? details?.appID;
-            const task = details?.strTaskName ?? details?.strTask ?? '';
-            return String(appid) !== '769' && task !== 'ShowInterstitials';
-        });
+        return !!store?.m_bIsInitialized && typeof globalThis.SteamClient?.Apps?.ContinueGameAction === 'function';
     })()"""
     return cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value") is True
 
@@ -947,23 +938,20 @@ def steam_ready(agent_dir):
 def steam_clear_pending_interstitial(agent_dir, app_id):
     if not isinstance(app_id, str) or not app_id.isascii() or not app_id.isdigit() or int(app_id) <= 0:
         raise AgentError("INVALID_APP_ID", "appId must be a positive decimal Steam app id")
-    expression = """(() => {
+    expression = """(async () => {
         const apps = globalThis.SteamClient?.Apps;
         if (typeof apps?.GetActiveGameActions !== 'function' || typeof apps.ContinueGameAction !== 'function') return false;
-        const active = apps.GetActiveGameActions() || [];
-        const ids = Array.isArray(active) ? active : Object.keys(active).map(Number);
-        for (const id of ids) {
-            const details = apps.GetGameActionDetails?.(id);
-            const appid = details?.unAppID ?? details?.appid ?? details?.appID;
-            const task = details?.strTaskName ?? details?.strTask ?? '';
-            if (String(appid) === %s && task === 'ShowInterstitials') {
-                apps.ContinueGameAction(id, 'ShowInterstitials');
+        const active = await apps.GetActiveGameActions() || [];
+        for (const action of active) {
+            const appid = String(action?.strAppID ?? action?.gameid ?? action?.nAppID ?? '');
+            if (appid === %s && action?.strTaskName === 'ShowInterstitials') {
+                apps.ContinueGameAction(action.nGameActionID, appid, 'ShowInterstitials');
                 return true;
             }
         }
         return false;
     })()""" % json.dumps(app_id)
-    return cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value") is True
+    return cdp_eval(agent_dir, expression, timeout=3).get("value") is True
 
 
 def game_pids(app_id):
