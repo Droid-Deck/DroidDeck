@@ -49,6 +49,7 @@ static struct closefrom_entry {
     int nkeep;
     int keep[CLOSEFROM_KEEP];
     int closed_to;     // the descriptors up to this one are closed by actions already added
+    int bad_source;    // a dup2 after close-from duplicates a descriptor it closed: glibc's EBADF
 } g_closefrom[CLOSEFROM_SLOTS];
 static pthread_mutex_t g_closefrom_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -101,7 +102,17 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *actions, int fd
     static int (*orig)(posix_spawn_file_actions_t *, int, int) = NULL;
     if (!orig) orig = (int (*)(posix_spawn_file_actions_t *, int, int))dlsym(RTLD_NEXT, "posix_spawn_file_actions_adddup2");
     int ret = orig ? orig(actions, fd, newfd) : ENOSYS;
-    if (ret == 0) closefrom_note_target(actions, newfd);
+    if (ret == 0) {
+        pthread_mutex_lock(&g_closefrom_lock);
+        struct closefrom_entry *e = closefrom_entry(actions, 0);
+        if (e && e->from >= 0 && fd >= e->from) {
+            int reopened = 0;
+            for (int k = 0; k < e->nkeep; k++) reopened |= e->keep[k] == fd;
+            if (!reopened) e->bad_source = 1;
+        }
+        pthread_mutex_unlock(&g_closefrom_lock);
+        closefrom_note_target(actions, newfd);
+    }
     return ret;
 }
 
@@ -125,12 +136,16 @@ int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *actions) {
     return orig ? orig(actions) : ENOSYS;
 }
 
-static void apply_closefrom(posix_spawn_file_actions_t *actions) {
+static int apply_closefrom(posix_spawn_file_actions_t *actions) {
     pthread_mutex_lock(&g_closefrom_lock);
     struct closefrom_entry *e = closefrom_entry(actions, 0);
     if (!e || e->from < 0) {
         pthread_mutex_unlock(&g_closefrom_lock);
-        return;
+        return 0;
+    }
+    if (e->bad_source) {
+        pthread_mutex_unlock(&g_closefrom_lock);
+        return EBADF;
     }
     int highest = e->highest;
     DIR *dir = opendir("/proc/self/fd");
@@ -152,7 +167,8 @@ static void apply_closefrom(posix_spawn_file_actions_t *actions) {
         e->closed_to = fd;
     }
     pthread_mutex_unlock(&g_closefrom_lock);
+    return 0;
 }
 #else
-static void apply_closefrom(posix_spawn_file_actions_t *actions) { (void)actions; }
+static int apply_closefrom(posix_spawn_file_actions_t *actions) { (void)actions; return 0; }
 #endif

@@ -878,13 +878,16 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
     return ret;
 }
 
-static void apply_closefrom(posix_spawn_file_actions_t *actions);
+static int apply_closefrom(posix_spawn_file_actions_t *actions);
 
 int posix_spawn(pid_t *pid, const char *path,
                 const posix_spawn_file_actions_t *file_actions,
                 const posix_spawnattr_t *attrp,
                 char *const argv[], char *const envp[]) {
-    if (file_actions) apply_closefrom((posix_spawn_file_actions_t *)file_actions);
+    if (file_actions) {
+        int bad = apply_closefrom((posix_spawn_file_actions_t *)file_actions);
+        if (bad) return bad;
+    }
     posix_spawnattr_t sanitized;
     return ddnatv_posix_spawn(pid, path, file_actions, spawn_attr_for_android(attrp, &sanitized), argv, envp, 0);
 }
