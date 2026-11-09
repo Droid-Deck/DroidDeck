@@ -21,9 +21,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +49,21 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 
@@ -67,6 +80,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         return
     }
     val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     val list = rememberLazyListState()
     var draft by rememberSaveable { mutableStateOf("") }
     val working = AgentHost.state == AgentHost.State.WORKING
@@ -80,51 +94,177 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         if (AgentHost.entries.isNotEmpty()) list.animateScrollToItem(AgentHost.entries.size - 1)
     }
     Column(modifier.fillMaxSize()) {
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            itemsIndexed(AgentHost.entries) { _, entry -> AgentEntry(entry) }
-            if (working) item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.rail_agent), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                Text(AgentHost.harness.name, fontSize = 13.sp, color = pal.onSurfaceVariant)
+            }
+            HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty()) { AgentHost.forget(context) }
+            HeaderAction(Icons.Outlined.Settings, stringResource(R.string.agent_setup_title), enabled = !working) { setup = true }
+        }
+        if (AgentHost.entries.isEmpty() && !working) {
+            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Outlined.AutoAwesome, null, tint = pal.primary, modifier = Modifier.size(40.dp))
+                Text(stringResource(R.string.agent_empty), fontSize = 15.sp, color = pal.onSurfaceVariant,
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 460.dp).padding(top = 12.dp))
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                itemsIndexed(AgentHost.entries) { _, entry -> AgentEntry(entry) }
+                if (working) item {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(4.dp)) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = pal.primary)
+                        Text(stringResource(R.string.agent_working), fontSize = 13.sp, color = pal.onSurfaceVariant)
+                    }
                 }
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-            IconButton(onClick = { AgentHost.forget(context) }, enabled = !working) {
-                Icon(Icons.Outlined.Add, stringResource(R.string.agent_new))
+        var focused by remember { mutableStateOf(false) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp).clip(Shape16).background(colors.surface)
+                .border(1.dp, if (focused) pal.primary else pal.line, Shape16).padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        ) {
+            Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                if (draft.isEmpty()) Text(stringResource(R.string.agent_hint), fontSize = 16.sp, color = pal.onSurfaceVariant)
+                BasicTextField(
+                    draft, { draft = it },
+                    Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.testTag("agent-input").then(inputModifier),
+                    textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
+                    cursorBrush = SolidColor(pal.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { send() }),
+                    maxLines = 5,
+                )
             }
-            IconButton(onClick = { setup = true }, enabled = !working) {
-                Icon(androidx.compose.material.icons.Icons.Outlined.Settings, stringResource(R.string.agent_setup_title))
-            }
-            OutlinedTextField(
-                draft, { draft = it }, Modifier.weight(1f).then(inputModifier),
-                placeholder = { Text(stringResource(R.string.agent_hint)) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
-                maxLines = 4,
-            )
-            IconButton(onClick = send, enabled = !working && draft.isNotBlank()) {
-                Icon(Icons.AutoMirrored.Outlined.Send, stringResource(R.string.agent_send), tint = colors.primary)
+            val canSend = !working && draft.isNotBlank()
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(44.dp).clip(CircleShape)
+                    .background(if (canSend) pal.primary else pal.surfaceVariant)
+                    .clickable(enabled = working || canSend) { if (working) AgentHost.stop() else send() }
+                    .testTag("agent-send"),
+            ) {
+                Icon(
+                    if (working) Icons.Outlined.Stop else Icons.AutoMirrored.Outlined.Send,
+                    stringResource(if (working) R.string.agent_stop else R.string.agent_send),
+                    tint = if (canSend) pal.onPrimary else pal.onSurfaceVariant, modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
 }
 
 @Composable
+private fun HeaderAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val pal = LocalPalette.current
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.padding(start = 8.dp).size(44.dp).clip(Shape12).background(pal.surfaceVariant)
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        Icon(icon, label, tint = if (enabled) pal.onBackground else pal.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable
 private fun AgentEntry(entry: Entry) {
     val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     when (entry) {
         is Entry.Asked -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            Text(entry.text, fontSize = 15.sp, color = colors.onPrimaryContainer,
-                modifier = Modifier.widthIn(max = 560.dp).clip(Shape12).background(colors.primaryContainer).padding(12.dp))
+            Text(entry.text, fontSize = 15.sp, color = pal.onPrimary,
+                modifier = Modifier.widthIn(max = 560.dp).clip(Shape16).background(pal.primary).padding(horizontal = 14.dp, vertical = 10.dp))
         }
-        is Entry.Said -> Text(entry.text, fontSize = 15.sp, color = colors.onSurface, modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = 4.dp))
-        is Entry.Used -> Text(
-            if (entry.detail.isEmpty()) entry.tool else "${entry.tool}  ${entry.detail}",
-            fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant, maxLines = 2,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        is Entry.Said -> AgentMarkdown(entry.text, Modifier.widthIn(max = 760.dp).padding(horizontal = 4.dp))
+        is Entry.Used -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 4.dp).clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            Text(entry.tool, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.primary)
+            if (entry.detail.isNotEmpty()) Text(entry.detail, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
+        }
         is Entry.Finished -> entry.error?.let {
             Text(stringResource(R.string.agent_failed, it), fontSize = 13.sp, color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+    }
+}
+
+/** The Markdown agents write: headings, lists, fenced code, `code` and **bold**. */
+@Composable
+private fun AgentMarkdown(text: String, modifier: Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (block in markdownBlocks(text)) when (block) {
+            is MdBlock.Code -> Text(block.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.onSurface,
+                modifier = Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(12.dp))
+            is MdBlock.Line -> Text(
+                inlineMarkdown(block.text, pal.primary2, pal.surfaceVariant),
+                fontSize = if (block.heading) 17.sp else 15.sp,
+                fontWeight = if (block.heading) FontWeight.Bold else null,
+                lineHeight = 22.sp, color = colors.onSurface,
+                modifier = if (block.bullet) Modifier.padding(start = 12.dp) else Modifier,
+            )
+        }
+    }
+}
+
+internal sealed interface MdBlock {
+    data class Line(val text: String, val heading: Boolean = false, val bullet: Boolean = false) : MdBlock
+    data class Code(val text: String) : MdBlock
+}
+
+private val HEADING = Regex("^#{1,6}\\s+")
+private val BULLET = Regex("^\\s*[-*+]\\s+")
+
+internal fun markdownBlocks(text: String): List<MdBlock> {
+    val out = mutableListOf<MdBlock>()
+    val code = StringBuilder()
+    var inCode = false
+    for (raw in text.lines()) {
+        if (raw.trimStart().startsWith("```")) {
+            if (inCode) {
+                out += MdBlock.Code(code.toString().trimEnd('\n'))
+                code.clear()
+            }
+            inCode = !inCode
+            continue
+        }
+        if (inCode) {
+            code.append(raw).append('\n')
+            continue
+        }
+        val line = raw.trimEnd()
+        if (line.isBlank()) continue
+        val heading = HEADING.find(line)
+        val bullet = BULLET.find(line)
+        out += when {
+            heading != null -> MdBlock.Line(line.substring(heading.range.last + 1), heading = true)
+            bullet != null -> MdBlock.Line("•  " + line.substring(bullet.range.last + 1), bullet = true)
+            else -> MdBlock.Line(line)
+        }
+    }
+    if (inCode && code.isNotEmpty()) out += MdBlock.Code(code.toString().trimEnd('\n'))
+    return out
+}
+
+internal fun inlineMarkdown(text: String, codeColor: Color, codeBackground: Color): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < text.length) {
+        val boldEnd = if (text.startsWith("**", i)) text.indexOf("**", i + 2) else -1
+        val tickEnd = if (text[i] == '`') text.indexOf('`', i + 1) else -1
+        when {
+            boldEnd > i + 2 -> {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text, i + 2, boldEnd) }
+                i = boldEnd + 2
+            }
+            tickEnd > i + 1 -> {
+                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = codeColor, background = codeBackground)) { append(text, i + 1, tickEnd) }
+                i = tickEnd + 1
+            }
+            else -> append(text[i++])
         }
     }
 }

@@ -1151,6 +1151,8 @@
     <string name="agent_hint">Ask about a game, a crash, or a change to DroidDeck</string>
     <string name="agent_send">Send</string>
     <string name="agent_new">New conversation</string>
+    <string name="agent_stop">Stop</string>
+    <string name="agent_empty">Ask it why a game won\'t start, to explain a log, or to change DroidDeck and try the change on this device.</string>
     <string name="agent_failed">Stopped: %1$s</string>
     <string name="agent_setup_title">Set up the agent</string>
     <string name="agent_setup_runtime">Install the Linux runtime in Setup first.</string>
