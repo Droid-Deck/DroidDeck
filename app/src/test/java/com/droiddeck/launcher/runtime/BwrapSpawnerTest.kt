@@ -55,6 +55,19 @@ class BwrapSpawnerTest {
         assertTrue(Bind("/rootfs/etc/droiddeck/proc/stat", "/newproc/stat") in binds)
     }
 
+    @Test fun aNativeSessionsHookSettingsStayOutOfTheSandbox() {
+        val rootfs = "/data/app/linuxfs"
+        val env = mutableMapOf(
+            "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
+            "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so:$rootfs/usr/local/lib/libblsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+        )
+        BwrapSpawner.withoutNativeSession(env, rootfs)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so"), env)
+        val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
+        BwrapSpawner.withoutNativeSession(onlySession, rootfs)
+        assertTrue(onlySession.isEmpty())
+    }
+
     @Test fun normalizeResolvesDotsLexically() {
         assertEquals("/usr/lib/x", BwrapSpawner.normalize("/usr/lib/GL/../x"))
         assertEquals("/", BwrapSpawner.normalize("/../.."))

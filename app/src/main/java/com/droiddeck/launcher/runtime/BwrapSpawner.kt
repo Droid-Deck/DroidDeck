@@ -182,6 +182,7 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
+        withoutNativeSession(env, rootfs)
         val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
         if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
@@ -189,6 +190,15 @@ object BwrapSpawner {
         zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
         return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env, envTool ?: "/usr/bin/env")
+    }
+
+    /** A native session's Flatpak passes the hook's settings for the session's own root on; a sandbox has its own. */
+    internal fun withoutNativeSession(env: MutableMap<String, String>, rootfs: String) {
+        env.keys.removeAll { it.startsWith("DDNATV_") }
+        env["LD_PRELOAD"]?.let { preload ->
+            val kept = preload.split(':').filter { it.isNotEmpty() && it != rootfs && !it.startsWith("$rootfs/") }
+            if (kept.isEmpty()) env.remove("LD_PRELOAD") else env["LD_PRELOAD"] = kept.joinToString(":")
+        }
     }
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
@@ -347,22 +357,132 @@ object BwrapSpawner {
         try { Os.chmod(f.path, mode) } catch (e: Exception) {   }
     }
 
+    private val SANDBOX_LOADERS = listOf("/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1", "/usr/lib/ld-linux-aarch64.so.1",
+        "/lib/ld-linux-aarch64.so.1", "/lib64/ld-linux-aarch64.so.1")
+    private val SANDBOX_LIBCS = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/usr/lib/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6")
+    private val SANDBOX_LIB_DIRS = listOf("/app/lib/aarch64-linux-gnu", "/app/lib", "/usr/lib/aarch64-linux-gnu", "/usr/lib")
+    private val seccompPatched = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * The sandbox started by the runtime's own glibc loader with the native hook, which maps the
+     * sandbox's mounts; null when the runtime cannot load the hook (older glibc), so proot runs it.
+     */
+    private fun nativeLaunch(context: Context, plan: Plan): Pair<List<String>, Map<String, String>>? {
+        val rootfs = LinuxRuntime.rootDir(context)
+        val sandbox = plan.root.path
+        fun host(guest: String) = File(hostPath(plan.binds, sandbox, guest))
+        if (!hasEnvTool(plan)) {
+            val program = plan.argv.firstOrNull()?.takeIf { it.startsWith("/") }?.let(::host)?.canonicalFile
+                ?.takeIf { it.isFile && isStaticElf(it) } ?: return null
+            linkMounts(plan)
+            return (listOf(program.path) + plan.argv.drop(1)) to plan.env
+        }
+        val loader = SANDBOX_LOADERS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
+        val libc = SANDBOX_LIBCS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
+        val hook = NativeGuest.hook(rootfs)
+        val need = glibcMinor(hook, GLIBC_NEED) { it.maxOrNull() } ?: return null
+        val have = glibcMinor(libc, GLIBC_RELEASE) { it.firstOrNull() } ?: return null
+        if (have < need) {
+            Log.i(TAG, "native userland: this runtime's glibc 2.$have cannot load the hook (2.$need); proot runs the sandbox")
+            return null
+        }
+        for (file in listOf(loader, libc)) {
+            val key = "${file.path}:${file.length()}:${file.lastModified()}"
+            if (key in seccompPatched) continue
+            runCatching { ElfSeccompPatch.patchFile(file) }
+                .onFailure { Log.e(TAG, "native userland: could not patch $file for Android's seccomp filter", it) }
+            seccompPatched.add("${file.path}:${file.length()}:${file.lastModified()}")
+        }
+        val program = host(plan.envTool).canonicalFile.takeIf { it.isFile } ?: return null
+        linkMounts(plan)
+        val launch = listOf(loader.path, "--argv0", program.name, program.path, "-i") +
+            plan.env.map { (k, v) -> "$k=$v" } + plan.argv
+        val env = linkedMapOf(
+            "DDNATV_ROOT" to sandbox,
+            "DDNATV_BINDS" to plan.binds.joinToString("|") { "${it.host}:${it.guest}" },
+            "DDNATV_HOSTNAME" to SessionPrefs.guestHostname(context),
+            "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },
+            "LD_PRELOAD" to hook.path,
+        ).filterValues { it.isNotEmpty() }
+        return (NativeGuest.simulator(rootfs)?.let { listOf(it.path) + launch } ?: launch) to env
+    }
+
+    /** A runtime extension's apply_extra runs in a sandbox with nothing but the extension itself. */
+    private fun hasEnvTool(plan: Plan): Boolean =
+        File(hostPath(plan.binds, plan.root.path, plan.envTool)).let { it.exists() || Files.isSymbolicLink(it.toPath()) }
+
+    internal fun isStaticElf(file: File): Boolean = try {
+        java.io.RandomAccessFile(file, "r").use { f ->
+            val head = ByteArray(64).also { f.readFully(it) }
+            if (head[0] != 0x7f.toByte() || head[1] != 'E'.code.toByte() || head[4] != 2.toByte() || head[5] != 1.toByte()) return false
+            val le = java.nio.ByteBuffer.wrap(head).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            val phoff = le.getLong(32)
+            val phentsize = le.getShort(54).toInt() and 0xffff
+            val phnum = le.getShort(56).toInt() and 0xffff
+            val entry = ByteArray(4)
+            (0 until phnum).none { i ->
+                f.seek(phoff + i.toLong() * phentsize)
+                f.readFully(entry)
+                java.nio.ByteBuffer.wrap(entry).order(java.nio.ByteOrder.LITTLE_ENDIAN).int == 3 // PT_INTERP
+            }
+        }
+    } catch (_: java.io.IOException) {
+        false
+    }
+
+    /**
+     * The kernel follows paths the hook does not see (ld.so, symbolic links), so each top-level
+     * mount of the sandbox is also a link to its source in the sandbox's own root, and the
+     * sandbox's links with absolute guest targets are made relative, which reaches them through those.
+     */
+    private fun linkMounts(plan: Plan) {
+        val root = plan.root.toPath()
+        plan.root.walkTopDown().onEnter { !Files.isSymbolicLink(it.toPath()) }.map { it.toPath() }
+            .filter { Files.isSymbolicLink(it) }.toList().forEach { link ->
+                runCatching {
+                    val target = Files.readSymbolicLink(link).toString()
+                    if (!target.startsWith("/")) return@runCatching
+                    Files.delete(link)
+                    Files.createSymbolicLink(link, link.parent.relativize(root.resolve(target.removePrefix("/"))))
+                }
+            }
+        for (bind in plan.binds.sortedBy { it.guest.length }) {
+            if (bind.guest == "/") continue
+            val at = inRoot(plan.root, bind.guest) ?: continue
+            if (at.exists() || Files.isSymbolicLink(at.toPath())) continue
+            at.parentFile?.mkdirs()
+            runCatching { Files.createSymbolicLink(at.toPath(), java.nio.file.Paths.get(bind.host)) }
+        }
+    }
+
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
-        val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
-        if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
-        plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
-        cmd.add(plan.envTool)
-        cmd.add("-i")
-        plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
-        cmd.addAll(plan.argv)
-        val builder = ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root)
-        builder.environment().apply {
-            clear()
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+        val native = if (NativeGuest.enabled(context)) nativeLaunch(context, plan) else null
+        val builder = if (native != null) {
+            ProcessBuilder(native.first).redirectErrorStream(true)
+                .directory(File(hostPath(plan.binds, plan.root.path, plan.cwd)).takeIf { it.isDirectory } ?: plan.root)
+                .also { b -> b.environment().apply { clear(); putAll(native.second) } }
+        } else {
+            val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
+            if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
+            plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
+            val envTool = hasEnvTool(plan)
+            if (envTool) {
+                cmd.add(plan.envTool)
+                cmd.add("-i")
+                plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
+            }
+            cmd.addAll(plan.argv)
+            ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root).also { b ->
+                b.environment().apply {
+                    clear()
+                    if (!envTool) putAll(plan.env)
+                    put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                    put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
+                    if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+                }
+            }
         }
         val process = builder.start()
         val pid = HostProcess.pidOf(process)
