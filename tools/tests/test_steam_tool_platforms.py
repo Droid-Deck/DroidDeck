@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import select
 import tempfile
 import unittest
 from unittest import mock
@@ -141,8 +142,10 @@ class ToolPlatformsTest(unittest.TestCase):
         self.assertGreaterEqual(watcher.fd, 0)
         self.addCleanup(os.close, watcher.fd)
         (root / "sd").mkdir()
-        watcher.changed()
+        self.assertTrue(select.select([watcher.fd], [], [], 1)[0])
+        self.assertFalse(watcher.changed())
         (root / "sd/steamapps").mkdir()
+        self.assertTrue(select.select([watcher.fd], [], [], 1)[0])
         self.assertTrue(watcher.changed())
         target.write_bytes(b"x")
         self.assertTrue(watcher.changed())
