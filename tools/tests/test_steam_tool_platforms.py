@@ -121,6 +121,18 @@ class ToolPlatformsTest(unittest.TestCase):
         replacement.replace(cache)
         self.assertTrue(watcher.changed())
 
+    def test_watcher_follows_an_appcache_created_after_startup(self):
+        root = self.root / "late"
+        (root / "state").mkdir(parents=True)
+        watcher = live.LIVE["Watcher"]([str(root / "state/request.json"), str(root / "appcache/appinfo.vdf")])
+        self.assertGreaterEqual(watcher.fd, 0)
+        self.addCleanup(os.close, watcher.fd)
+        self.assertFalse(watcher.changed())
+        (root / "appcache").mkdir()
+        self.assertTrue(watcher.changed())
+        (root / "appcache/appinfo.vdf").write_bytes(b"x")
+        self.assertTrue(watcher.changed())
+
     def test_linux_tool_requests_cannot_restore_windows_platform(self):
         changes, auto = self.plan({"0": TOOL, "1826330": TOOL}, overrides={"1826330": TOOL})
         self.assertIsNone(changes["1826330"])

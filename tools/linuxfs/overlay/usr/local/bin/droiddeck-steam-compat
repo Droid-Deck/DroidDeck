@@ -760,17 +760,39 @@ class Watcher:
     def __init__(self, files):
         self.files = files
         self.fd = -1
+        self.libc = None
+        wanted = {os.path.dirname(f) for f in files}
+        self.missing = {d for d in wanted if not os.path.isdir(d)}
         try:
             libc = ctypes.CDLL(None, use_errno=True)
             fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
-            dirs = sorted({os.path.dirname(f) for f in files if os.path.isdir(os.path.dirname(f))})
+            dirs = sorted((wanted - self.missing) | {self.existing_parent(d) for d in self.missing} - {""})
             if fd >= 0 and dirs and all(libc.inotify_add_watch(fd, d.encode(), self.MASK) >= 0 for d in dirs):
                 self.fd = fd
+                self.libc = libc
             elif fd >= 0:
                 os.close(fd)
         except (OSError, AttributeError):
             self.fd = -1
         self.stamp = self.snapshot()
+
+    @staticmethod
+    def existing_parent(path):
+        while path and not os.path.isdir(path):
+            parent = os.path.dirname(path)
+            if parent == path:
+                return ""
+            path = parent
+        return path
+
+    def watch_new_dirs(self):
+        appeared = {d for d in self.missing if os.path.isdir(d)}
+        for d in sorted(appeared):
+            if self.libc.inotify_add_watch(self.fd, d.encode(), self.MASK) >= 0:
+                self.missing.discard(d)
+            else:
+                appeared.discard(d)
+        return bool(appeared)
 
     def snapshot(self):
         stamp = []
@@ -803,8 +825,9 @@ class Watcher:
                     at += 16 + size
         except BlockingIOError:
             pass
+        appeared = self.watch_new_dirs() if self.missing else False
         wanted = {os.path.basename(f) for f in self.files}
-        return any(n in wanted or n.startswith("appmanifest_") for n in names)
+        return appeared or any(n in wanted or n.startswith("appmanifest_") for n in names)
 
 
 class XMessage(ctypes.Structure):
