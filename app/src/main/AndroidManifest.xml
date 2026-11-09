@@ -352,6 +352,14 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <receiver
+            android:name=".agent.AgentCallReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="${applicationId}.AGENT_CALL" />
+            </intent-filter>
+        </receiver>
         <provider
             android:name=".agent.AgentBridgeProvider"
             android:authorities="${applicationId}.agent"
