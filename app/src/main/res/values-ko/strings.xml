@@ -2154,6 +2154,9 @@
     <string name="display_filter_live">즉시 적용됩니다. Steam과 데스크톱에서 공유됩니다.</string>
     <string name="display_filter_note">FSR, GSR, NIS는 세션 이미지를 확대할 때 적용됩니다. 샤프닝 전용은 확대하지 않아도 작동합니다.</string>
     <string name="display_sharpness">필터 선명도</string>
+    <string name="display_desktop_compositor">데스크톱 컴포지터</string>
+    <string name="display_software_rendering">소프트웨어 렌더링 강제</string>
+    <string name="display_software_rendering_hint">이 옵션을 켜면 일부 기기에서 데스크톱 모드의 검은 화면이나 렌더링 오류가 개선될 수 있지만 성능이 저하될 수 있습니다.</string>
     <string name="display_look_filter">%1$s 스케일링을 %2$s(으)로 설정합니다.</string>
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
     <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>

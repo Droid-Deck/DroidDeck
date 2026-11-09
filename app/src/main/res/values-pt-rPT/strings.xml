@@ -2196,6 +2196,9 @@
     <string name="display_filter_live">Aplica-se em tempo real. Partilhado pelo Steam e pelo Ambiente de trabalho.</string>
     <string name="display_filter_note">FSR, GSR e NIS aplicam-se ao ampliar a imagem da sessão. «Só nitidez» também funciona sem ampliação.</string>
     <string name="display_sharpness">Nitidez do filtro</string>
+    <string name="display_desktop_compositor">Compositor do ambiente de trabalho</string>
+    <string name="display_software_rendering">Forçar renderização por software</string>
+    <string name="display_software_rendering_hint">Ativar esta opção pode corrigir o ecrã preto ou erros de renderização no modo de ambiente de trabalho em alguns dispositivos, mas pode reduzir o desempenho.</string>
     <string name="display_look_filter">%1$s Define a escala como %2$s.</string>
     <string name="display_match_screen">Igual ao ecrã (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir o ecrã (redimensiona ao dobrar ou desdobrar)</string>

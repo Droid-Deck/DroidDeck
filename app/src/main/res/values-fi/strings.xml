@@ -2179,6 +2179,9 @@
     <string name="display_filter_live">Vaikuttaa välittömästi. Yhteinen Steamille ja Työpöydälle.</string>
     <string name="display_filter_note">FSR, GSR ja NIS vaikuttavat, kun istunnon kuvaa suurennetaan. Vain terävöinti toimii myös suurentamatta.</string>
     <string name="display_sharpness">Suodattimen terävyys</string>
+    <string name="display_desktop_compositor">Työpöytäkomposiittori</string>
+    <string name="display_software_rendering">Pakota ohjelmistopohjainen renderöinti</string>
+    <string name="display_software_rendering_hint">Tämän käyttöönotto voi korjata mustan näytön tai renderöintivirheet työpöytätilassa joillakin laitteilla, mutta se voi heikentää suorituskykyä.</string>
     <string name="display_look_filter">%1$s Asettaa skaalauksen tilaan %2$s.</string>
     <string name="display_match_screen">Sovita näyttöön (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seuraa näyttöä (koko muuttuu taitettuna tai avattuna)</string>

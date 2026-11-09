@@ -38,7 +38,7 @@ class Palette(
     val background: Color, val surface: Color, val surfaceVariant: Color, val line: Color, val line2: Color,
     val onBackground: Color, val onSurfaceVariant: Color,
     val primary: Color, val primary2: Color, val onPrimary: Color, val signal: Color,
-    val good: Color, val error: Color = Color(0xFFFF8A80),
+    val good: Color, val error: Color = Color(0xFFFF8A80), val pending: Color = Color(0xFFFFB020),
 )
 
 object Themes {

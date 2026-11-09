@@ -2405,6 +2405,9 @@
     <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
     <string name="display_filter_note">FSR, GSR and NIS apply when enlarging the session image. Sharpen only also works without enlargement.</string>
     <string name="display_sharpness">Filter sharpness</string>
+    <string name="display_desktop_compositor">Desktop compositor</string>
+    <string name="display_software_rendering">Force software rendering</string>
+    <string name="display_software_rendering_hint">Turning this on may fix a black screen or rendering errors in desktop mode on some devices, but it may reduce performance.</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (resizes when folded or unfolded)</string>

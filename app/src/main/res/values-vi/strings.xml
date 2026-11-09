@@ -2154,6 +2154,9 @@
     <string name="display_filter_live">Áp dụng ngay. Dùng chung cho Steam và Desktop.</string>
     <string name="display_filter_note">FSR, GSR và NIS áp dụng khi phóng to hình ảnh phiên. Chỉ làm nét cũng hoạt động mà không cần phóng to.</string>
     <string name="display_sharpness">Độ sắc nét bộ lọc</string>
+    <string name="display_desktop_compositor">Trình tổng hợp màn hình nền</string>
+    <string name="display_software_rendering">Buộc kết xuất bằng phần mềm</string>
+    <string name="display_software_rendering_hint">Bật tùy chọn này có thể khắc phục màn hình đen hoặc lỗi kết xuất ở chế độ màn hình nền trên một số thiết bị, nhưng có thể làm giảm hiệu năng.</string>
     <string name="display_look_filter">%1$s Đặt chia tỷ lệ thành %2$s.</string>
     <string name="display_match_screen">Khớp màn hình (%1$d×%2$d)</string>
     <string name="display_follow_screen">Theo màn hình (đổi kích thước khi gập hoặc mở)</string>

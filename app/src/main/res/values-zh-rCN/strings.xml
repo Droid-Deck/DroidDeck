@@ -2235,6 +2235,9 @@
     <string name="display_filter_live">即时生效。由 Steam 和桌面共享。</string>
     <string name="display_filter_note">FSR、GSR 和 NIS 在放大会话画面时生效。“仅锐化”在不放大时也可用。</string>
     <string name="display_sharpness">滤镜锐度</string>
+    <string name="display_desktop_compositor">桌面合成器</string>
+    <string name="display_software_rendering">强制软件渲染</string>
+    <string name="display_software_rendering_hint">开启这个选项可能改善部分设备上桌面模式黑屏/渲染错误的情况，但可能降低性能</string>
     <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
     <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟随屏幕（折叠或展开时调整大小）</string>

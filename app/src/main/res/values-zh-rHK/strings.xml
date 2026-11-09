@@ -2154,6 +2154,9 @@
     <string name="display_filter_live">即時生效。Steam 和桌面共用。</string>
     <string name="display_filter_note">FSR、GSR 和 NIS 會在放大會話畫面時套用。「只銳化」不放大也能使用。</string>
     <string name="display_sharpness">濾鏡銳利度</string>
+    <string name="display_desktop_compositor">桌面合成器</string>
+    <string name="display_software_rendering">強制軟件渲染</string>
+    <string name="display_software_rendering_hint">開啟此選項可能改善部分裝置上桌面模式黑屏／渲染錯誤的情況，但可能降低效能</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">配合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>

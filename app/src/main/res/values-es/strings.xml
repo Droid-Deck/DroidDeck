@@ -2204,6 +2204,9 @@
     <string name="display_filter_live">Se aplica al instante. Compartido por Steam y Escritorio.</string>
     <string name="display_filter_note">FSR, GSR y NIS se aplican al ampliar la imagen de la sesión. Solo nitidez también funciona sin ampliar.</string>
     <string name="display_sharpness">Nitidez del filtro</string>
+    <string name="display_desktop_compositor">Compositor del escritorio</string>
+    <string name="display_software_rendering">Forzar renderizado por software</string>
+    <string name="display_software_rendering_hint">Activar esta opción puede solucionar la pantalla negra o los errores de renderizado del modo escritorio en algunos dispositivos, pero puede reducir el rendimiento.</string>
     <string name="display_look_filter">%1$s Cambia el escalado a %2$s.</string>
     <string name="display_match_screen">Igual a la pantalla (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir la pantalla (cambia de tamaño al plegar o desplegar)</string>

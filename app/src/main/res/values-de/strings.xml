@@ -2171,6 +2171,9 @@
     <string name="display_filter_live">Wirkt sofort. Gemeinsam für Steam und Desktop.</string>
     <string name="display_filter_note">FSR, GSR und NIS wirken beim Vergrößern des Sitzungsbilds. „Nur schärfen“ funktioniert auch ohne Vergrößerung.</string>
     <string name="display_sharpness">Filterschärfe</string>
+    <string name="display_desktop_compositor">Desktop-Compositor</string>
+    <string name="display_software_rendering">Software-Rendering erzwingen</string>
+    <string name="display_software_rendering_hint">Wenn diese Option aktiviert ist, können auf manchen Geräten ein schwarzer Bildschirm oder Darstellungsfehler im Desktop-Modus behoben werden, die Leistung kann jedoch sinken.</string>
     <string name="display_look_filter">%1$s Stellt die Skalierung auf %2$s.</string>
     <string name="display_match_screen">An Bildschirm anpassen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Bildschirm folgen (passt sich beim Auf- und Zuklappen an)</string>

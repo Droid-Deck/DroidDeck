@@ -2279,6 +2279,9 @@
     <string name="display_filter_live">يُطبَّق فوريًا. مشترك بين Steam وسطح المكتب.</string>
     <string name="display_filter_note">تُطبَّق FSR و GSR و NIS عند تكبير صورة الجلسة. ويعمل خيار «زيادة الحدة فقط» أيضًا دون تكبير.</string>
     <string name="display_sharpness">حدّة المرشِّح</string>
+    <string name="display_desktop_compositor">مركِّب سطح المكتب</string>
+    <string name="display_software_rendering">فرض التصيير البرمجي</string>
+    <string name="display_software_rendering_hint">قد يساعد تفعيل هذا الخيار في إصلاح الشاشة السوداء أو أخطاء التصيير في وضع سطح المكتب على بعض الأجهزة، لكنه قد يقلل الأداء.</string>
     <string name="display_look_filter">%1$s يضبط أسلوب التكبير على %2$s.</string>
     <string name="display_match_screen">مطابقة الشاشة (%1$d×%2$d)</string>
     <string name="display_follow_screen">اتباع الشاشة (يُغيَّر الحجم عند الطي أو الفتح)</string>
