@@ -179,6 +179,8 @@ object UbisoftLibrary {
                 StoresState.status.remove(Store.UBISOFT)
                 StoresState.problems.remove(Store.UBISOFT)
                 StoresState.library[Store.UBISOFT] = games
+                StoresState.shelves[Store.UBISOFT] = com.droiddeck.launcher.stores.StoreShelves(
+                    trending = games.sortedByDescending { it.extra.containsKey("productId") }, art = games.mapNotNull { it.imageUrl })
             }
             StoresState.logLine("Ubisoft: ${games.size} owned games")
         } catch (e: Exception) {
