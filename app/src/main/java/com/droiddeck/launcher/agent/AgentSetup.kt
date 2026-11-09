@@ -50,7 +50,7 @@ object AgentSetup {
                 Step.INSTALL -> set(step, if (AgentHost.guestFileExists(app, harness.binary)) Status.DONE else Status.TODO)
                 Step.BUILD_TOOLS -> set(step, if (AgentHost.guestFileExists(app, "/root/aapt2/aapt2") &&
                     AgentHost.guestFileExists(app, "$CHECKOUT/.git")) Status.DONE else Status.TODO)
-                Step.CONNECTION -> probes += step to listOf("sh", "-c", "adb -s \"\$ADB_SERIAL\" get-state | grep -q device")
+                Step.CONNECTION -> probes += step to listOf("sh", "-c", "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device")
                 Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
                 Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
             }
@@ -100,14 +100,17 @@ object AgentSetup {
     }
 
     private fun probe(app: Context, step: Step, command: List<String>) {
+        var output = ""
         val ok = runCatching {
             val child = AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION).start()
             child.outputStream.close()
-            child.inputStream.readBytes()
+            output = child.inputStream.bufferedReader().readText()
             child.waitFor(60, TimeUnit.SECONDS) && child.exitValue() == 0
-        }.getOrDefault(false)
+        }.onFailure { output = it.message.orEmpty() }.getOrDefault(false)
         main.post {
             if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
+            val last = output.lines().lastOrNull { it.isNotBlank() }?.trim()?.take(160)
+            if (!ok && step.required && last != null) detail[step] = last else if (ok) detail.remove(step)
             if (ready) AgentHost.prefs(app).edit().putBoolean(COMPLETED_KEY, true).apply()
         }
     }
