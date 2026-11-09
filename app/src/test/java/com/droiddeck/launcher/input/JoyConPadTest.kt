@@ -147,6 +147,15 @@ class JoyConPadTest {
         assertNull(RecordingWriter.pads[2])
     }
 
+    @Test fun aControllerThatDisconnectsWhileItsKeyIsHandledIsIgnored() {
+        for (lookups in 0..4) {
+            val event = key(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH)
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = lookups
+            try { bridge.onKeyEvent(event) } finally { PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1 }
+        }
+        assertTrue(press(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH))
+    }
+
     @Test fun joyConsHeldForVrAreLeftAlone() {
         bridge.setExcluded { it == left.id }
         assertFalse(bridge.onKeyEvent(key(left, KeyEvent.KEYCODE_BUTTON_L1, BTN_TL)))
