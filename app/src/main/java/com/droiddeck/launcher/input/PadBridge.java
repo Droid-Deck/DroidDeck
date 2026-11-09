@@ -613,7 +613,18 @@ public final class PadBridge {
     static float triggerValue(MotionEvent event, boolean wired, boolean rxRyStick, boolean left) {
         if (signedZTriggers(event, wired, rxRyStick, left)) {
             int axis = left ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RZ;
-            return Math.max(0f, Math.min(1f, (event.getAxisValue(axis) + 1f) / 2f));
+            float value = event.getAxisValue(axis);
+            if (!wired) {
+                InputDevice device = event.getDevice();
+                if (device != null) {
+                    InputDevice.MotionRange range = device.getMotionRange(axis, event.getSource());
+                    if (range != null && range.getMax() > range.getMin()) {
+                        return Math.max(0f, Math.min(1f,
+                                (value - range.getMin()) / (range.getMax() - range.getMin())));
+                    }
+                }
+            }
+            return Math.max(0f, Math.min(1f, (value + 1f) / 2f));
         }
         InputDevice device = event.getDevice();
         int source = event.getSource();
