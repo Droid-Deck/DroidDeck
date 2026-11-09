@@ -816,6 +816,104 @@ void freeaddrinfo(struct addrinfo *res) {
     if (orig_freeaddrinfo) orig_freeaddrinfo(res);
 }
 
+// gethostbyname() and gethostbyname2() read /etc/resolv.conf with glibc's own open(), on Android's
+// /etc, so they asked no DNS server and only /etc/hosts answered. When glibc finds nothing, the
+// name is looked up with getaddrinfo() above, which knows the network's servers; a name DNS does
+// not have still gets no address (HOST_NOT_FOUND).
+static int hostent_from_getaddrinfo(const char *name, int af, struct hostent *ret, char *buf, size_t buflen,
+                                    struct hostent **result, int *herr) {
+    *result = NULL;
+    if (!name || (af != AF_INET && af != AF_INET6)) { *herr = NO_RECOVERY; return EINVAL; }
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = af;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_CANONNAME;
+    struct addrinfo *res = NULL;
+    int rc = getaddrinfo(name, NULL, &hints, &res);
+    if (rc != 0 || !res) {
+        *herr = (rc == EAI_NONAME || rc == EAI_NODATA || rc == EAI_ADDRFAMILY) ? HOST_NOT_FOUND
+              : rc == EAI_AGAIN ? TRY_AGAIN : NO_RECOVERY;
+        if (res) freeaddrinfo(res);
+        return rc == EAI_AGAIN ? EAGAIN : ENOENT;
+    }
+    size_t addr_len = af == AF_INET ? sizeof(struct in_addr) : sizeof(struct in6_addr);
+    int count = 0;
+    for (struct addrinfo *a = res; a && count < 16; a = a->ai_next) if (a->ai_family == af) count++;
+    const char *canon = res->ai_canonname ? res->ai_canonname : name;
+    size_t canon_len = strlen(canon) + 1;
+    size_t need = sizeof(char *) * (size_t)(count + 1) + sizeof(char *) + addr_len * (size_t)count + canon_len + sizeof(void *);
+    if (count == 0 || need > buflen) {
+        freeaddrinfo(res);
+        if (count == 0) { *herr = NO_DATA; return ENOENT; }
+        *herr = NETDB_INTERNAL;
+        return ERANGE;
+    }
+    // pointers first, aligned, then the addresses and the name
+    char *p = buf + ((sizeof(void *) - ((uintptr_t)buf % sizeof(void *))) % sizeof(void *));
+    char **addr_list = (char **)p;
+    p += sizeof(char *) * (size_t)(count + 1);
+    char **aliases = (char **)p;
+    p += sizeof(char *);
+    aliases[0] = NULL;
+    int i = 0;
+    for (struct addrinfo *a = res; a && i < count; a = a->ai_next) {
+        if (a->ai_family != af) continue;
+        const void *src = af == AF_INET ? (const void *)&((struct sockaddr_in *)a->ai_addr)->sin_addr
+                                        : (const void *)&((struct sockaddr_in6 *)a->ai_addr)->sin6_addr;
+        memcpy(p, src, addr_len);
+        addr_list[i++] = p;
+        p += addr_len;
+    }
+    addr_list[i] = NULL;
+    memcpy(p, canon, canon_len);
+    ret->h_name = p;
+    ret->h_aliases = aliases;
+    ret->h_addrtype = af;
+    ret->h_length = (int)addr_len;
+    ret->h_addr_list = addr_list;
+    freeaddrinfo(res);
+    *result = ret;
+    *herr = 0;
+    return 0;
+}
+
+int gethostbyname2_r(const char *name, int af, struct hostent *ret, char *buf, size_t buflen,
+                     struct hostent **result, int *h_errnop) {
+    static int (*orig)(const char *, int, struct hostent *, char *, size_t, struct hostent **, int *) = NULL;
+    if (!orig) orig = (int (*)(const char *, int, struct hostent *, char *, size_t, struct hostent **, int *))dlsym(RTLD_NEXT, "gethostbyname2_r");
+    int herr = 0;
+    int rc = orig ? orig(name, af, ret, buf, buflen, result, &herr) : ENOSYS;
+    if (rc == 0 && result && *result) { if (h_errnop) *h_errnop = 0; return 0; }
+    if (rc == ERANGE) { if (h_errnop) *h_errnop = herr; return rc; }
+    int fallback_herr = 0;
+    struct hostent *found = NULL;
+    rc = hostent_from_getaddrinfo(name, af, ret, buf, buflen, &found, &fallback_herr);
+    if (result) *result = found;
+    if (h_errnop) *h_errnop = fallback_herr;
+    return rc;
+}
+
+int gethostbyname_r(const char *name, struct hostent *ret, char *buf, size_t buflen,
+                    struct hostent **result, int *h_errnop) {
+    return gethostbyname2_r(name, AF_INET, ret, buf, buflen, result, h_errnop);
+}
+
+static __thread struct hostent t_hostent;
+static __thread char t_hostent_buf[4096];
+
+struct hostent *gethostbyname2(const char *name, int af) {
+    struct hostent *result = NULL;
+    int herr = 0;
+    gethostbyname2_r(name, af, &t_hostent, t_hostent_buf, sizeof(t_hostent_buf), &result, &herr);
+    h_errno = result ? 0 : herr;
+    return result;
+}
+
+struct hostent *gethostbyname(const char *name) {
+    return gethostbyname2(name, AF_INET);
+}
+
 // Whether a resolver state names a server other than loopback. glibc keeps IPv6 servers in the
 // extension (their nsaddr_list entry has family 0), so an IPv6-only resolv.conf counts too.
 // The network's own servers, IPv6 ones too (an IPv6-only network has no IPv4 server to ask), for a

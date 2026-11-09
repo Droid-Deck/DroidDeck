@@ -206,7 +206,8 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
     if (!has_ld_library_path && g_ddnatv_root[0] != '\0') {
         size_t size = 16 + 1;
         for (size_t i = 0; i < sizeof(k_rootfs_lib_dirs) / sizeof(k_rootfs_lib_dirs[0]); i++) {
-            size += 1 + g_ddnatv_root_len + strlen(k_rootfs_lib_dirs[i]);
+            char dir[PATH_MAX];
+            size += 1 + strlen(rewrite_path_in_root(k_rootfs_lib_dirs[i], dir, sizeof(dir)));
         }
         char *str = malloc(size);
         if (str) {

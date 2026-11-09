@@ -207,9 +207,11 @@ static const char *walk_guest_path(const char *path, char *buf, size_t size, int
     if (!t_walk.host || strncmp(path, t_walk.host, t_walk.host_len) != 0) return path;
     const char *rest = path + t_walk.host_len;
     if (*rest != '\0' && *rest != '/') return path;
-    size_t n = ddnatv_append(buf, size, 0, t_walk.guest, t_walk.guest_len);
+    // a walk of "/" gives "/etc", not "//etc"
+    size_t guest_len = (t_walk.guest_len == 1 && *rest == '/') ? 0 : t_walk.guest_len;
+    size_t n = ddnatv_append(buf, size, 0, t_walk.guest, guest_len);
     ddnatv_append(buf, size, n, rest, strlen(rest));
-    if (base) *base = *base - (int)t_walk.host_len + (int)t_walk.guest_len;
+    if (base) *base = *base - (int)t_walk.host_len + (int)guest_len;
     return buf;
 }
 
