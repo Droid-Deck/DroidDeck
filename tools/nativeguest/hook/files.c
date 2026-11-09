@@ -195,6 +195,13 @@ int openat2(int dirfd, const char *pathname, struct ddnatv_open_how *how, size_t
         errno = EFAULT;
         return -1;
     }
+    const char *given = pathname;
+    DDNATV_AT_REMAP(dirfd, pathname);
+    // a remapped path is absolute, which RESOLVE_BENEATH and the like refuse: the caller walks it itself
+    if (pathname != given && how && how->resolve != 0) {
+        errno = ENOSYS;
+        return -1;
+    }
     char exe_buf[PATH_MAX];
     if (is_proc_self_exe(pathname)) {
         if (g_real_exe[0] != '\0') {

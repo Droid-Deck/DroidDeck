@@ -22,14 +22,14 @@ static void ddnatv_set_root(const char *root, size_t len) {
 // Mounts that proot used to provide: "src:dst" pairs from DDNATV_BINDS ('|' separated), longest dst first.
 // A path under dst is read from src; src equal to dst keeps a host path that would otherwise be
 // looked up in the rootfs.
-#define DDNATV_MAX_BINDS 128
 struct ddnatv_bind {
     char *src, *dst;
     size_t src_len, dst_len;
     int identity;
     int order; // position in DDNATV_BINDS: the earlier of two mounts of one folder is its guest path
 };
-static struct ddnatv_bind g_binds[DDNATV_MAX_BINDS];
+// as many as the session has: a fixed table dropped what came after its 128th entry
+static struct ddnatv_bind *g_binds = NULL;
 static int g_nbinds = 0;
 static char *g_binds_raw = NULL;
 
@@ -44,7 +44,11 @@ static void ddnatv_load_binds(const char *spec) {
     char *copy = strdup(spec);
     if (!raw || !copy) { free(raw); free(copy); return; }
     char *save = NULL;
-    for (char *entry = strtok_r(copy, "|", &save); entry && g_nbinds < DDNATV_MAX_BINDS; entry = strtok_r(NULL, "|", &save)) {
+    size_t count = 1;
+    for (const char *c = spec; *c; c++) count += *c == '|';
+    g_binds = calloc(count, sizeof(*g_binds));
+    if (!g_binds) { free(raw); free(copy); return; }
+    for (char *entry = strtok_r(copy, "|", &save); entry && (size_t)g_nbinds < count; entry = strtok_r(NULL, "|", &save)) {
         char *colon = strchr(entry, ':');
         const char *src = entry;
         const char *dst = colon ? colon + 1 : entry;
