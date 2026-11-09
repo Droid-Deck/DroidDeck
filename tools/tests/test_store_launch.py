@@ -387,6 +387,193 @@ def set_registry(**arguments):
     return {'install': {'action': 'setRegistry', 'arguments': arguments}, 'name': 'setRegistry'}
 
 
+def support_data(**arguments):
+    return {'install': {'action': 'supportData', 'arguments': arguments}, 'name': 'supportData'}
+
+
+class GogSupportData(unittest.TestCase):
+    def prefix(self, root):
+        user = Path(root) / 'compat/pfx/drive_c/users/steamuser'
+        user.mkdir(parents=True)
+        return user
+
+    def test_support_files_reach_the_prefix_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            support = folder / 'support/9'
+            (support / 'Docs').mkdir(parents=True)
+            (support / 'Docs/Fallout4.ini').write_text('[Archive]\n')
+            (support / 'Plugins.txt').write_text('*LondonWorldSpace.esm\n')
+            (folder / '__AppData/Saves').mkdir(parents=True)
+            (folder / '__AppData/Saves/a.txt').write_text('a')
+            gog_script(folder, '9', [
+                set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string'),
+                support_data(type='folder', target='{userdocs}/My Games/Fallout4'),
+                support_data(type='file', overwrite=True, source='{supportDir}/docs/Fallout4.ini',
+                             target='{userdocs}/My Games/Fallout4/Fallout4.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt',
+                             target='{localappdata}/Fallout4/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/Fallout4'),
+            ])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('copied=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+            self.assertTrue((user / 'Documents/My Games/Fallout4').is_dir())
+            self.assertEqual('[Archive]\n', (user / 'Documents/My Games/Fallout4/Fallout4.ini').read_text())
+            self.assertEqual('*LondonWorldSpace.esm\n', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+            self.assertEqual('a', (user / 'AppData/Local/Fallout4/Saves/a.txt').read_text())
+            (user / 'AppData/Local/Fallout4/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+
+    def test_a_source_the_build_lacks_does_not_recopy_the_rest_every_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/Plugins.txt').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt', target='{localappdata}/G/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+            ])
+            self.assertEqual('copied=1 missing=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (user / 'AppData/Local/G/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/G/Plugins.txt').read_text())
+
+    def test_a_link_never_carries_a_copy_outside(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            gog_script(folder, '9', [
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{localappdata}/G/linked/a.ini'),
+                support_data(type='file', overwrite=True, source='{app}/__AppData/linked/secret.ini', target='{userdocs}/secret.ini'),
+            ])
+            self.assertEqual('copied=1 skipped=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual(['secret.ini'], sorted(p.name for p in outside.iterdir()))
+            self.assertFalse((user / 'Documents/secret.ini').exists())
+
+    def test_a_linked_source_folder_is_copied_as_a_link(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / 'linked').symlink_to(outside)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/linked', target='{userdocs}/G')])
+            store.gog_support_data(folder, root + '/compat', '/proton')
+            self.assertTrue((user / 'Documents/G').is_symlink())
+            self.assertEqual(outside, Path(os.readlink(user / 'Documents/G')))
+
+    def test_a_players_own_links_stay_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9/Saves').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            (folder / 'support/9/Saves/b.ini').write_text('b')
+            (user / 'Documents/G').mkdir(parents=True)
+            (user / 'Documents/a.ini').symlink_to(user / 'mine.ini')
+            (user / 'Documents/G/b.ini').symlink_to(user / 'gone.ini')
+            gog_script(folder, '9', [
+                support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini'),
+                support_data(type='folder', source='{supportDir}/Saves', target='{userdocs}/G'),
+            ])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual(user / 'mine.ini', Path(os.readlink(user / 'Documents/a.ini')))
+            self.assertEqual(user / 'gone.ini', Path(os.readlink(user / 'Documents/G/b.ini')))
+
+    def test_a_changed_script_applies_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('1')
+            action = support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/a.ini')
+            gog_script(folder, '9', [action])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (folder / 'support/9/b.ini').write_text('2')
+            gog_script(folder, '9', [action, support_data(type='file', overwrite=True, source='{supportDir}/b.ini',
+                                                          target='{userdocs}/b.ini')])
+            self.assertEqual('copied=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('2', (user / 'Documents/b.ini').read_text())
+
+    def test_a_players_file_is_kept_unless_the_script_overwrites_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('default')
+            (user / 'Documents').mkdir()
+            (user / 'Documents/a.ini').write_text('mine')
+            gog_script(folder, '9', [support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini')])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('mine', (user / 'Documents/a.ini').read_text())
+
+    def test_paths_outside_the_known_folders_are_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/../../../../escape.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='C:/escape.ini'),
+                support_data(type='folder', target='{windir}/x'),
+            ])
+            self.assertEqual('copied=0 skipped=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual([], list(Path(root).rglob('escape.ini')))
+            self.assertFalse((Path(root) / 'compat/pfx' / store.GOG_SUPPORT_MARK).exists())
+
+    def test_links_in_a_support_folder_are_copied_as_links(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.txt').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside, target_is_directory=True)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G')])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual('s', (outside / 'secret.txt').read_text())
+
+    def test_without_support_data_no_prefix_is_made(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string')])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('none', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+
+    def test_a_missing_prefix_is_made_first(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [support_data(type='folder', target='{userdocs}/My Games/G')])
+            with patch.object(store, 'create_prefix', return_value='failed') as create:
+                self.assertEqual('no-prefix', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_called_once_with(root + '/compat', '/proton')
+
+            def made(compat_data, proton):
+                self.prefix(root)
+                return 'created'
+            with patch.object(store, 'create_prefix', side_effect=made):
+                self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((Path(root) / 'compat/pfx/drive_c/users/steamuser/Documents/My Games/G').is_dir())
+
+
 class GogRegistry(unittest.TestCase):
     def test_patch_registration_uses_authentic_build_and_the_prefix_registry_executable(self):
         with tempfile.TemporaryDirectory() as root:
@@ -605,6 +792,8 @@ class GogRegistry(unittest.TestCase):
             folder = game(root, store_id='gog')
             with patch.dict(os.environ, {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat/', 'BL_STORE_PROTON': '/chosen/proton'}), \
                     patch.object(store, 'prepare_gog', return_value=False), patch.object(store, 'ask', return_value=None), \
-                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply:
+                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply, \
+                    patch.object(store, 'gog_support_data', return_value='ready') as support:
                 store.main([str(folder / store.LAUNCHER)])
                 apply.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+                support.assert_called_once_with(folder, root + '/compat', '/chosen/proton')

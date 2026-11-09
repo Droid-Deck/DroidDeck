@@ -9,6 +9,7 @@ import gzip
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import struct
@@ -98,7 +99,7 @@ def encode_request(request: dict) -> str:
     return encoded
 
 
-def receiver_call(adb: str, serial: str, method: str, request: dict | None, timeout: float) -> dict:
+def receiver_call(adb: str, serial: str, method: str, arg: str | None, request: dict | None, timeout: float) -> dict:
     """The agent bridge through a broadcast, for shells without the `content` command."""
     # Its receiver is registered by the running app; a broadcast does not start the app the way `content call` does
     running = run_adb(adb, serial, "shell", f"pidof {PACKAGE}", timeout=30)
@@ -108,6 +109,8 @@ def receiver_call(adb: str, serial: str, method: str, request: dict | None, time
     remote = f"/sdcard/Android/data/{PACKAGE}/files/agent-calls/{call_id}.json"
     command = ["shell", "am", "broadcast", "-a", f"{PACKAGE}.AGENT_CALL", "-p", PACKAGE,
                "--es", "method", method, "--es", "id", call_id]
+    if arg is not None:
+        command += ["--es", "arg", shlex.quote(arg)]
     if request is not None:
         command += ["--es", "request", encode_request(request)]
     started = run_adb(adb, serial, *command, timeout=timeout + 30)
@@ -135,7 +138,7 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
     output = (result.stdout + result.stderr).decode(errors="replace")
     # Only the shell's own answer for a missing `content` binary, never a command's output that quotes it
     if result.returncode == 127 and "Result:" not in output and "content: inaccessible or not found" in result.stderr.decode(errors="replace") + output:
-        return receiver_call(adb, serial, method, request, timeout)
+        return receiver_call(adb, serial, method, arg, request, timeout)
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
         raise ControlError(output.strip() or "ADB content call failed", "ADB_FAILED")

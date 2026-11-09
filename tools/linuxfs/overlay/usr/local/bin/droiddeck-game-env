@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
+CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -346,11 +347,23 @@ def win_components(compat, app_id):
         return ""
 
 
-def game_gpu(env):
+def chromium_app(folder):
+    root = os.path.realpath(folder)
+    for top, dirs, files in os.walk(root):
+        if CHROMIUM_FILES.intersection(files) or CHROMIUM_FILES.intersection(dirs):
+            return True
+        if os.path.relpath(top, root).count(os.sep) >= 2:
+            dirs[:] = []
+    return False
+
+
+def game_gpu(env, keep=False):
     if GAME_TU_DEBUG not in env:
         return env
     result = env.copy()
     value = result.pop(GAME_TU_DEBUG)
+    if keep:
+        return result
     if value:
         result["TU_DEBUG"] = value
     else:

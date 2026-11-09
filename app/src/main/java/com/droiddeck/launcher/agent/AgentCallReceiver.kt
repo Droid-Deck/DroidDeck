@@ -15,12 +15,13 @@ class AgentCallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val method = intent.getStringExtra("method") ?: return
         val id = intent.getStringExtra("id")?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,64}")) } ?: return
+        val arg = intent.getStringExtra("arg")
         val request = intent.getStringExtra(AgentBridgeProvider.EXTRA_REQUEST)
         val pending = goAsync()
         Thread({
             val json = try {
                 val extras = Bundle().apply { putString(AgentBridgeProvider.EXTRA_REQUEST, request) }
-                context.contentResolver.call("${context.packageName}.agent", method, null, extras)
+                context.contentResolver.call("${context.packageName}.agent", method, arg, extras)
                     ?.getString(AgentBridgeProvider.RESULT_JSON) ?: """{"ok":false,"error":{"code":"NO_RESPONSE","message":"no response"}}"""
             } catch (e: Exception) {
                 org.json.JSONObject().put("ok", false)
@@ -30,6 +31,8 @@ class AgentCallReceiver : BroadcastReceiver() {
                 val dir = File(context.getExternalFilesDir(null), "agent-calls").apply { mkdirs() }
                 File(dir, "$id.json.part").writeText(json)
                 File(dir, "$id.json.part").renameTo(File(dir, "$id.json"))
+            } catch (e: Exception) {
+                android.util.Log.w("AgentCallReceiver", "could not write the answer to $method: ${e.message}")
             } finally {
                 pending.finish()
             }
