@@ -185,4 +185,19 @@ class Sc2015ReportParserTest {
         assertEquals(0x04, buf.get(12).toInt() and 0xFF)
         assertEquals(Sc2015ReportParser.TRITON_FW_TIMESTAMP, buf.getInt(13))
     }
+
+    @Test
+    fun rejectsTruncatedStateReportWithoutMutatingState() {
+        val state = Sc2015State()
+        state.buttons = Sc2015ReportParser.BUTTON_A
+        val mask = Sc2015ReportParser.CHUNK_BUTTONS_1 or Sc2015ReportParser.CHUNK_TRIGGERS
+        val truncated = byteArrayOf(
+            (Sc2015ReportParser.REPORT_STATE or (mask and 0xF0)).toByte(),
+            ((mask ushr 8) and 0xFF).toByte(),
+            Sc2015ReportParser.BUTTON_B.toByte(), 0x00, 0x00
+        )
+        val result = Sc2015ReportParser.parse(truncated, state)
+        org.junit.Assert.assertNull(result)
+        assertEquals(Sc2015ReportParser.BUTTON_A, state.buttons)
+    }
 }

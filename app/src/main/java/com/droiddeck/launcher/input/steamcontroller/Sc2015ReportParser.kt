@@ -103,6 +103,18 @@ object Sc2015ReportParser {
     private fun parseStateReport(payload: ByteArray, state: Sc2015State, nowMs: Long): ParsedReport.State? {
         if (payload.size < 2) return null
         val optionMask = (payload[0].toInt() and 0xF0) or ((payload[1].toInt() and 0xFF) shl 8)
+        var expectedLen = 2
+        if (optionMask and CHUNK_BUTTONS_1 != 0) expectedLen += 3
+        if (optionMask and CHUNK_TRIGGERS != 0) expectedLen += 2
+        if (optionMask and CHUNK_BUTTONS_3 != 0) expectedLen += 3
+        if (optionMask and CHUNK_LEFT_JOYSTICK != 0) expectedLen += 4
+        if (optionMask and CHUNK_LEFT_TRACKPAD != 0) expectedLen += 4
+        if (optionMask and CHUNK_RIGHT_TRACKPAD != 0) expectedLen += 4
+        if (optionMask and CHUNK_IMU_ACCEL != 0) expectedLen += 6
+        if (optionMask and CHUNK_IMU_GYRO != 0) expectedLen += 6
+        if (optionMask and CHUNK_IMU_QUAT != 0) expectedLen += 8
+        if (payload.size < expectedLen) return null
+
         var offset = 2
 
         val prevButtons = state.buttons
