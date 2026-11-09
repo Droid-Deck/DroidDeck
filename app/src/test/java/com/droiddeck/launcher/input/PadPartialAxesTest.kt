@@ -83,6 +83,48 @@ class PadPartialAxesTest {
         assertEquals(-0.6f, pad().rightY)
     }
 
+    @Test fun onlyRxRyAxesProvideTheRightStick() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun onlyZRzAxesProvideTheRightStick() {
+        val device = device(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_Z to 0.6f, MotionEvent.AXIS_RZ to -0.6f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun bothPairsUseThePairAtRestNearCentreAsTheStick() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to -1f, MotionEvent.AXIS_RY to -1f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to 0f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        motion(device, MotionEvent.AXIS_RX to 0.2f, MotionEvent.AXIS_RY to -0.3f,
+            MotionEvent.AXIS_Z to 0.7f, MotionEvent.AXIS_RZ to -0.8f)
+        assertEquals(0.7f, pad().rightX)
+        assertEquals(-0.8f, pad().rightY)
+    }
+
+    @Test fun bothPairsUseRxRyAsStickWhenZRzRestAtMinimum() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to 1f, MotionEvent.AXIS_RZ to 1f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+        assertEquals(1f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+    }
+
     @Test fun sticksWithoutTriggerOrHatAxesPreserveAllDigitalControls() {
         val device = device()
         key(device, KeyEvent.KEYCODE_BUTTON_L2)

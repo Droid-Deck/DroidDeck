@@ -42,6 +42,7 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
     private val total = Sticks()
     private val triggerAxes = HashMap<Int, Boolean>()
     private val wiredLayout = HashMap<Int, Boolean>()
+    private val rightStickLayouts = HashMap<Int, Boolean>()
     private val down = HashMap<Int, MutableSet<Int>>()
     private val sent = HashMap<Int, IntArray>()
     private val held = LinkedHashMap<Int, Int>()
@@ -88,13 +89,14 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         if (event.actionMasked != MotionEvent.ACTION_MOVE) return true
         val sticks = physical.getOrPut(event.deviceId) { Sticks() }
         val wired = wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) }
+        val rxRyStick = PadBridge.rightStickUsesRxRy(event, rightStickLayouts)
         sticks.leftX = event.getAxisValue(MotionEvent.AXIS_X)
         sticks.leftY = event.getAxisValue(MotionEvent.AXIS_Y)
-        sticks.rightX = scrollAxis(event, if (wired) MotionEvent.AXIS_RX else MotionEvent.AXIS_Z)
-        sticks.rightY = scrollAxis(event, if (wired) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
-        if (hasTriggerAxes(event)) {
-            sticks.leftTrigger = PadBridge.leftTrigger(event, wired)
-            sticks.rightTrigger = PadBridge.rightTrigger(event, wired)
+        sticks.rightX = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RX else MotionEvent.AXIS_Z)
+        sticks.rightY = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
+        if (hasTriggerAxes(event) || rxRyStick) {
+            sticks.leftTrigger = PadBridge.leftTrigger(event, wired || rxRyStick)
+            sticks.rightTrigger = PadBridge.rightTrigger(event, wired || rxRyStick)
         }
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
         val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
@@ -129,6 +131,7 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         physical.clear()
         triggerAxes.clear()
         wiredLayout.clear()
+        rightStickLayouts.clear()
         touch.clear()
         down.clear()
         sent.clear()
@@ -207,7 +210,8 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
     private fun hasTriggerAxes(event: android.view.InputEvent): Boolean = triggerAxes.getOrPut(event.deviceId) {
         val device = event.device ?: return@getOrPut true
         device.getMotionRange(MotionEvent.AXIS_LTRIGGER) != null || device.getMotionRange(MotionEvent.AXIS_BRAKE) != null ||
-            (event is MotionEvent && wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) })
+            (event is MotionEvent && (wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) } ||
+                PadBridge.rightStickUsesRxRy(event, rightStickLayouts)))
     }
 
     private fun heldDirection(): Int {
