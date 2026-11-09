@@ -790,7 +790,9 @@ int getaddrinfo(const char *node, const char *service,
         int fallback = synthesize_fallback_addrinfo(node, service, hints, res);
         // When the fallback finds nothing either, glibc's own error (EAI_AGAIN: try again later,
         // EAI_NONAME: no such name) is the more precise one.
-        if (fallback == 0 || ret == 0) ret = fallback;
+        // A request the fallback rejects outright (no such service, an unsupported family) is that
+        // error whatever glibc's was
+        if (fallback == 0 || ret == 0 || fallback == EAI_SERVICE || fallback == EAI_FAMILY) ret = fallback;
     }
     return ret;
 }
@@ -816,6 +818,44 @@ void freeaddrinfo(struct addrinfo *res) {
 
 // Whether a resolver state names a server other than loopback. glibc keeps IPv6 servers in the
 // extension (their nsaddr_list entry has family 0), so an IPv6-only resolv.conf counts too.
+// The network's own servers, IPv6 ones too (an IPv6-only network has no IPv4 server to ask), for a
+// state glibc left with none it can use: it read no /etc/resolv.conf. glibc frees the IPv6 entries.
+static void fill_fallback_servers(res_state statp) {
+    ddnatv_dns_server_t servers[DDNATV_DNS_MAX_SERVERS];
+    int n = get_dns_servers(servers, DDNATV_DNS_MAX_SERVERS);
+    for (int i = 0; i < MAXNS; i++) {
+        free(statp->_u._ext.nsaddrs[i]);
+        statp->_u._ext.nsaddrs[i] = NULL;
+    }
+    int count = 0;
+    for (int i = 0; i < n && count < MAXNS; i++) {
+        if (servers[i].addr.ss_family == AF_INET) {
+            memcpy(&statp->nsaddr_list[count], &servers[i].addr, sizeof(struct sockaddr_in));
+            statp->nsaddr_list[count].sin_port = htons(53);
+            statp->_u._ext.nsaddrs[count] = NULL;
+            count++;
+        } else if (servers[i].addr.ss_family == AF_INET6) {
+            struct sockaddr_in6 *six = malloc(sizeof(*six));
+            if (!six) continue;
+            memcpy(six, &servers[i].addr, sizeof(*six));
+            six->sin6_port = htons(53);
+            memset(&statp->nsaddr_list[count], 0, sizeof(statp->nsaddr_list[count]));
+            statp->_u._ext.nsaddrs[count] = six;
+            count++;
+        }
+    }
+    if (count == 0) {
+        statp->nsaddr_list[0].sin_family = AF_INET;
+        statp->nsaddr_list[0].sin_port = htons(53);
+        statp->nsaddr_list[0].sin_addr.s_addr = get_primary_dns();
+        statp->nsaddr_list[1].sin_family = AF_INET;
+        statp->nsaddr_list[1].sin_port = htons(53);
+        inet_pton(AF_INET, "8.8.8.8", &statp->nsaddr_list[1].sin_addr);
+        count = 2;
+    }
+    statp->nscount = count;
+}
+
 static int res_state_has_usable_server(res_state statp) {
     for (int i = 0; i < statp->nscount && i < MAXNS; i++) {
         if (statp->nsaddr_list[i].sin_family == AF_INET) {
@@ -839,15 +879,7 @@ int res_init(void) {
     int ret = orig_res_init ? orig_res_init() : 0;
     res_state statp = __res_state();
     if (statp) {
-        if (!res_state_has_usable_server(statp)) {
-            statp->nscount = 2;
-            statp->nsaddr_list[0].sin_family = AF_INET;
-            statp->nsaddr_list[0].sin_port = htons(53);
-            statp->nsaddr_list[0].sin_addr.s_addr = get_primary_dns();
-            statp->nsaddr_list[1].sin_family = AF_INET;
-            statp->nsaddr_list[1].sin_port = htons(53);
-            inet_pton(AF_INET, "8.8.8.8", &statp->nsaddr_list[1].sin_addr);
-        }
+        if (!res_state_has_usable_server(statp)) fill_fallback_servers(statp);
         statp->retrans = 1;
         statp->retry = 2;
     }
@@ -867,15 +899,7 @@ int res_ninit(res_state statp) {
     }
     int ret = orig_res_ninit ? orig_res_ninit(statp) : 0;
     if (statp) {
-        if (!res_state_has_usable_server(statp)) {
-            statp->nscount = 2;
-            statp->nsaddr_list[0].sin_family = AF_INET;
-            statp->nsaddr_list[0].sin_port = htons(53);
-            statp->nsaddr_list[0].sin_addr.s_addr = get_primary_dns();
-            statp->nsaddr_list[1].sin_family = AF_INET;
-            statp->nsaddr_list[1].sin_port = htons(53);
-            inet_pton(AF_INET, "8.8.8.8", &statp->nsaddr_list[1].sin_addr);
-        }
+        if (!res_state_has_usable_server(statp)) fill_fallback_servers(statp);
         statp->retrans = 1;
         statp->retry = 2;
     }
