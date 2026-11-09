@@ -197,6 +197,20 @@ object EaApi {
         }
     }
 
+    fun legacyEntitlements(token: String): List<JSONObject> {
+        val out = ArrayList<JSONObject>()
+        var next: String? = "0"
+        var guard = 0
+        while (next != null && guard++ < 50) {
+            val variables = JSONObject().put("limit", 100).put("next", next).put("storeFronts", JSONArray().put("EA"))
+            val page = call(token, "getLegacyEntitlements", variables).optJSONObject("me")?.optJSONObject("legacyEntitlements") ?: break
+            val items = page.optJSONArray("items") ?: JSONArray()
+            for (i in 0 until items.length()) items.optJSONObject(i)?.let(out::add)
+            next = page.optString("next").takeIf { it.isNotBlank() && it != "null" && it != next && items.length() > 0 }
+        }
+        return out
+    }
+
     fun entitlements(token: String, group: String): JSONArray {
         val variables = JSONObject()
             .put("productIds", JSONArray())
