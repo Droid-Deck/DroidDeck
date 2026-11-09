@@ -806,6 +806,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         ((s.pageKey == null || page == null) &&
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
+        val leaves = !s.isHomeApp && (frontFocus.focusedRail != null || inputModeManager.inputMode != InputMode.Keyboard)
+        if (leaves) {
+            ctx.findActivity()?.moveTaskToBack(true)
+            return@BackHandler
+        }
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
         runCatching { frontFocus.railFor(railSelection).requestFocus() }
     }
