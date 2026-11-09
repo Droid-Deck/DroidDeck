@@ -14,30 +14,35 @@ object DesktopCompositor {
     private const val TAG = "DesktopCompositor"
     private const val MARKER = "usr/share/droiddeck/kwin-compositor"
     private const val BACKUP = "$MARKER.orig"
-    private const val OPENGL = "opengl"
     private const val SOFTWARE = "software"
 
     private fun marker(context: Context) = File(LinuxRuntime.rootDir(context), MARKER)
     private fun backup(context: Context) = File(LinuxRuntime.rootDir(context), BACKUP)
 
-    fun forceSoftware(context: Context): Boolean =
-        runCatching { marker(context).readText().trim() == SOFTWARE }.getOrDefault(false)
+    /**
+     * Whether the marker reads `software` because the switch put it there: only then may the switch
+     * put the backup back. A marker someone edited by hand is theirs.
+     */
+    fun forceSoftware(context: Context): Boolean = runCatching {
+        marker(context).readText().trim() == SOFTWARE && backup(context).isFile
+    }.getOrDefault(false)
 
     fun setForceSoftware(context: Context, on: Boolean): Boolean = runCatching {
         val marker = marker(context)
         val backup = backup(context)
+        val current = if (marker.isFile) marker.readText().trim() else null
         if (on) {
-            if (!backup.isFile) {
-                if (!marker.isFile) return@runCatching false
-                // A marker already set to software without a backup came from a manual fix; the
-                // package default is the only original left to restore.
-                if (marker.readText().trim() == SOFTWARE) backup.writeText("$OPENGL\n")
-                else marker.copyTo(backup, overwrite = false)
+            if (current != SOFTWARE) {
+                if (current == null) return@runCatching false
+                marker.copyTo(backup, overwrite = true)
             }
             marker.writeText("$SOFTWARE\n")
-        } else {
-            if (backup.isFile) backup.copyTo(marker, overwrite = true)
-            else marker.writeText("$OPENGL\n")
+        } else if (backup.isFile) {
+            backup.copyTo(marker, overwrite = true)
+        } else if (current == SOFTWARE) {
+            // The marker says software and nothing here put it there: what belongs on disk is unknown,
+            // so leave it untouched. The switch already reads as off.
+            Log.w(TAG, "kwin-compositor is software with no backup of its own; leaving it as it is")
         }
         true
     }.onFailure { Log.w(TAG, "could not change the desktop compositor marker", it) }.getOrDefault(false)
