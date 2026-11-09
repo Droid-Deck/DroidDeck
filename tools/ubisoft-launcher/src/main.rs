@@ -95,15 +95,6 @@ mod service {
             self.buf.drain(..4 + n);
             Some(body)
         }
-
-        fn raw(&mut self) -> Option<usize> {
-            if self.buf.is_empty() && !self.fill() {
-                return None;
-            }
-            let n = self.buf.len();
-            self.buf.clear();
-            Some(n)
-        }
     }
 
     fn send(pipe: &Handle, body: &[u8]) -> bool {
@@ -210,14 +201,16 @@ mod service {
 
     fn service(state: &State, pipe: Handle) {
         send(&pipe, &state.cfg.service_hello());
-        let mut frames = Frames::new(&pipe);
-        while frames.raw().is_some() {}
+        let mut chunk = vec![0u8; 65536];
+        while pipe.read(&mut chunk).is_some() {}
     }
 
     fn quiet(state: &State, name: &str, pipe: Handle) {
         state.say(&format!("{name}: connected"));
-        let mut frames = Frames::new(&pipe);
-        while frames.raw().is_some() {}
+        let mut chunk = vec![0u8; 65536];
+        while let Some(n) = pipe.read(&mut chunk) {
+            state.say(&format!("{name}: {n} B unanswered {}", hex(&chunk[..n], 64)));
+        }
     }
 
     fn serve(state: Arc<State>, name: &'static str) {

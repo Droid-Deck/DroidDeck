@@ -37,6 +37,7 @@ object UbisoftLaunch {
         val appId = runCatching { UbisoftAuth.request(ENTITLEMENTS, "GET", auth, s.sessionId) }.getOrNull()?.takeIf { it.ok }
             ?.let { applicationId(it.body, product) } ?: sidecar.extra["appId"].orEmpty()
         StoresState.logLine("Ubisoft: launch ticket for $product ready (${native.optJSONArray("owned")?.length() ?: 0} products, appId ${if (appId.isEmpty()) "unknown" else "found"})")
+        UbisoftActivation.watch(app, product)
         return JSONObject().put("ok", true)
             .put("productId", product)
             .put("ticket", native.optString("ticket"))

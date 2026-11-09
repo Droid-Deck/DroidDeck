@@ -189,3 +189,18 @@ impl Downloads {
         Ok(out)
     }
 }
+
+/// Denuvo's activation for a game the account owns: the game's challenge and the product's ownership
+/// token go to `denuvo_service`, which answers with the game token the game's aux DLL waits for.
+pub async fn denuvo_token(d: &mut Demux, ownership_token: &str, challenge: &[u8]) -> Result<Vec<u8>, String> {
+    let conn = d.open("denuvo_service").await?;
+    let req = Msg::new().uint(1, 1).msg(2, Msg::new().text(1, ownership_token).bytes(2, challenge));
+    let raw = d.call(conn, Msg::new().msg(1, req)).await?;
+    let rsp = pb::fields(pb::sub(&pb::fields(&raw)?, 1).ok_or("no denuvo answer")?)?;
+    let result = pb::num(&rsp, 2).unwrap_or(0);
+    if result != 0 {
+        return Err(format!("Ubisoft's activation service refused the game (result {result})"));
+    }
+    let t = pb::fields(pb::sub(&rsp, 3).ok_or("no game token answer")?)?;
+    pb::sub(&t, 1).filter(|b| !b.is_empty()).map(<[u8]>::to_vec).ok_or_else(|| "Ubisoft sent an empty game token".into())
+}

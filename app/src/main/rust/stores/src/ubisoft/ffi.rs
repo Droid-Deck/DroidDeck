@@ -55,11 +55,32 @@ fn launch(ticket: &str, session: &str, product: u32) -> Result<serde_json::Value
     })
 }
 
+fn unhex(s: &str) -> Result<Vec<u8>, String> {
+    if s.len() % 2 != 0 {
+        return Err("odd hex length".into());
+    }
+    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string())).collect()
+}
+
+fn denuvo(ticket: &str, session: &str, product: u32, challenge: &str) -> Result<serde_json::Value, String> {
+    let challenge = unhex(challenge).map_err(|e| format!("challenge: {e}"))?;
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+    rt.block_on(async {
+        let mut d = super::demux::Demux::connect(ticket).await?;
+        let (mut ownership, _) = super::service::Ownership::open(&mut d, ticket, session).await?;
+        let token = ownership.token(&mut d, product).await?;
+        let game = super::service::denuvo_token(&mut d, &token, &challenge).await?;
+        Ok(json!({ "token": game.iter().map(|b| format!("{b:02x}")).collect::<String>() }))
+    })
+}
+
 fn call(op: &str, request: &str) -> String {
     let parsed: serde_json::Value = serde_json::from_str(request).unwrap_or(serde_json::Value::Null);
     let s = |k: &str| parsed.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let answer = match op {
         "owned" => owned(&s("ticket"), &s("sessionId")).unwrap_or_else(|e| json!({ "error": e })),
+        "denuvo" => denuvo(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32, &s("challenge"))
+            .unwrap_or_else(|e| json!({ "error": e })),
         "launch" => launch(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32)
             .unwrap_or_else(|e| json!({ "error": e })),
         _ => json!({ "error": format!("unknown operation {op}") }),
