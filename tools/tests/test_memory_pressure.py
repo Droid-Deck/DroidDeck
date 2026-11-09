@@ -241,6 +241,7 @@ swap=0
 SECONDS=30; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
 SECONDS=59; bl_session_pressure
+SECONDS=60; bl_session_pressure
 SECONDS=90; bl_session_pressure
 '''))
 

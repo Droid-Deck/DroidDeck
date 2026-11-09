@@ -902,8 +902,8 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
-          local _wait=$_bl_tier_backoff _urgent=0 _before _pids _targets
-          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || _urgent=1 _wait=30
+          local _wait=$_bl_tier_backoff _before _pids _targets
+          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -le 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
             bl_tier_readback
