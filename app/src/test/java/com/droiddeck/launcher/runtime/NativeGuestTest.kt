@@ -28,4 +28,31 @@ class NativeGuestTest {
         assertEquals(root.path, env["DDNATV_ROOT"])
         assertTrue(env.getValue("LD_PRELOAD").replace(File.separatorChar, '/').endsWith("usr/lib/libddnatv-hook.so"))
     }
+
+    private val linkRoot = "/data/user/0/app/files/linuxfs"
+    private val sdBinds = listOf(
+        "/mnt/media_rw/CARD/files/steam:/mnt/droiddeck-sd",
+        "/data/user/0/app/files/steam-libraries/x/steamapps/compatdata:/mnt/droiddeck-sd/steamapps/compatdata",
+        "/storage/emulated/0",
+    )
+
+    @Test
+    fun aProotDriveLinkToTheSdLibraryPointsAtTheCard() {
+        assertEquals("/mnt/media_rw/CARD/files/steam", NativeGuest.hostLinkTarget("/mnt/droiddeck-sd", linkRoot, sdBinds))
+        assertEquals("/data/user/0/app/files/steam-libraries/x/steamapps/compatdata/1",
+            NativeGuest.hostLinkTarget("/mnt/droiddeck-sd/steamapps/compatdata/1", linkRoot, sdBinds))
+    }
+
+    @Test
+    fun aRootDriveLinkPointsAtTheRootfs() {
+        assertEquals(linkRoot, NativeGuest.hostLinkTarget("/", linkRoot, sdBinds))
+    }
+
+    @Test
+    fun linksTheKernelAlreadyFollowsStayAsTheyAre() {
+        assertEquals(null, NativeGuest.hostLinkTarget(linkRoot, linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.hostLinkTarget("/mnt/media_rw/CARD/files/steam", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.hostLinkTarget("/storage/emulated/0/Games", linkRoot, sdBinds))
+        assertEquals(null, NativeGuest.hostLinkTarget("../drive_c", linkRoot, sdBinds))
+    }
 }

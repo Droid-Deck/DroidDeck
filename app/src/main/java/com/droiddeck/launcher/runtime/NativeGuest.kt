@@ -144,6 +144,51 @@ object NativeGuest {
         return rewritten
     }
 
+    /** Where the kernel finds guest path [target] in a session with [binds] ("src:dst"), or null when it already does. */
+    fun hostLinkTarget(target: String, root: String, binds: List<String>): String? {
+        if (!target.startsWith("/") || target == root || target.startsWith("$root/")) return null
+        val mounts = binds.mapNotNull { spec ->
+            val colon = spec.indexOf(':')
+            if (colon <= 0) null else spec.substring(0, colon).trimEnd('/') to spec.substring(colon + 1).trimEnd('/')
+        }.filter { (src, dst) -> src != dst && dst.isNotEmpty() }
+        if (mounts.any { (src, _) -> target == src || target.startsWith("$src/") }) return null
+        mounts.filter { (_, dst) -> target == dst || target.startsWith("$dst/") }.maxByOrNull { it.second.length }
+            ?.let { (src, dst) -> return src + target.removePrefix(dst) }
+        if (HOST_LINK_TARGETS.any { target == it || target.startsWith("$it/") }) return null
+        return root + if (target == "/") "" else target
+    }
+
+    /**
+     * Wine prefixes' drive links (dosdevices) hold guest paths when proot made them ("s:" ->
+     * /mnt/droiddeck-sd), and the kernel follows them as they are: Wine could not open Sekiro's
+     * folder on the SD card library after a proot session. Proton keeps a link whose target reads
+     * back as the one it wants, so they are made to point at the real places here.
+     */
+    fun relinkPrefixDrives(root: File, binds: List<String>): Int {
+        val compatdata = listOf(File(root, "root/.local/share/Steam/steamapps/compatdata")) + binds.mapNotNull { spec ->
+            val colon = spec.indexOf(':')
+            if (colon > 0 && spec.substring(colon + 1).trimEnd('/').endsWith("/steamapps/compatdata")) File(spec.substring(0, colon)) else null
+        }
+        var rewritten = 0
+        for (prefix in compatdata.distinct().flatMap { it.listFiles()?.toList().orEmpty() }) {
+            val devices = File(prefix, "pfx/dosdevices").toPath()
+            val links = try { Files.newDirectoryStream(devices).use { it.toList() } } catch (_: java.io.IOException) { continue }
+            for (link in links) {
+                try {
+                    if (!Files.isSymbolicLink(link)) continue
+                    val host = hostLinkTarget(Files.readSymbolicLink(link).toString(), root.path, binds) ?: continue
+                    val temp = link.resolveSibling(".relink-" + link.fileName)
+                    Files.deleteIfExists(temp)
+                    Files.createSymbolicLink(temp, java.nio.file.Paths.get(host))
+                    Files.move(temp, link, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    rewritten++
+                } catch (_: java.io.IOException) {
+                }
+            }
+        }
+        return rewritten
+    }
+
     fun builder(root: File, cwd: String, argv: List<String>, env: Map<String, String>, preload: List<String> = emptyList()): ProcessBuilder {
         val program = argv.first()
         val cmd = command(root, program, argv.drop(1))

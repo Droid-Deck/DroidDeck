@@ -692,6 +692,8 @@ class SessionService : Service() {
         val hostEnv = HostEnvironment()
         if (nativeUserland) {
             Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
+            val drives = com.droiddeck.launcher.runtime.NativeGuest.relinkPrefixDrives(root, sessionBindSpecs)
+            if (drives > 0) Log.i(TAG, "native userland: $drives Wine drive links made to point at their real places")
             com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs).forEach { (k, v) -> hostEnv[k] = v }
         } else {
         hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
