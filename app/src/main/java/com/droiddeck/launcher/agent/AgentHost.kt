@@ -42,6 +42,15 @@ object AgentHost {
         private set
     var installed by mutableStateOf(false)
         private set
+    /** A reply finished since the conversation was last on screen. */
+    var unseen by mutableStateOf(false)
+        private set
+    var failed by mutableStateOf(false)
+        private set
+
+    fun seen() {
+        unseen = false
+    }
 
     private val main = Handler(Looper.getMainLooper())
     private var process: Process? = null
@@ -150,6 +159,8 @@ object AgentHost {
     private fun finish(app: Context, error: String?) {
         record(app, Entry.Finished(error))
         state = State.IDLE
+        unseen = true
+        failed = error != null
         AgentHostService.stop(app)
     }
 

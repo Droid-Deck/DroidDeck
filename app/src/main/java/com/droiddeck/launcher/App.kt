@@ -43,6 +43,7 @@ class App : Application() {
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
         com.droiddeck.launcher.lab.LabNotice.started(this)
+        com.droiddeck.launcher.agent.AgentHost.refresh(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
