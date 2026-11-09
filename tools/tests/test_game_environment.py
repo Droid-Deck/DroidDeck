@@ -1083,6 +1083,16 @@ class GameEnvironmentTest(unittest.TestCase):
                     subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
                     self.assertEqual(MODULE["game_id"](env), app if app in {"42", "4294967295", "43"} else "2929927072")
                     self.assertEqual(target.read_text(), expected)
+            for game, expected in (
+                (str(42 << 32 | 0x02000000), "42"), (str(4294967295 << 32 | 0x02000000), "4294967295"),
+                (str(42 << 32 | 0x02000001), "*"), (str(42 << 32 | 0x02000000 | 1 << 64), "*"), ("33554432", "*"), ("x", "*"),
+            ):
+                with self.subTest(direct=game):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId="0", SteamGameId=game)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), expected if expected != "*" else "2929927072")
+                    self.assertEqual(target.read_text(), expected)
 
     def test_engine_fixes_follow_the_games_files(self):
         with tempfile.TemporaryDirectory() as tmp:

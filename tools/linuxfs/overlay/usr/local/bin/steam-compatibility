@@ -154,6 +154,10 @@ bl_components() {
   fi
   if [ "$cm_app" = 2929927072 ] && [[ "${SteamAppId:-}" =~ ^[0-9]{1,10}$ ]] && (( 10#$SteamAppId > 0 && 10#$SteamAppId <= 4294967295 )); then
     cm_app=$((10#$SteamAppId))
+  elif [ "$cm_app" = 2929927072 ] && [[ "${SteamGameId:-}" =~ ^[1-9][0-9]{9,19}$ ]] &&
+       { [ ${#SteamGameId} -lt 20 ] || [[ ! "$SteamGameId" > 18446744073709551615 ]]; } &&
+       (( (10#$SteamGameId & 0xFFFFFFFF) == 0x02000000 && ((10#$SteamGameId >> 32) & 0xFFFFFFFF) != 0 )); then
+    cm_app=$(( (10#$SteamGameId >> 32) & 0xFFFFFFFF ))
   fi
   if [ -z "$cm_app" ]; then
     echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2

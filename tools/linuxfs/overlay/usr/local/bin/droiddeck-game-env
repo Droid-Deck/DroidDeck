@@ -36,8 +36,18 @@ def game_id(env):
         return None
     found = app_number(prefix.rsplit("/", 1)[-1])
     if found in SHARED_PREFIXES:
-        return app_number(env.get("SteamAppId", "")) or found
+        return app_number(env.get("SteamAppId", "")) or shortcut_number(env.get("SteamGameId", "")) or found
     return found
+
+
+def shortcut_number(value):
+    """The shortcut appid inside Steam's 64-bit shortcut game id `(appid << 32) | 0x02000000`."""
+    if not re.fullmatch(r"[0-9]{1,20}", value or ""):
+        return None
+    number = int(value)
+    if number >= 2**64 or number & 0xFFFFFFFF != 0x02000000:
+        return None
+    return app_number(str(number >> 32))
 
 
 DOTNET_FEX = {
