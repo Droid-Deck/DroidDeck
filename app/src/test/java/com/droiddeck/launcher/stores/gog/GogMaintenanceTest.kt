@@ -27,24 +27,35 @@ class GogMaintenanceTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test fun ownedDlcDepotIsSelected() {
-        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"},{\"productId\":\"3\"}]"), setOf("2"))
-        assertEquals("2", GogContent.depotProductId(JSONObject("{\"productId\":\"2\"}"), "1", allowed))
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"gameIDs\":[\"2\"]}]"), emptyList(), "unused") { setOf("2") }
+        assertEquals(setOf("1", "2"), allowed)
     }
 
     @Test fun unownedDlcDepotIsSkipped() {
-        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"}]"), emptySet())
-        assertNull(GogContent.depotProductId(JSONObject("{\"productId\":\"2\"}"), "1", allowed))
-    }
-
-    @Test fun ownershipFetchFailureFallsBackToBaseOnly() {
-        val allowed = GogContent.installProductIds("1", JSONArray("[{\"productId\":\"2\"}]"), null)
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"productId\":\"2\"}]"), emptyList(), "unused") { emptySet() }
         assertEquals(setOf("1"), allowed)
     }
 
-    @Test fun installRecordListsInstalledProducts() {
-        val folder = temporary.newFolder()
-        GogInstallRecord("1", "depot", products = listOf("1", "2")).write(folder)
-        assertEquals(listOf("1", "2"), GogInstallRecord.read(folder)!!.products)
+    @Test fun ownershipFetchFailureFallsBackToBaseOnly() {
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"productId\":\"2\"}]"), emptyList(), "unused") { null }
+        assertEquals(setOf("1"), allowed)
+    }
+
+    @Test fun emptyProductIdDepotUsesBaseAndDlcFilesKeepTheirProduct() {
+        val build = GogBuild("1", "", 2, "", "https://example.invalid/build")
+        val snapshot = GogContent.snapshot(GogInstallRecord("1", "depot"), build, "unused", ownership = { setOf("2") }, metadata = { url, _ ->
+            when (url) {
+                build.link -> JSONObject("{\"depots\":[{\"gameIDs\":[\"1\"],\"manifest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"gameIDs\":[\"2\"],\"manifest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"productId\":\"\",\"manifest\":\"cccccccccccccccccccccccccccccccc\"}]}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/aa/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"base.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/bb/bb/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"dlc.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/cc/cc/cccccccccccccccccccccccccccccccc" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"empty.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                else -> error("Unexpected metadata: $url")
+            }
+        })
+        assertEquals(setOf("1", "2"), snapshot.products.toSet())
+        assertEquals("1", snapshot.files.getJSONObject(0).getString("product"))
+        assertEquals("2", snapshot.files.getJSONObject(1).getString("product"))
+        assertEquals("1", snapshot.files.getJSONObject(2).getString("product"))
     }
 
     @Test fun selectsPublicBranchAndTreatsBuildIdsAsOpaque() {

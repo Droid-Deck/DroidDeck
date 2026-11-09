@@ -125,162 +125,13 @@ public final class GogDownloadManager {
     private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled, String language) {
         Gen2Outcome out = new Gen2Outcome();
         try {
-            cb.onProgress("Fetching manifest…", 5);
-            Gen2Manifest gm = resolveGen2Manifest(buildsJson, token, cb);
-            if (gm == null) { out.error = "gen2 manifest unavailable"; return out; }
-            JSONObject manifest = gm.manifest;
-            JSONArray depots = manifest.optJSONArray("depots");
-            if (depots == null) { out.error = "no depots in manifest"; return out; }
-            JSONArray products = manifest.optJSONArray("products");
-            String tempExe = null;
-            if (products != null && products.length() > 0) {
-                tempExe = products.getJSONObject(0).optString("temp_executable", null);
-                if (tempExe != null && tempExe.isEmpty()) tempExe = null;
-            }
-            String baseProductId = manifest.optString("baseProductId", null);
-            if ((baseProductId == null || baseProductId.isEmpty()) && products != null && products.length() > 0)
-                baseProductId = products.getJSONObject(0).optString("productId", null);
-            if (baseProductId == null || baseProductId.isEmpty()) baseProductId = game.gameId;
-            JSONArray deps = manifest.optJSONArray("dependencies");
-            List<String> dependencies = new ArrayList<>();
-            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) dependencies.add(d); }
-            if (!dependencies.isEmpty()) cb.onLog("gog: build lists dependencies " + deps);
-
-            cb.onProgress("Reading depot manifests…", 10);
-            List<DepotFile> files = new ArrayList<>();
-            List<String> depotJsons = new ArrayList<>();
-            java.util.Set<String> ownedIds = GogContent.ownedProductIds(token);
-            if (ownedIds == null) cb.onLog("gog: ownership unavailable; installing base product only");
-            java.util.Set<String> installProducts = GogContent.installProductIds(baseProductId, products, ownedIds);
-            List<String> installedProducts = new ArrayList<>();
-            List<JSONObject> ownedDepots = new ArrayList<>();
-            JSONArray selected = new JSONArray();
-            for (int i = 0; i < depots.length(); i++) {
-                JSONObject depot = depots.getJSONObject(i);
-                if (!depot.has("redist") && GogContent.depotProductId(depot, baseProductId, installProducts) == null) continue;
-                String product = GogContent.depotProductId(depot, baseProductId, installProducts);
-                if (product != null && !installedProducts.contains(product)) installedProducts.add(product);
-                ownedDepots.add(depot);
-                selected.put(depot);
-            }
-            String resolved = StoreLanguage.pick(StoreLanguage.codesFromDepots(selected), language);
-            cb.onLog("gog: language " + resolved);
-            for (int i = 0; i < ownedDepots.size(); i++) {
-                if (cancelled.get()) return out;
-                JSONObject depot = ownedDepots.get(i);
-                if (!depotSelected(depot, resolved)) continue;
-                String manifestHash = depot.optString("manifest");
-                if (manifestHash == null || manifestHash.isEmpty()) continue;
-                byte[] dmRaw = fetchBytes("https://gog-cdn-fastly.gog.com/content-system/v2/meta/" + buildCdnPath(manifestHash), null);
-                if (dmRaw == null) { cb.onLog("gog: depot " + i + " meta fetch failed"); continue; }
-                String dmStr = decompressBytes(dmRaw);
-                if (dmStr == null) { cb.onLog("gog: depot " + i + " decompress failed"); continue; }
-                parseDepotManifest(dmStr, files);
-                depotJsons.add(dmStr);
-            }
-            if (files.isEmpty()) { out.error = "no depot files collected"; return out; }
-
-            cb.onProgress("Fetching CDN link…", 15);
-            String secureLinkUrl = "https://content-system.gog.com/products/" + baseProductId + "/secure_link?_version=2&generation=2&path=/";
-            String cdnBase = parseCdnUrl(httpGet(secureLinkUrl, token));
-            if (cdnBase == null) { out.error = "secure link refused"; return out; }
-
-            installPath.mkdirs();
-            long plannedBytes = 0;
-            for (DepotFile df : files) plannedBytes += df.totalSize;
-            long remainingBytes = remainingInstallBytes(files, installPath);
-            if (remainingBytes > 0) {
-                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
-                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable)) {
-                    out.hardStop = true;
-                    out.error = "Not enough free space: need " + formatBytes(remainingBytes) + ", only " + formatBytes(usable) + " free";
-                    return out;
-                }
-            }
-            Collections.sort(files, (a, b) -> Long.compare(b.totalSize, a.totalSize));
-
-            final int total = files.size();
-            final long planned = plannedBytes;
-            final AtomicInteger doneCount = new AtomicInteger(0);
-            final AtomicLong totalBytes = new AtomicLong(0);
-            final AtomicLong lastSpeedMs = new AtomicLong(System.currentTimeMillis());
-            final AtomicLong lastSpeedB = new AtomicLong(0);
-            final AtomicLong speedBps = new AtomicLong(0);
-            final AtomicBoolean anyFailed = new AtomicBoolean(false);
-            final AtomicReference<String> cdnBaseRef = new AtomicReference<>(cdnBase);
-            final AtomicInteger cdnRefreshCount = new AtomicInteger(0);
-            final int MAX_CDN_REFRESH = 5;
-            cb.onSizes(planned, planned);
-            cb.onBytes(0, planned, 0);
-            cb.onLog("gog: " + total + " files, " + formatBytes(planned) + ", base=" + baseProductId);
-
-            int threads = downloadThreads();
-            if (GogNative.isAvailable()) {
-                runNativeEngine(ctx, GogNative.KIND_GEN2_CHUNKS, "Verified…", depotJsons, installPath, cdnBaseRef, secureLinkUrl, token,
-                        cdnRefreshCount, MAX_CDN_REFRESH, threads, threads, true, "gog base=" + baseProductId,
-                        cancelled, anyFailed, doneCount, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
-            } else {
-                cb.onLog("gog: engine=built-in (" + threads + " threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(threads, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("gog-dl"));
-                List<Future<Void>> futures = new ArrayList<>();
-                for (DepotFile df : files) {
-                    futures.add(pool.submit((Callable<Void>) () -> {
-                        if (cancelled.get() || anyFailed.get()) return null;
-                        File outFile = new File(installPath, df.relativePath);
-                        outFile.getParentFile().mkdirs();
-                        if (fileVerified(outFile, df.totalSize, df.md5)) {
-                            int done = doneCount.incrementAndGet();
-                            long tb = totalBytes.addAndGet(df.totalSize);
-                            cb.onProgress("Verified…", 15 + (int) ((done / (float) total) * 80));
-                            cb.onBytes(tb, planned, speedBps.get());
-                            return null;
-                        }
-                        boolean ok = assembleDepotFile(df, outFile, cdnBaseRef, secureLinkUrl, token, cdnRefreshCount, MAX_CDN_REFRESH, cancelled, cb);
-                        if (cancelled.get()) return null;
-                        if (!ok) { cb.onLog("FAIL file=" + df.relativePath); anyFailed.set(true); return null; }
-                        int done = doneCount.incrementAndGet();
-                        long tb = totalBytes.addAndGet(df.totalSize);
-                        sampleSpeed(tb, lastSpeedMs, lastSpeedB, speedBps);
-                        cb.onProgress("Downloading: " + baseName(df.relativePath) + speedSuffix(speedBps.get()), 15 + (int) ((done / (float) total) * 80));
-                        cb.onBytes(tb, planned, speedBps.get());
-                        return null;
-                    }));
-                }
-                pool.shutdown();
-                try {
-                    for (Future<Void> f : futures) f.get();
-                } catch (Exception e) {
-                    pool.shutdownNow();
-                    out.error = "download pool error: " + e.getClass().getSimpleName();
-                    return out;
-                }
-            }
-            if (cancelled.get()) return out;
-            if (anyFailed.get()) { out.error = "one or more chunks failed to download"; return out; }
-
-            cb.onProgress("Finishing…", 96);
-            try {
-                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), new JSONArray(installedProducts), resolved);
-            } catch (Exception e) {
-                cb.onLog("gog: maintenance inventory not recorded: " + e.getMessage());
-            }
-            writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"buildId\":\"" + gm.buildId + "\"}").getBytes("UTF-8"));
-            deleteCounted(new File(installPath, ".gog_chunks"), cb);
-            String clientId = manifest.optString("clientId", null);
-            if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
-            String clientSecret = manifest.optString("clientSecret", null);
-            if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
-            GameTask task = pickTask(installPath, game.gameId, tempExe, game.title);
-            out.result = new Result(task == null ? "" : task.path, gm.buildId, planned);
-            if (task != null) out.result.workDir = task.workDir;
-            out.result.dependencies = dependencies;
-            out.result.dependenciesRead = true;
-            out.result.language = resolved;
-            return out;
+            out.result = GogMaintenance.installContent(ctx, game, installPath, new JSONObject(buildsJson), language, cb, cancelled);
+            if (out.result == null && !cancelled.get()) out.error = "no usable public Windows build";
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
             return out;
         }
+        return out;
     }
 
     private static final class Gen2Manifest {
@@ -373,24 +224,9 @@ public final class GogDownloadManager {
             JSONArray depots = manifest.optJSONArray("depot");
             if (depots == null) { out.error = "no depot array"; return out; }
             List<Gen1File> files = new ArrayList<>();
-            java.util.Set<String> ownedIds = GogContent.ownedProductIds(token);
-            if (ownedIds == null) cb.onLog("gog: ownership unavailable; installing base product only");
-            JSONArray manifestProducts = new JSONArray();
-            for (int i = 0; i < depots.length(); i++) {
-                JSONObject depot = depots.getJSONObject(i);
-                JSONArray ids = depot.optJSONArray("gameIDs");
-                if (ids != null) for (int j = 0; j < ids.length(); j++) manifestProducts.put(new JSONObject().put("productId", ids.optString(j)));
-                String productId = depot.optString("productId");
-                if (!productId.isEmpty()) manifestProducts.put(new JSONObject().put("productId", productId));
-            }
-            java.util.Set<String> installProducts = GogContent.installProductIds(game.gameId, manifestProducts, ownedIds);
-            List<String> installedProducts = new ArrayList<>();
             for (int i = 0; i < depots.length(); i++) {
                 JSONObject depot = depots.getJSONObject(i);
                 if (depot.optBoolean("support", false)) continue;
-                if (!depot.has("redist") && GogContent.depotProductId(depot, game.gameId, installProducts) == null) continue;
-                String product = GogContent.depotProductId(depot, game.gameId, installProducts);
-                if (product != null && !installedProducts.contains(product)) installedProducts.add(product);
                 JSONArray jFiles = depot.optJSONArray("files");
                 if (jFiles == null) continue;
                 for (int j = 0; j < jFiles.length(); j++) {
@@ -458,7 +294,6 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more files failed to download"; return out; }
             cb.onProgress("Finishing…", 96);
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"generation\":1}").getBytes("UTF-8"));
-            GogMaintenance.captureGen1(game.gameId, installPath, manifest, new JSONArray(installedProducts), language);
             GameTask task = pickTask(installPath, game.gameId, null, game.title);
             out.result = new Result(task == null ? "" : task.path, "", planned);
             if (task != null) out.result.workDir = task.workDir;

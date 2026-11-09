@@ -31,19 +31,16 @@ internal object GogContent {
     }.getOrNull()
 
     @JvmStatic
-    fun installProductIds(baseProductId: String, products: JSONArray?, owned: Set<String>?): Set<String> {
-        val result = linkedSetOf(baseProductId)
-        if (owned != null) for (product in products?.objects().orEmpty()) {
-            val id = product.optString("productId")
-            if (id.isNotEmpty() && id in owned) result.add(id)
-        }
-        return result
-    }
+    fun depotProducts(depot: JSONObject, baseProductId: String): List<String> =
+        depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId").ifEmpty { baseProductId })
 
     @JvmStatic
-    fun depotProductId(depot: JSONObject, baseProductId: String, products: Set<String>): String? {
-        val ids = depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId", baseProductId))
-        return ids.firstOrNull { it in products }
+    fun installProducts(baseProductId: String, depots: JSONArray, installed: List<String>, token: String,
+        ownership: (String) -> Set<String>? = { ownedProductIds(it) }): Set<String> {
+        val listed = depots.objects().flatMap { depotProducts(it, baseProductId) }.distinct()
+        val owned = if (listed.any { it != baseProductId } || installed.any { it != baseProductId }) ownership(token) else emptySet()
+        check(installed.all { it == baseProductId || owned?.contains(it) == true }) { "Could not confirm ownership of installed GOG DLC" }
+        return (listOf(baseProductId) + installed + listed.filter { it == baseProductId || owned?.contains(it) == true }).toSet()
     }
 
     fun downloadFilename(url: String): String = java.net.URLDecoder.decode(URL(url).path.substringAfterLast('/').replace("+", "%2B"), "UTF-8")
@@ -83,6 +80,7 @@ internal object GogContent {
     }
 
     fun snapshot(old: GogInstallRecord, build: GogBuild, token: String,
+        ownership: (String) -> Set<String>? = { ownedProductIds(it) },
         metadata: (String, String?) -> JSONObject = ::json): GogInstallRecord {
         check(build.link.isNotBlank()) { "GOG build manifest is unavailable" }
         val manifest = metadata(build.link, token)
@@ -91,21 +89,10 @@ internal object GogContent {
         check(depots != null) { "GOG build has no depot list" }
         val resolvedLanguage = StoreLanguage.pick(StoreLanguage.codesFromDepots(depots), old.language)
         val selectedBitness = if (depots.objects().any { it.optJSONArray("osBitness")?.strings()?.contains("64") == true }) "64" else "32"
-        val candidates = JSONArray()
-        for (depot in depots.objects()) {
-            val ids = depot.optJSONArray("gameIDs")?.strings().orEmpty()
-            val productId = depot.optString("productId")
-            for (id in (ids + productId).filter { it.isNotEmpty() }.distinct()) candidates.put(JSONObject().put("productId", id))
-        }
-        val hasDlcCandidate = candidates.objects().any { it.optString("productId") != old.id }
-        val owned = if (hasDlcCandidate || old.products.any { it != old.id }) ownedProductIds(token) else emptySet()
-        val products = (old.products + installProductIds(old.id, candidates, owned)).distinct()
-            .filter { it == old.id || owned?.contains(it) == true || it in old.products }
-        check(old.products.all { it == old.id || owned?.contains(it) == true }) { "Could not confirm ownership of installed GOG DLC" }
+        val products = installProducts(old.id, depots, old.products, token, ownership)
         for (depot in depots.objects()) {
             if (depot.has("redist")) continue
-            val ids = depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId", old.id))
-            val product = ids.firstOrNull { it in products } ?: continue
+            val product = depotProducts(depot, old.id).firstOrNull { it in products } ?: continue
             val languages = depot.optJSONArray("languages")?.strings().orEmpty()
             if (!languageSelected(languages, resolvedLanguage)) continue
             val bitness = depot.optJSONArray("osBitness")?.strings().orEmpty()
@@ -138,7 +125,7 @@ internal object GogContent {
         }
         check(files.length() > 0) { "GOG build contains no matching files" }
         return old.copy(source = "depot", generation = build.generation, build = build.id, version = build.version,
-            branch = build.branch, language = resolvedLanguage, manifest = sanitize(manifest), files = files, products = products, verified = true)
+            branch = build.branch, language = resolvedLanguage, manifest = sanitize(manifest), files = files, products = products.toList(), verified = true)
     }
 
     fun languageSelected(list: List<String>, selected: String): Boolean = list.any { it.equals("Neutral", true) } || StoreLanguage.depotMatchesResolved(list.toTypedArray(), selected)
