@@ -831,6 +831,10 @@ static int res_state_has_usable_server(res_state statp) {
 
 int res_init(void) {
     static int (*orig_res_init)(void) = NULL;
+    // glibc's symbols are __res_init and __res_ninit (resolv.h makes the names macros): looked up as
+    // res_init and res_ninit they were never found, the state stayed without RES_INIT, and Chromium
+    // (Steam's store) failed to read a DNS configuration
+    if (!orig_res_init) orig_res_init = (int (*)(void))dlsym(RTLD_NEXT, "__res_init");
     if (!orig_res_init) orig_res_init = (int (*)(void))dlsym(RTLD_NEXT, "res_init");
     int ret = orig_res_init ? orig_res_init() : 0;
     res_state statp = __res_state();
@@ -852,6 +856,7 @@ int res_init(void) {
 
 int res_ninit(res_state statp) {
     static int (*orig_res_ninit)(res_state) = NULL;
+    if (!orig_res_ninit) orig_res_ninit = (int (*)(res_state))dlsym(RTLD_NEXT, "__res_ninit");
     if (!orig_res_ninit) orig_res_ninit = (int (*)(res_state))dlsym(RTLD_NEXT, "res_ninit");
     if (statp) {
         memset(statp, 0, sizeof(*statp));
