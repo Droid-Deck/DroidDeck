@@ -217,7 +217,7 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
-    val hasGameOverride: Boolean,
+    val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
