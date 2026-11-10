@@ -1,0 +1,159 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 0835bfe..21a287d 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -9,12 +9,16 @@
+ #include <algorithm>
+ #include <array>
+ #include <bitset>
++#include <chrono>
++#include <cstdlib>
+ #include <deque>
+ #include <dlfcn.h>
++#include <thread>
+ #include "vulkan_include.h"
+ #include "nested_swapchain.hpp"
+ #include "dmabuf_import.hpp"
+ #include "nested_surface_format.hpp"
++#include "swapchain_remake.hpp"
+ #include "Utils/Algorithm.h"
+ 
+ #if defined(__linux__)
+@@ -3224,7 +3228,10 @@ bool acquire_next_image( void )
+ {
+ 	VkResult res = g_device.vk.AcquireNextImageKHR( g_device.device(), g_output.swapChain, UINT64_MAX, VK_NULL_HANDLE, g_output.acquireFence, &g_output.nOutImage );
+ 	if ( res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR )
++	{
++		vk_errorf( res, "vkAcquireNextImageKHR failed" );
+ 		return false;
++	}
+ 	if ( g_device.vk.WaitForFences( g_device.device(), 1, &g_output.acquireFence, false, UINT64_MAX ) != VK_SUCCESS )
+ 		return false;
+ 	return g_device.vk.ResetFences( g_device.device(), 1, &g_output.acquireFence ) == VK_SUCCESS;
+@@ -3330,7 +3337,8 @@ void vulkan_present_to_window( void )
+ 		.pImageIndices = &g_output.nOutImage,
+ 	};
+ 
+-	if ( g_device.vk.QueuePresentKHR( g_device.queue(), &presentInfo ) == VK_SUCCESS )
++	VkResult presentResult = g_device.vk.QueuePresentKHR( g_device.queue(), &presentInfo );
++	if ( presentResult == VK_SUCCESS )
+ 	{
+ 		if ( g_device.supportsPresentWait() )
+ 		{
+@@ -3339,7 +3347,11 @@ void vulkan_present_to_window( void )
+ 		}
+ 	}
+ 	else
++	{
++		if ( presentResult < 0 )
++			vk_errorf( presentResult, "vkQueuePresentKHR failed" );
+ 		vulkan_remake_swapchain();
++	}
+ 
+ 	while ( !acquire_next_image() )
+ 		vulkan_remake_swapchain();
+@@ -3461,2 +3473,6 @@
+-	if ( g_device.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR( g_device.physDev(), pOutput->surface, &pOutput->surfaceCaps ) != VK_SUCCESS )
+-		return false;
++	VkResult capsResult = g_device.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR( g_device.physDev(), pOutput->surface, &pOutput->surfaceCaps );
++	if ( capsResult != VK_SUCCESS )
++	{
++		vk_errorf( capsResult, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed" );
++		return false;
++	}
+@@ -3559,7 +3575,12 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 		.clipped = VK_TRUE,
+ 	};
+ 
+-	if (g_device.vk.CreateSwapchainKHR( g_device.device(), &createInfo, nullptr, &pOutput->swapChain) != VK_SUCCESS ) {
++	VkResult createResult = g_device.vk.CreateSwapchainKHR( g_device.device(), &createInfo, nullptr, &pOutput->swapChain );
++	if ( createResult != VK_SUCCESS )
++	{
++		pOutput->swapChain = VK_NULL_HANDLE;
++		vk_errorf( createResult, "vkCreateSwapchainKHR failed (%ux%u, %u images, usage 0x%x)",
++			createInfo.imageExtent.width, createInfo.imageExtent.height, imageCount, createInfo.imageUsage );
+ 		return false;
+ 	}
+ 
+@@ -3606,6 +3627,19 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 	return true;
+ }
+ 
++static void vulkan_release_swapchain( VulkanOutput_t *pOutput )
++{
++	pOutput->outputImages.clear();
++	pOutput->presentationImages.clear();
++	if ( pOutput->acquireFence )
++		g_device.vk.DestroyFence( g_device.device(), pOutput->acquireFence, nullptr );
++	pOutput->acquireFence = VK_NULL_HANDLE;
++
++	if ( pOutput->swapChain )
++		g_device.vk.DestroySwapchainKHR( g_device.device(), pOutput->swapChain, nullptr );
++	pOutput->swapChain = VK_NULL_HANDLE;
++}
++
+ bool vulkan_remake_swapchain( void )
+ {
+ 	std::unique_lock lock(present_wait_lock);
+@@ -3618,9 +3652,3 @@ bool vulkan_remake_swapchain( void )
+ 
+-	pOutput->outputImages.clear();
+-	pOutput->presentationImages.clear();
+-	if ( pOutput->acquireFence )
+-		g_device.vk.DestroyFence( g_device.device(), pOutput->acquireFence, nullptr );
+-	pOutput->acquireFence = VK_NULL_HANDLE;
+-
+-	g_device.vk.DestroySwapchainKHR( g_device.device(), pOutput->swapChain, nullptr );
++	vulkan_release_swapchain( pOutput );
+ 
+@@ -3630,9 +3658,18 @@ bool vulkan_remake_swapchain( void )
+ 	for (auto& pCaptureTexture : pOutput->pCaptureTextures)
+ 		pCaptureTexture = nullptr;
+ 
+-	bool bRet = vulkan_make_swapchain( pOutput );
+-	assert( bRet ); // Something has gone horribly wrong!
+-	return bRet;
++	uint32_t attempts = gamescope::RemakeSwapchainWithRetries(
++		[pOutput]() { return vulkan_make_swapchain( pOutput ); },
++		[pOutput]() { vulkan_release_swapchain( pOutput ); },
++		[]( uint32_t delayMs ) { std::this_thread::sleep_for( std::chrono::milliseconds( delayMs ) ); } );
++	if ( !attempts )
++	{
++		vk_log.errorf( "Nested swapchain could not be recreated in %u attempts", gamescope::k_unSwapchainRemakeAttempts );
++		std::abort();
++	}
++	if ( attempts > 1 )
++		vk_log.infof( "Nested swapchain recreated on attempt %u", attempts );
++	return true;
+ }
+ 
+ static bool vulkan_make_output_images( VulkanOutput_t *pOutput )
+diff --git a/src/swapchain_remake.hpp b/src/swapchain_remake.hpp
+new file mode 100644
+index 0000000..99d688b
+--- /dev/null
++++ b/src/swapchain_remake.hpp
+@@ -0,0 +1,23 @@
++#pragma once
++
++#include <cstdint>
++
++namespace gamescope
++{
++constexpr uint32_t k_unSwapchainRemakeAttempts = 10;
++constexpr uint32_t k_unSwapchainRemakeDelayMs = 100;
++
++template <typename Make, typename Release, typename Wait>
++inline uint32_t RemakeSwapchainWithRetries( Make make, Release release, Wait wait )
++{
++    for ( uint32_t attempt = 1; attempt <= k_unSwapchainRemakeAttempts; ++attempt )
++    {
++        if ( make() )
++            return attempt;
++        release();
++        if ( attempt < k_unSwapchainRemakeAttempts )
++            wait( k_unSwapchainRemakeDelayMs );
++    }
++    return 0;
++}
++}

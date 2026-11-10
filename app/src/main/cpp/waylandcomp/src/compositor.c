@@ -164,6 +164,18 @@ static void wl_log_to_session(const char *fmt, va_list ap) {
     droiddeck_log("program", "libwayland: %s", line);
 }
 
+static void log_protocol_error(void *data, enum wl_protocol_logger_type type,
+                               const struct wl_protocol_logger_message *m) {
+    if (type != WL_PROTOCOL_LOGGER_EVENT || m->message != &wl_display_interface.events[WL_DISPLAY_ERROR] ||
+        m->arguments_count < 3) return;
+    struct wl_resource *object = (struct wl_resource *)m->arguments[0].o;
+    const char *message = m->arguments[2].s;
+    droiddeck_log("program", "protocol error sent to %s: %s@%u error %u: %s",
+                  client_name(wl_resource_get_client(m->resource)),
+                  object ? wl_resource_get_class(object) : "?", object ? wl_resource_get_id(object) : 0,
+                  m->arguments[1].u, message ? message : "");
+}
+
 static void on_client_created(struct wl_listener *l, void *data) {
     struct wl_client *client = data;
     struct client_info *ci = calloc(1, sizeof(*ci));
@@ -3918,6 +3930,7 @@ int droiddeck_wayland_run(void) {
     }
     droiddeck_log("display", "Wayland compositor listening on %s/wayland-0", rt ? rt : "?");
     wl_log_set_handler_server(wl_log_to_session);
+    wl_display_add_protocol_logger(display, log_protocol_error, NULL);
     /* A client that falls behind reading (gamescope at a few fps) must not be dropped for a full
      * event buffer: libwayland's default is 4 KB per direction. */
     wl_display_set_default_max_buffer_size(display, 1u << 20);
