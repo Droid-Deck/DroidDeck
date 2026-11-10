@@ -103,7 +103,8 @@ object AgentHost {
     /** Counts turns, so a process that starts after its turn was stopped is not adopted by the next one. */
     private var generation = 0
     private var labProcess: Process? = null
-    private var retriedResume = false
+    /** The turn now running resends a message that got no reply, so it is not resent again. */
+    private var retrying = false
     /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
     private var labFromTurn = false
     private var conversation: String? = null
@@ -374,13 +375,15 @@ object AgentHost {
         unseen = true
         failed = error != null
         AgentHostService.stop(app)
-        // A resumed turn that the CLI ended without a reply is tried once more.
+        // Claude Code now and then ends a resumed turn at once without reading the message; nothing
+        // happened, so the message is sent once more.
         val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
-        if (!stopped && error == null && answerless(entries) && asked?.text == app.getString(R.string.agent_resumed) && !retriedResume) {
-            retriedResume = true
-            main.postDelayed({ if (state == State.IDLE) send(app, asked.text) }, RETRY_MS)
+        if (!stopped && error == null && asked != null && answerless(entries) && !retrying) {
+            retrying = true
+            main.postDelayed({ if (state == State.IDLE) send(app, asked.text, asked.files) }, RETRY_MS)
             return
         }
+        retrying = false
         if (!stopped && queue.isNotEmpty()) {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)

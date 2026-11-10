@@ -109,7 +109,8 @@ object ClaudeCode : AgentHarness {
                 }
                 AgentEvent(conversation, results)
             }
-            "result" -> AgentEvent(
+            // A resumed session first answers background tasks the last run left behind; that result is not the turn's.
+            "result" -> if (o.optJSONObject("origin")?.optString("kind") == "task-notification") conversation?.let { AgentEvent(it) } else AgentEvent(
                 conversation,
                 listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
                 usage = AgentHost.Usage(

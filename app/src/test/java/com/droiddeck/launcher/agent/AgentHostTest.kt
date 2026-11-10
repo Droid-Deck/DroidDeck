@@ -59,6 +59,11 @@ class AgentHostTest {
         assertNull(ClaudeCode.parse("not json"))
     }
 
+    @Test fun aResultForALeftoverBackgroundTaskDoesNotEndTheTurn() {
+        val event = ClaudeCode.parse("""{"type":"result","is_error":false,"num_turns":0,"session_id":"s","total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0},"origin":{"kind":"task-notification"}}""")
+        assertTrue(event == null || event.entries.none { it is Entry.Finished })
+    }
+
     @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {
         val first = ClaudeCode.turn("hi", null, AgentHarness.Options())
         assertTrue("bypassPermissions" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)
