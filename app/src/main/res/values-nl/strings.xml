@@ -2867,6 +2867,8 @@
     <string name="display_position_top">Boven</string>
     <string name="display_position_bottom">Onder</string>
     <string name="display_position_center">Midden (standaard)</string>
+    <string name="display_position_left">Links</string>
+    <string name="display_position_right">Rechts</string>
     <string name="setup_tab_storage">Opslag</string>
     <string name="storage_measuring">Opslag meten…</string>
     <string name="storage_measuring_hint">De eerste keer duurt een paar seconden.</string>

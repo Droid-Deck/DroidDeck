@@ -2867,6 +2867,8 @@
     <string name="display_position_top">Fent</string>
     <string name="display_position_bottom">Lent</string>
     <string name="display_position_center">Középen (alapértelmezett)</string>
+    <string name="display_position_left">Bal</string>
+    <string name="display_position_right">Jobb</string>
     <string name="setup_tab_storage">Tárhely</string>
     <string name="storage_measuring">Tárhely mérése…</string>
     <string name="storage_measuring_hint">Első alkalommal pár másodpercig tart.</string>

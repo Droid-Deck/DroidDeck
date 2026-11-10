@@ -2867,6 +2867,8 @@
     <string name="display_position_top">ऊपर</string>
     <string name="display_position_bottom">नीचे</string>
     <string name="display_position_center">बीच में (डिफ़ॉल्ट)</string>
+    <string name="display_position_left">बाएँ</string>
+    <string name="display_position_right">दाएँ</string>
     <string name="setup_tab_storage">स्टोरेज</string>
     <string name="storage_measuring">स्टोरेज मापा जा रहा है…</string>
     <string name="storage_measuring_hint">पहली बार कुछ सेकंड लगते हैं।</string>

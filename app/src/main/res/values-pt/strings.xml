@@ -2894,6 +2894,8 @@
     <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
     <string name="display_picture_position">Posição da imagem</string>
     <string name="display_position_top">Topo</string>
+    <string name="display_position_left">Esquerda</string>
+    <string name="display_position_right">Direita</string>
     <string name="display_position_bottom">Base</string>
     <string name="display_position_center">Centro (padrão)</string>
     <string name="setup_tab_storage">Armazenamento</string>

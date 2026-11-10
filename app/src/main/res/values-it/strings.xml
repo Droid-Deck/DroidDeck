@@ -2896,6 +2896,8 @@
     <string name="display_position_top">In alto</string>
     <string name="display_position_bottom">In basso</string>
     <string name="display_position_center">Centro (predefinito)</string>
+    <string name="display_position_left">Sinistra</string>
+    <string name="display_position_right">Destra</string>
     <string name="setup_tab_storage">Archiviazione</string>
     <string name="storage_measuring">Misurazione dell\'archiviazione…</string>
     <string name="storage_measuring_hint">La prima volta richiede qualche secondo.</string>

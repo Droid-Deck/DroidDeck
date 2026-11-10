@@ -2867,6 +2867,8 @@
     <string name="display_position_top">Överst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Mitten (standard)</string>
+    <string name="display_position_left">Vänster</string>
+    <string name="display_position_right">Höger</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Mäter lagring…</string>
     <string name="storage_measuring_hint">Första gången tar några sekunder.</string>

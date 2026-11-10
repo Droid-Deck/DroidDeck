@@ -2867,6 +2867,8 @@
     <string name="display_position_top">Üst</string>
     <string name="display_position_bottom">Alt</string>
     <string name="display_position_center">Orta (varsayılan)</string>
+    <string name="display_position_left">Sol</string>
+    <string name="display_position_right">Sağ</string>
     <string name="setup_tab_storage">Depolama</string>
     <string name="storage_measuring">Depolama ölçülüyor…</string>
     <string name="storage_measuring_hint">İlk seferde birkaç saniye sürer.</string>

@@ -2838,6 +2838,8 @@
     <string name="display_position_top">Trên</string>
     <string name="display_position_bottom">Dưới</string>
     <string name="display_position_center">Giữa (mặc định)</string>
+    <string name="display_position_left">Trái</string>
+    <string name="display_position_right">Phải</string>
     <string name="setup_tab_storage">Lưu trữ</string>
     <string name="storage_measuring">Đang đo dung lượng…</string>
     <string name="storage_measuring_hint">Lần đầu mất vài giây.</string>
