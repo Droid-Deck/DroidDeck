@@ -52,7 +52,9 @@ tools/agent/setup
 
 It installs Claude Code, git, gh and loopback adb, plus the build toolchain: JDK 17, the Android
 SDK platform, and Google's x86-64 `aapt2` run under `qemu-user`. The first Lab build compiles the
-whole app and takes about 20 minutes on a Snapdragon 865; later ones are incremental. Setup
+whole app and takes about 8 minutes on a Snapdragon 865; later ones compile only what changed.
+That needs the Kotlin daemon: Kotlin's in-process compiles always redo the whole app. BuildConfig
+is given the installed commit, so committing a change does not change it. Setup
 does that first build ahead of time with `dd-lab-build --prepare`, which compiles the installed
 commit without making a Lab build.
 `~/.cache/dd-lab-build.json` reports the stage, the current task, progress in thousandths and the
