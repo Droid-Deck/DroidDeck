@@ -20,12 +20,21 @@ PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
+                'tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/kwin-independent.py',
+                'tools/ubuntu/kwin-output-layout.h',
+                'tools/ubuntu/kwin-passthrough.cpp',
+                'tools/ubuntu/kwin-ahb-output.h',
+                'tools/ubuntu/kwin-output-opacity.h',
+                'tools/ubuntu/kwin-independent-filter.h',
+                'tools/ubuntu/patches/kwin',
+                'app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h',
+                'tools/ubuntu/build-kwin-runtime.sh',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
-                'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
+                'tools/quest', 'tools/vr/src', 'tools/vr/third_party', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'tools/gpuload',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
@@ -62,6 +71,9 @@ def outputs(root):
                 result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
     for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
+    stores = 'app/src/main/jniLibs/arm64-v8a/libdroiddeckstores.so'
+    if (root / stores).is_file():
+        result['lib/arm64-v8a/libdroiddeckstores.so'] = stores
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
     result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
         'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'
@@ -72,6 +84,8 @@ def outputs(root):
 
 
 def required():
+    independent = ['assets/linuxfs/usr/local/lib/droiddeck-kwin/' + name
+                   for name in ['libkwin.so.6', 'kwin.sha256', 'kwin_wayland', 'LICENSE', 'build.json']]
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
@@ -120,7 +134,7 @@ def required():
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
     paths += ['assets/hybris/runtime.tzst', 'assets/hybris/version.txt']
-    return paths
+    return paths + independent
 
 
 def verify_powervr(root):
@@ -214,6 +228,8 @@ def check_apk(apk, root=ROOT):
     packs = {name: pack_digests(root, name) for name in PACK_NAMES}
     with ZipFile(apk) as package:
         names = set(package.namelist())
+        if any(name.startswith('assets/linuxfs/usr/local/lib/droiddeck-mesa/') for name in names):
+            raise ValueError('APK still carries the withdrawn desktop Mesa replacement')
         for library in PACKED_LIBRARIES:
             if library in names:
                 raise ValueError('APK still carries ' + library + ', which the tracking pack provides')

@@ -275,7 +275,10 @@ tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
-    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(layout.projectDirectory.dir('src/main/assets')) {
+        exclude 'pulseaudio.tzst', 'linuxfs/usr/local/bin/droiddeck-innoextract',
+            'linuxfs/usr/local/lib/droiddeck-inno/**', 'linuxfs/usr/local/share/licenses/droiddeck-inno/**'
+    }
     from(rootProject.file('tools/linuxfs/innoextract'))
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)

@@ -184,6 +184,18 @@ if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     save_step x86-preloads "${x86_key}" "${x86_stage}"
 fi
 
+kwin_out="${linuxfs_dir}/usr/local/lib/droiddeck-kwin"
+kwin_key=$(inputs_hash ubuntu26.04-arm64-kwin6.6.6 \
+    tools/ubuntu/build-kwin-runtime.sh tools/ubuntu/kwin-independent.py \
+    tools/ubuntu/kwin-independent.cpp tools/ubuntu/kwin-passthrough.cpp \
+    tools/ubuntu/kwin-output-layout.h tools/ubuntu/kwin-ahb-output.h \
+    tools/ubuntu/kwin-output-opacity.h tools/ubuntu/kwin-independent-filter.h \
+    tools/ubuntu/patches/kwin app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h)
+if ! restore_step kwin "${kwin_key}" "${kwin_out}"; then
+    bash "${repo_root}/tools/ubuntu/build-kwin-runtime.sh" "${kwin_out}"
+    save_step kwin "${kwin_key}" "${kwin_out}"
+fi
+
 vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
 vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
 if ! restore_step vr "${vr_key}" "${vr_out}"; then

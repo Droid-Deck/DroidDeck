@@ -140,6 +140,15 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed runtime input'):
             runtime.verify(self.root)
 
+    def test_imported_store_library_is_attested_and_checked_in_the_apk(self):
+        stores = self.root / 'app/src/main/jniLibs/arm64-v8a/libdroiddeckstores.so'
+        stores.write_bytes(b'verified store engine')
+        apk = self.current_apk(self.root / 'current.apk')
+        runtime.check_apk(apk, self.root)
+        stores.write_bytes(b'changed store engine')
+        with self.assertRaisesRegex(ValueError, 'changed runtime input'):
+            runtime.verify(self.root)
+
     def test_an_old_apk_is_rejected_even_when_staging_is_current(self):
         runtime.record(self.root)
         data = runtime.verify(self.root)

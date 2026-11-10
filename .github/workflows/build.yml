@@ -143,6 +143,44 @@ jobs:
     secrets:
       RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
+  kwin:
+    name: Build independent Linux window runtime
+    needs: source
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Merge the pinned APK base
+        if: github.event_name == 'pull_request'
+        env:
+          BUILD_BASE_SHA: ${{ needs.source.outputs.base-sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BUILD_BASE_SHA"
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com merge --no-ff --no-edit FETCH_HEAD
+      - name: Verify pinned source tree
+        env:
+          SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+      - name: Build the patched KWin from source
+        run: bash tools/ubuntu/build-kwin-runtime.sh out/kwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kwin-arm64
+          path: out/kwin/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
   components:
     name: Prepare verified components
     needs: [source, components-runner]
@@ -338,7 +376,7 @@ jobs:
       RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   build:
-    needs: [source, components, xbox, build-runner]
+    needs: [source, components, xbox, kwin, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
@@ -559,6 +597,11 @@ jobs:
         with:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: kwin-arm64
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-kwin
 
       - name: Cache checksum-pinned pack inputs
         uses: actions/cache@v4

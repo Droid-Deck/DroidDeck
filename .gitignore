@@ -16,6 +16,7 @@ app/src/main/jniLibs/arm64-v8a/libproot-loader.so
 app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so
 app/src/main/jniLibs/arm64-v8a/.syncthing-inputs
 app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so
+app/src/main/jniLibs/arm64-v8a/libdroiddeckstores.so
 app/src/main/rust/stores/target/
 app/src/main/assets/droiddeck-esync/
 
@@ -36,3 +37,25 @@ __pycache__/
 app/src/main/assets/directaudio/
 app/src/main/assets/hybris/
 /tools/vr/out/
+/*.apk
+/*.apk.*
+/*.build.json
+/*.evidence*
+/*.validation*
+/*.integration*
+/*.zip
+/*.zip.*
+/*.tar.gz
+/*.tar.gz.*
+/DroidDeck-*.md
+/DroidDeck-*/
+/PICO-*.md
+/PICO-*.json
+/PICO-*.png
+/PICO-*.zip*
+/SteamVR-2D-Validation-*
+/hs_err_pid*.log
+/.screenshots/
+/.trae/
+/.trae-html-share-packages/
+/_local_fork_preparation/
