@@ -33,6 +33,7 @@ internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.ITCH.id -> SourceColours(Color(0xFF3A1A1E), Color(0xFFFFB3B3), Color(0xFFFF5C5C))
     Store.GAMEJOLT.id -> SourceColours(Color(0xFF232E00), Color(0xFFE3FF66), Color(0xFFCCFF00))
     Store.BATTLENET.id -> SourceColours(Color(0xFF0A2440), Color(0xFF9DD1FF), Color(0xFF148EFF))
+    Store.EA.id -> SourceColours(Color(0xFF3A0E12), Color(0xFFFF9A9A), Color(0xFFFF4747))
     Library.SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
     FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
@@ -48,6 +49,7 @@ internal fun sourceLabel(source: String): String = when (source) {
     Store.ITCH.id -> Store.ITCH.label
     Store.GAMEJOLT.id -> Store.GAMEJOLT.label
     Store.BATTLENET.id -> Store.BATTLENET.label
+    Store.EA.id -> Store.EA.label
     else -> stringResource(R.string.source_added)
 }
 

@@ -61,6 +61,8 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.sync.Syncthing.init(this)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
+        com.droiddeck.launcher.stores.ea.EaBackend.app = this
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ea.EaBackend)
     }
 
     private fun prefetchAddonPacks() {
