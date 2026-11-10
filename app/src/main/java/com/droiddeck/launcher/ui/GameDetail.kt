@@ -812,6 +812,7 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
         LaunchSettings(s, a, host, game, hopRail ?: GameRef.key(game))
         if (canEditSteamLaunchOptions(game, s.shortcutPicker)) {
             SteamLaunchOptionsPanel(game.appId)
+            SteamInputOverridePanel(game.appId)
         }
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
