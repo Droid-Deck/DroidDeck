@@ -32,7 +32,7 @@ step() { :; }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$client_swap; }
 bl_zram_send() { echo "send:$1:$3"; rss=$((rss - reclaimed)); _bl_pageout_complete=${pageout_complete:-1}; }
 ''' + functions + '\nbl_memory_read\n' + body
-        result = run_bash(harness)
+        result = run_bash('NOW=0\n' + harness.replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         return result.stdout.splitlines()
@@ -168,7 +168,7 @@ bl_session_others() { _bl_session=(321 654); }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$swap; }
 bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=$complete; }
 ''' + functions + '\nbl_memory_read\n' + body
-        result = run_bash(harness)
+        result = run_bash('NOW=0\n' + harness.replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         return result.stdout.splitlines()

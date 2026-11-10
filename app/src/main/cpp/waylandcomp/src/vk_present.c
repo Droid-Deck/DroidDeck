@@ -226,7 +226,7 @@ void vkp_set_scene_viewport(int x, int y, int width, int height) {
 }
 static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
 static float g_game_picture_rect[4];
-static int g_game_picture_top;
+static int g_game_picture_placed;
 
 static int64_t g_swap_retry_at_ns;
 static int g_swap_fail_logged;
@@ -375,7 +375,7 @@ int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
-    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_BOTTOM) alignment = VKP_ALIGN_CENTER;
+    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_RIGHT) alignment = VKP_ALIGN_CENTER;
     g_mode = mode;
     g_align = alignment;
 }
@@ -396,6 +396,8 @@ static const char *align_name(int a) {
     case VKP_ALIGN_BOTTOM: return "bottom";
     case VKP_ALIGN_PICTURE_TOP: return "picture top";
     case VKP_ALIGN_PICTURE_BOTTOM: return "picture bottom";
+    case VKP_ALIGN_PICTURE_LEFT: return "picture left";
+    case VKP_ALIGN_PICTURE_RIGHT: return "picture right";
     default: return "center";
     }
 }
@@ -438,6 +440,8 @@ static void update_map(int scene_w, int scene_h) {
     }
     if (align == VKP_ALIGN_PICTURE_TOP) g_map.off_y = 0;
     else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
+    else if (align == VKP_ALIGN_PICTURE_LEFT) g_map.off_x = 0;
+    else if (align == VKP_ALIGN_PICTURE_RIGHT) g_map.off_x = W - scene_w * g_map.kx;
     if (vw > 0 && vh > 0) {
         float kx = (float)W / vw, ky = (float)H / vh;
         float scale = kx < ky ? kx : ky;
@@ -451,7 +455,7 @@ static void update_map(int scene_w, int scene_h) {
     }
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
-    g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM;
+    g_game_picture_placed = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
     g_game_picture_rect[0] = g_map.off_x;
     g_game_picture_rect[1] = g_map.off_y;
     g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;
@@ -465,7 +469,7 @@ static void update_map(int scene_w, int scene_h) {
 
 int vkp_game_picture_rect(float rect[4]) {
     pthread_mutex_lock(&g_game_picture_lock);
-    int active = g_game_picture_top;
+    int active = g_game_picture_placed;
     if (active) memcpy(rect, g_game_picture_rect, sizeof(g_game_picture_rect));
     pthread_mutex_unlock(&g_game_picture_lock);
     return active;

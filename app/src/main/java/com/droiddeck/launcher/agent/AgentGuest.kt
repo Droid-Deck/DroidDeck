@@ -33,6 +33,7 @@ object AgentGuest {
     var keyboardDismissals by mutableIntStateOf(0)
         private set
     @Volatile private var keyboardRoute = false
+    @Volatile var readyListener: (() -> Unit)? = null
     @Volatile private var routeDir: File? = null
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
@@ -62,6 +63,7 @@ object AgentGuest {
                     when (path) {
                         "hello.json" -> readJson(File(dir, path))?.let {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
+                            readyListener?.invoke()
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }

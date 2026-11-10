@@ -1967,13 +1967,6 @@
     <string name="bottom_downloads_shader">Downloading shader cache</string>
     <string name="bottom_downloads_paused">Paused</string>
     <string name="bottom_downloads_queued">Waiting to start</string>
-    <string name="bottom_page_notifications">Notifications</string>
-    <string name="bottom_notifications_listener">DroidDeck bottom screen</string>
-    <string name="bottom_notifications_why">Show messages and other notifications here while you play. They stay on this screen only and are not saved. Android asks once: its notification access page opens on this screen; turn DroidDeck on there and this page comes back by itself.</string>
-    <string name="bottom_notifications_allow">Allow notification access</string>
-    <string name="bottom_notifications_none">No notifications.</string>
-    <string name="bottom_notifications_count">%1$d notifications</string>
-    <string name="bottom_notifications_clear">Clear</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">FPS needs the HUD on</string>
     <string name="stats_speed">Speed</string>
@@ -3115,6 +3108,8 @@
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
+    <string name="display_position_left">Left</string>
+    <string name="display_position_right">Right</string>
     <string name="display_position_bottom">Bottom</string>
     <string name="display_position_center">Center (default)</string>
     <string name="glasses_6dof">6DoF virtual screen</string>
@@ -3823,4 +3818,7 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+
+    <string name="theme_white_red">Scarlet Snow</string>
+    <string name="theme_white_red_detail">White surfaces with red accents.</string>
 </resources>
