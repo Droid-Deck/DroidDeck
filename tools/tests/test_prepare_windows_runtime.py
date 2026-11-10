@@ -56,6 +56,19 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(set(classifications), committed | local | new)
             self.assertTrue(all('never imported from donor' in value for value in classifications.values()))
 
+    def test_xr_android_sources_are_compiled_by_gradle_instead_of_imported(self):
+        committed = {'app/src/main/cpp/questxr/CMakeLists.txt'}
+        local = {'app/src/main/cpp/questxr/quest_xr.cpp'}
+        new = {'app/src/main/cpp/questxr/openxr_api.h', 'app/src/main/cpp/questxr/controller_profiles.h',
+               'app/src/main/cpp/questxr/input_evidence.h'}
+        with mock.patch.object(prepare, 'changed', side_effect=[committed, local, committed]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(),
+                    '\0'.join(sorted(new)).encode() + b'\0']):
+            classifications = prepare.check_sources()
+            self.assertEqual(set(classifications), committed | local | new)
+            self.assertTrue(all('compiled by Gradle; not imported from donor' in value
+                                for value in classifications.values()))
+
     def test_preparation_excludes_all_donor_vr_files_and_records_replacement_origin(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

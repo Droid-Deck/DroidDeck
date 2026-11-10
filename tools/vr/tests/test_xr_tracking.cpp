@@ -25,8 +25,14 @@ int main(int argc, char **argv) {
         writer->active = 1; writer->sampled_ns = XrTrackingFile::Now(); writer->period_ns = 13888889;
         writer->eyes[0].width = 1680; writer->eyes[0].height = 1760;
         writer->head.orientation[3] = 1; writer->head.position[1] = 1.6f; writer->head.flags = 15;
+        writer->hands[0].profile = DROIDDECK_XR_CONTROLLER_PICO4S;
+        writer->hands[0].aim.orientation[3] = 1;
+        writer->hands[0].aim.position[2] = -.04f;
+        writer->hands[0].aim.flags = 15;
         assert(reader.Read(&packet)); assert(XrTrackingFile::Fresh(packet));
         assert(packet.head.position[1] == 1.6f);
+        assert(packet.hands[0].profile == DROIDDECK_XR_CONTROLLER_PICO4S);
+        assert(packet.hands[0].aim.position[2] == -.04f && packet.hands[0].aim.flags == 15);
         assert(XrTrackingFile::Tracked(packet.head));
         assert(XrDisplayMode(packet) == "3360x1760@72");
         auto displayTracking = packet;
@@ -52,6 +58,9 @@ int main(int argc, char **argv) {
         writer->version++;
         assert(!reader.Read(&packet));
         writer->version = DROIDDECK_XR_VERSION;
+        writer->version = 1;
+        assert(!reader.Read(&packet));
+        writer->version = DROIDDECK_XR_VERSION;
         writer->sampled_ns = XrTrackingFile::Now() - 1000000000LL;
         assert(reader.Read(&packet)); assert(!XrTrackingFile::Fresh(packet));
         writer->sampled_ns = XrTrackingFile::Now() + 1000000000LL;
@@ -62,6 +71,12 @@ int main(int argc, char **argv) {
         assert(reader.Read(&packet)); assert(!XrTrackingFile::Fresh(packet));
     }
     munmap(writer, sizeof(DroidDeckXrTracking));
+    assert(ftruncate(descriptor, 296) == 0);
+    {
+        XrTrackingFile reader(filename);
+        DroidDeckXrTracking packet{};
+        assert(!reader.Read(&packet));
+    }
     assert(ftruncate(descriptor, 16) == 0);
     {
         XrTrackingFile reader(filename);

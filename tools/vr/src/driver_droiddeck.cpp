@@ -21,6 +21,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <filesystem>
 #include <unistd.h>
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
@@ -41,6 +42,9 @@
 #include "xr_vsync_timing.h"
 #include "xr_touch_input.h"
 #include "xr_chaperone.h"
+#include "xr_controller_pose.h"
+#include "xr_model_state.h"
+#include "xr_profile_animation.h"
 
 #define DD_EXPORT extern "C" __attribute__((visibility("default")))
 
@@ -1023,7 +1027,9 @@ private:
 
 class CardboardController : public ITrackedDeviceServerDriver {
 public:
-    explicit CardboardController(bool right) : right_(right) {
+    explicit CardboardController(bool right, const char *trackingPath = "/run/droiddeck/" DROIDDECK_XR_FILE,
+        const char *modelsPath = "/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels")
+        : right_(right), trackingPath_(trackingPath), modelsPath_(modelsPath) {
         pose_.qWorldFromDriverRotation.w = pose_.qDriverFromHeadRotation.w = pose_.qRotation.w = 1;
     }
 
@@ -1032,7 +1038,7 @@ public:
     EVRInitError Activate(uint32_t id) override {
         id_ = id;
         PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
-        XrTrackingFile tracking;
+        XrTrackingFile tracking(trackingPath_.c_str());
         DroidDeckXrTracking packet{};
         xrMode_ = tracking.Read(&packet) && XrTrackingFile::Fresh(packet);
         const PadProfile profile = xrMode_ ? PadProfile::Touch : profile_;
@@ -1077,7 +1083,10 @@ public:
             if (touch_) in->CreateBooleanComponent(c, "/input/thumbrest/touch", &thumbrestTouch_);
         }
         in->CreateHapticComponent(c, "/output/haptic", &haptic_);
-        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "Quest Touch" : model);
+        if (xrMode_) {
+            UpdateXrModel(packet.hands[right_ ? 1 : 0].profile, true);
+        }
+        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "OpenXR" : model);
         return VRInitError_None;
     }
     void Deactivate() override { ClearInputs(); id_ = k_unTrackedDeviceIndexInvalid; }
@@ -1114,21 +1123,114 @@ public:
 
     void UpdateXr(const DroidDeckXrHand &hand, int64_t predicted) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        if (xrMode_ && hand.active) {
+            const bool retainOrigin = xrNativeGripOrigin_ && hand.profile == xrProfile_ &&
+                !std::memcmp(xrOriginKey_, hand.model_key, sizeof(xrOriginKey_));
+            UpdateXrModel(hand.profile, false,
+                          XrTrackingFile::Tracked(hand.model) || retainOrigin ? hand.model_key : nullptr);
+        }
+        DroidDeckXrPose raw = runtimeModel_ ? hand.model : hand.pose;
+        if (runtimeModel_ && hand.profile == DROIDDECK_XR_CONTROLLER_PICO4S) {
+            const bool modelTracked = XrTrackingFile::Tracked(raw);
+            const bool gripTracked = XrTrackingFile::Tracked(hand.pose);
+            const bool aimTracked = XrTrackingFile::Tracked(hand.aim);
+            if (!xrNativeGripOrigin_ && modelTracked && gripTracked && aimTracked) {
+                const auto displacement = XrPosition(raw) - XrPosition(hand.pose);
+                xrNativeGripOrigin_ = Dot(displacement, displacement) < 1e-8;
+            }
+            if (xrNativeGripOrigin_) {
+                if (modelTracked && gripTracked) xrGripModelBinding_ = XrRelativePose(hand.pose, raw);
+                if (modelTracked && aimTracked) {
+                    xrAimModelBinding_ = XrRelativePose(hand.aim, raw);
+                    xrModelAimOffset_ = XrPosition(XrRelativePose(raw, hand.aim));
+                }
+                const auto reconstruct = [](const DroidDeckXrPose &parent, const DroidDeckXrPose &binding) {
+                    const auto rotation = Normalize(XrOrientation(parent) * XrOrientation(binding));
+                    const auto position = XrPosition(parent) + Rotate(XrOrientation(parent), XrPosition(binding));
+                    return DroidDeckXrPose{
+                        {float(rotation.x), float(rotation.y), float(rotation.z), float(rotation.w)},
+                        {float(position.x), float(position.y), float(position.z)}, parent.flags};
+                };
+                if (!modelTracked) {
+                    if (gripTracked) raw = reconstruct(hand.pose, xrGripModelBinding_);
+                    else if (aimTracked) raw = reconstruct(hand.aim, xrAimModelBinding_);
+                }
+                // The asset origin persists through tracking gaps; bindings stay local to the controller.
+                if (aimTracked) std::memcpy(raw.position, hand.aim.position, sizeof(raw.position));
+                else if (XrTrackingFile::Tracked(raw)) {
+                    const auto position = XrPosition(raw) + Rotate(XrOrientation(raw), xrModelAimOffset_);
+                    raw.position[0] = float(position.x);
+                    raw.position[1] = float(position.y);
+                    raw.position[2] = float(position.z);
+                }
+            }
+        }
         DriverPose_t pose{};
         pose.qWorldFromDriverRotation.w = pose.qDriverFromHeadRotation.w = 1;
         pose.qRotation.w = 1;
         pose.deviceIsConnected = hand.active;
-        pose.poseIsValid = hand.active && XrTrackingFile::Tracked(hand.pose);
+        pose.poseIsValid = hand.active && XrTrackingFile::Tracked(raw);
         if (pose.poseIsValid) {
-            pose.qRotation = {hand.pose.orientation[3], hand.pose.orientation[0], hand.pose.orientation[1], hand.pose.orientation[2]};
-            for (int axis = 0; axis < 3; axis++) pose.vecPosition[axis] = hand.pose.position[axis];
+            pose.qRotation = {raw.orientation[3], raw.orientation[0], raw.orientation[1], raw.orientation[2]};
+            for (int axis = 0; axis < 3; axis++) pose.vecPosition[axis] = raw.position[axis];
             pose.poseTimeOffset = XrTrackingFile::PoseTimeOffset(predicted, XrTrackingFile::Now());
         }
         pose.result = pose.poseIsValid ? TrackingResult_Running_OK : TrackingResult_Running_OutOfRange;
         pose_ = pose;
-        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, pose, sizeof(pose));
         XrTouchInput input = xr_touch_input(hand, right_);
         auto driverInput = VRDriverInput();
+        if (pose.poseIsValid && xrMode_) {
+            if (!runtimeModel_) if (const auto *asset = XrProfileAsset(hand.profile, right_)) {
+                auto base = ProfileIdentity();
+                // These profile meshes use the model/aim origin, separately from the runtime grip.
+                if (asset->aimOrigin && XrTrackingFile::Tracked(hand.aim)) {
+                    const auto relative = XrRelativePose(raw, hand.aim);
+                    base = ProfilePose(XrOrientation(relative), XrPosition(relative));
+                }
+                profileAnimation_.update(*asset, input, base);
+                const auto container = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+                for (size_t part = 0; part < profileAnimation_.count; ++part) {
+                    if (!xrProfileParts_[part]) {
+                        const auto path = "/pose/profile_" + std::to_string(part);
+                        driverInput->CreatePoseComponent(container, path.c_str(), &xrProfileParts_[part]);
+                    }
+                    HmdMatrix34_t matrix{};
+                    std::memcpy(matrix.m, profileAnimation_.parts[part].data(), sizeof(matrix.m));
+                    if (xrProfileParts_[part]) driverInput->UpdatePoseComponent(xrProfileParts_[part], &matrix, 0);
+                }
+            }
+            if (runtimeModel_ && modelStateFile_.open(
+                    (std::filesystem::path(trackingPath_).parent_path() / DROIDDECK_XR_MODEL_FILE).string(), false) &&
+                modelStateFile_.read(modelStatePacket_)) {
+                const int side = right_ ? 1 : 0;
+                if (!std::memcmp(hand.model_key, modelStatePacket_.key[side], sizeof(hand.model_key))) {
+                    const auto container = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+                    for (uint32_t node = 0; node < modelStatePacket_.count[side]; ++node) {
+                        const auto &state = modelStatePacket_.nodes[side][node];
+                        if (!xrNodes_[node]) {
+                            const auto path = "/pose/model_" + std::to_string(node);
+                            driverInput->CreatePoseComponent(container, path.c_str(), &xrNodes_[node]);
+                        }
+                        HmdMatrix34_t matrix{};
+                        std::memcpy(matrix.m, state.matrix, sizeof(matrix.m));
+                        if (!state.visible) {
+                            for (auto &row : matrix.m) for (int column = 0; column < 3; ++column) row[column] = 0;
+                        }
+                        if (xrNodes_[node]) driverInput->UpdatePoseComponent(xrNodes_[node], &matrix, 0);
+                    }
+                }
+            }
+            if (XrTrackingFile::Tracked(hand.pose)) {
+                const auto matrix = XrPoseMatrix(XrRelativePose(raw, hand.pose));
+                for (const auto component : {xrGrip_, xrHandgrip_, xrOpenXrGrip_})
+                    if (component) driverInput->UpdatePoseComponent(component, &matrix, 0);
+            }
+            if (XrTrackingFile::Tracked(hand.aim)) {
+                const auto tip = XrPoseMatrix(XrRelativePose(raw, hand.aim));
+                for (const auto component : {xrTip_, xrOpenXrAim_})
+                    if (component) driverInput->UpdatePoseComponent(component, &tip, 0);
+            }
+        }
         driverInput->UpdateScalarComponent(trigger_, input.trigger, 0);
         driverInput->UpdateBooleanComponent(triggerClick_, input.triggerClick, 0);
         driverInput->UpdateBooleanComponent(grip_, input.gripClick, 0);
@@ -1147,10 +1249,58 @@ public:
             driverInput->UpdateBooleanComponent(secondaryTouch_, input.secondaryTouch, 0);
             driverInput->UpdateBooleanComponent(thumbrestTouch_, input.thumbrestTouch, 0);
         }
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, pose, sizeof(pose));
     }
 
     VRInputComponentHandle_t Haptic() const { return id_ == k_unTrackedDeviceIndexInvalid ? 0 : haptic_; }
     bool XrMode() const { return xrMode_; }
+
+    void UpdateXrModel(uint32_t profile, bool force = false, const uint8_t *key = nullptr) {
+        const auto native = key ? XrRuntimeModelName(key, right_) : std::string{};
+        if (!force && xrProfile_ == profile && native == attemptedModel_) return;
+        if (force || xrProfile_ != profile || (key && std::memcmp(xrOriginKey_, key, sizeof(xrOriginKey_)))) {
+            xrNativeGripOrigin_ = false;
+            xrGripModelBinding_ = xrAimModelBinding_ = {};
+            xrModelAimOffset_ = {};
+            std::memset(xrOriginKey_, 0, sizeof(xrOriginKey_));
+            if (key) std::memcpy(xrOriginKey_, key, sizeof(xrOriginKey_));
+        }
+        attemptedModel_ = native;
+        runtimeModel_ = false;
+        xrProfile_ = profile;
+        auto model = XrModel(profile, right_);
+        if (!native.empty()) {
+            std::error_code error;
+            const auto source = std::filesystem::path(trackingPath_).parent_path() / "xr-models" / native;
+            const auto destination = std::filesystem::path(modelsPath_) / native;
+            if (std::filesystem::is_regular_file(source / (native + ".json"), error)) {
+                if (!std::filesystem::exists(destination, error)) std::filesystem::create_directory_symlink(source, destination, error);
+                if (!error && std::filesystem::is_regular_file(destination / (native + ".json"), error)) {
+                    runtimeModel_ = true;
+                    model.renderModel = "{droiddeck}" + native;
+                }
+            }
+            if (!runtimeModel_) Log("runtime model unavailable: %s (%s)", native.c_str(), error.message().c_str());
+        }
+        const auto c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+        if (xrMode_) {
+            const auto create = [&](const char *path, VRInputComponentHandle_t *handle) {
+                if (*handle) return;
+                const auto error = VRDriverInput()->CreatePoseComponent(c, path, handle);
+                if (error != VRInputError_None) Log("XR pose component %s creation failed: %d", path, int(error));
+            };
+            create("/pose/grip", &xrGrip_);
+            create("/pose/handgrip", &xrHandgrip_);
+            create("/pose/tip", &xrTip_);
+            create("/pose/openxr_grip", &xrOpenXrGrip_);
+            create("/pose/openxr_aim", &xrOpenXrAim_);
+        }
+        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, model.name);
+        VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, model.manufacturer);
+        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, model.renderModel.c_str());
+        Log("%s XR controller profile=%u model=%s pose=%s", right_ ? "right" : "left", profile,
+            model.renderModel.c_str(), runtimeModel_ ? "native model space" : "native grip");
+    }
 
     void Disconnect() {
         ClearInputs();
@@ -1331,7 +1481,19 @@ private:
     static constexpr int16_t kGrabTrigger = 153;
     static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
-    bool xrMode_ = false, touch_ = false, index_ = false;
+    bool xrMode_ = false, touch_ = false, index_ = false, runtimeModel_ = false;
+    bool xrNativeGripOrigin_ = false;
+    uint8_t xrOriginKey_[16]{};
+    DroidDeckXrPose xrGripModelBinding_{}, xrAimModelBinding_{};
+    Vec3 xrModelAimOffset_{};
+    uint32_t xrProfile_ = DROIDDECK_XR_CONTROLLER_UNKNOWN;
+    std::string trackingPath_, modelsPath_, attemptedModel_;
+    XrModelStateFile modelStateFile_;
+    DroidDeckXrModelState modelStatePacket_{};
+    XrProfileAnimation profileAnimation_;
+    VRInputComponentHandle_t xrProfileParts_[16]{};
+    VRInputComponentHandle_t xrNodes_[DROIDDECK_XR_MODEL_NODES]{};
+    VRInputComponentHandle_t xrGrip_ = 0, xrTip_ = 0, xrHandgrip_ = 0, xrOpenXrGrip_ = 0, xrOpenXrAim_ = 0;
     PadProfile profile_ = PadProfile::Index;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};

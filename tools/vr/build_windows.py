@@ -14,7 +14,9 @@ IMAGE = 'droiddeck-local-cross:24.04-v3'
 MANIFEST = 'vr-build.json'
 SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
-SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp', 'tools/local-cross.Dockerfile',
+SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp',
+                'tools/vr/make_pico_models.py', 'tools/local-cross.Dockerfile',
+                'tools/docker_platform.sh',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c',
@@ -34,7 +36,14 @@ HAND_MODELS = {
     for name in (f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj',
                  'hand_fist.obj', 'thumb_index_open.obj', 'thumb_index_pinch.obj')
 }
-OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS
+PROFILE_MODELS = {
+    'droiddeck/resources/rendermodels/' + path.relative_to(
+        ROOT / 'tools/vr/driver_droiddeck/resources/rendermodels').as_posix():
+    path.relative_to(ROOT).as_posix()
+    for path in (ROOT / 'tools/vr/driver_droiddeck/resources/rendermodels').glob('droiddeck_pico_*/*')
+    if path.is_file()
+}
+OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS | PROFILE_MODELS.keys()
 
 
 def is_source(path):
@@ -57,7 +66,8 @@ def sources(root):
     for path in sorted(paths):
         if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
             raise ValueError('VR source escapes the checkout: ' + str(path))
-        result[path.relative_to(root).as_posix()] = path.read_bytes().replace(b'\r\n', b'\n')
+        data = path.read_bytes()
+        result[path.relative_to(root).as_posix()] = data if path.suffix in {'.glb', '.png'} else data.replace(b'\r\n', b'\n')
     return result
 
 
@@ -91,6 +101,13 @@ def read_outputs(folder, root):
                 raise ValueError('VR output is not an ARM64 ELF shared library or executable: ' + name)
         elif name in CONFIGS and json.loads(data) != json.loads((root / CONFIGS[name]).read_bytes()):
             raise ValueError('VR configuration differs from current source: ' + name)
+        elif name in PROFILE_MODELS:
+            source = root / PROFILE_MODELS[name]
+            expected = source.read_bytes()
+            if source.suffix != '.png':
+                expected = expected.replace(b'\r\n', b'\n')
+            if data != expected:
+                raise ValueError('PICO render model differs from current source: ' + name)
         elif not data:
             raise ValueError('Empty VR output: ' + name)
         files[name] = data
