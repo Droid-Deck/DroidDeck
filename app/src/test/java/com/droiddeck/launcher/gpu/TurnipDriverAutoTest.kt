@@ -101,6 +101,16 @@ class TurnipDriverAutoTest {
         assertEquals("test-pinned", TurnipDriver(context) { error("manual choice must precede detection") }.install())
     }
 
+    @Test fun autoInstalledLowSevenDisplayDriverFallsBackToSystem() {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.filesDir, "graphics_driver/test-pinned").apply { mkdirs() }
+        File(dir, "meta.json").writeText("""{"libraryName":"test.so"}""")
+        File(dir, "test.so").writeText("")
+        SessionPrefs.setAndroidDriver(context, "test-pinned")
+        SessionPrefs.setGpuAutoInstalled(context, setOf("test-pinned"))
+        assertEquals("system", TurnipDriver(context) { gpu(710) }.autoId())
+    }
+
     @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {
         for (sdk in listOf(28, 36)) {
             assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(650, sdk))
