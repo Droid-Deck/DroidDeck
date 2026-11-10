@@ -156,6 +156,13 @@ object SessionFiles {
                 "thumb_index_pinch.obj")
                 .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
         }
+        val modelRoot = "droiddeck/resources/rendermodels"
+        val profileModels = context.assets.list("linuxfs/usr/local/lib/droiddeck-vr/$modelRoot").orEmpty()
+            .filter { it.startsWith("droiddeck_pico_") }
+            .flatMap { model ->
+                context.assets.list("linuxfs/usr/local/lib/droiddeck-vr/$modelRoot/$model").orEmpty()
+                    .map { "$modelRoot/$model/$it" }
+            }
         val vr = (listOf(
             "droiddeck/bin/linuxarm64/driver_droiddeck.so",
             "droiddeck/bin/linuxarm64/xr-display-mode",
@@ -164,7 +171,7 @@ object SessionFiles {
             "layer/libVkLayer_droiddeck_vr.so",
             "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",
-        ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
+        ) + handModels + profileModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
                 "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         // HUD GPU load where Android hides it (GpuStatsComponent.guestEnv turns the layer on).

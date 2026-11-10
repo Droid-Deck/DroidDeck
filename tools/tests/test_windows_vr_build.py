@@ -33,6 +33,9 @@ class WindowsVrBuildTest(unittest.TestCase):
             self.write(self.out / name, data)
         for name in vr.HAND_MODELS:
             self.write(self.out / name, b'generated hand model\n')
+        for name, source in vr.PROFILE_MODELS.items():
+            self.write(self.root / source, b'PICO render model\r\n')
+            self.write(self.out / name, b'PICO render model\r\n' if name.endswith('.png') else b'PICO render model\n')
         for name in ('vulkan/vulkan_core.h', 'vulkan/vk_layer.h'):
             self.write(self.include / name, b'vulkan header\n')
         self.commit = mock.patch.object(vr, 'commit', return_value='current-revision')
@@ -121,6 +124,18 @@ class WindowsVrBuildTest(unittest.TestCase):
         self.record()
         with self.assertRaisesRegex(ValueError, 'configuration differs'):
             self.validate()
+
+    def test_pico_model_rejected_even_with_matching_output_checksum(self):
+        self.write(self.out / sorted(vr.PROFILE_MODELS)[0], b'old model\n')
+        self.record()
+        with self.assertRaisesRegex(ValueError, 'PICO render model differs'):
+            self.validate()
+
+    def test_binary_assets_preserve_crlf_bytes(self):
+        for suffix in ('.png', '.glb'):
+            name = 'tools/vr/third_party/model' + suffix
+            self.write(self.root / name, b'binary\r\npayload')
+            self.assertEqual(vr.sources(self.root)[name], b'binary\r\npayload')
 
 
 if __name__ == '__main__':

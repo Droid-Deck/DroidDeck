@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #define DROIDDECK_XR_MAGIC 0x52584444u
-#define DROIDDECK_XR_VERSION 1u
+#define DROIDDECK_XR_VERSION 3u
 #define DROIDDECK_XR_FILE "droiddeck-xr-tracking"
 #define DROIDDECK_XR_STICK_CLICK (1u << 0)
 #define DROIDDECK_XR_PRIMARY_CLICK (1u << 1)
@@ -13,6 +13,19 @@
 #define DROIDDECK_XR_PRIMARY_TOUCH (1u << 6)
 #define DROIDDECK_XR_SECONDARY_TOUCH (1u << 7)
 #define DROIDDECK_XR_THUMBREST_TOUCH (1u << 8)
+#define DROIDDECK_XR_TRIGGER_CLICK (1u << 9)
+#define DROIDDECK_XR_SQUEEZE_CLICK (1u << 10)
+#define DROIDDECK_XR_TRIGGER_CLICK_VALID (1u << 11)
+#define DROIDDECK_XR_SQUEEZE_CLICK_VALID (1u << 12)
+
+enum DroidDeckXrControllerProfile : uint32_t {
+    DROIDDECK_XR_CONTROLLER_UNKNOWN = 0,
+    DROIDDECK_XR_CONTROLLER_TOUCH = 1,
+    DROIDDECK_XR_CONTROLLER_PICO_NEO3 = 2,
+    DROIDDECK_XR_CONTROLLER_PICO4 = 3,
+    DROIDDECK_XR_CONTROLLER_PICO4S = 4,
+    DROIDDECK_XR_CONTROLLER_SIMPLE = 5,
+};
 
 struct DroidDeckXrPose {
     float orientation[4];
@@ -30,6 +43,10 @@ struct DroidDeckXrHand {
     DroidDeckXrPose pose;
     float trigger, squeeze, stick[2];
     uint32_t buttons, active;
+    DroidDeckXrPose aim;
+    uint32_t profile;
+    DroidDeckXrPose model;
+    uint8_t model_key[16];
 };
 
 struct DroidDeckXrTracking {
@@ -40,7 +57,8 @@ struct DroidDeckXrTracking {
     DroidDeckXrHand hands[2];
 };
 
-static_assert(sizeof(DroidDeckXrTracking) == 296, "XR tracking IPC layout");
+static_assert(sizeof(DroidDeckXrHand) == 140, "XR hand IPC layout");
+static_assert(sizeof(DroidDeckXrTracking) == 464, "XR tracking IPC layout");
 
 #define DROIDDECK_XR_HAPTIC_MAGIC 0x48584444u
 #define DROIDDECK_XR_HAPTIC_FILE "droiddeck-xr-haptics"

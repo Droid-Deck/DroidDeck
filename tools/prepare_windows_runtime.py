@@ -38,6 +38,11 @@ DONOR_URL = 'https://github.com/Droid-Deck/DroidDeck-CI/releases/download/pr-732
 AUDITED_SOURCE = '1dc66bf9be64a404c80400049c0803614814461b'
 LOCAL_BUILD_PLUMBING = {'app/build.gradle', 'tools/release/runtime_inputs.py'}
 LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
+                         'app/src/main/cpp/questxr/CMakeLists.txt',
+                         'app/src/main/cpp/questxr/quest_xr.cpp',
+                         'app/src/main/cpp/questxr/controller_profiles.h',
+                         'app/src/main/cpp/questxr/openxr_api.h',
+                         'app/src/main/cpp/questxr/input_evidence.h',
                          'app/src/main/cpp/viture/sdk_bridge.cpp',
                          'app/src/main/cpp/viture/display_modes.h',
                          'app/src/main/cpp/viture/stereo_frame_gate.h',
