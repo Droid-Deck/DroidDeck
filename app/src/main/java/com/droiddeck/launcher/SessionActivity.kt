@@ -3290,6 +3290,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
             .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
+        val oldSelectedDisplay = selectedSecondScreenDisplay
         secondScreenDisplays = candidates
         reconcileDock(primaryId)
         val newIds = candidates.map { it.id }.toSet()
@@ -3300,6 +3301,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
+        if (selectedSecondScreenDisplay != oldSelectedDisplay) updateBottomGame()
         bottomSwapAvailable = bottomGame != null || bottomGameDisplay() != null
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) {
             closeSecondScreen(reset = true)
@@ -4970,9 +4972,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun bottomGameDisplay(): Display? {
-        if (!::displayManager.isInitialized) return null
+        if (!::displayManager.isInitialized || SessionPrefs.dualScreenSessionMode(this) == com.droiddeck.launcher.input.DualScreen.MODE_OFF) return null
         return com.droiddeck.launcher.input.DualScreen.selectedSessionDisplay(
-            displayManager, shownOnDisplayId, selectedSecondScreenDisplay,
+            this, displayManager, shownOnDisplayId, selectedSecondScreenDisplay,
         )
     }
 
