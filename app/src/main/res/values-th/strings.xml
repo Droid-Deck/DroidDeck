@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">การตั้งค่า %1$s</string>
     <string name="game_settings_default">ค่าเริ่มต้น</string>
     <string name="game_settings_default_detail">คืนทุกอย่างที่เปลี่ยนสำหรับเกมนี้กลับเป็นการตั้งค่าของแอป</string>
+    <string name="game_nintendo_layout">รูปแบบปุ่มแบบ Nintendo</string>
+    <string name="game_nintendo_layout_detail">สลับปุ่ม A/B และ X/Y บนคอนโทรลเลอร์จริง</string>
     <string name="game_sync_custom">ตัวแปรซิงก์แบบกำหนดเอง</string>
     <string name="comp_game_proton_live">บันทึกการเลือก Proton ของ %1$s แล้ว และพร้อมใช้งานใน Steam ตอนนี้</string>
     <string name="comp_game_proton_next">บันทึกการเลือก Proton ของ %1$s แล้ว รีสตาร์ท Steam ก่อนเปิดเกม</string>

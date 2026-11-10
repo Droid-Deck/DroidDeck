@@ -21,6 +21,7 @@ public final class PadBridge {
     public static final int RIGHT_STICK = 2;
     private static final float DEAD_ZONE = 0.12f;
     private float stickDeadZone = DEAD_ZONE;
+    private boolean nintendoLayout;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
             MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
@@ -384,10 +385,10 @@ public final class PadBridge {
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_B: pad.press(1, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_X: pad.press(2, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_Y: pad.press(3, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_BUTTON_X:
+            case KeyEvent.KEYCODE_BUTTON_Y: pad.press(faceButton(event.getKeyCode(), nintendoLayout), pressed); break;
             case KeyEvent.KEYCODE_BUTTON_L1: pad.press(4, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_R1: pad.press(5, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
@@ -427,6 +428,27 @@ public final class PadBridge {
         publish(slot);
         InputTiming.end(timing);
         return true;
+    }
+
+    static int faceButton(int keyCode, boolean nintendo) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_A: return nintendo ? 1 : 0;
+            case KeyEvent.KEYCODE_BUTTON_B: return nintendo ? 0 : 1;
+            case KeyEvent.KEYCODE_BUTTON_X: return nintendo ? 3 : 2;
+            case KeyEvent.KEYCODE_BUTTON_Y: return nintendo ? 2 : 3;
+            default: return -1;
+        }
+    }
+
+    public synchronized void setNintendoLayout(boolean on) {
+        if (nintendoLayout == on) return;
+        nintendoLayout = on;
+        for (int slot = 0; slot < SLOTS; slot++) {
+            PadState pad = stateFor(slot);
+            for (int button = 0; button < 4; button++) pad.press(button, false);
+        }
+        if (open) publish();
+        for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
     }
 
     public synchronized void setStickDeadZone(int percent) {

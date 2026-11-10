@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">Настройки на %1$s</string>
     <string name="game_settings_default">По подразбиране</string>
     <string name="game_settings_default_detail">Връща всичко, променено за тази игра, към настройките на приложението.</string>
+    <string name="game_nintendo_layout">Подредба на бутоните като при Nintendo</string>
+    <string name="game_nintendo_layout_detail">Разменя A/B и X/Y на физическите контролери.</string>
     <string name="game_sync_custom">Персонализирани променливи за синхронизация</string>
     <string name="comp_game_proton_live">Изборът на Proton за %1$s е запазен и вече е достъпен в Steam.</string>
     <string name="comp_game_proton_next">Изборът на Proton за %1$s е запазен. Рестартирайте Steam, преди да стартирате играта.</string>

@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">Instellingen voor %1$s</string>
     <string name="game_settings_default">Standaard</string>
     <string name="game_settings_default_detail">Zet alles wat voor deze game is gewijzigd terug naar de instellingen van de app.</string>
+    <string name="game_nintendo_layout">Nintendo-knopindeling</string>
+    <string name="game_nintendo_layout_detail">Wisselt A/B en X/Y om op fysieke controllers.</string>
     <string name="game_sync_custom">Aangepaste synchronisatievariabelen</string>
     <string name="comp_game_proton_live">De Proton-keuze van %1$s is opgeslagen en nu beschikbaar in Steam.</string>
     <string name="comp_game_proton_next">De Proton-keuze van %1$s is opgeslagen. Start Steam opnieuw voordat je de game start.</string>

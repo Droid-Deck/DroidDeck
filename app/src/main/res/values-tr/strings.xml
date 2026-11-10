@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">%1$s Ayarları</string>
     <string name="game_settings_default">Varsayılan</string>
     <string name="game_settings_default_detail">Bu oyun için değiştirilen her şeyi uygulamanın ayarlarına döndürür.</string>
+    <string name="game_nintendo_layout">Nintendo düğme düzeni</string>
+    <string name="game_nintendo_layout_detail">Fiziksel kontrolcülerde A/B ile X/Y\'nin yerini değiştirir.</string>
     <string name="game_sync_custom">Özel eşitleme değişkenleri</string>
     <string name="comp_game_proton_live">%1$s için Proton seçimi kaydedildi ve şimdi Steam\'de kullanılabilir.</string>
     <string name="comp_game_proton_next">%1$s için Proton seçimi kaydedildi. Oyunu başlatmadan önce Steam\'i yeniden başlatın.</string>

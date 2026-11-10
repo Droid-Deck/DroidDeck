@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">%1$s beállításai</string>
     <string name="game_settings_default">Alapértelmezett</string>
     <string name="game_settings_default_detail">Mindent, amit ennél a játéknál módosítottál, visszaállít az alkalmazás beállításaira.</string>
+    <string name="game_nintendo_layout">Nintendo gombkiosztás</string>
+    <string name="game_nintendo_layout_detail">Felcseréli az A/B és X/Y gombokat a fizikai kontrollereken.</string>
     <string name="game_sync_custom">Egyéni szinkronizálási változók</string>
     <string name="comp_game_proton_live">A %1$s Proton-választása mentve, és már elérhető a Steamben.</string>
     <string name="comp_game_proton_next">A %1$s Proton-választása mentve. Indítsa újra a Steamet a játék elindítása előtt.</string>

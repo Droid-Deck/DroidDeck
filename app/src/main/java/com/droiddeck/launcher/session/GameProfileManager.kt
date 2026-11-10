@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.input.ControllerPrefs
 
 object GameProfileManager {
     @Synchronized
@@ -22,6 +23,7 @@ object GameProfileManager {
         clear("component packages") { ComponentsManager.clearGameComponents(context, scope) }
         clear("texture filtering") { SessionPrefs.clearGameTextureFiltering(context, scope) }
         clear("Windows components") { WinComponents.setPicks(context, scope, emptyList()) }
+        clear("Nintendo button layout") { ControllerPrefs.setNintendoLayout(context, scope, false) }
 
         if (failures.isNotEmpty()) {
             val names = failures.joinToString { it.first }

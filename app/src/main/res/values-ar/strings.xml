@@ -490,6 +490,8 @@
     <string name="game_settings_menu_title">إعدادات %1$s</string>
     <string name="game_settings_default">الافتراضي</string>
     <string name="game_settings_default_detail">يعيد كل ما تم تغييره لهذه اللعبة إلى إعدادات التطبيق.</string>
+    <string name="game_nintendo_layout">تخطيط أزرار نينتندو</string>
+    <string name="game_nintendo_layout_detail">يبدّل A/B وX/Y في وحدات التحكم الفعلية.</string>
     <string name="game_sync_custom">متغيرات مزامنة مخصصة</string>
     <string name="comp_game_proton_live">تم حفظ اختيار Proton لـ %1$s وهو متاح في Steam الآن.</string>
     <string name="comp_game_proton_next">تم حفظ اختيار Proton لـ %1$s. أعد تشغيل Steam قبل تشغيل اللعبة.</string>

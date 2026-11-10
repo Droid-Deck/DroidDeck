@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">Indstillinger for %1$s</string>
     <string name="game_settings_default">Standard</string>
     <string name="game_settings_default_detail">Sætter alt, der er ændret for dette spil, tilbage til appens indstillinger.</string>
+    <string name="game_nintendo_layout">Nintendo-knaplayout</string>
+    <string name="game_nintendo_layout_detail">Bytter om på A/B og X/Y på fysiske controllere.</string>
     <string name="game_sync_custom">Brugerdefinerede synkroniseringsvariabler</string>
     <string name="comp_game_proton_live">%1$s’s Proton-valg er gemt og tilgængeligt i Steam nu.</string>
     <string name="comp_game_proton_next">%1$s’s Proton-valg er gemt. Genstart Steam, inden du starter spillet.</string>

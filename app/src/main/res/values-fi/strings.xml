@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">%1$s – asetukset</string>
     <string name="game_settings_default">Oletus</string>
     <string name="game_settings_default_detail">Palauttaa kaiken tälle pelille muutetun sovelluksen asetuksiin.</string>
+    <string name="game_nintendo_layout">Nintendon painikeasettelu</string>
+    <string name="game_nintendo_layout_detail">Vaihtaa A/B- ja X/Y-painikkeet keskenään fyysisissä ohjaimissa.</string>
     <string name="game_sync_custom">Mukautetut synkronointimuuttujat</string>
     <string name="comp_game_proton_live">%1$s:n Proton-valinta on tallennettu ja käytettävissä Steamissa nyt.</string>
     <string name="comp_game_proton_next">%1$s:n Proton-valinta on tallennettu. Käynnistä Steam uudelleen ennen pelin käynnistämistä.</string>

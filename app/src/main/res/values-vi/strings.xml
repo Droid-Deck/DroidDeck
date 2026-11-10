@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">Thiết lập %1$s</string>
     <string name="game_settings_default">Mặc định</string>
     <string name="game_settings_default_detail">Đưa mọi thứ đã thay đổi cho trò chơi này về thiết lập của ứng dụng.</string>
+    <string name="game_nintendo_layout">Bố cục nút kiểu Nintendo</string>
+    <string name="game_nintendo_layout_detail">Hoán đổi A/B và X/Y trên tay cầm vật lý.</string>
     <string name="game_sync_custom">Biến đồng bộ tùy chỉnh</string>
     <string name="comp_game_proton_live">Lựa chọn Proton của %1$s đã được lưu và khả dụng ngay trong Steam.</string>
     <string name="comp_game_proton_next">Lựa chọn Proton của %1$s đã được lưu. Khởi động lại Steam trước khi chạy game.</string>

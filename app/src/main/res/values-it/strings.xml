@@ -484,6 +484,8 @@
     <string name="game_settings_menu_title">Impostazioni di %1$s</string>
     <string name="game_settings_default">Predefinito</string>
     <string name="game_settings_default_detail">Riporta tutto ciò che è stato cambiato per questo gioco alle impostazioni dell\'app.</string>
+    <string name="game_nintendo_layout">Disposizione dei pulsanti Nintendo</string>
+    <string name="game_nintendo_layout_detail">Scambia A/B e X/Y sui controller fisici.</string>
     <string name="game_sync_custom">Variabili di sincronizzazione personalizzate</string>
     <string name="comp_game_proton_live">La scelta di Proton per %1$s è salvata e già disponibile in Steam.</string>
     <string name="comp_game_proton_next">La scelta di Proton per %1$s è salvata. Riavvia Steam prima di avviare il gioco.</string>

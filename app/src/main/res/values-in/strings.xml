@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">Setelan %1$s</string>
     <string name="game_settings_default">Default</string>
     <string name="game_settings_default_detail">Mengembalikan semua yang diubah untuk game ini ke setelan aplikasi.</string>
+    <string name="game_nintendo_layout">Tata letak tombol Nintendo</string>
+    <string name="game_nintendo_layout_detail">Menukar A/B dan X/Y pada kontroler fisik.</string>
     <string name="game_sync_custom">Variabel sinkronisasi kustom</string>
     <string name="comp_game_proton_live">Pilihan Proton %1$s tersimpan dan sudah tersedia di Steam sekarang.</string>
     <string name="comp_game_proton_next">Pilihan Proton %1$s tersimpan. Mulai ulang Steam sebelum meluncurkan gim.</string>
