@@ -15,8 +15,7 @@
 // N is chosen at random and claimed with O_EXCL, so processes never pick the same one. IPC_RMID
 // removes the files at once: programs that attached the segment keep their mapping (as on Linux),
 // later attaches fail, which is what X programs expect (they remove a segment as soon as the X
-// server has attached it). A private segment whose maker and every process that attached it have
-// ended without removing it is deleted by the next shmget() that creates one; a keyed one stays.
+// server has attached it). A segment nobody removed stays until the session's directory is cleared.
 
 #ifndef DDNATV_HOST_TEST
 
@@ -154,10 +153,8 @@ static void shm_unlock_dir(int fd) {
     if (fd >= 0) syscall(SYS_close, fd);
 }
 
-// Deletes the private (IPC_PRIVATE) segments whose maker and attached processes have all ended (a
-// segment being written has no description yet and is left alone), and the marks of attached
-// processes that have ended. A segment with a key stays until IPC_RMID, as on Linux: another
-// process can still look it up by its key.
+// Deletes the marks of attached processes that have ended. Every segment stays until IPC_RMID, as on
+// Linux: a private one's maker can hand its id to a process that attaches after the maker has ended.
 static void shm_collect(void) {
     char path[PATH_MAX];
     if (shm_path(path, sizeof(path), NULL) != 0) return;
@@ -169,8 +166,6 @@ static void shm_collect(void) {
         return;
     }
     char dents[4096];
-    int dead[64];
-    int ndead = 0;
     for (;;) {
         long n = syscall(SYS_getdents64, dfd, dents, sizeof(dents));
         if (n <= 0) break;
@@ -179,53 +174,16 @@ static void shm_collect(void) {
             memcpy(&reclen, dents + at + 16, sizeof(reclen));
             if (reclen == 0) break;
             const char *entry = dents + at + 19;
-            if (strncmp(entry, "id-", 3) == 0 && ndead < 64) {
-                int id = atoi(entry + 3);
-                char text[128];
-                struct shm_meta meta;
-                if (shm_read_small(entry, text, sizeof(text)) > 0 &&
-                    sscanf(text, "%d %lx %o", &meta.pid, &meta.key, &meta.mode) == 3 && meta.key == IPC_PRIVATE &&
-                    !shm_process_alive(meta.pid)) {
-                    dead[ndead++] = id;
-                }
-            }
+            int id = 0, pid = 0;
+            if (strncmp(entry, "att-", 4) == 0 && sscanf(entry + 4, "%d-%d", &id, &pid) == 2 && !shm_process_alive(pid))
+                shm_unlink_file(entry);
             at += reclen;
         }
     }
-    // a segment still attached somewhere is kept, as Linux keeps it until IPC_RMID
-    int used[64] = { 0 };
     syscall(SYS_close, dfd);
-    dfd = ndead > 0 ? (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_DIRECTORY | O_CLOEXEC) : -1;
-    if (dfd >= 0) {
-        for (;;) {
-            long n = syscall(SYS_getdents64, dfd, dents, sizeof(dents));
-            if (n <= 0) break;
-            for (long at = 0; at < n;) {
-                unsigned short reclen;
-                memcpy(&reclen, dents + at + 16, sizeof(reclen));
-                if (reclen == 0) break;
-                const char *entry = dents + at + 19;
-                int id = 0, pid = 0;
-                if (strncmp(entry, "att-", 4) == 0 && sscanf(entry + 4, "%d-%d", &id, &pid) == 2) {
-                    if (shm_process_alive(pid)) {
-                        for (int i = 0; i < ndead; i++) if (dead[i] == id) used[i] = 1;
-                    } else {
-                        shm_unlink_file(entry);
-                    }
-                }
-                at += reclen;
-            }
-        }
-    }
-    if (dfd >= 0) syscall(SYS_close, dfd);
-    for (int i = 0; i < ndead; i++) {
-        struct shm_meta meta;
-        if (!used[i] && shm_read_meta(dead[i], &meta) == 0) shm_remove(dead[i], meta.key);
-    }
     shm_unlock_dir(lock);
 }
 
-// A new segment: claims an id, makes its memory, then writes its description. Returns the id or -1.
 static int shm_create(long key, size_t size, unsigned mode) {
     // a different sequence of ids for every call, also within one second and one process
     static unsigned calls = 0;
