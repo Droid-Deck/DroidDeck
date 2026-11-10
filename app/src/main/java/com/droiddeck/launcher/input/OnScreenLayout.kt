@@ -5,6 +5,7 @@ import android.graphics.Rect
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 object OnScreenLayout {
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
@@ -80,7 +81,9 @@ object OnScreenLayout {
         if (gamepad.any { it.id.startsWith("legacy:") }) {
             val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
                 ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
-            for ((w, h) in listOfNotNull(named, width to height, long to short, short to long).distinct()) {
+            val aspectSize = layout.aspect.takeIf { layout.id == InputLibraries.OVERLAY && it > 0f }
+                ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
+            for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
                 if (matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements())) return (w.toFloat() to h.toFloat()) to true
             }
         }

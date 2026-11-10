@@ -49,6 +49,13 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
+        val saved = gamepad().copy(elements = LegacyGamepadLayout(context, 2608, 1200).elements(), aspect = 2608f / 1200)
+        val placed = OnScreenLayout.elements(context, saved, 2048, 1200, Rect())
+        assertEquals(LegacyGamepadLayout(context, 2048, 1200).regenerate(saved.elements), placed)
+    }
+
     @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
         val layout = gamepad()
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {

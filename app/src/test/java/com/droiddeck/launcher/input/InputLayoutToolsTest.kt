@@ -191,4 +191,10 @@ class InputLayoutToolsTest {
             }
         }
     }
+
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun wideHighDensityGamepadKeepsItsShape() {
+        val elements = LegacyGamepadLayout(context, 2608, 1200).elements()
+        assertGamepadShape(elements, 2608, 1200, "2608 x 1200")
+    }
 }
