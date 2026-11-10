@@ -1307,19 +1307,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val runningAppId = if (SessionState.mode == SessionService.MODE_RUN) {
-                    SessionState.gameId?.toLongOrNull()
-                } else null
-                val appId = runningAppId ?: drawerGameProfileId
+                val appId = drawerGameProfileId
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
+                loadFrameGenFor(appId)
                 readPrefs()
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                drawerGameProfileId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
+                val appId = drawerGameProfileId
+                appId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
+                loadFrameGenFor(appId)
                 readPrefs()
-                applyFrameGen()
+                applyFrameGen(force = true)
             },
             onImportLossless = {
                 pickLossless.launch(InAppFilePicker.buildIntent(
