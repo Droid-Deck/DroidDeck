@@ -69,14 +69,14 @@ class LabOverlayTest {
         assertNull(LabOverlay.active)
         assertTrue(injected.isEmpty())
         assertFalse(File(root, "active").exists())
-        assertEquals("built for another install", File(root, "last-off-reason").readText())
+        assertEquals("OTHER_INSTALL", File(root, "last-off-reason").readText())
     }
 
     @Test fun aBuildForAnEarlierInstallOfTheSameCommitIsTurnedOff() {
         stage("active", apk = "/data/app/old/base.apk")
         LabOverlay.load(app, mainProcess = true)
         assertNull(LabOverlay.active)
-        assertEquals("built for another install", File(root, "last-off-reason").readText())
+        assertEquals("OTHER_INSTALL", File(root, "last-off-reason").readText())
     }
 
     @Test fun aBuildThatKeepsFailingToStartIsTurnedOff() {
@@ -84,7 +84,7 @@ class LabOverlayTest {
         File(root, "starts").writeText("2")
         LabOverlay.load(app, mainProcess = true)
         assertNull(LabOverlay.active)
-        assertEquals("did not start", File(root, "last-off-reason").readText())
+        assertEquals("DID_NOT_START", File(root, "last-off-reason").readText())
     }
 
     @Test fun otherProcessesLoadWithoutCountingStarts() {
@@ -98,5 +98,46 @@ class LabOverlayTest {
         LabOverlay.load(app, mainProcess = true)
         assertNull(LabOverlay.active)
         assertTrue(injected.isEmpty())
+        assertFalse(LabOverlay.promoted)
+    }
+
+    @Test fun aNewBuildKeepsTheOneItReplaces() {
+        stage("active")
+        stage("next")
+        LabOverlay.load(app, mainProcess = true)
+        assertTrue(LabOverlay.promoted)
+        val saved = LabOverlay.saved(app).single()
+        assertEquals(LabOverlay.Reason.REPLACED, saved.reason)
+        assertTrue(saved.usable)
+    }
+
+    @Test fun aRefusedBuildIsKeptButNotUsable() {
+        stage("active", commit = "0000000")
+        LabOverlay.load(app, mainProcess = true)
+        val saved = LabOverlay.saved(app).single()
+        assertEquals(LabOverlay.Reason.OTHER_INSTALL, saved.reason)
+        assertFalse(saved.usable)
+    }
+
+    @Test fun aKeptBuildCanBeStagedAgain() {
+        stage("active", commit = "0000000")
+        LabOverlay.load(app, mainProcess = true)
+        stage("active")
+        LabOverlay.archive(root, File(root, "active"), LabOverlay.Reason.TURNED_OFF)
+        val usable = LabOverlay.saved(app).first { it.usable }
+        LabOverlay.stage(app, usable)
+        assertNotNull(LabOverlay.pending(app))
+        assertEquals(1, LabOverlay.saved(app).size)
+        LabOverlay.load(app, mainProcess = true)
+        assertTrue(LabOverlay.promoted)
+        assertNotNull(LabOverlay.active)
+    }
+
+    @Test fun onlyTheNewestBuildsAreKept() {
+        repeat(15) {
+            stage("active")
+            LabOverlay.archive(root, File(root, "active"), LabOverlay.Reason.TURNED_OFF)
+        }
+        assertEquals(12, LabOverlay.saved(app).size)
     }
 }
