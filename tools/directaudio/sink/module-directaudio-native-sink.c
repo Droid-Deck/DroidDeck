@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
@@ -65,6 +66,7 @@ PA_MODULE_USAGE(
 #define DA_RING_CAP_MS_LOCAL  250
 #define DA_FREEZE_GAP_NS      500000000ull
 #define DA_CB_STALL_NS        1000000000ull
+#define DA_HOST_RESTART_STALLS 3
 #define DA_DECAY_QUIET_NS     10000000000ull
 #define DA_DECAY_PUNISH_NS    5000000000ull
 #define DA_DECAY_MAX_BACKOFF  32
@@ -106,6 +108,7 @@ struct userdata {
     uint64_t last_cb_ns, last_xrun_ns, last_decay_ns, wd_last_tick_ns;
     int32_t base_buf_frames, decay_floor;
     unsigned int decay_backoff, cb_count, wd_last_cb;
+    unsigned int stalled_reopens;
     int reopen_running, reopen_redo;
     int consuming, primed, starved;
     int suspended;
@@ -169,6 +172,8 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user, void *
         memset(out, 0, (size_t) frames * DA_RING_CHANNELS * sizeof(float));
         return AAUDIO_CALLBACK_RESULT_CONTINUE;
     }
+
+    u->stalled_reopens = 0;
 
     ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
     avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
@@ -431,6 +436,12 @@ static void watchdog(struct userdata *u) {
     if (!last_cb || now - last_cb < DA_CB_STALL_NS) return;
 
     __atomic_store_n(&u->last_cb_ns, now, __ATOMIC_SEQ_CST);
+    u->stalled_reopens++;
+    if (u->stalled_reopens >= DA_HOST_RESTART_STALLS) {
+        pa_log("directaudio-native-sink: no data callback after %u stream recoveries; restarting the audio host", u->stalled_reopens);
+        kill(getpid(), SIGTERM);
+        return;
+    }
     request_reopen(u, "data callback stalled");
 }
 

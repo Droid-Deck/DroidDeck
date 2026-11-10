@@ -15,6 +15,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeUnit;
 
 public class PulseAudioComponent extends SessionPart {
@@ -30,6 +31,11 @@ public class PulseAudioComponent extends SessionPart {
     private File logFile;
     private final String micFifoPath;
     private volatile int pid = -1;
+    private volatile boolean stopping;
+
+    static boolean shouldRestart(boolean stopping, int expectedPid, int currentPid) {
+        return !stopping && expectedPid > 1 && expectedPid == currentPid;
+    }
 
     public PulseAudioComponent(Context context) {
         this(context, null);
@@ -65,6 +71,7 @@ public class PulseAudioComponent extends SessionPart {
     @Override
     public void start() {
         stop();
+        stopping = false;
         if (!workingDir.isDirectory()) {
             workingDir.mkdirs();
             FileUtils.chmod(workingDir, 0771);
@@ -118,11 +125,20 @@ public class PulseAudioComponent extends SessionPart {
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
         final java.io.PrintWriter out = openLog();
-        pid = HostProcess.start(command, env.toArray(new String[0]), workingDir, null,
+        AtomicInteger startedPid = new AtomicInteger(-1);
+        int started = HostProcess.start(command, env.toArray(new String[0]), workingDir, status -> {
+                    if (shouldRestart(stopping, startedPid.get(), pid)) {
+                        pid = -1;
+                        Log.w(TAG, "audio host exited with status " + status + "; restarting");
+                        start();
+                    }
+                },
                 line -> {
                     Log.i(TAG, line);
                     if (out != null) synchronized (out) { out.println(line); out.flush(); }
                 });
+        startedPid.set(started);
+        pid = started;
         Thread guard = new Thread(() -> ensureClientSink(out), "pulse-sink-guard");
         guard.setDaemon(true);
         guard.start();
@@ -231,6 +247,7 @@ public class PulseAudioComponent extends SessionPart {
 
     @Override
     public void stop() {
+        stopping = true;
         if (pid != -1) {
             Process.killProcess(pid);
             pid = -1;
