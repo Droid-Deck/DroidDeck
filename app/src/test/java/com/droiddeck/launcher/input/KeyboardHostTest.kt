@@ -115,4 +115,117 @@ class KeyboardHostTest {
         assertEquals(6, keys.size)
         activity.finish()
     }
+
+    @Test fun finishingCompositionCommitsTheLatestUnicodeTextExactlyOnce() {
+        val commits = mutableListOf<String>()
+        val preedits = mutableListOf<Pair<String, Int>>()
+        host.onCommitText = { commits.add(it); true }
+        host.onComposingText = { text, cursor -> preedits.add(text to cursor); true }
+        host.show()
+        val connection = host.onCreateInputConnection(EditorInfo())!!
+        assertTrue(connection.setComposingText("zhong", 1))
+        assertTrue(connection.setComposingText("中文🙂", 1))
+        assertTrue(connection.finishComposingText())
+        assertTrue(connection.finishComposingText())
+        assertEquals(listOf("中文🙂"), commits)
+        assertEquals(listOf("zhong" to 1, "中文🙂" to 1, "" to 0, "" to 0), preedits)
+    }
+
+    @Test fun cancellingCompositionOrCommittingEmptyTextDiscardsPendingText() {
+        val commits = mutableListOf<String>()
+        host.onCommitText = { commits.add(it); true }
+        host.show()
+        val connection = host.onCreateInputConnection(EditorInfo())!!
+        for (empty in listOf("", null)) {
+            connection.setComposingText("discard", 1)
+            connection.setComposingText(empty, 1)
+            assertTrue(connection.finishComposingText())
+            connection.setComposingText("discard", 1)
+            connection.commitText(empty, 1)
+            assertTrue(connection.finishComposingText())
+        }
+        assertTrue(commits.isEmpty())
+    }
+
+    @Test fun hidingAndReopeningRejectsInputFromThePreviousContext() {
+        val commits = mutableListOf<String>()
+        host.onCommitText = { commits.add("old:$it"); true }
+        host.show()
+        val old = host.onCreateInputConnection(EditorInfo())!!
+        old.setComposingText("old text", 1)
+        host.hide()
+        host.onCommitText = { commits.add("new:$it"); true }
+        host.show()
+        val current = host.onCreateInputConnection(EditorInfo())!!
+        assertFalse(old.finishComposingText())
+        assertFalse(old.commitText("late commit", 1))
+        assertFalse(old.setComposingText("late composition", 1))
+        assertFalse(old.deleteSurroundingText(1, 0))
+        assertFalse(old.performEditorAction(EditorInfo.IME_ACTION_DONE))
+        assertFalse(old.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A)))
+        assertTrue(current.finishComposingText())
+        current.setComposingText("new text", 1)
+        assertTrue(current.finishComposingText())
+        assertEquals(listOf("new:new text"), commits)
+    }
+
+    @Test fun replacingAnInputConnectionDiscardsItsPendingComposition() {
+        val commits = mutableListOf<String>()
+        host.onCommitText = { commits.add(it); true }
+        host.show()
+        val old = host.onCreateInputConnection(EditorInfo())!!
+        old.setComposingText("old text", 1)
+        val current = host.onCreateInputConnection(EditorInfo())!!
+        assertFalse(old.finishComposingText())
+        old.closeConnection()
+        current.setComposingText("current text", 1)
+        assertTrue(current.finishComposingText())
+        assertEquals(listOf("current text"), commits)
+    }
+
+    @Test fun closingOrLosingFocusDiscardsPendingComposition() {
+        val commits = mutableListOf<String>()
+        host.onCommitText = { commits.add(it); true }
+        val cancellations = listOf<() -> Unit>(
+            { host.clearFocus() },
+            { host.onWindowFocusChanged(false) },
+            { (host.parent as FrameLayout).removeView(host) },
+        )
+        for (cancel in cancellations) {
+            host.show()
+            val connection = host.onCreateInputConnection(EditorInfo())!!
+            connection.setComposingText("discard", 1)
+            cancel()
+            assertFalse(connection.finishComposingText())
+            assertFalse(connection.commitText("late commit", 1))
+        }
+        assertTrue(commits.isEmpty())
+    }
+
+    @Test fun closingTheCurrentConnectionRejectsLateComposition() {
+        val commits = mutableListOf<String>()
+        host.onCommitText = { commits.add(it); true }
+        host.show()
+        val connection = host.onCreateInputConnection(EditorInfo())!!
+        connection.setComposingText("discard", 1)
+        connection.closeConnection()
+        assertFalse(connection.finishComposingText())
+        assertFalse(connection.commitText("late commit", 1))
+        assertTrue(commits.isEmpty())
+    }
+
+    @Test fun finishingCompositionUsesTheExistingKeyFallbackWhenNoTextCallbackExists() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val keys = mutableListOf<KeyEvent>()
+        val host = KeyboardHost(activity) { keys.add(it); true }
+        activity.setContentView(FrameLayout(activity).apply { addView(host) })
+        host.show()
+        val connection = host.onCreateInputConnection(EditorInfo())!!
+        connection.setComposingText("a", 1)
+        assertTrue(keys.isEmpty())
+        assertTrue(connection.finishComposingText())
+        assertTrue(connection.finishComposingText())
+        assertEquals(listOf(KeyEvent.KEYCODE_A), keys.filter { it.action == KeyEvent.ACTION_DOWN }.map { it.keyCode })
+        activity.finish()
+    }
 }

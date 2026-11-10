@@ -1,8 +1,16 @@
 package com.droiddeck.launcher.input
 
+import android.app.Activity
+import android.graphics.SurfaceTexture
 import android.os.Looper
+import android.view.InputDevice
+import android.view.View
 import android.view.SurfaceView
+import android.view.Surface
+import android.view.SurfaceHolder
 import android.view.MotionEvent
+import android.widget.Button
+import android.widget.FrameLayout
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
@@ -32,8 +40,10 @@ import java.util.concurrent.TimeUnit
 class SessionInputPointerTest {
     private lateinit var activity: SessionActivity
     private lateinit var output: InputOutput
+    private var pointerUiActivity: Activity? = null
     private var previousSize = SessionState.outputSize
     private var previousMode = SessionState.mode
+    private var previousSuspended = SessionState.suspended
 
     @Before fun setUp() {
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
@@ -41,12 +51,14 @@ class SessionInputPointerTest {
         ReflectionHelpers.setField(activity, "surfaceView", SurfaceView(activity).apply { layout(0, 0, 1000, 600) })
         SessionState.outputSize = 1600 to 900
         SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.suspended = false
         InputProfiles.resetAll(activity)
         InputProfiles.select(activity, InputProfile.DESKTOP)
         refresh()
         CompositorShadow.pointers.clear()
         CompositorShadow.events.clear()
         CompositorShadow.keys.clear()
+        CompositorShadow.gestures.clear()
         WriterShadow.mouse.clear()
         WriterShadow.beforeWheel = null
     }
@@ -55,6 +67,8 @@ class SessionInputPointerTest {
         shadowOf(Looper.getMainLooper()).idle()
         SessionState.outputSize = previousSize
         SessionState.mode = previousMode
+        SessionState.suspended = previousSuspended
+        pointerUiActivity?.finish()
     }
 
     @Test fun desktopMouseButtonsKeepTheVisibleCursorAndDeliverImmediately() {
@@ -275,6 +289,133 @@ class SessionInputPointerTest {
         checkWheelTransition(horizontal = false, transition = "closeEvdevMouse", marker = "release")
     }
 
+    @Config(sdk = [28, 34])
+    @Test fun uiOwnedTouchpadClicksReachTheViewHierarchyWithoutGuestInput() {
+        var clicks = 0
+        val button = Button(activity).apply { setOnClickListener { clicks++ } }
+        installPointerView(button)
+        val flags = listOf("drawerOpenState", "pcKeyboardOpen", "achievementsOpen", "inputSettingsOpen",
+            "gestureSettingsOpen", "touchEditorOpen", "bottomOutputActive", "glassesOutputActive", "wowChatOnTop")
+        for (flag in flags) {
+            state<Boolean>(flag).value = true
+            touchpadClick(button)
+            state<Boolean>(flag).value = false
+        }
+        SessionState.suspended = true
+        touchpadClick(button)
+        assertEquals(flags.size + 1, clicks)
+        assertTrue(CompositorShadow.events.isEmpty())
+        assertTrue(CompositorShadow.gestures.isEmpty())
+    }
+
+    @Config(sdk = [28, 34])
+    @Test fun uiOwnedTouchpadHoverAndScrollReachTheViewHierarchy() {
+        val actions = mutableListOf<Int>()
+        val view = object : View(activity) {
+            override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+                actions += event.actionMasked
+                return true
+            }
+            override fun onHoverEvent(event: MotionEvent): Boolean {
+                actions += event.actionMasked
+                return true
+            }
+        }
+        installPointerView(view)
+        state<Boolean>("pcKeyboardOpen").value = true
+        for (action in listOf(MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_SCROLL)) {
+            val event = touchpadEvent(action, view)
+            try { assertTrue(activity.dispatchGenericMotionEvent(event)) }
+            finally { event.recycle() }
+        }
+        assertTrue(actions.containsAll(listOf(MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_SCROLL)))
+        assertTrue(CompositorShadow.events.isEmpty())
+        assertTrue(CompositorShadow.gestures.isEmpty())
+    }
+
+    @Config(sdk = [28, 34])
+    @Test fun openingUiReleasesAGuestTouchpadHoldBeforeDeliveringTheClick() {
+        val surface = guestTouchpadSurface()
+        val down = touchpadEvent(MotionEvent.ACTION_DOWN, surface, MotionEvent.BUTTON_PRIMARY)
+        try { assertTrue(activity.dispatchTouchEvent(down)) }
+        finally { down.recycle() }
+        assertEquals(listOf(Triple(3, 272, 1)), CompositorShadow.events)
+        val gestures = CompositorShadow.gestures.toList()
+        var clicked = false
+        val button = Button(activity).apply {
+            setOnClickListener {
+                assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
+                clicked = true
+            }
+        }
+        installPointerView(button)
+        state<Boolean>("drawerOpenState").value = true
+        touchpadClick(button)
+        assertTrue(clicked)
+        assertEquals(gestures, CompositorShadow.gestures)
+        state<Boolean>("drawerOpenState").value = false
+        val lateUp = touchpadEvent(MotionEvent.ACTION_UP, surface)
+        try { assertTrue(activity.dispatchTouchEvent(lateUp)) }
+        finally { lateUp.recycle() }
+        assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
+    }
+
+    @Config(sdk = [28, 34])
+    @Test fun touchpadClicksStillReachTheGuestWhenNoUiOwnsThePointer() {
+        val surface = guestTouchpadSurface()
+        touchpadClick(surface)
+        assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
+        assertTrue(CompositorShadow.gestures.any { it == 10 })
+    }
+
+    private fun guestTouchpadSurface(): SurfaceView =
+        object : SurfaceView(activity) {
+            private val testSurface = Surface(SurfaceTexture(0))
+            private val testHolder = object : SurfaceHolder by super.getHolder() {
+                override fun getSurface() = testSurface
+            }
+            override fun getHolder() = testHolder
+            override fun isShown() = true
+        }.apply {
+            layout(0, 0, 1000, 600)
+            ReflectionHelpers.setField(activity, "surfaceView", this)
+            assertTrue(holder.surface.isValid)
+        }
+
+    private fun installPointerView(view: View) {
+        if (pointerUiActivity == null) {
+            pointerUiActivity = Robolectric.buildActivity(Activity::class.java).setup().get()
+            shadowOf(activity).setWindow(pointerUiActivity!!.window)
+        }
+        activity.setContentView(FrameLayout(activity).apply { addView(view, FrameLayout.LayoutParams(-1, -1)) })
+        activity.window.decorView.apply {
+            measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+            layout(0, 0, 1000, 600)
+        }
+        assertTrue(view.isAttachedToWindow)
+    }
+
+    private fun touchpadClick(view: View) {
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = touchpadEvent(action, view, if (action == MotionEvent.ACTION_DOWN) MotionEvent.BUTTON_PRIMARY else 0)
+            try {
+                assertEquals(AndroidPointerSource.Kind.TOUCHPAD, AndroidPointerSource.kind(event))
+                assertTrue(activity.dispatchTouchEvent(event))
+            } finally { event.recycle() }
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun touchpadEvent(action: Int, view: View, buttons: Int = 0): MotionEvent {
+        val at = IntArray(2)
+        view.getLocationInWindow(at)
+        return MotionEvent.obtain(100, 110, action, 1,
+            arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }),
+            arrayOf(MotionEvent.PointerCoords().apply { x = at[0] + view.width / 2f; y = at[1] + view.height / 2f; pressure = 1f }),
+            0, buttons, 1f, 1f, 1, 0, InputDevice.SOURCE_MOUSE, 0)
+    }
+
     private fun checkWheelTransition(horizontal: Boolean, transition: String, marker: String) {
         ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
         ReflectionHelpers.setField(activity, "evdevMouseActive", true)
@@ -323,10 +464,13 @@ class SessionInputPointerTest {
             val pointers = mutableListOf<Triple<Int, Int, Int>>()
             val events = mutableListOf<Triple<Int, Int, Int>>()
             val keys = mutableListOf<Pair<Int, Int>>()
+            val gestures = mutableListOf<Int>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointers += Triple(action, x, y) }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) { events += Triple(type, code, value) }
             @JvmStatic @Implementation fun nativeSendKey(code: Int, value: Int) { keys += code to value }
+            @JvmStatic @Implementation fun nativePointerGesture(key: String?, generation: Long, type: Int,
+                a: Float, b: Float, c: Float, d: Float, time: Long) { gestures += type }
         }
     }
 
