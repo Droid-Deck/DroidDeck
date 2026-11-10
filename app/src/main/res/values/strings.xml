@@ -1167,6 +1167,7 @@
     <string name="agent_failed">Failed: %1$s</string>
     <string name="agent_exited">%1$s ended (exit %2$d)</string>
     <string name="agent_stopped">Stopped</string>
+    <string name="agent_setting_up">Setting up the agent</string>
     <string name="agent_rebuild_lab">Rebuild my Lab build %1$s for the installed version of DroidDeck and restart on it.</string>
     <string name="agent_tokens">%1$s in · %2$s out</string>
     <string name="agent_thinking">Thinking</string>
@@ -1223,6 +1224,10 @@
     <string name="agent_step_github_hint">Optional, to open pull requests</string>
     <string name="agent_step_build">Build tools</string>
     <string name="agent_step_build_hint">Optional, for Lab builds on this device · about 5 GB</string>
+    <string name="agent_step_prepare">Fast Lab builds</string>
+    <string name="agent_step_prepare_hint">Compiles this version ahead, so Lab builds take minutes · about 20 minutes once</string>
+    <string name="agent_prepare_progress">Compiling · %1$d%% · about %2$s left</string>
+    <string name="agent_action_prepare">Prepare</string>
     <string name="agent_action_pair">Pair</string>
     <string name="agent_action_install">Install</string>
     <string name="agent_action_sign_in">Sign in</string>

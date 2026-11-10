@@ -18,6 +18,7 @@ class AgentHostService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            if (AgentHost.lab?.running == true) AgentHost.cancelLabBuild(this)
             AgentHost.stop(this)
             return START_NOT_STICKY
         }
@@ -30,19 +31,35 @@ class AgentHostService : Service() {
         private const val NOTIFICATION_ID = 4107
         private const val ACTION_STOP = "com.droiddeck.launcher.agent.STOP"
         private var lastText: String? = null
+        @Volatile private var started = false
+        /** Setup steps that keep the app alive while they run, besides the agent's turn. */
+        private var setupSteps = 0
 
         fun start(context: Context) {
             lastText = null
+            started = true
             runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
         }
 
         fun stop(context: Context) {
+            if (setupSteps > 0) return
+            started = false
             context.stopService(Intent(context, AgentHostService::class.java))
+        }
+
+        fun setupStarted(context: Context) {
+            setupSteps++
+            start(context)
+        }
+
+        fun setupEnded(context: Context) {
+            setupSteps = (setupSteps - 1).coerceAtLeast(0)
+            if (AgentHost.state != AgentHost.State.WORKING) stop(context)
         }
 
         /** Refreshes the notification with the current step; unchanged text is not re-posted. */
         fun update(context: Context) {
-            if (AgentHost.state != AgentHost.State.WORKING) return
+            if (!started) return
             val text = describe(context)
             if (text == lastText) return
             lastText = text
@@ -52,6 +69,7 @@ class AgentHostService : Service() {
         private fun describe(context: Context): String {
             val lab = AgentHost.lab?.takeIf { it.running }
             if (lab != null) return context.getString(R.string.agent_lab_progress, lab.permille / 10, minutes(lab.etaSeconds.toLong()))
+            if (AgentHost.state != AgentHost.State.WORKING) return context.getString(R.string.agent_setting_up)
             val tool = AgentHost.running()
             val elapsed = minutes((SystemClock.elapsedRealtime() - AgentHost.turnStarted) / 1000)
             return if (tool != null) "${tool.tool} · ${tool.detail}".take(120) + " · $elapsed" else context.getString(R.string.agent_thinking_for, elapsed)

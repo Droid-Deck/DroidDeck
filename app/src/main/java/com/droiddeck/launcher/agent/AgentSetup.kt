@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
  * and to make Lab builds on the device.
  */
 object AgentSetup {
-    enum class Step(val required: Boolean) { CONNECTION(true), INSTALL(true), SIGN_IN(true), GITHUB(false), BUILD_TOOLS(false) }
+    enum class Step(val required: Boolean) { CONNECTION(true), INSTALL(true), SIGN_IN(true), GITHUB(false), BUILD_TOOLS(false), PREPARE(false) }
     enum class Status { UNKNOWN, DONE, TODO, WORKING, FAILED }
 
     val status = mutableStateMapOf<Step, Status>()
@@ -48,8 +48,8 @@ object AgentSetup {
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {
                 Step.INSTALL -> set(step, if (AgentHost.guestFileExists(app, harness.binary)) Status.DONE else Status.TODO)
-                Step.BUILD_TOOLS -> set(step, if (AgentHost.guestFileExists(app, "/root/aapt2/aapt2") &&
-                    AgentHost.guestFileExists(app, "$CHECKOUT/.git")) Status.DONE else Status.TODO)
+                Step.BUILD_TOOLS -> set(step, if (buildToolsInstalled(app)) Status.DONE else Status.TODO)
+                Step.PREPARE -> set(step, if (prepared(app)) Status.DONE else Status.TODO)
                 Step.CONNECTION -> probes += step to listOf("sh", "-c",
                     "for i in 1 2 3; do adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " +
                         "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device && exit 0; sleep 1; done; exit 1")
@@ -74,9 +74,11 @@ object AgentSetup {
             Step.GITHUB -> listOf("dd-gh-login")
             Step.BUILD_TOOLS -> listOf("sh", "-c", "set -e; [ -d $CHECKOUT/.git ] || git clone --filter=blob:none $REPO $CHECKOUT; " +
                 "cd $CHECKOUT; [ -x tools/agent/setup ] || { echo 'This DroidDeck version has no tools/agent/setup yet'; exit 1; }; tools/agent/setup")
+            Step.PREPARE -> listOf("sh", "-c", "cd $CHECKOUT && dd-lab-build --prepare")
         }
         set(step, Status.WORKING)
         detail.remove(step)
+        AgentHostService.setupStarted(app)
         Thread({
             val result = runCatching {
                 if (step == Step.INSTALL) installHelpers(app)
@@ -89,6 +91,7 @@ object AgentSetup {
                 child.waitFor()
             }
             main.post {
+                AgentHostService.setupEnded(app)
                 if (result.getOrNull() == 0) {
                     detail.remove(step)
                     status[step] = Status.UNKNOWN
@@ -100,6 +103,14 @@ object AgentSetup {
             }
         }, "agent-setup-${step.name.lowercase()}").start()
     }
+
+    fun buildToolsInstalled(app: Context) = AgentHost.guestFileExists(app, "/root/aapt2/aapt2") && AgentHost.guestFileExists(app, "$CHECKOUT/.git")
+
+    /** dd-lab-build compiled this install's commit, so a Lab build compiles only what changed. */
+    private fun prepared(app: Context) = runCatching {
+        File(LinuxRuntime.rootDir(app), "root/.cache/dd-lab-build-base").readText().trim()
+            .startsWith(com.droiddeck.launcher.lab.LabOverlay.apkCommit.take(7))
+    }.getOrDefault(false)
 
     /** Drops what the checks found, which belonged to the previous harness. */
     fun forget() {

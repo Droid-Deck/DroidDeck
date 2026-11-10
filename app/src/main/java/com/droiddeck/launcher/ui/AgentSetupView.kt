@@ -65,7 +65,10 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
             steps.forEachIndexed { index, step ->
                 val status = AgentSetup.status[step] ?: Status.UNKNOWN
                 val (title, hint) = labels(step, AgentHost.harness.name)
-                val detail = AgentSetup.detail[step] ?: hint
+                val lab = AgentHost.lab?.takeIf { it.prepare && it.running }
+                val detail = if (step == Step.PREPARE && lab != null)
+                    stringResource(R.string.agent_prepare_progress, lab.permille / 10, clock(lab.etaSeconds.toLong().coerceAtLeast(0)))
+                else AgentSetup.detail[step] ?: hint
                 CheckRow(
                     when (status) {
                         Status.DONE -> CheckState.OK
@@ -74,7 +77,8 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                     },
                     title, detail, divider = index < steps.lastIndex,
                 ) {
-                    val blocked = step == Step.SIGN_IN && AgentSetup.status[Step.INSTALL] != Status.DONE
+                    val blocked = (step == Step.SIGN_IN && AgentSetup.status[Step.INSTALL] != Status.DONE) ||
+                        (step == Step.PREPARE && AgentSetup.status[Step.BUILD_TOOLS] != Status.DONE)
                     if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
                         val label = stringResource(if (status == Status.FAILED) R.string.agent_setup_retry else action(step))
                         val run = { if (step == Step.CONNECTION) pair(context) else AgentSetup.run(context, step) }
@@ -151,6 +155,7 @@ private fun labels(step: Step, harness: String): Pair<String, String> = when (st
     Step.SIGN_IN -> stringResource(R.string.agent_step_sign_in, harness) to stringResource(R.string.agent_step_sign_in_hint)
     Step.GITHUB -> stringResource(R.string.agent_step_github) to stringResource(R.string.agent_step_github_hint)
     Step.BUILD_TOOLS -> stringResource(R.string.agent_step_build) to stringResource(R.string.agent_step_build_hint)
+    Step.PREPARE -> stringResource(R.string.agent_step_prepare) to stringResource(R.string.agent_step_prepare_hint)
 }
 
 private fun action(step: Step): Int = when (step) {
@@ -158,6 +163,7 @@ private fun action(step: Step): Int = when (step) {
     Step.INSTALL -> R.string.agent_action_install
     Step.SIGN_IN, Step.GITHUB -> R.string.agent_action_sign_in
     Step.BUILD_TOOLS -> R.string.agent_action_install
+    Step.PREPARE -> R.string.agent_action_prepare
 }
 
 /** The pairing DroidDeck already uses for the phantom process fix; the agent reuses its key. */

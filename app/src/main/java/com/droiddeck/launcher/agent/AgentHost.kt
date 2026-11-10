@@ -378,7 +378,7 @@ object AgentHost {
         now = SystemClock.elapsedRealtime()
         appContext?.let { app ->
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
-            if (state == State.WORKING) AgentHostService.update(app)
+            AgentHostService.update(app)
         }
         main.postDelayed(::tick, if (state == State.WORKING || lab != null) TICK_MS else IDLE_TICK_MS)
     }
