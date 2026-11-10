@@ -12,7 +12,7 @@ class EpicLoginTest {
     private fun innerText(body: String): String = JSONObject.quote(body)
 
     private fun corrective(action: String) =
-        """{"errorCode":"errors.com.epicgames.oauth.corrective_action_required","message":"Corrective action is required to continue.","metadata":{"correctiveAction":"$action","continuation":"074347cdaa5f4004abe960135e48f925"},"correlationId":"fc769370-c859-11f1-a649-b1ff3cbdc7c2"}"""
+        """{"errorCode":"errors.com.epicgames.oauth.corrective_action_required","metadata":{"correctiveAction":"$action"}}"""
 
     @Test fun aRedirectPageAskingForTermsIsACorrectiveAction() {
         assertEquals("PRIVACY_POLICY_ACCEPTANCE", EpicLogin.correctiveAction(innerText(corrective("PRIVACY_POLICY_ACCEPTANCE"))))
@@ -38,7 +38,7 @@ class EpicLoginTest {
 
     @Test fun otherSignInFlowsHaveNoBrowserStep() {
         val url = "https://www.epicgames.com/id/authorize?client_id=c85f4c6238b04d3399bc0080e83b83fd&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A41234%2Flauncher%2Fauthorized&state=x"
-        val flow = EpicClient.loginFlow(url, "agent")!!
+        val flow = EpicClient.loginFlow(url, "test-browser")!!
         assertNull(flow.browserStep(innerText(corrective("EULA_ACCEPTANCE"))))
     }
 }
