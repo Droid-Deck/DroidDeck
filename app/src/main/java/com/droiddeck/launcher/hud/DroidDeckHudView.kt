@@ -461,6 +461,21 @@ class DroidDeckHudView(context: Context) : View(context) {
     private fun fixedNumber(text: String, color: Int, sizePx: Float, chars: Int, glow: Boolean = false): Span =
         Span(text, color, sizePx, glow, measure("8".repeat(chars), sizePx))
 
+    private fun fpsSpans(numPx: Float, unitPx: Float, numberScale: Float, unitScale: Float = 1f, glow: Boolean = false): List<Span> {
+        val generating = differs(fpsNow)
+        val valuePx = if (generating) numPx * numberScale else numPx
+        val suffixPx = if (generating) unitPx * unitScale else unitPx
+        val sample = if (fpsDecimal) "8888.8" else "8888"
+        val width = max(
+            measure(sample, numPx) + measure("fps", unitPx),
+            measure("$sample→$sample", numPx * numberScale) + measure("fps", unitPx * unitScale),
+        )
+        return listOf(
+            Span(fpsText(fpsNow), colValue, valuePx, glow, width - measure("fps", suffixPx)),
+            Span("fps", colDim, suffixPx),
+        )
+    }
+
     private fun placeRun(startX: Float, baseline: Float, spans: List<Span>, glow: Boolean = false): Float {
         var x = startX
         var trailingSpace = 0f
@@ -498,7 +513,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val chars = when (unit) {
             "%" -> 3
             "MHz" -> 4
-            "FPS" -> 6
+            "FPS" -> 13
             "ms" -> 5
             "W" -> 5
             "rpm" -> 6
@@ -917,10 +932,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val pad = sp(10f); val midGap = sp(12f); val stkLineGap = sp(3f)
 
         val left = ArrayList<Span>()
-        val generating = differs(fpsNow)
-        val fpsPx = if (generating) bigPx * 0.55f else bigPx
-        left += fixedNumber(fpsText(fpsNow), colValue, fpsPx, 6, glow = true)
-        left += Span("fps", colDim, if (generating) bigUnitPx * 0.8f else bigUnitPx)
+        left += fpsSpans(bigPx, bigUnitPx, 0.55f, 0.8f, glow = true)
 
         val stack = ArrayList<List<Span>>()
         val gpuName = if (showGpuModel && gpuNameText().isNotBlank()) gpuModelSpans(stkPx, colDim, compact = true) else null
@@ -999,10 +1011,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val left = contentLeft()
         val inner = panelInset() + stroke
 
-        val minGenerating = differs(fpsNow)
-        val big = listOf(
-            fixedNumber(fpsText(fpsNow), colValue, if (minGenerating) bigPx * 0.55f else bigPx, 6),
-            Span("fps", colDim, if (minGenerating) bigUnitPx * 0.8f else bigUnitPx))
+        val big = fpsSpans(bigPx, bigUnitPx, 0.55f, 0.8f)
         val sub = ArrayList<Span>()
         fun low(label: String, value: Float) {
             if (sub.isNotEmpty()) sub += Span("  ·  ", colDim, subPx)
@@ -1070,11 +1079,9 @@ class DroidDeckHudView(context: Context) : View(context) {
             right -= groupGap
         }
 
-        val generating = differs(fpsNow)
         val fps = ArrayList<Span>()
         if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
-        fps += fixedNumber(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, 6, glow = true)
-        fps += Span("fps", colDim, unitPx)
+        fps += fpsSpans(fpsPx, unitPx, 0.8f, glow = true)
         x = placeRun(x, baseline, fps) + groupGap
 
         if (showGraph) {
