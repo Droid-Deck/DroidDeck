@@ -965,6 +965,9 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (showCPU) { if (l.isNotEmpty()) l += Span(" · ", colDim, stkPx); l += Span("CPU ", colCpu, stkPx); l += fixedNumber(s.cpuPercent?.toString() ?: "—", colCpu, stkPx, 3); l += Span("%", colCpu, stkPx) }
             if (l.isNotEmpty()) stack.add(l)
         }
+        if (showVram) s.vramText()?.let { value ->
+            stack.add(listOf(Span("VRAM ", colVram, stkPx)) + valueUnit(value, stkPx, stkPx))
+        }
         if (showRAM) stack.add(listOf(Span("RAM ", colRam, stkPx), fixedNumber(s.ramPercent.roundToInt().toString(), colRam, stkPx, 3), Span("%", colRam, stkPx)))
         if (showBattery || showPower || showBatteryTemp) {
             val l = ArrayList<Span>()
@@ -982,7 +985,6 @@ class DroidDeckHudView(context: Context) : View(context) {
             val l = ArrayList<Span>()
             l += fixedNumber(fmt1(1000f / max(fpsNow, 1f)), colDim, stkPx, 6); l += Span("ms", colDim, stkPx)
             if (displayServer.isNotBlank()) { l += Span(" · ", colDim, stkPx); l += Span(displayServer, colDisp, stkPx) }
-            if (showVram && s.vramText() != null) { l += Span(" · ", colDim, stkPx); l += valueUnit(s.vramText()!!, stkPx, stkPx) }
             stack.add(l)
         }
         if (hdrState != DroidDeckHudHdr.NONE) stack.add(hdrLine(stkPx))
