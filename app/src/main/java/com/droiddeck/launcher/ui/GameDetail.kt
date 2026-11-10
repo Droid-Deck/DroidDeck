@@ -85,10 +85,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.GameRemoval
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.GameSaves
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.CloudSaves
@@ -816,6 +818,25 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
         }
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
+        if (game.library == Library.ADDED && Store.byId(game.source) == Store.EA && folder != null) StoreLaunchOptions(folder, a)
+    }
+}
+
+@Composable
+private fun StoreLaunchOptions(folder: File, a: FrontEndActions) {
+    val app = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    var saved by remember(folder.path) { mutableStateOf(SessionPrefs.addedGameLaunch(app, folder.path)) }
+    var editing by remember(folder.path) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().tabPanel()) {
+        MenuItem(stringResource(R.string.edit_launch_options), checked = false, detail = saved.ifEmpty { "—" }) { editing = true }
+    }
+    if (editing) TextEntryDialog(stringResource(R.string.edit_launch_options), saved, onDismiss = { editing = false }) { value ->
+        scope.launch {
+            withContext(Dispatchers.IO) { AddedGameEdits.setLaunchOptions(app, folder.path, value) }
+            saved = value
+            a.onAddedGamesChanged(listOf(folder.path))
+        }
     }
 }
 

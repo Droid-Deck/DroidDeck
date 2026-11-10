@@ -208,7 +208,7 @@ class EaTest {
         val text = StoreLaunch.launcherText(StoreGameSidecar(Store.EA, "Origin.OFR.1", "Game", exe = "bin/Game.exe", args = listOf("-dx12")))
         assertTrue(text.contains("for /f \"usebackq tokens=1,* delims==\" %%a in (\"%~dp0.droiddeck-ea-env\") do set \"%%a=%%b\""))
         assertTrue(text.contains("del \"%~dp0.droiddeck-ea-env\""))
-        assertTrue(text.contains("start \"\" \"${StoreLaunch.EA_ORIGIN}\"\r\n\"%~dp0bin\\Game.exe\" -dx12\r\n"))
+        assertTrue(text.contains("start \"\" \"${StoreLaunch.EA_ORIGIN}\"\r\n\"%~dp0bin\\Game.exe\" -dx12 %*\r\n"))
         assertTrue(text.trimEnd().endsWith("taskkill /f /im Origin.exe >nul 2>&1"))
     }
 

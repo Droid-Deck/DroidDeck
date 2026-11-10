@@ -67,7 +67,7 @@ object StoreLaunch {
             lines += "del \"%~dp0$EA_ENV\""
             lines += ":run"
             lines += "if exist \"$EA_ORIGIN\" start \"\" \"$EA_ORIGIN\""
-            lines += run
+            lines += "$run %*"
             lines += "taskkill /f /im Origin.exe >nul 2>&1"
         } else {
             lines += run

@@ -460,6 +460,7 @@ object AddedGames {
                 launchOptions = when {
                     sidecar == null -> SessionPrefs.addedGameLaunch(context, folder.path)
                     sidecar.store == Store.UBISOFT -> com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.launchOptions(context)
+                    sidecar.store == Store.EA -> SessionPrefs.addedGameLaunch(context, folder.path)
                     else -> ""
                 },
                 single = single != null))
