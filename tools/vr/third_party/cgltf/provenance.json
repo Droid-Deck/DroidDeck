@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/jkuhlmann/cgltf",
+  "revision": "85cd62382dfea638278962690cf515023f33ed00",
+  "license": "MIT",
+  "files": ["cgltf.h", "LICENSE"]
+}
