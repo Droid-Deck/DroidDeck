@@ -36,6 +36,14 @@ class NintendoLayoutTest {
         assertEquals(2, PadBridge.faceButton(KeyEvent.KEYCODE_BUTTON_Y, true))
     }
 
+    @Test fun theSwapIsItsOwnInverseSoAnOutsideSwapRestoresTheDevicePositions() {
+        val keys = listOf(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y)
+        val positional = keys.map { PadBridge.faceButton(it, false) }
+        val swapped = keys.map { PadBridge.faceButton(it, true) }
+        assertEquals(listOf(1, 0, 3, 2), swapped)
+        assertEquals(positional, swapped.map { swapped[it] })
+    }
+
     @Test fun otherButtonsAreNotFaceButtons() {
         for (nintendo in listOf(false, true)) {
             for (key in listOf(KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_BUTTON_MODE)) {
