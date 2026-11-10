@@ -23,6 +23,7 @@ class InputRouter(private val output: InputOutput) {
     private var wheel = 0f
     private var horizontalWheel = 0f
     private var enabled = true
+    private var touchCommandsEnabled = false
     private val snapshots = ArrayList<() -> Unit>()
 
     @Synchronized
@@ -38,6 +39,13 @@ class InputRouter(private val output: InputOutput) {
         enabled = on
         for (pad in pads) pad.refreshIdentity()
         return true
+    }
+
+    @Synchronized
+    fun setTouchCommandsEnabled(on: Boolean) {
+        if (touchCommandsEnabled == on) return
+        touchCommandsEnabled = on
+        if (!on) channels.filter { it.touchCommand }.forEach { it.suspend() }
     }
 
     @Synchronized
@@ -130,6 +138,7 @@ class InputRouter(private val output: InputOutput) {
         private var held = false
         private val directions = BooleanArray(4)
         private var radialKeys = emptyList<Int>()
+        internal val touchCommand get() = role != InputRole.PHYSICAL && action is InputAction.Command
 
         internal fun actionFrom(profile: InputProfile) = element?.let { if (elementClick) profile.elementClickAction(role, it) else profile.elementAction(role, it.id, control) }
             ?: profile.action(role, control)
@@ -187,7 +196,7 @@ class InputRouter(private val output: InputOutput) {
             x = value.coerceIn(-1f, 1f)
             y = second.coerceIn(-1f, 1f)
             contact = touching
-            if (!enabled) {
+            if (!enabled && !(touchCommandsEnabled && touchCommand)) {
                 blocked = contact || abs(x) > 0.12f || abs(y) > 0.12f
                 return@synchronized null
             }

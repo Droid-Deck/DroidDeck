@@ -251,6 +251,8 @@ class DrawerActions(
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
     val onGameOnBottom: (Boolean) -> Unit = {},
+    val menuScreen: com.droiddeck.launcher.session.SessionMenuScreen = com.droiddeck.launcher.session.SessionMenuScreen.COMPANION,
+    val onMenuScreen: (com.droiddeck.launcher.session.SessionMenuScreen) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
@@ -1204,10 +1206,14 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
             a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
     }
-    if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
-        ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
+    if (a.secondScreenDisplays.isNotEmpty() || a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
+        if (a.gameSwapAvailable || a.gameOnBottom) ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
             listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
+        ChoiceRow(host, "menu-screen", stringResource(R.string.session_menu_screen), null,
+            listOf(com.droiddeck.launcher.session.SessionMenuScreen.GAME to stringResource(R.string.session_menu_screen_game),
+                com.droiddeck.launcher.session.SessionMenuScreen.COMPANION to stringResource(R.string.session_menu_screen_companion)),
+            a.menuScreen, chipModifier = track("menu-screen"), onPick = a.onMenuScreen)
     }
 }
 

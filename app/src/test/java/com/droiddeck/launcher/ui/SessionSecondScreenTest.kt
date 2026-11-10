@@ -71,6 +71,21 @@ class SessionSecondScreenTest {
 
     @Test fun steamMenuOffersProfileControlsAndTerminal() = checkModes(steam = true)
 
+    @Test fun menuPlacementCanBeChangedIndependentlyOfTheGameScreen() {
+        val picks = mutableListOf<com.droiddeck.launcher.session.SessionMenuScreen>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {},
+                    actions(true, listOf(SecondScreenDisplay(1, "Bottom screen")),
+                        gameSwapAvailable = true, onMenuScreen = { picks += it }))
+            }
+        }
+        compose.onNodeWithTag("setting-game-screen").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("setting-menu-screen").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.session_menu_screen_game)).performClick()
+        assertEquals(listOf(com.droiddeck.launcher.session.SessionMenuScreen.GAME), picks)
+    }
+
     @Test fun desktopQuickMenuChangesTheRunningDesktopLayout() = checkQuickSelection(steam = false, desktop = true, direct = true)
 
     @Test fun steamQuickMenuLeavesTheDesktopSelectionAlone() = checkQuickSelection(steam = true, desktop = false, direct = false)
@@ -370,6 +385,7 @@ class SessionSecondScreenTest {
     private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
         micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
         desktop: Boolean = !steam, direct: Boolean = false, onInputSelection: (InputRole?) -> Unit = {},
+        gameSwapAvailable: Boolean = false, onMenuScreen: (com.droiddeck.launcher.session.SessionMenuScreen) -> Unit = {},
         onClose: () -> Unit = {},
         select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
@@ -379,6 +395,7 @@ class SessionSecondScreenTest {
             suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
+            gameSwapAvailable = gameSwapAvailable, onMenuScreen = onMenuScreen,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},

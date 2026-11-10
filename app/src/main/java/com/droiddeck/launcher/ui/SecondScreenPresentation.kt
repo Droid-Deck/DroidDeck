@@ -43,12 +43,12 @@ class SecondScreenPresentation(
     private val onDeckPanel: (DeckPanel) -> Unit = { SessionPrefs.setDeckPanel(sessionActivity, it) },
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
-    private var menuView: androidx.compose.ui.platform.ComposeView? = null
+    var menuHost: SessionMenuHost? = null
+        private set
     private var dashboardView: androidx.compose.ui.platform.ComposeView? = null
     private var chatView: androidx.compose.ui.platform.ComposeView? = null
     private var chatLost: (() -> Unit)? = null
-    var menuShown = false
-        private set
+    val menuShown: Boolean get() = menuHost?.shown == true
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.BLACK)
@@ -169,25 +169,14 @@ class SecondScreenPresentation(
     fun showMenu(on: Boolean) {
         if (on == menuShown) return
         val content = menu ?: return
-        menuShown = on
         if (on) {
             keyboardHost?.takeIf { it.shown }?.hide()
             keyboardShown.value = false
-            ownComposeViews()
-            val view = menuView ?: androidx.compose.ui.platform.ComposeView(context).apply {
-                isFocusable = true
-                isFocusableInTouchMode = true
-                defaultFocusHighlightEnabled = false
-                setContent { content() }
-                frame.addView(this, FrameLayout.LayoutParams(-1, -1))
-                menuView = this
-            }
-            view.visibility = View.VISIBLE
+            val host = menuHost ?: SessionMenuHost(sessionActivity, window ?: return, frame, content).also { menuHost = it }
+            host.show(true)
             root.visibility = View.INVISIBLE
-            view.requestFocus()
         } else {
-            menuView?.let { frame.removeView(it); it.disposeComposition() }
-            menuView = null
+            menuHost?.show(false)
             root.visibility = View.VISIBLE
         }
     }
@@ -199,13 +188,6 @@ class SecondScreenPresentation(
             decor.setViewTreeSavedStateRegistryOwner(sessionActivity)
             decor.setViewTreeOnBackPressedDispatcherOwner(sessionActivity)
         }
-    }
-
-    fun focusMenu(): Boolean = menuView?.requestFocus() == true
-
-    fun dispatchMenuKey(event: KeyEvent): Boolean {
-        KeyWindows.topOn(display.displayId)?.let { return it.rootView.dispatchKeyEvent(event) }
-        return menuView?.dispatchKeyEvent(event) == true
     }
 
     fun closeControls() {
@@ -308,7 +290,7 @@ class SecondScreenPresentation(
     }
 
     private fun panelLayout(mode: SecondScreenMode) = com.droiddeck.launcher.input.InputLibraries.read(context)
-        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context))
+        .sessionPanelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context), SessionState.mode == SessionService.MODE_STEAM)
 
     private fun bar(mode: SecondScreenMode) {
         val first = barModel(mode) ?: return

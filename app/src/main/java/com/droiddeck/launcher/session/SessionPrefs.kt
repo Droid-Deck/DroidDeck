@@ -128,6 +128,12 @@ object SessionPrefs {
 
     private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
+    fun menuScreen(context: Context): SessionMenuScreen = SessionMenuScreen.fromId(prefs(context).getString("menuScreen", null))
+
+    fun setMenuScreen(context: Context, screen: SessionMenuScreen) {
+        prefs(context).edit().putString("menuScreen", screen.id).apply()
+    }
+
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
     fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
 

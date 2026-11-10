@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.ui
 
-import android.app.Activity
 import android.app.Presentation
 import android.graphics.Color
 import android.os.Bundle
@@ -13,17 +12,22 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
 
 class BottomGameScreen(
-    private val activity: Activity,
+    private val activity: ComponentActivity,
     display: Display,
     private val callback: SurfaceHolder.Callback,
     private val onTouch: (MotionEvent) -> Boolean,
+    private val menu: (@Composable () -> Unit)? = null,
 ) : Presentation(activity, display) {
     val surfaceView = SurfaceView(getContext())
     val holder: SurfaceHolder get() = surfaceView.holder
 
     val hz: Float get() = display.mode.refreshRate
+    var menuHost: SessionMenuHost? = null
+        private set
 
     init {
         setCancelable(false)
@@ -35,6 +39,7 @@ class BottomGameScreen(
         val root = FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
         root.addView(surfaceView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        menu?.let { menuHost = SessionMenuHost(activity, window ?: return, root, it) }
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         @Suppress("DEPRECATION")
         window?.decorView?.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -45,6 +50,18 @@ class BottomGameScreen(
             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
         surfaceView.setOnTouchListener { _, event -> onTouch(event) }
         surfaceView.holder.addCallback(callback)
+    }
+
+    fun showMenu(on: Boolean) {
+        val host = menuHost ?: return
+        if (on) window?.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        host.show(on)
+        if (!on) window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+    }
+
+    override fun onStop() {
+        showMenu(false)
+        super.onStop()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =

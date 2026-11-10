@@ -140,6 +140,9 @@ class SecondScreenBarTest {
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
             assertNull(panel.barModel(SecondScreenMode.CUSTOM_CONTROLS))
             assertTrue(rootChildren(panel)[0] is InputSurfaceView)
+            val ids = descendants(panel.window!!.decorView).mapNotNull { (it.tag as? InputSurfaceElement)?.id }.toList()
+            assertTrue("command:steam" in ids)
+            assertTrue("command:quick_access" in ids)
         } finally { panel.closeControls() }
         val noSwap = presentation(swap = null)
         try {
@@ -153,6 +156,7 @@ class SecondScreenBarTest {
         for (mode in listOf(SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
             SessionState.mode = mode
             SessionState.deckPad = true
+            InputLibraries.update(context) { it.selectProfile(mode == SessionService.MODE_DESKTOP, "game") }
             val panel = presentation()
             try {
                 panel.show()
@@ -162,10 +166,28 @@ class SecondScreenBarTest {
                     assertNull(bar.onSteam); assertNull(bar.onQam)
                     assertNull(bar.onClose); assertNotNull(bar.onMenu)
                 }
+                panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
+                val ids = descendants(panel.window!!.decorView).mapNotNull { (it.tag as? InputSurfaceElement)?.id }.toList()
+                assertFalse("command:steam" in ids)
+                assertFalse("command:quick_access" in ids)
+                assertTrue("command:menu" in ids)
             } finally { panel.closeControls() }
         }
         val stock = InputLibraries.read(context).layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
         assertTrue(stock.all { layout -> layout.elements.any { it.id == "command:menu" } })
+        assertTrue(stock.single { it.id == InputLibraries.DECK }.elements.any { it.id == "command:steam" })
+    }
+
+    @Test fun nonSteamFilteringPreservesReboundToolbarButtonsAndSavedLayouts() {
+        val original = InputLibraries.read(context)
+        val preset = original.preset(original.panelPart(false, null).bindings)
+        val rebound = original.withPreset(preset.copy(elements = preset.elements +
+            ("command:steam" to com.droiddeck.launcher.input.InputAction.Command(com.droiddeck.launcher.input.InputCommand.KEYBOARD))))
+        val ids = rebound.sessionPanelLayout(false, null, steam = false)!!.elements.map { it.id }
+        assertTrue("command:steam" in ids)
+        assertFalse("command:quick_access" in ids)
+        assertEquals(original.layouts, rebound.layouts)
+        assertSame(rebound.panelLayout(false, null), rebound.sessionPanelLayout(false, null, steam = true))
     }
 
     @Test fun deckTabsSwitchTheLayoutAndAreRemembered() {

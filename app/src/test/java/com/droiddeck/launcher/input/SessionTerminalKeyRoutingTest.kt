@@ -70,6 +70,28 @@ class SessionTerminalKeyRoutingTest {
         assertEquals(listOf(38 to 1, 38 to 0, 31 to 1, 31 to 0, 28 to 1, 28 to 0), SessionInputPointerTest.CompositorShadow.keys)
     }
 
+    @Test fun aReleaseHandledByTheDrawerDoesNotStealTheNextGameKeyRelease() {
+        val terminal = SessionTerminalPanel(activity).apply { removeAllViews(); addView(editor()) }
+        activity.setContentView(terminal)
+        layoutWindow()
+        terminal.getChildAt(0).requestFocus()
+        shadowOf(activity).setCurrentFocus(terminal.getChildAt(0))
+        fun key(action: Int) = KeyEvent(0L, 0L, action, KeyEvent.KEYCODE_L, 0, 0, -1, 0, 0, InputDevice.SOURCE_KEYBOARD)
+        assertTrue(activity.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN)))
+        val root = FrameLayout(activity).apply { addView(editor()) }
+        activity.setContentView(root)
+        layoutWindow()
+        root.getChildAt(0).requestFocus()
+        shadowOf(activity).setCurrentFocus(root.getChildAt(0))
+        val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpenState\$delegate")
+        open.value = true
+        assertTrue(activity.dispatchKeyEvent(key(KeyEvent.ACTION_UP)))
+        open.value = false
+        assertTrue(activity.dispatchKeyEvent(key(KeyEvent.ACTION_DOWN)))
+        assertTrue(activity.dispatchKeyEvent(key(KeyEvent.ACTION_UP)))
+        assertEquals(listOf(38 to 1, 38 to 0), SessionInputPointerTest.CompositorShadow.keys)
+    }
+
     private fun editor(consumeRelease: Boolean = true) = object : View(activity) {
         init { isFocusableInTouchMode = true }
         override fun dispatchKeyEvent(event: KeyEvent): Boolean {

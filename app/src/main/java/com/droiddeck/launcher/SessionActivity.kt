@@ -212,14 +212,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             uiHandler.post {
                 if (!resumed || isDestroyed || pipUi || SessionState.suspended) return@post
                 when (command) {
-                    InputCommand.MENU -> { releasePads(); drawerOpen = true }
+                    InputCommand.MENU -> { releasePads(); toggleDrawer() }
                     InputCommand.KEYBOARD -> if (role == InputRole.PRIMARY || secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
                     InputCommand.STEAM -> tapSteamButton()
                     InputCommand.QUICK_ACCESS -> tapQam()
-                    InputCommand.SWAP_SCREENS -> if (bottomOutputActive || bottomSwapAvailable) {
-                        drawerOpen = false
-                        putGameOnBottom(!bottomOutputActive)
-                    }
+                    InputCommand.SWAP_SCREENS -> putGameOnBottom(!bottomOutputActive)
                 }
             }
         }
@@ -427,6 +424,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val drawerShortcutKeysDown = mutableSetOf<Pair<Int, Int>>()
 
     private var drawerOpenState by mutableStateOf(false)
+    private var menuScreen by mutableStateOf(com.droiddeck.launcher.session.SessionMenuScreen.COMPANION)
     private var typingReturnMode: SecondScreenMode? = null
     private var drawerDocked by mutableStateOf(false)
     private var drawerPinned by mutableStateOf(false)
@@ -677,6 +675,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        menuScreen = SessionPrefs.menuScreen(this)
         AgentGuest.readyListener = agentReadyListener
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
@@ -1060,7 +1059,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus) {
                     updateOnScreenControls()
-                    padBridge?.setInputEnabled(resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !appTextFocus && !SessionState.suspended)
+                    val active = resumed && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !SessionState.suspended
+                    inputRouter?.setTouchCommandsEnabled(active && drawerOpen)
+                    padBridge?.setInputEnabled(active && !drawerOpen && !appTextFocus)
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || appTextFocus || SessionState.suspended) {
                         backQamInput.cancel()
                         com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this@SessionActivity)
@@ -1251,7 +1252,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onSecondScreenEnabled = ::setSecondScreenEnabled,
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
-            onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
+            onGameOnBottom = ::putGameOnBottom,
+            menuScreen = menuScreen,
+            onMenuScreen = ::chooseMenuScreen,
             dashboardAvailable = bottomPages().isNotEmpty(),
             desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(),
             secondScreenDisplays = secondScreenDisplays,
@@ -1607,7 +1610,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun performBackAction(double: Boolean) {
         val isSteam = SessionState.mode == SessionService.MODE_STEAM
         val opensQam = isSteam && (double xor backActionsInverted)
-        if (opensQam) triggerSteamQam() else drawerOpen = !drawerOpen
+        if (opensQam) triggerSteamQam() else toggleDrawer()
     }
 
     private fun handleHomeGuideIntent(incoming: Intent?) {
@@ -2678,7 +2681,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     when (action) {
                         PhysicalShortcuts.Action.STEAM -> sendSteamGuide()
                         PhysicalShortcuts.Action.QAM -> triggerSteamQam()
-                        PhysicalShortcuts.Action.DROIDDECK -> drawerOpen = !drawerOpen
+                        PhysicalShortcuts.Action.DROIDDECK -> toggleDrawer()
                     }
                 }) return true
         }
@@ -2805,6 +2808,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun sendToTopPanel(event: KeyEvent): Boolean {
         val key = event.deviceId to event.keyCode
         val owned = if (event.action == KeyEvent.ACTION_UP) topPanelKeys.remove(key) else topPanelFocused()
+        if (event.action == KeyEvent.ACTION_DOWN) topPanelKeys.remove(key)
         if (!owned) return false
         val handled = super.dispatchKeyEvent(event)
         if (handled && event.action == KeyEvent.ACTION_DOWN) topPanelKeys += key
@@ -2955,17 +2959,36 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         dispatchToDrawer(event)
     }
 
-    private fun dockedMenu(): SecondScreenPresentation? = secondScreenPresentation?.takeIf { drawerDocked && it.menuShown }
+    private fun dockedMenu(): com.droiddeck.launcher.ui.SessionMenuHost? =
+        if (!drawerDocked) null else bottomGame?.menuHost?.takeIf { it.shown }
+            ?: secondScreenPresentation?.menuHost?.takeIf { it.shown }
 
     private fun dispatchToDrawer(event: KeyEvent): Boolean {
         val bottom = dockedMenu()
-        if (bottom != null && event.keyCode != KeyEvent.KEYCODE_BACK) return bottom.dispatchMenuKey(event)
+        if (bottom != null && event.keyCode != KeyEvent.KEYCODE_BACK) return bottom.dispatchKey(event)
         return super.dispatchKeyEvent(event)
     }
 
-    private fun focusDrawer(): Boolean = dockedMenu()?.focusMenu() ?: sessionOverlay.requestFocus()
+    private fun focusDrawer(): Boolean = dockedMenu()?.focus() ?: sessionOverlay.requestFocus()
+
+    private fun toggleDrawer() {
+        drawerOpen = !(drawerOpen || drawerPinned)
+    }
 
     private fun dockDrawer(): Boolean {
+        val available = !pipUi && started && glassesScreen == null && SessionPrefs.secondScreenEnabled(this, desktopSession) &&
+            (bottomGame != null || canOpenCompanionPanel())
+        return menuScreen.onSecondaryDisplay(bottomGame != null, available)
+    }
+
+    private fun chooseMenuScreen(screen: com.droiddeck.launcher.session.SessionMenuScreen) {
+        drawerOpen = false
+        SessionPrefs.setMenuScreen(this, screen)
+        menuScreen = screen
+        drawerOpen = true
+    }
+
+    private fun canOpenCompanionPanel(): Boolean {
         if (pipUi || !started || glassesScreen != null || bottomGame != null || !::displayManager.isInitialized ||
             !SessionPrefs.secondScreenEnabled(this, desktopSession)) return false
         val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return false
@@ -2975,6 +2998,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun openDockedMenu(): Boolean {
+        bottomGame?.let { screen ->
+            screen.showMenu(true)
+            return screen.menuHost?.shown == true
+        }
         val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return false
         return try {
             val presentation = secondScreenPresentation ?: secondScreenPresentation(target).also {
@@ -2999,6 +3026,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun closeDockedMenu() {
         drawerDocked = false
+        bottomGame?.takeIf { it.menuHost?.shown == true }?.let { it.showMenu(false); return }
         val presentation = secondScreenPresentation ?: return
         presentation.showMenu(false)
         if (secondScreenMode == SecondScreenMode.NONE) closeSecondScreen(reset = false) else updateKeyboardRoute()
@@ -3475,7 +3503,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onQam = ::tapQam,
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
-        onMenu = { drawerOpen = true },
+        onMenu = ::toggleDrawer,
         onMenuTouched = {
             if (drawerPinned) {
                 drawerPinned = false
@@ -3568,8 +3596,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
         quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
-        secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this))
-        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(desktop, it.bindings) }
+        val steam = loadingMode() == SessionService.MODE_STEAM
+        secondaryInputLayout = library.sessionPanelLayout(desktop, secondScreenMode.panel(this), steam)
+        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.sessionPanelLayout(desktop, it.bindings, steam) }
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
             bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
@@ -3677,7 +3706,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun unfoldedBar(): View = com.droiddeck.launcher.ui.bottomScreenBarView(this) {
         val deck = unfoldedDeckPanel
         com.droiddeck.launcher.ui.sessionBarModel(getString(if (deck != null) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad),
-            { chooseUnfoldedControls(false) }, { drawerOpen = true }, ::tapSteamButton, ::tapQam,
+            { chooseUnfoldedControls(false) }, ::toggleDrawer, ::tapSteamButton, ::tapQam,
             tabs = deck?.let { com.droiddeck.launcher.ui.deckPanelTabs(this, it, ::selectDeckPanel) })
     }
 
@@ -3702,7 +3731,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun bottomKeyboardPresentation(): SecondScreenPresentation? {
         if (!started) return null
-        if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
+        if (secondScreenPresentation?.showsKeyboard != true && canOpenCompanionPanel()) {
             val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return null
             if (drawerOpen || drawerPinned) drawerOpen = false
             typingReturnMode = secondScreenMode
@@ -3810,11 +3839,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun updateKeyboardRoute() {
         AgentGuest.routeKeyboard(this, SessionState.mode == SessionService.MODE_STEAM &&
-            (secondScreenPresentation?.showsKeyboard == true || dockDrawer()) &&
+            (secondScreenPresentation?.showsKeyboard == true || canOpenCompanionPanel()) &&
             SessionPrefs.androidTextFieldKeyboard(this))
     }
 
     private fun dropDockedDrawer() {
+        if (secondScreenPresentation?.menuShown != true) return
         drawerPinned = false
         if (!drawerDocked) return
         drawerDocked = false
@@ -4026,7 +4056,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> sessionTouchDown = false
         }
-        if (drawerOpen && drawerDocked && event.actionMasked == MotionEvent.ACTION_DOWN) {
+        if (drawerOpen && drawerDocked && secondScreenPresentation?.menuShown == true && event.actionMasked == MotionEvent.ACTION_DOWN) {
             drawerLayerOpen = false
             drawerOpenState = false
             drawerPinned = true
@@ -4330,7 +4360,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         val root = onScreenControls?.parent as? android.view.ViewGroup ?: return null
         val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
-            onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
+            onMenu = ::toggleDrawer, onKeyboard = ::togglePcKeyboard)
         view.visibility = View.GONE
         view.onEditingChanged = { touchEditorChanged() }
         view.onOptions = { options ->
@@ -4434,7 +4464,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 (bottom?.parent as? android.view.ViewGroup)?.removeView(bottom)
                 bottom = OnScreenControls(bottomRoot.context, padBridge).also { view ->
                     view.onTouchMiss = { event -> onBottomGameTouch(event) }
-                    bottomRoot.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
+                    bottomRoot.addView(view, 1, android.view.ViewGroup.LayoutParams(-1, -1))
                 }
                 bottomInputControls = bottom
             }
@@ -5084,6 +5114,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val shown = if (want) target else null
         val current = bottomGame
         if (current != null && current.display.displayId == shown?.displayId) return
+        val reopenMenu = (current != null || shown != null) && (drawerOpen || drawerPinned)
+        if (reopenMenu) drawerOpen = false
         if (current != null || shown != null) cancelOutputTouches()
         if (current != null) {
             restoreTopOutput(current)
@@ -5091,7 +5123,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (shown != null) {
             closeSecondScreen(reset = false)
-            val screen = com.droiddeck.launcher.ui.BottomGameScreen(this, shown, this, ::onBottomGameTouch)
+            val screen = com.droiddeck.launcher.ui.BottomGameScreen(this, shown, this, ::onBottomGameTouch,
+                menu = { DroidDeckTheme { SessionMenu(docked = false) } })
             bottomGame = screen
             surfaceW = 0
             surfaceH = 0
@@ -5111,6 +5144,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (bottomGame === screen) Log.i(TAG, "requested game output on the bottom screen (display ${shown.displayId})")
         }
         refreshSecondScreenDisplays()
+        if (reopenMenu && started && !ended && !pipUi) drawerOpen = true
     }
 
     private fun cancelOutputTouches() {
@@ -5131,6 +5165,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun restoreTopOutput(screen: com.droiddeck.launcher.ui.BottomGameScreen) {
         if (bottomGame !== screen) return
+        val reopenMenu = drawerOpen && drawerDocked
+        if (reopenMenu) drawerOpen = false
         bottomGame = null
         bottomOutputActive = false
         updateOnScreenPad()
@@ -5141,6 +5177,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceView.visibility = View.VISIBLE
         applyOutputPacing()
         if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
+        if (reopenMenu && started && !ended && !pipUi) drawerOpen = true
     }
 
     private fun onBottomGameTouch(event: MotionEvent): Boolean {
@@ -5160,7 +5197,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val pages = bottomPages()
         val swapBack = { putGameOnBottom(false) }
         val steam = SessionState.mode == SessionService.MODE_STEAM
-        val openMenu = { drawerOpen = true }
+        val openMenu = ::toggleDrawer
         fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList(), tabs: com.droiddeck.launcher.ui.BarTabs? = null) =
             com.droiddeck.launcher.ui.BottomBarModel(
                 title, null, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,

@@ -9,6 +9,9 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
@@ -162,7 +166,9 @@ internal fun BarButton(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value
+    val pressed = interactionSource.collectIsPressedAsState().value
+    val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value || pressed
+    val scale = animateFloatAsState(if (pressed) 0.955f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "barButtonScale").value
     val shape = RoundedCornerShape((InputToolbarStyle.BUTTON / 2).dp)
     val accent = if (danger) colors.error else pal.signal
     val tint = when {
@@ -179,6 +185,7 @@ internal fun BarButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.then(sized).semantics { contentDescription = description }
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape).background(fill)
             .glideBorder(hot, shape, accent, if (active) pal.signal else if (danger) colors.error.copy(alpha = 0.6f) else pal.line)
             .hoverable(interactionSource)
