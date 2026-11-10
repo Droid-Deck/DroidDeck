@@ -7,6 +7,7 @@ import runpy
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -449,6 +450,84 @@ class PrepareTest(FexTestCase):
         os.utime(provider / "usr-mtree.txt.gz", ns=(1, 1))
         self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
         self.assertEqual(sorted(os.listdir(root.parent)), ["config", "lock", "rootfs", "status.json"])
+
+    def test_wayland_and_its_ffi_dependency_come_from_the_newer_runtime(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        names = ("libwayland-client.so.0", "libwayland-cursor.so.0", "libwayland-egl.so.1",
+                 "libwayland-server.so.0", "libffi.so.8")
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            for name in names:
+                base = sniper / "files/lib" / arch / name
+                if name != "libffi.so.8":
+                    self.write(base, b"old ABI")
+                source = provider / "files/lib" / arch / name
+                self.write(str(source) + ".new", b"new ABI " + name.encode())
+                os.symlink(name + ".new", source)
+            self.write(sniper / "files/lib" / arch / "libffi.so.7", b"old ffi")
+        fex, _ = self.quiet(FEX["prepare"])
+        root = Path(fex["rootfs"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            for name in names:
+                library = root / "lib" / arch / name
+                self.assertEqual(library.resolve(), (provider / "files/lib" / arch / name).resolve())
+                self.assertEqual(library.read_bytes(), b"new ABI " + name.encode())
+            self.assertEqual((root / "lib" / arch / "libffi.so.7").read_bytes(), b"old ffi")
+        self.assertEqual((sniper / "files/lib/x86_64-linux-gnu/libwayland-client.so.0").read_bytes(), b"old ABI")
+
+    @unittest.skipUnless(shutil.which("cc"), "C compiler unavailable")
+    def test_bundled_library_resolves_the_new_wayland_symbol(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        base = sniper / "files/lib/x86_64-linux-gnu"
+        newer = provider / "files/lib/x86_64-linux-gnu"
+        source = self.tmp / "library.c"
+        for folder, symbol in ((base, "wl_proxy_marshal"), (newer, "wl_proxy_marshal_flags")):
+            source.write_text("void *%s(void) { return 0; }\n" % symbol)
+            subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-Wl,-soname,libwayland-client.so.0",
+                            "-o", str(folder / "libwayland-client.so.0"), str(source)], check=True, capture_output=True)
+        fex, _ = self.quiet(FEX["prepare"])
+        root = Path(fex["rootfs"]) / "lib/x86_64-linux-gnu"
+        source.write_text("extern void *wl_proxy_marshal_flags(void);\nvoid *probe(void) { return wl_proxy_marshal_flags(); }\n")
+        probe = self.tmp / "libprobe.so"
+        subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-o", str(probe), str(source),
+                        "-L" + str(newer), "-l:libwayland-client.so.0", "-Wl,-rpath," + str(root)],
+                       check=True, capture_output=True)
+        command = [sys.executable, "-c",
+                   "import ctypes,sys; "
+                   "ctypes.CDLL(sys.argv[2], mode=ctypes.RTLD_GLOBAL) if len(sys.argv) > 2 else None; "
+                   "ctypes.CDLL(sys.argv[1]).probe()",
+                   str(probe)]
+        env = {k: v for k, v in os.environ.items() if not k.startswith("LD_")}
+        broken = subprocess.run(command + [str(base / "libwayland-client.so.0")], env=env, capture_output=True, text=True)
+        self.assertNotEqual(broken.returncode, 0)
+        self.assertIn("undefined symbol: wl_proxy_marshal_flags", broken.stderr)
+        fixed = subprocess.run(command, env=env, capture_output=True, text=True)
+        self.assertEqual(fixed.returncode, 0, fixed.stderr)
+
+    def test_missing_provider_libraries_keep_the_base_runtime_libraries(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        base = self.write(sniper / "files/lib/x86_64-linux-gnu/libwayland-client.so.0", b"base wayland")
+        fex, _ = self.quiet(FEX["prepare"])
+        self.assertEqual((Path(fex["rootfs"]) / "lib/x86_64-linux-gnu/libwayland-client.so.0").resolve(), base)
+
+    def test_the_old_rootfs_layout_is_rebuilt(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 2}):
+            self.quiet(FEX["prepare"])
+        _, said = self.quiet(FEX["prepare"])
+        self.assertIn("built the x86 runtime", said)
+        self.assertNotIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
 
     def test_a_runtime_that_is_not_newer_is_left_out(self):
         self.fex_tool()
