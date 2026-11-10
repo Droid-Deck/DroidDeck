@@ -138,7 +138,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +					update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId,
 +						pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );
 +
-+				const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || nRelativeMouse == 3 );
++				const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || ( nRelativeMouse == 3 && wlserver.bPointerFromMouse ) );
 +
  				const bool bRelativeMouseMode = nRelativeMouse == 2
  					? false
@@ -150,24 +150,36 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 diff --git a/src/wlserver.cpp b/src/wlserver.cpp
 --- a/src/wlserver.cpp
 +++ b/src/wlserver.cpp
-@@ -346,6 +346,8 @@
+@@ -346,6 +346,9 @@
  {
  	assert( wlserver_is_lock_held() );
  
++	wlserver.bPointerFromMouse = true;
 +	wlserver.flSentDX += unaccel_dx;
 +	wlserver.flSentDY += unaccel_dy;
  	wlr_relative_pointer_manager_v1_send_relative_motion( wlserver.relative_pointer_manager, wlserver.wlr.seat, 0, unaccel_dx, unaccel_dy, unaccel_dx, unaccel_dy );
  }
  
+@@ -3120,6 +3123,9 @@
+ 		wlserver.bFollowClientPointer = false;
+ 	}
+ 
++	if ( bFromTouch )
++		wlserver.bPointerFromMouse = false;
++
+ 	const double flStepX = x - wlserver.mouse_surface_cursorx;
+ 	const double flStepY = y - wlserver.mouse_surface_cursory;
+ 	if ( !bSynthetic && !bFromTouch && ( flStepX != 0.0 || flStepY != 0.0 ) && std::abs( flStepX ) < 256.0 && std::abs( flStepY ) < 256.0 )
 diff --git a/src/wlserver.hpp b/src/wlserver.hpp
 --- a/src/wlserver.hpp
 +++ b/src/wlserver.hpp
-@@ -171,6 +171,8 @@
+@@ -171,6 +171,9 @@
  	bool bFollowClientPointer = false;
  	double flFollowDX = 0.0;
  	double flFollowDY = 0.0;
 +	double flSentDX = 0.0;
 +	double flSentDY = 0.0;
++	bool bPointerFromMouse = false;
  	
  	bool button_held[ WLSERVER_BUTTON_COUNT ];
  	std::set <uint32_t> touch_down_ids;

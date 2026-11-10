@@ -216,9 +216,8 @@ data class TouchGestureConfig(
 
         fun gamescopeRelativeMouse(mode: Int, mouseAttached: Boolean, touchpad: Boolean): Int = when {
             mode != RELATIVE_MOUSE_AUTO -> mode
-            touchpad && mouseAttached -> RELATIVE_MOUSE_PHYSICAL
+            mouseAttached -> RELATIVE_MOUSE_PHYSICAL
             touchpad -> mode
-            mouseAttached -> mode
             else -> RELATIVE_MOUSE_OFF
         }
 
