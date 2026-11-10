@@ -23,11 +23,17 @@ class GameThreadHintsTest {
     }
 
     @Test fun `a game at the panel's rate or a fraction of it holds pace`() {
-        assertTrue(GameThreadHints.holdsPace(119.0, 120.0))
-        assertTrue(GameThreadHints.holdsPace(60.5, 120.0))
-        assertTrue(GameThreadHints.holdsPace(30.0, 120.0))
-        assertFalse(GameThreadHints.holdsPace(92.0, 120.0))
-        assertFalse(GameThreadHints.holdsPace(105.0, 120.0))
-        assertFalse(GameThreadHints.holdsPace(3.0, 120.0))
+        assertTrue(GameThreadHints.holdsPace(119.0, 120.0, false))
+        assertTrue(GameThreadHints.holdsPace(60.5, 120.0, false))
+        assertTrue(GameThreadHints.holdsPace(30.0, 120.0, false))
+        assertFalse(GameThreadHints.holdsPace(92.0, 120.0, false))
+        assertFalse(GameThreadHints.holdsPace(105.0, 120.0, false))
+        assertFalse(GameThreadHints.holdsPace(3.0, 120.0, false))
+    }
+
+    @Test fun `a game stuck at a fraction of the panel's rate with a saturated thread is not paced`() {
+        assertFalse(GameThreadHints.holdsPace(28.8, 120.0, true))
+        assertFalse(GameThreadHints.holdsPace(60.0, 120.0, true))
+        assertTrue(GameThreadHints.holdsPace(119.0, 120.0, true))
     }
 }
