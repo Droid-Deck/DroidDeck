@@ -2831,6 +2831,8 @@
     <string name="display_position_top">置頂</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">置中（預設）</string>
+    <string name="display_position_left">左側</string>
+    <string name="display_position_right">右側</string>
     <string name="setup_tab_storage">儲存空間</string>
     <string name="storage_measuring">正在統計儲存空間…</string>
     <string name="storage_measuring_hint">首次統計需要幾秒鐘。</string>

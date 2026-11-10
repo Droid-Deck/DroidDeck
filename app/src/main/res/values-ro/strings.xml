@@ -2889,6 +2889,8 @@
     <string name="display_position_top">Sus</string>
     <string name="display_position_bottom">Jos</string>
     <string name="display_position_center">Centru (implicit)</string>
+    <string name="display_position_left">Stânga</string>
+    <string name="display_position_right">Dreapta</string>
     <string name="setup_tab_storage">Stocare</string>
     <string name="storage_measuring">Se măsoară stocarea…</string>
     <string name="storage_measuring_hint">Prima dată durează câteva secunde.</string>

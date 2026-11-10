@@ -2831,6 +2831,8 @@
     <string name="display_position_top">위</string>
     <string name="display_position_bottom">아래</string>
     <string name="display_position_center">가운데(기본)</string>
+    <string name="display_position_left">왼쪽</string>
+    <string name="display_position_right">오른쪽</string>
     <string name="setup_tab_storage">저장 공간</string>
     <string name="storage_measuring">저장 공간 계산 중…</string>
     <string name="storage_measuring_hint">처음 계산할 때는 몇 초 걸립니다.</string>

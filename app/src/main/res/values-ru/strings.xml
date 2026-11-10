@@ -3001,6 +3001,8 @@
     <string name="display_position_top">Сверху</string>
     <string name="display_position_bottom">Снизу</string>
     <string name="display_position_center">По центру (по умолчанию)</string>
+    <string name="display_position_left">Слева</string>
+    <string name="display_position_right">Справа</string>
     <string name="setup_tab_storage">Хранилище</string>
     <string name="storage_measuring">Измерение хранилища…</string>
     <string name="storage_measuring_hint">В первый раз занимает несколько секунд.</string>

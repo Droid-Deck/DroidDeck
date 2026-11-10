@@ -2860,6 +2860,8 @@
     <string name="display_position_top">Øverst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Midten (standard)</string>
+    <string name="display_position_left">Venstre</string>
+    <string name="display_position_right">Højre</string>
     <string name="setup_tab_storage">Lager</string>
     <string name="storage_measuring">Måler lager…</string>
     <string name="storage_measuring_hint">Første gang tager et par sekunder.</string>

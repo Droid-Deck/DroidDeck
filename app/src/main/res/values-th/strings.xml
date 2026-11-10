@@ -2831,6 +2831,8 @@
     <string name="display_position_top">บน</string>
     <string name="display_position_bottom">ล่าง</string>
     <string name="display_position_center">กลาง (ค่าเริ่มต้น)</string>
+    <string name="display_position_left">ซ้าย</string>
+    <string name="display_position_right">ขวา</string>
     <string name="setup_tab_storage">พื้นที่จัดเก็บ</string>
     <string name="storage_measuring">กำลังวัดพื้นที่…</string>
     <string name="storage_measuring_hint">ครั้งแรกใช้เวลาสองสามวินาที</string>

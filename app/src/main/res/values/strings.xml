@@ -3106,6 +3106,8 @@
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
+    <string name="display_position_left">Left</string>
+    <string name="display_position_right">Right</string>
     <string name="display_position_bottom">Bottom</string>
     <string name="display_position_center">Center (default)</string>
     <string name="glasses_6dof">6DoF virtual screen</string>
