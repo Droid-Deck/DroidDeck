@@ -248,7 +248,31 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
             if (b->identity || !is_path_prefix(path, b->src, b->src_len)) continue;
             if (!best || b->src_len > best->src_len) best = b;
         }
-        if (!best) return rewrite_path_in_root(path, buffer, bufsize);
+        if (!best) {
+            const char *host = rewrite_path_in_root(path, buffer, bufsize);
+#if defined(__aarch64__)
+            // A link in the rootfs with an absolute guest target that the hook did not write (one made
+            // under proot, or copied from Proton's template prefix, as Wine's "z:" -> "/") is followed
+            // by the kernel on Android's own tree: Wine found no drive for any path and gave games
+            // \\?\unix\ names, which an NW.js game could not load its DLLs from.
+            if (is_android_host_path(path)) return host;
+            char target[PATH_MAX];
+            long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
+            if (n <= 0 || target[0] != '/') return host;
+            target[n] = '\0';
+            if (is_android_host_path(target) ||
+                (g_ddnatv_root_len && strncmp(target, g_ddnatv_root, g_ddnatv_root_len) == 0)) return host;
+            char guest_path[PATH_MAX];
+            ddnatv_copy_cstr(guest_path, sizeof(guest_path), path);
+            char guest_target[PATH_MAX];
+            const char *followed = follow_guest_link(guest_path, guest_target, sizeof(guest_target));
+            char mapped[PATH_MAX];
+            ddnatv_copy_cstr(buffer, bufsize, rewrite_path_in_root(followed, mapped, sizeof(mapped)));
+            return buffer;
+#else
+            return host;
+#endif
+        }
         size_t n = ddnatv_append(from_source, sizeof(from_source), 0, best->dst, best->dst_len);
         ddnatv_append(from_source, sizeof(from_source), n, path + best->src_len, strlen(path + best->src_len));
         path = from_source;
