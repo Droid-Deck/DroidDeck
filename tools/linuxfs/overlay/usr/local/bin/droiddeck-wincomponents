@@ -61,10 +61,12 @@ def component(store, cid):
     requires = [r for r in meta.get("requires", []) if valid_id(r)]
     overrides = [str(o) for o in meta.get("overrides", [])]
     values = registry_values(root)
-    if any(o.strip().lower() == "mscoree=n" for o in overrides) and any(
-            rel.lower().startswith("drive_c/windows/microsoft.net/assembly/") for rel, _ in files):
-        values.append({"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": "*",
-                       "type": "sz", "data": "Gac=n"})
+    if any(o.strip().lower() == "mscoree=n" for o in overrides):
+        assemblies = sorted({Path(rel).stem for rel, _ in files
+                             if rel.lower().startswith("drive_c/windows/microsoft.net/assembly/gac_")
+                             and rel.lower().endswith(".dll")})
+        values = [{"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": name,
+                   "type": "sz", "data": "Gac=n"} for name in assemblies] + values
     return overrides, files, requires, values
 
 

@@ -294,12 +294,57 @@ class WinComponentsTest(unittest.TestCase):
         self.pick("dotnet48")
         self.apply()
         self.assertIn(
-            '"*"="Gac=n"',
+            '"System"="Gac=n"',
             user.read_text(),
         )
         self.pick()
         self.apply()
-        self.assertNotIn('"*"="Gac=n"', user.read_text())
+        self.assertNotIn('"System"="Gac=n"', user.read_text())
+
+    def test_framework_gac_override_keeps_other_assemblies_and_explicit_component_values(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System.Core/v4/System.Core.dll": b"core",
+        })
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        (self.store / "framework/registry.json").write_text(json.dumps({"values": [
+            {"hive": "HKCU", "key": key, "name": "System", "type": "sz", "data": "Gac=y"},
+        ]}))
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        original = ('WINE REGISTRY Version 2\n\n' + MODULE["reg_key_line"](key)
+                    + ' 1\n"*"="Gac=y"\n"Microsoft.Xna.Framework"="Gac=y"\n')
+        user.write_text(original)
+        self.pick("framework")
+        names, _ = self.apply()
+        self.assertEqual(names, ["mscoree=n,b"])
+        registry = MODULE["RegistryFile"](user)
+        self.assertEqual(registry.get(key, "System"), '\"System\"=\"Gac=y\"')
+        self.assertEqual(registry.get(key, "System.Core"), '\"System.Core\"=\"Gac=n\"')
+        self.assertEqual(registry.get(key, "*"), '\"*\"=\"Gac=y\"')
+        self.assertEqual(registry.get(key, "Microsoft.Xna.Framework"),
+                         '\"Microsoft.Xna.Framework\"=\"Gac=y\"')
+        self.pick()
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        self.assertIsNone(registry.get(key, "System"))
+        self.assertIsNone(registry.get(key, "System.Core"))
+        self.assertEqual(registry.get(key, "*"), '\"*\"=\"Gac=y\"')
+
+    def test_unselected_framework_and_non_framework_components_do_not_change_mono(self):
+        gac = "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll"
+        self.component("framework", ["mscoree=n"], {gac: b"system"})
+        self.component("other", ["other=n"], {gac: b"other"})
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        original = "WINE REGISTRY Version 2\n"
+        user.write_text(original)
+        self.pick("other")
+        self.apply()
+        self.assertEqual(user.read_text(), original)
+        self.pick()
+        self.apply()
+        self.assertEqual(user.read_text(), original)
 
     def test_a_wine_placeholder_file_is_not_a_native_dll(self):
         self.component("dotnet48", ["mscoree=n"], {})
