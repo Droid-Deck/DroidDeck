@@ -2898,7 +2898,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (joyConVr?.onMotionEvent(event) == true) return true
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
-        if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.TOUCHPAD && onPhysicalTouchpad(event)) return true
+        if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.TOUCHPAD) {
+            if (touchpadUiOwnsPointer()) {
+                physicalTouchpad.cancel(event.eventTime)
+                return super.dispatchGenericMotionEvent(event)
+            }
+            if (onPhysicalTouchpad(event)) return true
+        }
         if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.MOUSE && !drawerOpen) {
             if (appUiOwnsPointer()) {
                 if (super.dispatchGenericMotionEvent(event)) return true
@@ -2932,8 +2938,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
-        if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.TOUCHPAD)
+        if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.TOUCHPAD) {
+            if (touchpadUiOwnsPointer()) {
+                physicalTouchpad.cancel(event.eventTime)
+                return super.dispatchTouchEvent(event)
+            }
             return onPhysicalTouchpad(event)
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
             gestureTouchStreamGate.reset()
@@ -4285,10 +4296,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun onPhysicalTouchpad(event: MotionEvent): Boolean {
         if (observedTouchpads.add(event.deviceId)) updatePointerCapture()
-        if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi ||
-            SessionState.suspended || !::surfaceView.isInitialized || !surfaceView.isShown ||
+        if (touchpadUiOwnsPointer() || !::surfaceView.isInitialized || !surfaceView.isShown ||
             !surfaceView.holder.surface.isValid) {
-            physicalTouchpad.cancel()
+            physicalTouchpad.cancel(event.eventTime)
             return true
         }
         return physicalTouchpad.onEvent(event)
@@ -4404,6 +4414,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun appUiOwnsPointer(): Boolean =
         drawerOpen || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen || wowChatOnTop
+
+    private fun touchpadUiOwnsPointer(): Boolean =
+        appUiOwnsPointer() || gestureSettingsOpen || appTextFocus || SessionState.suspended ||
+            (::loading.isInitialized && (loading.visible || loading.ended))
 
     private fun applyPlatformPointer(shown: Boolean) {
         if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
