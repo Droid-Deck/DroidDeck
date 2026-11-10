@@ -26,6 +26,10 @@ class KeyboardHost(
     var imeShowing = false
         private set
     var onImeChanged: ((Boolean) -> Unit)? = null
+    var onCommitText: ((String) -> Boolean)? = null
+    var onComposingText: ((String, Int) -> Boolean)? = null
+    var editorInputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
 
     init {
         isFocusable = false
@@ -38,8 +42,7 @@ class KeyboardHost(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         if (!shown) return null
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        outAttrs.inputType = editorInputType
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         return KeyConnection()
@@ -73,6 +76,7 @@ class KeyboardHost(
         rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false
 
     fun show() {
+        if (shown && hasFocus() && imeVisible()) return
         shown = true
         isFocusable = true
         isFocusableInTouchMode = true
@@ -113,12 +117,15 @@ class KeyboardHost(
 
     private inner class KeyConnection : BaseInputConnection(this, false) {
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            if (text.isNullOrEmpty()) return true
+            onCommitText?.let { return it(text.toString()) }
             type(text)
             return true
         }
 
-        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean = true
-        override fun finishComposingText(): Boolean = true
+        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean =
+            onComposingText?.invoke(text?.toString().orEmpty(), newCursorPosition) ?: true
+        override fun finishComposingText(): Boolean = onComposingText?.invoke("", 0) ?: true
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
             repeat(beforeLength) { tap(KeyEvent.KEYCODE_DEL) }

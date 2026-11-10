@@ -48,6 +48,12 @@ object SessionPrefs {
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
+    fun desktopAutoKeyboard(context: Context): Boolean = prefs(context).getBoolean("desktopAutoKeyboard", false)
+
+    fun setDesktopAutoKeyboard(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("desktopAutoKeyboard", enabled).apply()
+    }
+
     val orientationOptions = listOf(
         ActivityInfo.SCREEN_ORIENTATION_USER to R.string.setup_launcher_orientation_auto,
         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT to R.string.setup_orientation_portrait,

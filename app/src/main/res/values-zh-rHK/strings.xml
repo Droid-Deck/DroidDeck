@@ -752,6 +752,8 @@
     <string name="drawer_relative_mouse_off">關</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_auto_keyboard">自動彈出虛擬鍵盤</string>
+    <string name="drawer_auto_keyboard_hint">點選 Linux 主介面的輸入框時，自動開啟 Android 鍵盤。</string>
     <string name="drawer_second_screen">第二螢幕</string>
     <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">顯示</string>

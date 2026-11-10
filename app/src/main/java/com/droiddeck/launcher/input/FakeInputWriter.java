@@ -704,6 +704,7 @@ public class FakeInputWriter {
     }
 
     public synchronized void close() {
+        mouseWheelVertical120 = mouseWheelHorizontal120 = 0;
         isOpen = false;
     }
 
@@ -951,6 +952,30 @@ public class FakeInputWriter {
             writeEvent(EV_REL, REL_HWHEEL, horizontalClicks);
             writeEvent(EV_REL, REL_HWHEEL_HI_RES, horizontalClicks * value120);
         }
+        writeEvent(EV_SYN, SYN_REPORT, 0);
+        buffer.flip();
+        if (!flushBuffer())
+            Log.e(TAG, "Mouse wheel write error: fake input mmap ring unavailable");
+    }
+
+    private int mouseWheelVertical120;
+    private int mouseWheelHorizontal120;
+
+    public synchronized void writeMouseWheel120(int vertical120, int horizontal120) {
+        if (vertical120 == 0 && horizontal120 == 0) return;
+        if (!isOpen && !open()) return;
+        buffer.clear();
+        hasChanges = false;
+        mouseWheelVertical120 += vertical120;
+        mouseWheelHorizontal120 += horizontal120;
+        int v = mouseWheelVertical120 / 120;
+        int h = mouseWheelHorizontal120 / 120;
+        mouseWheelVertical120 -= v * 120;
+        mouseWheelHorizontal120 -= h * 120;
+        if (v != 0) writeEvent(EV_REL, REL_WHEEL, v);
+        if (h != 0) writeEvent(EV_REL, REL_HWHEEL, h);
+        if (vertical120 != 0) writeEvent(EV_REL, REL_WHEEL_HI_RES, vertical120);
+        if (horizontal120 != 0) writeEvent(EV_REL, REL_HWHEEL_HI_RES, horizontal120);
         writeEvent(EV_SYN, SYN_REPORT, 0);
         buffer.flip();
         if (!flushBuffer())

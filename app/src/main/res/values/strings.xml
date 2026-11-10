@@ -826,6 +826,8 @@
     <string name="drawer_relative_mouse_off">Off</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_auto_keyboard">Automatically show virtual keyboard</string>
+    <string name="drawer_auto_keyboard_hint">Show the Android keyboard when you tap a text field on the Linux desktop.</string>
     <string name="drawer_second_screen">Second screen</string>
     <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>

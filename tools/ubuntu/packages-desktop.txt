@@ -216,6 +216,7 @@ powerdevil
 ppa-purge
 print-manager
 python3-dbus
+python3-pyatspi
 python3-launchpadlib
 python3-setuptools
 python3-yaml

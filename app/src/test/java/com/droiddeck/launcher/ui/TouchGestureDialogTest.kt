@@ -37,13 +37,27 @@ class TouchGestureDialogTest {
         compose.runOnIdle { assertEquals("key_KP_ENTER", GesturePrefs.read(context).tapAction) }
     }
 
+    @Test fun fourFingerDirectionSavesAnExplicitActionWithoutChangingThreeFingerDirection() {
+        compose.setContent { DroidDeckTheme { TouchGestureDialog(null, {}, {}) } }
+        compose.onNodeWithTag("gesture-tab-3").performClick()
+        compose.onNodeWithTag("gesture-choice-four-right").performScrollTo().performClick()
+        compose.onNodeWithTag("gesture-action-search").performTextInput("Escape")
+        compose.onNodeWithTag("gesture-action-key_ESC").performClick()
+        compose.onNodeWithTag("gesture-save").performClick()
+        compose.runOnIdle {
+            val config = GesturePrefs.read(context)
+            assertEquals("key_ESC", config.fourFingerSwipeRight)
+            assertEquals("native_swipe", config.threeFingerSwipeRight)
+        }
+    }
+
     @Test fun switchingTabsKeepsEditsAndLetsTwoFingerPanBeChanged() {
         compose.setContent { DroidDeckTheme { TouchGestureDialog(null, {}, {}) } }
         compose.onNodeWithTag("gesture-tab-1").performClick()
         compose.onNodeWithTag("gesture-choice-two-drag").performScrollTo().performClick()
         compose.onNodeWithTag("gesture-action-search").performTextInput("middle mouse pan")
         compose.onNodeWithTag("gesture-action-middle_mouse_pan").performClick()
-        compose.onNodeWithTag("gesture-tab-3").performClick()
+        compose.onNodeWithTag("gesture-tab-4").performClick()
         compose.onNodeWithTag("gesture-tab-1").performClick()
         compose.onNodeWithText("Middle mouse pan").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("gesture-save").performClick()
@@ -99,7 +113,7 @@ class TouchGestureDialogTest {
         }
         compose.onNodeWithContentDescription("Close").assertIsDisplayed()
         compose.onNodeWithTag("gesture-save").assertIsDisplayed()
-        compose.onNodeWithTag("gesture-tab-3").performScrollTo().performClick()
+        compose.onNodeWithTag("gesture-tab-4").performScrollTo().performClick()
         compose.onNodeWithText("Mouse movement").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("gesture-save").assertIsDisplayed()
     }

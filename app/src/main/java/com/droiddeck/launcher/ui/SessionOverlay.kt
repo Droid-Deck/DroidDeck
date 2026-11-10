@@ -267,6 +267,8 @@ class DrawerActions(
     val wowChatShown: Boolean = false,
     val wowChat: String? = null,
     val onWowChat: (String?) -> Unit = {},
+    val desktopAutoKeyboard: Boolean? = null,
+    val onDesktopAutoKeyboard: (Boolean) -> Unit = {},
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onAchievements: (() -> Unit)? = null,
@@ -684,6 +686,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     RelativeMouseRow(host, a, focus.track(page, "relative-mouse"))
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
+                                a.desktopAutoKeyboard?.let { enabled ->
+                                    ToggleRow(host, "desktop-auto-keyboard", stringResource(R.string.drawer_auto_keyboard),
+                                        stringResource(R.string.drawer_auto_keyboard_hint), enabled,
+                                        chipModifier = focus.track(page, "desktop-auto-keyboard"),
+                                        onChange = a.onDesktopAutoKeyboard)
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
                                         host.open = null; a.onHardwareKeyboard()

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gesture_tab_four">四指</string>
+    <string name="gesture_swipe_up">向上滑动</string>
+    <string name="gesture_swipe_down">向下滑动</string>
+    <string name="gesture_swipe_left">向左滑动</string>
+    <string name="gesture_swipe_right">向右滑动</string>
+    <string name="gesture_native_swipe">Linux 原生滑动手势</string>
+    <string name="gesture_action_none">无动作</string>
+    <string name="gesture_custom_shortcut">自定义组合快捷键</string>
+    <string name="gesture_shortcut_modifiers">修饰键</string>
+    <string name="gesture_shortcut_key">选择按键</string>
+    <string name="gesture_swipe_help">桌面各窗口和触摸板共用方向滑动配置。一次滑动只执行一次动作，四指不会触发三指点击。</string>
+    <string name="gesture_three_drag_help">手势模式中，连续三指拖动优先于方向滑动。</string>
+</resources>

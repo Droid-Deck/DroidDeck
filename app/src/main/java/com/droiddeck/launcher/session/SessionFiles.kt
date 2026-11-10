@@ -28,6 +28,7 @@ object SessionFiles {
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
         "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
         "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
+        "usr/local/bin/droiddeck-ibus" to "usr/local/bin/droiddeck-ibus",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",

@@ -17,7 +17,7 @@ internal enum class GestureActionGroup(@StringRes val title: Int) {
 internal data class GestureAction(val id: String, val title: String, val group: GestureActionGroup)
 
 internal fun gestureActionGroup(id: String): GestureActionGroup {
-    if (id == "show_keyboard") return GestureActionGroup.APP
+    if (id in setOf("show_keyboard", "native_swipe", "none")) return GestureActionGroup.APP
     if (id in setOf("left_click", "right_click", "middle_click", "left_click_drag", "right_click_drag",
             "middle_mouse_pan", "inverted_middle_mouse_pan", "scroll_wheel")) return GestureActionGroup.MOUSE
     val key = id.removePrefix("key_")
@@ -26,7 +26,7 @@ internal fun gestureActionGroup(id: String): GestureActionGroup {
         key.length == 1 && key[0] in 'A'..'Z' -> GestureActionGroup.LETTERS
         key.length == 1 && key[0].isDigit() -> GestureActionGroup.NUMBERS
         key.matches(Regex("F(?:[1-9]|1[0-2])")) -> GestureActionGroup.FUNCTION
-        key.startsWith("CTRL_") || key.startsWith("SHIFT_") || key.startsWith("ALT_") || key.endsWith("_LOCK") -> GestureActionGroup.MODIFIERS
+        key.startsWith("CTRL_") || key.startsWith("SHIFT_") || key.startsWith("ALT_") || key.startsWith("META_") || key.endsWith("_LOCK") -> GestureActionGroup.MODIFIERS
         key in setOf("MINUS", "EQUAL", "BRACKET_LEFT", "BRACKET_RIGHT", "SEMICOLON", "APOSTROPHE",
             "GRAVE", "TILDE", "BACKSLASH", "COMMA", "PERIOD", "SLASH") || id == "plus_minus" -> GestureActionGroup.SYMBOLS
         else -> GestureActionGroup.NAVIGATION
@@ -54,6 +54,9 @@ internal fun gestureActionTitle(action: String): String {
         "right_click" -> R.string.gesture_right_click
         "middle_click" -> R.string.gesture_middle_click
         "show_keyboard" -> R.string.gesture_keyboard
+        "native_swipe" -> R.string.gesture_native_swipe
+        "none" -> R.string.gesture_action_none
+        "custom_shortcut" -> R.string.gesture_custom_shortcut
         "left_click_drag" -> R.string.gesture_left_drag
         "right_click_drag" -> R.string.gesture_right_drag
         "middle_mouse_pan" -> R.string.gesture_middle_pan
@@ -65,6 +68,9 @@ internal fun gestureActionTitle(action: String): String {
         else -> null
     }
     if (named != null) return stringResource(named)
+    if (action.startsWith("shortcut_")) return action.removePrefix("shortcut_").split('+').joinToString(" + ") {
+        it.removeSuffix("_L").removeSuffix("_R").replace("META", "Super").replace('_', ' ')
+    }
     return when (action) {
         "wasd" -> "WASD"
         "plus_minus" -> "+ / −"
@@ -99,8 +105,8 @@ private fun gestureKeyTitle(key: String): String {
         else -> null
     }
     if (named != null) return stringResource(named)
-    if (key.startsWith("CTRL_") || key.startsWith("SHIFT_") || key.startsWith("ALT_")) {
-        val name = stringResource(when (key.substringBefore('_')) {
+    if (key.startsWith("CTRL_") || key.startsWith("SHIFT_") || key.startsWith("ALT_") || key.startsWith("META_")) {
+        val name = if (key.startsWith("META_")) "Super" else stringResource(when (key.substringBefore('_')) {
             "CTRL" -> R.string.pckb_key_ctrl
             "SHIFT" -> R.string.gesture_key_shift
             else -> R.string.pckb_key_alt

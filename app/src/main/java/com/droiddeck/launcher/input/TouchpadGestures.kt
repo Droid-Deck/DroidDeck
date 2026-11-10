@@ -34,6 +34,8 @@ class TouchpadGestures(
     private var fingers = 0
     private var pinching = false
     private var pinchSpan = 0f
+    private var pinchCenterX = 0f
+    private var pinchCenterY = 0f
     private var scrolled = false
     private var anchorId = -1
     private var anchorStartX = 0f
@@ -53,6 +55,27 @@ class TouchpadGestures(
         listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
     }
     private val clickUp = Runnable { releaseClick() }
+    private val actions = GestureActionExecutor(object : GestureActionExecutor.Output {
+        override fun key(code: Int, down: Boolean) = listener.onKey(code, down)
+        override fun button(code: Int, down: Boolean) = listener.onButton(code, down, x, y)
+        override fun keyboard() = listener.onKeyboard()
+    })
+    private val multi = MultiFingerInput(slopPx, object : MultiFingerInput.Output {
+        override fun cancelLower() = cancelLowerInput()
+        override fun click(action: String) {
+            if (action != TouchGestureConfig.ACTION_SHOW_KEYBOARD || !listener.onThreeFingerTap())
+                actions.click(action)
+        }
+        override fun hold(action: String, down: Boolean) = actions.hold(action, down)
+        override fun swipeBegin(fingers: Int) = listener.onSwipeBegin(fingers)
+        override fun swipeUpdate(dx: Float, dy: Float) = listener.onSwipeUpdate(dx, dy)
+        override fun swipeEnd(cancelled: Boolean) = listener.onSwipeEnd(cancelled)
+    })
+
+    fun configure(config: TouchGestureConfig) {
+        cancel()
+        multi.configure(config)
+    }
 
     private fun click(button: Int) {
         releaseClick()
@@ -68,6 +91,13 @@ class TouchpadGestures(
     }
 
     fun cancel() {
+        multi.cancel()
+        actions.cancel()
+        cancelLowerInput()
+    }
+
+    private fun cancelLowerInput() {
+        endGestures(true)
         handler.removeCallbacks(longPress)
         releaseClick()
         if (dragging) listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
@@ -78,6 +108,15 @@ class TouchpadGestures(
         anchorId = -1
         moverId = -1
         lastTapAt = 0L
+        twoFingers = false
+        fingers = 0
+    }
+
+    private fun endGestures(cancelled: Boolean) {
+        if (desktop && scrolled) listener.onScrollEnd()
+        if (pinching) listener.onPinchEnd(cancelled)
+        scrolled = false
+        pinching = false
     }
 
     fun place(px: Float, py: Float) {
@@ -100,8 +139,10 @@ class TouchpadGestures(
     }
 
     fun onTouch(event: MotionEvent): Boolean {
+        if (multi.onTouch(event, scrolled || pinching || dragging || holdDrag)) return true
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                endGestures(true)
                 releaseClick()
                 lastX = event.x; lastY = event.y
                 downAt = event.eventTime
@@ -136,6 +177,8 @@ class TouchpadGestures(
                 scrollAnchorX = (event.getX(0) + event.getX(1)) / 2f
                 scrollAnchorY = (event.getY(0) + event.getY(1)) / 2f
                 pinchSpan = span(event)
+                pinchCenterX = scrollAnchorX
+                pinchCenterY = scrollAnchorY
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -171,19 +214,18 @@ class TouchpadGestures(
                     return true
                 }
                 if (twoFingers && event.pointerCount >= 2 && desktop) {
-                    if (fingers >= 3) return true
                     val span = span(event)
                     if (!scrolled && !pinching && abs(span - pinchSpan) > slopPx * PINCH_SLOPS) {
                         pinching = true
                         secondWasTap = false
-                        pinchSpan = span
+                        listener.onPinchBegin(2)
                     }
                     if (pinching) {
-                        val steps = ((span - pinchSpan) / PINCH_STEP_PX).toInt()
-                        if (steps != 0) {
-                            listener.onZoom(-steps)
-                            pinchSpan += steps * PINCH_STEP_PX
-                        }
+                        val cx = (event.getX(0) + event.getX(1)) / 2f
+                        val cy = (event.getY(0) + event.getY(1)) / 2f
+                        if (pinchSpan > 0f) listener.onPinchUpdate(cx - pinchCenterX, cy - pinchCenterY, span / pinchSpan)
+                        pinchCenterX = cx
+                        pinchCenterY = cy
                         return true
                     }
                     val midX = (event.getX(0) + event.getX(1)) / 2f
@@ -238,13 +280,8 @@ class TouchpadGestures(
                 event.findPointerIndex(anchorId).takeIf { it >= 0 && it != event.actionIndex }?.let {
                     lastX = event.getX(it); lastY = event.getY(it)
                 }
-                if (desktop && scrolled && event.pointerCount == 2) listener.onScrollEnd()
-                if (fingers >= 3) {
-                    if (event.pointerCount == 2 && secondWasTap && !scrolled && event.eventTime - downAt < TouchTiming.TAP_MS * 2 &&
-                        !listener.onThreeFingerTap())
-                        click(PointerGestures.BTN_MIDDLE)
-                    if (event.pointerCount == 2) secondWasTap = false
-                } else if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TouchTiming.TAP_MS && !scrolled) {
+                if (event.pointerCount == 2) endGestures(false)
+                if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TouchTiming.TAP_MS && !scrolled) {
                     click(PointerGestures.BTN_RIGHT)
                     secondWasTap = false
                 }
@@ -253,10 +290,12 @@ class TouchpadGestures(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPress)
                 val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL
+                val hadGesture = scrolled || pinching
+                endGestures(cancelled)
                 when {
                     dragging -> listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
                     twoFingers -> {
-                        if (secondWasTap && !scrolled && !cancelled && event.eventTime - downAt < TouchTiming.TAP_MS * 2) {
+                        if (secondWasTap && !hadGesture && !cancelled && event.eventTime - downAt < TouchTiming.TAP_MS * 2) {
                             click(PointerGestures.BTN_RIGHT)
                         }
                     }
@@ -279,7 +318,6 @@ class TouchpadGestures(
 
     companion object {
         private const val PINCH_SLOPS = 3f
-        private const val PINCH_STEP_PX = 60f
         private const val HOLD_DRAG_MOVER_SLOPS = 2f
         private const val HOLD_DRAG_ANCHOR_SLOPS = 0.5f
     }

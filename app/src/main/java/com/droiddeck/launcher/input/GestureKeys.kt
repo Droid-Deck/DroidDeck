@@ -106,6 +106,21 @@ object GestureKeys {
         "NEXT" to 109,
         "INSERT" to 110,
         "DEL" to 111,
+        "META_L" to 125,
+        "META_R" to 126,
     )
     @JvmStatic fun code(name: String): Int? = codes[name]
+
+    @JvmStatic fun actionCodes(action: String): IntArray {
+        if (action == TouchGestureConfig.ACTION_KEY_TILDE) return intArrayOf(42, 41)
+        if (action.startsWith("key_")) return code(action.removePrefix("key_"))?.let { intArrayOf(it) } ?: intArrayOf()
+        if (!action.startsWith("shortcut_")) return intArrayOf()
+        val names = action.removePrefix("shortcut_").split('+')
+        if (names.isEmpty() || names.size > 5 || names.distinct().size != names.size) return intArrayOf()
+        val parsed = names.map { code(it) ?: return intArrayOf() }
+        if (names.dropLast(1).any { it !in modifiers } || names.last() in modifiers) return intArrayOf()
+        return parsed.toIntArray()
+    }
+
+    val modifiers = listOf("CTRL_L", "ALT_L", "SHIFT_L", "META_L", "CTRL_R", "ALT_R", "SHIFT_R", "META_R")
 }

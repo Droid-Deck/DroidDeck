@@ -752,6 +752,8 @@
     <string name="drawer_relative_mouse_off">关</string>
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_auto_keyboard">自动弹出虚拟键盘</string>
+    <string name="drawer_auto_keyboard_hint">点击 Linux 主界面的输入框时，自动唤起安卓键盘。</string>
     <string name="drawer_second_screen">副屏</string>
     <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">显示</string>

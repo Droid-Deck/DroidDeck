@@ -34,6 +34,9 @@ class TouchpadGesturesTest {
         override fun onScrollEnd() { events += "scroll end" }
         override fun onZoom(steps: Int) { events += "zoom $steps" }
         override fun onThreeFingerTap(): Boolean { events += "three tap"; return claimThreeTap }
+        override fun onPinchBegin(fingers: Int) { events += "pinch begin $fingers" }
+        override fun onPinchUpdate(dx: Float, dy: Float, scale: Float) { events += "pinch $scale" }
+        override fun onPinchEnd(cancelled: Boolean) { events += "pinch end $cancelled" }
     }
     private var claimThreeTap = false
 
@@ -52,9 +55,10 @@ class TouchpadGesturesTest {
         assertEquals(listOf("left down", "left up"), events)
     }
 
-    @Test fun threeFingerTapClicksTheMiddleButtonWhenUnclaimed() {
+    @Test fun configuredThreeFingerTapClicksTheMiddleButton() {
+        touchpad.configure(TouchGestureConfig(threeFingerTapAction = TouchGestureConfig.ACTION_MIDDLE_CLICK))
         threeFingerTap()
-        assertEquals(listOf("three tap", "middle down", "middle up"), events)
+        assertEquals(listOf("middle down", "middle up"), events)
     }
 
     @Test fun claimedThreeFingerTapSkipsTheMiddleButton() {
@@ -105,7 +109,31 @@ class TouchpadGesturesTest {
         touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (320f to 300f), 2 to (780f to 300f))
         touch(MotionEvent.ACTION_UP, 0, 1 to (320f to 300f))
         advance(100)
-        assertTrue(events.isNotEmpty() && events.all { it.startsWith("zoom -") })
+        assertEquals("pinch begin 2", events.first())
+        assertTrue(events.contains("pinch 4.6"))
+        assertEquals("pinch end false", events.last())
+        assertFalse(events.any { it.startsWith("zoom") || it.startsWith("wheel") || it == "scroll" })
+    }
+
+    @Test fun cancellingADesktopPinchEmitsOneCancelledEnd() {
+        touchpad.desktop = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (500f to 300f))
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (500f to 300f), 2 to (600f to 300f))
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (450f to 300f), 2 to (650f to 300f))
+        touchpad.cancel()
+        touchpad.cancel()
+        assertEquals(1, events.count { it == "pinch end true" })
+        assertFalse(events.any { it.startsWith("left") || it.startsWith("wheel") })
+    }
+
+    @Test fun cancellingADesktopScrollEmitsOneStop() {
+        touchpad.desktop = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 400f), 2 to (600f to 400f))
+        touchpad.cancel()
+        touchpad.cancel()
+        assertEquals(1, events.count { it == "scroll end" })
     }
 
     @Test fun twoFingerTapHoldsTheRightButtonBeforeReleasingIt() {
