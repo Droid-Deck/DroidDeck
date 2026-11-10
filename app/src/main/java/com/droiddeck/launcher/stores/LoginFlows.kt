@@ -14,12 +14,14 @@ internal object LoginFlows {
         Store.AMAZON -> amazonFlow()
         Store.GAMEJOLT -> gameJoltFlow(browserUserAgent)
         Store.UBISOFT -> ubisoftFlow(browserUserAgent)
+        Store.EA -> eaFlow(browserUserAgent)
         Store.ITCH, Store.XBOX, Store.BATTLENET -> null
     }
 
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }
     @Volatile var amazonFlow: () -> StoreLoginActivity.Flow? = { null }
     @Volatile var ubisoftFlow: (String) -> StoreLoginActivity.Flow? = { null }
+    @Volatile var eaFlow: (String) -> StoreLoginActivity.Flow? = { null }
     @Volatile var gameJoltFlow: (String) -> StoreLoginActivity.Flow? = { null }
 
     private class GogFlow(private val state: String, override val userAgent: String) : StoreLoginActivity.Flow {

@@ -4,6 +4,7 @@
 
 pub mod amazon;
 pub mod ubisoft;
+pub mod ea;
 pub mod epic;
 pub mod fetch_core;
 pub mod fetch_tuning;

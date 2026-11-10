@@ -708,6 +708,54 @@ class ReadConfigMappingTest(unittest.TestCase):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_component_filter_and_prefix_repair_use_per_game_proton_architecture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"PROTON_USE_ARM64": "1"},
+                                          "games": {"42": {"PROTON_USE_ARM64": "0"}}}))
+            seen_components, seen_repair, seen_start = [], [], []
+            globals = MODULE["main"].__globals__
+            stubs = {
+                "game_gpu": lambda env: env,
+                "mark_install_scripts": lambda command, env: [],
+                "install_scripts_done": lambda scripts, env: False,
+                "scripts_digest": lambda scripts: None,
+                "win_components": lambda *args: seen_components.append(args[3]) or "",
+                "repair_foreign_system_dlls": lambda *args: seen_repair.append(args[2]) or [],
+                "gl_vsync": lambda env: False,
+                "game_images": lambda env: None,
+                "skip_red_launcher": lambda command: command,
+                "ubisoft_overlay_off": lambda env: None,
+                "project_zomboid_jvm": lambda command: None,
+                "engine_fixes": lambda *args: ({}, [], []),
+                "dirt_ws2_wanted": lambda *args: None,
+                "apply_game_debug_logs": lambda env, config, debug_dir: env,
+                "offline_without_anticheat": lambda command, env: command,
+                "game_logs": lambda command, env, app_id: env,
+                "directaudio_settings": lambda env: env,
+                "vram_cap": lambda env: env,
+                "render_path_defaults": lambda *args: None,
+                "bridge_feature_level": lambda env: None,
+                "force_ssbs": lambda command, env: env,
+                "game_cores": lambda env: None,
+                "cpu_topology": lambda env, command: None,
+                "ego_core_plan": lambda *args: None,
+                "runpy": mock.Mock(run_path=lambda *args: {"launch": lambda command, env: None}),
+                "load_sync": lambda: {},
+                "select_sync": lambda command, env, sync: (command, env),
+                "start": lambda command, env, *args: seen_start.append(env) or 7,
+            }
+            environment = {"HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "PROTON_USE_ARM64": "1"}
+            command = ["/stock/proton", "waitforexitandrun", "/game/game.exe"]
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                    patch.dict(globals, stubs):
+                self.assertEqual(MODULE["main"](), 7)
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
+
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
@@ -2604,6 +2652,167 @@ class UbisoftCompositionTest(unittest.TestCase):
                 self.assertIn("configuration failed", stderr.getvalue())
                 self.assertNotIn("uses CEF", stderr.getvalue())
             self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
+
+
+
+def pe_image(machine):
+    head = bytearray(64)
+    head[:2] = b"MZ"
+    head[60:64] = (64).to_bytes(4, "little")
+    return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 32
+
+
+def arm64ec_pe_image():
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = (0x8664).to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    directory = optional + 112 + 10 * 8
+    image[directory:directory + 4] = (0x1000).to_bytes(4, "little")
+    image[directory + 4:directory + 8] = (0xD0).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    image[0x200:0x204] = (0xD0).to_bytes(4, "little")
+    image[0x2C8:0x2D0] = (0x10000000).to_bytes(8, "little")
+    return bytes(image)
+
+
+class ForeignSystemDllTest(unittest.TestCase):
+    def prefix(self, tmp, arm=True):
+        proton = Path(tmp) / "Proton"
+        dist = proton / "files/lib/wine"
+        if arm:
+            (dist / "aarch64-unix").mkdir(parents=True)
+        else:
+            (dist / "x86_64-unix").mkdir(parents=True)
+        for libdir, machine in (("aarch64-windows", 0xAA64), ("i386-windows", 0x14C)):
+            (dist / libdir).mkdir(parents=True)
+            for name in ("ucrtbase.dll", "rpcrt4.dll"):
+                (dist / libdir / name).write_bytes(pe_image(machine))
+        windows = Path(tmp) / "compat/pfx/drive_c/windows"
+        for folder in ("system32", "syswow64"):
+            (windows / folder).mkdir(parents=True)
+        return proton / "proton", Path(tmp) / "compat", windows
+
+    def run_repair(self, compat, proton):
+        return MODULE["repair_foreign_system_dlls"](str(compat), str(proton))
+
+    def test_x64_dll_in_arm64_system32_is_replaced_by_the_builtin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/UCRTBASE.DLL").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0xAA64))
+            fixed = self.run_repair(compat, proton)
+            self.assertEqual(["system32/UCRTBASE.DLL (machine 0x8664)"], fixed)
+            self.assertTrue((windows / "system32/UCRTBASE.DLL").is_symlink())
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL"))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL.foreign-arch"))
+            self.assertFalse((windows / "system32/rpcrt4.dll").is_symlink())
+            self.assertEqual([], self.run_repair(compat, proton))
+
+    def test_64_bit_dll_in_syswow64_is_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "syswow64/ucrtbase.dll").write_bytes(pe_image(0xAA64))
+            self.assertEqual(["syswow64/ucrtbase.dll (machine 0xaa64)"], self.run_repair(compat, proton))
+            self.assertEqual(0x14C, MODULE["pe_machine"](windows / "syswow64/ucrtbase.dll"))
+
+    def test_matching_ec_symlinked_unknown_and_non_pe_files_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            system32 = windows / "system32"
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0xA641))
+            (system32 / "userlib.dll").write_bytes(pe_image(0x8664))
+            (system32 / "rpcrt4.dll").write_bytes(b"not a pe file")
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
+            self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
+
+    def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(arm64ec_pe_image())
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertTrue(MODULE["PE"]["machine_compatible"](dll, frozenset((0xAA64, 0xA641))))
+            self.assertFalse(MODULE["PE"]["machine_compatible"](dll, frozenset((0x8664,))))
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertFalse(dll.is_symlink())
+
+    def test_component_owned_and_native_first_foreign_dlls_are_still_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
+            state = {"files": {"drive_c/windows/system32/ucrtbase.dll": {}}}
+            (compat / ".droiddeck-wincomponents.json").write_text(json.dumps(state))
+            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"RPCRT4.DLL"="native,builtin"\n'
+            (compat / "pfx/user.reg").write_text(reg)
+            env = {"WINEDLLOVERRIDES": "ucrtbase=n,b"}
+            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)", "system32/ucrtbase.dll (machine 0x8664)"],
+                             sorted(MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env)))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
+
+    def test_newest_foreign_copy_is_the_only_backup_and_failed_final_replace_restores_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            backup = windows / "system32/ucrtbase.dll.foreign-arch"
+            backup.write_bytes(pe_image(0x1234))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertEqual(0x1234, MODULE["pe_machine"](backup))
+            self.assertEqual(0x8664, MODULE["pe_machine"](backup.with_name(backup.name + ".1")))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            backup = windows / "system32/ucrtbase.dll.foreign-arch"
+            backup.write_bytes(pe_image(0x1234))
+            real = os.replace
+            def flaky_with_backup(src, dst):
+                if str(src).endswith(".bl-new"):
+                    raise OSError("boom")
+                return real(src, dst)
+            with mock.patch("os.replace", side_effect=flaky_with_backup):
+                self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch.1").exists())
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            real = os.replace
+            def flaky(src, dst):
+                if str(src).endswith(".bl-new"):
+                    raise OSError("boom")
+                return real(src, dst)
+            with mock.patch("os.replace", side_effect=flaky):
+                self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertFalse(dll.is_symlink())
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch").exists())
+            self.assertFalse((windows / "system32/ucrtbase.dll.bl-new").is_symlink())
+
+    def test_non_arm64_proton_and_missing_prefix_are_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
 
 
 if __name__ == "__main__":

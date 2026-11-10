@@ -70,8 +70,19 @@ def mapping(root):
 
 
 def tools(root):
+    c = compat()
+    wrapper = os.path.join(root, "compatibilitytools.d", c["TOOL"])
+    complete = os.access(os.path.join(wrapper, c["LAUNCHER"]), os.X_OK) and os.path.isfile(os.path.join(wrapper, "toolmanifest.vdf"))
+    if c["TOOL"].lower() not in c["local_tools"](root) or not complete:
+        depot = c["find_source"](root, runnable=True)
+        if depot is not None:
+            try:
+                c["build_tool"](wrapper, depot)
+            except OSError:
+                pass
     found = {}
-    for base in [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS):
+    bases = [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS)
+    for base in bases:
         try:
             entries = sorted(os.listdir(base))
         except OSError:

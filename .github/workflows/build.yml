@@ -892,6 +892,16 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
+  scan:
+    needs: sign
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/scan.yml
+    with:
+      artifact: droiddeck-signed
+    secrets: inherit
+
   packs:
     needs: [build, checks]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

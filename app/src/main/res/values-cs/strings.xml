@@ -2918,6 +2918,8 @@
     <string name="display_position_top">Nahoře</string>
     <string name="display_position_bottom">Dole</string>
     <string name="display_position_center">Uprostřed (výchozí)</string>
+    <string name="display_position_left">Vlevo</string>
+    <string name="display_position_right">Vpravo</string>
     <string name="setup_tab_storage">Úložiště</string>
     <string name="storage_measuring">Měření úložiště…</string>
     <string name="storage_measuring_hint">Poprvé to trvá pár sekund.</string>
@@ -3731,4 +3733,7 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
+
+    <string name="theme_white_red">Šarlatový sníh</string>
+    
 </resources>
