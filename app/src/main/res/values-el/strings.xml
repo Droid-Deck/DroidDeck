@@ -2860,6 +2860,8 @@
     <string name="display_position_top">Πάνω</string>
     <string name="display_position_bottom">Κάτω</string>
     <string name="display_position_center">Κέντρο (προεπιλογή)</string>
+    <string name="display_position_left">Αριστερά</string>
+    <string name="display_position_right">Δεξιά</string>
     <string name="setup_tab_storage">Αποθήκευση</string>
     <string name="storage_measuring">Μέτρηση αποθήκευσης…</string>
     <string name="storage_measuring_hint">Την πρώτη φορά παίρνει λίγα δευτερόλεπτα.</string>
@@ -3653,4 +3655,7 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+
+    <string name="theme_white_red">Κατακόκκινο χιόνι</string>
+    
 </resources>

@@ -2889,6 +2889,8 @@
     <string name="display_position_top">Sus</string>
     <string name="display_position_bottom">Jos</string>
     <string name="display_position_center">Centru (implicit)</string>
+    <string name="display_position_left">Stânga</string>
+    <string name="display_position_right">Dreapta</string>
     <string name="setup_tab_storage">Stocare</string>
     <string name="storage_measuring">Se măsoară stocarea…</string>
     <string name="storage_measuring_hint">Prima dată durează câteva secunde.</string>
@@ -3692,4 +3694,7 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+
+    <string name="theme_white_red">Zăpadă stacojie</string>
+    
 </resources>
