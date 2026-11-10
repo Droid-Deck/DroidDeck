@@ -32,7 +32,9 @@
     <string name="frame_gen_off">Desligado</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
+    <string name="frame_gen_wfg">WFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptativo %1$d</string>
+    <string name="frame_gen_wfg_adaptive">WFG Adaptativo %1$d</string>
     <string name="lsfg_needs_steam">Requer o Lossless Scaling no Steam</string>
     <string name="lsfg_needs_install">Instale o Lossless Scaling no Steam ou importe o Lossless.dll</string>
     <string name="lsfg_import">Importar Lossless.dll…</string>

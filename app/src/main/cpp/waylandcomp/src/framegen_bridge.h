@@ -6,7 +6,7 @@
 #endif
 #include <vulkan/vulkan.h>
 
-enum { VKP_FG_ENGINE_LSFG = 0, VKP_FG_ENGINE_DDFG = 1 };
+enum { VKP_FG_ENGINE_LSFG = 0, VKP_FG_ENGINE_DDFG = 1, VKP_FG_ENGINE_WFG = 2 };
 #define VKP_FG_MAX_GENERATIONS 3
 
 void vkp_framegen_set_engine(int kind);

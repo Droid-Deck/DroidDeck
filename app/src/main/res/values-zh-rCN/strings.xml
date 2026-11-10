@@ -32,7 +32,9 @@
     <string name="frame_gen_off">关闭</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
+    <string name="frame_gen_wfg">WFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG 自适应 %1$d</string>
+    <string name="frame_gen_wfg_adaptive">WFG 自适应 %1$d</string>
     <string name="lsfg_needs_steam">需要 Steam 上的 Lossless Scaling</string>
     <string name="lsfg_needs_install">请在 Steam 中安装 Lossless Scaling，或导入 Lossless.dll</string>
     <string name="lsfg_import">导入 Lossless.dll…</string>

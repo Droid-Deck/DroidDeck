@@ -28,6 +28,7 @@ string(SHA256 DDFG_CHAIN_HASH_FULL "${DDFG_HASH_INPUT}")
 string(SUBSTRING "${DDFG_CHAIN_HASH_FULL}" 0 12 DDFG_CHAIN_HASH)
 message(STATUS "dd-fg chain: win-fg ${DDFG_UPSTREAM} (src ${DDFG_CHAIN_HASH})")
 
+add_subdirectory(framegen/wfg)
 add_subdirectory(waylandcomp)
 add_subdirectory(questxr)
 add_library(sdnative SHARED sdnative/sdnative.c)

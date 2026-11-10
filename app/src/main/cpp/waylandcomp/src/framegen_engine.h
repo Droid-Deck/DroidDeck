@@ -16,7 +16,7 @@ void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
                       VkDevice dev, VkQueue queue, uint32_t qfam, int features_enabled);
 int fge_caps_ok(int kind);
 const char *fge_caps_reason(void);
-int fge_format_ok(VkFormat fmt);
+int fge_format_ok(int kind, VkFormat fmt);
 
 int fge_start(int kind, const char *cache_path);
 void fge_stop(void);
