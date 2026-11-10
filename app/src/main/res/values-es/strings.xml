@@ -2889,6 +2889,8 @@
     <string name="display_position_top">Arriba</string>
     <string name="display_position_bottom">Abajo</string>
     <string name="display_position_center">Centro (predeterminado)</string>
+    <string name="display_position_left">Izquierda</string>
+    <string name="display_position_right">Derecha</string>
     <string name="setup_tab_storage">Almacenamiento</string>
     <string name="storage_measuring">Midiendo el almacenamiento…</string>
     <string name="storage_measuring_hint">La primera vez tarda unos segundos.</string>
@@ -3692,4 +3694,7 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se ha podido importar esta disposición</string>
+
+    <string name="theme_white_red">Nieve escarlata</string>
+    
 </resources>

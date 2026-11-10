@@ -2831,6 +2831,8 @@
     <string name="display_position_top">上</string>
     <string name="display_position_bottom">下</string>
     <string name="display_position_center">中央（既定）</string>
+    <string name="display_position_left">左</string>
+    <string name="display_position_right">右</string>
     <string name="setup_tab_storage">ストレージ</string>
     <string name="storage_measuring">ストレージを集計しています…</string>
     <string name="storage_measuring_hint">初回の集計には数秒かかります。</string>
@@ -3623,4 +3625,7 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
+
+    <string name="theme_white_red">緋色の雪</string>
+    
 </resources>

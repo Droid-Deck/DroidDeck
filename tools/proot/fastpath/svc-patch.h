@@ -74,11 +74,14 @@ long fp_svc_dispatch(const long *r) {
   int saved_errno = errno;
   long result = svc_blocked(r);
   uintptr_t frame = (uintptr_t)r;
-  if (result == FP_SLOW && (!svc_busy || frame >= svc_busy)) {
+  if (result == FP_SLOW && __atomic_load_n(&fp_on, __ATOMIC_RELAXED) && (!svc_busy || frame >= svc_busy)) {
     uintptr_t previous = svc_busy;
     svc_busy = frame;
-    if (svc_stack_room(frame)) { result = svc_path_call(r); svc_busy = 0; }
-    else svc_busy = previous;
+    if (svc_stack_room(frame)) {
+      result = svc_path_call(r);
+      if (refused()) result = FP_SLOW;
+      svc_busy = 0;
+    } else svc_busy = previous;
   }
   if (result == FP_SLOW) {
     __atomic_fetch_add(&svc_slow, 1, __ATOMIC_RELAXED);
