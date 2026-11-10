@@ -254,7 +254,11 @@ object AgentHost {
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
-            val raw = runCatching { File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }.bufferedWriter() }.getOrNull()
+            val raw = runCatching {
+                val log = File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }
+                log.renameTo(File(app.filesDir, "$TURN_LOG.1"))
+                log.bufferedWriter()
+            }.getOrNull()
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { line ->
                     runCatching { raw?.apply { write(line); newLine(); flush() } }
