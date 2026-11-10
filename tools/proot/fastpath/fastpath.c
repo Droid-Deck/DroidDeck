@@ -898,6 +898,22 @@ int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (s
 #endif
 
 static int statx_missing;
+static pthread_once_t statx_once = PTHREAD_ONCE_INIT;
+
+static void statx_probe(void) {
+  struct statx sx;
+  struct stat st;
+  long rs = sc(SYS_statx, AT_FDCWD, (long)root, AT_SYMLINK_NOFOLLOW, STATX_BASIC_STATS, (long)&sx);
+  /* A trapped host path can be translated a second time by the tracer. */
+  if (rs == -ENOSYS ||
+      (rs < 0 && sc(SYS_newfstatat, AT_FDCWD, (long)root, (long)&st, AT_SYMLINK_NOFOLLOW, 0) == 0))
+    __atomic_store_n(&statx_missing, 1, __ATOMIC_RELEASE);
+}
+
+static int statx_unavailable(void) {
+  pthread_once(&statx_once, statx_probe);
+  return __atomic_load_n(&statx_missing, __ATOMIC_ACQUIRE);
+}
 
 static unsigned int dev_major(unsigned long long dev) {
   return ((dev >> 8) & 0xfff) | ((unsigned int)(dev >> 32) & ~0xfffU);
@@ -929,18 +945,23 @@ static void fill_statx(struct statx *out, const struct stat *st) {
   out->stx_dev_minor = dev_minor(st->st_dev);
 }
 
-static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
+static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out,
+                       const struct stat *known) {
   struct stat st;
   long rs;
   if ((flags & ~(AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ||
       (flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
     return -EINVAL;
-  if (!statx_missing) {
+  if (!statx_unavailable()) {
     rs = sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out);
     if (rs != -ENOSYS) return rs;
-    statx_missing = 1;
+    __atomic_store_n(&statx_missing, 1, __ATOMIC_RELEASE);
   }
   if (flags & AT_STATX_SYNC_TYPE) return -ENOSYS;
+  if (known) {
+    fill_statx(out, known);
+    return 0;
+  }
   rs = sc(SYS_newfstatat, dirfd, (long)path, (long)&st,
           flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT), 0);
   if (rs < 0) return rs;
@@ -952,15 +973,17 @@ static long fp_statx(int dirfd, const char *path, int flags, unsigned mask, stru
   struct res r;
   long rs;
   if (mask & STATX__RESERVED) return -EINVAL;
+  if ((flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE) return -EINVAL;
   if (!out) return -EFAULT;
   if (!path) return flags & AT_EMPTY_PATH ? FP_SLOW : -EFAULT;
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready())
-    return statx_call(dirfd, "", flags, mask, out);
+    return statx_call(dirfd, "", flags, mask, out, NULL);
   rs = (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ? FP_SLOW
        : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN)
-    rs = statx_call(AT_FDCWD, r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, out);
+    rs = statx_call(AT_FDCWD, r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0),
+                    mask, out, rs == 0 && !r.magic ? &r.st : NULL);
   return rs;
 }
 
