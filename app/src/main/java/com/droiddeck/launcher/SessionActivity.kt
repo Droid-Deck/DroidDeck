@@ -1261,6 +1261,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
+            frameGenTargetGameId = frameGenTargetGameId()?.toString(),
             hasGameOverride = frameGenHasGameOverride,
             lossless = lossless,
             oscMode = oscMode, suspendPolicy = suspendPolicy,
@@ -1321,7 +1322,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val appId = drawerGameProfileId
+                val appId = frameGenTargetGameId()
 
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
@@ -1330,7 +1331,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = drawerGameProfileId
+                val appId = frameGenTargetGameId()
 
                 if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
                 else FrameGen.clearGame(this@SessionActivity, appId.toString())
@@ -1667,6 +1668,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (applied.isNotEmpty()) android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
             }
         }, "drawer-components").start()
+    }
+
+    private fun frameGenTargetGameId(): Long? {
+        drawerGameProfileId?.let { return it }
+        if (SessionState.mode != SessionService.MODE_RUN ||
+            FrameGen.hasGlobalOverride(this)
+        ) return null
+
+        return (
+            SessionState.gameId?.takeIf { it.toLongOrNull() != null }
+                ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+            )?.toLongOrNull()
     }
 
     private fun loadFrameGenFor(appId: Long?) {
@@ -2021,7 +2034,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
         routedTouchMode = nextRoutedTouchMode
         requestRelativeMouse()
-        loadFrameGenFor(drawerGameProfileId)
+        loadFrameGenFor(frameGenTargetGameId())
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
@@ -2507,8 +2520,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         uiHandler.postDelayed({
                             frameGenInventoryRetryScheduled.set(false)
                             val retry = synchronized(frameGenInventoryLock) {
-                                drawerGameInventoryRevision == inventoryRevision &&
-                                    frameGenInventoryRevision == inventoryRevision &&
+                                drawerGameInventoryRevision == frameGenInventoryRevision &&
                                     frameGenInventoryIds == null
                             }
                             if (retry && !isFinishing && !isDestroyed) {

@@ -161,7 +161,12 @@ object Library {
         }
         if (withShared) {
             val other = if (arch == "x86_64") "arm64" else "x86_64"
-            val shared = sharedApps(context, arch) - out.keys
+            val shared = try {
+                sharedApps(context, arch) - out.keys
+            } catch (e: IllegalStateException) {
+                if (strictRead) throw e
+                emptySet()
+            }
             if (shared.isNotEmpty()) {
                 val otherGames = try {
                     steamGames(context, strictRead = strictRead, arch = other, withShared = false)
@@ -179,10 +184,8 @@ object Library {
         val view = File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/shared/${if (arch == "x86_64") "arm64" else "x86-64"}/steamapps")
         val entries = view.list()
         if (entries == null) {
-            if (!view.exists() && !view.isDirectory) {
-                return emptySet()
-            }
-            throw IllegalStateException("Não foi possível ler a biblioteca Steam compartilhada.")
+            if (!view.exists()) return emptySet()
+            throw IllegalStateException("Unable to read the shared Steam library.")
         }
         return entries.mapNotNull {
             Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull()

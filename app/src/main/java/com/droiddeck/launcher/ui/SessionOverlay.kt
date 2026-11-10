@@ -217,6 +217,7 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
+    val frameGenTargetGameId: String? = null,
     val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -562,12 +563,20 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                                SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
+                                SettingsRow(
+                                    stringResource(R.string.frame_gen_title),
+                                    stringResource(
+                                        if (a.frameGenTargetGameId != null)
+                                            R.string.frame_gen_scope_game
+                                        else R.string.frame_gen_scope_global
+                                    ),
+                                    highlighted = fgOpen
+                                ) {
                                     Box {
                                         ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
                                         FrameGenMenu(
                                             host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
-                                            gameProfileId = a.selectedGameProfileId?.toString(),
+                                            gameProfileId = a.frameGenTargetGameId,
                                             hasGameOverride = a.hasGameOverride,
                                             onResetGame = a.onFrameGenReset,
                                         )
