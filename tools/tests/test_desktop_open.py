@@ -524,13 +524,14 @@ class ProtonRunTest(Temp):
         good = "Steam/steamapps/common/Proton Experimental (ARM64)"
         self.write("%s/proton" % good, b"#!/bin/sh\n", 0o755)
         self.write("%s/files/bin-arm64/proton" % good, b"#!/bin/sh\n", 0o755)
+        broken = "Library/steamapps/common/Proton Experimental (ARM64)"
+        self.write("Library/steamapps/libraryfolders.vdf", b"")
+        self.write("%s/version" % broken, b"2\n")
+        self.write("%s/files/bin-arm64/proton" % broken, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/libraryfolders.vdf", '"path" "%s"' % (self.tmp / "Library"))
         compat = RUN["compat"]()
         source = compat["find_source"]
-        broken = str(self.tmp / "broken")
-        os.makedirs(os.path.join(broken, "files", "bin-arm64"))
-        with mock.patch.dict(compat, {"find_source": lambda root, runnable=False: source(root, runnable=runnable) if runnable else broken}):
-            found = RUN["tools"](str(self.root))
-        self.assertIn("droiddeck-proton-arm64", found)
+        self.assertEqual(source(str(self.root), runnable=True), str(self.tmp / good))
 
     def test_a_registered_wrapper_without_its_launcher_is_rebuilt(self):
         wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
