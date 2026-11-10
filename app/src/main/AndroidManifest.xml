@@ -133,7 +133,7 @@
         <activity
             android:name=".LinuxWindowActivity"
             android:exported="false"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@mipmap/ic_linux_window"
             android:documentLaunchMode="always"
             android:taskAffinity="${applicationId}.linuxwindow"
             android:resizeableActivity="true"
