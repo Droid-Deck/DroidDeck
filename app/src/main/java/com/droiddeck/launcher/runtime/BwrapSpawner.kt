@@ -483,13 +483,43 @@ object BwrapSpawner {
                     Files.createSymbolicLink(link, link.parent.relativize(root.resolve(target.removePrefix("/"))))
                 }
             }
+        // a mount inside another mount (a GL extension at /usr/lib/aarch64-linux-gnu/GL) needs its own
+        // place: the links of the mounts it is in become directories of links to their entries
+        val entryLinks = HashSet<java.nio.file.Path>()
         for (bind in plan.binds.sortedBy { it.guest.length }) {
             if (bind.guest == "/") continue
-            val at = inRoot(plan.root, bind.guest) ?: continue
-            if (at.exists() || Files.isSymbolicLink(at.toPath())) continue
+            val at = mountPlace(plan.root, bind.guest, entryLinks) ?: continue
+            val path = at.toPath()
+            if (path in entryLinks) {
+                Files.delete(path)
+                entryLinks.remove(path)
+            } else if (at.exists() || Files.isSymbolicLink(path)) continue
             at.parentFile?.mkdirs()
-            runCatching { Files.createSymbolicLink(at.toPath(), java.nio.file.Paths.get(bind.host)) }
+            runCatching { Files.createSymbolicLink(path, java.nio.file.Paths.get(bind.host)) }
         }
+    }
+
+    private fun mountPlace(root: File, guest: String, entryLinks: MutableSet<java.nio.file.Path>): File? {
+        val parts = guest.split('/').filter { it.isNotEmpty() }
+        var f = root
+        for ((i, part) in parts.withIndex()) {
+            if (part == "..") return null
+            f = File(f, part)
+            val path = f.toPath()
+            if (i == parts.lastIndex || !Files.isSymbolicLink(path)) continue
+            val target = Files.readSymbolicLink(path)
+            // a link of the sandbox's own tree, made relative above, is not a mount
+            if (!target.isAbsolute) return null
+            Files.delete(path)
+            entryLinks.remove(path)
+            Files.createDirectory(path)
+            target.toFile().listFiles()?.forEach { entry ->
+                val link = path.resolve(entry.name)
+                Files.createSymbolicLink(link, entry.toPath())
+                entryLinks.add(link)
+            }
+        }
+        return f
     }
 
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
