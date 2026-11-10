@@ -206,6 +206,40 @@ class GlassesRenderingTest {
         assertEquals(Cardboard.SOURCE_SBS, glasses.source)
     }
 
+    @Test fun openXrDesktopStaysFlatAcrossSteamVrAndSavedStereoSettings() {
+        for (running in listOf(false, true)) for (enabled in listOf(false, true)) {
+            for (source in listOf(Cardboard.SOURCE_SCREEN, Cardboard.SOURCE_SBS)) {
+                val saved = base.copy(enabled = enabled, source = source)
+                for (state in listOf(GlassesState(), ultra.copy(sbs = true))) {
+                    for (outputActive in listOf(false, true)) {
+                        assertSame(Cardboard.OFF, GlassesRendering.cardboard(
+                            saved, GlassesSettings(picture3d = GlassesSettings.PICTURE_SBS),
+                            state, outputActive, running, openXrRuntimeAvailable = true,
+                        ))
+                    }
+                }
+                assertEquals(enabled, saved.enabled)
+                assertEquals(source, saved.source)
+            }
+        }
+    }
+
+    @Test fun phoneWithoutOpenXrKeepsCardboardAndItsSteamVrPreview() {
+        val phone = base.copy(enabled = true, source = Cardboard.SOURCE_SBS)
+        for (running in listOf(false, true)) {
+            assertSame(phone, GlassesRendering.cardboard(
+                phone, GlassesSettings(), GlassesState(), false, running,
+                openXrRuntimeAvailable = false,
+            ))
+        }
+        val preview = GlassesRendering.cardboard(
+            base, GlassesSettings(), GlassesState(), false, true, openXrRuntimeAvailable = false,
+        )
+        assertTrue(preview.enabled)
+        assertTrue(preview.mono)
+        assertEquals(Cardboard.SOURCE_SBS, preview.source)
+    }
+
     @Test fun steamVrMirroringKeepsTheSameGlassesPictureAndSensorSource() {
         for (stereo in listOf(false, true)) {
             val state = ultra.copy(sbs = stereo)
