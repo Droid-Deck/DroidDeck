@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.session.WinComponents.Support
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -37,6 +38,7 @@ class WinComponentsSupportTest {
         assertEquals(listOf("install_exe"), c.steps.map { it.action })
         assertEquals("VC_redist.arm64.exe", c.steps.single().str("file_name"))
         assertEquals(0, c.steps.count { it.action == "set_register_key" })
+        assertTrue(c.revision > 0)
     }
 
     @Test fun installerWrappersInstallHere() {

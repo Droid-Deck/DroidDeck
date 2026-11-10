@@ -60,6 +60,35 @@ class ChoosePackagesTest(unittest.TestCase):
         self.assertEqual(self.choose({"min.msi": "Arm64", "extra.msi": "Arm64"}), ["min.msi", "extra.msi"])
 
 
+class InstallWrapperTest(unittest.TestCase):
+
+    def wrap(self, count):
+        wrap = MSI["install_wrapper"]
+        names = wrap.__globals__
+        saved = {key: names[key] for key in ("unpack_installer", "packages_in", "choose_packages", "Installer")}
+
+        class Empty:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def install(self):
+                raise MSI["MsiError"]("the package installs nothing here")
+
+        names["unpack_installer"] = lambda path, dest: "bundle"
+        names["packages_in"] = lambda dest: []
+        names["choose_packages"] = lambda found, root: [Path("p%d.msi" % index) for index in range(count)]
+        names["Installer"] = Empty
+        root = Path(tempfile.mkdtemp())
+        try:
+            return wrap(root / "setup.exe", root / "out")
+        finally:
+            names.update(saved)
+
+    def test_a_bundle_whose_packages_all_install_nothing_is_rejected(self):
+        with self.assertRaises(MSI["MsiError"]):
+            self.wrap(2)
+
+
 class ToolsTest(unittest.TestCase):
     def test_the_tools_find_their_own_libraries(self):
         paths = MSI["tool_env"]()["LD_LIBRARY_PATH"].split(":")

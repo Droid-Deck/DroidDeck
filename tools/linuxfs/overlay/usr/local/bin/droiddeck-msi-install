@@ -897,6 +897,8 @@ def install_wrapper(path, out):
             for note in result["notes"]:
                 if note not in total["notes"]:
                     total["notes"].append(note)
+        if not total["packages"]:
+            raise MsiError("%s installs nothing here" % path.name)
         total["how"] = how
     return total
 

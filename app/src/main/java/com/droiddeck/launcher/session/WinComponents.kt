@@ -107,7 +107,7 @@ object WinComponents {
     internal fun builtInArm64Runtime(): Component {
         val install = Step("install_exe", JSONObject().put("action", "install_exe").put("file_name", "VC_redist.arm64.exe")
             .put("url", "https://aka.ms/vs/17/release/vc_redist.arm64.exe"))
-        return Component(VCREDIST_ARM64, "Microsoft Visual C++ 2015-2022 Redistributable (arm64)", "Microsoft", "ready", emptyList(), listOf(install))
+        return Component(VCREDIST_ARM64, "Microsoft Visual C++ 2015-2022 Redistributable (arm64)", "Microsoft", "ready", emptyList(), listOf(install), revision = 1)
     }
 
     private fun parse(body: String): List<Component>? {
