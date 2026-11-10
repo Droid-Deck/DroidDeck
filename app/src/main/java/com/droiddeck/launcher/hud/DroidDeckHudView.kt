@@ -1019,13 +1019,22 @@ class DroidDeckHudView(context: Context) : View(context) {
             ly += apiH + apiGap
         }
         if (generating) {
-            placeRun(pad, ly - ascent(generatedPx), listOf(
+            fun fitFpsLine(spans: List<Span>): List<Span> {
+                val textWidth = spans.sumOf { measure(it.text, it.sizePx).toDouble() }.toFloat()
+                val factor = min(1f, fpsWidth / max(textWidth, 1f))
+                val suffixWidth = spans.drop(1).sumOf { measure(it.text, it.sizePx * factor).toDouble() }.toFloat()
+                return spans.mapIndexed { index, span ->
+                    Span(span.text, span.color, span.sizePx * factor, span.glow,
+                        if (index == 0) fpsWidth - suffixWidth else 0f)
+                }
+            }
+            placeRun(pad, ly - ascent(generatedPx), fitFpsLine(listOf(
                 Span("${one(fpsNow)}→", colValue, generatedPx, glow = true, advancePx = fpsWidth),
-            ))
-            placeRun(pad, ly + lineH(generatedPx) + stkLineGap - ascent(generatedPx), listOf(
+            )))
+            placeRun(pad, ly + lineH(generatedPx) + stkLineGap - ascent(generatedPx), fitFpsLine(listOf(
                 Span(one(presentedFps), colValue, generatedPx, glow = true, advancePx = fpsWidth - measure("fps", bigUnitPx)),
                 Span("fps", colDim, bigUnitPx),
-            ))
+            )))
         } else {
             placeRun(pad, ly + (leftH - lineH(bigPx)) / 2f - ascent(bigPx), left)
         }

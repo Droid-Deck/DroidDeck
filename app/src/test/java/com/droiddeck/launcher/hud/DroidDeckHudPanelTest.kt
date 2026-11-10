@@ -30,6 +30,36 @@ import kotlin.math.sqrt
 @Config(sdk = [33], qualifiers = "xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DroidDeckHudPanelTest {
+    @Test fun pillFitsLongGeneratedReadingsInsideItsFpsColumn() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "pill")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        fun field(name: String) = DroidDeckHudView::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val measure = DroidDeckHudView::class.java.getDeclaredMethod("measure", String::class.java, Float::class.javaPrimitiveType).apply { isAccessible = true }
+        var expectedWidth: Float? = null
+        for (presented in listOf(120f, 12000f, 1200000f)) {
+            field("fpsNow").setFloat(view, 60f)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            val width = field("contentW").getFloat(view)
+            expectedWidth?.let { assertEquals(it, width, 0.01f) }
+            expectedWidth = width
+            val divider = field("pillDivider").get(view) as RectF
+            val glyphs = field("glyphs").get(view) as List<*>
+            val line = glyphs.filterNotNull().filter { glyph ->
+                glyph.javaClass.getDeclaredField("glow").apply { isAccessible = true }.getBoolean(glyph)
+            }
+            assertEquals(2, line.size)
+            for (glyph in line) {
+                fun value(name: String) = glyph.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(glyph)
+                val right = (value("x") as Float) + (measure.invoke(view, value("text"), value("sizePx")) as Float)
+                assertTrue("FPS text must stay before the divider", right <= divider.left)
+            }
+            assertTrue(view.linesForTest().any { it.contains(presented.toInt().toString()) })
+        }
+    }
+
     @Test fun tilesOutlineKeepsItsWidthWithMaximumFrametimeAndGeneratedFps() {
         val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
         view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "tiles")))
