@@ -86,6 +86,9 @@ apk=$(device pm path $pkg | sed -n 's/^package://p' | grep 'base\.apk$' | head -
 [ -n "$apk" ] || fail "DroidDeck is not installed"
 
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 ANDROID_HOME=$HOME/android-sdk
+# BuildConfig describes the installed base, not each Lab commit; its commit changing would make the
+# Kotlin compile redo the whole app (the overlay's own label names the Lab build).
+export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on ${base:0:7}" DROIDDECK_BUILD_TREE_STATE=clean GITHUB_HEAD_REF=lab
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   progress sdk
