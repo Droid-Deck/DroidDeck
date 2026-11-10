@@ -449,6 +449,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerDefaultProton by mutableStateOf<String?>(null)
     private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
+    private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -1671,13 +1672,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenTargetGameId(): Long? {
+        if (drawerGameProfileSelectionMade) return drawerGameProfileId
         drawerGameProfileId?.let { return it }
         if (SessionState.mode != SessionService.MODE_RUN) return null
 
         return (
-            SessionState.gameId?.takeIf { it.toLongOrNull() != null }
-                ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
-        )?.toLongOrNull()
+            intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
+                ?: SessionState.gameId?.toLongOrNull()
+        )
     }
 
     private fun loadFrameGenFor(appId: Long?) {
@@ -1690,6 +1692,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun selectDrawerGameProfile(appId: Long?) {
         drawerGameProfileFollowState.selectManually()
+        drawerGameProfileSelectionMade = true
         drawerGameProfileId = appId
         loadFrameGenFor(appId)
         drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
