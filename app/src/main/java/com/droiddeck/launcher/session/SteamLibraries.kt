@@ -82,13 +82,14 @@ object SteamLibraries {
     /** Reads storage; call off the main thread. */
     fun found(context: Context): List<Found> {
         val entries = list(context)
-        val taken = taken(context, entries) + AddedGames.roots(context).map { canonical(it.host) }
+        val taken = taken(context, entries) + GameStorage.gamesFolderLibraries(context).map { canonical(it.host) }
+        val gamesFolders = AddedGames.roots(context).map { canonical(it.host) }
         val hits = ArrayList<Pair<File, Int>>()
         for (root in StorageRoots.list(context)) {
             if (!root.readable) continue
             for (dir in candidates(rawView(root.dir), SCAN_DEPTH)) {
                 val games = gameCount(dir)
-                if (games > 0 && File(dir, "steamapps").canWrite() && taken.none { overlaps(it, canonical(dir)) }) hits += dir to games
+                if (games > 0 && File(dir, "steamapps").canWrite() && offered(taken, gamesFolders, canonical(dir))) hits += dir to games
             }
         }
         val picked = ArrayList<Pair<File, Int>>()
@@ -100,6 +101,9 @@ object SteamLibraries {
             Found(dir.path, shown.path, defaultLabel(context, shown), games)
         }
     }
+
+    internal fun offered(taken: List<String>, gamesFolders: List<String>, dir: String): Boolean =
+        taken.none { overlaps(it, dir) } && gamesFolders.none { it != dir && overlaps(it, dir) }
 
     /** The FUSE view under /storage hides files other apps wrote unless DroidDeck has all files access; the raw card mount does not. */
     private fun rawView(dir: File): File {

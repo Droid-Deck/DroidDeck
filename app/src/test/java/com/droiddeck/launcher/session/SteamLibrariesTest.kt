@@ -65,6 +65,15 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
+    @Test fun aGamesFolderIsOfferedWholeUnlessItIsAlreadyALibrary() {
+        val games = "/storage/card/GameNative"
+        assertTrue(SteamLibraries.offered(emptyList(), listOf(games), games))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "$games/Steam"))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "/storage/card"))
+        assertFalse(SteamLibraries.offered(listOf(games), listOf(games), games))
+        assertTrue(SteamLibraries.offered(listOf("/storage/card/Other"), listOf(games), "/storage/card/New"))
+    }
+
     private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
 
     @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
