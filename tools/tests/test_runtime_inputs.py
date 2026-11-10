@@ -53,6 +53,7 @@ class RuntimeInputsTest(unittest.TestCase):
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
+        self.pack('ubisoft', {'droiddeck-upc.exe': b'MZ service'})
         self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix

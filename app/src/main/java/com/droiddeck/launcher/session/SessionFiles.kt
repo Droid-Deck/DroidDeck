@@ -196,7 +196,6 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-            "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe" to "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
@@ -251,6 +250,26 @@ object SessionFiles {
                 if (!installed) staged.delete()
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
+        }
+        val ubisoftService = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+        val ubisoftPack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context)
+        if (ubisoftPack == null) File(root, ubisoftService).delete()
+        else if (!ledger.current(ubisoftService, File(root, ubisoftService))) {
+            val target = File(root, ubisoftService)
+            val staged = File(target.parentFile, target.name + ".staged")
+            var installed = false
+            try {
+                target.parentFile?.mkdirs()
+                File(ubisoftPack, "droiddeck-upc.exe").inputStream().use { input ->
+                    staged.outputStream().use { output -> FileUtils.copy(input, output) }
+                }
+                installed = staged.setExecutable(true, false) && staged.renameTo(target)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not stage the Ubisoft launcher service", e)
+            } finally {
+                if (!installed) staged.delete()
+            }
+            if (installed) ledger.staged(ubisoftService, target) else Log.e(TAG, "$ubisoftService NOT staged")
         }
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
