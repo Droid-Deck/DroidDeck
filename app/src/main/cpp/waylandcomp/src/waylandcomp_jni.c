@@ -18,6 +18,7 @@
 #include "cardboard.h"
 #include "droiddeck_color.h"
 #include "gpu_clock_pin.h"
+#include "clock_domain.h"
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
@@ -351,7 +352,14 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
-    droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+    droiddeck_wayland_vsync(droiddeck_clock_domain_adjust_ns((int64_t)frameTimeNanos));
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClockControl(JNIEnv *env, jclass clazz, jstring path) {
+    const char *value = path ? (*env)->GetStringUTFChars(env, path, NULL) : NULL;
+    droiddeck_clock_domain_set_control(value);
+    if (value) (*env)->ReleaseStringUTFChars(env, path, value);
 }
 
 JNIEXPORT void JNICALL
