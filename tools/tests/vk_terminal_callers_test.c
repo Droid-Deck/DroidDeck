@@ -65,6 +65,7 @@ int vkp_cardboard_active(void) { return 0; }
 void vkp_cardboard_begin_frame(void) {}
 VkImage vkp_cardboard_run(VkCommandBuffer c, VkImage s, int sw, int sh, int ow, int oh) { return s; }
 int vk_loader_open(const char *a, const char *b, const char *c) { assert(0); return -1; }
+void vk_loader_close(void) { assert(0); }
 void vk_loader_load_instance(VkInstance i) { assert(0); }
 void vk_loader_load_device(VkDevice d) { assert(0); }
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
