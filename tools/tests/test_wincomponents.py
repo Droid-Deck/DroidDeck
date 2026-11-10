@@ -73,6 +73,29 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual([], GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton)))
         self.assertEqual([], GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton)))
 
+    def test_foreign_component_restore_does_not_override_repair_with_native_override(self):
+        proton = self.proton()
+        builtin = Path(self.tmp.name) / "arm-proton/files/lib/wine/aarch64-windows/ucrtbase.dll"
+        builtin.parent.mkdir(parents=True, exist_ok=True)
+        builtin.write_bytes(self.pe_image(0xAA64))
+        system32 = self.pfx / "system32"
+        system32.mkdir(parents=True)
+        dll = system32 / "ucrtbase.dll"
+        dll.write_bytes(self.pe_image(0x8664))
+        backup = self.compat / ".droiddeck-wincomponents-backup/drive_c/windows/system32/ucrtbase.dll"
+        backup.parent.mkdir(parents=True)
+        backup.write_bytes(self.pe_image(0x8664))
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"drive_c/windows/system32/ucrtbase.dll": "vc"}, "components": ["vc"]}))
+        self.compat.joinpath("pfx/user.reg").parent.mkdir(parents=True, exist_ok=True)
+        self.compat.joinpath("pfx/user.reg").write_text(
+            'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"ucrtbase"="native,builtin"\n')
+        fixed = GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton))
+        self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+        self.apply(proton)
+        self.assertTrue(dll.is_symlink())
+        self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
+
     def test_matching_component_dll_is_placed(self):
         proton = self.proton()
         self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0xAA64)})

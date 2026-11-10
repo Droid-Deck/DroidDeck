@@ -2644,41 +2644,20 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
 
-    def test_component_owned_dll_is_left_alone(self):
+    def test_component_owned_and_native_first_foreign_dlls_are_still_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
             (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
             (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
             state = {"files": {"drive_c/windows/system32/ucrtbase.dll": {}}}
             (compat / ".droiddeck-wincomponents.json").write_text(json.dumps(state))
-            fixed = self.run_repair(compat, proton)
-            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)"], fixed)
-            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
-
-    def test_native_first_overrides_in_env_or_user_reg_are_left_alone(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proton, compat, windows = self.prefix(tmp)
-            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
-            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
-            env = {"WINEDLLOVERRIDES": "foo=d;ucrtbase,bar=n,b"}
-            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)"],
-                             MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env))
-            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
-            (windows / "system32/rpcrt4.dll.foreign-arch").rename(windows / "system32/rpcrt4.dll")
-            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"RPCRT4.DLL"="native,builtin"\n"ucrtbase"="builtin"\n'
+            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"RPCRT4.DLL"="native,builtin"\n'
             (compat / "pfx/user.reg").write_text(reg)
-            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
-            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
-
-    def test_failed_protected_lookup_skips_the_repair(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proton, compat, windows = self.prefix(tmp)
-            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
-            stderr = io.StringIO()
-            with mock.patch("runpy.run_path", side_effect=SyntaxError("broken")), mock.patch("sys.stderr", stderr):
-                self.assertEqual([], self.run_repair(compat, proton))
-            self.assertIn("system DLL repair skipped", stderr.getvalue())
-            self.assertFalse((windows / "system32/ucrtbase.dll").is_symlink())
+            env = {"WINEDLLOVERRIDES": "ucrtbase=n,b"}
+            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)", "system32/ucrtbase.dll (machine 0x8664)"],
+                             sorted(MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env)))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
 
     def test_newest_foreign_copy_is_the_only_backup_and_failed_final_replace_restores_it(self):
         with tempfile.TemporaryDirectory() as tmp:

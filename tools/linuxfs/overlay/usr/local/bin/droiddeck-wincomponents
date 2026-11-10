@@ -478,6 +478,15 @@ def save_state(compat, state):
     os.replace(temp, compat / STATE)
 
 
+def foreign_component(rel, path, machines):
+    parts = Path(rel).parts
+    folder = parts[2] if len(parts) > 2 and parts[:2] == ("drive_c", "windows") else None
+    if not machines or folder not in PE_MACHINES or not rel.lower().endswith(".dll"):
+        return False
+    machine = pe_machine(path)
+    return machine is not None and machine not in machines[folder][1]
+
+
 def pending_for(app_id, pending=PENDING):
     try:
         with open(pending, encoding="utf-8") as source:
@@ -574,12 +583,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             kept_requires[cid] = list(requires)
         values += [(cid, value) for value in registry]
         for rel, src in files:
-            parts = Path(rel).parts
-            folder = parts[2] if len(parts) > 2 and parts[:2] == ("drive_c", "windows") else None
-            target_machines = machines.get(folder, (None, ())) if machines else (None, ())
-            machine = PE["pe_machine"](src)
-            foreign = machines is not None and folder in PE["PE_MACHINES"] and rel.lower().endswith(".dll") \
-                and machine is not None and machine not in target_machines[1]
+            foreign = foreign_component(rel, src, machines)
             if foreign:
                 skipped.add(Path(rel).stem.lower())
                 changed = False
@@ -599,6 +603,10 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
         path = existing(pfx / rel)
         saved = compat / BACKUP / rel
         if saved.is_file():
+            if foreign_component(rel, saved, machines):
+                if path is not None and not path.is_symlink():
+                    path.unlink()
+                continue
             target = path or (pfx / rel)
             os.replace(saved, target)
             restored += 1
