@@ -17,10 +17,17 @@ class GesturePrefsTest {
         assertEquals(TouchGestureConfig.RELATIVE_MOUSE_AUTO, TouchGestureConfig.fromJson("{}").relativeMouseMode)
     }
 
+    @Test fun explicitModesAreNeverOverridden() {
+        for (mode in listOf(TouchGestureConfig.RELATIVE_MOUSE_ON, TouchGestureConfig.RELATIVE_MOUSE_OFF)) {
+            for (mouse in listOf(true, false)) for (pad in listOf(true, false))
+                assertEquals(mode, TouchGestureConfig.gamescopeRelativeMouse(mode, mouse, pad))
+        }
+    }
+
     @Test fun autoNeverGoesRelativeForDirectTouchWithoutAMouse() {
         val auto = TouchGestureConfig.RELATIVE_MOUSE_AUTO
         assertEquals(TouchGestureConfig.RELATIVE_MOUSE_OFF, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = false, touchpad = false))
-        assertEquals(TouchGestureConfig.RELATIVE_MOUSE_PHYSICAL, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = true, touchpad = false))
+        assertEquals(auto, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = true, touchpad = false))
         assertEquals(TouchGestureConfig.RELATIVE_MOUSE_PHYSICAL, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = true, touchpad = true))
         assertEquals(auto, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = false, touchpad = true))
     }
