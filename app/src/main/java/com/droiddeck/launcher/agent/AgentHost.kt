@@ -51,9 +51,10 @@ object AgentHost {
     internal const val BRIEF = "You run inside DroidDeck on the user's handheld, in its Linux userland (Ubuntu under proot, aarch64), " +
         "and the user talks to you from DroidDeck's Agent tab, often on a small screen, so keep replies short. " +
         "droiddeckctl (in the /root/DroidDeck checkout, tools/droiddeckctl) inspects and drives the app over loopback adb (\$ADB_SERIAL). " +
-        "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md); the app shows the user its " +
-        "progress and time left, so start it in the background and check on it instead of waiting in one long command. " +
-        "The restart ends this process and the conversation continues afterwards. " +
+        "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md). DroidDeck runs the build in a " +
+        "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
+        "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
+        "The restart ends this process, and this conversation continues on the new build. " +
         "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments."
 
     val entries = mutableStateListOf<Entry>()
@@ -101,6 +102,9 @@ object AgentHost {
     private var turn: Turn? = null
     /** Counts turns, so a process that starts after its turn was stopped is not adopted by the next one. */
     private var generation = 0
+    private var labProcess: Process? = null
+    /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
+    private var labFromTurn = false
     private var conversation: String? = null
     private var loaded = false
     private var appContext: Context? = null
@@ -172,8 +176,15 @@ object AgentHost {
         val claimed = File(app.filesDir, "$RESUME.claimed")
         if (!marker.renameTo(claimed)) return
         claimed.delete()
-        if (!installed || !interrupted(entries)) return
-        send(app, app.getString(R.string.agent_resumed))
+        val asked = prefs(app).getString(LAB_CHAT_KEY, null)
+        prefs(app).edit().remove(LAB_CHAT_KEY).apply()
+        if (!installed) return
+        // The conversation that asked for the build hears about it, even if its turn had already ended.
+        if (asked != null && asked != chat && AgentChats.file(app, asked).isFile) {
+            load(app, asked)
+            prefs(app).edit().putString(CHAT_KEY, asked).apply()
+        }
+        if (asked != null || interrupted(entries)) send(app, app.getString(R.string.agent_resumed))
     }
 
     /** True when DroidDeck restarted in the middle of one of the agent's turns. */
@@ -265,6 +276,7 @@ object AgentHost {
         val running = turn
         turn = null
         queue.clear()
+        if (labFromTurn && lab?.running == true) cancelLabBuild(app)
         if (running != null) {
             AgentProcesses.killTree(running.pid)
             running.process.destroy()
@@ -346,6 +358,7 @@ object AgentHost {
     private fun finish(app: Context, error: String?, stopped: Boolean = false, usage: Usage? = null) {
         if (state != State.WORKING) return
         turn = null
+        if (!stopped) labFromTurn = false
         live = ""
         liveThinking = ""
         record(app, Entry.Finished(error, stopped, usage))
@@ -377,10 +390,45 @@ object AgentHost {
     private fun tick() {
         now = SystemClock.elapsedRealtime()
         appContext?.let { app ->
+            claimLabRequest(app)
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
             AgentHostService.update(app)
         }
         main.postDelayed(::tick, if (state == State.WORKING || lab != null) TICK_MS else IDLE_TICK_MS)
+    }
+
+    /**
+     * dd-lab-build run by the agent hands its build to the app: the turn's processes end with the
+     * turn, and a build must outlive a turn that ends early or is stopped.
+     */
+    private fun claimLabRequest(app: Context) {
+        val request = File(app.filesDir, LAB_REQUEST)
+        if (!request.isFile) return
+        val claimed = File(app.filesDir, "$LAB_REQUEST.claimed")
+        if (!request.renameTo(claimed)) return
+        val o = runCatching { org.json.JSONObject(claimed.readText()) }.getOrNull()
+        claimed.delete()
+        if (o == null || labProcess?.isAlive == true) return
+        val args = o.optJSONArray("args")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+        val cwd = o.optString("cwd").ifEmpty { WORKSPACE }
+        labFromTurn = state == State.WORKING
+        chat?.let { prefs(app).edit().putString(LAB_CHAT_KEY, it).apply() }
+        AgentHostService.setupStarted(app)
+        Thread({
+            runCatching {
+                val child = guest(app, listOf("sh", "-c",
+                    "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
+                main.post { labProcess = child }
+                child.outputStream.close()
+                child.inputStream.readBytes()
+                child.waitFor()
+            }.onFailure { Log.w(TAG, "could not run a Lab build", it) }
+            main.post {
+                labProcess = null
+                labFromTurn = false
+                AgentHostService.setupEnded(app)
+            }
+        }, "agent-lab-build").start()
     }
 
     fun cancelLabBuild(context: Context) {
@@ -394,6 +442,8 @@ object AgentHost {
     private const val CHAT_KEY = "chat"
     private const val PLAN_KEY = "plan"
     private const val RESUME = "agent/resume"
+    private const val LAB_REQUEST = "agent/lab-request"
+    private const val LAB_CHAT_KEY = "lab_chat"
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
 
