@@ -19,11 +19,12 @@ struct wl_event_source { int armed; };
 static struct wl_event_source idle_source, timer_source;
 static void (*idle_func)(void *);
 static int idles_added, timers_armed, renders, window_requests, effects_changes, pose_changes;
+static unsigned completed_frame_checks;
 static int64_t clock_ns;
 static int g_display_storage;
 static void *g_display = &g_display_storage;
 static struct wl_event_source *g_render_idle, *g_fallback_timer;
-static int g_fallback_armed, g_dirty, g_hud_fresh, framegen;
+static int g_fallback_armed, g_dirty, g_scene_dirty, g_hud_fresh, framegen;
 static void *g_hud_surface;
 static int64_t g_dirty_since_ns, g_last_vsync_ns, g_tick_vsync_ns, g_hud_last_ns, g_rendered_tick_ns;
 static int g_tick_held;
@@ -38,6 +39,7 @@ static atomic_int g_stream_on;
 static struct { unsigned ticks, ticks_late_2ms, commit_renders; int64_t tick_late_ns, tick_late_max_ns; } g_pace;
 static struct { unsigned ticks; } g_perf;
 static int64_t now_ns(void) { return clock_ns; }
+static void finish_independent_frames(void) { completed_frame_checks++; }
 static void *wl_display_get_event_loop(void *display) { return display; }
 static struct wl_event_source *wl_event_loop_add_idle(void *loop, void (*func)(void *), void *data) {
     idles_added++; idle_func = func; return &idle_source;
@@ -72,6 +74,7 @@ int main(void) {
     g_refresh_ns = refresh;
     tick(t);
     assert(renders == 0);
+    assert(completed_frame_checks == 1);
 
     /* a new frame is drawn when it arrives */
     arrive(2 * ms);
@@ -206,7 +209,8 @@ class RenderOnCommitTest(unittest.TestCase):
         render = extract_function(source, 'render_scene')
         self.assertIn('g_rendered_tick_ns = g_tick_vsync_ns;', render)
         self.assertIn('g_tick_held = 0;', render)
-        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle', 'on_vsync')
+        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'queue_render', 'schedule_render',
+                     'scene_waits_for_game', 'on_commit_idle', 'on_vsync')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-render-on-commit-') as folder:
             path = Path(folder)

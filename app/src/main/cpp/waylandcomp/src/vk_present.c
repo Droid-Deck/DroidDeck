@@ -211,6 +211,19 @@ static struct {
     int rx, ry, rw, rh;
     int valid;
 } g_map;
+static pthread_mutex_t g_viewport_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct { int x, y, w, h; unsigned revision; } g_viewport;
+static unsigned g_map_viewport_revision;
+
+void vkp_set_scene_viewport(int x, int y, int width, int height) {
+    pthread_mutex_lock(&g_viewport_lock);
+    if (g_viewport.x != x || g_viewport.y != y || g_viewport.w != width || g_viewport.h != height) {
+        g_viewport.x = x; g_viewport.y = y;
+        g_viewport.w = width; g_viewport.h = height;
+        ++g_viewport.revision;
+    }
+    pthread_mutex_unlock(&g_viewport_lock);
+}
 static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
 static float g_game_picture_rect[4];
 static int g_game_picture_top;
@@ -389,10 +402,15 @@ static const char *align_name(int a) {
 
 static void update_map(int scene_w, int scene_h) {
     int mode = g_mode, align = g_align;
+    pthread_mutex_lock(&g_viewport_lock);
+    int vx = g_viewport.x, vy = g_viewport.y, vw = g_viewport.w, vh = g_viewport.h;
+    unsigned revision = g_viewport.revision;
+    pthread_mutex_unlock(&g_viewport_lock);
     int W = (int)g_extent.width, H = (int)g_extent.height;
     if (g_map.valid && g_map.scene_w == scene_w && g_map.scene_h == scene_h && g_map.out_w == W &&
-        g_map.out_h == H && g_map.mode == mode && g_map.align == align)
+        g_map.out_h == H && g_map.mode == mode && g_map.align == align && g_map_viewport_revision == revision)
         return;
+    g_map_viewport_revision = revision;
     g_map.scene_w = scene_w; g_map.scene_h = scene_h; g_map.out_w = W; g_map.out_h = H;
     g_map.mode = mode; g_map.align = align;
 
@@ -420,6 +438,17 @@ static void update_map(int scene_w, int scene_h) {
     }
     if (align == VKP_ALIGN_PICTURE_TOP) g_map.off_y = 0;
     else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
+    if (vw > 0 && vh > 0) {
+        float kx = (float)W / vw, ky = (float)H / vh;
+        float scale = kx < ky ? kx : ky;
+        g_map.kx = g_map.ky = scale;
+        g_map.rx = (int)((W - vw * scale) * 0.5f);
+        g_map.ry = (int)((H - vh * scale) * 0.5f);
+        g_map.rw = (int)(vw * scale);
+        g_map.rh = (int)(vh * scale);
+        g_map.off_x = g_map.rx - vx * scale;
+        g_map.off_y = g_map.ry - vy * scale;
+    }
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
     g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM;
@@ -1260,7 +1289,7 @@ void vkp_wait_idle(void) {
     if (g_dev && g_vk.DeviceWaitIdle) g_vk.DeviceWaitIdle(g_dev);
 }
 
-struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
+struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *ahb, int as_blit_dst) {
     if (!ahb || dev_init() != 0) return NULL;
     if (!g_ahb_import || !g_vk.GetAndroidHardwareBufferPropertiesANDROID) {
         static int said;
@@ -1269,19 +1298,44 @@ struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
     }
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(ahb, &desc);
+    if (!desc.width || !desc.height || desc.width > 8192 || desc.height > 8192 || desc.layers != 1 ||
+        desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT ||
+        !(desc.usage & (as_blit_dst ? AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT
+                                  : AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE))) return NULL;
     VkAndroidHardwareBufferFormatPropertiesANDROID fp = {
         .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
     VkAndroidHardwareBufferPropertiesANDROID props = {
         .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &fp};
     VkResult pr = g_vk.GetAndroidHardwareBufferPropertiesANDROID(g_dev, ahb, &props);
-    if (pr != VK_SUCCESS || fp.format == VK_FORMAT_UNDEFINED) {
+    const VkFormatFeatureFlags features = as_blit_dst ? VK_FORMAT_FEATURE_BLIT_DST_BIT
+        : VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+          VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    if (pr != VK_SUCCESS || fp.format == VK_FORMAT_UNDEFINED || !props.allocationSize ||
+        !props.memoryTypeBits || (fp.formatFeatures & features) != features) {
         LOGE("ahb: %ux%u format %u: properties %s, Vulkan format %d", desc.width, desc.height, desc.format,
              vk_result_name(pr), (int)fp.format);
         return NULL;
     }
+    const VkImageUsageFlags usage = as_blit_dst ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
+        : VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    VkPhysicalDeviceExternalImageFormatInfo external = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkPhysicalDeviceImageFormatInfo2 info = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, .pNext = &external,
+        .format = fp.format, .type = VK_IMAGE_TYPE_2D, .tiling = VK_IMAGE_TILING_OPTIMAL, .usage = usage};
+    VkExternalImageFormatProperties externalProps = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+    VkImageFormatProperties2 imageProps = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2, .pNext = &externalProps};
+    if (!g_vk.GetPhysicalDeviceImageFormatProperties2 ||
+        g_vk.GetPhysicalDeviceImageFormatProperties2(g_pd, &info, &imageProps) != VK_SUCCESS ||
+        !(externalProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) ||
+        desc.width > imageProps.imageFormatProperties.maxExtent.width ||
+        desc.height > imageProps.imageFormatProperties.maxExtent.height) return NULL;
     struct vkp_image *img = calloc(1, sizeof(*img));
     if (!img) return NULL;
-    img->w = (int)desc.width; img->h = (int)desc.height; img->dmabuf = 1; img->fmt = fp.format; img->sampled = 1;
+    img->w = (int)desc.width; img->h = (int)desc.height; img->dmabuf = 1; img->fmt = fp.format;
+    img->blit_dst = as_blit_dst != 0; img->sampled = !as_blit_dst;
     VkExternalMemoryImageCreateInfo ext = {
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
         .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
@@ -1289,7 +1343,7 @@ struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &ext,
         .imageType = VK_IMAGE_TYPE_2D, .format = fp.format, .extent = {desc.width, desc.height, 1},
         .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .usage = usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
     VkResult cr = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
     if (cr != VK_SUCCESS) { LOGE("ahb: vkCreateImage %ux%u -> %s", desc.width, desc.height, vk_result_name(cr)); free(img); return NULL; }
@@ -1302,109 +1356,24 @@ struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
     VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
                                 .allocationSize = props.allocationSize, .memoryTypeIndex = (uint32_t)(idx < 0 ? 0 : idx)};
     VkResult mr = idx < 0 ? VK_ERROR_FEATURE_NOT_PRESENT : g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
-    if (mr != VK_SUCCESS || g_vk.BindImageMemory(g_dev, img->image, img->mem, 0) != VK_SUCCESS) {
+    VkResult bound = mr == VK_SUCCESS ? g_vk.BindImageMemory(g_dev, img->image, img->mem, 0) : mr;
+    if (bound != VK_SUCCESS) {
         LOGE("ahb: importing %ux%u -> %s", desc.width, desc.height, vk_result_name(mr));
+        g_vk.DestroyImage(g_dev, img->image, NULL);
         if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
-        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+        free(img); return NULL;
     }
     return img;
 }
 
 int vkp_can_import_ahb(void) {
-    return dev_init() == 0 && g_vendor_id != VKP_VENDOR_QUALCOMM && g_ahb_import &&
+    return dev_init() == 0 && g_ahb_import &&
            g_vk.GetAndroidHardwareBufferPropertiesANDROID;
 }
 
-struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n) {
-    if (info && info_n) info[0] = 0;
-    if (!ahb || !vkp_can_import_ahb()) return NULL;
-    AHardwareBuffer_Desc d;
-    AHardwareBuffer_describe(ahb, &d);
-    VkAndroidHardwareBufferFormatPropertiesANDROID fp = {
-        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
-    VkAndroidHardwareBufferPropertiesANDROID hp = {
-        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &fp};
-    VkResult pr = g_vk.GetAndroidHardwareBufferPropertiesANDROID(g_dev, ahb, &hp);
-    if (pr != VK_SUCCESS) {
-        LOGE("layer: vkGetAndroidHardwareBufferPropertiesANDROID(%ux%u, AHB format %#x, usage %#llx) -> %s", d.width,
-             d.height, d.format, (unsigned long long)d.usage, vk_result_name(pr));
-        return NULL;
-    }
-    if (fp.format == VK_FORMAT_UNDEFINED) {
-        LOGE("layer: the driver reports the %ux%u AHB (format %#x) as external format %#llx only: no blit target",
-             d.width, d.height, d.format, (unsigned long long)fp.externalFormat);
-        return NULL;
-    }
-    const VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    if (g_vk.GetPhysicalDeviceImageFormatProperties2) {
-        VkPhysicalDeviceExternalImageFormatInfo ext = {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
-            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
-        VkPhysicalDeviceImageFormatInfo2 qi = {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, .pNext = &ext, .format = fp.format,
-            .type = VK_IMAGE_TYPE_2D, .tiling = VK_IMAGE_TILING_OPTIMAL, .usage = usage};
-        VkExternalImageFormatProperties extp = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
-        VkImageFormatProperties2 ip = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2, .pNext = &extp};
-        VkResult qr = g_vk.GetPhysicalDeviceImageFormatProperties2(g_pd, &qi, &ip);
-        if (qr != VK_SUCCESS ||
-            !(extp.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) {
-            LOGE("layer: VkFormat %d as an imported AHB blit target is not supported (%s, external features %#x)",
-                 (int)fp.format, vk_result_name(qr), extp.externalMemoryProperties.externalMemoryFeatures);
-            return NULL;
-        }
-    }
-
-    struct vkp_image *img = calloc(1, sizeof(*img));
-    if (!img) return NULL;
-    img->w = (int)d.width; img->h = (int)d.height;
-    img->dmabuf = 1; img->blit_dst = 1;
-    img->fmt = fp.format;
-    VkExternalMemoryImageCreateInfo extImg = {
-        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
-    VkImageCreateInfo ici = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &extImg,
-        .imageType = VK_IMAGE_TYPE_2D, .format = fp.format, .extent = {d.width, d.height, 1},
-        .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = usage, .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-    VkResult cr = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
-    if (cr != VK_SUCCESS) {
-        LOGE("layer: vkCreateImage(AHB %ux%u, VkFormat %d) -> %s", d.width, d.height, (int)fp.format,
-             vk_result_name(cr));
-        free(img); return NULL;
-    }
-    int idx = -1;
-    for (int i = 0; i < 32; i++) if (hp.memoryTypeBits & (1u << i)) { idx = i; break; }
-    if (idx < 0) {
-        LOGE("layer: no memory type can import the %ux%u AHB (memoryTypeBits 0)", d.width, d.height);
-        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
-    }
-    VkImportAndroidHardwareBufferInfoANDROID imp = {
-        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID, .buffer = ahb};
-    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
-                                         .pNext = &imp, .image = img->image};
-    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
-                                .allocationSize = hp.allocationSize, .memoryTypeIndex = (uint32_t)idx};
-    VkResult mr = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
-    if (mr != VK_SUCCESS) {
-        LOGE("layer: importing the %ux%u AHB (VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x) -> %s",
-             d.width, d.height, (int)fp.format, (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits,
-             vk_result_name(mr));
-        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
-    }
-    VkResult br = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
-    if (br != VK_SUCCESS) {
-        LOGE("layer: vkBindImageMemory(AHB) -> %s", vk_result_name(br));
-        g_vk.FreeMemory(g_dev, img->mem, NULL); g_vk.DestroyImage(g_dev, img->image, NULL);
-        free(img); return NULL;
-    }
-    if (info && info_n)
-        snprintf(info, info_n, "VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x", (int)fp.format,
-                 (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits);
-    return img;
+struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
+    return vkp_image_import_ahb(ahb, 0);
 }
-
 static int shm_sampled(void) {
     static int known;
     if (!known) {

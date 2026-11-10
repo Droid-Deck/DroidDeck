@@ -1163,6 +1163,8 @@ def answer(agent_dir, path):
 def serve(agent_dir, focus=True, poll=0.1):
     (agent_dir / "req").mkdir(parents=True, exist_ok=True)
     (agent_dir / "resp").mkdir(parents=True, exist_ok=True)
+    import runpy
+    runpy.run_path(str(Path(__file__).with_name("droiddeck-windows")))["WindowBridge"](agent_dir).start()
     can_focus = focus and bool(os.environ.get("DISPLAY"))
     if can_focus:
         FocusWatcher(agent_dir / "focus.json").start()

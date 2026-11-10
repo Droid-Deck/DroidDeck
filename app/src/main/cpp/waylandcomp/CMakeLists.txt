@@ -7,6 +7,7 @@ add_library(droiddeckwayland SHARED
         src/vk_loader.c
         src/sc_layer.c
         src/ahb_swapchain.c
+        src/ahb_broker.c
         src/waylandcomp_jni.c
         src/gpu_clock_pin.c
         src/droiddeck_ext.c

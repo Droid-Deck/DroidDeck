@@ -131,6 +131,17 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".LinuxWindowActivity"
+            android:exported="false"
+            android:icon="@mipmap/ic_launcher"
+            android:documentLaunchMode="always"
+            android:taskAffinity="${applicationId}.linuxwindow"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation"
+            android:windowSoftInputMode="adjustResize|stateAlwaysHidden"
+            android:theme="@style/Theme.DroidDeck.LinuxWindow" />
+
+        <activity
             android:name=".FrontEndActivity"
             android:exported="true"
             android:screenOrientation="user"

@@ -54,6 +54,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("desktopAutoKeyboard", enabled).apply()
     }
 
+    fun linuxMultiWindow(context: Context): Boolean = prefs(context).getBoolean("linuxMultiWindow", false)
+
+    fun setLinuxMultiWindow(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("linuxMultiWindow", enabled).apply()
+    }
+
     val orientationOptions = listOf(
         ActivityInfo.SCREEN_ORIENTATION_USER to R.string.setup_launcher_orientation_auto,
         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT to R.string.setup_orientation_portrait,

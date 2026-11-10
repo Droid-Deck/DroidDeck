@@ -56,6 +56,9 @@ object AgentGuest {
             @Suppress("DEPRECATION")
             observer = object : FileObserver(dir.path, MOVED_TO or CLOSE_WRITE) {
                 override fun onEvent(event: Int, path: String?) {
+                    synchronized(lock) {
+                        if (this !== observer) return
+                    }
                     when (path) {
                         "hello.json" -> readJson(File(dir, path))?.let {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
@@ -67,8 +70,11 @@ object AgentGuest {
                         "keyboard-request.json" -> readJson(File(dir, path))?.let { recordKeyboardRequest(this) }
                         "keyboard-dismiss.json" -> readJson(File(dir, path))?.let { recordKeyboardDismiss(this) }
                     }
+                    // Android dispatches one FileObserver callback per watched directory.
+                    com.droiddeck.launcher.session.LinuxWindows.agentFileChanged(path)
                 }
             }.also { it.startWatching() }
+            main.post { com.droiddeck.launcher.session.LinuxWindows.begin(context) }
         }
     }
 
@@ -77,6 +83,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             main.post { steamKeyboard = false; desktopTextField = false; gameTextField = false; gameProgram = null }
+            main.post { com.droiddeck.launcher.session.LinuxWindows.end() }
         }
     }
 

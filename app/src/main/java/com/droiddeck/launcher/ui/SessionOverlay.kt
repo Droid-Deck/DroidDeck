@@ -226,6 +226,8 @@ class DrawerActions(
     val onMicEnabled: (Boolean) -> Unit = {},
     val backHold: Boolean = true,
     val onBackHold: (Boolean) -> Unit = {},
+    val linuxMultiWindow: Boolean? = null,
+    val onLinuxMultiWindow: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -800,6 +802,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
+                                a.linuxMultiWindow?.let { enabled ->
+                                    ToggleRow(host, "linux-multi-window", stringResource(R.string.linux_windows_toggle),
+                                        stringResource(R.string.linux_windows_hint), enabled,
+                                        chipModifier = focus.track(page, "linux-multi-window"),
+                                        onChange = a.onLinuxMultiWindow)
+                                }
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
                                     stringResource(R.string.drawer_mic_hint), a.micEnabled,
                                     chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)

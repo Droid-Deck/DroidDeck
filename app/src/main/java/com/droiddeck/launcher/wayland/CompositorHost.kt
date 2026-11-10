@@ -31,7 +31,7 @@ object CompositorHost {
 
     private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            if (generation != vsyncGeneration) return
+            if (!vsyncRunning || generation != vsyncGeneration) return
             WaylandCompositor.nativeVsync(frameTimeNanos)
             if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
         }
@@ -84,7 +84,7 @@ object CompositorHost {
 
     @Synchronized
     fun resize(surface: Surface, rearm: () -> Unit) {
-        if (!started) return
+        if (!started || attached !== surface) return
         WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
         WaylandCompositor.nativeLog("screen", "surface resized: rebinding the window, frame generation re-armed after")
         WaylandCompositor.nativeSetSurface(null)
@@ -101,10 +101,31 @@ object CompositorHost {
     }
 
     private var attached: Surface? = null
+    private val windowBindings = mutableMapOf<String, Long>()
 
     @Synchronized
-    fun attachXr() {
+    fun attachWindow(key: String, generation: Long, surface: Surface, width: Int, height: Int) {
+        if (!started || generation < (windowBindings[key] ?: 0)) return
+        windowBindings[key] = generation
+        WaylandCompositor.nativeAttachWindow(key, generation, surface, width, height)
+        resumeVsync()
+    }
+
+    @Synchronized
+    fun detachWindow(key: String, generation: Long) {
+        if (windowBindings[key] != generation) return
+        windowBindings.remove(key)
+        WaylandCompositor.nativeDetachWindow(key, generation)
+        if (attached == null && windowBindings.isEmpty()) pauseVsync()
+    }
+
+    @Synchronized
+    fun attachXr(keepPanel: Boolean = false) {
         check(started) { "DroidDeck compositor is not running" }
+        if (keepPanel) {
+            WaylandCompositor.nativeLog("screen", "OpenXR active: retaining the desktop surface and screen tick")
+            return
+        }
         pauseVsync()
         attached = null
         WaylandCompositor.nativeSetSurface(null)
@@ -113,9 +134,9 @@ object CompositorHost {
     @Synchronized
     fun detach(surface: Surface?) {
         if (!started) return
-        if (surface != null && attached != null && attached !== surface) return
+        if (surface != null && attached !== surface) return
         attached = null
-        pauseVsync()
+        if (windowBindings.isEmpty()) pauseVsync()
         WaylandCompositor.nativeSetSurface(null)
     }
 
@@ -133,11 +154,23 @@ object CompositorHost {
 
     private fun pauseVsync() {
         vsyncRunning = false
+        ++vsyncGeneration
+    }
+
+    fun xrVsync(frameTimeNanos: Long, keepPanel: Boolean) {
+        if (!keepPanel || !vsyncRunning) WaylandCompositor.nativeVsync(frameTimeNanos)
     }
 
     fun newSession() {
         if (started) WaylandCompositor.nativeResetFirstFrame()
     }
+
+    @Synchronized
+    fun diagnostics(): org.json.JSONObject = org.json.JSONObject()
+        .put("surfaceAttached", attached?.isValid == true)
+        .put("desktopVsync", vsyncRunning)
+        .put("cardboardActive", started && WaylandCompositor.nativeCardboardActive())
+        .put("presentedFrames", if (started) WaylandCompositor.nativeHudFrameTimes(FloatArray(1)) else 0L)
 
     val isStarted: Boolean get() = started
 }

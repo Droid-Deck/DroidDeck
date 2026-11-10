@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -56,6 +57,7 @@ static struct {
     void (*setBufferTransparency)(ASurfaceTransaction *, ASurfaceControl *, int8_t);
     void (*reparent)(ASurfaceTransaction *, ASurfaceControl *, ASurfaceControl *);
     void (*setOnComplete)(ASurfaceTransaction *, void *, sc_complete_fn);
+    void (*setOnCommit)(ASurfaceTransaction *, void *, sc_complete_fn);
     int (*prevReleaseFence)(ASurfaceTransactionStats *, ASurfaceControl *);
     void (*setFrameRate)(ASurfaceTransaction *, ASurfaceControl *, float, int8_t);
     void (*setFrameRateStrategy)(ASurfaceTransaction *, ASurfaceControl *, float, int8_t, int8_t);
@@ -72,16 +74,12 @@ static struct {
 #define ASC_TRANSPARENCY_TRANSLUCENT 1
 #define ASC_TRANSPARENCY_OPAQUE 2
 
-static int load_api(void) {
+static int resolve_api(void) {
     if (api.state) return api.state == 1 ? 0 : -1;
     api.state = -1;
     void *nw = dlopen("libnativewindow.so", RTLD_NOW | RTLD_NOLOAD);
     if (!nw) nw = dlopen("libnativewindow.so", RTLD_NOW);
     api.getNativeHandle = nw ? dlsym(nw, "AHardwareBuffer_getNativeHandle") : NULL;
-    if (!api.getNativeHandle) {
-        droiddeck_log("layer", "unavailable: libnativewindow.so has no AHardwareBuffer_getNativeHandle");
-        return -1;
-    }
     void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_NOLOAD);
     if (!lib) lib = dlopen("libandroid.so", RTLD_NOW);
     if (!lib) { droiddeck_log("layer", "unavailable: dlopen(libandroid.so): %s", dlerror()); return -1; }
@@ -98,6 +96,7 @@ static int load_api(void) {
     SYM(setBufferTransparency, "ASurfaceTransaction_setBufferTransparency");
     SYM(reparent, "ASurfaceTransaction_reparent");
     SYM(setOnComplete, "ASurfaceTransaction_setOnComplete");
+    SYM(setOnCommit, "ASurfaceTransaction_setOnCommit");
     SYM(prevReleaseFence, "ASurfaceTransactionStats_getPreviousReleaseFenceFd");
     SYM(setFrameRate, "ASurfaceTransaction_setFrameRate");
     SYM(setFrameRateStrategy, "ASurfaceTransaction_setFrameRateWithChangeStrategy");
@@ -116,6 +115,13 @@ static int load_api(void) {
     return 0;
 }
 
+static int load_api(void) {
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&lock);
+    int result = resolve_api();
+    pthread_mutex_unlock(&lock);
+    return result;
+}
 
 
 
@@ -174,7 +180,17 @@ struct layer {
 
     uint32_t md_applied;
     float hr_applied;
+    ANativeWindow *target_window;
+    unsigned pending_callbacks;
+    unsigned pending_commits;
 };
+
+struct sc_target {
+    struct layer layer;
+    char name[128];
+    struct sc_target *next;
+};
+static struct sc_target *g_retired_targets;
 
 static struct layer g_layers[SC_LAYER_COUNT];
 static void apply_frame_rate(ASurfaceTransaction *tx, struct layer *l);
@@ -208,11 +224,32 @@ static struct layer *layer_of(int id) {
 
 struct complete_ctx {
     ASurfaceControl *sc;
-    int layer;
+    struct layer *layer;
     int prev_slot;
     void *prev_token;
     int retire;
+    struct complete_ctx *next;
 };
+static ASurfaceTransaction *g_target_batch;
+static struct complete_ctx *g_target_completions;
+struct commit_ctx {
+    struct layer *layer;
+    struct commit_ctx *next;
+};
+static struct commit_ctx *g_target_commits;
+
+static void on_commit(void *context, ASurfaceTransactionStats *stats) {
+    (void)stats;
+    struct commit_ctx *ctx = context;
+    while (ctx) {
+        struct commit_ctx *next = ctx->next;
+        pthread_mutex_lock(&g_lock);
+        if (ctx->layer->pending_commits) ctx->layer->pending_commits--;
+        pthread_mutex_unlock(&g_lock);
+        free(ctx);
+        ctx = next;
+    }
+}
 
 static int64_t now_ns(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -221,34 +258,57 @@ static int64_t now_ns(void) {
 
 static void on_complete(void *context, ASurfaceTransactionStats *stats) {
     struct complete_ctx *ctx = context;
+    while (ctx) {
+    struct complete_ctx *next = ctx->next;
     pthread_mutex_lock(&g_lock);
-    if (ctx->layer >= 0 && ctx->layer < SC_LAYER_COUNT && ctx->prev_slot >= 0 && ctx->prev_slot < POOL_MAX) {
-        struct slot *s = &g_layers[ctx->layer].slots[ctx->prev_slot];
+    if (ctx->layer && ctx->prev_slot >= 0 && ctx->prev_slot < POOL_MAX) {
+        struct slot *s = &ctx->layer->slots[ctx->prev_slot];
         int fd = (stats && ctx->sc) ? api.prevReleaseFence(stats, ctx->sc) : -1;
         if (s->release_fd >= 0) close(s->release_fd);
         s->release_fd = fd;
         s->busy = 0;
     }
     if (g_pending_cb > 0) g_pending_cb--;
+    if (ctx->layer && ctx->layer->pending_callbacks) ctx->layer->pending_callbacks--;
     pthread_mutex_unlock(&g_lock);
     if (ctx->prev_token) {
         int fd = (stats && ctx->sc) ? api.prevReleaseFence(stats, ctx->sc) : -1;
-        ahb_swapchain_layer_released(ctx->prev_token, fd);
+        ahb_swapchain_layer_released(ctx->prev_token, fd, stats && ctx->sc);
     }
     if (ctx->retire && ctx->sc) api.release(ctx->sc);
     free(ctx);
+    ctx = next;
+    }
 }
 
 static int add_complete_on(ASurfaceTransaction *tx, struct layer *l, ASurfaceControl *sc,
                            int prev_slot, void *prev_token, int retire) {
     struct complete_ctx *ctx = calloc(1, sizeof(*ctx));
     if (!ctx) return -1;
-    ctx->sc = sc; ctx->layer = (int)(l - g_layers); ctx->prev_slot = prev_slot;
+    struct commit_ctx *commit = NULL;
+    if (l->target_window && api.setOnCommit) {
+        commit = calloc(1, sizeof(*commit));
+        if (!commit) { free(ctx); return -1; }
+        commit->layer = l;
+    }
+    ctx->sc = sc; ctx->layer = l; ctx->prev_slot = prev_slot;
     ctx->prev_token = prev_token; ctx->retire = retire;
     pthread_mutex_lock(&g_lock);
     g_pending_cb++;
+    l->pending_callbacks++;
+    if (commit) l->pending_commits++;
     pthread_mutex_unlock(&g_lock);
-    api.setOnComplete(tx, ctx, on_complete);
+    if (tx == g_target_batch) {
+        ctx->next = g_target_completions;
+        g_target_completions = ctx;
+        if (commit) {
+            commit->next = g_target_commits;
+            g_target_commits = commit;
+        }
+    } else {
+        api.setOnComplete(tx, ctx, on_complete);
+        if (commit) api.setOnCommit(tx, commit, on_commit);
+    }
     return 0;
 }
 
@@ -330,14 +390,16 @@ static void retire_ops(ASurfaceTransaction *tx, ASurfaceControl *sc) {
 
 static void retire_sc(struct layer *l) {
     if (!l->sc) return;
-    ASurfaceTransaction *tx = api.txCreate();
+    ASurfaceTransaction *tx = g_target_batch ? g_target_batch : api.txCreate();
     if (tx) {
         retire_ops(tx, l->sc);
         if (add_complete(tx, l, l->cur_slot, l->cur_token, 1) != 0) api.release(l->sc);
-        api.txApply(tx);
-        api.txDelete(tx);
+        if (!g_target_batch) {
+            api.txApply(tx);
+            api.txDelete(tx);
+        }
     } else {
-        if (l->cur_token) ahb_swapchain_layer_released(l->cur_token, -1);
+        if (l->cur_token) ahb_swapchain_layer_released(l->cur_token, -1, 0);
         api.release(l->sc);
     }
     droiddeck_log("layer", "%s: SurfaceControl retired (window %p)", l->name, (void *)l->win);
@@ -375,7 +437,7 @@ static void drain_and_free_pools(void) {
 
 static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) {
     const uint32_t gmsm = ('g' << 24) | ('m' << 16) | ('s' << 8) | 'm';
-    if (!h || h->numFds < 1 || h->numInts < 2) return 0;
+    if (!h || h->numFds < 1 || h->numFds > 16 || h->numInts < 2 || h->numInts > 128) return 0;
     if ((uint32_t)h->data[h->numFds] != gmsm) return 0;
     *mod = (h->data[h->numFds + 1] & 0x08000000) ? MOD_QCOM_COMPRESSED : MOD_LINEAR;
     return 1;
@@ -403,7 +465,7 @@ static void describe_handle(const struct droiddeck_native_handle *h, char *out, 
 
 static int g_alloc_failed;
 
-enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
+enum { TIER_PLAIN, TIER_UBWC, TIER_LINEAR };
 #define DROIDDECK_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
 
 static const char *tier_name(int tier) {
@@ -413,6 +475,7 @@ static const char *tier_name(int tier) {
 static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fmt) {
     g_alloc_failed = 0;
     while (l->alloc_tier <= TIER_LINEAR) {
+        if (l->alloc_tier == TIER_UBWC && !strstr(vkp_gpu_name(), "Adreno")) l->alloc_tier = TIER_LINEAR;
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
             .width = (uint32_t)w, .height = (uint32_t)h, .layers = 1,
@@ -434,55 +497,33 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             return -1;
         }
         AHardwareBuffer_Desc got; AHardwareBuffer_describe(ahb, &got);
-        const struct droiddeck_native_handle *nh = api.getNativeHandle(ahb);
-        uint64_t mod = MOD_LINEAR;
-        struct vkp_image *img = NULL;
-        const char *path;
-        char info[160] = "";
-        if (sniff_modifier(nh, &mod)) {
-            img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
-                                          got.stride * 4, 0, 1);
-            path = "dma-buf (QTI handle)";
-        } else {
-            if (tier == TIER_UBWC) {
-                char hd[256];
-                describe_handle(nh, hd, sizeof(hd));
-                droiddeck_log("layer", "%s: gralloc handle is not a QTI one (%d fds, %d ints: %s): no UBWC request; "
-                           "pool buffers are imported %s", l->name, nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd,
-                           vkp_can_import_ahb() ? "as AHardwareBuffers (the driver takes gralloc's own layout)"
-                                                : "as linear dma-bufs (this driver has no AHardwareBuffer import)");
-                AHardwareBuffer_release(ahb);
-                l->alloc_tier = vkp_can_import_ahb() ? TIER_PLAIN : TIER_LINEAR;
-                continue;
-            }
-            mod = SC_MOD_GRALLOC;
-            path = "AHardwareBuffer";
-            img = vkp_image_import_ahb(ahb, info, sizeof(info));
-            if (!img && tier == TIER_LINEAR) {
-                const off_t need = (off_t)got.stride * 4 * h;
-                int fd = -1, which = -1;
-                for (int i = 0; nh && i < nh->numFds; i++) {
-                    off_t sz = lseek(nh->data[i], 0, SEEK_END);
-                    if (sz >= 0) lseek(nh->data[i], 0, SEEK_SET);
-                    if (sz >= need) { fd = nh->data[i]; which = i; break; }
+        const struct droiddeck_native_handle *nh = api.getNativeHandle ? api.getNativeHandle(ahb) : NULL;
+        uint64_t mod = VKP_MOD_INVALID;
+        struct vkp_image *img = got.width == (uint32_t)w && got.height == (uint32_t)h &&
+            got.layers == 1 && got.format == fmt ? vkp_image_import_ahb(ahb, 1) : NULL;
+        const int standard = img != NULL;
+        struct stat identity;
+        if (!img && strstr(vkp_gpu_name(), "Adreno") && sniff_modifier(nh, &mod) &&
+            got.width == (uint32_t)w && got.height == (uint32_t)h && got.layers == 1 && got.format == fmt &&
+            got.stride >= got.width && got.stride <= UINT32_MAX / 4 &&
+            fstat(nh->data[0], &identity) == 0 && identity.st_size > 0 &&
+            (mod != MOD_LINEAR || (uint64_t)identity.st_size >= (uint64_t)got.stride * 4 * got.height)) {
+            const uint32_t drm = fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888;
+            uint64_t supported[64];
+            const int count = vkp_dmabuf_modifiers(drm, supported, 64);
+            for (int i = 0; i < count; ++i)
+                if (supported[i] == mod) {
+                    img = vkp_image_import_dmabuf(nh->data[0], drm, mod, w, h, got.stride * 4, 0, 1);
+                    break;
                 }
-                if (fd < 0 && nh && nh->numFds > 0) { fd = nh->data[0]; which = 0; }
-                mod = MOD_LINEAR;
-                path = "linear dma-buf";
-                img = fd >= 0 ? vkp_image_import_dmabuf(fd, fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod,
-                                                        w, h, got.stride * 4, 0, 1) : NULL;
-                snprintf(info, sizeof(info), "handle fd %d of %d", which, nh ? nh->numFds : 0);
-                if (vkp_can_import_ahb())
-                    droiddeck_log("layer", "%s: AHardwareBuffer import failed: the linear dma-buf in the handle's fd %d "
-                               "(of %d) -> %s", l->name, which, nh ? nh->numFds : 0, img ? "imported" : "failed too");
-            }
         }
         if (!img) {
             char hd[256];
             describe_handle(nh, hd, sizeof(hd));
             droiddeck_log("layer", "%s: import of a %s %dx%d pool buffer (stride %u px, %s, usage %#llx) into the "
                        "compositor's Turnip failed via %s; gralloc handle %d fds / %d ints: %s", l->name,
-                       pool_kind(mod), w, h, got.stride, tier_name(tier), (unsigned long long)got.usage, path,
+                       pool_kind(mod), w, h, got.stride, tier_name(tier), (unsigned long long)got.usage,
+                       standard ? "standard AHB import" : "verified dma-buf import",
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
             if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
@@ -494,11 +535,10 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
         if (l->logged_w != w || l->logged_h != h || l->logged_fmt != fmt || l->logged_mod != mod ||
             l->logged_tier != tier) {
             l->logged_w = w; l->logged_h = h; l->logged_fmt = fmt; l->logged_mod = mod; l->logged_tier = tier;
-            droiddeck_log("layer", "%s: pool buffers %dx%d%s: %s (%s), stride %u px, up to %d buffers (gralloc handle %d fds / "
-                       "%d ints), imported as %s%s%s%s", l->name, w, h, fmt == AHB_RGB10A2 ? " 10-bit RGBA1010102" : "",
-                       mod == MOD_QCOM_COMPRESSED ? "UBWC (QCOM_COMPRESSED)" : pool_kind(mod), tier_name(tier),
-                       got.stride, l->pool_n, nh ? nh->numFds : -1, nh ? nh->numInts : -1, path,
-                       info[0] ? " (" : "", info, info[0] ? ")" : "");
+            droiddeck_log("layer", "%s: pool buffers %dx%d%s: %s (%s), stride %u px, up to %d buffers (gralloc handle %d fds / %d ints)",
+                       l->name, w, h, fmt == AHB_RGB10A2 ? " 10-bit RGBA1010102" : "",
+                       standard ? "standard AHB import" : mod == MOD_QCOM_COMPRESSED ? "verified QCOM UBWC" : "verified QCOM linear", tier_name(tier),
+                       got.stride, l->pool_n, nh ? nh->numFds : -1, nh ? nh->numInts : -1);
         }
         return 0;
     }
@@ -514,6 +554,7 @@ static int fence_signalled(int fd) {
 }
 
 static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait_fd) {
+    g_alloc_failed = 0;
     int idx = -1, pending = -1, fd = -1;
     *wait_fd = -1;
     pthread_mutex_lock(&g_lock);
@@ -575,7 +616,7 @@ void sc_layer_probe_dmabuf_fd(int fd) {
 
 static int ensure_sc(struct layer *l) {
     if (load_api() != 0) return -1;
-    ANativeWindow *win = vkp_window();
+    ANativeWindow *win = l->target_window ? l->target_window : vkp_window();
     if (!win) return -1;
     if (l->sc && l->win != win) retire_sc(l);
     if (!l->sc) {
@@ -584,12 +625,16 @@ static int ensure_sc(struct layer *l) {
         l->win = win;
         l->ds_applied = -1; l->md_applied = 0; l->hr_applied = -1.0f;
         ASurfaceTransaction *tx = api.txCreate();
-        if (tx) {
-            api.setZOrder(tx, l->sc, l->z);
-            api.setVisibility(tx, l->sc, ASC_VISIBILITY_HIDE);
-            apply_frame_rate(tx, l);
-            api.txApply(tx); api.txDelete(tx);
+        if (!tx) {
+            api.release(l->sc);
+            l->sc = NULL;
+            l->win = NULL;
+            return -1;
         }
+        api.setZOrder(tx, l->sc, l->z);
+        api.setVisibility(tx, l->sc, ASC_VISIBILITY_HIDE);
+        apply_frame_rate(tx, l);
+        api.txApply(tx); api.txDelete(tx);
         droiddeck_log("layer", "SurfaceControl \"%s\" created as a child of the screen surface (z=%d)", l->name, (int)l->z);
     }
     return 0;
@@ -633,7 +678,10 @@ static void apply_frame_rate(ASurfaceTransaction *tx, struct layer *l) {
 
 static void coverage_text(const struct layer *l, char *out, size_t n) {
     int ow = 0, oh = 0;
-    vkp_output_size(&ow, &oh);
+    if (l->target_window) {
+        ow = ANativeWindow_getWidth(l->target_window);
+        oh = ANativeWindow_getHeight(l->target_window);
+    } else vkp_output_size(&ow, &oh);
     if (!l->geo_valid || ow <= 0 || oh <= 0) { if (n) out[0] = 0; return; }
     int w = l->geo_dst.right - l->geo_dst.left, h = l->geo_dst.bottom - l->geo_dst.top;
     if (w < 0) w = 0;
@@ -731,7 +779,7 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
     if (!l->recreate_pending) return NULL;
     l->recreate_pending = 0;
     if (!l->sc) return NULL;
-    ANativeWindow *win = vkp_window();
+    ANativeWindow *win = l->target_window ? l->target_window : vkp_window();
     if (!win || win != l->win) return NULL;
     ASurfaceControl *fresh = api.createFromWindow(win, l->name);
     if (!fresh) {
@@ -752,7 +800,7 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
 static int present_slot(struct layer *l, int idx, const int r[8], const struct droiddeck_color *color,
                         int translucent) {
     struct slot *s = &l->slots[idx];
-    ASurfaceTransaction *tx = api.txCreate();
+    ASurfaceTransaction *tx = l->target_window && g_target_batch ? g_target_batch : api.txCreate();
     if (!tx) return -1;
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
@@ -769,8 +817,10 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     pthread_mutex_lock(&g_lock);
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
-    api.txApply(tx);
-    api.txDelete(tx);
+    if (tx != g_target_batch) {
+        api.txApply(tx);
+        api.txDelete(tx);
+    }
     l->cur_slot = idx;
     l->cur_token = NULL;
     if (!l->shown) { l->shown = 1; droiddeck_log("layer", "%s: layer shown", l->name); }
@@ -1037,4 +1087,178 @@ unsigned sc_layer_frames_take(void) {
     unsigned n = g_stat_layer_frames;
     g_stat_layer_frames = 0;
     return n;
+}
+
+struct sc_target *sc_target_create(ANativeWindow *window, const char *name) {
+    if (!window || load_api() != 0) return NULL;
+    struct sc_target *target = calloc(1, sizeof(*target));
+    if (!target) return NULL;
+    snprintf(target->name, sizeof(target->name), "droiddeck_%s", name);
+    target->layer = (struct layer){.name = target->name, .z = 1, .pool_n = 3,
+        .cur_slot = -1, .votes_rate = 1, .fps_applied = -1.0f, .hr_applied = -1.0f,
+        .ds_applied = -1, .target_window = window};
+    for (int i = 0; i < POOL_MAX; ++i) target->layer.slots[i].release_fd = -1;
+    ANativeWindow_acquire(window);
+    if (ensure_sc(&target->layer) != 0) {
+        ANativeWindow_release(window);
+        free(target);
+        return NULL;
+    }
+    return target;
+}
+
+void sc_target_destroy(struct sc_target *target) {
+    if (!target) return;
+    retire_sc(&target->layer);
+    target->next = g_retired_targets;
+    g_retired_targets = target;
+}
+
+void sc_target_hide(struct sc_target *target) {
+    if (target) hide_layer(&target->layer);
+}
+
+int sc_target_ready(struct sc_target *target) {
+    if (!target) return 0;
+    pthread_mutex_lock(&g_lock);
+    int ready = api.setOnCommit ? target->layer.pending_commits == 0
+                               : target->layer.pending_callbacks == 0;
+    pthread_mutex_unlock(&g_lock);
+    return ready;
+}
+
+int sc_layer_ready(void) {
+    layers_init();
+    pthread_mutex_lock(&g_lock);
+    int ready = 1;
+    for (int i = 0; i < SC_LAYER_COUNT; ++i)
+        if (g_layers[i].pending_callbacks) { ready = 0; break; }
+    pthread_mutex_unlock(&g_lock);
+    return ready;
+}
+
+void sc_target_collect(void) {
+    struct sc_target **link = &g_retired_targets;
+    while (*link) {
+        struct sc_target *target = *link;
+        pthread_mutex_lock(&g_lock);
+        int ready = !target->layer.pending_callbacks && !target->layer.pending_commits;
+        for (int i = 0; ready && i < POOL_MAX; ++i) {
+            struct slot *s = &target->layer.slots[i];
+            if (s->busy) ready = 0;
+            if (s->release_fd >= 0) {
+                struct pollfd p = {.fd = s->release_fd, .events = POLLIN};
+                if (poll(&p, 1, 0) <= 0) ready = 0;
+            }
+        }
+        pthread_mutex_unlock(&g_lock);
+        if (!ready) { link = &target->next; continue; }
+        *link = target->next;
+        for (int i = 0; i < POOL_MAX; ++i) {
+            struct slot *s = &target->layer.slots[i];
+            if (s->release_fd >= 0) close(s->release_fd);
+            if (s->img) vkp_image_destroy(s->img);
+            if (s->ahb) AHardwareBuffer_release(s->ahb);
+        }
+        ANativeWindow_release(target->layer.target_window);
+        free(target);
+    }
+}
+
+int sc_target_present(struct sc_target *target, struct vkp_image *src, int width, int height,
+                      const struct droiddeck_color *color, int translucent) {
+    if (!target || !src || width < 1 || height < 1 || width > 8192 || height > 8192) return -1;
+    struct layer *l = &target->layer;
+    if (vkp_image_width(src) != width || vkp_image_height(src) != height ||
+        ANativeWindow_getWidth(l->target_window) != width ||
+        ANativeWindow_getHeight(l->target_window) != height) {
+        hide_layer(l);
+        return 0;
+    }
+    if (ensure_sc(l) != 0) return -1;
+    int wait_fd;
+    int slot = take_free_slot(l, width, height, AHB_RGBA8, &wait_fd);
+    if (slot < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
+    if (vkp_blit_image(src, l->slots[slot].img, wait_fd) != 0) return -1;
+    const int geometry[8] = {0, 0, width, height, 0, 0, width, height};
+    if (present_slot(l, slot, geometry, color, translucent) != 0) return -1;
+    return 1;
+}
+
+int sc_target_batch_begin(void) {
+    if (g_target_batch || load_api() != 0) return -1;
+    g_target_batch = api.txCreate();
+    return g_target_batch ? 0 : -1;
+}
+
+void sc_target_batch_end(void) {
+    if (!g_target_batch) return;
+    if (g_target_completions) api.setOnComplete(g_target_batch, g_target_completions, on_complete);
+    if (g_target_commits) api.setOnCommit(g_target_batch, g_target_commits, on_commit);
+    api.txApply(g_target_batch);
+    api.txDelete(g_target_batch);
+    g_target_batch = NULL;
+    g_target_completions = NULL;
+    g_target_commits = NULL;
+}
+
+static int target_buffer(struct sc_target *target, AHardwareBuffer *buffer, int acquire_fd,
+                         int slot, void *token, const int geometry[8], int translucent, int z,
+                         const struct droiddeck_color *color) {
+    struct layer *l = &target->layer;
+    if (!buffer || ensure_sc(l) != 0) {
+        if (acquire_fd >= 0) close(acquire_fd);
+        return -1;
+    }
+    ASurfaceTransaction *tx = g_target_batch ? g_target_batch : api.txCreate();
+    if (!tx) { if (acquire_fd >= 0) close(acquire_fd); return -1; }
+    if (token && token == l->cur_token) {
+        if (add_complete(tx, l, -1, NULL, 0) != 0) {
+            if (acquire_fd >= 0) close(acquire_fd);
+            if (!g_target_batch) api.txDelete(tx);
+            return -1;
+        }
+        if (acquire_fd >= 0) close(acquire_fd);
+    } else {
+        if (add_complete(tx, l, l->cur_slot, l->cur_token, 0) != 0) {
+            if (acquire_fd >= 0) close(acquire_fd);
+            if (!g_target_batch) api.txDelete(tx);
+            return -1;
+        }
+        api.setBuffer(tx, l->sc, buffer, acquire_fd);
+        if (slot >= 0) {
+            pthread_mutex_lock(&g_lock);
+            l->slots[slot].busy = 1;
+            pthread_mutex_unlock(&g_lock);
+        }
+        l->cur_slot = slot;
+        l->cur_token = token;
+    }
+    api.setZOrder(tx, l->sc, z);
+    api.setBufferTransparency(tx, l->sc, translucent ? ASC_TRANSPARENCY_TRANSLUCENT : ASC_TRANSPARENCY_OPAQUE);
+    apply_geometry(tx, l, geometry);
+    apply_colour(tx, l, color);
+    apply_frame_rate(tx, l);
+    api.setVisibility(tx, l->sc, ASC_VISIBILITY_SHOW);
+    l->shown = 1;
+    if (!g_target_batch) { api.txApply(tx); api.txDelete(tx); }
+    return 1;
+}
+
+int sc_target_present_ahb(struct sc_target *target, AHardwareBuffer *buffer, int acquire_fd,
+                          void *token, const int geometry[8], int translucent, int z,
+                          const struct droiddeck_color *color) {
+    if (!target || !geometry || !token) { if (acquire_fd >= 0) close(acquire_fd); return -1; }
+    return target_buffer(target, buffer, acquire_fd, -1, token, geometry, translucent, z, color);
+}
+
+int sc_target_present_geometry(struct sc_target *target, struct vkp_image *src, const int geometry[8],
+                               int translucent, int z, const struct droiddeck_color *color) {
+    if (!target || !src || !geometry) return -1;
+    struct layer *l = &target->layer;
+    int wait_fd;
+    int slot = take_free_slot(l, vkp_image_width(src), vkp_image_height(src), AHB_RGBA8, &wait_fd);
+    if (slot < 0) return g_alloc_failed ? -1 : 0;
+    if (vkp_blit_image(src, l->slots[slot].img, wait_fd) != 0) return -1;
+    return target_buffer(target, l->slots[slot].ahb, -1, slot, NULL, geometry, translucent, z, color);
 }

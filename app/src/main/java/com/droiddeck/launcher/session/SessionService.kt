@@ -86,7 +86,7 @@ class SessionService : Service() {
     private var xrActivityVisible = false
     private var signInHold = false
     private val hasVisibleSurface get() = !SessionVisibilityPolicy.isHidden(
-        activityStarted = activityVisible || signInHold,
+        activityStarted = activityVisible || signInHold || LinuxWindows.hasVisibleWindows || LinuxWindows.hasPendingClose,
         defaultDisplayOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn,
         activityOnDefaultDisplay = activityDisplayId == Display.DEFAULT_DISPLAY,
         activityDisplayOn = activityDisplayOn(),
@@ -191,6 +191,15 @@ class SessionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_LINUX_WINDOWS_VISIBLE -> {
+                screenOn = readScreenOn()
+                if (LinuxWindows.hasVisibleWindows && hasVisibleSurface && !manualHold) {
+                    resumeSession(panelVisible = false)
+                } else {
+                    updateSuspendPolicy()
+                }
+                return START_NOT_STICKY
+            }
             ACTION_LAUNCH_GAME -> {
                 queueSteamGame(intent.getStringExtra(EXTRA_GAME_ID))
                 return START_NOT_STICKY
@@ -888,7 +897,10 @@ class SessionService : Service() {
         if (venus) {
             VenusComponent.guestEnv(this).forEach { guest.add(it) }
         } else {
-            LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
+            LinuxRuntime.vulkanIcd(this)?.let {
+                guest.add("VK_ICD_FILENAMES=" + it.path)
+                guest.add("DROIDDECK_RUNTIME_VK_ICD=" + it.path)
+            }
         }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
         SessionState.runtimeDriver = linuxDriverId
@@ -2109,6 +2121,10 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (rootIntent?.component?.className == com.droiddeck.launcher.LinuxWindowActivity::class.java.name) {
+            rootIntent.getStringExtra("windowKey")?.let { LinuxWindows.closeFromAndroid(it) }
+            return
+        }
         if (rootIntent?.component?.className in setOf(
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
                 com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
@@ -2364,7 +2380,13 @@ class SessionService : Service() {
         private const val ACTION_MIC_CHANGED = "com.droiddeck.launcher.MIC_CHANGED"
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
         private const val ACTION_ACTIVITY_VISIBLE = "com.droiddeck.launcher.ACTIVITY_VISIBLE"
+        private const val ACTION_LINUX_WINDOWS_VISIBLE = "com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
+
+        fun linuxWindowsVisibilityChanged(context: Context) {
+            if (SessionState.running) context.startService(
+                Intent(context, SessionService::class.java).setAction(ACTION_LINUX_WINDOWS_VISIBLE))
+        }
         private const val ACTION_ACTIVITY_DISPLAY = "com.droiddeck.launcher.ACTIVITY_DISPLAY"
         private const val ACTION_ACTIVITY_DISPLAY_CHANGED = "com.droiddeck.launcher.ACTIVITY_DISPLAY_CHANGED"
         private const val EXTRA_DISPLAY_ID = "displayId"

@@ -24,6 +24,7 @@ cd "$work"
 apt-get source -qq kwin
 cd kwin-*/
 for p in "$here"/patches/kwin/*.patch; do patch -p1 --forward < "$p"; done
+python3 "$here/kwin-independent.py" "$PWD"
 dch -l +droiddeck -D resolute "Scale nested outputs, open the selected render node, forward scroll details."
 apt-get build-dep -y -qq ./ >/dev/null
 dpkg-buildpackage -b -uc -us >"$work/kwin.log" 2>&1 || { tail -80 "$work/kwin.log"; exit 1; }

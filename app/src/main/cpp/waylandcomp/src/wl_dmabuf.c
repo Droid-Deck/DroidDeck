@@ -14,6 +14,7 @@
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
+#include "ahb_broker.h"
 
 
 static void dbuf_buffer_resource_destroy(struct wl_resource *r) {
@@ -56,6 +57,7 @@ static struct wl_resource *params_do_create(struct wl_client *c, struct wl_resou
         return NULL;
     }
     wl_resource_set_implementation(buf, &dbuf_buffer_impl, b, dbuf_buffer_resource_destroy);
+    ahb_broker_import(b, buf);
     struct client_info *ci = client_info_of(c);
     if (ci) ci->dmabuf_buffers++;
     return buf;

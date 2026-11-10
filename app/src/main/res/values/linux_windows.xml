@@ -1,0 +1,13 @@
+<resources>
+    <string name="linux_windows_toggle">Linux multi-window (experimental)</string>
+    <string name="linux_windows_hint">Move Linux applications into independent Android windows with matching content sizes. Turn off to restore them to the Linux desktop.</string>
+    <string name="linux_windows_list">Linux windows</string>
+    <string name="linux_windows_empty">Open an application in the Linux desktop to create a window.</string>
+    <string name="linux_windows_unavailable">Separate Linux windows are unavailable on this Android system. Applications will stay on the DroidDeck desktop.</string>
+    <string name="linux_windows_presentation_failed">%1$s could not be displayed in a separate window and has returned to the DroidDeck desktop. Open it there to continue working.</string>
+    <string name="linux_windows_returned">%1$s is still running on the DroidDeck desktop. Open the desktop to confirm closing, save changes, or continue working.</string>
+    <string name="linux_windows_background">%1$s is still running in the background or system tray on the DroidDeck desktop. Open the desktop to restore it or quit from its menu.</string>
+    <string name="linux_windows_close_unsupported">%1$s could not complete a normal close and has returned to the DroidDeck desktop. Open the desktop to close it or continue working.</string>
+    <string name="linux_windows_close_delivery_failed">The Linux close request could not be delivered. Open the DroidDeck desktop to close the application.</string>
+    <string name="linux_windows_close_unconfirmed">The closing status of %1$s could not be confirmed. Open the DroidDeck desktop to check it.</string>
+</resources>

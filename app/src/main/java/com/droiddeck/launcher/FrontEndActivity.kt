@@ -1773,6 +1773,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
+        if (com.droiddeck.launcher.session.LinuxWindows.enabled && SessionState.running) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
             SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
@@ -1891,6 +1892,10 @@ class FrontEndActivity : ComponentActivity() {
             refreshHomeAppState()
         }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        if (intent.action == Intent.ACTION_MAIN && com.droiddeck.launcher.session.LinuxWindows.enabled && SessionState.running) {
+            intent.action = null
+            window.decorView.post { com.droiddeck.launcher.session.LinuxWindows.showList(this) }
+        }
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)

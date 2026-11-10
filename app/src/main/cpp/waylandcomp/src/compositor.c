@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <stdarg.h>
+#include <math.h>
 #include <errno.h>
 #include <poll.h>
 #include <sys/timerfd.h>
@@ -17,12 +18,14 @@
 #include <sys/sysmacros.h>
 #include <android/log.h>
 #include <android/hardware_buffer.h>
+#include <android/native_window.h>
 #include <wayland-server.h>
 
 #include "xdg-shell-server-protocol.h"
 #include "linux-dmabuf-v1-server-protocol.h"
 #include "sc_layer.h"
 #include "ahb_swapchain.h"
+#include "ahb_broker.h"
 #include "viewporter-server-protocol.h"
 #include "banner-desktop-v1-server-protocol.h"
 #include "presentation-time-server-protocol.h"
@@ -36,6 +39,8 @@
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
+#include "wl_pointer_gestures.h"
+#include "wl_finger_scroll.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -147,6 +152,7 @@ static const char *client_name(struct wl_client *client) {
 
 static void on_client_destroyed(struct wl_listener *l, void *data) {
     struct client_info *ci = wl_container_of(l, ci, destroy), **pp;
+    wl_list_remove(&ci->destroy.link);
     droiddeck_log("program", "disconnected: %s (pid %d)", ci->name, (int)ci->pid);
     droiddeck_color_client_gone(ci->client);
     for (pp = &g_clients; *pp; pp = &(*pp)->next)
@@ -228,6 +234,7 @@ struct surface {
     struct wl_list frames;
     struct wl_list feedback;
     int drawn;
+    uint64_t revision;
     int64_t next_release_ns;
     int releases_pending;
 
@@ -262,6 +269,128 @@ struct surface {
 
 static struct wl_list g_surfaces;
 static struct wl_list g_toplevels;
+static struct surface *g_independent_focus;
+static struct surface *g_independent_pointer;
+struct window_target;
+static void select_pointer_target(struct surface *root, struct window_target *target);
+static uint64_t g_surface_revision;
+
+#define WINDOW_TARGETS 64
+struct window_part {
+    struct surface *surface;
+    struct sc_target *layer;
+    uint64_t revision;
+    int geometry[8], z, translucent, seen;
+    struct window_part *next;
+};
+struct window_target {
+    char key[64];
+    uint64_t generation;
+    ANativeWindow *window;
+    struct sc_target *layer;
+    int width, height, source_w, source_h;
+    uint64_t frames;
+    int detached;
+    int client_ready;
+    struct window_part *parts;
+    uint64_t direct_frames, copied_frames;
+    int part_count;
+    uint64_t waiting_state;
+    struct wl_list submitted_frames;
+    int frame_pending;
+    int status, error;
+    double pointer_x, pointer_y;
+    int pointer_known;
+};
+static struct window_target g_window_targets[WINDOW_TARGETS];
+static struct wl_list g_scene_submitted_frames;
+static int g_scene_frame_pending;
+struct window_request {
+    struct window_request *next;
+    char key[64];
+    uint64_t generation;
+    uint32_t time;
+    ANativeWindow *window;
+    int type, width, height, a, b, c;
+};
+static pthread_mutex_t g_window_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct window_request *g_window_requests, **g_window_tail = &g_window_requests;
+static int64_t g_window_stats[WINDOW_TARGETS][12];
+static char g_window_keys[WINDOW_TARGETS][64];
+
+static const char *independent_key(struct surface *surface) {
+    while (surface && surface->parent) surface = surface->parent;
+    const char *prefix = "DroidDeckWindow:";
+    return surface && surface->title && !strncmp(surface->title, prefix, strlen(prefix))
+        ? surface->title + strlen(prefix) : NULL;
+}
+
+static struct window_target *window_target_of(const char *key) {
+    if (!key) return NULL;
+    for (int i = 0; i < WINDOW_TARGETS; ++i)
+        if (!strcmp(g_window_targets[i].key, key)) return &g_window_targets[i];
+    return NULL;
+}
+
+static struct surface *window_root(const char *key) {
+    struct surface *s;
+    wl_list_for_each(s, &g_surfaces, link)
+        if (!s->parent && independent_key(s) && !strcmp(independent_key(s), key)) return s;
+    return NULL;
+}
+
+static void queue_window_request(const char *key, uint64_t generation, ANativeWindow *window,
+                                int type, int width, int height, int a, int b, int c, uint32_t time) {
+    if (!key || strlen(key) >= 64 || strncmp(key, "wl:", 3)) return;
+    struct window_request *request = calloc(1, sizeof(*request));
+    if (!request) return;
+    snprintf(request->key, sizeof(request->key), "%s", key);
+    request->generation = generation;
+    request->time = time;
+    request->window = window;
+    if (window) ANativeWindow_acquire(window);
+    request->type = type; request->width = width; request->height = height;
+    request->a = a; request->b = b; request->c = c;
+    pthread_mutex_lock(&g_window_lock);
+    *g_window_tail = request;
+    g_window_tail = &request->next;
+    pthread_mutex_unlock(&g_window_lock);
+}
+
+void droiddeck_window_request(const char *key, uint64_t generation, ANativeWindow *window,
+                             int type, int width, int height, int a, int b, int c) {
+    queue_window_request(key, generation, window, type, width, height, a, b, c, 0);
+}
+
+int droiddeck_window_stats(const char *key, int64_t stats[12]) {
+    int found = 0;
+    pthread_mutex_lock(&g_window_lock);
+    for (int i = 0; i < WINDOW_TARGETS; ++i) {
+        if (!strcmp(key, g_window_keys[i])) {
+            memcpy(stats, g_window_stats[i], sizeof(g_window_stats[i]));
+            found = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_window_lock);
+    return found;
+}
+
+static void publish_window_stats(struct window_target *target) {
+    const int i = target - g_window_targets;
+    pthread_mutex_lock(&g_window_lock);
+    snprintf(g_window_keys[i], sizeof(g_window_keys[i]), "%s", target->key);
+    int64_t *stats = g_window_stats[i];
+    stats[0] = target->generation; stats[1] = target->width; stats[2] = target->height;
+    stats[3] = target->source_w; stats[4] = target->source_h; stats[5] = target->frames;
+    stats[6] = target->window && target->status > 0 &&
+        ANativeWindow_getWidth(target->window) == target->width &&
+        ANativeWindow_getHeight(target->window) == target->height &&
+        target->source_w == target->width && target->source_h == target->height && target->frames > 0;
+    stats[7] = target->direct_frames; stats[8] = target->copied_frames; stats[9] = target->part_count;
+    stats[10] = target->status; stats[11] = target->error;
+    pthread_mutex_unlock(&g_window_lock);
+}
 static struct surface *g_desktop;
 static uint32_t *g_zorder;
 static size_t g_zorder_count;
@@ -341,6 +470,9 @@ static struct {
 } g_perf;
 
 static void schedule_render(void);
+static void schedule_surface_render(struct surface *s);
+static void queue_render(void);
+static int g_scene_dirty = 1;
 static void on_commit_idle(void *data);
 
 static int64_t now_ns(void) {
@@ -582,12 +714,15 @@ int droiddeck_cursor_snapshot(int *out, int cap) {
 struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 static void touch_cancel_surface(struct surface *surface);
+static void finger_cancel_surface(struct surface *surface);
+static void finger_end(struct surface *surface, uint32_t time, int cancelled);
+static uint32_t now_ms(void);
 static struct surface *g_grab;
 static void publish_query_state(void);
 static struct surface *g_key_target;
 static struct surface *g_ime_click;
 static int g_input_pipe[2] = {-1, -1};
-struct input_msg { int type; int p1; int p2; int p3; int p4; };
+struct input_msg { int type; int p1; int p2; int p3; int p4; uint32_t time; };
 
 struct surface;
 static void constraints_surface_gone(struct surface *s);
@@ -678,7 +813,7 @@ static void map_toplevel(struct surface *s) {
     }
     wl_list_insert(g_toplevels.prev, &s->toplevel_link);
     raise_kept_on_top();
-    if (!g_desktop) g_key_target = s;
+    if (!g_desktop && !independent_key(s)) g_key_target = s;
     apply_zorder();
     publish_query_state();
 }
@@ -876,7 +1011,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         s->dmabuf_destroy.notify = on_dmabuf_destroyed;
         wl_resource_add_destroy_listener(buffer, &s->dmabuf_destroy);
     }
-    if (!b->img && !b->import_failed && b->n_planes >= 1) {
+    if (!b->img && !b->import_failed && b->n_planes >= 1 &&
+        !(s->parent && independent_key(s) && ahb_swapchain_has_ahb(b))) {
         b->img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height,
                                        b->stride[0], b->offset[0]);
         if (b->img && g_zero_copy) sc_layer_probe_dmabuf_fd(b->fd[0]);
@@ -897,7 +1033,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     s->buf_w = b->width;
     s->buf_h = b->height;
     s->buf_alpha = (b->format & 0xff) == 'A';
-    s->has_content = b->img != NULL;
+    s->has_content = b->img != NULL || ahb_swapchain_has_ahb(b);
     if (!repeat) g_stat_dmabuf++;
     const int announced_now = !s->announced_vulkan;
     if (!s->announced_vulkan) {
@@ -919,7 +1055,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
             droiddeck_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
-    if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
+    if (!independent_key(s) && s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
         (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
          (announced_now && !below_surface(g_hud_surface, s) &&
           (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
@@ -1205,6 +1341,7 @@ static void surface_drop_idle(struct surface *s) {
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     struct surface *child;
+    s->revision = ++g_surface_revision;
 
     if (s->xdg_toplevel && !s->toplevel_committed) {
         s->toplevel_committed = 1;
@@ -1291,7 +1428,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         if (s->has_content) map_toplevel(s);
         else unmap_toplevel(s);
     }
-    schedule_render();
+    schedule_surface_render(s);
 }
 static void surface_set_buffer_transform(struct wl_client *c, struct wl_resource *r, int32_t t) {}
 static void surface_set_buffer_scale(struct wl_client *c, struct wl_resource *r, int32_t s) {}
@@ -1329,6 +1466,9 @@ static void surface_resource_destroy(struct wl_resource *r) {
     struct wl_resource *cb, *cbtmp;
 
     if (!s) return;
+    schedule_surface_render(s);
+    finger_cancel_surface(s);
+    droiddeck_pointer_gestures_cancel(r, now_ms());
     for (int i = 0; i < g_nptrs; i++) if (g_ptrs[i].focus == r) g_ptrs[i].focus = NULL;
     for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus == r) g_kbs[i].focus = NULL;
     touch_cancel_surface(s);
@@ -1338,6 +1478,8 @@ static void surface_resource_destroy(struct wl_resource *r) {
     surface_forget_idle_px(s);
     if (g_grab == s) g_grab = NULL;
     if (g_key_target == s) g_key_target = NULL;
+    if (g_independent_focus == s) g_independent_focus = NULL;
+    if (g_independent_pointer == s) select_pointer_target(NULL, NULL);
     if (g_ime_click == s) g_ime_click = NULL;
     droiddeck_text_input_surface_gone(r);
     if (g_desktop == s) { g_desktop = NULL; droiddeck_log("desktop", "the desktop closed"); }
@@ -1368,7 +1510,6 @@ static void surface_resource_destroy(struct wl_resource *r) {
     wl_list_remove(&s->link);
     free(s->title);
     free(s);
-    schedule_render();
 }
 
 
@@ -1457,7 +1598,7 @@ static void restack_child(struct surface *s, struct surface *sibling, int above)
         if (above) wl_list_insert(&sibling->child_link, &s->child_link);
         else wl_list_insert(sibling->child_link.prev, &s->child_link);
     }
-    schedule_render();
+    schedule_surface_render(s);
 }
 static void subsurface_place_above(struct wl_client *c, struct wl_resource *r,
                                    struct wl_resource *sibling) {
@@ -1480,12 +1621,12 @@ static const struct wl_subsurface_interface subsurface_impl = {
 static void subsurface_resource_destroy(struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     if (!s) return;
+    schedule_surface_render(s);
     detach_from_parent(s);
     s->subsurface = NULL;
     s->role = ROLE_NONE;
     s->has_content = 0;
     drop_dmabuf(s, 1);
-    schedule_render();
 }
 
 static void subcompositor_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
@@ -1602,8 +1743,10 @@ static void send_toplevel_configure(struct surface *s) {
         st = wl_array_add(&states, sizeof(uint32_t));
         *st = XDG_TOPLEVEL_STATE_FULLSCREEN;
     }
-    xdg_toplevel_send_configure(s->xdg_toplevel, g_output_w > 0 ? g_output_w : 0,
-                                g_output_h > 0 ? g_output_h : 0, &states);
+    struct window_target *target = window_target_of(independent_key(s));
+    xdg_toplevel_send_configure(s->xdg_toplevel,
+                                target ? target->width : (g_output_w > 0 ? g_output_w : 0),
+                                target ? target->height : (g_output_h > 0 ? g_output_h : 0), &states);
     wl_array_release(&states);
     xdg_surface_send_configure(s->xdg_surface, wl_display_next_serial(g_display));
 }
@@ -1644,7 +1787,7 @@ static void xdg_toplevel_resource_destroy(struct wl_resource *r) {
     unmap_toplevel(s);
     s->placed = 0;
     s->hwnd = 0;
-    schedule_render();
+    schedule_surface_render(s);
 }
 
 static void xdg_surface_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
@@ -1827,7 +1970,257 @@ static int add_cursor(struct draw_list *dl, int scene_w);
 static struct vkp_image *surface_image(struct surface *s) {
     if (!s->has_content) return NULL;
     if (s->shm_img) return s->shm_img;
+    struct dmabuf_buffer *buffer = s->dmabuf_buf;
+    if (buffer && !buffer->img && !buffer->import_failed && buffer->n_planes >= 1) {
+        buffer->img = vkp_image_from_dmabuf(buffer->fd[0], buffer->format, buffer->modifier,
+            buffer->width, buffer->height, buffer->stride[0], buffer->offset[0]);
+        if (!buffer->img) buffer->import_failed = 1;
+    }
     return s->dmabuf_buf ? s->dmabuf_buf->img : NULL;
+}
+
+static struct surface *window_primary(struct surface *root, int width, int height) {
+    struct surface *s;
+    wl_list_for_each(s, &root->children, child_link)
+        if (s->has_content && s->buf_w == width && s->buf_h == height &&
+            s->sub_x == 0 && s->sub_y == 0 && surface_image(s) &&
+            (!s->src_set || (s->src[0] == 0 && s->src[1] == 0 &&
+                s->src[2] == width && s->src[3] == height)) &&
+            (!s->dst_set || (s->dst[0] == width && s->dst[1] == height))) return s;
+    return root->buf_w == width && root->buf_h == height && surface_image(root) ? root : NULL;
+}
+
+static void window_parts_destroy(struct window_target *target) {
+    fire_frames(&target->submitted_frames);
+    target->frame_pending = 0;
+    while (target->parts) {
+        struct window_part *part = target->parts;
+        target->parts = part->next;
+        sc_target_destroy(part->layer);
+        free(part);
+    }
+    target->part_count = 0;
+}
+
+static void window_failed(struct window_target *target, int error) {
+    if (target->status < 0) return;
+    target->status = -1;
+    target->error = error;
+    target->client_ready = 0;
+    sc_target_hide(target->layer);
+    window_parts_destroy(target);
+    publish_window_stats(target);
+    droiddeck_log("window", "%s presentation failed: generation=%llu error=%d",
+        target->key, (unsigned long long)target->generation, error);
+}
+
+static void collect_window_frames(struct window_target *target, struct surface *s, int depth) {
+    if (!s || depth > 16) return;
+    wl_list_insert_list(target->submitted_frames.prev, &s->frames);
+    wl_list_init(&s->frames);
+    struct surface *child;
+    wl_list_for_each(child, &s->children, child_link) collect_window_frames(target, child, depth + 1);
+}
+
+static int window_waits_for_completion(struct surface *s) {
+    struct window_target *target = window_target_of(independent_key(s));
+    return (target && target->window && target->layer && target->client_ready) ||
+        (g_scene_frame_pending && !independent_key(s));
+}
+
+static void finish_independent_frames(void) {
+    if (g_scene_frame_pending && sc_layer_ready()) {
+        g_scene_frame_pending = 0;
+        fire_frames(&g_scene_submitted_frames);
+        queue_render();
+    }
+    for (int i = 0; i < WINDOW_TARGETS; ++i) {
+        struct window_target *target = &g_window_targets[i];
+        if (!target->frame_pending || !sc_target_ready(target->layer)) continue;
+        int ready = 1;
+        for (struct window_part *part = target->parts; part; part = part->next)
+            if (!sc_target_ready(part->layer)) { ready = 0; break; }
+        if (!ready) continue;
+        target->frame_pending = 0;
+        fire_frames(&target->submitted_frames);
+        struct surface *root = window_root(target->key);
+        if (root) schedule_surface_render(root);
+    }
+}
+
+static int render_window_tree(struct window_target *target, struct surface *s, int x, int y, int *z, int depth) {
+    if (depth > 16 || target->status < 0) return 0;
+    struct surface *child;
+    int presented = 0;
+    wl_list_for_each(child, &s->children, child_link)
+        if (child->below_parent)
+            presented |= render_window_tree(target, child, x + child->sub_x, y + child->sub_y, z, depth + 1);
+    if (target->status < 0) return presented;
+    int width, height;
+    surface_size(s, &width, &height);
+    if (depth > 0 && s->has_content && width > 0 && height > 0) {
+        struct window_part *part = target->parts;
+        while (part && part->surface != s) part = part->next;
+        if (!part && target->part_count < 256) {
+            part = calloc(1, sizeof(*part));
+            if (part) {
+                char name[128];
+                snprintf(name, sizeof(name), "%s_%u", target->key, wl_resource_get_id(s->resource));
+                part->surface = s;
+                part->layer = sc_target_create(target->window, name);
+                part->next = target->parts;
+                target->parts = part;
+                ++target->part_count;
+            }
+        }
+        int geometry[8] = {0, 0, s->buf_w, s->buf_h, x, y, x + width, y + height};
+        if (s->src_set) {
+            geometry[0] = (int)s->src[0]; geometry[1] = (int)s->src[1];
+            geometry[2] = (int)(s->src[0] + s->src[2]);
+            geometry[3] = (int)(s->src[1] + s->src[3]);
+        }
+        const int *opaque = s->opaque;
+        int translucent = s->buf_alpha && !(opaque[0] <= 0 && opaque[1] <= 0 &&
+            (int64_t)opaque[0] + opaque[2] >= width &&
+            (int64_t)opaque[1] + opaque[3] >= height);
+        const int order = ++*z;
+        if (!part || !part->layer) {
+            window_failed(target, 2);
+            return presented;
+        }
+        if (part && part->layer) {
+            part->seen = 1;
+            int changed = part->revision != s->revision || part->z != order ||
+                part->translucent != translucent || memcmp(part->geometry, geometry, sizeof(geometry));
+            if (changed) {
+                int direct = ahb_swapchain_has_ahb(s->dmabuf_buf);
+                int r = direct ? ahb_swapchain_present_target(s->dmabuf_buf, s, part->layer,
+                                                              geometry, translucent, order)
+                    : sc_target_present_geometry(part->layer, surface_image(s), geometry,
+                                                  translucent, order, droiddeck_surface_color(s));
+                if (r > 0) {
+                    part->revision = s->revision;
+                    part->z = order; part->translucent = translucent;
+                    memcpy(part->geometry, geometry, sizeof(geometry));
+                    if (direct) ++target->direct_frames;
+                    else ++target->copied_frames;
+                    presented = 1;
+                } else if (r < 0) {
+                    window_failed(target, 3);
+                    return presented;
+                }
+            }
+            s->drawn = part->revision == s->revision;
+        }
+    }
+    wl_list_for_each(child, &s->children, child_link)
+        if (!child->below_parent)
+            presented |= render_window_tree(target, child, x + child->sub_x, y + child->sub_y, z, depth + 1);
+    return presented;
+}
+
+static int render_independent_windows(void) {
+    int presented = 0;
+    int batch = 0;
+    sc_target_collect();
+    for (int i = 0; i < WINDOW_TARGETS; ++i) {
+        struct window_target *target = &g_window_targets[i];
+        if (!target->window) continue;
+        struct surface *root = window_root(target->key);
+        if (target->window && !target->frames) {
+            unsigned children = 0, content = 0;
+            struct surface *child;
+            if (root) wl_list_for_each(child, &root->children, child_link) {
+                ++children;
+                content += child->has_content != 0;
+            }
+            const uint64_t state = 1u | ((uint64_t)target->client_ready << 1) |
+                ((uint64_t)(target->layer != NULL) << 2) | ((uint64_t)(root != NULL) << 3) |
+                ((uint64_t)(root && root->buf_alpha) << 4) | ((uint64_t)children << 8) |
+                ((uint64_t)content << 20) | ((uint64_t)(root ? root->buf_w : 0) << 32);
+            if (state != target->waiting_state) {
+                target->waiting_state = state;
+                droiddeck_log("window", "%s awaiting first frame: layer=%d ready=%d root=%dx%d alpha=%d children=%u content=%u",
+                    target->key, target->layer != NULL, target->client_ready,
+                    root ? root->buf_w : 0, root ? root->buf_h : 0, root ? root->buf_alpha : 0, children, content);
+            }
+        }
+        if (target->status < 0 || !target->layer) continue;
+        if (!target->client_ready) continue;
+        if (target->frame_pending) continue;
+        const int raw = root && root->buf_w == 1 && root->buf_h == 1 && root->buf_alpha;
+        if (raw) {
+            if (!batch) {
+                if (sc_target_batch_begin() != 0) { window_failed(target, 4); continue; }
+                batch = 1;
+            }
+            sc_target_hide(target->layer);
+            for (struct window_part *part = target->parts; part; part = part->next) part->seen = 0;
+            int z = 0;
+            int r = render_window_tree(target, root, 0, 0, &z, 0);
+            if (target->status < 0) {
+                sc_target_batch_end();
+                batch = 0;
+                continue;
+            }
+            struct window_part **link = &target->parts;
+            while (*link) {
+                struct window_part *part = *link;
+                if (part->seen) { link = &part->next; continue; }
+                *link = part->next;
+                sc_target_destroy(part->layer);
+                free(part);
+                --target->part_count;
+            }
+            target->source_w = z ? target->width : 0;
+            target->source_h = z ? target->height : 0;
+            if (r) { ++target->frames; root->drawn = 1; presented = 1; }
+            collect_window_frames(target, root, 0);
+            target->frame_pending = r || !wl_list_empty(&target->submitted_frames);
+        } else {
+        window_parts_destroy(target);
+        struct surface *primary = root ? window_primary(root, target->width, target->height) : NULL;
+        target->source_w = primary ? primary->buf_w : 0;
+        target->source_h = primary ? primary->buf_h : 0;
+        if (primary) {
+            if (target->frames && wl_list_empty(&root->frames) && wl_list_empty(&primary->frames)) continue;
+            if (!batch) {
+                if (sc_target_batch_begin() != 0) { window_failed(target, 4); continue; }
+                batch = 1;
+            }
+            const int direct = ahb_swapchain_has_ahb(primary->dmabuf_buf);
+            const int *opaque = primary->opaque;
+            const int translucent = primary->buf_alpha && !(opaque[0] <= 0 && opaque[1] <= 0 &&
+                (int64_t)opaque[0] + opaque[2] >= primary->buf_w &&
+                (int64_t)opaque[1] + opaque[3] >= primary->buf_h);
+            const int geometry[8] = {0, 0, primary->buf_w, primary->buf_h,
+                                    0, 0, target->width, target->height};
+            int r = direct ? ahb_swapchain_present_target(primary->dmabuf_buf, primary,
+                                      target->layer, geometry, translucent, 1)
+                : sc_target_present(target->layer, surface_image(primary),
+                                      target->width, target->height, droiddeck_surface_color(primary), translucent);
+            if (r > 0) {
+                primary->drawn = root->drawn = 1;
+                ++target->frames;
+                if (direct) ++target->direct_frames;
+                else ++target->copied_frames;
+                presented = 1;
+                collect_window_frames(target, root, 0);
+                target->frame_pending = 1;
+                if (target->frames == 1)
+                    droiddeck_log("window", "%s independent match: native=%dx%d source=%dx%d geometry=1:1 generation=%llu opaque=%d",
+                        target->key, target->width, target->height, primary->buf_w, primary->buf_h,
+                        (unsigned long long)target->generation, !translucent);
+            } else if (r < 0) window_failed(target, 3);
+        }
+        }
+        publish_window_stats(target);
+        if (batch) {
+            sc_target_batch_end();
+            batch = 0;
+        }
+    }
+    return presented;
 }
 
 static struct surface *g_hdr_unimported;
@@ -1903,6 +2296,7 @@ static void scene_size(int *w, int *h) {
     if (g_desktop && g_desktop_w > 0) { *w = g_desktop_w; *h = g_desktop_h; return; }
     *w = *h = 0;
     wl_list_for_each(s, &g_toplevels, toplevel_link) {
+        if (independent_key(s)) continue;
         int sw, sh;
         surface_size(s, &sw, &sh);
         if ((long long)sw * sh > best) { best = (long long)sw * sh; *w = sw; *h = sh; }
@@ -1912,12 +2306,14 @@ static void scene_size(int *w, int *h) {
 
 static void fire_all_frames(void) {
     struct surface *s;
-    wl_list_for_each(s, &g_surfaces, link) fire_frames(&s->frames);
+    wl_list_for_each(s, &g_surfaces, link)
+        if (!window_waits_for_completion(s)) fire_frames(&s->frames);
 }
 
 static void pace_without_output(void) {
     struct surface *s;
     wl_list_for_each(s, &g_surfaces, link) {
+        if (window_waits_for_completion(s)) continue;
         fire_frames(&s->frames);
         feedback_discard_all(&s->feedback);
     }
@@ -1926,7 +2322,7 @@ static void pace_without_output(void) {
 
 static int on_frame_timer(void *data) {
     pace_without_output();
-    if (vkp_has_window()) schedule_render();
+    if (vkp_has_window()) queue_render();
     else if (g_frame_timer) wl_event_source_timer_update(g_frame_timer, 16);
     return 0;
 }
@@ -2240,6 +2636,11 @@ static void render_scene(void) {
     g_hdr_unimported = NULL;
     wl_list_for_each(s, &g_surfaces, link) s->drawn = 0;
     scene_size(&w, &h);
+    int rendered = 0;
+    int fx_on = vkp_effects_active();
+    int framegen = vkp_framegen_active();
+    if ((g_scene_dirty || fx_on || framegen) && sc_layer_ready()) {
+    g_scene_dirty = 0;
     if (w != g_scene_w || h != g_scene_h) {
         if (g_desktop) droiddeck_log("desktop", "size %dx%d", w, h);
         else droiddeck_log("desktop", "no desktop: showing %dx%d (largest window)", w, h);
@@ -2248,14 +2649,12 @@ static void render_scene(void) {
     }
     if (g_desktop && !g_hide_shell) add_tree(&dl, g_desktop, 0, 0, 0);
     wl_list_for_each(s, &g_toplevels, toplevel_link) {
+        if (independent_key(s)) continue;
         if (g_desktop && !s->placed) continue;
         if (g_hide_shell && !strcmp(client_name(wl_resource_get_client(s->resource)), "explorer.exe")) continue;
         add_tree(&dl, s, s->placed ? s->x : 0, s->placed ? s->y : 0, 0);
     }
 
-    int rendered = 0;
-    int fx_on = vkp_effects_active();
-    int framegen = vkp_framegen_active();
     const int cardboard = vkp_cardboard_active();
     struct hdr_scene hs;
     int hdr_route = hdr_plan(&dl, w, h, fx_on, framegen, &hs);
@@ -2386,6 +2785,18 @@ static void render_scene(void) {
     }
     free(hs.is_hdr);
     if (hdr_copy && rendered && droiddeck_color_hdr_open()) hdr_count_copied(&dl, hdr_copy);
+    if (!rendered) g_scene_dirty = 1;
+    }
+    if (rendered) {
+        wl_list_for_each(s, &g_surfaces, link) {
+            if (!s->drawn || independent_key(s)) continue;
+            wl_list_insert_list(g_scene_submitted_frames.prev, &s->frames);
+            wl_list_init(&s->frames);
+        }
+        g_scene_frame_pending = !sc_layer_ready();
+        if (!g_scene_frame_pending) fire_frames(&g_scene_submitted_frames);
+    }
+    rendered |= render_independent_windows();
     if (rendered) {
         int64_t t = presented_ns(t_scene);
         g_stat_frames++;
@@ -2430,7 +2841,7 @@ static int render_on_commit(void) {
     return commit_renders_on() && !g_render_idle && g_rendered_tick_ns != g_tick_vsync_ns;
 }
 
-static void schedule_render(void) {
+static void queue_render(void) {
     if (!g_dirty && !g_dirty_since_ns) g_dirty_since_ns = now_ns();
     g_dirty = 1;
     if (!g_display) return;
@@ -2448,6 +2859,16 @@ static void schedule_render(void) {
     wl_event_source_timer_update(g_fallback_timer, 8);
 }
 
+static void schedule_render(void) {
+    g_scene_dirty = 1;
+    queue_render();
+}
+
+static void schedule_surface_render(struct surface *s) {
+    if (!independent_key(s)) g_scene_dirty = 1;
+    queue_render();
+}
+
 static int scene_waits_for_game(int64_t now) {
     return g_hud_surface && !g_hud_fresh && now - g_hud_last_ns < 100000000LL && vkp_framegen_active();
 }
@@ -2461,6 +2882,7 @@ static void on_commit_idle(void *data) {
 
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
+    finish_independent_frames();
     g_perf.ticks++;
     if (frame_time_ns > 0 && now >= frame_time_ns) {
         const int64_t late = now - frame_time_ns;
@@ -2479,7 +2901,7 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_apply_window_request()) tick_change = 1;
     if (vkp_effects_sync()) tick_change = 1;
     if (vkp_cardboard_pose_changed()) tick_change = 1;
-    if (tick_change) g_dirty = 1;
+    if (tick_change) { g_dirty = 1; g_scene_dirty = 1; }
     if (g_tick_held && g_dirty) g_hold_missed_ns = now;
     g_tick_held = 0;
     if (!tick_change && commit_renders_on() && g_dirty_since_ns && now - g_dirty_since_ns < g_refresh_ns &&
@@ -2606,6 +3028,11 @@ static struct seat_pointer *pointer_for(struct wl_client *client) {
         if (wl_resource_get_client(g_ptrs[i].ptr) == client) return &g_ptrs[i];
     return NULL;
 }
+int droiddeck_pointer_has_focus(struct wl_resource *pointer, struct wl_resource *surface) {
+    for (int i = 0; i < g_nptrs; ++i)
+        if (g_ptrs[i].ptr == pointer) return g_ptrs[i].focus == surface;
+    return 0;
+}
 static struct seat_keyboard *keyboard_for(struct wl_client *client) {
     for (int i = 0; i < g_nkbs; i++)
         if (wl_resource_get_client(g_kbs[i].kb) == client) return &g_kbs[i];
@@ -2625,6 +3052,7 @@ static struct seat_keyboard *keyboard_for(struct wl_client *client) {
 static struct surface *toplevel_at(double x, double y) {
     struct surface *s;
     wl_list_for_each_reverse(s, &g_toplevels, toplevel_link) {
+        if (independent_key(s)) continue;
         int w, h, sx = s->placed ? s->x : 0, sy = s->placed ? s->y : 0;
         surface_size(s, &w, &h);
         if (x >= sx && y >= sy && x < sx + w && y < sy + h) return s;
@@ -2632,10 +3060,13 @@ static struct surface *toplevel_at(double x, double y) {
     return NULL;
 }
 
-static void pointer_focus(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t fy) {
+static void pointer_focus_at(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t fy, uint32_t time) {
     struct wl_client *client = wl_resource_get_client(target);
     for (int i = 0; i < g_nptrs; i++) {
         if (!g_ptrs[i].focus || g_ptrs[i].focus == target) continue;
+        struct surface *old = wl_resource_get_user_data(g_ptrs[i].focus);
+        finger_end(old, time, 1);
+        droiddeck_pointer_gestures_cancel(g_ptrs[i].focus, time);
         wl_pointer_send_leave(g_ptrs[i].ptr, wl_display_next_serial(g_display), g_ptrs[i].focus);
         if (wl_resource_get_version(g_ptrs[i].ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
             wl_pointer_send_frame(g_ptrs[i].ptr);
@@ -2650,6 +3081,10 @@ static void pointer_focus(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t 
         entered = 1;
     }
     if (entered) constraints_focus_entered(target, client);
+}
+
+static void pointer_focus(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t fy) {
+    pointer_focus_at(target, fx, fy, now_ms());
 }
 
 static void keyboard_focus(struct wl_resource *target) {
@@ -3131,9 +3566,10 @@ static int send_relative_motion(struct wl_client *client, double dx, double dy) 
 }
 
 
-static void pointer_input(double x, double y, int relative, uint32_t button, int pressed) {
+static void pointer_input_at(double x, double y, int relative, uint32_t button, int pressed, uint32_t t) {
     struct surface *target;
     struct constraint *k = g_active_constraint;
+    if (k && g_independent_pointer && k->surface != g_independent_pointer) k = NULL;
     double dx, dy;
 
     if (relative) {
@@ -3162,6 +3598,8 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         if (atomic_load(&g_cursor_composite)) schedule_render();
         if (k) {
             target = k->surface;
+        } else if (g_independent_pointer) {
+            target = g_independent_pointer;
         } else if (g_desktop) {
             target = g_desktop;
         } else {
@@ -3179,9 +3617,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     int tx = 0, ty = 0;
     if (target != g_desktop && target->placed) { tx = target->x; ty = target->y; }
     wl_fixed_t fx = wl_fixed_from_double(g_ptr_x - tx), fy = wl_fixed_from_double(g_ptr_y - ty);
-    uint32_t t = now_ms();
-
-    pointer_focus(target->resource, fx, fy);
+    pointer_focus_at(target->resource, fx, fy, t);
     int rel_consumed = send_relative_motion(client, dx, dy);
     if (!(k && k->is_lock) && !(relative && rel_consumed) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
@@ -3198,6 +3634,10 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         droiddeck_text_input_refocus();
     }
     wl_display_flush_clients(g_display);
+}
+
+static void pointer_input(double x, double y, int relative, uint32_t button, int pressed) {
+    pointer_input_at(x, y, relative, button, pressed, now_ms());
 }
 
 static void pointer_event(double x, double y, uint32_t button, int pressed) {
@@ -3494,10 +3934,86 @@ static void send_axis(struct seat_pointer *sp, uint32_t t, uint32_t axis, int va
     wl_pointer_send_axis(sp->ptr, t, axis, wl_fixed_from_double(value120 / 12.0));
 }
 
+static struct surface *g_finger_surface;
+static struct droiddeck_finger_scroll g_finger_scroll;
+
+static void finger_end(struct surface *surface, uint32_t time, int cancelled) {
+    if (!g_finger_surface || (surface && surface != g_finger_surface)) return;
+    struct wl_client *client = wl_resource_get_client(g_finger_surface->resource);
+    struct seat_pointer *sp;
+    for_each_pointer_of(client, sp) {
+        droiddeck_finger_stop(sp->ptr, time, g_finger_scroll.axes);
+    }
+    if (cancelled) droiddeck_pointer_hold(g_finger_surface->resource, time, 2);
+    g_finger_surface = NULL;
+    g_finger_scroll = (struct droiddeck_finger_scroll){0};
+}
+
+static void finger_cancel_surface(struct surface *surface) {
+    finger_end(surface, now_ms(), 1);
+}
+
+static void finger_axis(struct surface *target, double dx, double dy, uint32_t time) {
+    if (!target || !isfinite(dx) || !isfinite(dy) || fabs(dx) >= 8388608 || fabs(dy) >= 8388608) return;
+    if (target != g_finger_surface) finger_end(NULL, time, 1);
+    pointer_focus_at(target->resource, wl_fixed_from_double(g_ptr_x - target->x),
+        wl_fixed_from_double(g_ptr_y - target->y), time);
+    g_finger_surface = target;
+    wl_fixed_t x, y;
+    if (!droiddeck_finger_delta(&g_finger_scroll, dx, dy, &x, &y)) return;
+    struct wl_client *client = wl_resource_get_client(target->resource);
+    struct seat_pointer *sp;
+    for_each_pointer_of(client, sp) {
+        droiddeck_finger_send(sp->ptr, time, x, y);
+    }
+}
+
+static void pointer_gesture(struct surface *target, int type, float a, float b, float c, float d, uint32_t time) {
+    if (!target) return;
+    if (type == 0) {
+        droiddeck_pointer_gestures_cancel(target->resource, time);
+        finger_axis(target, a, b, time);
+    } else if (type == 1) finger_end(target, time, a != 0);
+    else if (type == 8) {
+        finger_end(NULL, time, 1);
+        pointer_focus_at(target->resource, wl_fixed_from_double(g_ptr_x - target->x),
+            wl_fixed_from_double(g_ptr_y - target->y), time);
+        droiddeck_pointer_hold(target->resource, time, (int)a);
+    }
+    else {
+        if (type == 2 || type == 5) {
+            if ((type == 2 && a != 2) || (type == 5 && a != 3 && a != 4)) return;
+            finger_end(NULL, time, 1);
+            pointer_focus_at(target->resource, wl_fixed_from_double(g_ptr_x - target->x),
+                wl_fixed_from_double(g_ptr_y - target->y), time);
+        }
+        if (type >= 5) droiddeck_pointer_swipe(target->resource, time, type, a, b);
+        else droiddeck_pointer_pinch(target->resource, time, type, a, b, c, d);
+    }
+}
+
+static struct surface *scene_gesture_target(void) {
+    return g_active_constraint && !independent_key(g_active_constraint->surface) ? g_active_constraint->surface
+         : g_desktop ? g_desktop : g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y);
+}
+
+static float input_float(int value) {
+    float result;
+    memcpy(&result, &value, sizeof(result));
+    return result;
+}
+
 static void axis_event(int vertical120, int horizontal120, int finger) {
     struct surface *target = g_active_constraint ? g_active_constraint->surface
+                           : g_independent_pointer ? g_independent_pointer
                            : g_desktop ? g_desktop : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
     if (!target || (!finger && !vertical120 && !horizontal120)) return;
+    if (finger) {
+        if (!vertical120 && !horizontal120) finger_end(target, now_ms(), 0);
+        else finger_axis(target, horizontal120 / 12.0, vertical120 / 12.0, now_ms());
+        wl_display_flush_clients(g_display);
+        return;
+    }
     struct wl_client *client = wl_resource_get_client(target->resource);
     struct seat_pointer *sp;
     if (!pointer_for(client)) return;
@@ -3507,24 +4023,10 @@ static void axis_event(int vertical120, int horizontal120, int finger) {
     pointer_focus(target->resource, wl_fixed_from_double(g_ptr_x - tx), wl_fixed_from_double(g_ptr_y - ty));
     for_each_pointer_of(client, sp) {
         int version = wl_resource_get_version(sp->ptr);
-        if (!finger) {
-            send_axis(sp, t, WL_POINTER_AXIS_VERTICAL_SCROLL, vertical120);
-            send_axis(sp, t, WL_POINTER_AXIS_HORIZONTAL_SCROLL, horizontal120);
-        } else {
-            if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION)
-                wl_pointer_send_axis_source(sp->ptr, WL_POINTER_AXIS_SOURCE_FINGER);
-            if (!vertical120 && !horizontal120) {
-                if (version >= WL_POINTER_AXIS_STOP_SINCE_VERSION) {
-                    wl_pointer_send_axis_stop(sp->ptr, t, WL_POINTER_AXIS_VERTICAL_SCROLL);
-                    wl_pointer_send_axis_stop(sp->ptr, t, WL_POINTER_AXIS_HORIZONTAL_SCROLL);
-                }
-            } else {
-                if (vertical120)
-                    wl_pointer_send_axis(sp->ptr, t, WL_POINTER_AXIS_VERTICAL_SCROLL, wl_fixed_from_double(vertical120 / 12.0));
-                if (horizontal120)
-                    wl_pointer_send_axis(sp->ptr, t, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(horizontal120 / 12.0));
-            }
-        }
+        if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION)
+            wl_pointer_send_axis_source(sp->ptr, WL_POINTER_AXIS_SOURCE_WHEEL);
+        send_axis(sp, t, WL_POINTER_AXIS_VERTICAL_SCROLL, vertical120);
+        send_axis(sp, t, WL_POINTER_AXIS_HORIZONTAL_SCROLL, horizontal120);
         if (version >= WL_POINTER_FRAME_SINCE_VERSION)
             wl_pointer_send_frame(sp->ptr);
     }
@@ -3566,9 +4068,9 @@ static void key_event(uint32_t evdev, int pressed) {
         if (pressed) g_keys_down[evdev >> 3] |= bit; else g_keys_down[evdev >> 3] &= (uint8_t)~bit;
     }
     int mods_changed = update_modifiers(evdev, pressed);
-    struct surface *target = NULL;
+    struct surface *target = g_independent_focus;
     struct wl_resource *ime = droiddeck_ime_target();
-    if (ime) target = wl_resource_get_user_data(ime);
+    if (!target && ime) target = wl_resource_get_user_data(ime);
     if (!target && g_key_target && g_key_target->mapped && g_key_target != g_desktop) target = g_key_target;
     if (!target) target = g_desktop;
     if (!target) {
@@ -3609,11 +4111,195 @@ static void output_resized(void) {
     wl_display_flush_clients(g_display);
 }
 
+static double g_scene_pointer_x, g_scene_pointer_y;
+static int g_scene_pointer_known;
+
+static void select_pointer_target(struct surface *root, struct window_target *target) {
+    if (g_independent_pointer == root) return;
+    if (g_independent_pointer) {
+        struct window_target *old = window_target_of(independent_key(g_independent_pointer));
+        if (old) {
+            old->pointer_x = g_ptr_x; old->pointer_y = g_ptr_y; old->pointer_known = g_ptr_known;
+        }
+    } else {
+        g_scene_pointer_x = g_ptr_x; g_scene_pointer_y = g_ptr_y; g_scene_pointer_known = g_ptr_known;
+    }
+    g_independent_pointer = root;
+    g_raw_valid = 0;
+    if (target) {
+        g_ptr_x = target->pointer_known ? target->pointer_x : (target->width - 1) / 2.0;
+        g_ptr_y = target->pointer_known ? target->pointer_y : (target->height - 1) / 2.0;
+        g_ptr_x = fmax(0, fmin(target->width - 1, g_ptr_x));
+        g_ptr_y = fmax(0, fmin(target->height - 1, g_ptr_y));
+        g_ptr_known = 1;
+    } else {
+        g_ptr_x = g_scene_pointer_x; g_ptr_y = g_scene_pointer_y; g_ptr_known = g_scene_pointer_known;
+    }
+}
+
+static void apply_window_requests(void) {
+    pthread_mutex_lock(&g_window_lock);
+    struct window_request *request = g_window_requests;
+    g_window_requests = NULL;
+    g_window_tail = &g_window_requests;
+    pthread_mutex_unlock(&g_window_lock);
+    while (request) {
+        struct window_request *next = request->next;
+        struct window_target *target = window_target_of(request->key);
+        if (!target && request->type == 0)
+            for (int i = 0; i < WINDOW_TARGETS; ++i)
+                if (!g_window_targets[i].window) { target = &g_window_targets[i]; break; }
+        if (target && (strcmp(target->key, request->key) ||
+                       request->generation >= target->generation)) {
+            int changed = 1;
+            struct surface *root = window_root(request->key);
+            if (request->type == 0 && request->window && request->width > 0 && request->height > 0 &&
+                request->width <= 8192 && request->height <= 8192 &&
+                (!target->detached || request->generation > target->generation ||
+                    strcmp(target->key, request->key))) {
+                if (target->window != request->window || target->generation != request->generation ||
+                    target->width != request->width || target->height != request->height) {
+                    if (root) {
+                        finger_cancel_surface(root);
+                        droiddeck_pointer_gestures_cancel(root->resource, now_ms());
+                    }
+                    sc_target_destroy(target->layer);
+                    window_parts_destroy(target);
+                    if (target->window) ANativeWindow_release(target->window);
+                    target->window = request->window;
+                    ANativeWindow_acquire(target->window);
+                    target->width = request->width; target->height = request->height;
+                    target->generation = request->generation; target->frames = 0;
+                    target->direct_frames = target->copied_frames = 0;
+                    target->source_w = target->source_h = 0;
+                    target->waiting_state = 0;
+                    target->detached = 0;
+                    target->client_ready = 0;
+                    snprintf(target->key, sizeof(target->key), "%s", request->key);
+                    target->layer = sc_target_create(target->window, target->key);
+                    target->status = target->layer ? 1 : -1;
+                    target->error = target->layer ? 0 : 1;
+                    publish_window_stats(target);
+                    if (root && root->xdg_toplevel && root->xdg_surface) send_toplevel_configure(root);
+                    droiddeck_log("window", "%s native content configured %dx%d generation=%llu",
+                        target->key, target->width, target->height, (unsigned long long)target->generation);
+                }
+            } else if (request->type == 1 && request->generation == target->generation) {
+                if (root) {
+                    finger_cancel_surface(root);
+                    droiddeck_pointer_gestures_cancel(root->resource, now_ms());
+                }
+                if (root == g_independent_focus) g_independent_focus = NULL;
+                if (root == g_independent_pointer) select_pointer_target(NULL, NULL);
+                sc_target_destroy(target->layer); target->layer = NULL;
+                window_parts_destroy(target);
+                if (target->window) ANativeWindow_release(target->window);
+                target->window = NULL;
+                target->detached = 1;
+                pthread_mutex_lock(&g_window_lock);
+                g_window_keys[target - g_window_targets][0] = 0;
+                pthread_mutex_unlock(&g_window_lock);
+            } else if (request->type == 7 && request->generation == target->generation) {
+                changed = target->client_ready != (request->a != 0);
+                target->client_ready = request->a != 0;
+                if (!target->client_ready) {
+                    if (root) {
+                        finger_cancel_surface(root);
+                        droiddeck_pointer_gestures_cancel(root->resource, now_ms());
+                    }
+                    sc_target_hide(target->layer);
+                    window_parts_destroy(target);
+                }
+            } else if (root && request->generation == target->generation &&
+                       request->type >= 8 && request->type <= 18 &&
+                       target->window && target->client_ready && !target->detached) {
+                int type = request->type - 8;
+                root->x = root->y = 0;
+                root->placed = 1;
+                if (type == 9) {
+                    if (g_independent_pointer == root) {
+                        finger_end(root, request->time, 1);
+                        droiddeck_pointer_gestures_cancel(root->resource, request->time);
+                        for (int i = 0; i < g_nptrs; ++i) {
+                            if (g_ptrs[i].focus != root->resource) continue;
+                            wl_pointer_send_leave(g_ptrs[i].ptr, wl_display_next_serial(g_display), root->resource);
+                            if (wl_resource_get_version(g_ptrs[i].ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+                                wl_pointer_send_frame(g_ptrs[i].ptr);
+                            g_ptrs[i].focus = NULL;
+                        }
+                        select_pointer_target(NULL, NULL);
+                    }
+                } else if (type == 10) {
+                    double x = input_float(request->a), y = input_float(request->b);
+                    if (isfinite(x) && isfinite(y)) {
+                        select_pointer_target(root, target);
+                        pointer_input_at(fmax(0, fmin(target->width - 1, x)),
+                            fmax(0, fmin(target->height - 1, y)), 0, 0, 0, request->time);
+                    }
+                } else {
+                    if (type == 0 || type == 2 || type == 5 || type == 8) select_pointer_target(root, target);
+                    pointer_gesture(root, type, input_float(request->a), input_float(request->b),
+                        input_float(request->c), input_float(request->width), request->time);
+                }
+            } else if (root && request->generation == target->generation && request->type < 8 &&
+                       target->window && target->client_ready && !target->detached) {
+                if ((request->type == 3 && request->b) || (request->type == 6 && request->a)) {
+                    g_independent_focus = root;
+                    g_key_target = root;
+                }
+                root->x = root->y = 0;
+                root->placed = 1;
+                if (request->type == 2) {
+                    select_pointer_target(root, target);
+                    double x = fmax(0, fmin(target->width - 1, request->a));
+                    double y = fmax(0, fmin(target->height - 1, request->b));
+                    pointer_event(x, y, 0, 0);
+                } else if (request->type == 3) {
+                    if (request->b) {
+                        select_pointer_target(root, target);
+                        pointer_button(request->a, request->b);
+                    } else {
+                        for (int i = 0; i < g_nptrs; ++i) {
+                            if (g_ptrs[i].focus != root->resource) continue;
+                            wl_pointer_send_button(g_ptrs[i].ptr, wl_display_next_serial(g_display), now_ms(),
+                                request->a, WL_POINTER_BUTTON_STATE_RELEASED);
+                            if (wl_resource_get_version(g_ptrs[i].ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+                                wl_pointer_send_frame(g_ptrs[i].ptr);
+                        }
+                    }
+                }
+                else if (request->type == 4 && g_independent_focus == root) key_event(request->a, request->b);
+                else if (request->type == 5) {
+                    select_pointer_target(root, target);
+                    axis_event(request->a, request->b, 0);
+                }
+                else if (request->type == 6) {
+                    if (!request->a && g_independent_focus == root) {
+                        finger_cancel_surface(root);
+                        droiddeck_pointer_gestures_cancel(root->resource, now_ms());
+                        g_independent_focus = NULL;
+                        if (g_key_target == root) g_key_target = NULL;
+                    }
+                    else if (request->a) keyboard_focus(root->resource);
+                }
+            }
+            if (changed) schedule_render();
+        }
+        if (request->window) ANativeWindow_release(request->window);
+        free(request);
+        request = next;
+    }
+    wl_display_flush_clients(g_display);
+}
+
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
     int vsync = 0;
     int64_t vsync_ns = 0;
     while (read(fd, &m, sizeof(m)) == (ssize_t)sizeof(m)) {
+        if (m.type == 0 || m.type == 2 || m.type == 3 || m.type == 4 || m.type == 6 ||
+            m.type == 11 || m.type == 12 || (m.type >= 13 && m.type <= 17) ||
+            (m.type >= 23 && m.type <= 27)) select_pointer_target(NULL, NULL);
         switch (m.type) {
         case 1: deliver_key(&m); break;
         case 2: pointer_event(m.p1, m.p2, 0, 0); break;
@@ -3630,9 +4316,35 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 10: break;
         case 11: axis_event(m.p1, m.p2, 0); break;
         case 12: axis_event(m.p1, m.p2, 1); break;
+        case 13: case 14: case 15: case 16: case 17:
+            pointer_gesture(scene_gesture_target(), m.type - 13,
+                input_float(m.p1), input_float(m.p2), input_float(m.p3), input_float(m.p4), m.time);
+            wl_display_flush_clients(g_display);
+            break;
+        case 23: case 24: case 25:
+            pointer_gesture(scene_gesture_target(), m.type - 18,
+                input_float(m.p1), input_float(m.p2), input_float(m.p3), input_float(m.p4), m.time);
+            wl_display_flush_clients(g_display);
+            break;
+        case 26:
+            pointer_gesture(scene_gesture_target(), 8, input_float(m.p1), 0, 0, 0, m.time);
+            wl_display_flush_clients(g_display);
+            break;
+        case 27:
+            pointer_input_at(input_float(m.p1), input_float(m.p2), m.p3, 0, 0, m.time);
+            wl_display_flush_clients(g_display);
+            break;
+        case 28:
+            apply_window_requests();
+            g_independent_focus = NULL;
+            g_key_target = g_desktop;
+            if (g_desktop) keyboard_focus(g_desktop->resource);
+            wl_display_flush_clients(g_display);
+            break;
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
-        case 22: schedule_render(); break;
+        case 22: apply_window_requests(); break;
+        case 29: schedule_render(); break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -3642,6 +4354,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         wl_display_flush_clients(g_display);
     }
     if (vsync) on_vsync(vsync_ns);
+    apply_window_requests();
     return 0;
 }
 
@@ -3713,11 +4426,28 @@ void droiddeck_wayland_set_cursor_composite(int on) {
     atomic_store(&g_cursor_composite, want);
     droiddeck_log("cursor", "compositing the pointer into the output: %s", on ? "on" : "off");
     if (g_input_pipe[1] < 0) return;
-    struct input_msg m = { 22, on ? 1 : 0, 0, 0, 0 };
+    struct input_msg m = { 29, on ? 1 : 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
 }
 
+void droiddeck_wayland_send_gesture(const char *key, uint64_t generation, int type,
+                                  float a, float b, float c, float d, uint32_t time) {
+    if (type < 0 || type > 10 || !isfinite(a) || !isfinite(b) || !isfinite(c) || !isfinite(d)) return;
+    int bits[4];
+    memcpy(&bits[0], &a, sizeof(a)); memcpy(&bits[1], &b, sizeof(b));
+    memcpy(&bits[2], &c, sizeof(c)); memcpy(&bits[3], &d, sizeof(d));
+    if (key) {
+        queue_window_request(key, generation, NULL, type + 8, bits[3], 0, bits[0], bits[1], bits[2], time);
+    } else if (g_input_pipe[1] >= 0) {
+        if (type == 9) return;
+        struct input_msg message = {
+            type == 10 ? 27 : type + (type >= 5 ? 18 : 13), bits[0], bits[1],
+            type == 10 ? (int)c : bits[2], bits[3], time };
+        ssize_t sent = write(g_input_pipe[1], &message, sizeof(message));
+        (void)sent;
+    }
+}
 
 const char *droiddeck_client_name(struct wl_client *client) { return client_name(client); }
 struct wl_display *droiddeck_get_display(void) { return g_display; }
@@ -3894,6 +4624,9 @@ int droiddeck_wayland_run(void) {
     wl_list_init(&g_outputs);
     wl_list_init(&g_constraints);
     wl_list_init(&g_relative_pointers);
+    for (int i = 0; i < WINDOW_TARGETS; ++i)
+        wl_list_init(&g_window_targets[i].submitted_frames);
+    wl_list_init(&g_scene_submitted_frames);
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
@@ -3937,8 +4670,10 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &wp_presentation_interface, 2, NULL, bind_presentation);
     wl_global_create(display, &zwp_pointer_constraints_v1_interface, 1, NULL, bind_pointer_constraints);
     wl_global_create(display, &zwp_relative_pointer_manager_v1_interface, 1, NULL, bind_relative_pointer_manager);
+    droiddeck_pointer_gestures_init(display);
     droiddeck_ext_init(display);
     ahb_swapchain_init(display);
+    ahb_broker_init(display);
 
 
     droiddeck_color_init(display);

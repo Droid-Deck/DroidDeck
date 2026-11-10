@@ -7,10 +7,27 @@
 struct vkp_image;
 struct vkp_draw;
 struct droiddeck_color;
+struct ANativeWindow;
+struct sc_target;
+struct sc_target *sc_target_create(struct ANativeWindow *window, const char *name);
+void sc_target_destroy(struct sc_target *target);
+void sc_target_hide(struct sc_target *target);
+int sc_target_present(struct sc_target *target, struct vkp_image *src, int width, int height,
+                      const struct droiddeck_color *color, int translucent);
+int sc_target_present_geometry(struct sc_target *target, struct vkp_image *src, const int geometry[8],
+                               int translucent, int z, const struct droiddeck_color *color);
+int sc_target_present_ahb(struct sc_target *target, AHardwareBuffer *buffer, int acquire_fd,
+                          void *token, const int geometry[8], int translucent, int z,
+                          const struct droiddeck_color *color);
+int sc_target_batch_begin(void);
+void sc_target_batch_end(void);
+void sc_target_collect(void);
+int sc_target_ready(struct sc_target *target);
 
 enum sc_layer_id { SC_LAYER_GAME = 0, SC_LAYER_OVERLAY = 1, SC_LAYER_COUNT = 2 };
 
 int sc_layer_available(void);
+int sc_layer_ready(void);
 
 void sc_layer_probe_dmabuf_fd(int fd);
 

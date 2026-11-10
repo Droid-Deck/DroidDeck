@@ -21,6 +21,11 @@ object SessionFiles {
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     internal val DESKTOP_FILES = arrayOf(
+        "usr/local/lib/droiddeck-kwin/libkwin.so.6" to "usr/local/lib/droiddeck-kwin/libkwin.so.6",
+        "usr/local/lib/droiddeck-kwin/kwin.sha256" to "usr/local/lib/droiddeck-kwin/kwin.sha256",
+        "usr/local/lib/droiddeck-kwin/kwin_wayland" to "usr/local/lib/droiddeck-kwin/kwin_wayland",
+        "usr/local/lib/droiddeck-kwin/LICENSE" to "usr/local/lib/droiddeck-kwin/LICENSE",
+        "usr/local/lib/droiddeck-kwin/build.json" to "usr/local/lib/droiddeck-kwin/build.json",
         "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
         "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
@@ -57,6 +62,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
             "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
+            "usr/local/bin/droiddeck-windows" to "usr/local/bin/droiddeck-windows",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",

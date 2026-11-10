@@ -41,11 +41,10 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 struct AHardwareBuffer;
 int vkp_can_import_ahb(void);
-struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
-struct AHardwareBuffer;
 struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
+struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, int as_blit_dst);
 void vkp_wait_idle(void);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
@@ -102,6 +101,7 @@ int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, i
 int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd);
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px);
 int vkp_update_map(int scene_w, int scene_h);
+void vkp_set_scene_viewport(int x, int y, int width, int height);
 int vkp_map_draw(const struct vkp_draw *d, int out[8]);
 int vkp_map_rect(int img_w, int img_h, int scene_w, int scene_h, int out[8]);
 int vkp_surface_rotation_degrees(void);

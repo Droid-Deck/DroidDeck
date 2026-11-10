@@ -36,8 +36,8 @@ PREAMBLE = r'''
 #include <sys/ioctl.h>
 
 struct wl_resource { int version, modes, done, hz, w, h; struct wl_resource *next; };
-struct surface { int xdg_toplevel, toplevel_committed; struct surface *next; };
-struct input_msg { int type, p1, p2, p3, p4; };
+struct surface { int xdg_toplevel, toplevel_committed; struct surface *next; struct wl_resource *resource; };
+struct input_msg { int type, p1, p2, p3, p4; uint32_t time; };
 static struct wl_resource second = { .version = 1 };
 static struct wl_resource first = { .version = 4, .next = &second };
 static struct surface surface = { .xdg_toplevel = 1, .toplevel_committed = 1 };
@@ -48,6 +48,8 @@ static int g_output_announced_refresh_mhz = 60000;
 static int g_output_w = 1920, g_output_h = 1080;
 static int flushes, resizes, pointers, ticks;
 static int scale_changes, scale_mode, scale_alignment, renders;
+static int window_requests;
+static struct surface *g_independent_focus, *g_key_target, *g_desktop;
 static void *g_display;
 #define WL_OUTPUT_MODE_CURRENT 1
 #define WL_OUTPUT_MODE_PREFERRED 2
@@ -60,6 +62,7 @@ static void wl_output_send_mode(struct wl_resource *r, int flags, int w, int h, 
 static void wl_output_send_done(struct wl_resource *r) { r->done++; }
 static void wl_display_flush_clients(void *display) { (void)display; flushes++; }
 static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
+static void apply_window_requests(void) { window_requests++; }
 #define droiddeck_log(...) ((void)0)
 #define deliver_key(m) ((void)0)
 #define pointer_event(...) ((void)0)
@@ -69,6 +72,10 @@ static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
 #define stream_take(...) ((void)0)
 #define stream_forget_all(...) ((void)0)
 #define pointer_delta(...) ((void)0)
+#define select_pointer_target(...) ((void)0)
+#define pointer_gesture(...) ((void)0)
+#define pointer_input_at(...) ((void)0)
+#define keyboard_focus(...) ((void)0)
 #define deliver_touch(m) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
@@ -137,6 +144,15 @@ int main(void) {
     droiddeck_wayland_set_output_refresh_rate(90000);
     drain(); expect(6, 90000, 1);
     assert(scale_changes == 2 && scale_mode == 1 && scale_alignment == 3 && renders == 2);
+    const int requests_before = window_requests;
+    struct input_msg window = { .type = 22 };
+    assert(write(g_input_pipe[1], &window, sizeof(window)) == sizeof(window));
+    drain();
+    assert(window_requests == requests_before + 2 && renders == 2);
+    struct input_msg cursor = { .type = 29 };
+    assert(write(g_input_pipe[1], &cursor, sizeof(cursor)) == sizeof(cursor));
+    drain();
+    assert(window_requests == requests_before + 3 && renders == 3);
     close(g_input_pipe[0]); close(g_input_pipe[1]);
     puts("PASS");
 }
@@ -160,7 +176,8 @@ class OutputRefreshTest(unittest.TestCase):
             (path / 'refresh.c').write_text(harness)
             binary = path / 'refresh-test'
             build = subprocess.run([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror',
-                                    '-Wno-unused-parameter', '-O2', str(path / 'refresh.c'),
+                                    '-Wno-unused-parameter', '-Wno-missing-field-initializers',
+                                    '-O2', str(path / 'refresh.c'),
                                     '-o', str(binary)], capture_output=True, text=True)
             self.assertEqual(0, build.returncode, build.stderr)
             result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)

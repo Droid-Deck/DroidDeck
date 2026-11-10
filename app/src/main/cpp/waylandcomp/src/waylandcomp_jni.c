@@ -31,11 +31,14 @@ extern int  droiddeck_focus_takes_touch(void);
 extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_set_cursor_composite(int on);
+extern void droiddeck_wayland_send_gesture(const char *, uint64_t, int, float, float, float, float, uint32_t);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
 extern unsigned droiddeck_stream_frames(void);
 extern void droiddeck_wayland_output_resized(void);
+extern void droiddeck_window_request(const char *, uint64_t, ANativeWindow *, int, int, int, int, int, int);
+extern int droiddeck_window_stats(const char *, int64_t[12]);
 extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_release_unpaced;
@@ -48,6 +51,73 @@ extern volatile int g_no_render_node;
 extern volatile int g_output_w, g_output_h;
 
 #define TAG "DroidDeckWayland"
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeAttachWindow(
+    JNIEnv *env, jclass cls, jstring key, jlong generation, jobject surface, jint width, jint height) {
+    if (!key || !surface) return;
+    const char *name = (*env)->GetStringUTFChars(env, key, NULL);
+    if (!name) return;
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
+    if (window) {
+        droiddeck_window_request(name, generation, window, 0, width, height, 0, 0, 0);
+        ANativeWindow_release(window);
+    }
+    (*env)->ReleaseStringUTFChars(env, key, name);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDetachWindow(
+    JNIEnv *env, jclass cls, jstring key, jlong generation) {
+    if (!key) return;
+    const char *name = (*env)->GetStringUTFChars(env, key, NULL);
+    if (!name) return;
+    droiddeck_window_request(name, generation, NULL, 1, 0, 0, 0, 0, 0);
+    (*env)->ReleaseStringUTFChars(env, key, name);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeWindowInput(
+    JNIEnv *env, jclass cls, jstring key, jlong generation, jint type, jint a, jint b) {
+    if (!key || type < 2 || type > 7) return;
+    const char *name = (*env)->GetStringUTFChars(env, key, NULL);
+    if (!name) return;
+    droiddeck_window_request(name, generation, NULL, type, 0, 0, a, b, 0);
+    (*env)->ReleaseStringUTFChars(env, key, name);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativePointerGesture(
+    JNIEnv *env, jclass cls, jstring key, jlong generation, jint type,
+    jfloat a, jfloat b, jfloat c, jfloat d, jlong time) {
+    if (type < 0 || type > 10) return;
+    const char *name = key ? (*env)->GetStringUTFChars(env, key, NULL) : NULL;
+    if (key && !name) return;
+    droiddeck_wayland_send_gesture(name, generation, type, a, b, c, d, (uint32_t)time);
+    if (key) (*env)->ReleaseStringUTFChars(env, key, name);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeWindowStats(JNIEnv *env, jclass cls, jstring key) {
+    int64_t stats[12] = {0};
+    if (key) {
+        const char *name = (*env)->GetStringUTFChars(env, key, NULL);
+        if (name) {
+            droiddeck_window_stats(name, stats);
+            (*env)->ReleaseStringUTFChars(env, key, name);
+        }
+    }
+    jlong values[12];
+    for (int i = 0; i < 12; ++i) values[i] = stats[i];
+    jlongArray result = (*env)->NewLongArray(env, 12);
+    if (result) (*env)->SetLongArrayRegion(env, result, 0, 12, values);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeWindowSupported(JNIEnv *env, jclass cls) {
+    return sc_layer_available() ? JNI_TRUE : JNI_FALSE;
+}
 
 static JavaVM *g_jvm;
 static volatile pid_t g_comp_tid;
@@ -479,6 +549,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv 
                                  .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
                                  .chroma = chroma, .mono = mono ? 1 : 0, .display_hz = hz};
     vkp_cardboard_set(&p);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCardboardActive(JNIEnv *env, jclass clazz) {
+    return vkp_cardboard_active() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
