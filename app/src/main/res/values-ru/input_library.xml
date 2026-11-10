@@ -13,7 +13,7 @@
     <string name="input_mouse_click">Щелчок мыши</string>
     <string name="input_command">Действие DroidDeck</string>
     <string name="input_action">Действие</string>
-    <string name="input_scroll_speed">Скорость прокрутки: %1$d шагов/с</string>
+    <string name="input_scroll_speed">Скорость прокрутки: %1$d шаг/с</string>
     <string name="input_new_profile">+ Новый профиль</string>
     <string name="input_new_layout">+ Новая раскладка</string>
     <string name="input_shared_detail">%1$s · Используется в профилях: %2$d. Изменения применятся ко всем профилям с этими привязками.</string>
