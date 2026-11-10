@@ -1564,7 +1564,7 @@ class SessionService : Service() {
             var goneSince = 0L
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
-                if (steamGameRunning()) {
+                if (steamGameRunning(gameId)) {
                     if (!seen) Log.i(TAG, "game $gameId started; tracking its exit")
                     seen = true
                     goneSince = 0L
@@ -1606,7 +1606,8 @@ class SessionService : Service() {
         Log.i(TAG, "game $gameId closed: asking the client to exit and returning to the launcher")
     }
 
-    private fun steamGameRunning(): Boolean = SteamGameProcess.running()
+    private fun steamGameRunning(gameId: String): Boolean =
+        SteamGameProcess.running(gameId)
 
     private fun resumeSession(panelVisible: Boolean = true) {
         if (SessionState.suspended) SessionState.resumeRequested = true
