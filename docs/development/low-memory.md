@@ -9,8 +9,10 @@ Every five seconds the monitor reads `MemAvailable`, swap headroom and memory PS
 headroom means less than one fifth of total RAM (bounded to 512–1536 MiB), or at least 1%
 `some avg10` memory stall with less than one third of RAM available. Pressure requests target
 only the launcher processes already recognized by the monitor, never the game. They require
-at least 128 MiB launcher RSS and enough free swap to cover its entire RSS while leaving
-one fifth of swap (at least 256 MiB) free. The regular automatic client request uses the
+at least 128 MiB launcher RSS and enough free swap to cover its anonymous RSS while leaving
+one fifth of swap (at least 256 MiB) free. File-backed resident pages do not consume this
+budget: the page-out helper targets private anonymous mappings. If `RssAnon` is absent from a
+process's status, its full RSS is used instead. The regular automatic client request uses the
 same swap guard. An explicit session RAM cap retains its existing behavior.
 
 Pressure requests are at least 30 seconds apart. Reclaiming less than 16 MiB doubles the
@@ -55,7 +57,11 @@ The session request runs when real headroom falls below a quarter of RAM (bounde
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
 `Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
 may first request page-out of idle Steam and hidden launchers, subject to the Performance
-setting and client reclaim limits. The session request targets processes that loaded
+setting and client reclaim limits. When both qualify, both requests are sent before waiting
+for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
+request finishes, its anonymous RSS remains reserved from the session's swap budget. Completion
+and backoff are measured against the processes that received each request, even if a later scan
+finds different processes. The session request targets processes that loaded
 `libblsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
 Requests are at least 30 seconds apart and need the same
 swap reserve as launcher requests. When the session has read back more than half of what the
@@ -92,7 +98,8 @@ A second run on that build showed the trigger arriving too late: character selec
 there. During the load, available memory crossed the headroom 9 seconds after Enter World, but the
 launcher check ran first and waited 12 seconds for acknowledgements; the game request started at
 21 seconds, moved about 200 MiB, and `lmkd` ended the session at 30 seconds. The quarter-of-RAM
-level and the game-first single request address both.
+level starts reclaim earlier. Sending both requests before waiting removes the launcher
+acknowledgement delay; it does not guarantee that reclaim can keep up with every loading peak.
 
 Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by `system`),
 `process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,
