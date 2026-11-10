@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_task_panel">Main interface</string>
+    <string name="session_task_steamvr">SteamVR</string>
+    <string name="steamvr_panel_view">VR view</string>
+    <string name="steamvr_panel_session">SteamVR session</string>
+    <string name="steamvr_panel_return_vr">Return to VR</string>
+    <string name="steamvr_panel_keep_hint">Your desktop and session controls remain available while SteamVR runs.</string>
+</resources>

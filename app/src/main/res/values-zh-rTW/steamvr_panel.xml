@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_task_panel">主介面</string>
+    <string name="session_task_steamvr">SteamVR</string>
+    <string name="steamvr_panel_view">VR 畫面</string>
+    <string name="steamvr_panel_session">SteamVR 工作階段</string>
+</resources>

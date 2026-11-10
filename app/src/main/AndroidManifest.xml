@@ -4,6 +4,7 @@
 
     <queries>
         <package android:name="cn.nubia.gamelauncher" />
+        <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>
@@ -43,6 +44,8 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
+    <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
@@ -106,6 +109,23 @@
             </intent-filter>
         </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
+        <activity android:name=".OpenXrActivity" android:exported="true" android:launchMode="singleTask"
+            android:label="@string/session_task_steamvr"
+            android:icon="@drawable/ic_steamvr"
+            android:taskAffinity="${applicationId}.xr"
+            android:excludeFromRecents="false"
+            android:permission="android.permission.DUMP"
+            android:resizeableActivity="false" android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <meta-data android:name="pvr.app.type" android:value="vr" />
+            <meta-data android:name="controller" android:value="1" />
+            <meta-data android:name="android.app.lib_name" android:value="droiddeckxr" />
+            <intent-filter>
+                <action android:name="com.droiddeck.launcher.XR" />
+                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+            </intent-filter>
+        </activity>
         <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
             android:permission="android.permission.DUMP"
             android:resizeableActivity="false" android:screenOrientation="landscape"
@@ -143,6 +163,7 @@
 
         <activity
             android:name=".FrontEndActivity"
+            android:label="@string/session_task_panel"
             android:exported="true"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
@@ -169,6 +190,7 @@
             android:name=".MainActivity"
             android:targetActivity=".FrontEndActivity"
             android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -181,6 +203,7 @@
             android:name=".LauncherLight"
             android:targetActivity=".FrontEndActivity"
             android:icon="@mipmap/ic_launcher_light"
+            android:label="@string/app_name"
             android:enabled="false"
             android:exported="true">
             <intent-filter>
@@ -282,6 +305,7 @@
 
         <activity
             android:name=".SessionActivity"
+            android:label="@string/session_task_panel"
             android:exported="false"
             android:supportsPictureInPicture="true"
             android:launchMode="singleTask"

@@ -294,7 +294,11 @@ class AgentBridgeProvider : ContentProvider() {
                 .put("commands", AgentAccess.commandsAllowed(context)))
             .put("session", session)
             .put("panel", com.droiddeck.launcher.wayland.CompositorHost.diagnostics())
+            .put("openXrRuntimeAvailable", com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(context))
+            .put("openXrRuntime", com.droiddeck.launcher.session.OpenXrRuntime.diagnostics(context))
+            .put("steamVrSession", com.droiddeck.launcher.session.SteamVrSession.diagnostics())
             .put("linuxWindows", com.droiddeck.launcher.session.LinuxWindows.diagnostics())
+            .put("tasks", com.droiddeck.launcher.session.SessionTaskLabels.diagnostics(context))
     }
 
     private fun stop(context: Context): JSONObject {

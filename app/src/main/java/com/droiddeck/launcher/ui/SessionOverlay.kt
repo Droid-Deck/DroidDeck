@@ -594,7 +594,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.VR -> {
                             SteamVrGroup(a) { key -> focus.track(page, key) }
-                            if (!a.glassesOutput) CardboardGroup(host, a) { key -> focus.track(page, key) }
+                            if (!a.glassesOutput && !com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(
+                                    androidx.compose.ui.platform.LocalContext.current))
+                                CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -1144,7 +1146,11 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
 private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
     SettingsGroup(stringResource(R.string.steamvr_title)) {
         val vrLabel = stringResource(R.string.cardboard_steamvr)
-        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        val panelAvailable = com.droiddeck.launcher.session.SteamVrSession.active
+        val enterLabel = stringResource(
+            if (panelAvailable && a.steamVr == SteamVr.Status.RUNNING) R.string.steamvr_panel_return_vr
+            else if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        if (panelAvailable) SettingsRow(vrLabel, stringResource(R.string.steamvr_panel_keep_hint)) {}
         @Composable fun button(label: String, text: String, action: String) {
             SettingsRow(label, null) {
                 SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
@@ -1155,8 +1161,8 @@ private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
             SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
             SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
             SteamVr.Status.RUNNING -> {
-                if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
-                SettingsRow(vrLabel, null) {
+                if (a.immersiveSteamVr) button(stringResource(R.string.steamvr_panel_view), enterLabel, "start")
+                SettingsRow(stringResource(R.string.steamvr_panel_session), null) {
                     SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
                         modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
                 }

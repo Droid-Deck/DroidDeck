@@ -715,6 +715,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -1288,7 +1289,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.recenter()
             },
             steamVr = steamVrStatus,
-            immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
+            immersiveSteamVr = com.droiddeck.launcher.session.XrHeadset.isSupported(this),
             onSteamVr = { action -> steamVrAction(action) },
             textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
@@ -2018,7 +2019,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)
         applyCardboard(SessionPrefs.cardboard(this))
-        if (SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
+        if (!com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this) &&
+            SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
             steamVrSwitchedPicture = true
             steamVrSeenRunning = true
         }
@@ -4909,6 +4911,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
         }
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
@@ -4949,25 +4952,60 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
-        ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
         readPrefs()
         refreshInputProfile()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
-        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
+    }
+
+    private fun stopPanelObservers() {
+        sessionClipboard.stop()
+        if (!panelObserversRegistered) return
+        (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
+        panelObserversRegistered = false
+    }
+
+    private fun releasePanelInput() {
+        physicalTouchpad.cancel()
+        mouseWheel.reset()
+        releasePads()
+        onScreenControls?.releaseAll()
+        guestKeysDown.toList().forEach { sendGuestKey(it, false) }
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
+        if (::twoFingerGestures.isInitialized) twoFingerGestures.cancel()
+        cancelTouchGestures()
+        heldButtons.clear()
+        heldKeys.clear()
+        pointerButtons.releaseAll()
+        if (::padMouse.isInitialized) padMouse.reset()
+        if (CompositorHost.isStarted) {
+            WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
+                WaylandCompositor.nativeSendSceneInput(3, it, 0)
+            }
+        }
     }
 
     override fun onPause() {
         com.droiddeck.launcher.input.SystemKeyCapture.detach(this)
+        desktopAutoKeyboard?.cancel()
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         if (runtimeRemovalBlocked) { super.onPause(); return }
         physicalShortcuts.clear()
         backQamInput.cancel()
         mouseBackInput.cancel()
-        capturePausedFrame()
         padBridge?.setInputEnabled(false)
-        sessionClipboard.stop()
+        val keepPanel = com.droiddeck.launcher.session.SteamVrSession.active ||
+            (SessionState.steamVr && com.droiddeck.launcher.session.XrHeadset.isSupported(this))
+        if (!keepPanel) {
+            capturePausedFrame()
+            stopPanelObservers()
+        }
+        releasePanelInput()
+        cancelDirectMulti()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()
         if (::directTouchHold.isInitialized) directTouchHold.cancel()
@@ -4975,19 +5013,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         uiHandler.removeCallbacks(clearRecognizedGesture)
         uiHandler.removeCallbacks(cursorResync)
         val screenOff = screenIsOff()
-        if (!screenOff) {
+        if (!screenOff && !keepPanel) {
             gestureSettingsOpen = false
             inputSettingsOpen = false
         }
         releasePads()
         heldKeys.clear()
         heldButtons.clear()
-        if (!screenOff) {
+        if (!screenOff && !keepPanel) {
             drawerOpen = false
             pcKeyboardOpen = false
             achievementsOpen = false
         }
-        (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
         onScreenControls?.releaseAll()
         bottomInputControls?.releaseAll()
@@ -4997,15 +5034,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
-        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
-        ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
         super.onPause()
     }
 
     private fun steamVrAction(action: String) {
-        if (action == "start" && com.droiddeck.launcher.session.QuestExperimental.isSupported()) {
-            startActivity(android.content.Intent(this, QuestXrActivity::class.java))
+        if (action == "stop" && com.droiddeck.launcher.session.SteamVrSession.active) {
+            com.droiddeck.launcher.session.SteamVrSession.stop()
+            return
+        }
+        if (action == "start" && com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this, refresh = true)) {
+            SessionState.steamVr = true
+            steamVrAutoTried = true
+            startActivity(com.droiddeck.launcher.session.XrHeadset.intent(this))
             return
         }
         val request = ++steamVrRequestGeneration
@@ -5067,6 +5108,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun switchPictureForSteamVr() {
+        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
         if (cardboard.source != Cardboard.SOURCE_SBS) {
             SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
             val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
@@ -5119,6 +5161,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateHandCamera()
         autoStartSteamVr(now)
         if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
         if (now != SteamVr.Status.UNAVAILABLE) Glasses.setVrActive(now == SteamVr.Status.RUNNING)
         if (glasses.present) onGlassesSteamVr(now)
         if (GlassesRendering.usesGlasses(glasses, glassesScreen != null, now == SteamVr.Status.RUNNING)) {
@@ -5135,6 +5178,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun restoreSteamVrPicture() {
+        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
         val before = SessionPrefs.cardboardSourceBeforeSteamVr(this)
         SessionPrefs.setCardboardSourceBeforeSteamVr(this, -1)
         steamVrSwitchedPicture = false
@@ -5147,8 +5191,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applyCardboard(c: Cardboard) {
         val was = activeCardboard
-        cardboard = c
-        val e = effectiveCardboard(c)
+        cardboard = if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) Cardboard.OFF else c
+        val e = effectiveCardboard(cardboard)
         activeCardboard = e
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
@@ -5170,6 +5214,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         state = glasses,
         outputActive = glassesScreen != null,
         steamVrRunning = steamVrStatus == SteamVr.Status.RUNNING,
+        openXrRuntimeAvailable = com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this),
     )
 
     private fun updateHeadTracker() {
@@ -5538,6 +5583,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) desktopAutoKeyboard?.cancel()
+        com.droiddeck.launcher.session.SteamVrSession.panelFocus(this, taskId, hasFocus)
         if (!hasFocus) com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         if (!hasFocus) backQamInput.cancel()
         if (!hasFocus) mouseBackInput.cancel()
@@ -5595,6 +5642,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        desktopAutoKeyboard?.cancel()
+        com.droiddeck.launcher.session.SteamVrSession.panelFocus(this, taskId, false)
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()

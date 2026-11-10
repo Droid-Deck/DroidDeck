@@ -1102,6 +1102,7 @@ class FrontEndActivity : ComponentActivity() {
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
@@ -1892,6 +1893,8 @@ class FrontEndActivity : ComponentActivity() {
             refreshHomeAppState()
         }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        com.droiddeck.launcher.session.OpenXrRuntime.invalidate()
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
         if (intent.action == Intent.ACTION_MAIN && com.droiddeck.launcher.session.LinuxWindows.enabled && SessionState.running) {
             intent.action = null
             window.decorView.post { com.droiddeck.launcher.session.LinuxWindows.showList(this) }

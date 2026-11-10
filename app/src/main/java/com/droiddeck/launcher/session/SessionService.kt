@@ -273,11 +273,13 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_XR_ACTIVITY_VISIBLE -> {
+                if (!currentXrActivity(intent)) return START_NOT_STICKY
                 xrActivityVisible = true
                 resumeSession(panelVisible = false)
                 return START_NOT_STICKY
             }
             ACTION_XR_ACTIVITY_HIDDEN -> {
+                if (!currentXrActivity(intent)) return START_NOT_STICKY
                 xrActivityVisible = false
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
@@ -2126,9 +2128,11 @@ class SessionService : Service() {
             return
         }
         if (rootIntent?.component?.className in setOf(
+                com.droiddeck.launcher.OpenXrActivity::class.java.name,
+                com.droiddeck.launcher.QuestXrActivity::class.java.name,
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
                 com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
-        if (pipTask || xrActivityVisible) {
+        if (pipTask || xrActivityVisible || SteamVrSession.active) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
             updateSuspendPolicy()
@@ -2486,10 +2490,19 @@ class SessionService : Service() {
             else activity.windowManager.defaultDisplay.displayId
         }
 
-        fun setXrActivityVisible(context: Context, visible: Boolean) {
+        private val xrActivityGeneration = java.util.concurrent.atomic.AtomicLong()
+
+        fun registerXrActivity(): Long = xrActivityGeneration.incrementAndGet()
+
+        private fun currentXrActivity(intent: Intent): Boolean =
+            intent.getLongExtra("xrOwner", -1) == xrActivityGeneration.get() &&
+                intent.getStringExtra("xrSession") == SessionState.sessionId
+
+        fun setXrActivityVisible(context: Context, visible: Boolean, session: String?, owner: Long) {
             if (!SessionState.running) return
             val action = if (visible) ACTION_XR_ACTIVITY_VISIBLE else ACTION_XR_ACTIVITY_HIDDEN
-            context.startService(Intent(context, SessionService::class.java).setAction(action))
+            context.startService(Intent(context, SessionService::class.java).setAction(action)
+                .putExtra("xrOwner", owner).putExtra("xrSession", session))
         }
 
         fun holdForSignIn(context: Context, hold: Boolean) {
