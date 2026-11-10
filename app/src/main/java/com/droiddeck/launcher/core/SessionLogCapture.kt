@@ -125,6 +125,7 @@ object SessionLogCapture {
             staged.writeText(
                 "Android memory events:\n" +
                     when {
+                        body.isNotEmpty() && !finished -> body + "(logcat did not finish within 10 s; later events may be missing)\n"
                         body.isNotEmpty() -> body
                         pid == -1 -> "(logcat could not be started at all)\n"
                         !finished -> "(logcat did not finish within 10 s; nothing captured)\n"
