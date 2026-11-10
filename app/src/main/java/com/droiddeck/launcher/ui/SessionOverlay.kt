@@ -217,6 +217,7 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
+    val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -259,6 +260,7 @@ class DrawerActions(
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val onFrameGenReset: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
     val onImportLossless: () -> Unit,
@@ -563,7 +565,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
                                     Box {
                                         ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                        FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                                        FrameGenMenu(
+                                            host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
+                                            gameProfileId = a.selectedGameProfileId?.toString(),
+                                            hasGameOverride = a.hasGameOverride,
+                                            onResetGame = a.onFrameGenReset,
+                                        )
                                     }
                                 }
                                 if (a.direct) SliderRow(

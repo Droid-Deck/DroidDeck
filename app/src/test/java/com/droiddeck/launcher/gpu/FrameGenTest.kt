@@ -45,4 +45,15 @@ class FrameGenTest {
             .putString("engine", "winfg").putInt("multiplier", 2).commit()
         assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 2), FrameGen.mode(context))
     }
+
+    @Test fun gameOverridesStaySeparateFromEachOtherAndGeneral() {
+        FrameGen.set(context, FrameGen.Mode(FrameGen.ENGINE_DDFG, 2))
+        FrameGen.setForGame(context, "101", FrameGen.Mode(FrameGen.ENGINE_LSFG, 4))
+        FrameGen.setForGame(context, "202", FrameGen.Mode.OFF)
+
+        assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 2), FrameGen.mode(context))
+        assertEquals(FrameGen.Mode(FrameGen.ENGINE_LSFG, 4), FrameGen.mode(context, "101"))
+        assertEquals(FrameGen.Mode.OFF, FrameGen.mode(context, "202"))
+        assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 2), FrameGen.mode(context, "303"))
+    }
 }
