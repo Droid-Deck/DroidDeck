@@ -44,7 +44,11 @@ class BottomDesktopPanel(
     private val status = ComposeView(context).apply {
         setContent { DroidDeckTheme { BottomDesktopStatus(state.value, ::startAgain) } }
     }
-    private val keyboardHost = KeyboardHost(context) { event -> sendKey(event) }
+    private val keyboardHost = KeyboardHost(
+        context,
+        sendKeyEvent = { event -> sendKey(event) },
+        sendText = BottomDesktop::sendText,
+    )
     private var directTouch = SessionPrefs.bottomDesktopDirectTouch(context)
     private val touchMode = mutableStateOf(directTouch)
     private val trackpad = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TrackpadInput()).apply {

@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.os.Build
 import android.text.InputType
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
@@ -12,15 +11,17 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import com.droiddeck.launcher.wayland.WaylandCompositor
 
 class KeyboardHost(
     context: Context,
     private val sendKeyEvent: (KeyEvent) -> Boolean,
+    private val sendText: (String) -> Unit,
 ) : View(context) {
-    constructor(activity: Activity) : this(activity, { activity.dispatchKeyEvent(it) })
+    constructor(activity: Activity) :
+        this(activity, { activity.dispatchKeyEvent(it) }, { WaylandCompositor.textInputCommit(it) })
 
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    private val map: KeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
     var shown = false
         private set
     var imeShowing = false
@@ -38,8 +39,7 @@ class KeyboardHost(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         if (!shown) return null
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         return KeyConnection()
@@ -91,45 +91,98 @@ class KeyboardHost(
 
     fun type(text: CharSequence?) {
         if (text.isNullOrEmpty()) return
-        val events = map.getEvents(text.toString().toCharArray())
-        if (events != null) {
-            for (event in events) sendKeyEvent(event)
-        } else {
-            for (ch in text) {
-                val t = System.currentTimeMillis()
-                val down = KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_UNKNOWN, 0, 0,
-                    KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, 0)
-                sendKeyEvent(CharKeyEvent(down, ch))
-                sendKeyEvent(CharKeyEvent(KeyEvent.changeAction(down, KeyEvent.ACTION_UP), ch))
-            }
-        }
+        // Text and soft editing actions share this queue to preserve IME ordering.
+        sendText(text.toString())
     }
 
     fun tap(keyCode: Int) {
+        val control = softControl(keyCode)
+        if (control != null) {
+            sendText(control.toString())
+            return
+        }
         val t = System.currentTimeMillis()
         sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
         sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
     }
 
     private inner class KeyConnection : BaseInputConnection(this, false) {
+        // A press keeps the route chosen on its first down across repeats and the matching up.
+        private val controlRoutes = HashMap<Int, Boolean>()
+
+        private var composingText = ""
+        private var composingCursor = 0
+
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composingText = ""
+            composingCursor = 0
             type(text)
             return true
         }
 
-        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean = true
-        override fun finishComposingText(): Boolean = true
-
-        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-            repeat(beforeLength) { tap(KeyEvent.KEYCODE_DEL) }
-            repeat(afterLength) { tap(KeyEvent.KEYCODE_FORWARD_DEL) }
+        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composingText = text?.toString().orEmpty()
+            val rawCursor = if (newCursorPosition > 0) {
+                composingText.length.toLong() + newCursorPosition - 1L
+            } else {
+                newCursorPosition.toLong()
+            }
+            composingCursor = rawCursor.coerceIn(0L, composingText.length.toLong()).toInt()
             return true
         }
 
-        override fun sendKeyEvent(event: KeyEvent): Boolean = this@KeyboardHost.sendKeyEvent(event)
+        override fun finishComposingText(): Boolean {
+            val text = composingText
+            composingText = ""
+            composingCursor = 0
+            type(text)
+            return true
+        }
+
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            val before = beforeLength.coerceAtLeast(0)
+            val after = afterLength.coerceAtLeast(0)
+            val consumedBefore = minOf(before, composingCursor)
+            val consumedAfter = minOf(after, composingText.length - composingCursor)
+            if (consumedBefore > 0 || consumedAfter > 0) {
+                composingText = composingText.removeRange(
+                    composingCursor - consumedBefore,
+                    composingCursor + consumedAfter,
+                )
+                composingCursor -= consumedBefore
+            }
+            val controls = StringBuilder()
+            repeat(before - consumedBefore) { controls.append(BACKSPACE) }
+            repeat(after - consumedAfter) { controls.append(FORWARD_DELETE) }
+            if (controls.isNotEmpty()) sendText(controls.toString())
+            return true
+        }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            val control = softControl(event.keyCode)
+            if (control == null) return this@KeyboardHost.sendKeyEvent(event)
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val soft = if (event.repeatCount == 0) {
+                    val route = !event.isModified()
+                    controlRoutes[event.keyCode] = route
+                    route
+                } else {
+                    controlRoutes[event.keyCode] ?: !event.isModified()
+                }
+                if (!soft) return this@KeyboardHost.sendKeyEvent(event)
+                sendText(control.toString())
+                return true
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                val soft = controlRoutes.remove(event.keyCode) ?: !event.isModified()
+                if (soft) return true
+                return this@KeyboardHost.sendKeyEvent(event)
+            }
+            return this@KeyboardHost.sendKeyEvent(event)
+        }
 
         override fun performEditorAction(actionCode: Int): Boolean {
-            tap(KeyEvent.KEYCODE_ENTER)
+            sendText(ENTER.toString())
             return true
         }
 
@@ -138,8 +191,22 @@ class KeyboardHost(
         override fun getSelectedText(flags: Int): CharSequence? = null
     }
 
-    private class CharKeyEvent(origin: KeyEvent, private val ch: Char) : KeyEvent(origin) {
-        override fun getUnicodeChar(): Int = ch.code
-        override fun getUnicodeChar(metaState: Int): Int = ch.code
+    private fun softControl(keyCode: Int): Char? = when (keyCode) {
+        KeyEvent.KEYCODE_DEL -> BACKSPACE
+        KeyEvent.KEYCODE_FORWARD_DEL -> FORWARD_DELETE
+        KeyEvent.KEYCODE_ENTER -> ENTER
+        KeyEvent.KEYCODE_TAB -> TAB
+        else -> null
+    }
+
+    private fun KeyEvent.isModified(): Boolean =
+        isCtrlPressed || isShiftPressed || isAltPressed || isMetaPressed
+
+    private companion object {
+        // Control characters represent editing keys on the guest text channel.
+        const val ENTER = '\r'
+        const val BACKSPACE = '\b'
+        const val FORWARD_DELETE = '\u007f'
+        const val TAB = '\t'
     }
 }

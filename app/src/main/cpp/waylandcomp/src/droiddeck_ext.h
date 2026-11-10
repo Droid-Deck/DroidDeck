@@ -17,6 +17,7 @@ void droiddeck_surface_scene_origin(struct wl_resource *surface, int *x, int *y)
 void droiddeck_inject_key(uint32_t evdev, int pressed);
 
 void droiddeck_on_clipboard_text(const char *utf8, int len);
+void droiddeck_on_text_input_fallback(const char *utf8, int len);
 void droiddeck_on_text_input(int enabled, const char *program, int x, int y, int w, int h);
 
 
@@ -30,7 +31,7 @@ void droiddeck_host_hdr_output(int on);
 void clipboard_init(struct wl_display *display);
 void clipboard_host_text(char *utf8, size_t len);
 void text_input_init(struct wl_display *display);
-void text_input_host_commit(const char *utf8, size_t len);
+int text_input_host_commit(const char *utf8, size_t len);
 void text_input_host_preedit(const char *utf8, size_t len, int cursor_begin, int cursor_end);
 void text_input_host_delete(int before, int after);
 void toplevel_icon_init(struct wl_display *display);
