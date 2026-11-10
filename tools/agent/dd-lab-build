@@ -25,6 +25,7 @@ progress() {  # stage [permille task done total eta]
 }
 fail() { progress failed 0 "$*"; echo "dd-lab-build: $*" >&2; exit 1; }
 trap 'progress failed 0 stopped; exit 143' INT TERM
+trap 'progress failed 0 "a command failed on line $LINENO"' ERR
 device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
 progress checking
@@ -101,9 +102,11 @@ report() {
   echo "$n $task $(( (now - started) / 60 )) $left"
 }
 (
-  while sleep 20; do
+  beat=0
+  while sleep 5; do
     set -- $(report)
-    echo "[build $1/$total] still on $2, $3m in, about $(( $4 / 60 + 1 ))m left"
+    beat=$(( beat + 1 ))
+    [ $(( beat % 12 )) = 0 ] && echo "[build $1/$total] still on $2, $3m in, about $(( $4 / 60 + 1 ))m left"
   done
 ) &
 heartbeat=$!
