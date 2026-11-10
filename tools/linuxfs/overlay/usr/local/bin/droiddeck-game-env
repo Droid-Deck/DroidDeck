@@ -15,6 +15,10 @@ CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapsh
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
+GAME_DEBUG = runpy.run_path(str(Path(__file__).with_name("droiddeck-game-debug")))
+game_debug_channels = GAME_DEBUG["game_debug_channels"]
+apply_game_debug_logs = GAME_DEBUG["apply_game_debug_logs"]
+session_debug_dir = GAME_DEBUG["session_debug_dir"]
 
 
 def game_id(env):
@@ -582,55 +586,6 @@ def bridge_feature_level(env):
     return "Mali bridge: VKD3D_FEATURE_LEVEL %s capped at 12_0 (no ray tracing or mesh shaders)" % was
 
 
-GAME_DEBUG_CHANNELS = (
-    "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
-)
-WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
-
-
-def game_debug_channels(*values):
-    selectors = {}
-    for value in values:
-        if not isinstance(value, str) or "\0" in value or len(value) > 8192:
-            continue
-        for part in value.split(","):
-            part = part.strip()
-            match = WINE_DEBUG_SELECTOR.fullmatch(part)
-            if match is None:
-                continue
-            key = (match[1] or "", match[3])
-            selectors.pop(key, None)
-            selectors[key] = part
-    for channel in GAME_DEBUG_CHANNELS:
-        key = ("", channel)
-        selectors.pop(key, None)
-        selectors[key] = "+" + channel
-    formatted = ",".join(selectors.values())
-    if len(formatted) > 8192:
-        formatted = ",".join("+" + channel for channel in GAME_DEBUG_CHANNELS)
-    return formatted
-
-
-def apply_game_debug_logs(env, config, debug_dir):
-    if not isinstance(config, dict) or config.get("version") != 1 or config.get("gameDebugLogs") is not True:
-        return env
-    if (not isinstance(debug_dir, str) or "\0" in debug_dir or len(debug_dir) > 8192
-            or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
-        print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
-        return env
-    result = dict(env)
-    result.update({
-        "PROTON_LOG": "1",
-        "PROTON_LOG_DIR": debug_dir,
-        "PROTON_CRASH_REPORT_DIR": debug_dir,
-        "DXVK_LOG_PATH": debug_dir,
-        "DXVK_LOG_LEVEL": "debug",
-        "VKD3D_DEBUG": "info",
-        "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
-    })
-    return result
-
-
 def sync_config(config, app_id):
     games = config.get("games", {})
     return {
@@ -1155,7 +1110,7 @@ def main():
         return 2
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
-    debug_dir = env.get("BL_DEBUG_DIR", "")
+    debug_dir = session_debug_dir(env)
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)

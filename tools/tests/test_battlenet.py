@@ -47,6 +47,47 @@ class LogTest(Temp):
         self.assertRegex(log.read_text(), r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d \[\d+\] second\n$")
 
 
+class StoreDebugEnvironmentTest(Temp):
+    def config(self, enabled):
+        config = self.tmp / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(json.dumps({"version": 1, "gameDebugLogs": enabled}))
+
+    def env(self, values=None):
+        debug_dir = self.tmp / "session"
+        debug_dir.mkdir(exist_ok=True)
+        base = {"HOME": str(self.tmp), "BL_DEBUG_DIR": str(debug_dir)}
+        base.update(values or {})
+        return base
+
+    def test_store_proton_command_gets_debug_defaults_when_enabled(self):
+        self.config(True)
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            result = BNET["proton_env"]()
+        self.assertEqual(result["PROTON_LOG"], "1")
+        self.assertEqual(result["DXVK_LOG_LEVEL"], "debug")
+        self.assertEqual(result["PROTON_LOG_DIR"], str(self.tmp / "session"))
+        self.assertIn("+seh", result["WINEDEBUG"])
+
+    def test_store_proton_command_keeps_debug_off_when_disabled(self):
+        self.config(False)
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            result = BNET["proton_env"]()
+        self.assertNotIn("PROTON_LOG", result)
+        self.assertNotIn("DXVK_LOG_LEVEL", result)
+
+    def test_store_proton_command_keeps_user_debug_values(self):
+        self.config(True)
+        values = {"PROTON_LOG": "0", "DXVK_LOG_LEVEL": "none", "WINEDEBUG": "-all", "PROTON_LOG_DIR": "/custom"}
+        with mock.patch.dict(os.environ, self.env(values), clear=True):
+            result = BNET["proton_env"]()
+        self.assertEqual(result["PROTON_LOG"], "1")
+        self.assertEqual(result["DXVK_LOG_LEVEL"], "debug")
+        self.assertEqual(result["PROTON_LOG_DIR"], str(self.tmp / "session"))
+        self.assertIn("+seh", result["WINEDEBUG"])
+        self.assertIn("-all", result["WINEDEBUG"])
+
+
 class IdTest(unittest.TestCase):
     def test_the_prefix_id_is_the_shortcut_id_the_app_names(self):
         self.assertEqual(int(BNET["APP_ID"]), zlib.crc32(b'"droiddeck-battlenet"Battle.net') | 0x80000000)

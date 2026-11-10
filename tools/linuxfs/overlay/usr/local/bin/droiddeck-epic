@@ -25,6 +25,7 @@ import urllib.request
 HOME = os.environ.get("HOME") or "/root"
 SELF = os.path.abspath(__file__)
 BIN_DIR = os.path.dirname(SELF)
+GAME_DEBUG = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-debug"))
 STATE = os.path.join(HOME, ".local", "share", "droiddeck-epic")
 CURRENT = os.path.join(STATE, "current.json")
 APPS = os.path.join(STATE, "app")
@@ -1106,6 +1107,7 @@ def run_game(request, session_env, running=None):
     exe = native_path(request.get("exe") or "")
     args = request.get("args") or []
     env = {k: v for k, v in session_env.items() if not k.startswith(("FEX_", "DROIDDECK_EPIC", "EGL_", "WEBKIT_"))}
+    env = GAME_DEBUG["apply_game_debug_logs"](env)
     preload = env.pop(STEAM_PRELOAD, "")
     if preload:
         env["LD_PRELOAD"] = preload
