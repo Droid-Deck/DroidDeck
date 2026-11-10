@@ -61,8 +61,7 @@ object GameThreadHints {
                     frames.addLast(WaylandCompositor.gameFrameCount())
                     if (frames.size > PACE_WINDOW_S + 1) frames.removeFirst()
                     val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
-                    val paced = frames.size > PACE_WINDOW_S &&
-                        holdsPace(fps, SessionState.refreshHz.toDouble(), pick(boosted, busy).isNotEmpty())
+                    val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
                     pacedFor = if (paced) pacedFor + 1 else 0
                     val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
                     val next = when {
@@ -100,10 +99,8 @@ object GameThreadHints {
         }
     }
 
-    internal fun holdsPace(fps: Double, refreshHz: Double, threadSaturated: Boolean): Boolean =
-        fps >= 10 && refreshHz > 0 && (1..4).any { k ->
-            abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k && (k == 1 || !threadSaturated)
-        }
+    internal fun holdsPace(fps: Double, refreshHz: Double): Boolean =
+        fps >= 10 && refreshHz > 0 && (1..4).any { k -> abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k }
 
     internal fun pick(boosted: Set<Int>, busy: Map<Int, Double>): Set<Int> =
         busy.entries
