@@ -108,6 +108,7 @@ class SessionService : Service() {
     private var freezePending = false
     private var freezeCancelled = false
     private var pendingSteamGameId: String? = null
+    private var pendingSteamPreviousGameId: String? = null
     private var pendingSteamGameGeneration = -1
     private var pendingSteamGameExitWatchToken = -1
     @Volatile private var gameExitWatchToken = 0
@@ -1476,6 +1477,7 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
+        if (pendingSteamGameId == null) pendingSteamPreviousGameId = SessionState.gameId
         if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
         pendingSteamGameExitWatchToken = ++gameExitWatchToken
         SessionState.gameId = accepted
@@ -1493,9 +1495,32 @@ class SessionService : Service() {
         val gameId = pendingSteamGameId ?: return
         val gen = pendingSteamGameGeneration
         val exitWatchToken = pendingSteamGameExitWatchToken
-        if (exitWatchToken != gameExitWatchToken || gen != sessionGen || !SessionState.running || SessionState.stopRequested ||
-            SessionState.mode != MODE_STEAM || !GameLaunchLink.validId(gameId)) {
+        // Ignore a stale callback without cancelling a newer queued launch.
+        if (exitWatchToken != gameExitWatchToken) return
+        if (gen != sessionGen || !SessionState.running || SessionState.stopRequested ||
+            SessionState.mode != MODE_STEAM || SessionState.gameId != gameId ||
+            !GameLaunchLink.validId(gameId)) {
+            val previousGameId = pendingSteamPreviousGameId
+            val queuedProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
+            val canRestore = gen == sessionGen &&
+                SessionState.running && !SessionState.stopRequested &&
+                SessionState.mode == MODE_STEAM &&
+                SessionPrefs.activeScreenEffectsProfileId(this) == queuedProfileId
+
             cancelQueuedSteamGame()
+
+            if (canRestore) {
+                val restoreGameId = if (SessionState.gameId == gameId) {
+                    previousGameId.also { SessionState.gameId = it }
+                } else {
+                    SessionState.gameId
+                }
+                val restoreProfileId =
+                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, restoreGameId, null)
+                SessionPrefs.setActiveScreenEffectsProfile(this, restoreProfileId)
+                SessionPrefs.screenEffects(this, restoreProfileId)
+                    .push(SessionPrefs.upscaler(this))
+            }
             return
         }
         if (SessionState.suspended) {
@@ -1521,6 +1546,7 @@ class SessionService : Service() {
             return
         }
         pendingSteamGameId = null
+        pendingSteamPreviousGameId = null
         pendingSteamGameGeneration = -1
         pendingSteamGameExitWatchToken = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
@@ -1598,6 +1624,7 @@ class SessionService : Service() {
     private fun cancelQueuedSteamGame(clearMailbox: Boolean = true) {
         mainHandler.removeCallbacks(flushSteamGame)
         pendingSteamGameId = null
+        pendingSteamPreviousGameId = null
         pendingSteamGameGeneration = -1
         pendingSteamGameExitWatchToken = -1
         gameExitWatchToken++
