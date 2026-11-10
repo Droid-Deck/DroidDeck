@@ -77,6 +77,7 @@ object SessionArtifacts {
             copySteamLogs(context, dir, record, steamArch)
             VacDiagnostics.collect(context, dir)
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+            SessionLogCapture.dumpMemoryPressure(File(dir, "memory-pressure.log"))
             val scrubbed = markScrubbed(scrubTree(record))
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
             if (scrubbed) File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")

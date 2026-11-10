@@ -104,4 +104,32 @@ object SessionLogCapture {
             Log.w(TAG, "could not dump the crash buffer", e)
         }
     }
+
+    fun dumpMemoryPressure(target: File) {
+        try {
+            val lines = StringBuilder()
+            val done = java.util.concurrent.CountDownLatch(1)
+            val pid = HostProcess.start(
+                "/system/bin/logcat -b events -d -v threadtime -t 800", null, target.parentFile,
+                { done.countDown() },
+            ) { line -> synchronized(lines) { lines.append(line).append('\n') } }
+            val finished = pid != -1 && done.await(10, java.util.concurrent.TimeUnit.SECONDS)
+            val body = synchronized(lines) { lines.toString() }
+            val pressure = runCatching { File("/proc/pressure/memory").readText() }.getOrDefault("unavailable\n")
+            val meminfo = runCatching { File("/proc/meminfo").readText() }.getOrDefault("unavailable\n")
+            val gpu = runCatching { File("/sys/class/kgsl/kgsl/page_alloc").readText() }.getOrDefault("unavailable\n")
+            target.writeText(
+                "Android memory events:\n" +
+                    when {
+                        body.isNotEmpty() -> body
+                        pid == -1 -> "(logcat could not be started at all)\n"
+                        !finished -> "(logcat did not finish within 10 s; nothing captured)\n"
+                        else -> "(the events buffer is empty)\n"
+                    } +
+                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "could not dump memory pressure diagnostics", e)
+        }
+    }
 }
