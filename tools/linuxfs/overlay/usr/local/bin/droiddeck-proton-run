@@ -73,8 +73,11 @@ def tools(root):
     c = compat()
     if c["TOOL"].lower() not in c["local_tools"](root):
         depot = c["find_source"](root)
-        if depot is not None:
-            c["build_tool"](os.path.join(root, "compatibilitytools.d", c["TOOL"]), depot)
+        if depot is not None and os.access(os.path.join(depot, "proton"), os.X_OK):
+            try:
+                c["build_tool"](os.path.join(root, "compatibilitytools.d", c["TOOL"]), depot)
+            except OSError:
+                pass
     found = {}
     bases = [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS)
     for base in bases:

@@ -488,11 +488,34 @@ class ProtonRunTest(Temp):
         shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
         self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
         self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
         self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
         found = RUN["tools"](str(self.root))
         wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
         self.assertEqual(found["droiddeck-proton-arm64"], (str(wrapper), "droiddeck-proton"))
         self.assertNotIn(name, found)
+
+    def test_an_incomplete_valve_depot_is_not_registered(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        self.assertNotIn("droiddeck-proton-arm64", found)
+        self.assertFalse((self.root / "compatibilitytools.d/droiddeck-proton-arm64").exists())
+
+    def test_a_failed_wrapper_build_does_not_hide_existing_tools(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "steamapps/common/Proton Experimental (ARM64)"
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        with mock.patch.dict(RUN, {"build_tool": mock.Mock(side_effect=OSError("read-only"))}):
+            found = RUN["tools"](str(self.root))
+        self.assertIn("droiddeck-proton-11-arm64", found)
 
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
