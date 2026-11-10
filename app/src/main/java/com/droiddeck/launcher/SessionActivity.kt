@@ -1352,7 +1352,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
             },
             onEffects = { e ->
-                if (drawerOpen && effectsEditorProfileId != null &&
+                if (drawerOpen &&
                     SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
                     SessionPrefs.setScreenEffects(this@SessionActivity, effectsEditorProfileId, e)
                     effects = e
