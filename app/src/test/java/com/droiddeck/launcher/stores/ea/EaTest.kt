@@ -41,8 +41,31 @@ class EaTest {
     }
 
     @Test fun onlyTokenRejectionsAreRetried() {
-        assertTrue(EaOoa.tokenRejected("<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>"))
-        assertFalse(EaOoa.tokenRejected("<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>"))
+        val rejected = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>".toByteArray(), emptyMap())
+        val notEntitled = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>".toByteArray(), emptyMap())
+        var authCalls = 0
+        val success = EaReply(200, ByteArray(0), emptyMap())
+        val result = EaOoa.retryTokenRejected {
+            authCalls++
+            if (authCalls == 1) rejected else success
+        }
+        assertEquals(2, authCalls)
+        assertEquals(200, result.status)
+
+        var entitlementCalls = 0
+        val refused = EaOoa.retryTokenRejected {
+            entitlementCalls++
+            notEntitled
+        }
+        assertEquals(1, entitlementCalls)
+        assertEquals(409, refused.status)
+
+        var failedCalls = 0
+        EaOoa.retryTokenRejected {
+            failedCalls++
+            rejected
+        }
+        assertEquals(EaOoa.AUTH_ATTEMPTS, failedCalls)
     }
 
     @Test fun licenceRoundTripsThroughTheFileFormat() {
