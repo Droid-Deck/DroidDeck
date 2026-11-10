@@ -860,17 +860,21 @@ case $mode in
           fi
           _bl_psi=$_bl_psi_some
           [ "$_bl_psi_full" -gt "$_bl_psi" ] && _bl_psi=$_bl_psi_full
-          _bl_growth=0 _bl_fall=0
-          if [ "${_bl_sample_at:-}" != "" ] && [ "$SECONDS" -gt "$_bl_sample_at" ]; then
+          if [ "${_bl_sample_at:-}" = "" ]; then
+            _bl_growth=0 _bl_fall=0
+            _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
+            _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+          elif [ "$SECONDS" -gt "$_bl_sample_at" ]; then
+            _bl_growth=0 _bl_fall=0
             _growth=$((_bl_gpu - _bl_sample_gpu)); [ "$_growth" -gt 0 ] && _bl_growth=$((_bl_growth + _growth))
             _growth=$((_bl_unevictable - _bl_sample_unevictable)); [ "$_growth" -gt 0 ] && _bl_growth=$((_bl_growth + _growth))
             _growth=$((_bl_shmem - _bl_sample_shmem)); [ "$_growth" -gt 0 ] && _bl_growth=$((_bl_growth + _growth))
             _bl_fall=$((_bl_sample_available - _bl_available))
+            _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
+            _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
           fi
           _bl_real_available=$_bl_available
           [ "$_bl_real_available" -ge 0 ] && _bl_real_available=$((_bl_real_available - _bl_growth))
-          _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
-          _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
           _bl_headroom=$((_bl_mem_total / 5))
           [ "$_bl_headroom" -ge $((512 * 1024)) ] || _bl_headroom=$((512 * 1024))
           [ "$_bl_headroom" -le $((1536 * 1024)) ] || _bl_headroom=$((1536 * 1024))
@@ -958,9 +962,6 @@ case $mode in
           bl_zram_usage "${_targets[@]}" > /dev/null
           _bl_tier_pushed=$((_bl_swap - _before))
           bl_tier_note "${_targets[@]}"
-          if [ "${_bl_pageout_complete:-0}" = 1 ] && [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
-            _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
-          fi
         }
         bl_proc_start() {
           local _s=

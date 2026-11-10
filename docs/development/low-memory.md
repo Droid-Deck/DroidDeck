@@ -53,10 +53,11 @@ kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressi
 The session request runs when real headroom falls below a quarter of RAM (bounded to
 768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
-`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. One request
-pages out idle Steam and hidden launchers first, then every session process that loaded
-`libblsession.so`: the game, Wine and its services. The Performance setting still controls
-Steam and hidden-launcher compression. Requests are at least 30 seconds apart and need the same
+`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
+may first request page-out of idle Steam and hidden launchers, subject to the Performance
+setting and client reclaim limits. The session request targets processes that loaded
+`libblsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
+Requests are at least 30 seconds apart and need the same
 swap reserve as launcher requests. When the session has read back more than half of what the
 previous request compressed, that memory is in use: the request is skipped and the wait doubles,
 up to five minutes. A request whose memory stayed compressed resets it to 30 seconds. Below half

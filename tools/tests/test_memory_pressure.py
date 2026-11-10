@@ -210,6 +210,16 @@ SECONDS=30; bl_session_pressure
         self.memory(available=2048)
         self.assertEqual([], self.run_policy('bl_session_pressure'))
 
+    def test_same_second_memory_read_preserves_the_pressure_baseline(self):
+        meminfo = self.root / 'meminfo'
+        self.assertEqual(['1048576'], self.run_policy(f'''
+SECONDS=100
+_bl_sample_at=100 _bl_sample_available=2097152 _bl_growth=0 _bl_fall=1048576
+sed -i 's/MemAvailable: 2097152 kB/MemAvailable: 1048576 kB/' {meminfo}
+bl_memory_read
+echo "$_bl_fall"
+'''))
+
     def test_game_reading_back_most_of_a_pageout_skips_and_doubles_the_wait(self):
         self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:60',
                           'send:1:session', 'backoff:30'], self.run_policy('''
@@ -283,8 +293,8 @@ SECONDS=360; bl_session_pressure
         self.assertEqual(['nap:5'], self.run_policy('bl_watch_nap'))
         self.assertEqual(['nap:5'], self.run_policy('_bl_game=0; bl_watch_nap'))
 
-    def test_one_push_compresses_the_game_and_the_launcher_and_restarts_the_launcher_wait(self):
-        self.assertEqual(['send:1:session', 'pids:321 654', 'client:0:0'], self.run_policy('''
+    def test_session_push_preserves_client_timestamps(self):
+        self.assertEqual(['send:1:session', 'pids:321 654', 'client:-1:-1'], self.run_policy('''
 SECONDS=0; bl_session_pressure
 bl_zram_pick session; echo "pids:${_pids[*]}"
 echo "client:$_bl_pressure_at:$_bl_packed"

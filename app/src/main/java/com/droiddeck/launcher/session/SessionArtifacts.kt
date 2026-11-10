@@ -595,6 +595,10 @@ object SessionArtifacts {
                 if (!crashLog.exists()) {
                     SessionLogCapture.dumpCrashBuffer(crashLog)
                 }
+                val memoryLog = File(dir, "memory-pressure.log")
+                if (newest && !memoryLog.exists()) {
+                    SessionLogCapture.dumpMemoryPressure(memoryLog)
+                }
                 if (stopWhenSessionStarts && SessionState.running) {
                     record.failed = true
                     record.deferred = true
