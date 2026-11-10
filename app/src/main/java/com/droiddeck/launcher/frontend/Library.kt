@@ -125,11 +125,11 @@ object Library {
     }
 
     fun soundtracks(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> =
-        steamGames(context, arch = arch, withShared = false, soundtracks = true).filter { it.soundtrack }
+        steamGames(context, arch = arch, withShared = false, soundtracks = true, soundtracksOnly = true)
 
     fun steamGames(
         context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
-        withShared: Boolean = true, soundtracks: Boolean = false,
+        withShared: Boolean = true, soundtracks: Boolean = false, soundtracksOnly: Boolean = false,
     ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
@@ -147,15 +147,16 @@ object Library {
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     if (name.isEmpty() || flags and 4 == 0) return@forEach
-                    val images = SteamCacheImages(File(cache, appId.toString()))
-                    val art = images.find(STEAM_CAPSULES)
-                    val hero = images.find(STEAM_HEROES)
-                    val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
                     val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
                     val musicFiles = if (gameFiles == null) installDir?.let { File(steamapps, "music/$it").takeIf(File::isDirectory) } else null
                     if (musicFiles != null && !soundtracks) return@forEach
+                    if (soundtracksOnly && musicFiles == null) return@forEach
+                    val images = SteamCacheImages(File(cache, appId.toString()))
+                    val art = images.find(STEAM_CAPSULES)
+                    val hero = images.find(STEAM_HEROES)
+                    val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     out[appId] = SteamGameArt.withOverrides(context, SteamGame(
                         appId, name, art ?: musicFiles?.let(Soundtrack::cover), label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles ?: musicFiles, soundtrack = musicFiles != null,

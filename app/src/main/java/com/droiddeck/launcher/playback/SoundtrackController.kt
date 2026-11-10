@@ -126,13 +126,13 @@ object SoundtrackController {
         }
     }
 
-    fun play(context: Context, album: Soundtrack.Album, albumTitle: String, startId: String?, shuffled: Boolean = false) {
+    fun play(context: Context, album: Soundtrack.Album, albumTitle: String, startId: String?, shuffled: Boolean? = null) {
         val list = items(album, albumTitle)
         if (list.isEmpty()) return
         run(context) { c ->
             val start = list.indexOfFirst { it.mediaId == startId }.coerceAtLeast(0)
             c.setMediaItems(list, start, 0L)
-            c.shuffleModeEnabled = shuffled
+            shuffled?.let { c.shuffleModeEnabled = it }
             c.prepare()
             c.play()
         }

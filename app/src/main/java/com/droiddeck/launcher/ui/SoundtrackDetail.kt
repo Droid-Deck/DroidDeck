@@ -88,7 +88,7 @@ private fun rowsOf(album: Soundtrack.Album): List<SoundRow> = buildList {
 
 @Composable
 internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, onBack: () -> Unit) {
-    val appId = remember(key) { key.removePrefix("sound:").toIntOrNull() }
+    val appId = remember(key) { key.removePrefix("sound:").removePrefix("app:").toIntOrNull() }
     val game = s.soundtracks.firstOrNull { it.appId == appId }
     LaunchedEffect(game == null, s.soundtracksLoaded) { if (game == null && s.soundtracksLoaded) onBack() }
     if (game == null) return

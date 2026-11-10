@@ -395,7 +395,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
             )
         },
     ) { key ->
-        if (soundMode) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
+        if (soundMode || (!s.soundtracksEnabled && s.soundtracks.any { GameRef.key(it) == key })) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
         else GameDetail(key, s, a, lead, backLabel, hopRail = "games", onBack = back)
     }
     if (addingSoundtrack) SyncFolderPicker(stringResource(R.string.soundtracks_add_title), null, onDismiss = { addingSoundtrack = false }) { dir ->

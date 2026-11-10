@@ -838,9 +838,11 @@ class FrontEndActivity : ComponentActivity() {
         pendingGameLink = null
         gameLinkReading = false
         gameLinkTried = false
+        soundtrackLaunch = false
         val soundtrackId = com.droiddeck.launcher.frontend.SoundtrackShortcuts.read(request)
         if (soundtrackId != null) {
-            navRequest = "sound:$soundtrackId"
+            soundtrackLaunch = true
+            navRequest = if (SessionPrefs.soundtracksEnabled(this)) "sound:$soundtrackId" else "app:$soundtrackId"
             request.data = null
             request.action = Intent.ACTION_MAIN
             return
@@ -1792,7 +1794,10 @@ class FrontEndActivity : ComponentActivity() {
         startSteamAtStartupIfEnabled()
     }
 
+    private var soundtrackLaunch = false
+
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
+        if (soundtrackLaunch) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {

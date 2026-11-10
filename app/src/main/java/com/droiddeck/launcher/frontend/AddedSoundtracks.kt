@@ -18,27 +18,26 @@ object AddedSoundtracks {
     }.getOrDefault(emptyList())
 
     @Synchronized
-    private fun save(context: Context, list: List<Entry>) {
+    private fun save(context: Context, list: List<Entry>): Boolean =
         runCatching {
             val array = JSONArray()
             list.forEach { array.put(JSONObject().put("path", it.path).put("name", it.name)) }
             val f = file(context)
             val tmp = File(f.path + ".tmp")
             tmp.writeText(array.toString())
-            if (!tmp.renameTo(f)) tmp.delete()
-        }
-    }
+            if (tmp.renameTo(f)) true else { tmp.delete(); false }
+        }.getOrDefault(false)
 
     fun add(context: Context, folder: File): Boolean {
         if (!folder.isDirectory || Soundtrack.audioFiles(folder).isEmpty()) return false
-        val list = entries(context)
-        if (list.any { it.path == folder.path }) return true
-        save(context, list + Entry(folder.path, folder.name))
-        return true
+        return synchronized(this) {
+            val list = entries(context)
+            list.any { it.path == folder.path } || save(context, list + Entry(folder.path, folder.name))
+        }
     }
 
     fun remove(context: Context, path: String) {
-        save(context, entries(context).filterNot { it.path == path })
+        synchronized(this) { save(context, entries(context).filterNot { it.path == path }) }
     }
 
     internal fun idOf(path: String): Int = path.hashCode() or Int.MIN_VALUE
