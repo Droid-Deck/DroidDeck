@@ -196,6 +196,15 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
     return host == buffer ? buffer : host;
 }
 
+// Wine opens every file through its prefix's drive link (dosdevices/z: -> /), so the link must be
+// followed in the guest's view even where the prefix is plain rootfs: the kernel would look for the
+// rest of the path on Android's own tree. Only that component is checked, not each one of every path.
+static const char *resolve_drive_links(const char *host, char *buffer, size_t bufsize) {
+    const char *devices = strstr(host, "/dosdevices/");
+    if (!devices) return host;
+    return resolve_bind_links(host, (size_t)(devices - host) + 11, buffer, bufsize);
+}
+
 // Maps an absolute Ubuntu path into the rootfs. Returns `path` (possibly advanced past
 // redundant leading "/" and "/." components) when it needs no change, else `buffer`.
 static const char *rewrite_path_in_root(const char *path, char *buffer, size_t bufsize) {
@@ -235,14 +244,15 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
 
     // Already inside The native userland rootfs
     if (get_rootfs_subpath(path) != NULL) {
-        return path;
+        return resolve_drive_links(path, buffer, bufsize);
     }
 
     // The real place of a mounted folder, which getcwd() and /proc/self/fd links answer for it: Steam
     // made a game's path from one on the SD card library and found no sekiro.exe in the rootfs
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
-        if (!b->identity && path[1] == b->src[1] && is_path_prefix(path, b->src, b->src_len)) return path;
+        if (!b->identity && path[1] == b->src[1] && is_path_prefix(path, b->src, b->src_len))
+            return resolve_drive_links(path, buffer, bufsize);
     }
 
     // POSIX shared memory (/dev/shm) redirection to The native userland rootfs tmp/shm
@@ -261,7 +271,7 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
     // Any other absolute path belongs to The native userland rootfs (/boot, /media, /snap, /etc, /usr, ...)
     size_t n = ddnatv_append(buffer, bufsize, 0, g_ddnatv_root, g_ddnatv_root_len);
     ddnatv_append(buffer, bufsize, n, path, strlen(path));
-    return buffer;
+    return resolve_drive_links(buffer, buffer, bufsize);
 }
 
 // A link target the session's hook stored as a path in its rootfs, given back as the guest path it
