@@ -44,9 +44,6 @@ object FrameGen {
     fun hasGameOverride(context: Context, appId: String): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains("game.$appId.engine")
 
-    fun hasGlobalOverride(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains("engine")
-
     fun setForGame(context: Context, appId: String, mode: Mode) {
         val prefix = "game.$appId."
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
