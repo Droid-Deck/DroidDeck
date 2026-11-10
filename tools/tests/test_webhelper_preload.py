@@ -9,9 +9,13 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
 PROGRAM = r"""
 #include <stdio.h>
-char *const *bl_webhelper_argv(const char *path, char *const argv[]);
+#include <stdlib.h>
+char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 int main(int argc, char **argv) {
-  char *const *out = bl_webhelper_argv(argv[1], argv + 1);
+  char *node_env[] = {"ELECTRON_RUN_AS_NODE=1", NULL};
+  char *plain_env[] = {"PATH=/usr/bin", NULL};
+  char *const *envp = getenv("TEST_NODE_MODE_CHILD") ? node_env : plain_env;
+  char *const *out = bl_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
   for (int i = 0; out[i]; i++) printf("%s\n", out[i]);
   return 0;
 }
@@ -35,12 +39,27 @@ class WebhelperPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def argv(self, *args, spec=None):
+    def argv(self, *args, spec=None, node_child=False, parent_node=False):
         env = {k: v for k, v in os.environ.items() if k != "BL_WEBHELPER_ARGS"}
+        env.pop("ELECTRON_RUN_AS_NODE", None)
         if spec is not None:
             env["BL_WEBHELPER_ARGS"] = spec
+        if node_child:
+            env["TEST_NODE_MODE_CHILD"] = "1"
+        else:
+            env.pop("TEST_NODE_MODE_CHILD", None)
+        if parent_node:
+            env["ELECTRON_RUN_AS_NODE"] = "1"
         result = subprocess.run([str(self.program), *args], env=env, capture_output=True, text=True, check=True)
         return result.stdout.splitlines()
+
+    def chromium(self, directory, name):
+        root = self.tmp / directory
+        root.mkdir(exist_ok=True)
+        executable = root / name
+        executable.touch()
+        (root / "chrome-sandbox").touch()
+        return str(executable)
 
     def test_the_browser_process_keeps_its_helpers_in_process(self):
         out = self.argv(WEBHELPER, "-lang=en_US", "--enable-features=A", "--no-sandbox", "--disable-features=B,C")
@@ -56,6 +75,22 @@ class WebhelperPreloadTest(unittest.TestCase):
         self.assertEqual(self.argv(*child), child)
         other = ["/usr/bin/steam", "--enable-features=A"]
         self.assertEqual(self.argv(*other), other)
+
+    def test_node_mode_from_the_child_environment_skips_sandbox_injection(self):
+        code = self.chromium("vscode", "code")
+        self.assertEqual(self.argv(code, node_child=True), [code])
+
+    def test_non_browser_helper_beside_chrome_sandbox_skips_injection_in_node_mode(self):
+        helper = self.chromium("vscode-helper", "remote-cli")
+        self.assertEqual(self.argv(helper, node_child=True), [helper])
+
+    def test_chromium_gui_launch_still_gets_sandbox_flag_from_explicit_environment(self):
+        chrome = self.chromium("chromium", "chrome")
+        self.assertEqual(self.argv(chrome), [chrome, "--no-sandbox"])
+
+    def test_parent_node_mode_does_not_override_the_explicit_child_environment(self):
+        chrome = self.chromium("chromium-parent-mode", "chrome")
+        self.assertEqual(self.argv(chrome, parent_node=True), [chrome, "--no-sandbox"])
 
     def test_stock_turns_it_off(self):
         args = [WEBHELPER, "--enable-features=A"]
