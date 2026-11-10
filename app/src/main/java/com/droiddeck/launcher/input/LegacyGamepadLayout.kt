@@ -317,9 +317,10 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
         val extra = e.width * (STICK_REACH - 1f)
+        val width = e.width + extra
         return when (e.control) {
-            InputControl.LS -> (e.x - extra).coerceAtLeast(0f).let { x -> e.copy(x = x, width = e.x + e.width - x) }
-            InputControl.RS -> e.copy(width = (e.width + extra).coerceAtMost(1f - e.x))
+            InputControl.LS -> e.copy(x = (e.x - extra).coerceIn(0f, (1f - width).coerceAtLeast(0f)), width = width)
+            InputControl.RS -> e.copy(x = e.x.coerceIn(0f, (1f - width).coerceAtLeast(0f)), width = width)
             else -> e
         }
     }

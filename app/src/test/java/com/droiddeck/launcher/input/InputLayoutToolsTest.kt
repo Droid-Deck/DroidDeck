@@ -162,6 +162,23 @@ class InputLayoutToolsTest {
         assertEquals(label, emptyList<Pair<String, String>>(), overlapping(elements, width, height))
     }
 
+    private fun assertStickView(elements: List<InputSurfaceElement>, width: Int, height: Int, label: String) {
+        for (control in listOf(InputControl.LS, InputControl.RS)) {
+            val stick = elements.first { it.control == control }
+            assertTrue("$label ${stick.id} keeps its widened travel width", stick.width * width >= stick.height * height * 1.25f - 1f)
+            assertTrue("$label ${stick.id} stays on screen", stick.x >= 0f && stick.x + stick.width <= 1.0001f)
+        }
+    }
+
+    @Test fun sticksKeepTheirFullViewAtSurfaceEdges() {
+        for ((width, height) in listOf(2608 to 1200, 1920 to 1080, 1280 to 960)) {
+            ControllerPrefs.setLayout(context, width, height, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
+            val elements = LegacyGamepadLayout(context, width, height).elements()
+            assertStickView(elements, width, height, "$width x $height")
+            ControllerPrefs.resetLayout(context, width, height)
+        }
+    }
+
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
     fun buttonSizeKeepsTheGamepadShapeAtHandheldDensity() {
         for ((w, h) in listOf(1920 to 1080, 1920 to 1200)) {
