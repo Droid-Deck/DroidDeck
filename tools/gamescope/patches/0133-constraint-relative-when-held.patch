@@ -1,7 +1,7 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -3165,6 +3165,128 @@
+@@ -3165,6 +3165,137 @@
  	wlserver_unlock();
  }
  
@@ -46,6 +46,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +}
 +
 +static bool s_bPointerHeld = false;
++static bool s_bPointerFromMouse = false;
 +
 +static void update_pointer_hold( global_focus_t *pFocus, bool bConstrained, bool bHinted )
 +{
@@ -64,6 +65,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	const double flY = wlserver.mouse_surface_cursory;
 +	const double flSentX = wlserver.flSentDX;
 +	const double flSentY = wlserver.flSentDY;
++	s_bPointerFromMouse = wlserver.bPointerFromMouse;
 +	const struct wlr_pointer_constraint_v1 *pConstraint = wlserver.GetCursorConstraint();
 +	wlserver.flSentDX = 0.0;
 +	wlserver.flSentDY = 0.0;
@@ -127,10 +129,17 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	s_nRootY = nRootY;
 +}
 +
++static bool relative_mouse_mode( int nRelativeMouse, bool bForcedRelativeMouse, bool bFollowClientPointer, bool bImageEmpty, bool bHasPointerConstraint, bool bPointerHeld, bool bExcludedAppId, bool bPointerFromMouse )
++{
++	return nRelativeMouse == 2
++		? false
++		: ( bForcedRelativeMouse || bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && ( bPointerHeld || ( nRelativeMouse == 3 && bPointerFromMouse ) ) && !bExcludedAppId ) );
++}
++
  bool ShouldDrawCursor()
  {
  	if ( relative_mouse_forced() )
-@@ -11029,9 +11151,15 @@
+@@ -11029,9 +11160,12 @@
  						nRelativeMouse != 2 && !bExcludedAppId && !bHasPointerConstraint && !window_is_steam( pPaintFocus->inputFocusWindow ) );
  				}
  
@@ -138,12 +147,11 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +					update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId,
 +						pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );
 +
-+				const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || ( nRelativeMouse == 3 && wlserver.bPointerFromMouse ) );
-+
- 				const bool bRelativeMouseMode = nRelativeMouse == 2
- 					? false
+-				const bool bRelativeMouseMode = nRelativeMouse == 2
+-					? false
 -					: ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );
-+					: ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );
++				const bool bRelativeMouseMode = relative_mouse_mode( nRelativeMouse, bForcedRelativeMouse, s_bFollowClientPointer,
++					bImageEmpty, bHasPointerConstraint, s_bPointerHeld, bExcludedAppId, s_bPointerFromMouse );
  
  				static bool s_bRelativeMouseMode = false;
  				if ( s_bRelativeMouseMode && !bRelativeMouseMode && pPaintFocus->cursor &&

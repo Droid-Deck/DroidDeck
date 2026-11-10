@@ -23,6 +23,7 @@ def rules():
     return "\n".join([
         block(text, "struct PointerHold"),
         block(text, "static bool pointer_hold_step"),
+        block(text, "static bool relative_mouse_mode"),
     ])
 
 
@@ -48,6 +49,16 @@ static bool run(PointerHold &state, int frames, double seatDX, double seatDY, do
 
 int main() {
     uint64_t now = 1'000'000'000ul;
+
+    assert(relative_mouse_mode(3, false, false, true, true, false, false, true));
+    assert(!relative_mouse_mode(3, false, false, true, true, false, false, false));
+    assert(!relative_mouse_mode(3, false, false, true, false, false, false, true));
+    assert(!relative_mouse_mode(3, false, false, false, true, false, false, true));
+    assert(!relative_mouse_mode(3, false, false, true, true, false, true, true));
+    assert(relative_mouse_mode(0, false, false, true, true, true, false, false));
+    assert(!relative_mouse_mode(0, false, false, true, true, false, false, false));
+    assert(!relative_mouse_mode(2, true, true, true, true, true, false, true));
+    assert(relative_mouse_mode(1, false, false, true, true, true, false, false));
 
     PointerHold cursorGame;
     assert(!run(cursorGame, 600, 12.0, -9.0, 12.0, -9.0, now));
@@ -120,14 +131,14 @@ class PointerHoldTest(unittest.TestCase):
         self.assertIn("pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );", added)
         self.assertIn("s_Hold.bHeld = bHinted;", added)
         self.assertIn("if ( s_bTracking && bHinted && !s_bHinted )", added)
-        self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || ( nRelativeMouse == 3 && wlserver.bPointerFromMouse ) );", added)
-        self.assertIn(": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );", added)
+        self.assertTrue(any(line.startswith("static bool relative_mouse_mode(") for line in added))
+        self.assertIn("const bool bRelativeMouseMode = relative_mouse_mode( nRelativeMouse, bForcedRelativeMouse, s_bFollowClientPointer,", added)
 
     def test_mode_three_follows_mouse_input_and_touch_clears_it(self):
         text = PATCH.read_text()
         self.assertIn("+	wlserver.bPointerFromMouse = true;\n+	wlserver.flSentDX += unaccel_dx;", text)
         self.assertIn("+	if ( bFromTouch )\n+		wlserver.bPointerFromMouse = false;", text)
-        self.assertIn("+	bool bPointerFromMouse = false;", text)
+        self.assertIn("+static bool s_bPointerFromMouse = false;", text)
 
     def test_a_new_window_or_constraint_starts_its_own_hold(self):
         tracker = block(added_source(), "static void update_pointer_hold")
@@ -136,6 +147,9 @@ class PointerHoldTest(unittest.TestCase):
         constraint = tracker.index("wlserver.GetCursorConstraint();")
         self.assertLess(tracker.index("wlserver_lock();"), constraint)
         self.assertLess(constraint, tracker.index("wlserver_unlock();"))
+        pointer_source = tracker.index("s_bPointerFromMouse = wlserver.bPointerFromMouse;")
+        self.assertLess(tracker.index("wlserver_lock();"), pointer_source)
+        self.assertLess(pointer_source, tracker.index("wlserver_unlock();", pointer_source))
         self.assertLess(reset, tracker.index("if ( s_bTracking && bHinted && !s_bHinted )"))
         self.assertIn("s_bTracking = false;", tracker[reset:reset + 120])
 
@@ -146,7 +160,14 @@ class PointerHoldTest(unittest.TestCase):
 
     def test_the_forced_and_follow_rules_are_unchanged(self):
         removed = [line[1:].strip() for line in PATCH.read_text().splitlines() if line.startswith("-") and not line.startswith("---")]
-        self.assertEqual(removed, [": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );"])
+        self.assertEqual(removed, [
+            "const bool bRelativeMouseMode = nRelativeMouse == 2",
+            "? false",
+            ": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );",
+        ])
+        added = [line[1:].strip() for line in PATCH.read_text().splitlines() if line.startswith("+") and not line.startswith("+++")]
+        self.assertIn("return nRelativeMouse == 2", added)
+        self.assertIn(": ( bForcedRelativeMouse || bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && ( bPointerHeld || ( nRelativeMouse == 3 && bPointerFromMouse ) ) && !bExcludedAppId ) );", added)
 
 
 if __name__ == "__main__":
