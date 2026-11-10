@@ -1672,14 +1672,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun frameGenTargetGameId(): Long? {
         drawerGameProfileId?.let { return it }
-        if (SessionState.mode != SessionService.MODE_RUN ||
-            FrameGen.hasGlobalOverride(this)
-        ) return null
+        if (SessionState.mode != SessionService.MODE_RUN) return null
 
         return (
             SessionState.gameId?.takeIf { it.toLongOrNull() != null }
                 ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
-            )?.toLongOrNull()
+        )?.toLongOrNull()
     }
 
     private fun loadFrameGenFor(appId: Long?) {
@@ -2515,13 +2513,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }.getOrNull()
 
                 if (currentIds == null) {
-                    // Não publicar uma leitura incompleta como inventário válido.
                     if (frameGenInventoryRetryScheduled.compareAndSet(false, true)) {
                         uiHandler.postDelayed({
                             frameGenInventoryRetryScheduled.set(false)
                             val retry = synchronized(frameGenInventoryLock) {
-                                drawerGameInventoryRevision == frameGenInventoryRevision &&
-                                    frameGenInventoryIds == null
+                                frameGenInventoryIds == null
                             }
                             if (retry && !isFinishing && !isDestroyed) {
                                 applyFrameGen()
