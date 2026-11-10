@@ -36,9 +36,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.WirelessAdbFix
 import com.droiddeck.launcher.lab.LabOverlay
 
-/** Lab builds on this device: the one in use, one waiting for a restart, and the kept ones. */
+/**
+ * Lab builds on this device: the one in use, one waiting for a restart, and the kept ones.
+ * [onRebuild] offers to build a kept one again for this install, when something can.
+ */
 @Composable
-internal fun LabBuilds() {
+internal fun LabBuilds(onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
     val context = LocalContext.current
     var version by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -71,7 +74,7 @@ internal fun LabBuilds() {
     val pal = LocalPalette.current
     Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Text(
-            stringResource(R.string.lab_builds), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+            stringResource(R.string.lab_builds).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
             color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 10.dp),
         )
         Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
@@ -108,6 +111,9 @@ internal fun LabBuilds() {
                     },
                     warn = armed || !build.usable || build.reason == LabOverlay.Reason.DID_NOT_START,
                 ) {
+                    if (!build.usable && !armed && info != null && onRebuild != null) SecondaryButton(stringResource(R.string.lab_rebuild), compact = true, enabled = !busy) {
+                        onRebuild(info)
+                    }
                     if (build.usable && !armed) SecondaryButton(stringResource(R.string.lab_use), compact = true, enabled = !busy) {
                         runCatching { LabOverlay.stage(context, build) }
                             .onSuccess { restart() }
