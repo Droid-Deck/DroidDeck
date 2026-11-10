@@ -316,7 +316,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val observedTouchpads = mutableSetOf<Int>()
     private val mouseWheel = MouseWheelInput { v, h ->
         val writer = if (evdevMouseActive) mouseWriter else null
-        if (writer != null) writer.writeMouseWheel120(-v, -h)
+        if (writer != null) writer.writeMouseWheel120(-v, h)
         else WaylandCompositor.nativeSendSceneInput(11, v, h)
     }
     private val physicalTouchpad by lazy { AndroidTouchpadInput(object : AndroidTouchpadInput.Output {
@@ -2019,7 +2019,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)
         applyCardboard(SessionPrefs.cardboard(this))
-        if (!com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this) &&
+        if (!usesOpenXrOutput() &&
             SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
             steamVrSwitchedPicture = true
             steamVrSeenRunning = true
@@ -4068,6 +4068,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun sendSceneButton(code: Int, down: Boolean,
                                 owner: PointerButtonState.Owner = PointerButtonState.Owner.SIMULATED) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            uiHandler.post { sendSceneButton(code, down, owner) }
+            return
+        }
         if (down && com.droiddeck.launcher.session.LinuxWindows.owner != null) {
             com.droiddeck.launcher.session.LinuxWindows.desktop()
             WaylandCompositor.nativeSendSceneInput(28, 0, 0)
@@ -5043,7 +5047,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.session.SteamVrSession.stop()
             return
         }
-        if (action == "start" && com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this, refresh = true)) {
+        if (action == "start" && !cardboard.enabled &&
+            !GlassesRendering.usesGlasses(glasses, glassesScreen != null, true) &&
+            com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this, refresh = true)) {
             SessionState.steamVr = true
             steamVrAutoTried = true
             startActivity(com.droiddeck.launcher.session.XrHeadset.intent(this))
@@ -5108,7 +5114,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun switchPictureForSteamVr() {
-        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
+        if (usesOpenXrOutput()) return
         if (cardboard.source != Cardboard.SOURCE_SBS) {
             SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
             val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
@@ -5161,7 +5167,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateHandCamera()
         autoStartSteamVr(now)
         if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
-        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
+        if (usesOpenXrOutput()) return
         if (now != SteamVr.Status.UNAVAILABLE) Glasses.setVrActive(now == SteamVr.Status.RUNNING)
         if (glasses.present) onGlassesSteamVr(now)
         if (GlassesRendering.usesGlasses(glasses, glassesScreen != null, now == SteamVr.Status.RUNNING)) {
@@ -5178,7 +5184,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun restoreSteamVrPicture() {
-        if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) return
         val before = SessionPrefs.cardboardSourceBeforeSteamVr(this)
         SessionPrefs.setCardboardSourceBeforeSteamVr(this, -1)
         steamVrSwitchedPicture = false
@@ -5191,7 +5196,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applyCardboard(c: Cardboard) {
         val was = activeCardboard
-        cardboard = if (com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this)) Cardboard.OFF else c
+        cardboard = c
         val e = effectiveCardboard(cardboard)
         activeCardboard = e
         if (CompositorHost.isStarted) pushCardboard(e)
@@ -5214,8 +5219,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         state = glasses,
         outputActive = glassesScreen != null,
         steamVrRunning = steamVrStatus == SteamVr.Status.RUNNING,
-        openXrRuntimeAvailable = com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(this),
+        openXrOutputActive = com.droiddeck.launcher.session.SteamVrSession.active,
     )
+
+    private fun usesOpenXrOutput(): Boolean = com.droiddeck.launcher.session.SteamVrSession.active &&
+        !GlassesRendering.usesGlasses(glasses, glassesScreen != null, steamVrStatus == SteamVr.Status.RUNNING)
 
     private fun updateHeadTracker() {
         val onGlasses = GlassesRendering.usesGlasses(glasses, glassesScreen != null,

@@ -594,8 +594,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.VR -> {
                             SteamVrGroup(a) { key -> focus.track(page, key) }
-                            if (!a.glassesOutput && !com.droiddeck.launcher.session.OpenXrRuntime.isAvailable(
-                                    androidx.compose.ui.platform.LocalContext.current))
+                            if (!a.glassesOutput && !com.droiddeck.launcher.session.SteamVrSession.active)
                                 CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {

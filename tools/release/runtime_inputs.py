@@ -29,6 +29,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/ubuntu/patches/kwin',
                 'app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h',
                 'tools/ubuntu/build-kwin-runtime.sh',
+                'tools/ubuntu/build_kwin_windows.py',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',

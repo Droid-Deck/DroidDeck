@@ -69,15 +69,30 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertTrue(all('compiled by Gradle; not imported from donor' in value
                                 for value in classifications.values()))
 
+    def test_kwin_sources_are_classified_as_rebuilt_including_new_files(self):
+        committed = {'tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/patches/kwin/010-fix.patch'}
+        local = {'tools/ubuntu/build-kwin-runtime.sh'}
+        new = {'tools/ubuntu/build_kwin_windows.py'}
+        with mock.patch.object(prepare, 'changed', side_effect=[committed, local, committed]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(),
+                    '\0'.join(new).encode() + b'\0']):
+            classifications = prepare.check_sources()
+        self.assertEqual(set(classifications), committed | local | new)
+        self.assertTrue(all('KWin rebuilt' in value for value in classifications.values()))
+
     def test_preparation_excludes_all_donor_vr_files_and_records_replacement_origin(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             apk = root / 'donor.apk'
             vr_name = 'layer/libVkLayer_droiddeck_vr.so'
+            kwin_files = {name: ('new ' + name).encode() for name in prepare.kwin_build.OUTPUTS}
+            kwin_manifest = {'kwin': '6.6.6', 'outputs': {}}
             with ZipFile(apk, 'w') as package:
                 package.writestr(prepare.VR_PREFIX + vr_name, b'old library')
                 package.writestr(prepare.VR_PREFIX + 'obsolete.so', b'obsolete donor file')
                 package.writestr('assets/linuxfs/unchanged.so', b'unchanged component')
+                package.writestr(prepare.KWIN_PREFIX + 'libkwin.so.6', b'old KWin')
+                package.writestr(prepare.KWIN_PREFIX + 'obsolete.so', b'old KWin extra')
             (root / 'app/build').mkdir(parents=True)
             (root / 'app/build/runtime-inputs.json').write_text('{}')
             vr_manifest = {'version': 1, 'source_commit': 'current', 'outputs': {vr_name: 'verified'}}
@@ -93,9 +108,11 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                     mock.patch.object(prepare, 'validate_tracked_assets', return_value={}), \
                     mock.patch.object(prepare, 'git', return_value=b''), \
                     mock.patch.object(prepare.runtime, 'record'), mock.patch.object(prepare.runtime, 'verify'), \
-                    mock.patch.object(prepare.vr_build, 'build', return_value=({vr_name: b'new library'}, vr_manifest)) as build:
+                    mock.patch.object(prepare.vr_build, 'build', return_value=({vr_name: b'new library'}, vr_manifest)) as build, \
+                    mock.patch.object(prepare.kwin_build, 'build', return_value=(kwin_files, kwin_manifest)) as kwin_build:
                 prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
             build.assert_called_once()
+            kwin_build.assert_called_once()
             vr_folder = root / 'app/src/main' / prepare.VR_PREFIX
             self.assertEqual((vr_folder / vr_name).read_bytes(), b'new library')
             self.assertFalse((vr_folder / 'obsolete.so').exists())
@@ -103,6 +120,28 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             provenance = json.loads((root / 'app/build/windows-runtime-provenance.json').read_text())
             self.assertEqual(provenance['vr_build'], vr_manifest)
             self.assertIn('VR rebuilt', provenance['outputs']['app/src/main/' + prepare.VR_PREFIX + vr_name]['origin'])
+            self.assertEqual(provenance['kwin_build'], kwin_manifest)
+            kwin_folder = root / 'app/src/main' / prepare.KWIN_PREFIX
+            self.assertFalse((kwin_folder / 'obsolete.so').exists())
+            for name, data in kwin_files.items():
+                self.assertEqual((kwin_folder / name).read_bytes(), data)
+                self.assertIn('KWin rebuilt', provenance['outputs']['app/src/main/' + prepare.KWIN_PREFIX + name]['origin'])
+
+    def test_stale_kwin_stops_before_staging_any_donor_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / 'donor.apk'
+            apk.write_bytes(b'donor')
+            with mock.patch.object(prepare, 'check_sources', return_value={}), \
+                    mock.patch.object(prepare, 'DONOR_SHA256', prepare.runtime.digest(apk)), \
+                    mock.patch.object(prepare, 'REBUILT', {}), \
+                    mock.patch.object(prepare, 'read_gamescope', return_value=({}, {})), \
+                    mock.patch.object(prepare.vr_build, 'validate', return_value=({}, {})), \
+                    mock.patch.object(prepare.kwin_build, 'validate', side_effect=ValueError('KWin build is stale')), \
+                    mock.patch.object(prepare, 'ZipFile') as archive:
+                with self.assertRaisesRegex(ValueError, 'KWin build is stale'):
+                    prepare.prepare(apk, root, root, rebuilt_vr=root, vk_include=root, rebuilt_kwin=root)
+                archive.assert_not_called()
 
     def test_invalid_cached_vr_stops_before_reading_or_staging_the_donor(self):
         with tempfile.TemporaryDirectory() as folder:
