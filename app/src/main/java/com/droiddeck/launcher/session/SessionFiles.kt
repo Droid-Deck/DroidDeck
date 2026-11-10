@@ -43,6 +43,7 @@ object SessionFiles {
         }
     }
 
+    @Synchronized
     private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
         val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
         val target = File(root, UBISOFT_SERVICE)
