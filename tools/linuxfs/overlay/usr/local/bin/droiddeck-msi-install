@@ -865,13 +865,9 @@ def choose_packages(found, root):
     names = [entry.name.lower() for entry in top]
     if any("full" in name for name in names) and any("_core" in name or "_extended" in name for name in names):
         top = [entry for entry in top if not ("_core" in entry.name.lower() or "_extended" in entry.name.lower())]
-    chosen = []
-    for entry in top:
-        template = Package(entry).summary.get("template", "").split(";")[0].strip().lower()
-        if template in SKIP_PLATFORMS:
-            continue
-        chosen.append(entry)
-    return chosen
+    platforms = [(entry, Package(entry).summary.get("template", "").split(";")[0].strip().lower()) for entry in top]
+    native = [entry for entry, template in platforms if template not in SKIP_PLATFORMS]
+    return native or top
 
 
 def install_wrapper(path, out):

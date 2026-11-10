@@ -31,12 +31,12 @@ class WinComponentsSupportTest {
             step("install_msi", "url" to "$base/ps-x86.msi"), step("install_msi", "url" to "$base/ps-x64.msi"))))
     }
 
-    @Test fun builtInArm64RuntimeIsRegistryOnlyInBothViews() {
+    @Test fun builtInArm64RuntimeInstallsTheRedistributable() {
         val c = WinComponents.builtInArm64Runtime()
         assertEquals(Support.READY, support(c))
-        assertEquals(12, c.steps.count { it.action == "set_register_key" })
-        assertEquals(setOf("HKLM\\Software\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64",
-            "HKLM\\Software\\Wow6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64"), c.steps.map { it.str("key") }.toSet())
+        assertEquals(listOf("install_exe"), c.steps.map { it.action })
+        assertEquals("VC_redist.arm64.exe", c.steps.single().str("file_name"))
+        assertEquals(0, c.steps.count { it.action == "set_register_key" })
     }
 
     @Test fun installerWrappersInstallHere() {

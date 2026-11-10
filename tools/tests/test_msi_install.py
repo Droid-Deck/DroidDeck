@@ -33,6 +33,33 @@ def installer(tables, out="/tmp/unused", summary=None):
     return MSI["Installer"]("fake.msi", out, FakePackage(tables, summary))
 
 
+class ChoosePackagesTest(unittest.TestCase):
+
+    def choose(self, platforms):
+        class Stub:
+            def __init__(self, path):
+                self.summary = {"template": platforms[Path(path).name] + ";1033"}
+
+        root = Path(tempfile.mkdtemp())
+        found = []
+        for name in platforms:
+            (root / name).write_bytes(b"")
+            found.append(root / name)
+        choose = MSI["choose_packages"]
+        previous = choose.__globals__["Package"]
+        choose.__globals__["Package"] = Stub
+        try:
+            return [entry.name for entry in choose(found, root)]
+        finally:
+            choose.__globals__["Package"] = previous
+
+    def test_arm_packages_are_dropped_beside_native_ones(self):
+        self.assertEqual(self.choose({"a.msi": "x64", "b.msi": "Arm64", "c.msi": "Intel"}), ["a.msi", "c.msi"])
+
+    def test_an_all_arm64_bundle_is_kept(self):
+        self.assertEqual(self.choose({"min.msi": "Arm64", "extra.msi": "Arm64"}), ["min.msi", "extra.msi"])
+
+
 class ToolsTest(unittest.TestCase):
     def test_the_tools_find_their_own_libraries(self):
         paths = MSI["tool_env"]()["LD_LIBRARY_PATH"].split(":")
