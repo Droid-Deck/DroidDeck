@@ -15,8 +15,8 @@
 // N is chosen at random and claimed with O_EXCL, so processes never pick the same one. IPC_RMID
 // removes the files at once: programs that attached the segment keep their mapping (as on Linux),
 // later attaches fail, which is what X programs expect (they remove a segment as soon as the X
-// server has attached it). A segment whose maker and every process that attached it have ended
-// without removing it is deleted by the next shmget() that creates one.
+// server has attached it). A private segment whose maker and every process that attached it have
+// ended without removing it is deleted by the next shmget() that creates one; a keyed one stays.
 
 #ifndef DDNATV_HOST_TEST
 
@@ -154,8 +154,10 @@ static void shm_unlock_dir(int fd) {
     if (fd >= 0) syscall(SYS_close, fd);
 }
 
-// Deletes the segments whose maker and attached processes have all ended (a segment being written
-// has no description yet and is left alone), and the marks of attached processes that have ended.
+// Deletes the private (IPC_PRIVATE) segments whose maker and attached processes have all ended (a
+// segment being written has no description yet and is left alone), and the marks of attached
+// processes that have ended. A segment with a key stays until IPC_RMID, as on Linux: another
+// process can still look it up by its key.
 static void shm_collect(void) {
     char path[PATH_MAX];
     if (shm_path(path, sizeof(path), NULL) != 0) return;
@@ -182,7 +184,8 @@ static void shm_collect(void) {
                 char text[128];
                 struct shm_meta meta;
                 if (shm_read_small(entry, text, sizeof(text)) > 0 &&
-                    sscanf(text, "%d %lx %o", &meta.pid, &meta.key, &meta.mode) == 3 && !shm_process_alive(meta.pid)) {
+                    sscanf(text, "%d %lx %o", &meta.pid, &meta.key, &meta.mode) == 3 && meta.key == IPC_PRIVATE &&
+                    !shm_process_alive(meta.pid)) {
                     dead[ndead++] = id;
                 }
             }
