@@ -666,7 +666,9 @@ class SessionService : Service() {
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val nativeUserland = com.droiddeck.launcher.runtime.NativeGuest.enabled(this)
-        com.droiddeck.launcher.runtime.NativeGuest.sessionMode = nativeUserland
+        synchronized(stopLock) {
+            if (gen == sessionGen && SessionState.running) com.droiddeck.launcher.runtime.NativeGuest.sessionMode = nativeUserland
+        }
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
@@ -773,7 +775,6 @@ class SessionService : Service() {
             }
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
-            com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
             stopSession(program ?: status ?: -1, gen)
         }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() })
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
@@ -2144,7 +2145,6 @@ class SessionService : Service() {
     }
 
     override fun onDestroy() {
-        com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
         stopSession(0)
         GameThreadHints.stop()
         if (screenReceiverRegistered) {
