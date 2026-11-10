@@ -199,7 +199,11 @@ object Soundtrack {
         return out
     }
 
-    private fun coverCache(context: Context, root: File) = File(context.filesDir, "soundtrack-index/cover-${root.path.hashCode().toUInt()}.jpg")
+    private fun coverCache(context: Context, root: File): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(root.path.toByteArray(Charsets.UTF_8))
+        val key = digest.take(16).joinToString("") { "%02x".format(it) }
+        return File(context.filesDir, "soundtrack-index/cover-$key.jpg")
+    }
 
     fun cachedCover(context: Context, root: File): File? = coverCache(context, root).takeIf { it.isFile && it.length() > 0L }
 

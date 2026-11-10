@@ -91,7 +91,7 @@ object SoundtrackController {
         val root = activeRoot ?: SoundtrackSettings.resume(context)?.root?.takeIf { id.startsWith("$it/") }?.also { activeRoot = it } ?: return
         if (id != savedId || !player.isPlaying) {
             savedId = id
-            SoundtrackSettings.saveResume(context, root, id, player.currentPosition)
+            SoundtrackSettings.saveResume(context, root, id, if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition)
         }
     }
 

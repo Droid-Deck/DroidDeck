@@ -32,6 +32,7 @@ class SoundtrackService : MediaSessionService() {
     private var exo: ExoPlayer? = null
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
+    private var effectsSession = C.AUDIO_SESSION_ID_UNSET
     private var eqOn = false
     private var eqBands = IntArray(0)
     private var eqBass = 0
@@ -102,26 +103,35 @@ class SoundtrackService : MediaSessionService() {
         runCatching { bassBoost?.release() }
         equalizer = null
         bassBoost = null
+        effectsSession = C.AUDIO_SESSION_ID_UNSET
     }
 
     private fun applyEffects() {
-        releaseEffects()
-        val id = exo?.audioSessionId ?: return
-        if (!eqOn || id == C.AUDIO_SESSION_ID_UNSET) return
-        runCatching {
-            val eq = Equalizer(0, id)
-            val range = eq.bandLevelRange
-            for (band in 0 until minOf(eq.numberOfBands.toInt(), eqBands.size)) {
-                eq.setBandLevel(band.toShort(), eqBands[band].coerceIn(range[0].toInt(), range[1].toInt()).toShort())
-            }
-            eq.enabled = true
-            equalizer = eq
+        val id = exo?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
+        if (!eqOn || id == C.AUDIO_SESSION_ID_UNSET) {
+            releaseEffects()
+            return
+        }
+        if (id != effectsSession) {
+            releaseEffects()
+            effectsSession = id
+            equalizer = runCatching { Equalizer(0, id) }.getOrNull()
+            bassBoost = runCatching { BassBoost(0, id) }.getOrNull()
         }
         runCatching {
-            val boost = BassBoost(0, id)
-            if (boost.strengthSupported) boost.setStrength(eqBass.coerceIn(0, 1000).toShort())
-            boost.enabled = eqBass > 0
-            bassBoost = boost
+            equalizer?.let { eq ->
+                val range = eq.bandLevelRange
+                for (band in 0 until minOf(eq.numberOfBands.toInt(), eqBands.size)) {
+                    eq.setBandLevel(band.toShort(), eqBands[band].coerceIn(range[0].toInt(), range[1].toInt()).toShort())
+                }
+                eq.enabled = true
+            }
+        }
+        runCatching {
+            bassBoost?.let { boost ->
+                if (boost.strengthSupported) boost.setStrength(eqBass.coerceIn(0, 1000).toShort())
+                boost.enabled = eqBass > 0
+            }
         }
     }
 
