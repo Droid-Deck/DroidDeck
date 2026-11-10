@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.Log;
 
 import com.droiddeck.launcher.frontend.AddedGames;
-import com.droiddeck.launcher.runtime.GuestCommand;
 import com.droiddeck.launcher.stores.StoreLanguage;
 import com.droiddeck.launcher.stores.StoreLog;
 import com.droiddeck.launcher.stores.download.StoreDownloadTier;
@@ -325,18 +324,15 @@ public final class GogDownloadManager {
         }
         String guestSetup = guestDir + "/" + setupName;
         cb.onProgress("Extracting installer…", 95);
-        int rc;
+        GogInnoextract.Result result;
         try {
-            rc = GuestCommand.INSTANCE.run(ctx, Arrays.asList(
-                    "/usr/local/bin/droiddeck-innoextract", "--gog", "--silent",
-                    "-d", guestDir, guestSetup),
-                    false, "gog-innoextract", null, null, false, cancelled,
+            result = GogInnoextract.extract(ctx, guestSetup, guestDir, "gog-innoextract", cancelled,
                     line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
         } catch (Exception e) {
             throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());
         }
         if (cancelled.get()) return;
-        if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
+        if (result.getExit() != 0) throw new InstallException(result.failure("The installer could not be extracted (innoextract exit " + result.getExit() + ")"));
     }
 
     static final class InstallerPart {

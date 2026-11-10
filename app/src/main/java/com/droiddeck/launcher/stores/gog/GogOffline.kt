@@ -3,11 +3,9 @@ package com.droiddeck.launcher.stores.gog
 import android.content.Context
 import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.frontend.AddedGames
-import com.droiddeck.launcher.runtime.GuestCommand
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.StoreGameSidecar
-import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import org.json.JSONArray
@@ -71,10 +69,9 @@ internal object GogOffline {
         val source = AddedGames.guestPath(context, installer) ?: error("The GOG installer is not visible to Linux")
         val target = AddedGames.guestPath(context, extracted) ?: error("The GOG staging folder is not visible to Linux")
         handle.stage(DownloadStage.INSTALL, "Extracting the full offline installer")
-        val rc = GuestCommand.run(context, listOf("/usr/local/bin/droiddeck-innoextract", "--gog", "--silent", "-d", target, source),
-            extraBinds = StoreInstallRoot.externalBindSpecs(context), cancelled = stop, logName = "gog-refresh", onLine = handle::log)
+        val result = GogInnoextract.extract(context, source, target, "gog-refresh", stop, handle::log)
         if (stop.get()) return
-        check(rc == 0) { "GOG installer extraction failed (exit $rc)" }
+        check(result.exit == 0) { result.failure("GOG installer extraction failed (exit ${result.exit})") }
         applyRefresh(proposal, extracted, handle, stop)
     }
 
