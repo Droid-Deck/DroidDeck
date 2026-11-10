@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Skarlátvörös hó</string>
     
+    <string name="rail_soundtracks">Soundtrackek</string>
+    <string name="setup_soundtracks">Soundtrackek</string>
+    <string name="soundtracks_empty">Még nincs telepített soundtrack.</string>
+    <string name="soundtracks_search">Soundtrackek keresése</string>
+    <string name="soundtracks_add_title">Soundtrack mappa hozzáadása</string>
+    <string name="soundtracks_add_empty">Nincs hangfájl ebben a mappában</string>
+    <string name="soundtracks_total_length">Teljes hossz</string>
+    <string name="soundtracks_length_value">%1$d szám / %2$s</string>
+    <string name="soundtracks_disc">%1$s. lemez</string>
+    <string name="soundtracks_shuffle">Keverés</string>
+    <string name="soundtracks_previous">Előző</string>
+    <string name="soundtracks_play">Lejátszás</string>
+    <string name="soundtracks_pause">Szünet</string>
+    <string name="soundtracks_next">Következő</string>
+    <string name="soundtracks_repeat_off">Ismétlés kikapcsolva</string>
+    <string name="soundtracks_repeat_all">Összes ismétlése</string>
+    <string name="soundtracks_repeat_one">Egy ismétlése</string>
+    <string name="soundtracks_volume">Hangerő</string>
+    <string name="soundtracks_no_tracks">Nincs hangfájl ebben a soundtrackben</string>
 </resources>

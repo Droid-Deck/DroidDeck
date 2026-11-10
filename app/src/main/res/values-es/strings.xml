@@ -3697,4 +3697,23 @@
 
     <string name="theme_white_red">Nieve escarlata</string>
     
+    <string name="rail_soundtracks">Bandas sonoras</string>
+    <string name="setup_soundtracks">Bandas sonoras</string>
+    <string name="soundtracks_empty">Aún no hay bandas sonoras instaladas.</string>
+    <string name="soundtracks_search">Buscar bandas sonoras</string>
+    <string name="soundtracks_add_title">Añadir una carpeta de banda sonora</string>
+    <string name="soundtracks_add_empty">No hay archivos de audio en esa carpeta</string>
+    <string name="soundtracks_total_length">Duración total</string>
+    <string name="soundtracks_length_value">%1$d pistas / %2$s</string>
+    <string name="soundtracks_disc">Disco %1$s</string>
+    <string name="soundtracks_shuffle">Aleatorio</string>
+    <string name="soundtracks_previous">Anterior</string>
+    <string name="soundtracks_play">Reproducir</string>
+    <string name="soundtracks_pause">Pausar</string>
+    <string name="soundtracks_next">Siguiente</string>
+    <string name="soundtracks_repeat_off">Repetición desactivada</string>
+    <string name="soundtracks_repeat_all">Repetir todo</string>
+    <string name="soundtracks_repeat_one">Repetir una</string>
+    <string name="soundtracks_volume">Volumen</string>
+    <string name="soundtracks_no_tracks">No hay archivos de audio en esta banda sonora</string>
 </resources>

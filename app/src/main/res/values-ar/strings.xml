@@ -3814,4 +3814,23 @@
 
     <string name="theme_white_red">ثلج قرمزي</string>
     
+    <string name="rail_soundtracks">الموسيقى التصويرية</string>
+    <string name="setup_soundtracks">الموسيقى التصويرية</string>
+    <string name="soundtracks_empty">لا توجد موسيقى تصويرية مثبّتة بعد.</string>
+    <string name="soundtracks_search">ابحث في الموسيقى التصويرية</string>
+    <string name="soundtracks_add_title">إضافة مجلد موسيقى تصويرية</string>
+    <string name="soundtracks_add_empty">لا توجد ملفات صوتية في هذا المجلد</string>
+    <string name="soundtracks_total_length">المدة الإجمالية</string>
+    <string name="soundtracks_length_value">%1$d مقطعًا / %2$s</string>
+    <string name="soundtracks_disc">القرص %1$s</string>
+    <string name="soundtracks_shuffle">عشوائي</string>
+    <string name="soundtracks_previous">السابق</string>
+    <string name="soundtracks_play">تشغيل</string>
+    <string name="soundtracks_pause">إيقاف مؤقت</string>
+    <string name="soundtracks_next">التالي</string>
+    <string name="soundtracks_repeat_off">التكرار متوقف</string>
+    <string name="soundtracks_repeat_all">تكرار الكل</string>
+    <string name="soundtracks_repeat_one">تكرار مقطع واحد</string>
+    <string name="soundtracks_volume">مستوى الصوت</string>
+    <string name="soundtracks_no_tracks">لا توجد ملفات صوتية في هذه الموسيقى التصويرية</string>
 </resources>

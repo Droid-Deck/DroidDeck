@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Skarlagenssnø</string>
     
+    <string name="rail_soundtracks">Lydspor</string>
+    <string name="setup_soundtracks">Lydspor</string>
+    <string name="soundtracks_empty">Ingen lydspor installert ennå.</string>
+    <string name="soundtracks_search">Søk i lydspor</string>
+    <string name="soundtracks_add_title">Legg til en lydspormappe</string>
+    <string name="soundtracks_add_empty">Ingen lydfiler i denne mappen</string>
+    <string name="soundtracks_total_length">Total lengde</string>
+    <string name="soundtracks_length_value">%1$d spor / %2$s</string>
+    <string name="soundtracks_disc">Plate %1$s</string>
+    <string name="soundtracks_shuffle">Tilfeldig rekkefølge</string>
+    <string name="soundtracks_previous">Forrige</string>
+    <string name="soundtracks_play">Spill av</string>
+    <string name="soundtracks_pause">Pause</string>
+    <string name="soundtracks_next">Neste</string>
+    <string name="soundtracks_repeat_off">Gjentakelse av</string>
+    <string name="soundtracks_repeat_all">Gjenta alle</string>
+    <string name="soundtracks_repeat_one">Gjenta ett</string>
+    <string name="soundtracks_volume">Volum</string>
+    <string name="soundtracks_no_tracks">Ingen lydfiler i dette lydsporet</string>
 </resources>

@@ -3697,4 +3697,23 @@
 
     <string name="theme_white_red">Neige écarlate</string>
     
+    <string name="rail_soundtracks">Bandes originales</string>
+    <string name="setup_soundtracks">Bandes originales</string>
+    <string name="soundtracks_empty">Aucune bande originale installée pour le moment.</string>
+    <string name="soundtracks_search">Rechercher des bandes originales</string>
+    <string name="soundtracks_add_title">Ajouter un dossier de bande originale</string>
+    <string name="soundtracks_add_empty">Aucun fichier audio dans ce dossier</string>
+    <string name="soundtracks_total_length">Durée totale</string>
+    <string name="soundtracks_length_value">%1$d pistes / %2$s</string>
+    <string name="soundtracks_disc">Disque %1$s</string>
+    <string name="soundtracks_shuffle">Aléatoire</string>
+    <string name="soundtracks_previous">Précédent</string>
+    <string name="soundtracks_play">Lecture</string>
+    <string name="soundtracks_pause">Pause</string>
+    <string name="soundtracks_next">Suivant</string>
+    <string name="soundtracks_repeat_off">Répétition désactivée</string>
+    <string name="soundtracks_repeat_all">Tout répéter</string>
+    <string name="soundtracks_repeat_one">Répéter une piste</string>
+    <string name="soundtracks_volume">Volume</string>
+    <string name="soundtracks_no_tracks">Aucun fichier audio dans cette bande originale</string>
 </resources>

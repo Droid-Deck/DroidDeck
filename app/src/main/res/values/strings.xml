@@ -3819,4 +3819,23 @@
 
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
+    <string name="rail_soundtracks">Soundtracks</string>
+    <string name="setup_soundtracks">Soundtracks</string>
+    <string name="soundtracks_empty">No soundtracks installed yet.</string>
+    <string name="soundtracks_search">Search soundtracks</string>
+    <string name="soundtracks_add_title">Add a soundtrack folder</string>
+    <string name="soundtracks_add_empty">No audio files found in that folder</string>
+    <string name="soundtracks_total_length">Total length</string>
+    <string name="soundtracks_length_value">%1$d Tracks / %2$s</string>
+    <string name="soundtracks_disc">Disc %1$s</string>
+    <string name="soundtracks_shuffle">Shuffle</string>
+    <string name="soundtracks_previous">Previous</string>
+    <string name="soundtracks_play">Play</string>
+    <string name="soundtracks_pause">Pause</string>
+    <string name="soundtracks_next">Next</string>
+    <string name="soundtracks_repeat_off">Repeat off</string>
+    <string name="soundtracks_repeat_all">Repeat all</string>
+    <string name="soundtracks_repeat_one">Repeat one</string>
+    <string name="soundtracks_volume">Volume</string>
+    <string name="soundtracks_no_tracks">No audio files found in this soundtrack</string>
 </resources>

@@ -3819,4 +3819,23 @@
 
     <string name="theme_white_red">Алый снег</string>
     
+    <string name="rail_soundtracks">Саундтреки</string>
+    <string name="setup_soundtracks">Саундтреки</string>
+    <string name="soundtracks_empty">Саундтреки ещё не установлены.</string>
+    <string name="soundtracks_search">Поиск саундтреков</string>
+    <string name="soundtracks_add_title">Добавить папку саундтрека</string>
+    <string name="soundtracks_add_empty">В этой папке нет аудиофайлов</string>
+    <string name="soundtracks_total_length">Общая длительность</string>
+    <string name="soundtracks_length_value">Треков: %1$d / %2$s</string>
+    <string name="soundtracks_disc">Диск %1$s</string>
+    <string name="soundtracks_shuffle">Перемешать</string>
+    <string name="soundtracks_previous">Назад</string>
+    <string name="soundtracks_play">Воспроизвести</string>
+    <string name="soundtracks_pause">Пауза</string>
+    <string name="soundtracks_next">Далее</string>
+    <string name="soundtracks_repeat_off">Повтор выключен</string>
+    <string name="soundtracks_repeat_all">Повторять всё</string>
+    <string name="soundtracks_repeat_one">Повторять один</string>
+    <string name="soundtracks_volume">Громкость</string>
+    <string name="soundtracks_no_tracks">В этом саундтреке нет аудиофайлов</string>
 </resources>

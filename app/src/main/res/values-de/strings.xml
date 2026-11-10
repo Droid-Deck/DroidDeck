@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Scharlachroter Schnee</string>
     
+    <string name="rail_soundtracks">Soundtracks</string>
+    <string name="setup_soundtracks">Soundtracks</string>
+    <string name="soundtracks_empty">Noch keine Soundtracks installiert.</string>
+    <string name="soundtracks_search">Soundtracks durchsuchen</string>
+    <string name="soundtracks_add_title">Soundtrack-Ordner hinzufügen</string>
+    <string name="soundtracks_add_empty">Keine Audiodateien in diesem Ordner</string>
+    <string name="soundtracks_total_length">Gesamtlänge</string>
+    <string name="soundtracks_length_value">%1$d Titel / %2$s</string>
+    <string name="soundtracks_disc">Disc %1$s</string>
+    <string name="soundtracks_shuffle">Zufällig</string>
+    <string name="soundtracks_previous">Zurück</string>
+    <string name="soundtracks_play">Wiedergabe</string>
+    <string name="soundtracks_pause">Pause</string>
+    <string name="soundtracks_next">Weiter</string>
+    <string name="soundtracks_repeat_off">Wiederholen aus</string>
+    <string name="soundtracks_repeat_all">Alle wiederholen</string>
+    <string name="soundtracks_repeat_one">Titel wiederholen</string>
+    <string name="soundtracks_volume">Lautstärke</string>
+    <string name="soundtracks_no_tracks">Keine Audiodateien in diesem Soundtrack</string>
 </resources>

@@ -3628,4 +3628,23 @@
 
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     
+    <string name="rail_soundtracks">ซาวด์แทร็ก</string>
+    <string name="setup_soundtracks">ซาวด์แทร็ก</string>
+    <string name="soundtracks_empty">ยังไม่มีซาวด์แทร็กที่ติดตั้ง</string>
+    <string name="soundtracks_search">ค้นหาซาวด์แทร็ก</string>
+    <string name="soundtracks_add_title">เพิ่มโฟลเดอร์ซาวด์แทร็ก</string>
+    <string name="soundtracks_add_empty">ไม่พบไฟล์เสียงในโฟลเดอร์นั้น</string>
+    <string name="soundtracks_total_length">ความยาวทั้งหมด</string>
+    <string name="soundtracks_length_value">%1$d แทร็ก / %2$s</string>
+    <string name="soundtracks_disc">ดิสก์ %1$s</string>
+    <string name="soundtracks_shuffle">สุ่ม</string>
+    <string name="soundtracks_previous">ก่อนหน้า</string>
+    <string name="soundtracks_play">เล่น</string>
+    <string name="soundtracks_pause">หยุดชั่วคราว</string>
+    <string name="soundtracks_next">ถัดไป</string>
+    <string name="soundtracks_repeat_off">ปิดการเล่นซ้ำ</string>
+    <string name="soundtracks_repeat_all">เล่นซ้ำทั้งหมด</string>
+    <string name="soundtracks_repeat_one">เล่นซ้ำหนึ่งเพลง</string>
+    <string name="soundtracks_volume">ระดับเสียง</string>
+    <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
 </resources>

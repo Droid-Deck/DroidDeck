@@ -3697,4 +3697,23 @@
 
     <string name="theme_white_red">Zăpadă stacojie</string>
     
+    <string name="rail_soundtracks">Coloane sonore</string>
+    <string name="setup_soundtracks">Coloane sonore</string>
+    <string name="soundtracks_empty">Nicio coloană sonoră instalată încă.</string>
+    <string name="soundtracks_search">Caută coloane sonore</string>
+    <string name="soundtracks_add_title">Adaugă un dosar de coloană sonoră</string>
+    <string name="soundtracks_add_empty">Niciun fișier audio în acel dosar</string>
+    <string name="soundtracks_total_length">Durată totală</string>
+    <string name="soundtracks_length_value">Piese: %1$d · %2$s</string>
+    <string name="soundtracks_disc">Discul %1$s</string>
+    <string name="soundtracks_shuffle">Amestecare</string>
+    <string name="soundtracks_previous">Anterior</string>
+    <string name="soundtracks_play">Redare</string>
+    <string name="soundtracks_pause">Pauză</string>
+    <string name="soundtracks_next">Următor</string>
+    <string name="soundtracks_repeat_off">Repetare dezactivată</string>
+    <string name="soundtracks_repeat_all">Repetă tot</string>
+    <string name="soundtracks_repeat_one">Repetă una</string>
+    <string name="soundtracks_volume">Volum</string>
+    <string name="soundtracks_no_tracks">Niciun fișier audio în această coloană sonoră</string>
 </resources>

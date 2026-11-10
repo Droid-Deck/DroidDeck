@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Helakanpunainen lumi</string>
     
+    <string name="rail_soundtracks">Soundtrackit</string>
+    <string name="setup_soundtracks">Soundtrackit</string>
+    <string name="soundtracks_empty">Soundtrackeja ei ole vielä asennettu.</string>
+    <string name="soundtracks_search">Hae soundtrackeja</string>
+    <string name="soundtracks_add_title">Lisää soundtrack-kansio</string>
+    <string name="soundtracks_add_empty">Kansiossa ei ole äänitiedostoja</string>
+    <string name="soundtracks_total_length">Kokonaiskesto</string>
+    <string name="soundtracks_length_value">%1$d kappaletta / %2$s</string>
+    <string name="soundtracks_disc">Levy %1$s</string>
+    <string name="soundtracks_shuffle">Sekoita</string>
+    <string name="soundtracks_previous">Edellinen</string>
+    <string name="soundtracks_play">Toista</string>
+    <string name="soundtracks_pause">Tauko</string>
+    <string name="soundtracks_next">Seuraava</string>
+    <string name="soundtracks_repeat_off">Toisto pois</string>
+    <string name="soundtracks_repeat_all">Toista kaikki</string>
+    <string name="soundtracks_repeat_one">Toista yksi</string>
+    <string name="soundtracks_volume">Äänenvoimakkuus</string>
+    <string name="soundtracks_no_tracks">Tässä soundtrackissa ei ole äänitiedostoja</string>
 </resources>

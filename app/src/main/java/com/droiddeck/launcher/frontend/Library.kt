@@ -19,9 +19,10 @@ object Library {
         val storeId: String? = null,
         val logo: File? = null,
         val installedAt: Long = 0L,
+        val soundtrack: Boolean = false,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt, soundtrack)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
@@ -123,9 +124,12 @@ object Library {
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
     }
 
+    fun soundtracks(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> =
+        steamGames(context, arch = arch, withShared = false, soundtracks = true).filter { it.soundtrack }
+
     fun steamGames(
         context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
-        withShared: Boolean = true,
+        withShared: Boolean = true, soundtracks: Boolean = false,
     ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
@@ -150,9 +154,11 @@ object Library {
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
                     val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
+                    val musicFiles = if (gameFiles == null) installDir?.let { File(steamapps, "music/$it").takeIf(File::isDirectory) } else null
+                    if (musicFiles != null && !soundtracks) return@forEach
                     out[appId] = SteamGameArt.withOverrides(context, SteamGame(
-                        appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
-                        gameFiles = gameFiles,
+                        appId, name, art ?: musicFiles?.let(Soundtrack::cover), label, hero = hero, lastPlayed = lastPlayed,
+                        gameFiles = gameFiles ?: musicFiles, soundtrack = musicFiles != null,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = images.icon(),
                         logo = images.find(STEAM_LOGOS),
@@ -162,7 +168,7 @@ object Library {
         if (withShared) {
             val other = if (arch == "x86_64") "arm64" else "x86_64"
             val shared = sharedApps(context, arch) - out.keys
-            if (shared.isNotEmpty()) runCatching { steamGames(context, arch = other, withShared = false) }.getOrDefault(emptyList())
+            if (shared.isNotEmpty()) runCatching { steamGames(context, arch = other, withShared = false, soundtracks = soundtracks) }.getOrDefault(emptyList())
                 .filter { it.appId in shared }.forEach { out[it.appId] = it }
         }
         return out.values.toList()

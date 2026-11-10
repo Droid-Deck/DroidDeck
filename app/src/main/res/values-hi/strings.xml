@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">किरमिज़ी बर्फ</string>
     
+    <string name="rail_soundtracks">साउंडट्रैक</string>
+    <string name="setup_soundtracks">साउंडट्रैक</string>
+    <string name="soundtracks_empty">अभी तक कोई साउंडट्रैक इंस्टॉल नहीं है।</string>
+    <string name="soundtracks_search">साउंडट्रैक खोजें</string>
+    <string name="soundtracks_add_title">साउंडट्रैक फ़ोल्डर जोड़ें</string>
+    <string name="soundtracks_add_empty">उस फ़ोल्डर में कोई ऑडियो फ़ाइल नहीं है</string>
+    <string name="soundtracks_total_length">कुल अवधि</string>
+    <string name="soundtracks_length_value">%1$d ट्रैक / %2$s</string>
+    <string name="soundtracks_disc">डिस्क %1$s</string>
+    <string name="soundtracks_shuffle">शफ़ल</string>
+    <string name="soundtracks_previous">पिछला</string>
+    <string name="soundtracks_play">चलाएँ</string>
+    <string name="soundtracks_pause">रोकें</string>
+    <string name="soundtracks_next">अगला</string>
+    <string name="soundtracks_repeat_off">रिपीट बंद</string>
+    <string name="soundtracks_repeat_all">सभी दोहराएँ</string>
+    <string name="soundtracks_repeat_one">एक दोहराएँ</string>
+    <string name="soundtracks_volume">वॉल्यूम</string>
+    <string name="soundtracks_no_tracks">इस साउंडट्रैक में कोई ऑडियो फ़ाइल नहीं है</string>
 </resources>

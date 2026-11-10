@@ -3736,4 +3736,23 @@
 
     <string name="theme_white_red">Багряний сніг</string>
     
+    <string name="rail_soundtracks">Саундтреки</string>
+    <string name="setup_soundtracks">Саундтреки</string>
+    <string name="soundtracks_empty">Саундтреки ще не встановлено.</string>
+    <string name="soundtracks_search">Пошук саундтреків</string>
+    <string name="soundtracks_add_title">Додати теку саундтреку</string>
+    <string name="soundtracks_add_empty">У цій теці немає аудіофайлів</string>
+    <string name="soundtracks_total_length">Загальна тривалість</string>
+    <string name="soundtracks_length_value">Треків: %1$d / %2$s</string>
+    <string name="soundtracks_disc">Диск %1$s</string>
+    <string name="soundtracks_shuffle">Перемішати</string>
+    <string name="soundtracks_previous">Назад</string>
+    <string name="soundtracks_play">Відтворити</string>
+    <string name="soundtracks_pause">Пауза</string>
+    <string name="soundtracks_next">Далі</string>
+    <string name="soundtracks_repeat_off">Повтор вимкнено</string>
+    <string name="soundtracks_repeat_all">Повторювати все</string>
+    <string name="soundtracks_repeat_one">Повторювати один</string>
+    <string name="soundtracks_volume">Гучність</string>
+    <string name="soundtracks_no_tracks">У цьому саундтреку немає аудіофайлів</string>
 </resources>

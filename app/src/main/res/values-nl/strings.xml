@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Scharlakenrode sneeuw</string>
     
+    <string name="rail_soundtracks">Soundtracks</string>
+    <string name="setup_soundtracks">Soundtracks</string>
+    <string name="soundtracks_empty">Nog geen soundtracks geïnstalleerd.</string>
+    <string name="soundtracks_search">Soundtracks zoeken</string>
+    <string name="soundtracks_add_title">Soundtrackmap toevoegen</string>
+    <string name="soundtracks_add_empty">Geen audiobestanden in deze map</string>
+    <string name="soundtracks_total_length">Totale lengte</string>
+    <string name="soundtracks_length_value">%1$d nummers / %2$s</string>
+    <string name="soundtracks_disc">Schijf %1$s</string>
+    <string name="soundtracks_shuffle">Willekeurig</string>
+    <string name="soundtracks_previous">Vorige</string>
+    <string name="soundtracks_play">Afspelen</string>
+    <string name="soundtracks_pause">Pauzeren</string>
+    <string name="soundtracks_next">Volgende</string>
+    <string name="soundtracks_repeat_off">Herhalen uit</string>
+    <string name="soundtracks_repeat_all">Alles herhalen</string>
+    <string name="soundtracks_repeat_one">Eén herhalen</string>
+    <string name="soundtracks_volume">Volume</string>
+    <string name="soundtracks_no_tracks">Geen audiobestanden in deze soundtrack</string>
 </resources>

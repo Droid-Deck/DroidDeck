@@ -3697,4 +3697,23 @@
 
     <string name="theme_white_red">Neve scarlatta</string>
     
+    <string name="rail_soundtracks">Colonne sonore</string>
+    <string name="setup_soundtracks">Colonne sonore</string>
+    <string name="soundtracks_empty">Nessuna colonna sonora installata.</string>
+    <string name="soundtracks_search">Cerca colonne sonore</string>
+    <string name="soundtracks_add_title">Aggiungi una cartella di colonna sonora</string>
+    <string name="soundtracks_add_empty">Nessun file audio in questa cartella</string>
+    <string name="soundtracks_total_length">Durata totale</string>
+    <string name="soundtracks_length_value">%1$d brani / %2$s</string>
+    <string name="soundtracks_disc">Disco %1$s</string>
+    <string name="soundtracks_shuffle">Casuale</string>
+    <string name="soundtracks_previous">Precedente</string>
+    <string name="soundtracks_play">Riproduci</string>
+    <string name="soundtracks_pause">Pausa</string>
+    <string name="soundtracks_next">Successivo</string>
+    <string name="soundtracks_repeat_off">Ripetizione disattivata</string>
+    <string name="soundtracks_repeat_all">Ripeti tutto</string>
+    <string name="soundtracks_repeat_one">Ripeti uno</string>
+    <string name="soundtracks_volume">Volume</string>
+    <string name="soundtracks_no_tracks">Nessun file audio in questa colonna sonora</string>
 </resources>

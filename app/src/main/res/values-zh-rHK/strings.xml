@@ -3631,4 +3631,23 @@
 
     <string name="theme_white_red">緋紅之雪</string>
     
+    <string name="rail_soundtracks">原聲帶</string>
+    <string name="setup_soundtracks">原聲帶</string>
+    <string name="soundtracks_empty">尚未安裝任何原聲帶。</string>
+    <string name="soundtracks_search">搜尋原聲帶</string>
+    <string name="soundtracks_add_title">新增原聲帶資料夾</string>
+    <string name="soundtracks_add_empty">該資料夾中沒有音訊檔案</string>
+    <string name="soundtracks_total_length">總長度</string>
+    <string name="soundtracks_length_value">%1$d 首曲目 / %2$s</string>
+    <string name="soundtracks_disc">第 %1$s 張</string>
+    <string name="soundtracks_shuffle">隨機播放</string>
+    <string name="soundtracks_previous">上一首</string>
+    <string name="soundtracks_play">播放</string>
+    <string name="soundtracks_pause">暫停</string>
+    <string name="soundtracks_next">下一首</string>
+    <string name="soundtracks_repeat_off">關閉重複</string>
+    <string name="soundtracks_repeat_all">全部重複</string>
+    <string name="soundtracks_repeat_one">單曲重複</string>
+    <string name="soundtracks_volume">音量</string>
+    <string name="soundtracks_no_tracks">此原聲帶中沒有音訊檔案</string>
 </resources>

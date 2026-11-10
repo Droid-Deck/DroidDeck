@@ -3628,4 +3628,23 @@
 
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
     
+    <string name="rail_soundtracks">Nhạc nền</string>
+    <string name="setup_soundtracks">Nhạc nền</string>
+    <string name="soundtracks_empty">Chưa có nhạc nền nào được cài đặt.</string>
+    <string name="soundtracks_search">Tìm nhạc nền</string>
+    <string name="soundtracks_add_title">Thêm thư mục nhạc nền</string>
+    <string name="soundtracks_add_empty">Không có tệp âm thanh trong thư mục đó</string>
+    <string name="soundtracks_total_length">Tổng thời lượng</string>
+    <string name="soundtracks_length_value">%1$d bài / %2$s</string>
+    <string name="soundtracks_disc">Đĩa %1$s</string>
+    <string name="soundtracks_shuffle">Phát ngẫu nhiên</string>
+    <string name="soundtracks_previous">Trước</string>
+    <string name="soundtracks_play">Phát</string>
+    <string name="soundtracks_pause">Tạm dừng</string>
+    <string name="soundtracks_next">Tiếp</string>
+    <string name="soundtracks_repeat_off">Tắt lặp lại</string>
+    <string name="soundtracks_repeat_all">Lặp lại tất cả</string>
+    <string name="soundtracks_repeat_one">Lặp lại một bài</string>
+    <string name="soundtracks_volume">Âm lượng</string>
+    <string name="soundtracks_no_tracks">Không có tệp âm thanh trong nhạc nền này</string>
 </resources>

@@ -457,6 +457,7 @@ internal fun SetupPanel(
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
                                 LanguageRow(host, s.language, a.onLanguage)
                                 ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
+                                ToggleRow(host, "show-soundtracks", stringResource(R.string.setup_soundtracks), null, s.soundtracksEnabled, onChange = a.onSoundtracksEnabled)
                             }
                         }
                         val device: @Composable () -> Unit = {

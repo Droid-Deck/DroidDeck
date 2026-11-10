@@ -3736,4 +3736,23 @@
 
     <string name="theme_white_red">Szkarłatny śnieg</string>
     
+    <string name="rail_soundtracks">Ścieżki dźwiękowe</string>
+    <string name="setup_soundtracks">Ścieżki dźwiękowe</string>
+    <string name="soundtracks_empty">Brak zainstalowanych ścieżek dźwiękowych.</string>
+    <string name="soundtracks_search">Szukaj ścieżek dźwiękowych</string>
+    <string name="soundtracks_add_title">Dodaj folder ze ścieżką dźwiękową</string>
+    <string name="soundtracks_add_empty">Brak plików audio w tym folderze</string>
+    <string name="soundtracks_total_length">Całkowity czas</string>
+    <string name="soundtracks_length_value">Utworów: %1$d / %2$s</string>
+    <string name="soundtracks_disc">Płyta %1$s</string>
+    <string name="soundtracks_shuffle">Losowo</string>
+    <string name="soundtracks_previous">Poprzedni</string>
+    <string name="soundtracks_play">Odtwórz</string>
+    <string name="soundtracks_pause">Wstrzymaj</string>
+    <string name="soundtracks_next">Następny</string>
+    <string name="soundtracks_repeat_off">Powtarzanie wyłączone</string>
+    <string name="soundtracks_repeat_all">Powtarzaj wszystko</string>
+    <string name="soundtracks_repeat_one">Powtarzaj jeden</string>
+    <string name="soundtracks_volume">Głośność</string>
+    <string name="soundtracks_no_tracks">Brak plików audio w tej ścieżce dźwiękowej</string>
 </resources>

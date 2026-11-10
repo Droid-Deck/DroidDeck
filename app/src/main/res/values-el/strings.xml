@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
     
+    <string name="rail_soundtracks">Soundtrack</string>
+    <string name="setup_soundtracks">Soundtrack</string>
+    <string name="soundtracks_empty">Δεν υπάρχουν εγκατεστημένα soundtrack ακόμη.</string>
+    <string name="soundtracks_search">Αναζήτηση soundtrack</string>
+    <string name="soundtracks_add_title">Προσθήκη φακέλου soundtrack</string>
+    <string name="soundtracks_add_empty">Δεν υπάρχουν αρχεία ήχου σε αυτόν τον φάκελο</string>
+    <string name="soundtracks_total_length">Συνολική διάρκεια</string>
+    <string name="soundtracks_length_value">%1$d κομμάτια / %2$s</string>
+    <string name="soundtracks_disc">Δίσκος %1$s</string>
+    <string name="soundtracks_shuffle">Τυχαία σειρά</string>
+    <string name="soundtracks_previous">Προηγούμενο</string>
+    <string name="soundtracks_play">Αναπαραγωγή</string>
+    <string name="soundtracks_pause">Παύση</string>
+    <string name="soundtracks_next">Επόμενο</string>
+    <string name="soundtracks_repeat_off">Επανάληψη ανενεργή</string>
+    <string name="soundtracks_repeat_all">Επανάληψη όλων</string>
+    <string name="soundtracks_repeat_one">Επανάληψη ενός</string>
+    <string name="soundtracks_volume">Ένταση</string>
+    <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
 </resources>

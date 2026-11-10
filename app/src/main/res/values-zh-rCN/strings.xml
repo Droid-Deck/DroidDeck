@@ -3632,4 +3632,23 @@
 
     <string name="theme_white_red">猩红之雪</string>
     
+    <string name="rail_soundtracks">原声音乐</string>
+    <string name="setup_soundtracks">原声音乐</string>
+    <string name="soundtracks_empty">尚未安装任何原声音乐。</string>
+    <string name="soundtracks_search">搜索原声音乐</string>
+    <string name="soundtracks_add_title">添加原声音乐文件夹</string>
+    <string name="soundtracks_add_empty">该文件夹中没有音频文件</string>
+    <string name="soundtracks_total_length">总时长</string>
+    <string name="soundtracks_length_value">%1$d 首曲目 / %2$s</string>
+    <string name="soundtracks_disc">第 %1$s 张</string>
+    <string name="soundtracks_shuffle">随机播放</string>
+    <string name="soundtracks_previous">上一首</string>
+    <string name="soundtracks_play">播放</string>
+    <string name="soundtracks_pause">暂停</string>
+    <string name="soundtracks_next">下一首</string>
+    <string name="soundtracks_repeat_off">关闭重复</string>
+    <string name="soundtracks_repeat_all">全部重复</string>
+    <string name="soundtracks_repeat_one">单曲重复</string>
+    <string name="soundtracks_volume">音量</string>
+    <string name="soundtracks_no_tracks">此原声音乐中没有音频文件</string>
 </resources>

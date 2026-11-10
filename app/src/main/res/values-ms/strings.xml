@@ -3628,4 +3628,23 @@
 
     <string name="theme_white_red">Salji Merah Skarlet</string>
     
+    <string name="rail_soundtracks">Runut bunyi</string>
+    <string name="setup_soundtracks">Runut bunyi</string>
+    <string name="soundtracks_empty">Belum ada runut bunyi dipasang.</string>
+    <string name="soundtracks_search">Cari runut bunyi</string>
+    <string name="soundtracks_add_title">Tambah folder runut bunyi</string>
+    <string name="soundtracks_add_empty">Tiada fail audio dalam folder itu</string>
+    <string name="soundtracks_total_length">Jumlah tempoh</string>
+    <string name="soundtracks_length_value">%1$d trek / %2$s</string>
+    <string name="soundtracks_disc">Cakera %1$s</string>
+    <string name="soundtracks_shuffle">Rawak</string>
+    <string name="soundtracks_previous">Sebelumnya</string>
+    <string name="soundtracks_play">Main</string>
+    <string name="soundtracks_pause">Jeda</string>
+    <string name="soundtracks_next">Seterusnya</string>
+    <string name="soundtracks_repeat_off">Ulang dimatikan</string>
+    <string name="soundtracks_repeat_all">Ulang semua</string>
+    <string name="soundtracks_repeat_one">Ulang satu</string>
+    <string name="soundtracks_volume">Kelantangan</string>
+    <string name="soundtracks_no_tracks">Tiada fail audio dalam runut bunyi ini</string>
 </resources>

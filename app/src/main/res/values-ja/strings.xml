@@ -3628,4 +3628,23 @@
 
     <string name="theme_white_red">緋色の雪</string>
     
+    <string name="rail_soundtracks">サウンドトラック</string>
+    <string name="setup_soundtracks">サウンドトラック</string>
+    <string name="soundtracks_empty">インストール済みのサウンドトラックはまだありません。</string>
+    <string name="soundtracks_search">サウンドトラックを検索</string>
+    <string name="soundtracks_add_title">サウンドトラックのフォルダーを追加</string>
+    <string name="soundtracks_add_empty">そのフォルダーに音声ファイルがありません</string>
+    <string name="soundtracks_total_length">合計時間</string>
+    <string name="soundtracks_length_value">%1$d トラック / %2$s</string>
+    <string name="soundtracks_disc">ディスク %1$s</string>
+    <string name="soundtracks_shuffle">シャッフル</string>
+    <string name="soundtracks_previous">前へ</string>
+    <string name="soundtracks_play">再生</string>
+    <string name="soundtracks_pause">一時停止</string>
+    <string name="soundtracks_next">次へ</string>
+    <string name="soundtracks_repeat_off">リピートなし</string>
+    <string name="soundtracks_repeat_all">全曲リピート</string>
+    <string name="soundtracks_repeat_one">1曲リピート</string>
+    <string name="soundtracks_volume">音量</string>
+    <string name="soundtracks_no_tracks">このサウンドトラックに音声ファイルがありません</string>
 </resources>

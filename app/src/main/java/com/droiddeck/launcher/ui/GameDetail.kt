@@ -148,7 +148,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + rememberXboxCloudRows(s)
+    val games = s.steamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
@@ -280,7 +280,7 @@ internal fun GameDetail(
 }
 
 @Composable
-private fun SourceBadge(source: String) {
+internal fun SourceBadge(source: String) {
     val c = sourceColours(source)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -567,13 +567,13 @@ private fun buyLabel(item: CatalogItem): String = when {
 }
 
 @Composable
-private fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
+internal fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) } }
     game.protonPrefix?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) } }
 }
 
 @Composable
-private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
+internal fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     Box {
         SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { open = !open }
@@ -586,7 +586,7 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
+internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     val ctx = LocalContext.current
     val folder = g.gameFiles
     return when {
@@ -600,7 +600,7 @@ private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
 }
 
 @Composable
-private fun EditArtButton(g: Library.SteamGame) {
+internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
     IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
 }
@@ -657,7 +657,7 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
+internal fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id && installed?.sidecar?.id?.let(BattleNetInstall::product) == null) return

@@ -3658,4 +3658,23 @@
 
     <string name="theme_white_red">Ален сняг</string>
     
+    <string name="rail_soundtracks">Саундтраци</string>
+    <string name="setup_soundtracks">Саундтраци</string>
+    <string name="soundtracks_empty">Все още няма инсталирани саундтраци.</string>
+    <string name="soundtracks_search">Търсене на саундтраци</string>
+    <string name="soundtracks_add_title">Добавяне на папка със саундтрак</string>
+    <string name="soundtracks_add_empty">В тази папка няма аудиофайлове</string>
+    <string name="soundtracks_total_length">Обща продължителност</string>
+    <string name="soundtracks_length_value">%1$d песни / %2$s</string>
+    <string name="soundtracks_disc">Диск %1$s</string>
+    <string name="soundtracks_shuffle">Разбъркване</string>
+    <string name="soundtracks_previous">Предишна</string>
+    <string name="soundtracks_play">Пускане</string>
+    <string name="soundtracks_pause">Пауза</string>
+    <string name="soundtracks_next">Следваща</string>
+    <string name="soundtracks_repeat_off">Повторението е изключено</string>
+    <string name="soundtracks_repeat_all">Повтаряне на всички</string>
+    <string name="soundtracks_repeat_one">Повтаряне на една</string>
+    <string name="soundtracks_volume">Сила на звука</string>
+    <string name="soundtracks_no_tracks">В този саундтрак няма аудиофайлове</string>
 </resources>

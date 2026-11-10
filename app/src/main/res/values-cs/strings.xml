@@ -3736,4 +3736,23 @@
 
     <string name="theme_white_red">Šarlatový sníh</string>
     
+    <string name="rail_soundtracks">Soundtracky</string>
+    <string name="setup_soundtracks">Soundtracky</string>
+    <string name="soundtracks_empty">Zatím nejsou nainstalovány žádné soundtracky.</string>
+    <string name="soundtracks_search">Hledat soundtracky</string>
+    <string name="soundtracks_add_title">Přidat složku se soundtrackem</string>
+    <string name="soundtracks_add_empty">V této složce nejsou žádné zvukové soubory</string>
+    <string name="soundtracks_total_length">Celková délka</string>
+    <string name="soundtracks_length_value">Skladeb: %1$d / %2$s</string>
+    <string name="soundtracks_disc">Disk %1$s</string>
+    <string name="soundtracks_shuffle">Náhodně</string>
+    <string name="soundtracks_previous">Předchozí</string>
+    <string name="soundtracks_play">Přehrát</string>
+    <string name="soundtracks_pause">Pozastavit</string>
+    <string name="soundtracks_next">Další</string>
+    <string name="soundtracks_repeat_off">Opakování vypnuto</string>
+    <string name="soundtracks_repeat_all">Opakovat vše</string>
+    <string name="soundtracks_repeat_one">Opakovat jednu</string>
+    <string name="soundtracks_volume">Hlasitost</string>
+    <string name="soundtracks_no_tracks">V tomto soundtracku nejsou žádné zvukové soubory</string>
 </resources>
