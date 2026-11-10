@@ -217,7 +217,7 @@ def deb(path, entries, compression="gz"):
 
 
 class LauncherDebTest(EpicTestCase):
-    def launcher(self):
+    def launcher(self, extra=()):
         return deb(self.tmp / "EpicGamesLauncher-x86_64.deb", [
             ("./usr", {"kind": "dir"}),
             ("./usr/bin/EpicGamesLauncher", {"data": b"egl", "mode": 0o755}),
@@ -226,6 +226,7 @@ class LauncherDebTest(EpicTestCase):
             ("./usr/share/applications/epic-games-launcher.desktop", {"data": b"[Desktop Entry]\n"}),
             ("./usr/bin/egl", {"link": "/usr/bin/EpicGamesLauncher"}),
             ("../escape", {"data": b"x"}),
+            *extra,
         ])
 
     def webkit(self):
@@ -257,6 +258,26 @@ class LauncherDebTest(EpicTestCase):
         self.assertTrue(G["app_complete"](str(dest)))
         self.assertEqual(str(dest / "usr/bin/EpicGamesLauncher"), G["app_command"](str(dest)))
         self.assertEqual(str(libs), G["desktop_libs"](str(dest)))
+
+    def test_archive_symlinks_cannot_redirect_the_desktop_layer_or_icon(self):
+        outside = self.tmp / "outside"
+        outside.mkdir()
+        dest = self.state / "app/0.113.0+g1"
+        escape = os.path.relpath(outside, Path(str(dest) + ".staging"))
+        launcher = self.launcher([("./desktop", {"link": escape}),
+                                  ("./epic-games-launcher.png", {"link": escape + "/target"})])
+        with self.assertRaises(G["Failure"]) as caught:
+            G["extract_app"](str(launcher), str(dest), [str(self.webkit())])
+        self.assertEqual("app-extract", str(caught.exception))
+        self.assertFalse((outside / "usr").exists())
+        self.assertFalse((outside / "target").exists())
+
+        icon_dest = self.state / "app/0.113.0+g2"
+        icon_escape = os.path.relpath(outside / "target", Path(str(icon_dest) + ".staging"))
+        G["extract_app"](str(self.launcher([("./epic-games-launcher.png", {"link": icon_escape})])),
+                          str(icon_dest), [str(self.webkit())])
+        self.assertEqual(b"png", (icon_dest / "epic-games-launcher.png").read_bytes())
+        self.assertFalse((outside / "target").exists())
 
     def test_a_launcher_without_its_desktop_layer_is_refused(self):
         dest = self.state / "app/0.113.0+g1"

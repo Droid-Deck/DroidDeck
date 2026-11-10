@@ -396,6 +396,8 @@ def extract_app(image, dest, desktop=()):
             raise Failure("app-format")
         extract_deb(image, staging)
         layer = os.path.join(staging, DESKTOP)
+        if not inside(os.path.realpath(staging), layer):
+            raise Failure("app-extract")
         os.makedirs(layer, exist_ok=True)
         for package in desktop:
             if not is_deb(package):
@@ -403,6 +405,7 @@ def extract_app(image, dest, desktop=()):
             extract_deb(package, layer, lambda name: any(name.startswith(prefix) for prefix in DESKTOP_KEEP))
         icon = os.path.join(staging, DEB_ICON)
         if os.path.isfile(icon):
+            remove(os.path.join(staging, ICON))
             shutil.copyfile(icon, os.path.join(staging, ICON))
         if not app_complete(staging):
             raise Failure("app-extract")
