@@ -328,6 +328,15 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("222", out["displays"][1]["physicalId"])
         self.assertEqual([1080, 1240], out["displays"][1]["size"])
 
+    def test_displays_named_with_their_unique_id(self):
+        text = DUMPSYS_DISPLAY.replace("mPrimaryDisplayDevice=Screen-2",
+                                       "mPrimaryDisplayDevice=Screen-2(local:222)")
+        self.configure({}, dumpsys_display=text)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"), "--display", "4")
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
+
     def test_unknown_display_is_an_error(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
         code, out = self.run_ctl("screenshot", str(self.dir / "x.png"), "--display", "9")
@@ -397,6 +406,28 @@ class DroiddeckctlTest(FakeAdbTest):
             code, out = self.run_ctl("pacing", "--seconds", "1")
         self.assertEqual(4, code)
         self.assertEqual("NO_FRAMES", out["error"]["code"])
+
+    def test_provider_call_falls_back_to_a_broadcast_without_content(self):
+        calls = []
+        answers = iter([b"", b'{"ok": true, "command": "state"}'])
+
+        def adb(_adb, _serial, *args, timeout=30):
+            calls.append(args)
+            if args[:2] == ("shell", "content"):
+                return ctl.subprocess.CompletedProcess(args, 127, b"", b"/system/bin/sh: content: inaccessible or not found")
+            if args[:2] == ("shell", "am"):
+                return ctl.subprocess.CompletedProcess(args, 0, b"Broadcast completed: result=0", b"")
+            return ctl.subprocess.CompletedProcess(args, 0, next(answers), b"")
+
+        with unittest.mock.patch.object(ctl, "run_adb", adb), unittest.mock.patch.object(ctl.time, "sleep"):
+            answer = ctl.provider_call("adb", "fake-1", "state", arg="a b", request={"x": 1})
+        self.assertEqual({"ok": True, "command": "state"}, answer)
+        broadcast = calls[1]
+        self.assertEqual(("shell", "am", "broadcast", "-a", ctl.PACKAGE + ".AGENT_CALL", "-p", ctl.PACKAGE), broadcast[:7])
+        self.assertIn("'a b'", broadcast)
+        self.assertEqual(ctl.encode_request({"x": 1}), broadcast[broadcast.index("request") + 1])
+        call_id = broadcast[broadcast.index("id") + 1]
+        self.assertIn("agent-calls/%s.json" % call_id, calls[-1][1])
 
     def test_pacing_turns_timestats_off_when_the_dump_fails(self):
         calls = []

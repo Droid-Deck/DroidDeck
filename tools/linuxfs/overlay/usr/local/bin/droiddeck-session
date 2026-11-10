@@ -907,21 +907,21 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
-          local _wait=$_bl_tier_backoff _urgent=0 _before _pids _targets
-          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || _urgent=1 _wait=30
+          local _wait=$_bl_tier_backoff _before _pids _targets
+          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
             bl_tier_readback
             if [ "$_bl_tier_back" -le $((_bl_tier_pushed / 2)) ]; then
               _bl_tier_backoff=30
-            elif [ "$_urgent" = 0 ]; then
+            else
               _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
-              _bl_tier_at=$SECONDS _bl_tier_pushed=0
+              _bl_tier_at=$SECONDS _bl_tier_pushed=-1
               step "zRAM: the game read back most of its last page-out, next try in ${_bl_tier_backoff} s"
               return 0
             fi
           fi
-          _bl_tier_at=$SECONDS
+          _bl_tier_at=$SECONDS _bl_tier_pushed=0
           bl_zram_pick game
           bl_zram_usage "${_pids[@]}" > /dev/null
           [ "$_bl_rss" -ge $((256 * 1024)) ] || return 0
@@ -1249,7 +1249,14 @@ case $mode in
         sleep 1
       done
       [ "${#game}" -gt 10 ] && shortcut=1
-      [ -n "$shortcut" ] || sleep 4
+      _bl_ready_end=$((SECONDS + 30))
+      while [ "$waited" -lt 30 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
+        timeout "$((_bl_ready_end - SECONDS))" /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 && break
+        [ "$((_bl_ready_end - SECONDS))" -gt 1 ] || break
+        sleep 1
+        waited=$((waited + 1))
+      done
+      waited=0
       echo "== steam: interface up; launching the requested game $game"
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
@@ -1269,7 +1276,9 @@ case $mode in
       elif _bl_starting; then
         echo "== steam: the requested game started while waiting; not launching again"
       elif [ "$(_bl_focused)" = 769 ]; then
-        echo "== steam: launching the requested game again $game (overview status $status)"
+        echo "== steam: clearing the pending launch interstitial for $game (overview status $status)"
+        /usr/local/bin/droiddeck-agent --steam-clear-pending-interstitial "$(((game >> 32) & 0xffffffff))" >/dev/null 2>&1 && return 0
+        echo "== steam: launching the requested game again $game"
         _bl_hand_off
       else
         echo "== steam: the game took focus while waiting; not launching again"

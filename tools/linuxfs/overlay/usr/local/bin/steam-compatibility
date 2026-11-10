@@ -152,6 +152,13 @@ bl_components() {
   else
     cm_app=""
   fi
+  if [ "$cm_app" = 2929927072 ] && [[ "${SteamAppId:-}" =~ ^[0-9]{1,10}$ ]] && (( 10#$SteamAppId > 0 && 10#$SteamAppId <= 4294967295 )); then
+    cm_app=$((10#$SteamAppId))
+  elif [ "$cm_app" = 2929927072 ] && [[ "${SteamGameId:-}" =~ ^[1-9][0-9]{9,19}$ ]] &&
+       { [ ${#SteamGameId} -lt 20 ] || [[ ! "$SteamGameId" > 18446744073709551615 ]]; } &&
+       (( (10#$SteamGameId & 0xFFFFFFFF) == 0x02000000 && ((10#$SteamGameId >> 32) & 0xFFFFFFFF) != 0 )); then
+    cm_app=$(( (10#$SteamGameId >> 32) & 0xFFFFFFFF ))
+  fi
   if [ -z "$cm_app" ]; then
     echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2
     return 0
@@ -734,6 +741,7 @@ def libraries(steam_root):
 
 
 def installed_apps(steam_root):
+    entries = appinfo_entries(os.path.join(steam_root, "appcache", "appinfo.vdf"))
     apps = set()
     for library in libraries(steam_root):
         steamapps = os.path.join(library, "steamapps")
@@ -743,7 +751,7 @@ def installed_apps(steam_root):
             continue
         for name in names:
             m = re.fullmatch(r"appmanifest_(\d+)\.acf", name)
-            if m and m.group(1) not in NOT_GAMES:
+            if m and m.group(1) not in NOT_GAMES and entries.get(m.group(1), {}).get("type") != "tool":
                 apps.add(m.group(1))
     return sorted(apps, key=int)
 
@@ -927,6 +935,12 @@ def valve_picks(steam_root):
     return sorted(picks, key=int)
 
 
+def tool_platforms(steam_root):
+    entries = appinfo_entries(os.path.join(steam_root, "appcache", "appinfo.vdf"))
+    return {app: entry["oslist"] for app, entry in entries.items()
+            if entry["type"] == "tool" and entry["oslist"] & {"linux", "windows"}}
+
+
 def native_targets(steam_root, apps):
     wanted = {str(app) for app in apps if str(app) not in NOT_GAMES}
     if not wanted:
@@ -1064,10 +1078,11 @@ NATIVE_CHOICE = object()
 
 
 def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None,
-                 native_choices=()):
+                 native_choices=(), tools=None):
+    tools = tools or {}
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
-    picks = set(picks)
+    picks = set(picks) | {app for app, platforms in tools.items() if "linux" not in platforms}
     native = native or {}
     overrides = overrides or {}
     managed = set(auto) if managed is None else set(managed)
@@ -1075,8 +1090,12 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices) - {"0"}, key=app_order):
+    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices | set(tools)) - {"0"}, key=app_order):
         name = current.get(app, "")
+        if app in tools and "linux" in tools[app] and "windows" not in tools[app]:
+            if name and (name.lower() in runnable or "proton" in name.lower()):
+                changes[app] = None
+            continue
         if app in overrides:
             target = overrides[app]
             if target is DEFERRED_GAME_TOOL:
@@ -1560,7 +1579,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
-            overrides, managed, native_choices)
+            overrides, managed, native_choices, tool_platforms(steam_root))
         set_mappings(tokens, mapping, changes)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
@@ -1587,10 +1606,11 @@ def depot_build(depot):
     return int(first[0]) if first and first[0].isdigit() else 0
 
 
-def find_source(steam_root, sources=SOURCES):
+def find_source(steam_root, sources=SOURCES, runnable=False):
     for name in sources:
         found = [os.path.join(root, "steamapps", "common", name) for root in libraries(steam_root)
-                 if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
+                 if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))
+                 and (not runnable or os.access(os.path.join(root, "steamapps", "common", name, "proton"), os.X_OK))]
         if found:
             return max(found, key=depot_build)
     return None

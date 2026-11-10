@@ -48,6 +48,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
             "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
@@ -201,6 +202,7 @@ object SessionFiles {
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
             LSE_EMU to LSE_EMU,
+            "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe" to "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)

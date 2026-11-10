@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">Shader-gyorsítótár letöltése</string>
     <string name="bottom_downloads_paused">Szüneteltetve</string>
     <string name="bottom_downloads_queued">Indításra vár</string>
-    <string name="bottom_page_notifications">Értesítések</string>
-    <string name="bottom_notifications_listener">DroidDeck alsó képernyő</string>
-    <string name="bottom_notifications_why">Itt jelenítheti meg az üzeneteket és más értesítéseket játék közben. Csak ezen a képernyőn láthatók, és nem kerülnek mentésre. Az Android egyszer kérdez rá: az értesítési hozzáférés oldala ezen a képernyőn nyílik meg; kapcsolja be ott a DroidDecket, és ez az oldal magától visszatér.</string>
-    <string name="bottom_notifications_allow">Értesítési hozzáférés engedélyezése</string>
-    <string name="bottom_notifications_none">Nincsenek értesítések.</string>
-    <string name="bottom_notifications_count">%1$d értesítés</string>
-    <string name="bottom_notifications_clear">Törlés</string>
     <string name="bottom_page_screenshots">Képernyőképek</string>
     <string name="stats_fps_needs_hud">Az FPS-hez be kell kapcsolni a HUD-ot</string>
     <string name="stats_speed">Sebesség</string>
@@ -2867,6 +2860,8 @@
     <string name="display_position_top">Fent</string>
     <string name="display_position_bottom">Lent</string>
     <string name="display_position_center">Középen (alapértelmezett)</string>
+    <string name="display_position_left">Bal</string>
+    <string name="display_position_right">Jobb</string>
     <string name="setup_tab_storage">Tárhely</string>
     <string name="storage_measuring">Tárhely mérése…</string>
     <string name="storage_measuring_hint">Első alkalommal pár másodpercig tart.</string>
@@ -3660,4 +3655,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+
+    <string name="theme_white_red">Skarlátvörös hó</string>
+    
 </resources>

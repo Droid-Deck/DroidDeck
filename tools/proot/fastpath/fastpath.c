@@ -49,7 +49,30 @@ static size_t rootlen;
 static long long ttl_ns = 2000000000LL;
 static unsigned long hits, misses;
 
-static long sc(long nr, long a, long b, long c, long d, long e) { return fp_sys(nr, a, b, c, d, e, 0); }
+// A seccomp filter the guest installs itself (Firefox's content sandbox) can trap a trampoline
+// syscall that the host allows; proot answers those with ENOSYS. The call is then repeated
+// through libc, where the guest's own SIGSYS handler sees the guest path, and the process stops
+// using the fast path.
+static __thread int fp_refused;
+static int optional_syscall(long nr) {
+  return nr == SYS_statx || nr == SYS_memfd_create || nr == SYS_faccessat2 || nr == SYS_close_range ||
+         nr == SYS_openat2 || nr == SYS_renameat2;
+}
+static long sc(long nr, long a, long b, long c, long d, long e) {
+  if (fp_refused) return -ENOSYS;
+  long r = fp_sys(nr, a, b, c, d, e, 0);
+  if (r == -ENOSYS && !optional_syscall(nr)) {
+    __atomic_store_n(&fp_on, 0, __ATOMIC_RELAXED);
+    fp_refused = 1;
+  }
+  return r;
+}
+static inline int refused(void) {
+  if (!fp_refused) return 0;
+  fp_refused = 0;
+  return 1;
+}
+static inline int answered(long r) { return !refused() && r != FP_SLOW; }
 static void fp_init(void);
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 static inline int fp_ready(void) {
@@ -788,7 +811,7 @@ static int ret(long r) {
   if (!real_##name) real_##name = (type)dlsym(RTLD_NEXT, #name)
 
 #define ANSWER(r, dirfd, path, real_call) \
-  do { long r_ = (r); if (r_ != FP_SLOW) { hits++; return ret(r_); } missed(__func__, dirfd, path); return real_call; } while (0)
+  do { long r_ = (r); if (answered(r_)) { hits++; return ret(r_); } missed(__func__, dirfd, path); return real_call; } while (0)
 
 
 static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
@@ -805,7 +828,7 @@ static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
 
 static int do_openat(int dirfd, const char *path, int flags, mode_t mode, int (*real)(int, const char *, int, ...)) {
   long r = fp_open(dirfd, path, flags, mode);
-  if (r != FP_SLOW) { hits++; return ret(r); }
+  if (answered(r)) { hits++; return ret(r); }
   missed(__func__, dirfd, path);
   return real(dirfd, path, flags, mode);
 }
@@ -870,8 +893,10 @@ int lstat64(const char *p, struct stat64 *st) { return lstat(p, (struct stat *)s
 int fstat(int fd, struct stat *st) {
   REAL(fstat, int (*)(int, struct stat *));
   if (!fp_ready()) return real_fstat(fd, st);
+  long r = sc(SYS_fstat, fd, (long)st, 0, 0, 0);
+  if (!answered(r)) return real_fstat(fd, st);
   hits++;
-  return ret(sc(SYS_fstat, fd, (long)st, 0, 0, 0));
+  return ret(r);
 }
 int fstat64(int fd, struct stat64 *st) { return fstat(fd, (struct stat *)st); }
 
@@ -989,7 +1014,7 @@ static long fp_access(int dirfd, const char *path, int mode, int flags) {
 static int access_common(int dirfd, const char *path, int mode, int flags) {
   REAL(faccessat, int (*)(int, const char *, int, int));
   long rs = fp_access(dirfd, path, mode, flags);
-  if (rs != FP_SLOW) { hits++; return ret(rs); }
+  if (answered(rs)) { hits++; return ret(rs); }
   missed(__func__, dirfd, path);
   if (flags == 0) return (int)syscall(SYS_faccessat, dirfd, path, mode);
   return real_faccessat(dirfd, path, mode, flags);
@@ -1087,7 +1112,7 @@ char *canonicalize_file_name(const char *path) { return realpath(path, NULL); }
 char *getcwd(char *buf, size_t size) {
   REAL(getcwd, char *(*)(char *, size_t));
   char g[PATH_MAX];
-  if (!fp_ready() || own_cwd(g) == FP_SLOW) { missed(__func__, AT_FDCWD, "."); return real_getcwd(buf, size); }
+  if (!fp_ready() || own_cwd(g) == FP_SLOW || refused()) { missed(__func__, AT_FDCWD, "."); return real_getcwd(buf, size); }
   hits++;
   size_t need = strlen(g) + 1;
   if (buf && size == 0) { errno = EINVAL; return NULL; }
@@ -1181,7 +1206,7 @@ static long fp_rename(int olddirfd, const char *old, int newdirfd, const char *n
 static int rename_common(int olddirfd, const char *old, int newdirfd, const char *new, unsigned flags) {
   REAL(renameat2, int (*)(int, const char *, int, const char *, unsigned));
   long rs = fp_rename(olddirfd, old, newdirfd, new, flags);
-  if (rs != FP_SLOW) { hits++; return ret(rs); }
+  if (answered(rs)) { hits++; return ret(rs); }
   missed(__func__, olddirfd, old);
   if (!flags) return (int)syscall(SYS_renameat, olddirfd, old, newdirfd, new);
   return real_renameat2(olddirfd, old, newdirfd, new, flags);
@@ -1355,7 +1380,7 @@ static long fp_getxattr(const char *path, const char *name, void *value, size_t 
 static ssize_t getxattr_common(const char *path, const char *name, void *value, size_t size, int follow,
                                ssize_t (*real)(const char *, const char *, void *, size_t)) {
   long rs = fp_getxattr(path, name, value, size, follow);
-  if (rs != FP_SLOW) { hits++; return rs < 0 ? ret(rs) : rs; }
+  if (answered(rs)) { hits++; return rs < 0 ? ret(rs) : rs; }
   missed(__func__, AT_FDCWD, path);
   return real(path, name, value, size);
 }
@@ -1378,7 +1403,7 @@ static long fp_listxattr(const char *path, char *list, size_t size, int follow) 
 static ssize_t listxattr_common(const char *path, char *list, size_t size, int follow,
                                 ssize_t (*real)(const char *, char *, size_t)) {
   long rs = fp_listxattr(path, list, size, follow);
-  if (rs != FP_SLOW) { hits++; return rs < 0 ? ret(rs) : rs; }
+  if (answered(rs)) { hits++; return rs < 0 ? ret(rs) : rs; }
   missed(__func__, AT_FDCWD, path);
   return real(path, list, size);
 }
@@ -1581,6 +1606,7 @@ static int accept_common(int fd, struct sockaddr *addr, socklen_t *len, int flag
   struct sockaddr_storage got;
   socklen_t got_len = sizeof got;
   long r = sc(SYS_accept4, fd, addr ? (long)&got : 0, addr ? (long)&got_len : 0, flags, 0);
+  if (refused()) return real_accept4(fd, addr, len, flags);
   if (r >= 0) inherit_long_name(fd, (int)r);
   if (!addr) return ret(r);
   if (r >= 0) report_address((int)r, LONG_PEER, &got, got_len, addr, len);
@@ -1595,6 +1621,7 @@ static int name_common(long nr, int fd, struct sockaddr *addr, socklen_t *len, i
   struct sockaddr_storage got;
   socklen_t got_len = sizeof got;
   long r = sc(nr, fd, (long)&got, (long)&got_len, 0, 0);
+  if (refused()) return real(fd, addr, len);
   if (r == 0) report_address(fd, nr == SYS_getsockname ? LONG_SELF : LONG_PEER, &got, got_len, addr, len);
   return ret(r);
 }
@@ -1687,7 +1714,7 @@ static int online_cpus(void) {
 int get_nprocs(void) {
   REAL(get_nprocs, int (*)(void));
   int n = fp_ready() ? online_cpus() : -1;
-  if (n > 0) { hits++; return n; }
+  if (n > 0 && !refused()) { hits++; return n; }
   missed(__func__, AT_FDCWD, "(nprocs)");
   return real_get_nprocs();
 }
@@ -1743,6 +1770,7 @@ int isatty(int fd) {
   if (!fp_ready()) return real_isatty(fd);
   hits++;
   long r = sc(SYS_ioctl, fd, TCGETS, (long)&k, 0, 0);
+  if (refused()) return real_isatty(fd);
   if (r < 0) { errno = (int)-r; return 0; }
   return r == 0;
 }
