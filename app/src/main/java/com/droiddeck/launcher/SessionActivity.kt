@@ -983,6 +983,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
+            val effectsEditorProfileId = androidx.compose.runtime.remember(drawerOpen) {
+                if (drawerOpen) currentScreenEffectsProfileId() else null
+            }
             val uiPointer = appUiOwnsPointer()
             androidx.compose.runtime.SideEffect {
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity,
@@ -1349,9 +1352,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
             },
             onEffects = { e ->
-                SessionPrefs.setScreenEffects(this@SessionActivity, currentScreenEffectsProfileId(), e)
-                effects = e
-                e.push(upscaler)
+                if (drawerOpen && effectsEditorProfileId != null &&
+                    currentScreenEffectsProfileId() == effectsEditorProfileId) {
+                    SessionPrefs.setScreenEffects(this@SessionActivity, effectsEditorProfileId, e)
+                    effects = e
+                    e.push(upscaler)
+                }
             },
             onTextureAnisotropy = { value ->
                 drawerGameProfileId?.let { appId ->
