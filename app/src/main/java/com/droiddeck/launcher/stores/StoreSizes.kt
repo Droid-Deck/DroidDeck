@@ -56,7 +56,7 @@ object StoreSizes {
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.ITCH, Store.GAMEJOLT -> {}
                         Store.EA -> com.droiddeck.launcher.stores.ea.EaPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
-                        Store.GOG, Store.XBOX, Store.BATTLENET -> {}
+                        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -113,7 +113,7 @@ object StoreSizes {
             AmazonManifest.parse(bytes).totalInstallSize
         }
         Store.EA -> com.droiddeck.launcher.stores.ea.EaSizes.size(context, item)
-        Store.GOG, Store.XBOX, Store.BATTLENET -> 0L
+        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
         Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
     } }

@@ -1124,6 +1124,23 @@ class GameEnvironmentTest(unittest.TestCase):
                     scope = MODULE["game_id"](env)
                     expected = "untouched" if scope is None else scope if scope in {"42", "4294967295", "2147483648"} else "*"
                     self.assertEqual(target.read_text(), expected)
+            for app, expected in (("42", "42"), ("4294967295", "4294967295"), ("43", "*"), ("", "*"), ("x", "*")):
+                with self.subTest(shared=app):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId=app)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), app if app in {"42", "4294967295", "43"} else "2929927072")
+                    self.assertEqual(target.read_text(), expected)
+            for game, expected in (
+                (str(42 << 32 | 0x02000000), "42"), (str(4294967295 << 32 | 0x02000000), "4294967295"),
+                (str(42 << 32 | 0x02000001), "*"), (str(42 << 32 | 0x02000000 | 1 << 64), "*"), ("33554432", "*"), ("x", "*"),
+            ):
+                with self.subTest(direct=game):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId="0", SteamGameId=game)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), expected if expected != "*" else "2929927072")
+                    self.assertEqual(target.read_text(), expected)
 
     def test_engine_fixes_follow_the_games_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1628,6 +1645,10 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIsNone(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": prefix}))
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42/"}), "42")
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/-1"}), "4294967295")
+        shared = {"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072", "SteamAppId": "2424921676"}
+        self.assertEqual(MODULE["game_id"](shared), "2424921676")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072"}), "2929927072")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42", "SteamAppId": "7"}), "42")
 
     def test_launch_reads_updates_preserves_argv_and_does_not_execute_values(self):
         with tempfile.TemporaryDirectory() as tmp:

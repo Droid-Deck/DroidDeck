@@ -11,12 +11,14 @@ object StoreLaunch {
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
+    const val UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
+    private const val UBISOFT_SERVICE = "Z:\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe"
     const val EA_ENV = ".droiddeck-ea-env"
     /** A sleeping stand-in that the launch hook installs; older EA SDKs require a running Origin process. */
     const val EA_ORIGIN = "C:\\Program Files (x86)\\Origin\\Origin.exe"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
-        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA
+        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA || sidecar.store == Store.UBISOFT
         val file = File(folder, LAUNCHER)
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
         file.writeText(launcherText(sidecar))
@@ -52,6 +54,13 @@ object StoreLaunch {
             lines += "del \"%~dp0$EPIC_ARGS\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
+        } else if (sidecar.store == Store.UBISOFT) {
+            lines += "if not exist \"%~dp0$UBISOFT_LAUNCH\" goto direct"
+            lines += "if not exist \"$UBISOFT_SERVICE\" goto direct"
+            lines += "\"$UBISOFT_SERVICE\" \"%~dp0$UBISOFT_LAUNCH\""
+            lines += "goto :eof"
+            lines += ":direct"
+            lines += run
         } else if (sidecar.store == Store.EA) {
             lines += "if not exist \"%~dp0$EA_ENV\" goto run"
             lines += "for /f \"usebackq tokens=1,* delims==\" %%a in (\"%~dp0$EA_ENV\") do set \"%%a=%%b\""
@@ -82,6 +91,17 @@ object StoreLaunch {
         } ?: return null
         val game = AddedGames.single(context, folder.path) ?: return null
         return Library.addedGame(context, game)
+    }
+
+    /** Gives a Ubisoft game installed before it needed one the launcher that starts the launcher service. */
+    fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
+        if (sidecar.store != Store.UBISOFT || !sidecar.isInstalled) return sidecar
+        val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
+        if (sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
+        val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
+        if (exe == sidecar.exe && sidecar.launcher == LAUNCHER &&
+            runCatching { File(folder, LAUNCHER).readText() }.getOrNull() == launcherText(sidecar)) return sidecar
+        return runCatching { writeLauncher(folder, sidecar.copy(exe = exe)).also { it.write(folder) } }.getOrDefault(sidecar)
     }
 
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
