@@ -1372,13 +1372,56 @@ object SessionPrefs {
     }
 
 
+    private const val SCREEN_EFFECTS_PROFILES_KEY = "screenEffects.profiles"
+    const val SCREEN_EFFECTS_ACTIVE_PROFILE_KEY = "screenEffects.activeProfile"
+
+    fun screenEffectsProfileId(mode: String, gameId: String?, program: String?): String? {
+        if (mode == SessionService.MODE_DESKTOP) return "desktop"
+        val id = gameId?.trim()?.takeIf { it.isNotEmpty() }
+        if (id != null) return "game:$id"
+        return if (mode == SessionService.MODE_RUN) {
+            program?.trim()?.takeIf { it.isNotEmpty() }?.let { "program:$it" }
+        } else null
+    }
+
+    fun activeScreenEffectsProfileId(context: Context): String? =
+        prefs(context).getString(SCREEN_EFFECTS_ACTIVE_PROFILE_KEY, null)?.takeIf { it.isNotBlank() }
+
+    fun setActiveScreenEffectsProfile(context: Context, profileId: String?) {
+        prefs(context).edit().putString(SCREEN_EFFECTS_ACTIVE_PROFILE_KEY, profileId.orEmpty()).apply()
+    }
+
     fun screenEffects(context: Context): ScreenEffects {
         val text = prefs(context).getString("screenEffects", null) ?: return ScreenEffects.OFF
         return runCatching { ScreenEffects.decode(JSONObject(text)) }.getOrDefault(ScreenEffects.OFF)
     }
 
+    fun screenEffects(context: Context, profileId: String?): ScreenEffects {
+        if (profileId.isNullOrBlank()) return screenEffects(context)
+        val storedProfiles = prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null)
+        val profile = storedProfiles?.let { raw ->
+            runCatching { JSONObject(raw).optJSONObject(profileId) }.getOrNull()
+        }
+        return profile?.let {
+            runCatching { ScreenEffects.decode(it) }.getOrDefault(ScreenEffects.OFF)
+        } ?: screenEffects(context)
+    }
+
     fun setScreenEffects(context: Context, effects: ScreenEffects) {
         prefs(context).edit().putString("screenEffects", effects.encode().toString()).apply()
+    }
+
+    fun setScreenEffects(context: Context, profileId: String?, effects: ScreenEffects) {
+        if (profileId.isNullOrBlank()) {
+            setScreenEffects(context, effects)
+            return
+        }
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrDefault(JSONObject())
+        profiles.put(profileId, effects.encode())
+        sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
     }
 
     const val CARDBOARD_KEY = "cardboard"

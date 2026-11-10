@@ -541,6 +541,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
     }
+    private val screenEffectsProfilePrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.SCREEN_EFFECTS_ACTIVE_PROFILE_KEY) uiHandler.post {
+            val profileId = SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+            effects = SessionPrefs.screenEffects(this@SessionActivity, profileId)
+            effects.push(upscaler)
+        }
+    }
     private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == PhysicalShortcuts.KEY) {
             physicalShortcuts.bindings = PhysicalShortcuts.read(this)
@@ -1264,7 +1271,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
             },
             onEffects = { e ->
-                SessionPrefs.setScreenEffects(this@SessionActivity, e); effects = e
+                SessionPrefs.setScreenEffects(this@SessionActivity, currentScreenEffectsProfileId(), e)
+                effects = e
                 e.push(upscaler)
             },
             onTextureAnisotropy = { value ->
@@ -1846,6 +1854,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "drawer-game-no-steam").start()
     }
 
+    private fun currentScreenEffectsProfileId(): String? {
+        if (SessionState.running) return SessionPrefs.activeScreenEffectsProfileId(this)
+        val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+        return SessionPrefs.screenEffectsProfileId(
+            mode,
+            intent.getStringExtra(SessionService.EXTRA_GAME_ID),
+            intent.getStringExtra(SessionService.EXTRA_PROGRAM),
+        )
+    }
+
     private fun loadingMode(): String =
         if (SessionState.running) SessionState.mode
         else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
@@ -1942,7 +1960,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
-        effects = SessionPrefs.screenEffects(this)
+        effects = SessionPrefs.screenEffects(this, currentScreenEffectsProfileId())
         applyCardboard(SessionPrefs.cardboard(this))
         if (SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
             steamVrSwitchedPicture = true
@@ -2180,7 +2198,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
-        SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
+        SessionPrefs.screenEffects(this, currentScreenEffectsProfileId()).push(SessionPrefs.upscaler(this))
         activeCardboard = effectiveCardboard(SessionPrefs.cardboard(this))
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
@@ -4731,6 +4749,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
     }
 
     override fun onPause() {
@@ -4773,6 +4792,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
         super.onPause()
