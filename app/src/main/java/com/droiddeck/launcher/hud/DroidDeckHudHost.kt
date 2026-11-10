@@ -10,7 +10,6 @@ import android.view.View
 import android.view.animation.PathInterpolator
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
@@ -238,7 +237,6 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun presentedFps(): Float {
-        if (frameGenMode().engine == FrameGen.ENGINE_OFF) return 0f
         if (!runCatching { WaylandCompositor.nativeFrameGenActive() }
                 .getOrDefault(false)) return 0f
 
