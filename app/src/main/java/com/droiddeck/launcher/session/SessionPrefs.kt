@@ -819,7 +819,11 @@ object SessionPrefs {
     @JvmStatic
     fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", com.droiddeck.launcher.core.DeviceSupport.mali())
 
+    fun vkBridgeExplicit(context: Context): Boolean = prefs(context).contains("vkBridge")
+
     fun venus(context: Context): Boolean = prefs(context).getBoolean("venus", false)
+
+    fun venusExplicit(context: Context): Boolean = prefs(context).contains("venus")
 
     fun hostVulkanApi(context: Context): String = prefs(context).getString("hostVulkanApi", "").orEmpty()
 
