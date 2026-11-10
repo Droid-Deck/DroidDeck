@@ -21,6 +21,7 @@ import com.droiddeck.launcher.input.LinuxWindowTouch
 import com.droiddeck.launcher.input.AndroidPointerSource
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.session.LinuxWindow
+import com.droiddeck.launcher.session.LinuxWindowIcons
 import com.droiddeck.launcher.session.LinuxWindowEditor
 import com.droiddeck.launcher.session.LinuxWindowSize
 import com.droiddeck.launcher.session.LinuxWindowPresentation
@@ -114,8 +115,12 @@ class LinuxWindowActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     fun metadataChanged(window: LinuxWindow) {
+        val previous = metadata
         metadata = window
         if (window.minimized) moveTaskToBack(true)
+        if (previous?.title == window.title && previous.icon === window.icon) return
+        title = window.title
+        setTaskDescription(LinuxWindowIcons.description(this, window.title, window.icon))
     }
 
     fun textFocusChanged(value: LinuxWindowEditor?) {

@@ -30,7 +30,23 @@ def read_string(data, offset=0):
 
 
 def png_icon(values):
-    return None
+    choices, offset = [], 0
+    while offset + 2 <= len(values):
+        w, h = values[offset:offset + 2]
+        if not 0 < w <= 1024 or not 0 < h <= 1024 or offset + 2 + w * h > len(values):
+            break
+        choices.append((icon_size_rank(w, h), w, h, offset + 2))
+        offset += 2 + w * h
+    if not choices:
+        return None
+    _, w, h, start = min(choices)
+    pixels = values[start:start + w * h]
+    rows = b"".join(b"\0" + b"".join(bytes(((p >> 16) & 255, (p >> 8) & 255, p & 255, p >> 24))
+                                     for p in pixels[y * w:(y + 1) * w]) for y in range(h))
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
 
 
 def icon_size_rank(width, height):
@@ -39,7 +55,36 @@ def icon_size_rank(width, height):
 
 
 def stream_icon(data):
-    return None
+    signature = b"\x89PNG\r\n\x1a\n"
+    choices, search = [], 0
+    while (start := data.find(signature, search)) >= 0:
+        search = start + len(signature)
+        offset, dimensions, pixels = search, None, False
+        while offset + 12 <= len(data):
+            length = struct.unpack_from(">I", data, offset)[0]
+            end = offset + length + 12
+            if end > len(data):
+                break
+            kind = data[offset + 4:offset + 8]
+            body = data[offset + 8:end - 4]
+            if zlib.crc32(kind + body) != struct.unpack_from(">I", data, end - 4)[0]:
+                break
+            if dimensions is None:
+                if kind != b"IHDR" or length != 13:
+                    break
+                dimensions = struct.unpack_from(">II", body)
+                w, h = dimensions
+                if not 0 < w <= 4096 or not 0 < h <= 4096 or w * h > 4 * 1024 * 1024:
+                    break
+            if kind == b"IDAT":
+                pixels = True
+            if kind == b"IEND":
+                if length == 0 and pixels:
+                    choices.append((icon_size_rank(*dimensions), data[start:end]))
+                    search = end
+                break
+            offset = end
+    return min(choices, key=lambda item: item[0])[1] if choices else None
 
 
 class IconTransfer:
@@ -376,10 +421,115 @@ class WindowBridge(threading.Thread):
         self.returns = WindowReturns()
 
     def themed_icon(self, name):
-        return None
+        if not name or len(name) > 4096:
+            return None
+        plain = re.fullmatch(r"[A-Za-z0-9._+-]{1,256}", name) and name not in (".", "..")
+        absolute = name.startswith("/") and Path(name).suffix in (".png", ".svg")
+        if not plain and not absolute:
+            return None
+        cached = self.themed.get(name)
+        if cached and (cached[1] is not None or time.monotonic() - cached[0] < 5):
+            return cached[1]
+        icon_name = name
+        if plain:
+            for root in (Path.home() / ".local/share/applications", Path("/usr/local/share/applications"),
+                         Path("/usr/share/applications")):
+                try:
+                    entry = root / (name + ".desktop")
+                    if not entry.is_file() or entry.stat().st_size > 65536:
+                        continue
+                    desktop = configparser.ConfigParser(interpolation=None, strict=False)
+                    desktop.read(entry, encoding="utf-8")
+                    icon_name = desktop.get("Desktop Entry", "Icon", fallback=name)
+                    break
+                except (OSError, configparser.Error, UnicodeError):
+                    continue
+        roots = [Path.home() / ".local/share/icons", Path("/usr/share/icons"), Path("/usr/share/pixmaps")]
+        found = []
+        if icon_name.startswith("/") and Path(icon_name).suffix in (".png", ".svg"):
+            found = [Path(icon_name)]
+        elif re.fullmatch(r"[A-Za-z0-9._+-]{1,256}", icon_name) and icon_name not in (".", ".."):
+            if icon_name.endswith((".png", ".svg")):
+                icon_name = icon_name[:-4]
+            for root in roots:
+                for suffix in (".png", ".svg"):
+                    found.extend(root.glob("**/" + icon_name + suffix))
+        def rank(path):
+            sizes = [int(part.split("x")[0]) for part in path.parts if re.fullmatch(r"\d+x\d+", part)]
+            return (0 if path.suffix == ".svg" else 1,
+                    icon_size_rank(sizes[-1], sizes[-1]) if sizes else (True, 256, 0), len(str(path)))
+        found.sort(key=rank)
+        result = None
+        for path in found[:8]:
+            try:
+                if path.stat().st_size > 1024 * 1024:
+                    continue
+                if path.suffix == ".png":
+                    result = self.icon(path.read_bytes())
+                else:
+                    rsvg = ctypes.CDLL(ctypes.util.find_library("rsvg-2") or "librsvg-2.so.2")
+                    cairo = ctypes.CDLL(ctypes.util.find_library("cairo") or "libcairo.so.2")
+                    gobject = ctypes.CDLL(ctypes.util.find_library("gobject-2.0") or "libgobject-2.0.so.0")
+                    rsvg.rsvg_handle_new_from_file.argtypes = [ctypes.c_char_p, ctypes.c_void_p]
+                    rsvg.rsvg_handle_new_from_file.restype = ctypes.c_void_p
+                    rsvg.rsvg_handle_render_cairo.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+                    cairo.cairo_image_surface_create.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+                    cairo.cairo_image_surface_create.restype = ctypes.c_void_p
+                    cairo.cairo_create.argtypes = [ctypes.c_void_p]
+                    cairo.cairo_create.restype = ctypes.c_void_p
+                    cairo.cairo_scale.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double]
+                    cairo.cairo_translate.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double]
+                    cairo.cairo_surface_write_to_png.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+                    cairo.cairo_destroy.argtypes = [ctypes.c_void_p]
+                    cairo.cairo_surface_destroy.argtypes = [ctypes.c_void_p]
+                    gobject.g_object_unref.argtypes = [ctypes.c_void_p]
+                    class Dimensions(ctypes.Structure):
+                        _fields_ = [("width", ctypes.c_int), ("height", ctypes.c_int),
+                                    ("em", ctypes.c_double), ("ex", ctypes.c_double)]
+                    rsvg.rsvg_handle_get_dimensions.argtypes = [ctypes.c_void_p, ctypes.POINTER(Dimensions)]
+                    handle = rsvg.rsvg_handle_new_from_file(os.fsencode(path), None)
+                    if not handle:
+                        continue
+                    dimensions = Dimensions()
+                    rsvg.rsvg_handle_get_dimensions(handle, ctypes.byref(dimensions))
+                    surface = cairo.cairo_image_surface_create(0, 256, 256)
+                    cr = cairo.cairo_create(surface)
+                    try:
+                        scale = 256 / max(1, dimensions.width, dimensions.height)
+                        cairo.cairo_translate(cr, (256 - dimensions.width * scale) / 2,
+                                              (256 - dimensions.height * scale) / 2)
+                        cairo.cairo_scale(cr, scale, scale)
+                        if rsvg.rsvg_handle_render_cairo(handle, cr):
+                            self.icons.mkdir(exist_ok=True)
+                            temp = self.icons / "themed.tmp.png"
+                            if cairo.cairo_surface_write_to_png(surface, os.fsencode(temp)) == 0:
+                                result = self.icon(temp.read_bytes())
+                            temp.unlink(missing_ok=True)
+                    finally:
+                        cairo.cairo_destroy(cr)
+                        cairo.cairo_surface_destroy(surface)
+                        gobject.g_object_unref(handle)
+                if result:
+                    break
+            except (OSError, ValueError):
+                continue
+        if len(self.themed) >= 128:
+            self.themed.pop(next(iter(self.themed)))
+        self.themed[name] = (time.monotonic(), result)
+        return result
 
     def icon(self, data):
-        return None
+        if not data or len(data) > 1024 * 1024:
+            return None
+        data = stream_icon(data)
+        if data is None:
+            return None
+        self.icons.mkdir(exist_ok=True)
+        name = hashlib.sha256(data).hexdigest() + ".png"
+        path = self.icons / name
+        if not path.exists():
+            path.write_bytes(data)
+        return name
 
     def x_snapshot(self):
         result = []

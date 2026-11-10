@@ -46,6 +46,7 @@ object LinuxWindows {
         Thread(task, "linux-window-metadata")
     }
     private var context: Context? = null
+    private var iconObserver: FileObserver? = null
     private var generation = 0
     private var guestGeneration = ""
     private val hosts = mutableMapOf<String, LinuxWindowActivity>()
@@ -55,6 +56,7 @@ object LinuxWindows {
     private val opening = mutableSetOf<String>()
     private var editor: LinuxWindowEditor? = null
     private val textSequence = java.util.concurrent.atomic.AtomicLong(System.nanoTime())
+    private var icons: LinuxWindowIcons? = null
     private val visible = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
     private val sizes = java.util.concurrent.ConcurrentHashMap<String, LinuxWindowSize>()
     private val preparing = mutableMapOf<String, LinuxWindowSize>()
@@ -72,14 +74,25 @@ object LinuxWindows {
     fun begin(context: Context) {
         end()
         this.context = context.applicationContext
+        icons = LinuxWindowIcons(context.applicationContext)
         removeTasks(context)
         enabled = SessionPrefs.linuxMultiWindow(context) && supported()
+        val dir = AgentGuest.dir(context)
+        val iconDir = File(dir, "window-icons").apply { mkdirs() }
+        @Suppress("DEPRECATION")
+        iconObserver = object : FileObserver(iconDir.path, MOVED_TO or CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != null && Regex("[a-f0-9]{64}\\.png").matches(path)) refresh()
+            }
+        }.also { it.startWatching() }
         publishEnabled()
         refresh()
     }
 
     fun end() {
         generation++
+        iconObserver?.stopWatching()
+        iconObserver = null
         hosts.values.toList().forEach { it.removeFromRegistry() }
         hosts.clear()
         sizes.clear()
@@ -92,6 +105,8 @@ object LinuxWindows {
         pendingClose.clear()
         opening.clear()
         editor = null
+        icons?.clear()
+        icons = null
         windows = emptyList()
         owner = null
         guestGeneration = ""
@@ -269,6 +284,7 @@ object LinuxWindows {
 
     private fun refresh() {
         val ctx = context ?: return
+        val iconStore = icons ?: return
         val token = generation
         worker.execute {
             val result = runCatching {
@@ -284,8 +300,8 @@ object LinuxWindows {
                         val g = w.optJSONArray("geometry") ?: continue
                         val key = w.optString("key")
                         if (!key.startsWith("wl:") || g.length() != 4) continue
-                        val name: String? = null
-                        val icon: Bitmap? = null
+                        val name = w.optString("icon").takeIf { Regex("[a-f0-9]{64}\\.png").matches(it) }
+                        val icon = name?.let { iconStore.load(File(dir, "window-icons"), it) }
                         val program = w.optString("program").take(256)
                         add(LinuxWindow(key, w.optString("title").ifBlank { program }.take(512), program,
                             g.optInt(0), g.optInt(1), g.optInt(2), g.optInt(3), icon, name,
