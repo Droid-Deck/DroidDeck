@@ -1505,20 +1505,17 @@ class SessionService : Service() {
             val canRestore = gen == sessionGen &&
                 SessionState.running && !SessionState.stopRequested &&
                 SessionState.mode == MODE_STEAM &&
+                SessionState.gameId == gameId &&
                 SessionPrefs.activeScreenEffectsProfileId(this) == queuedProfileId
 
             cancelQueuedSteamGame()
 
             if (canRestore) {
-                val restoreGameId = if (SessionState.gameId == gameId) {
-                    previousGameId.also { SessionState.gameId = it }
-                } else {
-                    SessionState.gameId
-                }
-                val restoreProfileId =
-                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, restoreGameId, null)
-                SessionPrefs.setActiveScreenEffectsProfile(this, restoreProfileId)
-                SessionPrefs.screenEffects(this, restoreProfileId)
+                SessionState.gameId = previousGameId
+                val previousProfileId =
+                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
+                SessionPrefs.setActiveScreenEffectsProfile(this, previousProfileId)
+                SessionPrefs.screenEffects(this, previousProfileId)
                     .push(SessionPrefs.upscaler(this))
             }
             return
