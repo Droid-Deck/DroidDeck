@@ -2430,6 +2430,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenModeForActiveGame(request: Int): FrameGen.Mode {
+        if (SessionState.mode == SessionService.MODE_RUN) {
+            val activeAppId = SessionState.gameId?.toLongOrNull()
+            return FrameGen.mode(this, activeAppId?.toString())
+        }
+
         val cachedIds = LibraryCache.load(this)
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
@@ -2439,6 +2444,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (frameGenInventoryRevision != inventoryRevision) {
                 frameGenInventoryIds = null
                 frameGenInventoryRevision = inventoryRevision
+                frameGenInventoryLastAttemptAt = 0L
             }
             frameGenInventoryIds
         }
@@ -2449,6 +2455,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (frameGenInventoryRevision != currentRevision) {
                     frameGenInventoryIds = null
                     frameGenInventoryRevision = currentRevision
+                    frameGenInventoryLastAttemptAt = 0L
                 }
                 inventoryRevision = currentRevision
                 if (frameGenInventoryIds != null) {
@@ -2495,11 +2502,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
 
-        val activeAppId = if (SessionState.mode == SessionService.MODE_RUN) {
-            SessionState.gameId?.toLongOrNull()
-        } else {
-            AgentGuest.activeSteamAppId(this, cachedIds + (ids ?: emptySet()))
-        }
+        val activeAppId = AgentGuest.activeSteamAppId(
+            this, cachedIds + (ids ?: emptySet())
+        )
         return FrameGen.mode(this, activeAppId?.toString())
     }
 
