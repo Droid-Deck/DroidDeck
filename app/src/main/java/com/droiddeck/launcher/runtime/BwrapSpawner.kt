@@ -398,8 +398,10 @@ object BwrapSpawner {
         for (file in listOf(loader, libc)) {
             val key = "${file.path}:${file.length()}:${file.lastModified()}"
             if (key in seccompPatched) continue
-            runCatching { ElfSeccompPatch.patchFile(file) }
-                .onFailure { Log.e(TAG, "native userland: could not patch $file for Android's seccomp filter", it) }
+            // an unpatched loader or libc dies under Android's filter before the hook loads: proot runs it
+            val patched = runCatching { ElfSeccompPatch.patchFile(file) }
+                .onFailure { Log.e(TAG, "native userland: could not patch $file for Android's seccomp filter; proot runs the sandbox", it) }
+            if (patched.isFailure) return null
             seccompPatched.add("${file.path}:${file.length()}:${file.lastModified()}")
         }
         val program = host(plan.envTool).canonicalFile.takeIf { it.isFile } ?: return null
