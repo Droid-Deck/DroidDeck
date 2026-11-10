@@ -44,6 +44,7 @@ object AgentHost {
     private const val TAG = "AgentHost"
     private const val WORKSPACE = "/root/DroidDeck"
     private const val TICK_MS = 1_000L
+    private const val IDLE_TICK_MS = 5_000L
 
     /** Where the agent runs and what the user sees, which no file in the checkout tells it. */
     @VisibleForTesting
@@ -379,7 +380,7 @@ object AgentHost {
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
             if (state == State.WORKING) AgentHostService.update(app)
         }
-        main.postDelayed(::tick, TICK_MS)
+        main.postDelayed(::tick, if (state == State.WORKING || lab != null) TICK_MS else IDLE_TICK_MS)
     }
 
     fun cancelLabBuild(context: Context) {
