@@ -345,7 +345,8 @@ static void schedule_render(void);
 static void on_commit_idle(void *data);
 
 static int64_t now_ns(void) {
-    return droiddeck_clock_domain_now_ns();
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
 static void perf_note_release(int64_t since_ns) {
@@ -1059,6 +1060,7 @@ static int64_t presented_ns(int64_t render_ns) {
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {
     struct wl_resource *fb, *tmp;
+    t = droiddeck_clock_domain_adjust_ns(t);
     uint64_t sec = (uint64_t)(t / 1000000000LL);
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
@@ -3111,12 +3113,10 @@ static void relative_pointers_pointer_gone(struct wl_resource *pointer) {
 
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     struct relative_pointer *rp;
-    struct timespec ts;
     uint64_t ut;
     int sent = 0;
     if (dx == 0 && dy == 0) return 0;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ut = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000;
+    ut = (uint64_t)(droiddeck_clock_domain_now_ns() / 1000);
     wl_list_for_each(rp, &g_relative_pointers, link) {
         if (!rp->pointer || wl_resource_get_client(rp->pointer) != client) continue;
         zwp_relative_pointer_v1_send_relative_motion(rp->resource, (uint32_t)(ut >> 32), (uint32_t)ut,

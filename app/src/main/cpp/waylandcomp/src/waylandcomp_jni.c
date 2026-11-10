@@ -352,7 +352,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
-    droiddeck_wayland_vsync(droiddeck_clock_domain_adjust_ns((int64_t)frameTimeNanos));
+    droiddeck_wayland_vsync((int64_t)frameTimeNanos);
 }
 
 JNIEXPORT void JNICALL
