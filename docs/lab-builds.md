@@ -53,3 +53,5 @@ does that first build ahead of time with `dd-lab-build --prepare`, which compile
 commit without making a Lab build.
 `~/.cache/dd-lab-build.json` reports the stage, the current task, progress in thousandths and the
 seconds left, estimated from how long each task took the last time (`~/.cache/dd-lab-build-times`).
+`~/.cache/dd-lab-build-base` holds the installed commit the last successful build compiled, so the
+Agent tab can offer to prepare again after DroidDeck updates.

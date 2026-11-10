@@ -140,6 +140,8 @@ kill $heartbeat 2>/dev/null || true
 # Tasks that did no work this time keep their earlier time.
 { [ -f "$times_file" ] && cat "$times_file"; cat "$measured"; } | awk '{t[$1] = $2} END {for (k in t) print k, t[k]}' > "$times_file.part"
 mv "$times_file.part" "$times_file"
+# The app reads which installed commit the build caches are warm for.
+echo "$base" > "$cache/dd-lab-build-base"
 
 if [ $mode = prepare ]; then
   progress prepared 1000
