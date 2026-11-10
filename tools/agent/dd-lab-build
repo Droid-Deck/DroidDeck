@@ -28,6 +28,33 @@ trap 'progress failed 0 stopped; exit 143' INT TERM
 trap 'progress failed 0 "a command failed on line $LINENO"' ERR
 device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
+# The app's agent loses every process it started when its turn ends, a build included, so it asks
+# the app to run the build in a process of its own and follows that build here.
+agent=/data/user/0/$pkg/files/agent
+if [ -n "${DD_AGENT:-}" ] && [ -z "${DD_LAB_DETACHED:-}" ] && [ -d "$agent" ]; then
+  trap - ERR
+  log=$cache/dd-lab-build.log
+  rm -f "$progress_file"
+  python3 -c 'import json,os,sys; print(json.dumps({"cwd": os.getcwd(), "args": sys.argv[1:]}))' "$@" > "$agent/lab-request.part"
+  mv "$agent/lab-request.part" "$agent/lab-request"
+  echo "DroidDeck runs this build itself, so it keeps going if this turn ends. Its log follows."
+  for _ in $(seq 1 30); do [ -f "$progress_file" ] && break; sleep 1; done
+  [ -f "$progress_file" ] || { echo "dd-lab-build: DroidDeck did not start the build; is it running?" >&2; exit 1; }
+  tail -n +1 -F "$log" 2>/dev/null & follow=$!
+  result=1
+  while sleep 2; do
+    stage=$(sed -n 's/.*"stage":"\([a-z]*\)".*/\1/p' "$progress_file")
+    pid=$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$progress_file")
+    case $stage in
+      ready|prepared) result=0; break ;;
+      failed) break ;;
+    esac
+    [ -n "$pid" ] && [ -d "/proc/$pid" ] || break
+  done
+  sleep 1; kill $follow 2>/dev/null || true
+  exit $result
+fi
+
 progress checking
 repo=$(git rev-parse --show-toplevel) || fail "run it inside the DroidDeck checkout"
 cd "$repo"

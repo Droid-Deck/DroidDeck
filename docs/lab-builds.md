@@ -11,6 +11,10 @@ change.
   and `mergeDexRelease`), packs the linked resources and dex files into `overlay.apk`, writes
   `overlay.json`, and stages both in the app's `files/lab/next`. It then recompiles the app without
   an app image and restarts DroidDeck.
+- Run by the app's own agent (`DD_AGENT` set), it writes `files/agent/lab-request` instead, and the
+  app runs the build in a process of its own, logging to `~/.cache/dd-lab-build.log`; the agent's
+  copy follows that log and exits with the build. A turn's processes end with the turn, so a build
+  started there would otherwise die when the agent stops or finishes early.
 - At start, `LabOverlay` (called from `App.attachBaseContext`) promotes `next` to `active`, checks
   that the build was made for this install, puts its dex files ahead of the APK's, and adds its
   resources through `ResourcesLoader` to the app and every activity. Contexts made from them
