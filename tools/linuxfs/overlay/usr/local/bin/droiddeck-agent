@@ -1188,10 +1188,14 @@ def answer(agent_dir, path):
 
 
 def serve(agent_dir, focus=True, poll=0.1):
+    agent_dir = Path(agent_dir)
     (agent_dir / "req").mkdir(parents=True, exist_ok=True)
     (agent_dir / "resp").mkdir(parents=True, exist_ok=True)
     import runpy
-    runpy.run_path(str(Path(__file__).with_name("droiddeck-windows")))["WindowBridge"](agent_dir).start()
+    try:
+        runpy.run_path(str(Path(__file__).with_name("droiddeck-windows")))["WindowBridge"](agent_dir).start()
+    except Exception as error:
+        log("window bridge startup failed: %s: %s" % (type(error).__name__, error))
     can_focus = focus and bool(os.environ.get("DISPLAY"))
     if can_focus:
         FocusWatcher(agent_dir / "focus.json").start()

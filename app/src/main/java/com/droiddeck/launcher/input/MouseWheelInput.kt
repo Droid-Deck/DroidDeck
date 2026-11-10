@@ -19,7 +19,7 @@ class MouseWheelInput(private val send: (vertical120: Int, horizontal120: Int) -
 
     private fun sample(x: Float, y: Float) {
         if (!x.isFinite() || !y.isFinite()) return
-        horizontal -= x * 120f
+        horizontal += x * 120f
         vertical -= y * 120f
         val h = horizontal.toInt()
         val v = vertical.toInt()

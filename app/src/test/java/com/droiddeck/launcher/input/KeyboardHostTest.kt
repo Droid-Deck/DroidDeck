@@ -57,6 +57,20 @@ class KeyboardHostTest {
         assertFalse(host.shown)
     }
 
+    @Config(sdk = [28, 29])
+    @Test fun showReopensAKeyboardCollapsedWithoutBackOnOlderAndroid() {
+        host.show()
+        idle()
+        assertTrue(host.hasFocus())
+        imm.hideSoftInputFromWindow(host.windowToken, 0)
+        idle()
+        assertTrue(host.shown)
+        assertFalse(shadowOf(imm).isSoftInputVisible)
+        host.show()
+        idle()
+        assertTrue(shadowOf(imm).isSoftInputVisible)
+    }
+
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
     @Test fun linuxEditorForwardsUnicodeAndCompositionWithoutGeneratingDuplicateKeys() {

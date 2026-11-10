@@ -232,6 +232,8 @@ private:
     std::array<Eye, 2> referenceEyes_;
     XrControllerReferenceRenderer referenceRenderer_;
     int referenceMode_ = 0;
+    std::string referenceRequestedMode_;
+    bool referenceChordEnabled_ = false;
     XrTime referenceChordStart_ = 0, referenceTime_ = 0;
     bool referenceChordLatched_ = false, referenceValid_ = false;
     uint64_t referenceFrames_ = 0;
@@ -297,27 +299,26 @@ private:
     void referenceControls(XrTime time) {
         const std::string path = std::string(app_->activity->externalDataPath) + "/xr-controller-reference.mode";
         if (frames_ % 9 == 0) {
+            char mode[16] = "steam";
             if (FILE *file = std::fopen(path.c_str(), "r")) {
-                char mode[16]{};
-                const int read = std::fscanf(file, "%15s", mode);
+                std::fscanf(file, "%15s", mode);
                 std::fclose(file);
-                if (read == 1) {
-                    if (!std::strcmp(mode, "steam")) referenceMode_ = 0;
-                    else if (!std::strcmp(mode, "overlay")) referenceMode_ = 1;
-                    else if (!std::strcmp(mode, "native")) referenceMode_ = 2;
-                }
             }
+            const bool enabled = access((std::string(app_->activity->externalDataPath) +
+                "/xr-controller-reference.chord").c_str(), F_OK) == 0;
+            if (referenceRequestedMode_ != mode || (referenceChordEnabled_ && !enabled)) {
+                referenceRequestedMode_ = mode;
+                referenceMode_ = !std::strcmp(mode, "overlay") ? 1 : !std::strcmp(mode, "native") ? 2 : 0;
+            }
+            referenceChordEnabled_ = enabled;
         }
-        const bool chord = handActive_[0] && handActive_[1] &&
+        const bool chord = referenceChordEnabled_ && handActive_[0] && handActive_[1] &&
             (inputs_[0].buttons & DROIDDECK_XR_STICK_CLICK) && (inputs_[1].buttons & DROIDDECK_XR_STICK_CLICK);
         if (!chord) { referenceChordStart_ = 0; referenceChordLatched_ = false; }
         else if (!referenceChordStart_) referenceChordStart_ = time;
         else if (!referenceChordLatched_ && time - referenceChordStart_ >= 800000000LL) {
             referenceChordLatched_ = true;
             referenceMode_ = (referenceMode_ + 1) % 3;
-            if (FILE *file = std::fopen(path.c_str(), "w")) {
-                std::fprintf(file, "%s\n", referenceModeName()); std::fclose(file);
-            }
             __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "controller reference mode=%s", referenceModeName());
         }
     }

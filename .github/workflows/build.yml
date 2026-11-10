@@ -166,6 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin "$BUILD_BASE_SHA"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git -c user.name=ci -c user.email=ci@users.noreply.github.com merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:

@@ -76,7 +76,7 @@ class KeyboardHost(
         rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false
 
     fun show() {
-        if (shown && hasFocus() && imeVisible()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && shown && hasFocus() && imeVisible()) return
         shown = true
         isFocusable = true
         isFocusableInTouchMode = true

@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.os.Looper
 import android.view.SurfaceView
+import android.view.MotionEvent
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
@@ -197,6 +198,53 @@ class SessionInputPointerTest {
         assertTrue(CompositorShadow.events.isEmpty())
     }
 
+    @Test fun physicalWheelDirectionsAgreeAcrossWaylandAndEvdev() {
+        fun wheel(x: Float, y: Float) {
+            val coordinates = MotionEvent.PointerCoords().apply {
+                setAxisValue(MotionEvent.AXIS_HSCROLL, x)
+                setAxisValue(MotionEvent.AXIS_VSCROLL, y)
+            }
+            val event = MotionEvent.obtain(1, 1, MotionEvent.ACTION_SCROLL, 1,
+                arrayOf(MotionEvent.PointerProperties().apply { id = 0 }),
+                arrayOf(coordinates), 0, 0, 1f, 1f, 0, 0, 0, 0)
+            try { ReflectionHelpers.getField<MouseWheelInput>(activity, "mouseWheel").onEvent(event) }
+            finally { event.recycle() }
+        }
+        wheel(1f, 1f)
+        wheel(-1f, -1f)
+        assertEquals(listOf(Triple(11, -120, 120), Triple(11, 120, -120)), CompositorShadow.events)
+        CompositorShadow.events.clear()
+        ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
+        ReflectionHelpers.setField(activity, "evdevMouseActive", true)
+        wheel(1f, 1f)
+        wheel(-1f, -1f)
+        assertEquals(listOf("wheel120:120:120", "wheel120:-120:-120"), WriterShadow.mouse)
+        assertTrue(CompositorShadow.events.isEmpty())
+    }
+
+    @Test fun backgroundMouseButtonsReachTheMainThreadInPressReleaseOrder() {
+        val windows = com.droiddeck.launcher.session.LinuxWindows
+        val owner = ReflectionHelpers.getField<MutableState<String?>>(windows, "owner\$delegate")
+        val previous = owner.value
+        try {
+            owner.value = "test-window"
+            val thread = Thread {
+                output.button(272, true)
+                output.button(272, false)
+            }
+            thread.start()
+            thread.join(5000)
+            assertFalse(thread.isAlive)
+            assertEquals("test-window", windows.owner)
+            assertTrue(CompositorShadow.events.isEmpty())
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull(windows.owner)
+            assertEquals(listOf(Triple(28, 0, 0), Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
+        } finally {
+            owner.value = previous
+        }
+    }
+
     @Test fun leavingRawMouseReleasesItsHoldBeforeReturningToTheWaylandSeat() {
         ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
         ReflectionHelpers.setField(activity, "evdevMouseActive", true)
@@ -284,6 +332,7 @@ class SessionInputPointerTest {
 
     @Implements(value = FakeInputWriter::class, isInAndroidSdk = false)
     class WriterShadow {
+        @Implementation fun writeMouseWheel120(vertical: Int, horizontal: Int) { mouse += "wheel120:$vertical:$horizontal" }
         @Implementation fun writeMouseButton(code: Short, down: Boolean) { mouse += "button:$code:$down" }
         @Implementation fun writeMouseDelta(dx: Float, dy: Float) { mouse += "delta:$dx:$dy" }
         @Implementation fun writeMouseWheel(vertical: Int, horizontal: Int, value120: Int) {

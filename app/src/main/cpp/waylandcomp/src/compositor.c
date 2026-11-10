@@ -1983,11 +1983,13 @@ static struct surface *window_primary(struct surface *root, int width, int heigh
     struct surface *s;
     wl_list_for_each(s, &root->children, child_link)
         if (s->has_content && s->buf_w == width && s->buf_h == height &&
-            s->sub_x == 0 && s->sub_y == 0 && surface_image(s) &&
+            s->sub_x == 0 && s->sub_y == 0 &&
+            (ahb_swapchain_has_ahb(s->dmabuf_buf) || surface_image(s)) &&
             (!s->src_set || (s->src[0] == 0 && s->src[1] == 0 &&
                 s->src[2] == width && s->src[3] == height)) &&
             (!s->dst_set || (s->dst[0] == width && s->dst[1] == height))) return s;
-    return root->buf_w == width && root->buf_h == height && surface_image(root) ? root : NULL;
+    return root->has_content && root->buf_w == width && root->buf_h == height &&
+        (ahb_swapchain_has_ahb(root->dmabuf_buf) || surface_image(root)) ? root : NULL;
 }
 
 static void window_parts_destroy(struct window_target *target) {
@@ -2639,7 +2641,9 @@ static void render_scene(void) {
     int rendered = 0;
     int fx_on = vkp_effects_active();
     int framegen = vkp_framegen_active();
-    if ((g_scene_dirty || fx_on || framegen) && sc_layer_ready()) {
+    const int scene_requested = g_scene_dirty || fx_on || framegen;
+    const int scene_ready = sc_layer_ready();
+    if (scene_requested && scene_ready) {
     g_scene_dirty = 0;
     if (w != g_scene_w || h != g_scene_h) {
         if (g_desktop) droiddeck_log("desktop", "size %dx%d", w, h);
@@ -2811,6 +2815,8 @@ static void render_scene(void) {
         fire_all_frames();
     } else {
         pace_without_output();
+    }
+    if (scene_requested && (!scene_ready || g_scene_dirty)) {
         if (!g_frame_timer)
             g_frame_timer = wl_event_loop_add_timer(wl_display_get_event_loop(g_display),
                                                     on_frame_timer, NULL);

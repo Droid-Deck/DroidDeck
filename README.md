@@ -66,6 +66,9 @@ On Windows, `python tools/vr/build_windows.py --vk-include <NDK-sysroot-include>
 The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew -PskipRust=true :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
+Windows runtime preparation rebuilds the patched ARM64 KWin in Docker. Use
+`--rebuilt-kwin <directory>` to reuse the five files from a KWin build; its
+`build.json` must match the current source and output checksums.
 
 ## Limits
 

@@ -17,7 +17,7 @@ internal enum class GestureActionGroup(@StringRes val title: Int) {
 internal data class GestureAction(val id: String, val title: String, val group: GestureActionGroup)
 
 internal fun gestureActionGroup(id: String): GestureActionGroup {
-    if (id in setOf("show_keyboard", "native_swipe", "none")) return GestureActionGroup.APP
+    if (id in setOf("show_keyboard", "native_swipe", "none", "custom_shortcut")) return GestureActionGroup.APP
     if (id in setOf("left_click", "right_click", "middle_click", "left_click_drag", "right_click_drag",
             "middle_mouse_pan", "inverted_middle_mouse_pan", "scroll_wheel")) return GestureActionGroup.MOUSE
     val key = id.removePrefix("key_")
