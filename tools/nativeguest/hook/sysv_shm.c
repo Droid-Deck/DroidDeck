@@ -336,7 +336,7 @@ int shmget(key_t key, size_t size, int shmflg) {
         return -1;
     }
     if (shm_ensure_dir() != 0) return -1;
-    if (shmflg & IPC_CREAT) shm_collect();
+    if ((shmflg & IPC_CREAT) || key == IPC_PRIVATE) shm_collect();
     if (key == IPC_PRIVATE) {
         if (size == 0) {
             errno = EINVAL;
