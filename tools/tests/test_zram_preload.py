@@ -326,7 +326,7 @@ class ZramPreloadTest(unittest.TestCase):
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_signal_does_not_stall_the_main_thread(self):
-        out = self.run_program(None, 48, 0, "timed")
+        out = self.run_program(None, 256, 0, "timed")
         self.assertLess(out["gap"][0], 250)
         self.assertGreater(out["out"][0], 32 * 1024)
 
