@@ -141,8 +141,8 @@ fun PerformancePage(
             val auto = stringResource(R.string.perf_cap_auto)
             ToggleRow(
                 host, "zramidle", stringResource(R.string.perf_zram_idle),
-                stringResource(R.string.perf_zram_idle_hint),
-                zramIdle, onChange = onZramIdle,
+                if (ramCapAvailable) stringResource(R.string.perf_zram_idle_hint) else stringResource(R.string.perf_ram_cap_unavailable),
+                zramIdle && ramCapAvailable, enabled = ramCapAvailable, onChange = onZramIdle,
             )
             ToggleRow(
                 host, "zramclient", stringResource(R.string.perf_zram_client),
