@@ -170,7 +170,7 @@ set +o pipefail
         [ $ran = 1 ] && report >/dev/null && echo "[build $n/$total] $task" ;;
     esac
   done
-  [ -n "$task" ] && [ $ran = 1 ] && echo "$task $(( $(date +%s) - since ))" >> "$measured"
+  if [ -n "$task" ] && [ $ran = 1 ]; then echo "$task $(( $(date +%s) - since ))" >> "$measured"; fi
 }
 status=${PIPESTATUS[0]}
 set -o pipefail
