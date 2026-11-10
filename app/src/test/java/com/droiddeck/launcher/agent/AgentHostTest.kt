@@ -101,6 +101,12 @@ class AgentHostTest {
             Codex.turn("hi", "t1", AgentHarness.Options(model = "gpt")))
     }
 
+    @Test fun codexShellWrappersAreUnwrapped() {
+        assertEquals("uname -m", shellCommand("/bin/bash -lc 'uname -m'"))
+        assertEquals("echo 'hi'", shellCommand("/bin/bash -lc 'echo '\''hi'\'''"))
+        assertEquals("ls", shellCommand("ls"))
+    }
+
     @Test fun aTurnWithoutAnEndWasInterrupted() {
         assertTrue(AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Used("1", "Bash", "dd-lab-build"))))
         assertEquals(false, AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Finished(null))))

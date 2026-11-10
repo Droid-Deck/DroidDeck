@@ -217,7 +217,7 @@ object Codex : AgentHarness {
         val entries = when (o.optString("type")) {
             "thread.started" -> return AgentEvent(o.optString("thread_id").takeIf { it.isNotEmpty() })
             "item.started" -> when (item?.optString("type")) {
-                "command_execution" -> listOf(AgentHost.Entry.Used(id, "Shell", firstLine(item.optString("command")), item.optString("command")))
+                "command_execution" -> shellCommand(item.optString("command")).let { listOf(AgentHost.Entry.Used(id, "Shell", firstLine(it), it)) }
                 "mcp_tool_call" -> listOf(AgentHost.Entry.Used(id, item.optString("tool").ifEmpty { "Tool" }, item.optString("server"), item.optJSONObject("arguments")?.toString(2).orEmpty()))
                 "web_search" -> listOf(AgentHost.Entry.Used(id, "Search", item.optString("query"), item.optString("query")))
                 else -> emptyList()
@@ -270,3 +270,9 @@ object Codex : AgentHarness {
 
 @VisibleForTesting
 internal fun firstLine(text: String) = text.lineSequence().first().take(160)
+
+private val SHELL_WRAPPER = Regex("^/bin/(?:ba)?sh -l?c '(.*)'$", RegexOption.DOT_MATCHES_ALL)
+
+/** Codex runs each command as `/bin/bash -lc '<command>'`; the command is what the user wants to read. */
+@VisibleForTesting
+internal fun shellCommand(command: String) = SHELL_WRAPPER.find(command)?.groupValues?.get(1)?.replace("'\''", "'") ?: command

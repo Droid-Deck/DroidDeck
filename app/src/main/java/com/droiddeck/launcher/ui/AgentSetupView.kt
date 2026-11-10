@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import com.droiddeck.launcher.agent.AgentSetup.Status
 import com.droiddeck.launcher.agent.AgentSetup.Step
@@ -60,8 +61,21 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                 if (chosen) PrimaryButton(harness.name, compact = true) {} else SecondaryButton(harness.name, compact = true) { AgentHost.choose(context, harness) }
             }
         }
-        Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
-            val steps = Step.entries
+        val steps = Step.entries
+        val done = steps.count { AgentSetup.status[it] == Status.DONE }
+        val busy = steps.any { AgentSetup.status[it] == Status.WORKING }
+        var details by rememberSaveable { mutableStateOf(false) }
+        val summary = if (AgentSetup.ready) buildList {
+            add(stringResource(R.string.agent_summary_signed_in, AgentHost.harness.name))
+            if (AgentSetup.status[Step.GITHUB] == Status.DONE) add(stringResource(R.string.agent_step_github))
+            if (AgentSetup.status[Step.BUILD_TOOLS] == Status.DONE) add(stringResource(R.string.agent_summary_lab))
+            if (AgentSetup.status[Step.PREPARE] == Status.DONE) add(stringResource(R.string.agent_summary_fast))
+        }.joinToString(" · ") else steps.firstOrNull { it.required && AgentSetup.status[it] != Status.DONE }?.let { labels(it, AgentHost.harness.name).first }.orEmpty()
+        ReadinessCard(
+            done, steps.size, summary, details || !AgentSetup.ready || busy, { details = !details },
+            title = stringResource(if (AgentSetup.ready) R.string.agent_summary_ready else R.string.agent_summary_not_ready),
+            ready = AgentSetup.ready,
+        ) {
             steps.forEachIndexed { index, step ->
                 val status = AgentSetup.status[step] ?: Status.UNKNOWN
                 val (title, hint) = labels(step, AgentHost.harness.name)
@@ -100,12 +114,17 @@ private fun StorageCard() {
     val items = AgentStorage.Item.entries.filter { (AgentStorage.sizes[it] ?: 0L) > 0L }
     if (items.isEmpty()) return
     val total = items.sumOf { AgentStorage.sizes[it] ?: 0L }
-    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-        Text(stringResource(R.string.agent_storage_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.weight(1f))
-        Text(Formatter.formatShortFileSize(context, total), fontSize = 14.sp, color = pal.onSurfaceVariant)
-    }
+    var open by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
-        items.forEachIndexed { index, item ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.agent_storage_title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                Text(Formatter.formatShortFileSize(context, total), fontSize = 13.sp, color = pal.onSurfaceVariant)
+            }
+            SecondaryButton(stringResource(if (open) R.string.common_hide else R.string.setup_details), compact = true) { open = !open }
+        }
+        if (open) items.forEachIndexed { index, item ->
+            if (index == 0) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
             var armed by remember(item) { mutableStateOf(false) }
             val busy = AgentStorage.removing[item] == true
             Row(

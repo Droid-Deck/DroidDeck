@@ -690,10 +690,12 @@ internal fun SetupPanel(
 }
 
 @Composable
-internal fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, checks: @Composable () -> Unit) {
+internal fun ReadinessCard(
+    passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, title: String? = null, ready: Boolean = passing == total,
+    checks: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val ready = passing == total
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -709,7 +711,7 @@ internal fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
+                    title ?: stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
                     fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                 )
                 if (line.isNotEmpty()) Text(line, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
