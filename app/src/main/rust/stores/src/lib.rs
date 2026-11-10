@@ -3,6 +3,7 @@
 #![allow(clippy::missing_safety_doc, clippy::result_large_err)]
 
 pub mod amazon;
+pub mod ea;
 pub mod epic;
 pub mod fetch_core;
 pub mod fetch_tuning;

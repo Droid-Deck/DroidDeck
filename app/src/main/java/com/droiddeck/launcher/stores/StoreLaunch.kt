@@ -11,9 +11,12 @@ object StoreLaunch {
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
+    const val EA_ENV = ".droiddeck-ea-env"
+    /** A sleeping stand-in that the launch hook installs; older EA SDKs require a running Origin process. */
+    const val EA_ORIGIN = "C:\\Program Files (x86)\\Origin\\Origin.exe"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
-        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
+        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA
         val file = File(folder, LAUNCHER)
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
         file.writeText(launcherText(sidecar))
@@ -49,6 +52,14 @@ object StoreLaunch {
             lines += "del \"%~dp0$EPIC_ARGS\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
+        } else if (sidecar.store == Store.EA) {
+            lines += "if not exist \"%~dp0$EA_ENV\" goto run"
+            lines += "for /f \"usebackq tokens=1,* delims==\" %%a in (\"%~dp0$EA_ENV\") do set \"%%a=%%b\""
+            lines += "del \"%~dp0$EA_ENV\""
+            lines += ":run"
+            lines += "if exist \"$EA_ORIGIN\" start \"\" \"$EA_ORIGIN\""
+            lines += run
+            lines += "taskkill /f /im Origin.exe >nul 2>&1"
         } else {
             lines += run
         }
