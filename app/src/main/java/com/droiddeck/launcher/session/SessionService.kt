@@ -371,12 +371,17 @@ class SessionService : Service() {
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
-        SessionState.gameId = intent?.getStringExtra(EXTRA_GAME_ID)
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        val steamUrlGameId = SessionState.steamUrl
+            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }
+            ?.removePrefix(GAME_URL_PREFIX)
+            ?.takeIf(GameLaunchLink::validId)
+        val resolvedGameId = intent?.getStringExtra(EXTRA_GAME_ID) ?: steamUrlGameId
+        SessionState.gameId = resolvedGameId
         SessionPrefs.setActiveScreenEffectsProfile(
             this,
-            SessionPrefs.screenEffectsProfileId(SessionState.mode, SessionState.gameId, SessionState.program),
+            SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
         val gen = synchronized(stopLock) {
@@ -398,10 +403,10 @@ class SessionService : Service() {
         if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
-        if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
-            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let {
-                watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen, ++gameExitWatchToken)
-            }
+        if (SessionState.mode == MODE_STEAM &&
+            SessionState.steamUrl?.startsWith(GAME_URL_PREFIX) == true) {
+            resolvedGameId?.let { watchGameExit(it, gen, ++gameExitWatchToken) }
+        }
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
