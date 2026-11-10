@@ -351,12 +351,13 @@ class DroidDeckHudPanelTest {
             return view.linesForTest()
         }
         val all = pill("showBattery" to "1")
+        val ramLabel = Regex("\\bRAM\\b")
         assertTrue(all.toString(), all.any { "BAT 79% · 34°C · 16.0W" in it })
         assertEquals(all.toString(), 1, all.count { "BAT" in it })
-        assertFalse(all.toString(), all.single { "RAM" in it }.contains("BAT"))
+        assertFalse(all.toString(), all.single { ramLabel.containsMatchIn(it) }.contains("BAT"))
 
         val noMemory = pill("showBattery" to "1", "showRAM" to "0")
-        assertTrue(noMemory.toString(), noMemory.none { "RAM" in it })
+        assertTrue(noMemory.toString(), noMemory.none { ramLabel.containsMatchIn(it) })
         assertTrue(noMemory.toString(), noMemory.any { "BAT 79% · 34°C · 16.0W" in it })
 
         val defaults = pill()
