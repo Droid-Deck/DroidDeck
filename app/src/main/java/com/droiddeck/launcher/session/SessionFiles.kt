@@ -33,6 +33,37 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
+    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+
+    /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
+    fun ensureUbisoftService(context: Context) {
+        AddonPack.UBISOFT.ensure(context) { app ->
+            com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
+                ?.let { stageUbisoftService(app, it, null) }
+        }
+    }
+
+    @Synchronized
+    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
+        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
+        val target = File(root, UBISOFT_SERVICE)
+        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
+        val staged = File(target.parentFile, target.name + ".staged")
+        var installed = false
+        try {
+            target.parentFile?.mkdirs()
+            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
+                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+            }
+            installed = staged.setExecutable(true, false) && staged.renameTo(target)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
+        } finally {
+            if (!installed) staged.delete()
+        }
+        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+    }
+
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
@@ -196,7 +227,6 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-            "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe" to "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
@@ -252,6 +282,7 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        stageUbisoftService(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")

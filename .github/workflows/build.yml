@@ -900,6 +900,7 @@ jobs:
     uses: ./.github/workflows/scan.yml
     with:
       artifact: droiddeck-signed
+      variant: standard
     secrets: inherit
 
   packs:
