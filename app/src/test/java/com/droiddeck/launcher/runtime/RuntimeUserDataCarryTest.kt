@@ -75,6 +75,40 @@ class RuntimeUserDataCarryTest {
         assertEquals("new runtime", File(staging, "usr/share/applications/droiddeck-return-gaming.desktop").readText())
     }
 
+    @Test fun aRuntimeUpgradeKeepsTheInstalledSteamVrPackageAndPreferences() {
+        val old = tmp.newFolder("old")
+        val startup = put(old, "opt/steamvr/bin/linuxarm64/vrstartup", "installed runtime")
+        assertTrue(startup.setExecutable(true, true))
+        put(old, "opt/steamvr/resources/settings/default.vrsettings", "installed settings")
+        put(old, "root/.local/share/Steam/config/steamvr.vrsettings", "user settings")
+        val staging = tmp.newFolder("new")
+        put(staging, "usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so", "new driver")
+
+        val paths = RuntimeFileTree.existingUserPaths(old, staging)
+        assertTrue("opt/steamvr" in paths)
+        val carried = RuntimeFileTree.carryUserData(old, staging, false, paths)
+        RuntimeFileTree.delete(old, null)
+
+        assertTrue("opt/steamvr" in carried)
+        assertEquals("installed runtime", File(staging, "opt/steamvr/bin/linuxarm64/vrstartup").readText())
+        assertTrue(File(staging, "opt/steamvr/bin/linuxarm64/vrstartup").canExecute())
+        assertEquals("installed settings", File(staging, "opt/steamvr/resources/settings/default.vrsettings").readText())
+        assertEquals("user settings", File(staging, "root/.local/share/Steam/config/steamvr.vrsettings").readText())
+        assertEquals("new driver", File(staging, "usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so").readText())
+    }
+
+    @Test fun aFailedUpgradeReturnsSteamVrToThePreviousRuntime() {
+        val old = tmp.newFolder("old")
+        put(old, "opt/steamvr/bin/linuxarm64/vrstartup", "installed runtime")
+        val staging = tmp.newFolder("new")
+
+        val carried = RuntimeFileTree.carryUserData(old, staging, false)
+        RuntimeFileTree.carryBack(staging, old, carried)
+
+        assertEquals("installed runtime", File(old, "opt/steamvr/bin/linuxarm64/vrstartup").readText())
+        assertFalse(File(staging, "opt/steamvr").exists())
+    }
+
     @Test fun cachesTiedToThePreviousRuntimeAreDropped() {
         val root = tmp.newFolder("rt")
         val keep = listOf("root/.cache/mozilla/cache2/entry", "root/.cache/droiddeck/session.log",

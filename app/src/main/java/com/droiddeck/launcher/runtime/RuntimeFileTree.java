@@ -75,7 +75,7 @@ public final class RuntimeFileTree {
     }
 
     static java.util.List<String> userPaths(File tree) throws IOException {
-        java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps", "opt/droiddeck/wincomponents"));
+        java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps", "opt/droiddeck/wincomponents", "opt/steamvr"));
         for (String n : children(new File(tree, "usr/local/share/applications"))) {
             if (n.endsWith(".desktop") && (n.startsWith("droiddeck-app-") || n.startsWith("droiddeck-appimage-")))
                 paths.add("usr/local/share/applications/" + n);
