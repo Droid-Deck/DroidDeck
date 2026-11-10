@@ -15,8 +15,11 @@ change.
   that the build was made for this install, puts its dex files ahead of the APK's, and adds its
   resources through `ResourcesLoader` to the app and every activity. Contexts made from them
   (presentations on the second screen) inherit the loader.
-- The watermark shows `LAB | <branch> @ <commit>`, and Updates has a Lab build card that goes back
-  to the installed version.
+- The watermark shows `LAB | <branch> @ <commit>`. When the app comes back on a new build it posts
+  a "Lab build installed" notification, so the restart does not look like a crash.
+- A build that is replaced, turned off or refused is kept in `files/lab/builds` (the newest 12).
+  Updates lists them under Lab builds: the one in use can be turned off, one built for this
+  install can be used again, and any can be deleted.
 
 ## What a Lab build cannot change
 
@@ -31,7 +34,9 @@ changes; they need a new APK.
   update. A build for another install is turned off.
 - Two starts in a row that do not reach a resumed activity for 10 seconds turn the build off.
 - It needs Android 11 or later (`ResourcesLoader`) and no app image (classes in one load before the
-  Lab build). `dd-lab-build` runs `cmd package compile -m verify` before restarting.
+  Lab build). `dd-lab-build` runs `cmd package compile -m verify` before restarting. Android's
+  background optimization can bring an app image back; the build is then paused, a notification
+  says so, and Restart in Updates recompiles through the app's wireless debugging pairing.
 
 ## Setting up a device
 
@@ -43,5 +48,8 @@ tools/agent/setup
 
 It installs Claude Code, git, gh and loopback adb, plus the build toolchain: JDK 17, the Android
 SDK platform, and Google's x86-64 `aapt2` run under `qemu-user`. The first Lab build compiles the
-whole app and takes about 20 minutes on a Snapdragon 865; later ones are incremental.
-`~/.cache/dd-lab-build.json` reports the stage, task count and current task while it runs.
+whole app and takes about 20 minutes on a Snapdragon 865; later ones are incremental. Setup
+does that first build ahead of time with `dd-lab-build --prepare`, which compiles the installed
+commit without making a Lab build.
+`~/.cache/dd-lab-build.json` reports the stage, the current task, progress in thousandths and the
+seconds left, estimated from how long each task took the last time (`~/.cache/dd-lab-build-times`).

@@ -56,4 +56,6 @@ yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
 "$sdk/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 
 adb connect 127.0.0.1:5555 || true
+# The first build compiles the whole app; doing it now makes the agent's Lab builds incremental.
+[ "${DD_SKIP_PREPARE:-}" = 1 ] || "$here/dd-lab-build" --prepare || echo "The first Lab build will compile the whole app"
 echo "Done. Approve the USB debugging prompt if one appears, then run dd-agent."

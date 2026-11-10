@@ -1,36 +1,59 @@
 #!/bin/bash
 # Builds this checkout as a Lab build of the installed DroidDeck and restarts the app on it.
-# Usage: dd-lab-build [--no-restart]
+# Usage: dd-lab-build [--no-restart | --prepare]
+#   --prepare  compiles the installed commit without making a Lab build, so later builds only
+#              compile what changed. Setup runs it once; it takes the longest.
 set -euo pipefail
 pkg=com.droiddeck.launcher
 serial=${ADB_SERIAL:-127.0.0.1:5555}
-restart=1
-[ "${1:-}" = --no-restart ] && restart=0
+mode=build
+case "${1:-}" in
+  --no-restart) mode=no-restart ;;
+  --prepare) mode=prepare ;;
+esac
 started=$(date +%s)
-progress_file=$HOME/.cache/dd-lab-build.json
-mkdir -p "$HOME/.cache"
-# The Agent tab and the agent read this file to show how far the build has got.
-progress() {  # stage [done total task]
-  printf '{"stage":"%s","done":%d,"total":%d,"task":"%s","elapsed":%d}\n' \
-    "$1" "${2:-0}" "${3:-0}" "${4:-}" $(( $(date +%s) - started )) > "$progress_file.part"
-  mv "$progress_file.part" "$progress_file"
+cache=$HOME/.cache
+progress_file=$cache/dd-lab-build.json
+times_file=$cache/dd-lab-build-times
+mkdir -p "$cache"
+# The Agent tab reads this file to show how far the build has got and how long is left.
+progress() {  # stage [permille task done total eta]
+  local task=${3:-}; task=${task//\\/}; task=${task//\"/\'}; task=${task//$'\n'/ }
+  printf '{"stage":"%s","mode":"%s","permille":%d,"task":"%s","done":%d,"total":%d,"eta":%d,"elapsed":%d,"pid":%d}\n' \
+    "$1" "$mode" "${2:-0}" "$task" "${4:-0}" "${5:-0}" "${6:--1}" $(( $(date +%s) - started )) $$ > "$progress_file.part.$BASHPID"
+  mv "$progress_file.part.$BASHPID" "$progress_file"
 }
-fail() { progress failed; echo "dd-lab-build: $*" >&2; exit 1; }
+fail() { progress failed 0 "$*"; echo "dd-lab-build: $*" >&2; exit 1; }
+trap 'progress failed 0 stopped; exit 143' INT TERM
 device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
 progress checking
 repo=$(git rev-parse --show-toplevel) || fail "run it inside the DroidDeck checkout"
 cd "$repo"
 adb connect "$serial" >/dev/null 2>&1 || true
-git diff --quiet && git diff --cached --quiet || fail "commit your changes first"
 
 state=$(python3 tools/droiddeckctl state 2>/dev/null | sed -n '/^{/,$p')
 # A Lab build reports its own label, so the APK's commit comes from apkCommit when the app has it.
 label=$(python3 -c 'import json,sys; s=json.load(sys.stdin); print(s.get("apkCommit") or s["build"].rsplit(" at ", 1)[-1])' <<<"$state")
-base=$(git rev-parse --verify --quiet "$label^{commit}") || fail "the installed build ($label) is not in this checkout; fetch it first"
-git merge-base --is-ancestor "$base" HEAD || fail "HEAD does not build on the installed commit ${base:0:9}; branch from it"
-blocked=$(git diff --name-only "$base" HEAD | grep -E 'AndroidManifest\.xml$|/cpp/|/jniLibs/|\.rs$|(^|/)build\.gradle$|/App\.kt$|/lab/LabOverlay\.kt$' || true)
-[ -z "$blocked" ] || fail "these need a new APK, not a Lab build: $(echo $blocked)"
+if ! base=$(git rev-parse --verify --quiet "$label^{commit}"); then
+  progress fetching 0 "the installed commit"
+  git fetch --quiet --tags origin >/dev/null 2>&1 || true
+  git fetch --quiet origin main >/dev/null 2>&1 || true
+  base=$(git rev-parse --verify --quiet "$label^{commit}") || fail "the installed build ($label) is not in this checkout or on GitHub's main; fetch it first"
+fi
+
+if [ $mode = prepare ]; then
+  # Compiling the installed commit itself gives later builds of branches on it incremental caches.
+  if ! git merge-base --is-ancestor "$base" HEAD; then
+    git diff --quiet && git diff --cached --quiet || fail "HEAD does not build on the installed commit and has uncommitted changes"
+    git checkout --quiet --detach "$base"
+  fi
+else
+  git diff --quiet && git diff --cached --quiet || fail "commit your changes first"
+  git merge-base --is-ancestor "$base" HEAD || fail "HEAD does not build on the installed commit ${base:0:9}; branch from it"
+  blocked=$(git diff --name-only "$base" HEAD | grep -E 'AndroidManifest\.xml$|/cpp/|/jniLibs/|\.rs$|(^|/)build\.gradle$|/App\.kt$|/lab/LabOverlay\.kt$' || true)
+  [ -z "$blocked" ] || fail "these need a new APK, not a Lab build: $(echo $blocked)"
+fi
 apk=$(device pm path $pkg | sed -n 's/^package://p' | grep 'base\.apk$' | head -1)
 [ -n "$apk" ] || fail "DroidDeck is not installed"
 
@@ -52,44 +75,82 @@ gradle=(./gradlew :app:processReleaseResources :app:mergeDexRelease --max-worker
   -Pandroid.aapt2FromMavenOverride=$HOME/aapt2/aapt2 -Pkotlin.compiler.execution.strategy=in-process
   -Dorg.gradle.jvmargs=-Xmx${heap}m --console=plain)
 progress planning
-total=$("${gradle[@]}" --dry-run -q 2>/dev/null | grep -c '^:' || true)
+mapfile -t plan < <("${gradle[@]}" --dry-run -q 2>/dev/null | awk '/^:/ {print $1}' || true)
+total=${#plan[@]}
+
+# Each task's estimate is how long it took last time; a full compile of the app takes about 15 minutes.
+declare -A estimate
+[ -f "$times_file" ] && while read -r t s; do estimate[$t]=$s; done < "$times_file"
+estimate_of() { local e=${estimate[$1]:-}; [ -n "$e" ] && echo "$e" || { [[ $1 == *compileReleaseKotlin ]] && echo 900 || echo 2; }; }
+planned=0
+for t in "${plan[@]}"; do planned=$(( planned + $(estimate_of "$t") )); done
+[ $planned -gt 0 ] || planned=1
+
 current=$(mktemp)
-echo "0 starting" > "$current"
+measured=$(mktemp)
+# "<tasks started> <task> <its start> <estimated seconds of tasks done> <its estimate>"
+echo "0 starting $(date +%s) 0 0" > "$current"
+report() {
+  local n task since done_s cur_est now part permille left
+  read -r n task since done_s cur_est < "$current"
+  now=$(date +%s)
+  part=$(( now - since )); [ $part -gt $(( cur_est * 95 / 100 )) ] && part=$(( cur_est * 95 / 100 ))
+  permille=$(( (done_s + part) * 1000 / planned )); [ $permille -gt 990 ] && permille=990
+  left=$(( planned - done_s - part )); [ $left -lt 0 ] && left=0
+  progress building "$permille" "$task" "$n" "$total" "$left"
+  echo "$n $task $(( (now - started) / 60 )) $left"
+}
 (
-  while sleep 60; do
-    read -r n task < "$current"
-    echo "[build $n/$total] still on $task, $(( ($(date +%s) - started) / 60 ))m in"
-    progress building "$n" "$total" "$task"
+  while sleep 20; do
+    set -- $(report)
+    echo "[build $1/$total] still on $2, $3m in, about $(( $4 / 60 + 1 ))m left"
   done
 ) &
 heartbeat=$!
-trap 'kill $heartbeat 2>/dev/null || true' EXIT
+trap 'kill $heartbeat 2>/dev/null || true; rm -f "$current" "$measured"' EXIT
 set +o pipefail
 "${gradle[@]}" 2>&1 | {
-  n=0
+  n=0 done_s=0 task="" since=0 cur_est=0 ran=0
   while IFS= read -r line; do
     printf '%s\n' "$line"
     case $line in
       "> Task "*)
-        n=$((n + 1)); task=${line#> Task }; task=${task%% *}
-        echo "$n $task" > "$current"
-        echo "[build $n/$total] $task"
-        progress building "$n" "$total" "$task" ;;
+        now=$(date +%s)
+        # A task's line comes when it starts, or when it ends for one that did no work.
+        if [ -n "$task" ]; then
+          done_s=$(( done_s + cur_est ))
+          [ $ran = 1 ] && echo "$task $(( now - since ))" >> "$measured"
+        fi
+        rest=${line#> Task }; task=${rest%% *}
+        case $rest in *" "*) ran=0 ;; *) ran=1 ;; esac
+        n=$((n + 1)); since=$now; cur_est=$(estimate_of "$task")
+        echo "$n $task $since $done_s $cur_est" > "$current"
+        [ $ran = 1 ] && report >/dev/null && echo "[build $n/$total] $task" ;;
     esac
   done
+  [ -n "$task" ] && [ $ran = 1 ] && echo "$task $(( $(date +%s) - since ))" >> "$measured"
 }
 status=${PIPESTATUS[0]}
 set -o pipefail
 kill $heartbeat 2>/dev/null || true
 [ "$status" = 0 ] || fail "Gradle failed (exit $status); the reason is above"
+# Tasks that did no work this time keep their earlier time.
+{ [ -f "$times_file" ] && cat "$times_file"; cat "$measured"; } | awk '{t[$1] = $2} END {for (k in t) print k, t[k]}' > "$times_file.part"
+mv "$times_file.part" "$times_file"
 
-progress packaging
+if [ $mode = prepare ]; then
+  progress prepared 1000
+  echo "Prepared: Lab builds of branches on ${base:0:9} now compile only what changed ($(( ($(date +%s) - started) / 60 ))m)"
+  exit 0
+fi
+
+progress packaging 995
 linked=$(ls app/build/intermediates/linked_resources_binary_format/release/processReleaseResources/*.ap_ | head -1)
 work=$(mktemp -d)
 cp "$linked" "$work/overlay.apk"
 (cd app/build/intermediates/dex/release/mergeDexRelease && zip -q "$work/overlay.apk" classes*.dex)
 name="$(git branch --show-current) @ $(git rev-parse --short HEAD)"
-python3 -c 'import json,sys; print(json.dumps({"label": sys.argv[1], "baseCommit": sys.argv[2], "baseApk": sys.argv[3]}))' \
+python3 -c 'import json,sys,time; print(json.dumps({"label": sys.argv[1], "baseCommit": sys.argv[2], "baseApk": sys.argv[3], "built": int(time.time())}))' \
   "$name" "$base" "$apk" > "$work/overlay.json"
 
 lab=/data/user/0/$pkg/files/lab
@@ -97,14 +158,14 @@ mkdir -p "$lab"
 rm -rf "$lab/next.part" "$lab/next"
 mv "$work" "$lab/next.part"
 mv "$lab/next.part" "$lab/next"
-progress ready
+progress ready 1000 "$name"
 echo "Lab build ready: $name ($(du -h "$lab/next/overlay.apk" | cut -f1)) in $(( ($(date +%s) - started) / 60 ))m"
-[ $restart = 1 ] || exit 0
+[ $mode = build ] || exit 0
 
 # Classes in an app image load before the Lab build can, so the app is recompiled without one.
 device cmd package compile -m verify -f $pkg >/dev/null
-progress restarting
-echo "Restarting DroidDeck on the Lab build"
+progress restarting 1000 "$name"
+echo "Restarting DroidDeck on the Lab build; it shows a notification when it is back"
 # The app's own agent ends with the app, so it is told to carry on once the app is back.
 if [ -n "${DD_AGENT:-}" ]; then mkdir -p "/data/user/0/$pkg/files/agent" && : > "/data/user/0/$pkg/files/agent/resume"; fi
 device "nohup sh -c 'sleep 3; monkey -p $pkg -c android.intent.category.LAUNCHER 1' >/dev/null 2>&1 &"
