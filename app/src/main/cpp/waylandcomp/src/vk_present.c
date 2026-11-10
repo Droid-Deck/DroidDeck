@@ -213,7 +213,7 @@ static struct {
 } g_map;
 static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
 static float g_game_picture_rect[4];
-static int g_game_picture_top;
+static int g_game_picture_placed;
 
 static int64_t g_swap_retry_at_ns;
 static int g_swap_fail_logged;
@@ -426,7 +426,7 @@ static void update_map(int scene_w, int scene_h) {
     else if (align == VKP_ALIGN_PICTURE_RIGHT) g_map.off_x = W - scene_w * g_map.kx;
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
-    g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
+    g_game_picture_placed = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
     g_game_picture_rect[0] = g_map.off_x;
     g_game_picture_rect[1] = g_map.off_y;
     g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;
@@ -440,7 +440,7 @@ static void update_map(int scene_w, int scene_h) {
 
 int vkp_game_picture_rect(float rect[4]) {
     pthread_mutex_lock(&g_game_picture_lock);
-    int active = g_game_picture_top;
+    int active = g_game_picture_placed;
     if (active) memcpy(rect, g_game_picture_rect, sizeof(g_game_picture_rect));
     pthread_mutex_unlock(&g_game_picture_lock);
     return active;

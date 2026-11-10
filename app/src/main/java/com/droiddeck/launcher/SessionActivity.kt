@@ -3948,8 +3948,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 gamePictureBounds[2], gamePictureBounds[3]
             )
 
-            // Native picture bounds use the glasses output coordinate space.
-            // Touch events arrive in phone-view coordinates.
             if (glassesOutputActive) {
                 val mode = glassesScreen?.display?.mode ?: return null
                 val outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
