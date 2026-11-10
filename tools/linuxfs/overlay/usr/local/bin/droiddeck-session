@@ -823,7 +823,9 @@ case $mode in
           echo "$# processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
         }
         bl_memory_read() {
-          local _k _v _u _kind _fields _avg _whole _frac _gpu_bytes _growth
+          local _k _v _u _kind _fields _avg _whole _frac _gpu_bytes _growth _saved_growth _saved_fall
+          _saved_growth=${_bl_preserved_growth:-0} _saved_fall=${_bl_preserved_fall:-0}
+          _bl_preserved_growth=0 _bl_preserved_fall=0
           _bl_mem_total=0 _bl_available=-1 _bl_swap_total=0 _bl_swap_free=-1
           _bl_psi_some=0 _bl_psi_full=0 _bl_gpu=0 _bl_unevictable=0 _bl_shmem=0
           while read -r _k _v _u; do
@@ -870,6 +872,8 @@ case $mode in
             _growth=$((_bl_unevictable - _bl_sample_unevictable)); [ "$_growth" -gt 0 ] && _bl_growth=$((_bl_growth + _growth))
             _growth=$((_bl_shmem - _bl_sample_shmem)); [ "$_growth" -gt 0 ] && _bl_growth=$((_bl_growth + _growth))
             _bl_fall=$((_bl_sample_available - _bl_available))
+            [ "$_saved_growth" -gt "$_bl_growth" ] && _bl_growth=$_saved_growth
+            [ "$_saved_fall" -gt "$_bl_fall" ] && _bl_fall=$_saved_fall
             _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
             _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
           fi
@@ -899,9 +903,9 @@ case $mode in
         bl_client_can_readback() {
           bl_memory_read
           bl_zram_usage "${_bl_pids[@]}" > /dev/null
-          [ "$_bl_mem_total" -gt 0 ] && ! bl_memory_tight &&
-            [ "$_bl_available" -ge $((_bl_swap * 2)) ] &&
-            [ $((_bl_available - _bl_swap)) -ge "$_bl_headroom" ]
+          [ "$_bl_mem_total" -gt 0 ] && ! bl_memory_tight && ! bl_memory_critical &&
+            [ "$_bl_real_available" -ge $((_bl_swap * 2)) ] &&
+            [ $((_bl_real_available - _bl_swap)) -ge "$_bl_headroom" ]
         }
         bl_client_pressure() {
           [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "$_bl_game" = 1 ] &&
@@ -1106,6 +1110,7 @@ case $mode in
             fi
           fi
           bl_client_pressure
+          _bl_preserved_growth=$_bl_growth _bl_preserved_fall=$_bl_fall
           bl_session_pressure
           if [ "$_bl_game" = 1 ] && bl_game_focused; then
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then

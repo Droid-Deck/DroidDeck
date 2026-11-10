@@ -113,11 +113,20 @@ object SessionLogCapture {
             val staged = File.createTempFile(target.name, ".part", target.parentFile).also { temporary = it }
             val lines = StringBuilder()
             val done = java.util.concurrent.CountDownLatch(1)
+            val outputDone = java.util.concurrent.CountDownLatch(1)
             val pid = HostProcess.start(
                 "/system/bin/logcat -b events -d -v threadtime -t 800", null, target.parentFile,
                 { done.countDown() },
-            ) { line -> synchronized(lines) { lines.append(line).append('\n') } }
-            val finished = pid != -1 && done.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                { line -> synchronized(lines) { lines.append(line).append('\n') } },
+                null,
+                outputDone::countDown,
+            )
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
+            val finished = if (pid == -1) false else {
+                val exitTime = deadline - System.nanoTime()
+                exitTime > 0 && done.await(exitTime, java.util.concurrent.TimeUnit.NANOSECONDS) &&
+                    (deadline - System.nanoTime()).let { it > 0 && outputDone.await(it, java.util.concurrent.TimeUnit.NANOSECONDS) }
+            }
             val body = synchronized(lines) { lines.toString() }
             val pressure = runCatching { File("/proc/pressure/memory").readText() }.getOrDefault("unavailable\n")
             val meminfo = runCatching { File("/proc/meminfo").readText() }.getOrDefault("unavailable\n")
