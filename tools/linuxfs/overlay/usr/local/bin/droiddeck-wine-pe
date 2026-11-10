@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+from pathlib import Path
+
+
+PE_MACHINES = {
+    "system32": ("aarch64-windows", frozenset((0xAA64, 0xA641))),
+    "syswow64": ("i386-windows", frozenset((0x14C,))),
+}
+
+
+def pe_machine(path):
+    try:
+        with open(path, "rb") as image:
+            head = image.read(64)
+            if head[:2] != b"MZ" or len(head) < 64:
+                return None
+            image.seek(int.from_bytes(head[60:64], "little"))
+            header = image.read(6)
+    except OSError:
+        return None
+    if header[:4] != b"PE\0\0" or len(header) < 6:
+        return None
+    return int.from_bytes(header[4:6], "little")
+
+
+def proton_pe_machines(proton):
+    dist = Path(proton).parent / "files/lib/wine"
+    if (dist / "aarch64-unix").is_dir():
+        return PE_MACHINES
+    if (dist / "x86_64-unix").is_dir():
+        return {
+            "system32": ("x86_64-windows", frozenset((0x8664,))),
+            "syswow64": PE_MACHINES["syswow64"],
+        }
+    return None

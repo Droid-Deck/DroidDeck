@@ -333,12 +333,12 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
-def win_components(compat, app_id):
+def win_components(compat, app_id, proton=None):
     if not compat:
         return ""
     try:
         module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
-        names, notes = module["apply"](compat.rstrip("/"), app_id)
+        names, notes = module["apply"](compat.rstrip("/"), app_id, proton=proton)
         for note in notes:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         return module["overrides_value"](names)
@@ -859,23 +859,10 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
                  "/lib/wine/fakedlls", "/lib64/wine", "/lib64/wine/fakedlls", "/lib64/wine/x86_64-windows")
 
 
-PE_MACHINES = {"system32": ("aarch64-windows", frozenset((0xAA64, 0xA641))), "syswow64": ("i386-windows", frozenset((0x14C,)))}
 FOREIGN_SUFFIX = ".foreign-arch"
-
-
-def pe_machine(path):
-    try:
-        with open(path, "rb") as image:
-            head = image.read(64)
-            if head[:2] != b"MZ" or len(head) < 64:
-                return None
-            image.seek(int.from_bytes(head[60:64], "little"))
-            header = image.read(6)
-    except OSError:
-        return None
-    if header[:4] != b"PE\0\0" or len(header) < 6:
-        return None
-    return int.from_bytes(header[4:6], "little")
+PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
+PE_MACHINES = PE["PE_MACHINES"]
+pe_machine = PE["pe_machine"]
 
 
 def native_first(mode):
@@ -1311,7 +1298,7 @@ def main():
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
-            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
+            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id, command[0])
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
