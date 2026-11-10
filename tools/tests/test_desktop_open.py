@@ -545,6 +545,19 @@ class ProtonRunTest(Temp):
         self.assertTrue(os.access(launcher, os.X_OK))
         self.assertIn("droiddeck-proton-arm64", found)
 
+    def test_a_registered_wrapper_without_its_manifest_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        manifest = wrapper / "toolmanifest.vdf"
+        if manifest.exists():
+            manifest.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(manifest.is_file())
+        self.assertIn("droiddeck-proton-arm64", found)
+
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
         current = RUN["mapping"](str(self.root))
