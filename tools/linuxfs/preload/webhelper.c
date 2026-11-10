@@ -30,7 +30,7 @@ static int electron_node_mode(char *const envp[]) {
   static const char variable[] = "ELECTRON_RUN_AS_NODE=";
   for (int i = 0; envp && envp[i]; i++)
     if (!strncmp(envp[i], variable, sizeof variable - 1))
-      return !strcmp(envp[i] + sizeof variable - 1, "1");
+      return envp[i][sizeof variable - 1] != 0;
   return 0;
 }
 

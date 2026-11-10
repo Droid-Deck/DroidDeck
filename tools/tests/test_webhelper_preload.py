@@ -12,9 +12,12 @@ PROGRAM = r"""
 #include <stdlib.h>
 char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 int main(int argc, char **argv) {
-  char *node_env[] = {"ELECTRON_RUN_AS_NODE=1", NULL};
+  const char *mode = getenv("TEST_NODE_MODE_CHILD");
+  static char node[64];
+  snprintf(node, sizeof node, "ELECTRON_RUN_AS_NODE=%s", mode ? mode : "");
+  char *node_env[] = {node, NULL};
   char *plain_env[] = {"PATH=/usr/bin", NULL};
-  char *const *envp = getenv("TEST_NODE_MODE_CHILD") ? node_env : plain_env;
+  char *const *envp = mode ? node_env : plain_env;
   char *const *out = bl_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
   for (int i = 0; out[i]; i++) printf("%s\n", out[i]);
   return 0;
@@ -44,8 +47,8 @@ class WebhelperPreloadTest(unittest.TestCase):
         env.pop("ELECTRON_RUN_AS_NODE", None)
         if spec is not None:
             env["BL_WEBHELPER_ARGS"] = spec
-        if node_child:
-            env["TEST_NODE_MODE_CHILD"] = "1"
+        if node_child is not False:
+            env["TEST_NODE_MODE_CHILD"] = "1" if node_child is True else node_child
         else:
             env.pop("TEST_NODE_MODE_CHILD", None)
         if parent_node:
@@ -79,6 +82,15 @@ class WebhelperPreloadTest(unittest.TestCase):
     def test_node_mode_from_the_child_environment_skips_sandbox_injection(self):
         code = self.chromium("vscode", "code")
         self.assertEqual(self.argv(code, node_child=True), [code])
+
+    def test_any_nonempty_node_mode_value_skips_sandbox_injection(self):
+        code = self.chromium("vscode-true", "code")
+        for value in ("true", "0", "yes"):
+            self.assertEqual(self.argv(code, node_child=value), [code])
+
+    def test_empty_node_mode_value_still_gets_sandbox_flag(self):
+        chrome = self.chromium("chromium-empty-mode", "chrome")
+        self.assertEqual(self.argv(chrome, node_child=""), [chrome, "--no-sandbox"])
 
     def test_non_browser_helper_beside_chrome_sandbox_skips_injection_in_node_mode(self):
         helper = self.chromium("vscode-helper", "remote-cli")
