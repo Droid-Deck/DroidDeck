@@ -211,13 +211,14 @@ SECONDS=30; bl_session_pressure
         self.assertEqual([], self.run_policy('bl_session_pressure'))
 
     def test_same_second_memory_read_preserves_the_pressure_baseline(self):
+        self.memory(available=2048)
         meminfo = self.root / 'meminfo'
-        self.assertEqual(['1048576'], self.run_policy(f'''
+        self.assertEqual(['1048576:524288:2097152'], self.run_policy(f'''
 SECONDS=100
-_bl_sample_at=100 _bl_sample_available=2097152 _bl_growth=0 _bl_fall=1048576
+_bl_sample_at=100 _bl_sample_available=2097152 _bl_growth=0 _bl_fall=524288
 sed -i 's/MemAvailable: 2097152 kB/MemAvailable: 1048576 kB/' {meminfo}
 bl_memory_read
-echo "$_bl_fall"
+echo "$_bl_available:$_bl_fall:$_bl_sample_available"
 '''))
 
     def test_game_reading_back_most_of_a_pageout_skips_and_doubles_the_wait(self):

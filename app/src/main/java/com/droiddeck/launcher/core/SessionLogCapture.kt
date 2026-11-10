@@ -5,6 +5,8 @@ import android.util.Log
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 object SessionLogCapture {
     private const val TAG = "SessionLogCapture"
@@ -106,7 +108,9 @@ object SessionLogCapture {
     }
 
     fun dumpMemoryPressure(target: File) {
+        var temporary: File? = null
         try {
+            val staged = File.createTempFile(target.name, ".part", target.parentFile).also { temporary = it }
             val lines = StringBuilder()
             val done = java.util.concurrent.CountDownLatch(1)
             val pid = HostProcess.start(
@@ -118,7 +122,7 @@ object SessionLogCapture {
             val pressure = runCatching { File("/proc/pressure/memory").readText() }.getOrDefault("unavailable\n")
             val meminfo = runCatching { File("/proc/meminfo").readText() }.getOrDefault("unavailable\n")
             val gpu = runCatching { File("/sys/class/kgsl/kgsl/page_alloc").readText() }.getOrDefault("unavailable\n")
-            target.writeText(
+            staged.writeText(
                 "Android memory events:\n" +
                     when {
                         body.isNotEmpty() -> body
@@ -128,7 +132,12 @@ object SessionLogCapture {
                     } +
                     "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
             )
+            Files.move(
+                staged.toPath(), target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+            )
         } catch (e: Exception) {
+            temporary?.delete()
             Log.w(TAG, "could not dump memory pressure diagnostics", e)
         }
     }
