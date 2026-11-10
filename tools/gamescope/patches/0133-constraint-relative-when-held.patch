@@ -138,7 +138,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +					update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId,
 +						pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );
 +
-+				const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;
++				const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || nRelativeMouse == 3 );
 +
  				const bool bRelativeMouseMode = nRelativeMouse == 2
  					? false

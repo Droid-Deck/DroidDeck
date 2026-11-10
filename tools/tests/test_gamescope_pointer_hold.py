@@ -120,7 +120,7 @@ class PointerHoldTest(unittest.TestCase):
         self.assertIn("pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );", added)
         self.assertIn("s_Hold.bHeld = bHinted;", added)
         self.assertIn("if ( s_bTracking && bHinted && !s_bHinted )", added)
-        self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;", added)
+        self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && ( s_bPointerHeld || nRelativeMouse == 3 );", added)
         self.assertIn(": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );", added)
 
     def test_a_new_window_or_constraint_starts_its_own_hold(self):
