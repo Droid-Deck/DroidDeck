@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Lydspor</string>
     <string name="rail_music">Musikk</string>
+    <string name="soundtracks_options">Avspillingsalternativer</string>
+    <string name="soundtracks_pitch">Tonehøyde</string>
+    <string name="soundtracks_reset">Tilbakestill</string>
+    <string name="soundtracks_skip_silence">Hopp over stillhet</string>
+    <string name="soundtracks_sleep">Søvntimer</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Slutten av sporet</string>
+    <string name="soundtracks_sleep_left">%1$s igjen</string>
+    <string name="soundtracks_equalizer">Equalizer</string>
+    <string name="soundtracks_bass">Bassforsterkning</string>
+    <string name="soundtracks_eq_unavailable">Equalizeren er ikke tilgjengelig på denne enheten</string>
     <string name="setup_soundtracks">Lydspor</string>
     <string name="soundtracks_empty">Ingen lydspor installert ennå.</string>
     <string name="soundtracks_search">Søk i lydspor</string>

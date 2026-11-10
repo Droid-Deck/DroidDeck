@@ -173,11 +173,11 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
             TransportButton(Icons.Filled.Shuffle, shuffleLabel, "sound:shuffle", on = belongs && SoundtrackController.shuffle, enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
                 if (belongs) SoundtrackController.setShuffle(ctx, !SoundtrackController.shuffle)
-                else SoundtrackController.play(ctx, loaded, game.name, null, shuffled = true)
+                else SoundtrackController.play(ctx, loaded, game.name, null, shuffled = true, root = game.gameFiles)
             }
             TransportButton(Icons.Filled.SkipPrevious, previousLabel, "sound:previous", enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
-                if (belongs) SoundtrackController.previous(ctx) else SoundtrackController.play(ctx, loaded, game.name, null)
+                if (belongs) SoundtrackController.previous(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = game.gameFiles)
             }
             TransportButton(
                 if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, playLabel, "sound:play", big = true, enabled = loaded != null,
@@ -187,7 +187,7 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
             }
             TransportButton(Icons.Filled.SkipNext, nextLabel, "sound:next", enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
-                if (belongs) SoundtrackController.next(ctx) else SoundtrackController.play(ctx, loaded, game.name, null)
+                if (belongs) SoundtrackController.next(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = game.gameFiles)
             }
             TransportButton(
                 if (SoundtrackController.repeat == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat, repeatLabel, "sound:repeat",
@@ -316,6 +316,9 @@ private fun SeeMoreButton(label: String, id: String, danger: Boolean = false, mo
 
 @Composable
 private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
+    var options by remember { mutableStateOf(false) }
+    SeeMoreButton(stringResource(R.string.soundtracks_options), "sound:options") { options = true }
+    if (options) SoundtrackOptionsDialog { options = false }
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
         SeeMoreButton(stringResource(R.string.games_files), "sound:files") { a.onBrowseFiles(dir) }
     }
@@ -369,7 +372,7 @@ private fun TrackList(game: Library.SteamGame, album: Soundtrack.Album, modifier
                 )
                 is SoundRow.Item -> TrackRow(row.track, row.track.id == current) {
                     if (row.track.id == current) SoundtrackController.toggle(ctx, album, game.name, game.gameFiles)
-                    else SoundtrackController.play(ctx, album, game.name, row.track.id)
+                    else SoundtrackController.play(ctx, album, game.name, row.track.id, root = game.gameFiles)
                 }
             }
         }

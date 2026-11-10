@@ -3738,6 +3738,17 @@
     
     <string name="rail_soundtracks">Ścieżki dźwiękowe</string>
     <string name="rail_music">Muzyka</string>
+    <string name="soundtracks_options">Opcje odtwarzania</string>
+    <string name="soundtracks_pitch">Wysokość dźwięku</string>
+    <string name="soundtracks_reset">Resetuj</string>
+    <string name="soundtracks_skip_silence">Pomijaj ciszę</string>
+    <string name="soundtracks_sleep">Wyłącznik czasowy</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Koniec utworu</string>
+    <string name="soundtracks_sleep_left">Pozostało %1$s</string>
+    <string name="soundtracks_equalizer">Korektor</string>
+    <string name="soundtracks_bass">Wzmocnienie basów</string>
+    <string name="soundtracks_eq_unavailable">Korektor nie jest dostępny na tym urządzeniu</string>
     <string name="setup_soundtracks">Ścieżki dźwiękowe</string>
     <string name="soundtracks_empty">Brak zainstalowanych ścieżek dźwiękowych.</string>
     <string name="soundtracks_search">Szukaj ścieżek dźwiękowych</string>

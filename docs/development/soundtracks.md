@@ -44,3 +44,14 @@ Shortcuts use `droiddeck://soundtrack/<appid>` and open the soundtrack page.
 Launching a game pauses the music. Audio focus and headphone unplug are handled by ExoPlayer.
 
 Added dependencies: `androidx.media3:media3-exoplayer` and `androidx.media3:media3-session` 1.3.1.
+
+## Playback options
+
+The player page has a Playback options button that opens a panel with:
+
+- Speed and pitch, from 0.5x to 2x in 0.05 steps, applied through ExoPlayer's playback parameters.
+- Skip silence.
+- A sleep timer for 15, 30 or 60 minutes or the end of the current track. The timer runs in `SoundtrackService`, so it still fires when DroidDeck is closed.
+- An equalizer with the device presets, one slider per band, and bass boost where the device supports it. The effects are attached to the player's audio session in the service.
+
+Settings are saved in `soundtrack_settings` and sent to the service whenever the controller connects. The last album, track and position are saved too, so the play button on an album resumes where it stopped. The position is saved on track changes, pauses and seeks.

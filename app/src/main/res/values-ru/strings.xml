@@ -3821,6 +3821,17 @@
     
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музыка</string>
+    <string name="soundtracks_options">Параметры воспроизведения</string>
+    <string name="soundtracks_pitch">Высота тона</string>
+    <string name="soundtracks_reset">Сбросить</string>
+    <string name="soundtracks_skip_silence">Пропускать тишину</string>
+    <string name="soundtracks_sleep">Таймер сна</string>
+    <string name="soundtracks_sleep_minutes">%1$d мин</string>
+    <string name="soundtracks_sleep_track_end">Конец трека</string>
+    <string name="soundtracks_sleep_left">Осталось %1$s</string>
+    <string name="soundtracks_equalizer">Эквалайзер</string>
+    <string name="soundtracks_bass">Усиление баса</string>
+    <string name="soundtracks_eq_unavailable">Эквалайзер недоступен на этом устройстве</string>
     <string name="setup_soundtracks">Саундтреки</string>
     <string name="soundtracks_empty">Саундтреки ещё не установлены.</string>
     <string name="soundtracks_search">Поиск саундтреков</string>

@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Soundtrackit</string>
     <string name="rail_music">Musiikki</string>
+    <string name="soundtracks_options">Toistoasetukset</string>
+    <string name="soundtracks_pitch">Äänenkorkeus</string>
+    <string name="soundtracks_reset">Palauta</string>
+    <string name="soundtracks_skip_silence">Ohita hiljaisuus</string>
+    <string name="soundtracks_sleep">Uniajastin</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Kappaleen loppu</string>
+    <string name="soundtracks_sleep_left">%1$s jäljellä</string>
+    <string name="soundtracks_equalizer">Taajuuskorjain</string>
+    <string name="soundtracks_bass">Bassonkorostus</string>
+    <string name="soundtracks_eq_unavailable">Taajuuskorjain ei ole käytettävissä tällä laitteella</string>
     <string name="setup_soundtracks">Soundtrackit</string>
     <string name="soundtracks_empty">Soundtrackeja ei ole vielä asennettu.</string>
     <string name="soundtracks_search">Hae soundtrackeja</string>

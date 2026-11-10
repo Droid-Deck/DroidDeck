@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Μουσική</string>
+    <string name="soundtracks_options">Επιλογές αναπαραγωγής</string>
+    <string name="soundtracks_pitch">Τόνος</string>
+    <string name="soundtracks_reset">Επαναφορά</string>
+    <string name="soundtracks_skip_silence">Παράλειψη σιωπής</string>
+    <string name="soundtracks_sleep">Χρονοδιακόπτης ύπνου</string>
+    <string name="soundtracks_sleep_minutes">%1$d λ.</string>
+    <string name="soundtracks_sleep_track_end">Τέλος κομματιού</string>
+    <string name="soundtracks_sleep_left">Απομένουν %1$s</string>
+    <string name="soundtracks_equalizer">Ισοσταθμιστής</string>
+    <string name="soundtracks_bass">Ενίσχυση μπάσων</string>
+    <string name="soundtracks_eq_unavailable">Ο ισοσταθμιστής δεν είναι διαθέσιμος σε αυτή τη συσκευή</string>
     <string name="setup_soundtracks">Soundtrack</string>
     <string name="soundtracks_empty">Δεν υπάρχουν εγκατεστημένα soundtrack ακόμη.</string>
     <string name="soundtracks_search">Αναζήτηση soundtrack</string>

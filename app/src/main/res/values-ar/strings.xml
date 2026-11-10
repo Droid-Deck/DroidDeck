@@ -3816,6 +3816,17 @@
     
     <string name="rail_soundtracks">الموسيقى التصويرية</string>
     <string name="rail_music">الموسيقى</string>
+    <string name="soundtracks_options">خيارات التشغيل</string>
+    <string name="soundtracks_pitch">طبقة الصوت</string>
+    <string name="soundtracks_reset">إعادة ضبط</string>
+    <string name="soundtracks_skip_silence">تخطي الصمت</string>
+    <string name="soundtracks_sleep">مؤقت النوم</string>
+    <string name="soundtracks_sleep_minutes">%1$d د</string>
+    <string name="soundtracks_sleep_track_end">نهاية المقطع</string>
+    <string name="soundtracks_sleep_left">متبقي %1$s</string>
+    <string name="soundtracks_equalizer">المعادل</string>
+    <string name="soundtracks_bass">تعزيز الجهير</string>
+    <string name="soundtracks_eq_unavailable">المعادل غير متاح على هذا الجهاز</string>
     <string name="setup_soundtracks">الموسيقى التصويرية</string>
     <string name="soundtracks_empty">لا توجد موسيقى تصويرية مثبّتة بعد.</string>
     <string name="soundtracks_search">ابحث في الموسيقى التصويرية</string>

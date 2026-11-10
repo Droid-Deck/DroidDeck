@@ -3699,6 +3699,17 @@
     
     <string name="rail_soundtracks">Bandas sonoras</string>
     <string name="rail_music">Música</string>
+    <string name="soundtracks_options">Opciones de reproducción</string>
+    <string name="soundtracks_pitch">Tono</string>
+    <string name="soundtracks_reset">Restablecer</string>
+    <string name="soundtracks_skip_silence">Omitir silencios</string>
+    <string name="soundtracks_sleep">Temporizador de sueño</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Fin de la pista</string>
+    <string name="soundtracks_sleep_left">Quedan %1$s</string>
+    <string name="soundtracks_equalizer">Ecualizador</string>
+    <string name="soundtracks_bass">Refuerzo de graves</string>
+    <string name="soundtracks_eq_unavailable">El ecualizador no está disponible en este dispositivo</string>
     <string name="setup_soundtracks">Bandas sonoras</string>
     <string name="soundtracks_empty">Aún no hay bandas sonoras instaladas.</string>
     <string name="soundtracks_search">Buscar bandas sonoras</string>

@@ -3630,6 +3630,17 @@
     
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Musik</string>
+    <string name="soundtracks_options">Opsi pemutaran</string>
+    <string name="soundtracks_pitch">Nada</string>
+    <string name="soundtracks_reset">Atur ulang</string>
+    <string name="soundtracks_skip_silence">Lewati keheningan</string>
+    <string name="soundtracks_sleep">Timer tidur</string>
+    <string name="soundtracks_sleep_minutes">%1$d mnt</string>
+    <string name="soundtracks_sleep_track_end">Akhir lagu</string>
+    <string name="soundtracks_sleep_left">Sisa %1$s</string>
+    <string name="soundtracks_equalizer">Ekualiser</string>
+    <string name="soundtracks_bass">Penguat bass</string>
+    <string name="soundtracks_eq_unavailable">Ekualiser tidak tersedia di perangkat ini</string>
     <string name="setup_soundtracks">Soundtrack</string>
     <string name="soundtracks_empty">Belum ada soundtrack yang terpasang.</string>
     <string name="soundtracks_search">Cari soundtrack</string>

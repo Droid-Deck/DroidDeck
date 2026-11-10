@@ -3821,6 +3821,17 @@
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Music</string>
+    <string name="soundtracks_options">Playback options</string>
+    <string name="soundtracks_pitch">Pitch</string>
+    <string name="soundtracks_reset">Reset</string>
+    <string name="soundtracks_skip_silence">Skip silence</string>
+    <string name="soundtracks_sleep">Sleep timer</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">End of track</string>
+    <string name="soundtracks_sleep_left">%1$s left</string>
+    <string name="soundtracks_equalizer">Equalizer</string>
+    <string name="soundtracks_bass">Bass boost</string>
+    <string name="soundtracks_eq_unavailable">The equalizer is not available on this device</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">No soundtracks installed yet.</string>
     <string name="soundtracks_search">Search soundtracks</string>

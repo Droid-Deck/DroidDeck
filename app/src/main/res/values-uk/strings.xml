@@ -3738,6 +3738,17 @@
     
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музика</string>
+    <string name="soundtracks_options">Параметри відтворення</string>
+    <string name="soundtracks_pitch">Висота тону</string>
+    <string name="soundtracks_reset">Скинути</string>
+    <string name="soundtracks_skip_silence">Пропускати тишу</string>
+    <string name="soundtracks_sleep">Таймер сну</string>
+    <string name="soundtracks_sleep_minutes">%1$d хв</string>
+    <string name="soundtracks_sleep_track_end">Кінець треку</string>
+    <string name="soundtracks_sleep_left">Залишилось %1$s</string>
+    <string name="soundtracks_equalizer">Еквалайзер</string>
+    <string name="soundtracks_bass">Підсилення басів</string>
+    <string name="soundtracks_eq_unavailable">Еквалайзер недоступний на цьому пристрої</string>
     <string name="setup_soundtracks">Саундтреки</string>
     <string name="soundtracks_empty">Саундтреки ще не встановлено.</string>
     <string name="soundtracks_search">Пошук саундтреків</string>

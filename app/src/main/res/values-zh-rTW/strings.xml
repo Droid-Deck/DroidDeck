@@ -3633,6 +3633,17 @@
     
     <string name="rail_soundtracks">原聲帶</string>
     <string name="rail_music">音樂</string>
+    <string name="soundtracks_options">播放選項</string>
+    <string name="soundtracks_pitch">音調</string>
+    <string name="soundtracks_reset">重設</string>
+    <string name="soundtracks_skip_silence">略過靜音</string>
+    <string name="soundtracks_sleep">睡眠計時器</string>
+    <string name="soundtracks_sleep_minutes">%1$d 分鐘</string>
+    <string name="soundtracks_sleep_track_end">曲目結束</string>
+    <string name="soundtracks_sleep_left">剩餘 %1$s</string>
+    <string name="soundtracks_equalizer">等化器</string>
+    <string name="soundtracks_bass">重低音增強</string>
+    <string name="soundtracks_eq_unavailable">此裝置不支援等化器</string>
     <string name="setup_soundtracks">原聲帶</string>
     <string name="soundtracks_empty">尚未安裝任何原聲帶。</string>
     <string name="soundtracks_search">搜尋原聲帶</string>

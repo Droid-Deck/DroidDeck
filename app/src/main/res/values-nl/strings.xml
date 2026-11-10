@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Muziek</string>
+    <string name="soundtracks_options">Afspeelopties</string>
+    <string name="soundtracks_pitch">Toonhoogte</string>
+    <string name="soundtracks_reset">Resetten</string>
+    <string name="soundtracks_skip_silence">Stilte overslaan</string>
+    <string name="soundtracks_sleep">Slaaptimer</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Einde van het nummer</string>
+    <string name="soundtracks_sleep_left">Nog %1$s</string>
+    <string name="soundtracks_equalizer">Equalizer</string>
+    <string name="soundtracks_bass">Basversterking</string>
+    <string name="soundtracks_eq_unavailable">De equalizer is niet beschikbaar op dit apparaat</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">Nog geen soundtracks geïnstalleerd.</string>
     <string name="soundtracks_search">Soundtracks zoeken</string>

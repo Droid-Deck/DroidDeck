@@ -3699,6 +3699,17 @@
     
     <string name="rail_soundtracks">Trilhas sonoras</string>
     <string name="rail_music">Música</string>
+    <string name="soundtracks_options">Opções de reprodução</string>
+    <string name="soundtracks_pitch">Tom</string>
+    <string name="soundtracks_reset">Redefinir</string>
+    <string name="soundtracks_skip_silence">Pular silêncio</string>
+    <string name="soundtracks_sleep">Timer de sono</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Fim da faixa</string>
+    <string name="soundtracks_sleep_left">Restam %1$s</string>
+    <string name="soundtracks_equalizer">Equalizador</string>
+    <string name="soundtracks_bass">Reforço de graves</string>
+    <string name="soundtracks_eq_unavailable">O equalizador não está disponível neste dispositivo</string>
     <string name="setup_soundtracks">Trilhas sonoras</string>
     <string name="soundtracks_empty">Nenhuma trilha sonora instalada ainda.</string>
     <string name="soundtracks_search">Pesquisar trilhas sonoras</string>

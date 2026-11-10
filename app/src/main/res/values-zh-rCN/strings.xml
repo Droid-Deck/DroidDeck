@@ -3634,6 +3634,17 @@
     
     <string name="rail_soundtracks">原声音乐</string>
     <string name="rail_music">音乐</string>
+    <string name="soundtracks_options">播放选项</string>
+    <string name="soundtracks_pitch">音调</string>
+    <string name="soundtracks_reset">重置</string>
+    <string name="soundtracks_skip_silence">跳过静音</string>
+    <string name="soundtracks_sleep">睡眠定时</string>
+    <string name="soundtracks_sleep_minutes">%1$d 分钟</string>
+    <string name="soundtracks_sleep_track_end">曲目结束</string>
+    <string name="soundtracks_sleep_left">剩余 %1$s</string>
+    <string name="soundtracks_equalizer">均衡器</string>
+    <string name="soundtracks_bass">低音增强</string>
+    <string name="soundtracks_eq_unavailable">此设备不支持均衡器</string>
     <string name="setup_soundtracks">原声音乐</string>
     <string name="soundtracks_empty">尚未安装任何原声音乐。</string>
     <string name="soundtracks_search">搜索原声音乐</string>

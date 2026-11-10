@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">साउंडट्रैक</string>
     <string name="rail_music">संगीत</string>
+    <string name="soundtracks_options">प्लेबैक विकल्प</string>
+    <string name="soundtracks_pitch">पिच</string>
+    <string name="soundtracks_reset">रीसेट करें</string>
+    <string name="soundtracks_skip_silence">मौन छोड़ें</string>
+    <string name="soundtracks_sleep">स्लीप टाइमर</string>
+    <string name="soundtracks_sleep_minutes">%1$d मिनट</string>
+    <string name="soundtracks_sleep_track_end">ट्रैक का अंत</string>
+    <string name="soundtracks_sleep_left">%1$s शेष</string>
+    <string name="soundtracks_equalizer">इक्वलाइज़र</string>
+    <string name="soundtracks_bass">बास बूस्ट</string>
+    <string name="soundtracks_eq_unavailable">इस डिवाइस पर इक्वलाइज़र उपलब्ध नहीं है</string>
     <string name="setup_soundtracks">साउंडट्रैक</string>
     <string name="soundtracks_empty">अभी तक कोई साउंडट्रैक इंस्टॉल नहीं है।</string>
     <string name="soundtracks_search">साउंडट्रैक खोजें</string>

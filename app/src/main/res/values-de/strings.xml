@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
+    <string name="soundtracks_options">Wiedergabeoptionen</string>
+    <string name="soundtracks_pitch">Tonhöhe</string>
+    <string name="soundtracks_reset">Zurücksetzen</string>
+    <string name="soundtracks_skip_silence">Stille überspringen</string>
+    <string name="soundtracks_sleep">Schlaftimer</string>
+    <string name="soundtracks_sleep_minutes">%1$d Min.</string>
+    <string name="soundtracks_sleep_track_end">Ende des Titels</string>
+    <string name="soundtracks_sleep_left">Noch %1$s</string>
+    <string name="soundtracks_equalizer">Equalizer</string>
+    <string name="soundtracks_bass">Bassverstärkung</string>
+    <string name="soundtracks_eq_unavailable">Der Equalizer ist auf diesem Gerät nicht verfügbar</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">Noch keine Soundtracks installiert.</string>
     <string name="soundtracks_search">Soundtracks durchsuchen</string>

@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Саундтраци</string>
     <string name="rail_music">Музика</string>
+    <string name="soundtracks_options">Опции за възпроизвеждане</string>
+    <string name="soundtracks_pitch">Височина на тона</string>
+    <string name="soundtracks_reset">Нулиране</string>
+    <string name="soundtracks_skip_silence">Прескачане на тишина</string>
+    <string name="soundtracks_sleep">Таймер за заспиване</string>
+    <string name="soundtracks_sleep_minutes">%1$d мин</string>
+    <string name="soundtracks_sleep_track_end">Край на песента</string>
+    <string name="soundtracks_sleep_left">Остават %1$s</string>
+    <string name="soundtracks_equalizer">Еквалайзер</string>
+    <string name="soundtracks_bass">Усилване на басите</string>
+    <string name="soundtracks_eq_unavailable">Еквалайзерът не е наличен на това устройство</string>
     <string name="setup_soundtracks">Саундтраци</string>
     <string name="soundtracks_empty">Все още няма инсталирани саундтраци.</string>
     <string name="soundtracks_search">Търсене на саундтраци</string>

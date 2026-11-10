@@ -3699,6 +3699,17 @@
     
     <string name="rail_soundtracks">Colonne sonore</string>
     <string name="rail_music">Musica</string>
+    <string name="soundtracks_options">Opzioni di riproduzione</string>
+    <string name="soundtracks_pitch">Tonalità</string>
+    <string name="soundtracks_reset">Reimposta</string>
+    <string name="soundtracks_skip_silence">Salta i silenzi</string>
+    <string name="soundtracks_sleep">Timer di spegnimento</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Fine del brano</string>
+    <string name="soundtracks_sleep_left">Restano %1$s</string>
+    <string name="soundtracks_equalizer">Equalizzatore</string>
+    <string name="soundtracks_bass">Potenziamento bassi</string>
+    <string name="soundtracks_eq_unavailable">L\'equalizzatore non è disponibile su questo dispositivo</string>
     <string name="setup_soundtracks">Colonne sonore</string>
     <string name="soundtracks_empty">Nessuna colonna sonora installata.</string>
     <string name="soundtracks_search">Cerca colonne sonore</string>

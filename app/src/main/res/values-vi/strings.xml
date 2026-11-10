@@ -3630,6 +3630,17 @@
     
     <string name="rail_soundtracks">Nhạc nền</string>
     <string name="rail_music">Nhạc</string>
+    <string name="soundtracks_options">Tùy chọn phát</string>
+    <string name="soundtracks_pitch">Cao độ</string>
+    <string name="soundtracks_reset">Đặt lại</string>
+    <string name="soundtracks_skip_silence">Bỏ qua khoảng lặng</string>
+    <string name="soundtracks_sleep">Hẹn giờ ngủ</string>
+    <string name="soundtracks_sleep_minutes">%1$d phút</string>
+    <string name="soundtracks_sleep_track_end">Hết bài</string>
+    <string name="soundtracks_sleep_left">Còn %1$s</string>
+    <string name="soundtracks_equalizer">Bộ cân bằng âm</string>
+    <string name="soundtracks_bass">Tăng âm trầm</string>
+    <string name="soundtracks_eq_unavailable">Thiết bị này không có bộ cân bằng âm</string>
     <string name="setup_soundtracks">Nhạc nền</string>
     <string name="soundtracks_empty">Chưa có nhạc nền nào được cài đặt.</string>
     <string name="soundtracks_search">Tìm nhạc nền</string>

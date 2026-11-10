@@ -3660,6 +3660,17 @@
     
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
+    <string name="soundtracks_options">Uppspelningsalternativ</string>
+    <string name="soundtracks_pitch">Tonhöjd</string>
+    <string name="soundtracks_reset">Återställ</string>
+    <string name="soundtracks_skip_silence">Hoppa över tystnad</string>
+    <string name="soundtracks_sleep">Insomningstimer</string>
+    <string name="soundtracks_sleep_minutes">%1$d min</string>
+    <string name="soundtracks_sleep_track_end">Slutet av spåret</string>
+    <string name="soundtracks_sleep_left">%1$s kvar</string>
+    <string name="soundtracks_equalizer">Equalizer</string>
+    <string name="soundtracks_bass">Basförstärkning</string>
+    <string name="soundtracks_eq_unavailable">Equalizern är inte tillgänglig på den här enheten</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">Inga soundtracks installerade än.</string>
     <string name="soundtracks_search">Sök bland soundtracks</string>

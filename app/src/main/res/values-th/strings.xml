@@ -3630,6 +3630,17 @@
     
     <string name="rail_soundtracks">ซาวด์แทร็ก</string>
     <string name="rail_music">เพลง</string>
+    <string name="soundtracks_options">ตัวเลือกการเล่น</string>
+    <string name="soundtracks_pitch">ระดับเสียง</string>
+    <string name="soundtracks_reset">รีเซ็ต</string>
+    <string name="soundtracks_skip_silence">ข้ามช่วงเงียบ</string>
+    <string name="soundtracks_sleep">ตั้งเวลาปิด</string>
+    <string name="soundtracks_sleep_minutes">%1$d นาที</string>
+    <string name="soundtracks_sleep_track_end">จบแทร็ก</string>
+    <string name="soundtracks_sleep_left">เหลือ %1$s</string>
+    <string name="soundtracks_equalizer">อีควอไลเซอร์</string>
+    <string name="soundtracks_bass">เพิ่มเสียงเบส</string>
+    <string name="soundtracks_eq_unavailable">อุปกรณ์นี้ไม่รองรับอีควอไลเซอร์</string>
     <string name="setup_soundtracks">ซาวด์แทร็ก</string>
     <string name="soundtracks_empty">ยังไม่มีซาวด์แทร็กที่ติดตั้ง</string>
     <string name="soundtracks_search">ค้นหาซาวด์แทร็ก</string>
