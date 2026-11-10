@@ -1,16 +1,21 @@
 #!/bin/bash
 # Builds this checkout as a Lab build of the installed DroidDeck and restarts the app on it.
-# Usage: dd-lab-build [--no-restart | --prepare]
+# Usage: dd-lab-build [--no-restart | --prepare] [--explain]
 #   --prepare  compiles the installed commit without making a Lab build, so later builds only
 #              compile what changed. Setup runs it once; it takes the longest.
+#   --explain  logs why each task ran and Kotlin's build report, to find out what makes a build slow.
 set -euo pipefail
 pkg=com.droiddeck.launcher
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 mode=build
-case "${1:-}" in
-  --no-restart) mode=no-restart ;;
-  --prepare) mode=prepare ;;
-esac
+explain=()
+for arg in "$@"; do
+  case $arg in
+    --no-restart) mode=no-restart ;;
+    --prepare) mode=prepare ;;
+    --explain) explain=(--info -Pkotlin.build.report.output=file) ;;
+  esac
+done
 started=$(date +%s)
 cache=$HOME/.cache
 progress_file=$cache/dd-lab-build.json
@@ -151,7 +156,7 @@ report() {
 heartbeat=$!
 trap 'kill $heartbeat 2>/dev/null || true; rm -f "$current" "$measured"' EXIT
 set +o pipefail
-"${gradle[@]}" 2>&1 | {
+"${gradle[@]}" ${explain[@]+"${explain[@]}"} 2>&1 | {
   n=0 done_s=0 task="" since=0 cur_est=0 ran=0
   while IFS= read -r line; do
     printf '%s\n' "$line"
