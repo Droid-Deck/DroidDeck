@@ -36,3 +36,6 @@ __pycache__/
 app/src/main/assets/directaudio/
 app/src/main/assets/hybris/
 /tools/vr/out/
+
+# Generated APK files
+*.apk

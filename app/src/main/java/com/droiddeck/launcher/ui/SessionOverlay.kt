@@ -565,11 +565,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(
                                     stringResource(R.string.frame_gen_title),
-                                    stringResource(
-                                        if (a.frameGenTargetGameId != null)
-                                            R.string.frame_gen_scope_game
-                                        else R.string.frame_gen_scope_global
-                                    ),
+                                    if (a.frameGenTargetGameId != null)
+                                        "${stringResource(R.string.frame_gen_scope_game)} · ID ${a.frameGenTargetGameId}"
+                                    else stringResource(R.string.frame_gen_scope_global),
                                     highlighted = fgOpen
                                 ) {
                                     Box {
