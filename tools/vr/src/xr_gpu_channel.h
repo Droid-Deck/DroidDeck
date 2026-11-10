@@ -96,9 +96,9 @@ public:
         bool valid = pool.magic == XR_GPU_MAGIC && pool.version == XR_GPU_VERSION && pool.width == width && pool.height == height;
         const uint64_t bytes = uint64_t(width) * height * 4;
         for (unsigned index = 0; index < fds.size(); index++) {
-            struct stat status{};
-            if (fstat(fds[index], &status) || pool.sizes[index] < bytes || pool.sizes[index] > bytes + 65536
-                || status.st_size != static_cast<int64_t>(pool.sizes[index])) valid = false;
+            uint64_t allocation{};
+            if (!xr_buffer_allocation_size(fds[index], allocation) || pool.sizes[index] < bytes
+                || pool.sizes[index] > bytes + 65536 || allocation != pool.sizes[index]) valid = false;
         }
         if (!valid) { for (int &fd : fds) { close(fd); fd = -1; } Close(); }
         return valid;

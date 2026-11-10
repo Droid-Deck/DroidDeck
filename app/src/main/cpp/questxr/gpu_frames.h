@@ -16,7 +16,15 @@ public:
         client_ = reinterpret_cast<PFNEGLGETNATIVECLIENTBUFFERANDROIDPROC>(eglGetProcAddress("eglGetNativeClientBufferANDROID"));
         if (strstr(extensions, "GL_OES_texture_view")) view_ = reinterpret_cast<PFNGLTEXTUREVIEWOESPROC>(eglGetProcAddress("glTextureViewOES"));
         else if (strstr(extensions, "GL_EXT_texture_view")) view_ = reinterpret_cast<PFNGLTEXTUREVIEWOESPROC>(eglGetProcAddress("glTextureViewEXT"));
-        if (!storage_ || !client_ || !view_ || filename.size() >= sizeof(sockaddr_un::sun_path)) return false;
+        GLint major = 0, minor = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &major); glGetIntegerv(GL_MINOR_VERSION, &minor);
+        if (major > 3 || (major == 3 && minor >= 2))
+            copy_ = reinterpret_cast<PFNGLCOPYIMAGESUBDATAOESPROC>(eglGetProcAddress("glCopyImageSubData"));
+        else if (strstr(extensions, "GL_OES_copy_image"))
+            copy_ = reinterpret_cast<PFNGLCOPYIMAGESUBDATAOESPROC>(eglGetProcAddress("glCopyImageSubDataOES"));
+        else if (strstr(extensions, "GL_EXT_copy_image"))
+            copy_ = reinterpret_cast<PFNGLCOPYIMAGESUBDATAOESPROC>(eglGetProcAddress("glCopyImageSubDataEXT"));
+        if (!storage_ || !client_ || (!view_ && !copy_) || filename.size() >= sizeof(sockaddr_un::sun_path)) return false;
         const char *source = "#version 310 es\nlayout(local_size_x=8,local_size_y=8)in;"
             "layout(std430,binding=0)readonly buffer Source{uint pixels[];};"
             "layout(rgba8,binding=0)writeonly uniform highp image2D target;uniform bool bgra;"
@@ -27,6 +35,10 @@ public:
         program_ = glCreateProgram(); glAttachShader(program_, shader); glLinkProgram(program_); glDeleteShader(shader);
         GLint linked{}; glGetProgramiv(program_, GL_LINK_STATUS, &linked);
         if (!linked) { Stop(); return false; }
+        // Some GLES drivers expose texture views that do not share image-write results.
+        views_ = view_ && TextureViewsWork();
+        if (!views_ && !copy_) { Stop(); return false; }
+        __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "GPU sRGB path=%s", views_ ? "texture-view" : "image-copy");
         lock_ = open((filename + ".lock").c_str(), O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
         struct stat status{};
         if (lock_ < 0 || fstat(lock_, &status) || !S_ISREG(status.st_mode) || status.st_uid != getuid()
@@ -86,6 +98,10 @@ public:
         glUniform1i(glGetUniformLocation(program_, "bgra"), !!(frame.flags & XR_GPU_BGRA));
         glBindImageTexture(0, raw_, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
         glDispatchCompute((width_ + 7) / 8, (height_ + 7) / 8, 1);
+        if (!views_ && frame.header.color_space == DROIDDECK_XR_COLOR_SRGB_RGBA8) {
+            glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);
+            copy_(raw_, GL_TEXTURE_2D, 0, 0, 0, 0, srgb_, GL_TEXTURE_2D, 0, 0, 0, 0, width_, height_, 1);
+        }
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         glFinish();
         if (glGetError() != GL_NO_ERROR) { rejected_++; Disconnect(); return false; }
@@ -122,6 +138,39 @@ private:
     PFNGLBUFFERSTORAGEEXTERNALEXTPROC storage_{};
     PFNEGLGETNATIVECLIENTBUFFERANDROIDPROC client_{};
     PFNGLTEXTUREVIEWOESPROC view_{};
+    PFNGLCOPYIMAGESUBDATAOESPROC copy_{};
+    bool views_{};
+
+    bool TextureViewsWork() {
+        GLint draw = 0, read = 0, program = 0, binding = 0, indexed = 0, texture = 0;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw); glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+        glGetIntegerv(GL_CURRENT_PROGRAM, &program); glGetIntegerv(GL_SHADER_STORAGE_BUFFER_BINDING, &binding);
+        glGetIntegeri_v(GL_SHADER_STORAGE_BUFFER_BINDING, 0, &indexed); glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
+        GLuint buffer = 0, raw = 0, srgb = 0, framebuffer = 0;
+        std::array<uint32_t, 64> pixels; pixels.fill(0xffbb8844u);
+        glGenBuffers(1, &buffer); glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(pixels), pixels.data(), GL_STATIC_DRAW);
+        glGenTextures(1, &raw); glBindTexture(GL_TEXTURE_2D, raw);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 8, 8);
+        glGenTextures(1, &srgb); view_(srgb, GL_TEXTURE_2D, raw, GL_SRGB8_ALPHA8, 0, 1, 0, 1);
+        glUseProgram(program_); glUniform1i(glGetUniformLocation(program_, "bgra"), GL_FALSE);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer);
+        glBindImageTexture(0, raw, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+        glDispatchCompute(1, 1, 1); glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        glGenFramebuffers(1, &framebuffer); glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srgb, 0);
+        bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        std::array<uint32_t, 64> actual{};
+        if (complete) glReadPixels(0, 0, 8, 8, GL_RGBA, GL_UNSIGNED_BYTE, actual.data());
+        bool valid = glGetError() == GL_NO_ERROR && complete && pixels == actual;
+        glBindImageTexture(0, 0, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw); glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+        glUseProgram(program); glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, indexed);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, binding); glBindTexture(GL_TEXTURE_2D, texture);
+        glDeleteFramebuffers(1, &framebuffer); glDeleteTextures(1, &srgb); glDeleteTextures(1, &raw);
+        glDeleteBuffers(1, &buffer);
+        return valid;
+    }
 
     void Disconnect() { if (peer_ >= 0) close(peer_); peer_ = -1; configured_ = false; lastFrame_ = 0; }
     void DropPool() {
@@ -148,11 +197,11 @@ private:
                 if (item->cmsg_level != SOL_SOCKET || item->cmsg_type != SCM_RIGHTS) continue;
                 auto *fds = reinterpret_cast<int *>(CMSG_DATA(item));
                 for (unsigned index = 0; index < (item->cmsg_len - CMSG_LEN(0)) / sizeof(int); index++) {
-                    struct stat status{};
-                    if (!fstat(fds[index], &status) && status.st_size >= static_cast<int64_t>(bytes)
-                        && status.st_size <= static_cast<int64_t>(bytes + 65536)) {
+                    uint64_t size{};
+                    if (xr_buffer_allocation_size(fds[index], size) && size >= bytes
+                        && size <= bytes + 65536) {
                         candidates++; if (selected >= 0) close(selected);
-                        selected = fds[index]; allocation = status.st_size;
+                        selected = fds[index]; allocation = size;
                     } else close(fds[index]);
                 }
             }
@@ -187,7 +236,12 @@ private:
         glDeleteTextures(1, &srgb_); glDeleteTextures(1, &raw_); srgb_ = raw_ = 0;
         glGenTextures(1, &raw_); glBindTexture(GL_TEXTURE_2D, raw_);
         glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width_, height_);
-        glGenTextures(1, &srgb_); view_(srgb_, GL_TEXTURE_2D, raw_, GL_SRGB8_ALPHA8, 0, 1, 0, 1);
+        glGenTextures(1, &srgb_);
+        if (views_) view_(srgb_, GL_TEXTURE_2D, raw_, GL_SRGB8_ALPHA8, 0, 1, 0, 1);
+        else {
+            glBindTexture(GL_TEXTURE_2D, srgb_);
+            glTexStorage2D(GL_TEXTURE_2D, 1, GL_SRGB8_ALPHA8, width_, height_);
+        }
         for (GLuint texture : {raw_, srgb_}) {
             glBindTexture(GL_TEXTURE_2D, texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
