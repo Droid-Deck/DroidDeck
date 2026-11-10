@@ -74,7 +74,7 @@ object AgentSetup {
             Step.GITHUB -> listOf("dd-gh-login")
             Step.BUILD_TOOLS -> listOf("sh", "-c", "set -e; [ -d $CHECKOUT/.git ] || git clone --filter=blob:none $REPO $CHECKOUT; " +
                 "cd $CHECKOUT; [ -x tools/agent/setup ] || { echo 'This DroidDeck version has no tools/agent/setup yet'; exit 1; }; tools/agent/setup")
-            Step.PREPARE -> listOf("sh", "-c", "cd $CHECKOUT && dd-lab-build --prepare")
+            Step.PREPARE -> listOf("sh", "-c", "cd $CHECKOUT && DD_LAB_DETACHED=1 dd-lab-build --prepare")
         }
         set(step, Status.WORKING)
         detail.remove(step)
