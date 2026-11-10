@@ -47,7 +47,7 @@ object AgentSetup {
         val probes = mutableListOf<Pair<Step, List<String>>>()
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {
-                Step.INSTALL -> set(step, if (AgentHost.guestFileExists(app, harness.binary)) Status.DONE else Status.TODO)
+                Step.INSTALL -> set(step, if (harness.files.all { AgentHost.guestFileExists(app, it) }) Status.DONE else Status.TODO)
                 Step.BUILD_TOOLS -> set(step, if (buildToolsInstalled(app)) Status.DONE else Status.TODO)
                 Step.PREPARE -> set(step, if (prepared(app)) Status.DONE else Status.TODO)
                 Step.CONNECTION -> probes += step to listOf("sh", "-c",

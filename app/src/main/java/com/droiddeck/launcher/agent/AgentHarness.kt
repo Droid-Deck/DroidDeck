@@ -11,6 +11,8 @@ interface AgentHarness {
     val name: String
     /** Absolute guest path of the CLI. */
     val binary: String
+    /** Guest paths of everything the CLI needs installed, [binary] included. */
+    val files: List<String> get() = listOf(binary)
     /** A guest shell script that installs the CLI. */
     val install: String
     /** A guest command whose exit status is 0 when the CLI is signed in. */
@@ -169,12 +171,18 @@ object Codex : AgentHarness {
     override val id = "codex"
     override val name = "Codex"
     override val binary = "/root/.local/bin/codex"
+    // Code mode runs in a helper that each release ships as its own download.
+    private const val HOST = "/root/.local/bin/codex-code-mode-host"
+    override val files get() = listOf(binary, HOST)
     override val install = """
         set -e
-        url=${'$'}(curl -fsSL https://api.github.com/repos/openai/codex/releases/latest | grep -o 'https://[^"]*codex-aarch64-unknown-linux-musl.tar.gz' | head -1)
+        release=${'$'}(curl -fsSL https://api.github.com/repos/openai/codex/releases/latest)
         mkdir -p /root/.local/bin
-        curl -fsSL "${'$'}url" | tar -xz -C /tmp
-        install -m755 /tmp/codex-aarch64-unknown-linux-musl $binary
+        for name in codex codex-code-mode-host; do
+          url=${'$'}(printf '%s' "${'$'}release" | grep -o "https://[^\"]*/${'$'}name-aarch64-unknown-linux-musl.tar.gz" | head -1)
+          curl -fsSL "${'$'}url" | tar -xz -C /tmp
+          install -m755 /tmp/${'$'}name-aarch64-unknown-linux-musl /root/.local/bin/${'$'}name
+        done
     """.trimIndent()
     override val signedIn = listOf(binary, "login", "status")
     override val signIn = listOf(binary, "login")

@@ -124,7 +124,7 @@ object AgentHost {
         model = prefs(app).getString(modelKey(harness), null)
         plan = prefs(app).getBoolean(PLAN_KEY, false)
         available = LinuxRuntime.isInstalled(app)
-        installed = guestFileExists(app, harness.binary)
+        installed = harness.files.all { guestFileExists(app, it) }
         if (!installed) state = State.MISSING else if (state == State.MISSING) state = State.IDLE
         if (!loaded) {
             loaded = true

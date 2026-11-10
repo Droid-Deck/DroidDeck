@@ -22,7 +22,7 @@ import java.nio.file.attribute.BasicFileAttributes
 object AgentStorage {
     enum class Item(val paths: List<String>) {
         CLAUDE_CODE(listOf("/root/.local/share/claude", "/root/.local/bin/claude", "/root/cc")),
-        CODEX(listOf("/root/.local/bin/codex")),
+        CODEX(listOf("/root/.local/bin/codex", "/root/.local/bin/codex-code-mode-host")),
         BUILD_TOOLS(listOf("/root/android-sdk", "/root/aapt2", "/root/x86root", "/root/.gradle")),
         SOURCE(listOf("/root/DroidDeck")),
         CACHES(listOf("/root/.cache", "/root/.npm")),
