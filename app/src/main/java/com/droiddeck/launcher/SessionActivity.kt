@@ -2429,7 +2429,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun frameGenModeForActiveGame(): FrameGen.Mode {
+    private fun frameGenModeForActiveGame(request: Int): FrameGen.Mode {
         val cachedIds = LibraryCache.load(this)
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
@@ -2472,13 +2472,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }.getOrNull()
 
                 if (currentIds != null) {
+                    var published = false
                     synchronized(frameGenInventoryLock) {
                         if (drawerGameInventoryRevision == inventoryRevision &&
                             frameGenInventoryRevision == inventoryRevision
                         ) {
                             ids = cachedIds + currentIds
                             frameGenInventoryIds = ids
+                            published = true
                         }
+                    }
+                    if (published && frameGenRequests.get() != request) {
+                        applyFrameGen()
                     }
                 }
             }
@@ -2490,9 +2495,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
 
-        val activeAppId = AgentGuest.activeSteamAppId(
-            this, cachedIds + (ids ?: emptySet())
-        )
+        val activeAppId = if (SessionState.mode == SessionService.MODE_RUN) {
+            SessionState.gameId?.toLongOrNull()
+        } else {
+            AgentGuest.activeSteamAppId(this, cachedIds + (ids ?: emptySet()))
+        }
         return FrameGen.mode(this, activeAppId?.toString())
     }
 
@@ -2502,7 +2509,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
         Thread({
-            val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
+            val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
                 val forcePending = frameGenForcePending.getAndSet(false)
