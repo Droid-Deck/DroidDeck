@@ -71,7 +71,14 @@ def mapping(root):
 
 def tools(root):
     found = {}
-    for base in [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS):
+    bases = [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS)
+    seen = set(bases)
+    for library in [root] + libraries(root):
+        base = os.path.join(library, "steamapps", "common")
+        if base not in seen:
+            bases.append(base)
+            seen.add(base)
+    for base in bases:
         try:
             entries = sorted(os.listdir(base))
         except OSError:

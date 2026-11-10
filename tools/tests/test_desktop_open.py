@@ -482,6 +482,23 @@ class ProtonRunTest(Temp):
         self.assertEqual(found["droiddeck-proton-arm64"],
                          (str(self.root / "compatibilitytools.d/droiddeck-proton-arm64"), "droiddeck-proton"))
 
+    def test_a_proton_in_a_steam_library_is_offered(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/compatibilitytool.vdf" % folder, TOOL_VDF % (name, name, "windows"))
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        self.assertEqual(found[name], (str(self.root / "steamapps/common" / name), "proton"))
+
+    def test_an_interrupted_library_proton_is_ignored(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        self.write("Steam/%s/compatibilitytool.vdf" % folder, TOOL_VDF % (name, name, "windows"))
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.assertNotIn(name, RUN["tools"](str(self.root)))
+
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
         current = RUN["mapping"](str(self.root))
