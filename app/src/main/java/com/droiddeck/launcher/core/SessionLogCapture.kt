@@ -7,6 +7,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.atomic.AtomicInteger
 
 object SessionLogCapture {
     private const val TAG = "SessionLogCapture"
@@ -114,9 +115,10 @@ object SessionLogCapture {
             val lines = StringBuilder()
             val done = java.util.concurrent.CountDownLatch(1)
             val outputDone = java.util.concurrent.CountDownLatch(1)
+            val exitStatus = AtomicInteger(Int.MIN_VALUE)
             val pid = HostProcess.start(
                 "/system/bin/logcat -b events -d -v threadtime -t 800", null, target.parentFile,
-                { done.countDown() },
+                { status -> exitStatus.set(status); done.countDown() },
                 { line -> synchronized(lines) { lines.append(line).append('\n') } },
                 null,
                 outputDone::countDown,
@@ -128,17 +130,20 @@ object SessionLogCapture {
                     (deadline - System.nanoTime()).let { it > 0 && outputDone.await(it, java.util.concurrent.TimeUnit.NANOSECONDS) }
             }
             val body = synchronized(lines) { lines.toString() }
+            val status = exitStatus.get()
             val pressure = runCatching { File("/proc/pressure/memory").readText() }.getOrDefault("unavailable\n")
             val meminfo = runCatching { File("/proc/meminfo").readText() }.getOrDefault("unavailable\n")
             val gpu = runCatching { File("/sys/class/kgsl/kgsl/page_alloc").readText() }.getOrDefault("unavailable\n")
             staged.writeText(
                 "Android memory events:\n" +
                     when {
-                        body.isNotEmpty() && !finished -> body + "(logcat did not finish within 10 s; later events may be missing)\n"
-                        body.isNotEmpty() -> body
                         pid == -1 -> "(logcat could not be started at all)\n"
-                        !finished -> "(logcat did not finish within 10 s; nothing captured)\n"
-                        else -> "(the events buffer is empty)\n"
+                        status != Int.MIN_VALUE && status != 0 -> "(logcat failed with exit status $status; no Android memory events were captured)\n" +
+                            if (body.isEmpty()) "" else "\nlogcat command output:\n$body"
+                        !finished -> if (body.isEmpty()) "(logcat did not finish within 10 s; nothing captured)\n"
+                        else body + "(logcat did not finish within 10 s; later events may be missing)\n"
+                        body.isNotEmpty() -> body
+                        else -> "(no readable events were returned)\n"
                     } +
                     "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
             )
