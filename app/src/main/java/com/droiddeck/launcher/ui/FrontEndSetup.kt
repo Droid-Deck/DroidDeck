@@ -893,6 +893,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             save {
                 val failure = runCatching { com.droiddeck.launcher.session.GameProfileManager.reset(it, scope) }.exceptionOrNull()
                 com.droiddeck.launcher.stores.StoresState.post {
+                    if (failure == null) nintendo = false
                     android.widget.Toast.makeText(
                         it,
                         if (failure == null) resetDone else it.getString(R.string.comp_game_reset_failed, failure.message.orEmpty()),
