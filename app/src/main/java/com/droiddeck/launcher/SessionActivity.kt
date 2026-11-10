@@ -983,8 +983,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
-            val effectsEditorProfileId = androidx.compose.runtime.remember(drawerOpen) {
-                if (drawerOpen) currentScreenEffectsProfileId() else null
+            val activeEffectsProfileId = currentScreenEffectsProfileId()
+            val effectsEditorProfileId = if (drawerOpen) activeEffectsProfileId else null
+            androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
+                if (effectsEditorProfileId != null &&
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
+                    effects = SessionPrefs.screenEffects(this@SessionActivity, effectsEditorProfileId)
+                }
             }
             val uiPointer = appUiOwnsPointer()
             androidx.compose.runtime.SideEffect {
@@ -3758,8 +3763,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         },
         menu = {
             DroidDeckTheme {
-                val effectsEditorProfileId = androidx.compose.runtime.remember(drawerOpen, drawerPinned) {
-                    if (drawerOpen || drawerPinned) currentScreenEffectsProfileId() else null
+                val activeEffectsProfileId = currentScreenEffectsProfileId()
+                val effectsEditorProfileId =
+                    if (drawerOpen || drawerPinned) activeEffectsProfileId else null
+                androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
+                    if (effectsEditorProfileId != null &&
+                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
+                        effects = SessionPrefs.screenEffects(this@SessionActivity, effectsEditorProfileId)
+                    }
                 }
                 SessionMenu(docked = true, effectsEditorProfileId = effectsEditorProfileId)
             }
