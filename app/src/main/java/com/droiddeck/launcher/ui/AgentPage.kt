@@ -175,7 +175,7 @@ private fun AgentConversation(modifier: Modifier) {
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(AgentHost.entries.size) { i ->
             val entry = AgentHost.entries[i]
-            AgentEntry(entry, running = working && i > start && entry is Entry.Used && entry.output == null)
+            AgentEntry(entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex)
         }
         if (working) item { AgentLive() }
     }

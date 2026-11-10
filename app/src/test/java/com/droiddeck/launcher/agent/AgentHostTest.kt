@@ -121,6 +121,13 @@ class AgentHostTest {
         assertEquals(emptyList<Entry>(), AgentChats.read(File(file.path + ".missing")).entries)
     }
 
+    @Test fun aTurnThatEndsWithNothingIsAnswerless() {
+        assertTrue(AgentHost.answerless(listOf(Entry.Said("x"), Entry.Asked("go on"), Entry.Finished(null))))
+        assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Said("ok"), Entry.Finished(null))))
+        assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished("boom"))))
+        assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished(null, stopped = true))))
+    }
+
     @Test fun longOutputKeepsItsEnd() {
         val clipped = AgentChats.clip("a".repeat(30_000) + "END")
         assertTrue(clipped.endsWith("END") && clipped.length < 30_000)

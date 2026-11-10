@@ -53,10 +53,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
+import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 
 @Composable
-internal fun AgentEntry(entry: Entry, running: Boolean) {
+internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     when (entry) {
@@ -71,7 +72,7 @@ internal fun AgentEntry(entry: Entry, running: Boolean) {
         is Entry.Thought -> AgentThought(entry.text, live = false)
         is Entry.Used -> if (entry.tool == "TodoWrite") AgentTodos(entry.input) else AgentToolCall(entry, running)
         is Entry.Result -> Unit
-        is Entry.Finished -> AgentTurnEnd(entry)
+        is Entry.Finished -> if (last && AgentHost.answerless(AgentHost.entries)) AgentNoReply() else AgentTurnEnd(entry)
     }
 }
 
@@ -93,6 +94,15 @@ private fun AgentTurnEnd(entry: Entry.Finished) {
     if (text.isEmpty()) return
     Text(text, fontSize = 12.sp, color = if (entry.error != null && !entry.stopped) colors.error else pal.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 4.dp))
+}
+
+@Composable
+private fun AgentNoReply() {
+    val context = LocalContext.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        Text(stringResource(R.string.agent_no_reply), fontSize = 13.sp, color = AttentionAmber)
+        SecondaryButton(stringResource(R.string.agent_retry), compact = true) { AgentHost.retry(context) }
+    }
 }
 
 internal fun tokens(n: Long) = if (n >= 1000) "${n / 1000}k" else n.toString()

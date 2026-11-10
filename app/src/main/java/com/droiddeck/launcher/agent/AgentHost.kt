@@ -103,6 +103,7 @@ object AgentHost {
     /** Counts turns, so a process that starts after its turn was stopped is not adopted by the next one. */
     private var generation = 0
     private var labProcess: Process? = null
+    private var retriedResume = false
     /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
     private var labFromTurn = false
     private var conversation: String? = null
@@ -253,13 +254,16 @@ object AgentHost {
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
+            val raw = runCatching { File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }.bufferedWriter() }.getOrNull()
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { line ->
+                    runCatching { raw?.apply { write(line); newLine(); flush() } }
                     val event = current.parse(line) ?: return@forEachLine
                     if (event.entries.any { it is Entry.Finished }) ended = true
                     main.post { if (turn === started) apply(app, event) }
                 }
             }
+            runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
             main.post {
                 if (turn === started) {
@@ -366,6 +370,13 @@ object AgentHost {
         unseen = true
         failed = error != null
         AgentHostService.stop(app)
+        // A resumed turn that the CLI ended without a reply is tried once more.
+        val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
+        if (!stopped && error == null && answerless(entries) && asked?.text == app.getString(R.string.agent_resumed) && !retriedResume) {
+            retriedResume = true
+            main.postDelayed({ if (state == State.IDLE) send(app, asked.text) }, RETRY_MS)
+            return
+        }
         if (!stopped && queue.isNotEmpty()) {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)
@@ -375,6 +386,21 @@ object AgentHost {
     private fun record(app: Context, entry: Entry) {
         if (!AgentChats.merge(entries, entry)) return
         chat?.let { AgentChats.append(AgentChats.file(app, it), entry) }
+    }
+
+    /** The last turn ended without saying or doing anything. */
+    fun answerless(entries: List<Entry>): Boolean {
+        val start = entries.indexOfLast { it is Entry.Asked }
+        if (start < 0) return false
+        val turn = entries.subList(start + 1, entries.size)
+        return turn.lastOrNull() is Entry.Finished && turn.none { it is Entry.Said || it is Entry.Used || it is Entry.Thought } &&
+            (turn.last() as Entry.Finished).let { it.error == null && !it.stopped }
+    }
+
+    /** Sends the last message again, after a turn that ended without a reply. */
+    fun retry(context: Context) {
+        val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked ?: return
+        send(context, asked.text, asked.files)
     }
 
     /** The tool call still running in this turn, if any. */
@@ -444,6 +470,9 @@ object AgentHost {
     private const val RESUME = "agent/resume"
     private const val LAB_REQUEST = "agent/lab-request"
     private const val LAB_CHAT_KEY = "lab_chat"
+    /** The raw output of the latest turn, for working out what a CLI did when the chat shows nothing. */
+    private const val TURN_LOG = "agent/turn.log"
+    private const val RETRY_MS = 3_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
 

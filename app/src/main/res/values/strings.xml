@@ -1167,6 +1167,8 @@
     <string name="agent_failed">Failed: %1$s</string>
     <string name="agent_exited">%1$s ended (exit %2$d)</string>
     <string name="agent_stopped">Stopped</string>
+    <string name="agent_no_reply">Ended without a reply</string>
+    <string name="agent_retry">Retry</string>
     <string name="agent_setting_up">Setting up the agent</string>
     <string name="agent_rebuild_lab">Rebuild my Lab build %1$s for the installed version of DroidDeck and restart on it.</string>
     <string name="agent_tokens">%1$s in · %2$s out</string>
