@@ -67,6 +67,11 @@ object FrameGen {
             .putString("engine", mode.engine).putInt("multiplier", mode.multiplier).putInt("target", mode.target).apply()
     }
 
+    fun clearGlobal(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove("engine").remove("multiplier").remove("target").apply()
+    }
+
     fun label(context: Context): String = label(context, mode(context))
 
     fun label(context: Context, mode: Mode): String = when {
