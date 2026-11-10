@@ -2,6 +2,7 @@ package com.droiddeck.launcher.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +80,8 @@ object SoundtrackController {
         if (future != null) return
         val app = context.applicationContext
         val token = SessionToken(app, ComponentName(app, SoundtrackService::class.java))
-        val built = MediaController.Builder(app, token).setListener(disconnect).buildAsync()
+        val built = MediaController.Builder(app, token).setListener(disconnect)
+            .setConnectionHints(Bundle().apply { putBoolean(SoundtrackService.HINT_OWNER, true) }).buildAsync()
         future = built
         built.addListener({
             val ready = runCatching { built.get() }.getOrNull()

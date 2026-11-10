@@ -3,6 +3,7 @@ package com.droiddeck.launcher.playback
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
+import android.os.Process
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -31,7 +32,7 @@ class SoundtrackService : MediaSessionService() {
         val sessionIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {
             PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
-        session = MediaSession.Builder(this, player).setCallback(Resolver(packageName)).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
+        session = MediaSession.Builder(this, player).setCallback(Resolver).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
         setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_soundtrack) })
     }
 
@@ -51,9 +52,16 @@ class SoundtrackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    private class Resolver(private val ownPackage: String) : MediaSession.Callback {
+    companion object {
+        const val HINT_OWNER = "droiddeck.owner"
+    }
+
+    private object Resolver : MediaSession.Callback {
+        private fun isOwner(controller: MediaSession.ControllerInfo) =
+            controller.uid == Process.myUid() && controller.connectionHints.getBoolean(HINT_OWNER, false)
+
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
-            if (controller.packageName == ownPackage || controller.isTrusted || session.isMediaNotificationController(controller)) {
+            if (controller.uid == Process.myUid() || controller.isTrusted) {
                 MediaSession.ConnectionResult.AcceptedResultBuilder(session).build()
             } else {
                 MediaSession.ConnectionResult.reject()
@@ -62,7 +70,7 @@ class SoundtrackService : MediaSessionService() {
         override fun onAddMediaItems(
             mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
-            if (controller.packageName != ownPackage) return Futures.immediateFuture(mutableListOf())
+            if (!isOwner(controller)) return Futures.immediateFailedFuture(SecurityException("Only DroidDeck can queue soundtrack files"))
             val resolved = mediaItems.mapNotNull { item ->
                 val file = File(item.mediaId)
                 if (Soundtrack.isAudio(file)) item.buildUpon().setUri(Uri.fromFile(file)).build() else null
