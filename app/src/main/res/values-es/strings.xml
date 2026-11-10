@@ -2466,6 +2466,7 @@
     <string name="stores_login_error_ssl">La conexión con la página de inicio de sesión no es segura.</string>
     <string name="stores_login_error_verification">No se pudo verificar el inicio de sesión. Inténtalo de nuevo.</string>
     <string name="stores_login_error_generic">No se pudo iniciar sesión. Inténtalo de nuevo.</string>
+    <string name="stores_login_continue_in_browser">%1$s necesita un paso más. Complétalo en el navegador que se abrió y vuelve a intentarlo.</string>
     <string name="common_close">Cerrar</string>
     <string name="common_back">Atrás</string>
     <string name="common_edit">Editar</string>

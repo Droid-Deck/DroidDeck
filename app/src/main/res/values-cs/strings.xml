@@ -2494,6 +2494,7 @@
     <string name="stores_login_error_ssl">Spojení s přihlašovací stránkou není zabezpečené.</string>
     <string name="stores_login_error_verification">Přihlášení se nepodařilo ověřit. Zkuste to znovu.</string>
     <string name="stores_login_error_generic">Přihlášení se nezdařilo. Zkuste to znovu.</string>
+    <string name="stores_login_continue_in_browser">%1$s vyžaduje ještě jeden krok. Dokončete ho v prohlížeči, který se otevřel, a zkuste to znovu.</string>
     <string name="common_close">Zavřít</string>
     <string name="common_back">Zpět</string>
     <string name="common_edit">Upravit</string>

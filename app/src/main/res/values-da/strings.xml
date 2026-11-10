@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">Forbindelsen til loginsiden er ikke sikker.</string>
     <string name="stores_login_error_verification">Login kunne ikke bekræftes. Forsøg igen.</string>
     <string name="stores_login_error_generic">Login mislykkedes. Forsøg igen.</string>
+    <string name="stores_login_continue_in_browser">%1$s kræver et trin mere. Fuldfør det i browseren, der blev åbnet, og prøv igen.</string>
     <string name="common_close">Luk</string>
     <string name="common_back">Tilbage</string>
     <string name="common_edit">Rediger</string>

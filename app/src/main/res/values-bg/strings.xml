@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">Връзката със страницата за вход не е защитена.</string>
     <string name="stores_login_error_verification">Входът не можа да бъде потвърден. Опитай отново.</string>
     <string name="stores_login_error_generic">Входът се провали. Опитай отново.</string>
+    <string name="stores_login_continue_in_browser">%1$s изисква още една стъпка. Завърши я в браузъра, който се отвори, и опитай отново.</string>
     <string name="common_close">Затвори</string>
     <string name="common_back">Назад</string>
     <string name="common_edit">Редактирай</string>

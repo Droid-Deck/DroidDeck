@@ -2433,6 +2433,7 @@
     <string name="stores_login_error_ssl">Die Verbindung zur Anmeldeseite ist nicht sicher.</string>
     <string name="stores_login_error_verification">Die Anmeldung konnte nicht bestätigt werden. Versuche es erneut.</string>
     <string name="stores_login_error_generic">Anmeldung fehlgeschlagen. Versuche es erneut.</string>
+    <string name="stores_login_continue_in_browser">%1$s braucht noch einen Schritt. Schließe ihn im geöffneten Browser ab und versuche es dann erneut.</string>
     <string name="common_close">Schließen</string>
     <string name="common_back">Zurück</string>
     <string name="common_edit">Bearbeiten</string>

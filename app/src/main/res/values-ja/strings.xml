@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">ログインページへの接続は安全ではありません。</string>
     <string name="stores_login_error_verification">ログインを確認できませんでした。もう一度お試しください。</string>
     <string name="stores_login_error_generic">ログインに失敗しました。もう一度お試しください。</string>
+    <string name="stores_login_continue_in_browser">%1$s で追加の手順が必要です。開いたブラウザーで完了してから、もう一度お試しください。</string>
     <string name="common_close">閉じる</string>
     <string name="common_back">戻る</string>
     <string name="common_edit">編集</string>

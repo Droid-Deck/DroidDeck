@@ -2494,6 +2494,7 @@
     <string name="stores_login_error_ssl">З’єднання зі сторінкою входу не захищене.</string>
     <string name="stores_login_error_verification">Не вдалося підтвердити вхід. Спробуйте ще раз.</string>
     <string name="stores_login_error_generic">Вхід не вдався. Спробуйте ще раз.</string>
+    <string name="stores_login_continue_in_browser">%1$s потребує ще одного кроку. Завершіть його у відкритому браузері та спробуйте ще раз.</string>
     <string name="common_close">Закрити</string>
     <string name="common_back">Назад</string>
     <string name="common_edit">Редагувати</string>

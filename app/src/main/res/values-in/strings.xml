@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">Koneksi ke halaman masuk tidak aman.</string>
     <string name="stores_login_error_verification">Proses masuk tidak dapat diverifikasi. Coba lagi.</string>
     <string name="stores_login_error_generic">Proses masuk gagal. Coba lagi.</string>
+    <string name="stores_login_continue_in_browser">%1$s memerlukan satu langkah lagi. Selesaikan di browser yang terbuka, lalu coba lagi.</string>
     <string name="common_close">Tutup</string>
     <string name="common_back">Kembali</string>
     <string name="common_edit">Edit</string>

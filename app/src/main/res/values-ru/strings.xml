@@ -2574,6 +2574,7 @@
     <string name="stores_login_error_ssl">Подключение к странице входа не защищено.</string>
     <string name="stores_login_error_verification">Не удалось подтвердить вход. Повторите попытку.</string>
     <string name="stores_login_error_generic">Ошибка входа. Повторите попытку.</string>
+    <string name="stores_login_continue_in_browser">%1$s требует ещё один шаг. Завершите его в открывшемся браузере и попробуйте снова.</string>
     <string name="common_close">Закрыть</string>
     <string name="common_back">Назад</string>
     <string name="common_edit">Изменить</string>

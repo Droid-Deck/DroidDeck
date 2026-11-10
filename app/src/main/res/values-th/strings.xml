@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">การเชื่อมต่อไปยังหน้าลงชื่อเข้าใช้ไม่ปลอดภัย</string>
     <string name="stores_login_error_verification">ไม่สามารถยืนยันการลงชื่อเข้าใช้ได้ ลองใหม่</string>
     <string name="stores_login_error_generic">ลงชื่อเข้าใช้ล้มเหลว ลองใหม่</string>
+    <string name="stores_login_continue_in_browser">%1$s ต้องการอีกหนึ่งขั้นตอน ทำให้เสร็จในเบราว์เซอร์ที่เปิดขึ้น แล้วลองอีกครั้ง</string>
     <string name="common_close">ปิด</string>
     <string name="common_back">กลับ</string>
     <string name="common_edit">แก้ไข</string>

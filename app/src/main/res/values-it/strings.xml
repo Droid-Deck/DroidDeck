@@ -2458,6 +2458,7 @@
     <string name="stores_login_error_ssl">La connessione alla pagina di accesso non è sicura.</string>
     <string name="stores_login_error_verification">Impossibile verificare l\'accesso. Riprova.</string>
     <string name="stores_login_error_generic">Accesso non riuscito. Riprova.</string>
+    <string name="stores_login_continue_in_browser">%1$s richiede un altro passaggio. Completalo nel browser che si è aperto, poi riprova.</string>
     <string name="common_close">Chiudi</string>
     <string name="common_back">Indietro</string>
     <string name="common_edit">Modifica</string>

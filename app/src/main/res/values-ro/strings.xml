@@ -2469,6 +2469,7 @@
     <string name="stores_login_error_ssl">Conexiunea la pagina de autentificare nu este sigură.</string>
     <string name="stores_login_error_verification">Autentificarea nu a putut fi verificată. Încearcă din nou.</string>
     <string name="stores_login_error_generic">Autentificarea a eșuat. Încearcă din nou.</string>
+    <string name="stores_login_continue_in_browser">%1$s mai cere un pas. Finalizează-l în browserul care s-a deschis, apoi încearcă din nou.</string>
     <string name="common_close">Închide</string>
     <string name="common_back">Înapoi</string>
     <string name="common_edit">Editează</string>

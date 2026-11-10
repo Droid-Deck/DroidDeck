@@ -2433,6 +2433,7 @@
     <string name="stores_login_error_ssl">Oturum açma sayfasına bağlantı güvenli değil.</string>
     <string name="stores_login_error_verification">Oturum açma doğrulanamadı. Yeniden deneyin.</string>
     <string name="stores_login_error_generic">Oturum açma başarısız oldu. Yeniden deneyin.</string>
+    <string name="stores_login_continue_in_browser">%1$s bir adım daha istiyor. Açılan tarayıcıda tamamlayın, ardından yeniden deneyin.</string>
     <string name="common_close">Kapat</string>
     <string name="common_back">Geri</string>
     <string name="common_edit">Düzenle</string>

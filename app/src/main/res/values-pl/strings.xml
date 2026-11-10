@@ -2494,6 +2494,7 @@
     <string name="stores_login_error_ssl">Połączenie ze stroną logowania nie jest bezpieczne.</string>
     <string name="stores_login_error_verification">Nie udało się zweryfikować logowania. Spróbuj ponownie.</string>
     <string name="stores_login_error_generic">Logowanie nie powiodło się. Spróbuj ponownie.</string>
+    <string name="stores_login_continue_in_browser">%1$s wymaga jeszcze jednego kroku. Dokończ go w otwartej przeglądarce, a potem spróbuj ponownie.</string>
     <string name="common_close">Zamknij</string>
     <string name="common_back">Wstecz</string>
     <string name="common_edit">Edytuj</string>

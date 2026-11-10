@@ -2497,6 +2497,7 @@
     <string name="stores_login_error_ssl">与登录页面的连接不安全。</string>
     <string name="stores_login_error_verification">无法验证登录。请重试。</string>
     <string name="stores_login_error_generic">登录失败。请重试。</string>
+    <string name="stores_login_continue_in_browser">%1$s 还需要一个步骤。请在已打开的浏览器中完成，然后重试。</string>
     <string name="common_close">关闭</string>
     <string name="common_back">返回</string>
     <string name="common_edit">编辑</string>

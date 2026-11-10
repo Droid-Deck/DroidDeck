@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">De verbinding met de aanmeldpagina is niet beveiligd.</string>
     <string name="stores_login_error_verification">De aanmelding kon niet worden geverifieerd. Probeer het opnieuw.</string>
     <string name="stores_login_error_generic">Aanmelden mislukt. Probeer het opnieuw.</string>
+    <string name="stores_login_continue_in_browser">%1$s vraagt nog één stap. Rond die af in de browser die is geopend en probeer het opnieuw.</string>
     <string name="common_close">Sluiten</string>
     <string name="common_back">Terug</string>
     <string name="common_edit">Bewerken</string>

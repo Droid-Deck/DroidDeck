@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">Tilkoblingen til innloggingssiden er ikke sikker.</string>
     <string name="stores_login_error_verification">Innloggingen kunne ikke verifiseres. Prøv igjen.</string>
     <string name="stores_login_error_generic">Innlogging mislyktes. Prøv igjen.</string>
+    <string name="stores_login_continue_in_browser">%1$s trenger ett trinn til. Fullfør det i nettleseren som ble åpnet, og prøv igjen.</string>
     <string name="common_close">Lukk</string>
     <string name="common_back">Tilbake</string>
     <string name="common_edit">Rediger</string>

@@ -2692,6 +2692,7 @@
     <string name="stores_login_error_ssl">The connection to the sign-in page is not secure.</string>
     <string name="stores_login_error_verification">The sign-in could not be verified. Try again.</string>
     <string name="stores_login_error_generic">Sign-in failed. Try again.</string>
+    <string name="stores_login_continue_in_browser">%1$s needs one more step. Finish it in the browser that opened, then try again.</string>
     <string name="common_close">Close</string>
     <string name="common_back">Back</string>
     <string name="common_edit">Edit</string>

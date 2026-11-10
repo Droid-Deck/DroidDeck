@@ -2466,6 +2466,7 @@
     <string name="stores_login_error_ssl">La liaison avec la page de connexion n\'est pas sécurisée.</string>
     <string name="stores_login_error_verification">Impossible de vérifier la connexion. Réessayez.</string>
     <string name="stores_login_error_generic">Échec de la connexion. Réessayez.</string>
+    <string name="stores_login_continue_in_browser">%1$s demande une étape de plus. Terminez-la dans le navigateur qui s\'est ouvert, puis réessayez.</string>
     <string name="common_close">Fermer</string>
     <string name="common_back">Retour</string>
     <string name="common_edit">Modifier</string>

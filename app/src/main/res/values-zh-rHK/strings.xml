@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">與登入頁面的連線不安全。</string>
     <string name="stores_login_error_verification">無法驗證登入，請再試一次。</string>
     <string name="stores_login_error_generic">登入失敗，請再試一次。</string>
+    <string name="stores_login_continue_in_browser">%1$s 還需要一個步驟。請在已開啟的瀏覽器中完成，然後再試一次。</string>
     <string name="common_close">關閉</string>
     <string name="common_back">返回</string>
     <string name="common_edit">編輯</string>

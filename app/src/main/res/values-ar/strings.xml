@@ -2544,6 +2544,7 @@
     <string name="stores_login_error_ssl">الاتصال بصفحة تسجيل الدخول غير آمن.</string>
     <string name="stores_login_error_verification">تعذّر التحقّق من تسجيل الدخول. حاوِل مرة أخرى.</string>
     <string name="stores_login_error_generic">فشل تسجيل الدخول. حاوِل مرة أخرى.</string>
+    <string name="stores_login_continue_in_browser">يحتاج %1$s إلى خطوة أخرى. أكملها في المتصفح الذي فُتح، ثم حاول مرة أخرى.</string>
     <string name="common_close">إغلاق</string>
     <string name="common_back">رجوع</string>
     <string name="common_edit">تعديل</string>

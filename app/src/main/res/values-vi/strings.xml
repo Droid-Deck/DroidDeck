@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">Kết nối đến trang đăng nhập không an toàn.</string>
     <string name="stores_login_error_verification">Không thể xác minh đăng nhập. Hãy thử lại.</string>
     <string name="stores_login_error_generic">Đăng nhập thất bại. Hãy thử lại.</string>
+    <string name="stores_login_continue_in_browser">%1$s cần thêm một bước. Hãy hoàn tất trong trình duyệt vừa mở, rồi thử lại.</string>
     <string name="common_close">Đóng</string>
     <string name="common_back">Quay lại</string>
     <string name="common_edit">Sửa</string>

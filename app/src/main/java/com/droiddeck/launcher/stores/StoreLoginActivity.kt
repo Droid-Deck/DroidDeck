@@ -60,6 +60,7 @@ class StoreLoginActivity : ComponentActivity() {
         fun isRedirect(url: String): Boolean
         fun finish(activity: StoreLoginActivity, view: WebView, url: String): String?
         val readsPage: Boolean get() = false
+        fun browserStep(page: String): String? = null
         fun forgetSignIn(done: () -> Unit) = done()
     }
 
@@ -334,9 +335,22 @@ class StoreLoginActivity : ComponentActivity() {
         }
         if (f.readsPage) {
             view.evaluateJavascript("(function(){ try { return document.body.innerText; } catch(e){ return ''; } })()") { json ->
-                Thread({ settle(f.finish(this, view, json ?: "")) }, "store-login").start()
+                val page = json ?: ""
+                val step = f.browserStep(page)
+                if (step == null || !continueInBrowser(step)) Thread({ settle(f.finish(this, view, page)) }, "store-login").start()
             }
         } else Thread({ settle(f.finish(this, view, url)) }, "store-login").start()
+    }
+
+    private fun continueInBrowser(url: String): Boolean {
+        if (isFinishing || isDestroyed) return false
+        val opened = runCatching { startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))) }
+            .onFailure { Log.w(TAG, "no browser took the sign-in step: ${it.javaClass.simpleName}") }
+            .isSuccess
+        if (!opened) return false
+        titleText.text = getString(R.string.stores_login_title, store?.label ?: "")
+        showError(getString(R.string.stores_login_continue_in_browser, store?.label ?: ""))
+        return true
     }
 
     private fun settle(problem: String?) {

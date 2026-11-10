@@ -2419,6 +2419,7 @@
     <string name="stores_login_error_ssl">Sambungan ke halaman log masuk tidak selamat.</string>
     <string name="stores_login_error_verification">Log masuk tidak dapat disahkan. Cuba lagi.</string>
     <string name="stores_login_error_generic">Log masuk gagal. Cuba lagi.</string>
+    <string name="stores_login_continue_in_browser">%1$s memerlukan satu langkah lagi. Selesaikannya dalam pelayar yang dibuka, kemudian cuba lagi.</string>
     <string name="common_close">Tutup</string>
     <string name="common_back">Kembali</string>
     <string name="common_edit">Sunting</string>

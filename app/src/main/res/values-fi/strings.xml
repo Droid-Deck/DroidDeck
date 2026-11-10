@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">Yhteys kirjautumissivulle ei ole suojattu.</string>
     <string name="stores_login_error_verification">Kirjautumista ei voitu vahvistaa. Yritä uudelleen.</string>
     <string name="stores_login_error_generic">Kirjautuminen epäonnistui. Yritä uudelleen.</string>
+    <string name="stores_login_continue_in_browser">%1$s vaatii vielä yhden vaiheen. Viimeistele se avautuneessa selaimessa ja yritä sitten uudelleen.</string>
     <string name="common_close">Sulje</string>
     <string name="common_back">Takaisin</string>
     <string name="common_edit">Muokkaa</string>

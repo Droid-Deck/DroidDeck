@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">Η σύνδεση με τη σελίδα σύνδεσης δεν είναι ασφαλής.</string>
     <string name="stores_login_error_verification">Δεν ήταν δυνατή η επαλήθευση της σύνδεσης. Δοκιμάστε ξανά.</string>
     <string name="stores_login_error_generic">Η σύνδεση απέτυχε. Δοκιμάστε ξανά.</string>
+    <string name="stores_login_continue_in_browser">Το %1$s χρειάζεται ένα ακόμη βήμα. Ολοκληρώστε το στο πρόγραμμα περιήγησης που άνοιξε και δοκιμάστε ξανά.</string>
     <string name="common_close">Κλείσιμο</string>
     <string name="common_back">Πίσω</string>
     <string name="common_edit">Επεξεργασία</string>

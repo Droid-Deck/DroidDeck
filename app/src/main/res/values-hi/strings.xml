@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">साइन-इन पेज से कनेक्शन सुरक्षित नहीं है।</string>
     <string name="stores_login_error_verification">साइन-इन सत्यापित नहीं हो सका। फिर कोशिश करें।</string>
     <string name="stores_login_error_generic">साइन-इन विफल रहा। फिर कोशिश करें।</string>
+    <string name="stores_login_continue_in_browser">%1$s को एक और चरण चाहिए। खुले हुए ब्राउज़र में इसे पूरा करें, फिर दोबारा कोशिश करें।</string>
     <string name="common_close">बंद करें</string>
     <string name="common_back">बैक</string>
     <string name="common_edit">संपादित करें</string>

@@ -2444,6 +2444,7 @@
     <string name="stores_login_error_ssl">A kapcsolat a bejelentkezési oldalhoz nem biztonságos.</string>
     <string name="stores_login_error_verification">A bejelentkezést nem sikerült ellenőrizni. Próbálja újra.</string>
     <string name="stores_login_error_generic">A bejelentkezés sikertelen. Próbálja újra.</string>
+    <string name="stores_login_continue_in_browser">A(z) %1$s még egy lépést kér. Fejezze be a megnyílt böngészőben, majd próbálja újra.</string>
     <string name="common_close">Bezárás</string>
     <string name="common_back">Vissza</string>
     <string name="common_edit">Szerkesztés</string>
