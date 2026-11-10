@@ -1200,7 +1200,7 @@
     <string name="agent_process_stop">Stop</string>
     <string name="agent_lab_building">Lab build</string>
     <string name="agent_lab_preparing">Preparing Lab builds</string>
-    <string name="agent_lab_progress">Lab build %1$d%% · about %2$s left</string>
+    <string name="agent_lab_progress">%1$d%% · about %2$s left</string>
     <string name="agent_lab_left">about %1$s left</string>
     <string name="agent_lab_cancel">Cancel</string>
     <string name="agent_lab_cancel_confirm">Cancel build</string>

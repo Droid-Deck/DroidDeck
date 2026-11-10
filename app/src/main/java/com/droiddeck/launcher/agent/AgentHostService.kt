@@ -68,7 +68,7 @@ class AgentHostService : Service() {
 
         private fun describe(context: Context): String {
             val lab = AgentHost.lab?.takeIf { it.running }
-            if (lab != null) return context.getString(R.string.agent_lab_progress, lab.permille / 10, minutes(lab.etaSeconds.toLong()))
+            if (lab != null) return context.getString(R.string.agent_lab_progress, lab.permille / 10, minutes(lab.etaSeconds.toLong().coerceAtLeast(0)))
             if (AgentHost.state != AgentHost.State.WORKING) return context.getString(R.string.agent_setting_up)
             val tool = AgentHost.running()
             val elapsed = minutes((SystemClock.elapsedRealtime() - AgentHost.turnStarted) / 1000)
@@ -91,7 +91,11 @@ class AgentHostService : Service() {
             val lab = AgentHost.lab?.takeIf { it.running }
             return Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_session)
-                .setContentTitle(context.getString(if (lab != null) R.string.agent_lab_building else R.string.agent_working))
+                .setContentTitle(context.getString(when {
+                    lab?.prepare == true -> R.string.agent_lab_preparing
+                    lab != null -> R.string.agent_lab_building
+                    else -> R.string.agent_working
+                }))
                 .setContentText(describe(context))
                 .setContentIntent(open)
                 .addAction(Notification.Action.Builder(null, context.getString(R.string.agent_stop), stop).build())
