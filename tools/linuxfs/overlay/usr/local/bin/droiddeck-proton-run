@@ -71,11 +71,12 @@ def mapping(root):
 
 def tools(root):
     c = compat()
-    if c["TOOL"].lower() not in c["local_tools"](root):
-        depot = c["find_source"](root)
-        if depot is not None and os.access(os.path.join(depot, "proton"), os.X_OK):
+    wrapper = os.path.join(root, "compatibilitytools.d", c["TOOL"])
+    if c["TOOL"].lower() not in c["local_tools"](root) or not os.access(os.path.join(wrapper, c["LAUNCHER"]), os.X_OK):
+        depot = c["find_source"](root, runnable=True)
+        if depot is not None:
             try:
-                c["build_tool"](os.path.join(root, "compatibilitytools.d", c["TOOL"]), depot)
+                c["build_tool"](wrapper, depot)
             except OSError:
                 pass
     found = {}

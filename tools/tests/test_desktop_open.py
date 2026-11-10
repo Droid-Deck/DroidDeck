@@ -513,9 +513,38 @@ class ProtonRunTest(Temp):
         folder = "steamapps/common/Proton Experimental (ARM64)"
         self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
         self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
-        with mock.patch.dict(RUN, {"build_tool": mock.Mock(side_effect=OSError("read-only"))}):
+        build = mock.Mock(side_effect=OSError("read-only"))
+        with mock.patch.dict(RUN["compat"](), {"build_tool": build}):
             found = RUN["tools"](str(self.root))
+        build.assert_called_once()
         self.assertIn("droiddeck-proton-11-arm64", found)
+
+    def test_a_runnable_depot_is_chosen_over_a_newer_incomplete_one(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        good = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % good, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % good, b"#!/bin/sh\n", 0o755)
+        compat = RUN["compat"]()
+        source = compat["find_source"]
+        broken = str(self.tmp / "broken")
+        os.makedirs(os.path.join(broken, "files", "bin-arm64"))
+        with mock.patch.dict(compat, {"find_source": lambda root, runnable=False: source(root, runnable=runnable) if runnable else broken}):
+            found = RUN["tools"](str(self.root))
+        self.assertIn("droiddeck-proton-arm64", found)
+
+    def test_a_registered_wrapper_without_its_launcher_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        launcher = wrapper / RUN["compat"]()["LAUNCHER"]
+        if launcher.exists():
+            launcher.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(os.access(launcher, os.X_OK))
+        self.assertIn("droiddeck-proton-arm64", found)
 
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
