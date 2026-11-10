@@ -80,11 +80,7 @@ class GameGpuLaunchersTest(unittest.TestCase):
                                            timeout=30).returncode)
 
     def test_a_flatpak_app_gets_the_game_setting(self):
-        values = self.flatpak(session=dict(SESSION, **GPU_SESSION))
-        self.assertEqual("unset", values["MESA_LOADER_DRIVER_OVERRIDE"])
-        self.assertEqual("unset", values["GALLIUM_DRIVER"])
-        self.assertEqual("unset", values["VK_ICD_FILENAMES"])
-        self.assertEqual("unset", values["VK_DRIVER_FILES"])
+        self.assertEqual({key: "unset" for key in KEYS}, self.flatpak(session=dict(SESSION, **GPU_SESSION)))
         self.assertEqual("nolrz", self.flatpak({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})["TU_DEBUG"])
 
     def test_a_chromium_flatpak_keeps_the_session_setting(self):
