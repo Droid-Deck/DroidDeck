@@ -1227,7 +1227,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     onAndroidKeyboard = { pcKeyboardOpen = false; keyboard?.toggle() },
                     onClose = { pcKeyboardOpen = false },
                 )
-                if (!drawerDocked) SessionMenu(docked = false)
+                if (!drawerDocked) SessionMenu(docked = false, effectsEditorProfileId = effectsEditorProfileId)
                 LaunchedEffect(achievementsOpen) {
                     if (achievementsOpen) {
                         releasePads()
@@ -1277,7 +1277,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     @androidx.compose.runtime.Composable
-    private fun SessionMenu(docked: Boolean) {
+    private fun SessionMenu(docked: Boolean, effectsEditorProfileId: String?) {
         SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
@@ -1353,7 +1353,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             onEffects = { e ->
                 if (drawerOpen && effectsEditorProfileId != null &&
-                    currentScreenEffectsProfileId() == effectsEditorProfileId) {
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
                     SessionPrefs.setScreenEffects(this@SessionActivity, effectsEditorProfileId, e)
                     effects = e
                     e.push(upscaler)
@@ -3757,7 +3757,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         },
         menu = {
-            DroidDeckTheme { SessionMenu(docked = true) }
+            DroidDeckTheme {
+                val effectsEditorProfileId = androidx.compose.runtime.remember(drawerOpen, drawerPinned) {
+                    if (drawerOpen || drawerPinned) currentScreenEffectsProfileId() else null
+                }
+                SessionMenu(docked = true, effectsEditorProfileId = effectsEditorProfileId)
+            }
         },
         onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
         onDeckPanel = ::selectDeckPanel,
