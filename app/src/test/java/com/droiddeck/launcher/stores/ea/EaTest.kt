@@ -40,6 +40,11 @@ class EaTest {
         assertNull(EaCrypto.challengeSeed("9", answer))
     }
 
+    @Test fun onlyTokenRejectionsAreRetried() {
+        assertTrue(EaOoa.tokenRejected("<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>"))
+        assertFalse(EaOoa.tokenRejected("<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>"))
+    }
+
     @Test fun licenceRoundTripsThroughTheFileFormat() {
         val xml = "<?xml version=\"1.0\"?><License xmlns=\"http://ea.com/license\"><CipherKey>k</CipherKey><MachineHash>h</MachineHash>" +
             "<ContentId>1234</ContentId><UserId>9</UserId><GameToken>tok</GameToken><GrantTime>g</GrantTime><StartTime>s</StartTime><Nonce>n</Nonce></License>"
