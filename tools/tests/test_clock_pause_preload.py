@@ -36,12 +36,21 @@ static int64_t start;
 static void begin(void) { start = ns(CLOCK_BOOTTIME); }
 static void end(const char *name) { printf("%s %lld\n", name, (long long)((ns(CLOCK_BOOTTIME) - start) / 1000000LL)); }
 
+static unsigned long long memory_probe(void) {
+  static unsigned char memory[4 * 1024 * 1024];
+  unsigned long long checksum = 0;
+  for (size_t i = 0; i < sizeof(memory); i += 4096) memory[i] = (unsigned char)i;
+  for (size_t i = 0; i < sizeof(memory); i += 4096) checksum += memory[i];
+  return checksum;
+}
+
 int main(void) {
   const int64_t wait = 60000000LL;
   printf("gap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ns(CLOCK_MONOTONIC)) / 1000000LL));
   struct timespec raw;
   syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &raw);
   printf("rawgap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ((int64_t)raw.tv_sec * 1000000000LL + raw.tv_nsec)) / 1000000LL));
+  printf("memory %llu\n", memory_probe());
 
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   pthread_condattr_t attr;
@@ -124,13 +133,20 @@ class ClockPausePreloadTest(unittest.TestCase):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
 
-    def test_other_programs_keep_the_real_clock(self):
+    def test_non_session_programs_keep_the_real_clock(self):
         plain = self.run_program(self.other, 0, preload=False)
-        paused = self.run_program(self.other, SHIFT_MS)
+        paused = self.run_program(self.other, SHIFT_MS, preload=False)
         self.assertAlmostEqual(paused["gap"], plain["gap"], delta=50)
         for name in ("cond_mono", "clockwait", "sem", "nanosleep", "timerfd", "futex"):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
+
+    def test_every_session_program_stops_monotonic_clock_and_keeps_memory_access(self):
+        plain = self.run_program(self.other, 0)
+        paused = self.run_program(self.other, SHIFT_MS)
+        self.assertAlmostEqual(paused["gap"] - plain["gap"], SHIFT_MS, delta=50)
+        self.assertAlmostEqual(paused["rawgap"] - plain["rawgap"], SHIFT_MS, delta=50)
+        self.assertEqual(paused["memory"], plain["memory"])
 
 
 if __name__ == "__main__":
