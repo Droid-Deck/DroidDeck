@@ -175,9 +175,10 @@ object EaOoa {
         return head + EaCrypto.licenseEncrypt(licenseXml(l).toByteArray())
     }
 
-    internal const val AUTH_ATTEMPTS = 4
+    private const val AUTH_ATTEMPTS = 4
 
-    internal fun tokenRejected(body: String) = body.contains("AUTHENTICATION_FAILED")
+    internal fun tokenRejected(body: String) =
+        body.contains("cause=\"AUTHENTICATION_FAILED\"") && body.contains("field=\"ea_eadmtoken\"")
 
     internal fun retryTokenRejected(request: () -> EaReply): EaReply {
         var reply = request()

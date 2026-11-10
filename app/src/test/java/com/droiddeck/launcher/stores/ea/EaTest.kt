@@ -60,12 +60,21 @@ class EaTest {
         assertEquals(1, entitlementCalls)
         assertEquals(409, refused.status)
 
+        val otherAuthFailure = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"machineHash\"/></error>".toByteArray(), emptyMap())
+        var otherAuthCalls = 0
+        val otherRefused = EaOoa.retryTokenRejected {
+            otherAuthCalls++
+            otherAuthFailure
+        }
+        assertEquals(1, otherAuthCalls)
+        assertEquals(409, otherRefused.status)
+
         var failedCalls = 0
         EaOoa.retryTokenRejected {
             failedCalls++
             rejected
         }
-        assertEquals(EaOoa.AUTH_ATTEMPTS, failedCalls)
+        assertEquals(4, failedCalls)
     }
 
     @Test fun licenceRoundTripsThroughTheFileFormat() {
