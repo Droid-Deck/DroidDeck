@@ -22,9 +22,14 @@ data class LabProgress(
         fun read(rootfs: File): LabProgress? {
             val file = File(rootfs, PATH)
             if (!file.isFile) return null
-            val progress = parse(runCatching { file.readText() }.getOrNull() ?: return null) ?: return null
-            if (progress.running) return progress.takeIf { AgentProcesses.alive(it.pid) } ?: progress.copy(stage = "failed", task = "stopped")
-            return progress.takeIf { System.currentTimeMillis() - file.lastModified() < SHOW_DONE_MS }
+            val parsed = parse(runCatching { file.readText() }.getOrNull() ?: return null) ?: return null
+            val progress = when {
+                !parsed.running || AgentProcesses.alive(parsed.pid) -> parsed
+                // The restart ends the app and the script with it, so a restart that got that far succeeded.
+                parsed.stage == "restarting" -> parsed.copy(stage = "ready")
+                else -> parsed.copy(stage = "failed", task = "stopped")
+            }
+            return progress.takeIf { it.running || System.currentTimeMillis() - file.lastModified() < SHOW_DONE_MS }
         }
 
         /** Ends the build and Gradle's daemon, which keeps compiling after its client is gone. */
