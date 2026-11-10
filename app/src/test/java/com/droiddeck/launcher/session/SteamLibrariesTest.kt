@@ -74,6 +74,17 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.offered(listOf("/storage/card/Other"), listOf(games), "/storage/card/New"))
     }
 
+    @Test fun aGamesFolderRemainsDiscoverableBesideChosenGameStorage() {
+        val card = tmp.newFolder("card")
+        val games = File(card, "GameNative").path
+        val selected = File(card, "Selected").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, selected.path, "Selected")
+        val effective = GameStorage.effective(app)!!
+        assertTrue(SteamLibraries.offered(listOf(effective.path), listOf(games), games))
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        assertFalse(SteamLibraries.offered(listOf(GameStorage.effective(app)!!.path), listOf(games), games))
+    }
+
     private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
 
     @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
