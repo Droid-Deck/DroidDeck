@@ -75,8 +75,8 @@ APP_BIN = "usr/bin/EpicGamesLauncher"
 DEB_ICON = "usr/share/icons/hicolor/256x256@2/apps/EpicGamesLauncher.png"
 ICON = "epic-games-launcher.png"
 DESKTOP = "desktop"
-DESKTOP_KEEP = "usr/lib/x86_64-linux-gnu/"
-DESKTOP_LIB = DESKTOP + "/" + DESKTOP_KEEP.rstrip("/")
+DESKTOP_KEEP = ("usr/lib/x86_64-linux-gnu/", "usr/share/glib-2.0/schemas/")
+DESKTOP_LIB = DESKTOP + "/usr/lib/x86_64-linux-gnu"
 WEBKIT_DIR = "webkit2gtk-4.1"
 WEBKIT_LIB = "libwebkit2gtk-4.1.so.0"
 SKIPPED = ("lib/i386-linux-gnu", "lib32", "libx32", "i686-pc-linux-gnu", "share/doc", "include")
@@ -400,7 +400,7 @@ def extract_app(image, dest, desktop=()):
         for package in desktop:
             if not is_deb(package):
                 raise Failure("desktop-format")
-            extract_deb(package, layer, lambda name: name.startswith(DESKTOP_KEEP))
+            extract_deb(package, layer, lambda name: any(name.startswith(prefix) for prefix in DESKTOP_KEEP))
         icon = os.path.join(staging, DEB_ICON)
         if os.path.isfile(icon):
             shutil.copyfile(icon, os.path.join(staging, ICON))
@@ -818,6 +818,9 @@ def client_environment(base, fex, files, display, bus, broker, a11y=None, hidden
     env["PATH"] = SHIMS + ":/usr/bin:/bin"
     if libs:
         env["LD_LIBRARY_PATH"] = libs
+        data = os.path.normpath(os.path.join(os.path.dirname(libs), "..", "share"))
+        env["XDG_DATA_DIRS"] = data + ":/usr/local/share:/usr/share"
+        env["GSETTINGS_SCHEMA_DIR"] = os.path.join(data, "glib-2.0", "schemas")
     env["DISPLAY"] = display
     env["DBUS_SESSION_BUS_ADDRESS"] = bus
     env[BROKER_ENV] = broker

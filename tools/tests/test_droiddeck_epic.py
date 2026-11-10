@@ -234,6 +234,7 @@ class LauncherDebTest(EpicTestCase):
             ("./usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0", {"link": "libwebkit2gtk-4.1.so.0.19.1"}),
             ("./usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess", {"data": b"net", "mode": 0o755}),
             ("./usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/injected-bundle/libwebkit2gtkinjectedbundle.so", {"data": b"bundle"}),
+            ("./usr/share/glib-2.0/schemas/org.gnome.GWeather4.gschema.xml", {"data": b"schema"}),
             ("./usr/share/doc/libwebkit2gtk-4.1-0/copyright", {"data": b"c"}),
             ("./usr/share/locale/fr/LC_MESSAGES/WebKitGTK-4.1.mo", {"data": b"fr"}),
         ], "xz")
@@ -249,7 +250,8 @@ class LauncherDebTest(EpicTestCase):
         libs = dest / "desktop/usr/lib/x86_64-linux-gnu"
         self.assertEqual(b"webkit", (libs / "libwebkit2gtk-4.1.so.0").read_bytes())
         self.assertEqual(b"net", (libs / "webkit2gtk-4.1/WebKitNetworkProcess").read_bytes())
-        self.assertFalse((dest / "desktop/usr/share").exists())
+        self.assertEqual(b"schema", (dest / "desktop/usr/share/glib-2.0/schemas/org.gnome.GWeather4.gschema.xml").read_bytes())
+        self.assertFalse((dest / "desktop/usr/share/doc").exists())
         self.assertFalse((self.state / "app/escape").exists())
         self.assertFalse((self.state / "app/0.113.0+g1.staging").exists())
         self.assertTrue(G["app_complete"](str(dest)))
@@ -315,6 +317,8 @@ class LauncherDebTest(EpicTestCase):
             layered = G["client_environment"]({}, None, None, ":0", "bus", "broker", libs="/app/desktop/usr/lib/x86_64-linux-gnu")
         self.assertNotIn("LD_LIBRARY_PATH", plain)
         self.assertEqual("/app/desktop/usr/lib/x86_64-linux-gnu", layered["LD_LIBRARY_PATH"])
+        self.assertEqual("/app/desktop/usr/share:/usr/local/share:/usr/share", layered["XDG_DATA_DIRS"])
+        self.assertEqual("/app/desktop/usr/share/glib-2.0/schemas", layered["GSETTINGS_SCHEMA_DIR"])
 
     def test_every_desktop_package_reaches_the_install(self):
         options, rest = G["parse_options"](["--app", "a.deb", "--desktop", "one.deb", "--desktop", "two.deb", "x"], lists=("desktop",))
