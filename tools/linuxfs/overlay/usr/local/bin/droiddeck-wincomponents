@@ -62,9 +62,17 @@ def component(store, cid):
     overrides = [str(o) for o in meta.get("overrides", [])]
     values = registry_values(root)
     if any(o.strip().lower() == "mscoree=n" for o in overrides):
-        assemblies = sorted({Path(rel).stem for rel, _ in files
-                             if rel.lower().startswith("drive_c/windows/microsoft.net/assembly/gac_")
-                             and rel.lower().endswith(".dll")})
+        assemblies = set()
+        for rel, _ in files:
+            parts = Path(rel.lower()).parts
+            gac_paths = (("windows", "assembly"), ("windows", "microsoft.net", "assembly"))
+            if rel.lower().endswith(".dll") and any(
+                    parts[i:i + len(prefix)] == prefix
+                    and i + len(prefix) < len(parts)
+                    and (parts[i + len(prefix)] == "gac" or parts[i + len(prefix)].startswith("gac_"))
+                    for prefix in gac_paths for i in range(len(parts) - len(prefix))):
+                assemblies.add(Path(rel).stem)
+        assemblies = sorted(assemblies)
         values = [{"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": name,
                    "type": "sz", "data": "Gac=n"} for name in assemblies] + values
     return overrides, files, requires, values

@@ -301,6 +301,21 @@ class WinComponentsTest(unittest.TestCase):
         self.apply()
         self.assertNotIn('"System"="Gac=n"', user.read_text())
 
+    def test_msi_clr2_and_unsuffixed_gac_assemblies_disable_windows_gac_for_mono(self):
+        self.component("dotnet", ["mscoree=n"], {
+            "drive_c/windows/assembly/GAC_MSIL/System/v2.0.0.0__b77a5c561934e089/System.dll": b"system",
+            "drive_c/windows/assembly/GAC/Legacy/v1.0.0.0__1234567890abcdef/Legacy.dll": b"legacy",
+        })
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("dotnet")
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        self.assertEqual(registry.get(key, "System"), '"System"="Gac=n"')
+        self.assertEqual(registry.get(key, "Legacy"), '"Legacy"="Gac=n"')
+
     def test_framework_gac_override_keeps_other_assemblies_and_explicit_component_values(self):
         self.component("framework", ["mscoree=n"], {
             "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
