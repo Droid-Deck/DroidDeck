@@ -1599,10 +1599,11 @@ def depot_build(depot):
     return int(first[0]) if first and first[0].isdigit() else 0
 
 
-def find_source(steam_root, sources=SOURCES):
+def find_source(steam_root, sources=SOURCES, runnable=False):
     for name in sources:
         found = [os.path.join(root, "steamapps", "common", name) for root in libraries(steam_root)
-                 if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
+                 if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))
+                 and (not runnable or os.access(os.path.join(root, "steamapps", "common", name, "proton"), os.X_OK))]
         if found:
             return max(found, key=depot_build)
     return None

@@ -1697,8 +1697,8 @@ class SessionService : Service() {
                     .putExtra(EXTRA_STEAM_UI, ui)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (url.isNotEmpty()) next.putExtra(EXTRA_STEAM_URL, url)
-                SessionState.relaunch = next
-                android.os.Handler(android.os.Looper.getMainLooper()).post { stopSession(0) }
+                SessionState.queueRelaunch(next)
+                android.os.Handler(android.os.Looper.getMainLooper()).post { stopSession(0, relaunch = true) }
             }
         }
         watcher.startWatching()
@@ -2013,7 +2013,7 @@ class SessionService : Service() {
         }
     }
 
-    private fun stopSession(status: Int, gen: Int? = null) {
+    private fun stopSession(status: Int, gen: Int? = null, relaunch: Boolean = false) {
         if (gen != null && gen != sessionGen) {
             Log.i(TAG, "ignoring a stop from session $gen; session $sessionGen is current")
             return
@@ -2024,6 +2024,7 @@ class SessionService : Service() {
             cancelQueuedSteamGame()
             gameExitWatchToken++
             if (!SessionState.running) return
+            if (relaunch) SessionState.confirmRelaunchStop()
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false

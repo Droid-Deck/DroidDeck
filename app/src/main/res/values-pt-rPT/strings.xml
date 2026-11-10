@@ -2887,6 +2887,8 @@
     <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
     <string name="display_picture_position">Posição da imagem</string>
     <string name="display_position_top">Topo</string>
+    <string name="display_position_left">Esquerda</string>
+    <string name="display_position_right">Direita</string>
     <string name="display_position_bottom">Fundo</string>
     <string name="display_position_center">Centro (predefinido)</string>
     <string name="setup_tab_storage">Armazenamento</string>
@@ -3692,4 +3694,7 @@
     <string name="input_reset_positions">Repor posições</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">Não foi possível importar este esquema</string>
+
+    <string name="theme_white_red">Neve Escarlate</string>
+    
 </resources>

@@ -263,10 +263,15 @@ def displays(adb: str, serial: str) -> list[dict]:
         device = re.search(r"mPrimaryDisplayDevice=(.+)", block)
         size = re.search(r"real (\d+) x (\d+)", block)
         name = device.group(1).strip() if device else None
+        physical = devices.get(name) if name else None
+        if name and not physical:
+            # Some ROMs (Retroid Pocket Duo) print the device as "Built-in Screen(local:<id>)"
+            inline = re.search(r"\(local:(\d+)\)$", name)
+            physical = inline.group(1) if inline else None
         out.append({
             "display": logical,
             "name": name,
-            "physicalId": devices.get(name) if name else None,
+            "physicalId": physical,
             "size": [int(size.group(1)), int(size.group(2))] if size else None,
         })
     return out

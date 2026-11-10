@@ -1,0 +1,94 @@
+#!/usr/bin/python3
+from pathlib import Path
+
+
+PE_MACHINES = {
+    "system32": ("aarch64-windows", frozenset((0xAA64, 0xA641))),
+    "syswow64": ("i386-windows", frozenset((0x14C,))),
+}
+
+
+def pe_machine(path):
+    try:
+        with open(path, "rb") as image:
+            head = image.read(64)
+            if head[:2] != b"MZ" or len(head) < 64:
+                return None
+            image.seek(int.from_bytes(head[60:64], "little"))
+            header = image.read(6)
+    except OSError:
+        return None
+    if header[:4] != b"PE\0\0" or len(header) < 6:
+        return None
+    return int.from_bytes(header[4:6], "little")
+
+
+def pe_has_arm64ec_metadata(path):
+    try:
+        with open(path, "rb") as image:
+            image.seek(60)
+            raw = image.read(4)
+            if len(raw) != 4:
+                return False
+            pe_offset = int.from_bytes(raw, "little")
+            image.seek(pe_offset)
+            if image.read(4) != b"PE\0\0":
+                return False
+            coff = image.read(20)
+            if len(coff) != 20:
+                return False
+            section_count = int.from_bytes(coff[2:4], "little")
+            if section_count > 96:
+                return False
+            optional_size = int.from_bytes(coff[16:18], "little")
+            optional_offset = pe_offset + 24
+            image.seek(optional_offset)
+            optional = image.read(optional_size)
+            if len(optional) != optional_size or int.from_bytes(optional[:2], "little") != 0x20B:
+                return False
+            directory_count = int.from_bytes(optional[108:112], "little")
+            directory_offset = 112 + 10 * 8
+            if directory_count <= 10 or directory_offset + 8 > len(optional):
+                return False
+            load_config_rva = int.from_bytes(optional[directory_offset:directory_offset + 4], "little")
+            load_config_size = int.from_bytes(optional[directory_offset + 4:directory_offset + 8], "little")
+            if not load_config_rva or load_config_size < 0xD0:
+                return False
+            section_offset = optional_offset + optional_size
+            for index in range(section_count):
+                image.seek(section_offset + index * 40)
+                section = image.read(40)
+                if len(section) != 40:
+                    return False
+                virtual_address = int.from_bytes(section[12:16], "little")
+                raw_size = int.from_bytes(section[16:20], "little")
+                raw_offset = int.from_bytes(section[20:24], "little")
+                relative = load_config_rva - virtual_address
+                if 0 <= relative <= raw_size - 0xD0:
+                    image.seek(raw_offset + relative)
+                    load_config = image.read(0xD0)
+                    if len(load_config) != 0xD0 or int.from_bytes(load_config[:4], "little") < 0xD0:
+                        return False
+                    return int.from_bytes(load_config[0xC8:0xD0], "little") != 0
+    except (OSError, OverflowError, ValueError):
+        return False
+    return False
+
+
+def machine_compatible(path, machines, machine=None):
+    machine = pe_machine(path) if machine is None else machine
+    if machine == 0x8664 and pe_has_arm64ec_metadata(path):
+        return 0xA641 in machines
+    return machine in machines
+
+
+def proton_pe_machines(proton, env=None):
+    dist = Path(proton).parent / "files/lib/wine"
+    if (dist / "aarch64-unix").is_dir() and (env or {}).get("PROTON_USE_ARM64", "1") == "1":
+        return PE_MACHINES
+    if (dist / "x86_64-unix").is_dir():
+        return {
+            "system32": ("x86_64-windows", frozenset((0x8664,))),
+            "syswow64": PE_MACHINES["syswow64"],
+        }
+    return None
