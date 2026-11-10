@@ -3328,7 +3328,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
+        val selectionChanged = selectedSecondScreenDisplay != target.displayId
         selectedSecondScreenDisplay = target.displayId
+        SessionState.secondScreenDisplay = target.displayId
+        if (selectionChanged) updateBottomGame()
         selectSecondScreenMode(openingPanel())
         automaticPanel = secondScreenMode != SecondScreenMode.NONE
         dualControlsProvisional = ::loading.isInitialized && loading.visible
