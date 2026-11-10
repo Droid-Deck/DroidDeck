@@ -25,4 +25,10 @@ class StoreSizesTest {
         assertEquals(0L, StoreSizes.size(ea.copy(id = "Origin.OFR.50.0002")))
         assertEquals(7L, StoreSizes.size(ea.copy(id = "Origin.OFR.50.0002", sizeBytes = 7L)))
     }
+
+    @Test fun anEaSizeDoesNotReplaceAnotherStoresCatalogSize() {
+        StoreSizes.known[ea.key] = 4_200_000_000L
+        val epic = ea.copy(store = Store.EPIC, id = "Epic.Game", sizeBytes = 7L)
+        assertEquals(7L, StoreSizes.size(epic))
+    }
 }
