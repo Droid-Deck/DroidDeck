@@ -383,7 +383,7 @@ object BwrapSpawner {
         if (!hasEnvTool(plan)) {
             val program = plan.argv.firstOrNull()?.takeIf { it.startsWith("/") }?.let(::host)?.canonicalFile
                 ?.takeIf { it.isFile && isStaticElf(it) } ?: return null
-            linkMounts(plan)
+            if (!linkMounts(plan)) return null
             return (listOf(program.path) + plan.argv.drop(1)) to plan.env
         }
         val loader = SANDBOX_LOADERS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
@@ -405,7 +405,7 @@ object BwrapSpawner {
             seccompPatched.add("${file.path}:${file.length()}:${file.lastModified()}")
         }
         val program = host(plan.envTool).canonicalFile.takeIf { it.isFile } ?: return null
-        linkMounts(plan)
+        if (!linkMounts(plan)) return null
         writeRunpathConf(plan, ::host)
         val launch = listOf(loader.path, "--argv0", program.name, program.path, "-i") +
             plan.env.map { (k, v) -> "$k=$v" } + plan.argv
@@ -471,8 +471,10 @@ object BwrapSpawner {
      * The kernel follows paths the hook does not see (ld.so, symbolic links), so each top-level
      * mount of the sandbox is also a link to its source in the sandbox's own root, and the
      * sandbox's links with absolute guest targets are made relative, which reaches them through those.
+     * False when a mount's place could not be made; proot then runs the sandbox, whose mounts hide
+     * whatever was left at their places.
      */
-    private fun linkMounts(plan: Plan) {
+    private fun linkMounts(plan: Plan): Boolean {
         val root = plan.root.toPath()
         plan.root.walkTopDown().onEnter { !Files.isSymbolicLink(it.toPath()) }.map { it.toPath() }
             .filter { Files.isSymbolicLink(it) }.toList().forEach { link ->
@@ -488,15 +490,24 @@ object BwrapSpawner {
         val entryLinks = HashSet<java.nio.file.Path>()
         for (bind in plan.binds.sortedBy { it.guest.length }) {
             if (bind.guest == "/") continue
-            val at = mountPlace(plan.root, bind.guest, entryLinks) ?: continue
+            val at = try {
+                mountPlace(plan.root, bind.guest, entryLinks)?.also { at ->
+                    val path = at.toPath()
+                    if (path in entryLinks) {
+                        Files.delete(path)
+                        entryLinks.remove(path)
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                Log.e(TAG, "native userland: could not make a place for ${bind.guest}; proot runs the sandbox", e)
+                return false
+            } ?: continue
             val path = at.toPath()
-            if (path in entryLinks) {
-                Files.delete(path)
-                entryLinks.remove(path)
-            } else if (at.exists() || Files.isSymbolicLink(path)) continue
+            if (at.exists() || Files.isSymbolicLink(path)) continue
             at.parentFile?.mkdirs()
             runCatching { Files.createSymbolicLink(path, java.nio.file.Paths.get(bind.host)) }
         }
+        return true
     }
 
     private fun mountPlace(root: File, guest: String, entryLinks: MutableSet<java.nio.file.Path>): File? {
