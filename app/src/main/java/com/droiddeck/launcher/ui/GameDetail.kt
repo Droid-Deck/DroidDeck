@@ -309,7 +309,7 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
         item?.accessible == true -> listOf(stringResource(R.string.stores_eyebrow_library))
         else -> listOf(stringResource(R.string.stores_eyebrow_store))
     }
-    val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else (item?.sizeBytes ?: 0L).takeIf { it > 0 }
+    val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else catalogSize(item).takeIf { it > 0 }
     val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
     val muted = colors.onBackground.copy(alpha = 0.78f)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -399,6 +399,7 @@ internal fun GameActions(
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
     val cloud = game?.library == Library.XBOX_CLOUD && installed == null
+    val downloadBytes = catalogSize(item)
     Actions {
         when {
             s.shortcutPicker && game != null -> {
@@ -474,7 +475,7 @@ internal fun GameActions(
                 if (item?.installable == true && item.xboxPc) {
                     SecondaryButton(
                         if (StoresState.isUnfinished(item)) stringResource(R.string.stores_resume_install)
-                        else if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes))
+                        else if (downloadBytes > 0) stringResource(R.string.stores_install_size, formatBytes(downloadBytes))
                         else stringResource(R.string.stores_install),
                     ) { StoresState.requestInstall(ctx, item) }
                 }
@@ -492,7 +493,7 @@ internal fun GameActions(
             }
             item?.installable == true -> {
                 InstallButton(
-                    if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                    if (downloadBytes > 0) stringResource(R.string.stores_install_size, formatBytes(downloadBytes)) else stringResource(R.string.stores_install),
                     leadOn,
                 ) { StoresState.requestInstall(ctx, item) }
                 if (store == Store.XBOX && item.xboxCloud) {
@@ -1009,6 +1010,13 @@ internal fun FactRow(label: String, value: String, labelWidth: androidx.compose.
         Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(labelWidth))
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
+}
+
+@Composable
+internal fun catalogSize(item: CatalogItem?): Long {
+    val ctx = LocalContext.current
+    if (item != null) LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
+    return item?.let { StoreSizes.size(it) } ?: 0L
 }
 
 @Composable
