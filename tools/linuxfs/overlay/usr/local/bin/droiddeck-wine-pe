@@ -23,9 +23,9 @@ def pe_machine(path):
     return int.from_bytes(header[4:6], "little")
 
 
-def proton_pe_machines(proton):
+def proton_pe_machines(proton, env=None):
     dist = Path(proton).parent / "files/lib/wine"
-    if (dist / "aarch64-unix").is_dir():
+    if (dist / "aarch64-unix").is_dir() and (env or {}).get("PROTON_USE_ARM64", "1") == "1":
         return PE_MACHINES
     if (dist / "x86_64-unix").is_dir():
         return {

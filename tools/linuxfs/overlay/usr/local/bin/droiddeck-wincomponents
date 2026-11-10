@@ -520,7 +520,7 @@ def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT,
 
 
 def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending,
-          proton=None):
+          proton=None, env=None):
     compat = Path(compat_path)
     pfx = compat / "pfx"
     waited = wait(app_id, pending, store) if wait else None
@@ -534,7 +534,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     values = []
     held = set()
     skipped = set()
-    machines = PE["proton_pe_machines"](proton) if proton else None
+    machines = PE["proton_pe_machines"](proton, env) if proton else None
     saved_overrides = state.get("overrides") if isinstance(state.get("overrides"), dict) else {}
     saved_requires = state.get("requires") if isinstance(state.get("requires"), dict) else {}
     recorded = [c for c in state.get("components", []) if isinstance(c, str) and valid_id(c)]

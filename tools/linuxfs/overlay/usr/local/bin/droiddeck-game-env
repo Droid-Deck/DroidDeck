@@ -333,12 +333,12 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
-def win_components(compat, app_id, proton=None):
+def win_components(compat, app_id, proton=None, env=None):
     if not compat:
         return ""
     try:
         module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
-        names, notes = module["apply"](compat.rstrip("/"), app_id, proton=proton)
+        names, notes = module["apply"](compat.rstrip("/"), app_id, proton=proton, env=env or os.environ)
         for note in notes:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         return module["overrides_value"](names)
@@ -861,7 +861,6 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
 
 FOREIGN_SUFFIX = ".foreign-arch"
 PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
-PE_MACHINES = PE["PE_MACHINES"]
 pe_machine = PE["pe_machine"]
 
 
@@ -921,10 +920,11 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
     owned, native = protected
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
-    if not (dist / "aarch64-unix").is_dir():
+    machines_by_folder = PE["proton_pe_machines"](proton, env or {})
+    if machines_by_folder is None:
         return []
     repaired = []
-    for folder, (libdir, machines) in PE_MACHINES.items():
+    for folder, (libdir, machines) in machines_by_folder.items():
         builtins = dist / libdir
         try:
             builtin_names = {name.lower(): name for name in os.listdir(builtins)}
@@ -947,6 +947,10 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
                 continue
             link = windows / folder / (name + ".bl-new")
             backup = windows / folder / (name + FOREIGN_SUFFIX)
+            serial = 1
+            while os.path.lexists(backup):
+                backup = windows / folder / (name + FOREIGN_SUFFIX + ".%d" % serial)
+                serial += 1
             try:
                 os.symlink(os.path.relpath(source, path.parent), link)
                 os.replace(path, backup)
@@ -1298,7 +1302,7 @@ def main():
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
-            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id, command[0])
+            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id, command[0], env)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components

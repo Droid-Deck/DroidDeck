@@ -35,8 +35,8 @@ class WinComponentsTest(unittest.TestCase):
     def pick(self, *ids):
         self.selection.write_text(json.dumps({"version": 1, "games": {"2571976725": list(ids)}}))
 
-    def apply(self, proton=None):
-        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store, proton=proton)
+    def apply(self, proton=None, env=None):
+        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store, proton=proton, env=env)
 
     def proton(self, arm=True):
         root = Path(self.tmp.name) / ("arm-proton" if arm else "x64-proton")
@@ -86,6 +86,14 @@ class WinComponentsTest(unittest.TestCase):
         self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
         self.pick("vc")
         names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
+
+    def test_arm_proton_with_x64_selection_places_x64_component_dll(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        names, _ = self.apply(proton, {"PROTON_USE_ARM64": "0"})
         self.assertEqual(names, ["ucrtbase"])
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
 
@@ -286,7 +294,7 @@ class WinComponentsTest(unittest.TestCase):
         self.pick("openal")
         globals_ = GAME_ENV["win_components"].__globals__
         real = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
-        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None, None)
+        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None, None, None)
         with mock.patch.dict(globals_, {"runpy": mock.Mock(run_path=lambda _path: real)}):
             self.assertEqual(GAME_ENV["win_components"](str(self.compat) + "/", "2571976725"), "openal32=n,b")
             self.assertEqual(GAME_ENV["win_components"]("", "2571976725"), "")
