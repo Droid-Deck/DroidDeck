@@ -132,7 +132,7 @@ object UbisoftAuth {
         } ?: remember.takeIf { it.isNotEmpty() }?.let { rm -> parseSession(session("rm_v1 t=$rm").body, rm) }
             ?: return "no ticket"
         save(context, fresh)
-        com.droiddeck.launcher.core.AddonPack.UBISOFT.ensure(context)
+        com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(context)
         return null
     }
 

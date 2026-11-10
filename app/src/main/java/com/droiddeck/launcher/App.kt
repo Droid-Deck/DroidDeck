@@ -78,7 +78,7 @@ class App : Application() {
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.XBOX) != null)
                     com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.UBISOFT) != null)
-                    com.droiddeck.launcher.core.AddonPack.UBISOFT.ensure(app)
+                    com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

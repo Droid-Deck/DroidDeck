@@ -77,7 +77,7 @@ pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task po
 pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
 pack comet "$linuxfs/droiddeck-comet" version comet
 pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
-pack ubisoft "$linuxfs/droiddeck-ubisoft" droiddeck-upc.exe
+[ ! -f "$linuxfs/droiddeck-ubisoft/droiddeck-upc.exe" ] || pack ubisoft "$linuxfs/droiddeck-ubisoft" droiddeck-upc.exe
 
 mkdir "$work/butler"
 fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \

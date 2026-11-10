@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
+          'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
@@ -211,7 +212,8 @@ def pack_digests(root, name):
 
 def check_apk(apk, root=ROOT):
     data = verify(root)
-    packs = {name: pack_digests(root, name) for name in PACK_NAMES}
+    packs = {name: pack_digests(root, name) for name in PACK_NAMES
+             if name != 'ubisoft' or (root / PACKS / 'ubisoft.tar.zst').is_file()}
     with ZipFile(apk) as package:
         names = set(package.namelist())
         for library in PACKED_LIBRARIES:
@@ -231,7 +233,7 @@ def check_apk(apk, root=ROOT):
             if prefix:
                 if name in names:
                     raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
-                if packs[PACKED[prefix]].get(name[len(prefix):]) != output['sha256']:
+                if packs.get(PACKED[prefix], {}).get(name[len(prefix):]) != output['sha256']:
                     raise ValueError('Add-on pack ' + PACKED[prefix] + ' is missing or has a stale ' + name)
                 continue
             try:
