@@ -708,6 +708,54 @@ class ReadConfigMappingTest(unittest.TestCase):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_component_filter_and_prefix_repair_use_per_game_proton_architecture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"PROTON_USE_ARM64": "1"},
+                                          "games": {"42": {"PROTON_USE_ARM64": "0"}}}))
+            seen_components, seen_repair, seen_start = [], [], []
+            globals = MODULE["main"].__globals__
+            stubs = {
+                "game_gpu": lambda env: env,
+                "mark_install_scripts": lambda command, env: [],
+                "install_scripts_done": lambda scripts, env: False,
+                "scripts_digest": lambda scripts: None,
+                "win_components": lambda *args: seen_components.append(args[3]) or "",
+                "repair_foreign_system_dlls": lambda *args: seen_repair.append(args[2]) or [],
+                "gl_vsync": lambda env: False,
+                "game_images": lambda env: None,
+                "skip_red_launcher": lambda command: command,
+                "ubisoft_overlay_off": lambda env: None,
+                "project_zomboid_jvm": lambda command: None,
+                "engine_fixes": lambda *args: ({}, [], []),
+                "dirt_ws2_wanted": lambda *args: None,
+                "apply_game_debug_logs": lambda env, config, debug_dir: env,
+                "offline_without_anticheat": lambda command, env: command,
+                "game_logs": lambda command, env, app_id: env,
+                "directaudio_settings": lambda env: env,
+                "vram_cap": lambda env: env,
+                "render_path_defaults": lambda *args: None,
+                "bridge_feature_level": lambda env: None,
+                "force_ssbs": lambda command, env: env,
+                "game_cores": lambda env: None,
+                "cpu_topology": lambda env, command: None,
+                "ego_core_plan": lambda *args: None,
+                "runpy": mock.Mock(run_path=lambda *args: {"launch": lambda command, env: None}),
+                "load_sync": lambda: {},
+                "select_sync": lambda command, env, sync: (command, env),
+                "start": lambda command, env, *args: seen_start.append(env) or 7,
+            }
+            environment = {"HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "PROTON_USE_ARM64": "1"}
+            command = ["/stock/proton", "waitforexitandrun", "/game/game.exe"]
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                    patch.dict(globals, stubs):
+                self.assertEqual(MODULE["main"](), 7)
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
+
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
@@ -2593,6 +2641,31 @@ def pe_image(machine):
     return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 32
 
 
+def arm64ec_pe_image():
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = (0x8664).to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    directory = optional + 112 + 10 * 8
+    image[directory:directory + 4] = (0x1000).to_bytes(4, "little")
+    image[directory + 4:directory + 8] = (0xD0).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    image[0x200:0x204] = (0xD0).to_bytes(4, "little")
+    image[0x2C8:0x2D0] = (0x10000000).to_bytes(8, "little")
+    return bytes(image)
+
+
 class ForeignSystemDllTest(unittest.TestCase):
     def prefix(self, tmp, arm=True):
         proton = Path(tmp) / "Proton"
@@ -2643,6 +2716,17 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
+
+    def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(arm64ec_pe_image())
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertTrue(MODULE["PE"]["machine_compatible"](dll, frozenset((0xAA64, 0xA641))))
+            self.assertFalse(MODULE["PE"]["machine_compatible"](dll, frozenset((0x8664,))))
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertFalse(dll.is_symlink())
 
     def test_component_owned_and_native_first_foreign_dlls_are_still_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:

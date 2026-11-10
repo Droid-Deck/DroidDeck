@@ -49,6 +49,30 @@ class WinComponentsTest(unittest.TestCase):
         head[60:64] = (64).to_bytes(4, "little")
         return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 32
 
+    def arm64ec_pe_image(self):
+        image = bytearray(0x400)
+        image[:2] = b"MZ"
+        image[60:64] = (64).to_bytes(4, "little")
+        image[64:68] = b"PE\0\0"
+        coff = 68
+        image[coff:coff + 2] = (0x8664).to_bytes(2, "little")
+        image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+        image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+        optional = coff + 20
+        image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+        image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+        directory = optional + 112 + 10 * 8
+        image[directory:directory + 4] = (0x1000).to_bytes(4, "little")
+        image[directory + 4:directory + 8] = (0xD0).to_bytes(4, "little")
+        section = optional + 240
+        image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+        image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+        image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+        image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+        image[0x200:0x204] = (0xD0).to_bytes(4, "little")
+        image[0x2C8:0x2D0] = (0x10000000).to_bytes(8, "little")
+        return bytes(image)
+
     def test_foreign_component_dll_is_skipped_and_override_dropped(self):
         proton = self.proton()
         self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
@@ -59,6 +83,26 @@ class WinComponentsTest(unittest.TestCase):
         names, notes = self.apply(proton)
         self.assertEqual(names, [])
         self.assertEqual(notes, [])
+
+    def test_component_final_arm64ec_dll_is_placed_and_keeps_its_override(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.arm64ec_pe_image()})
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
+
+    def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {
+            "system32/ucrtbase.dll": self.pe_image(0x8664),
+            "syswow64/ucrtbase.dll": self.pe_image(0x14C),
+        })
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertFalse((self.pfx / "system32/ucrtbase.dll").exists())
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "syswow64/ucrtbase.dll"), 0x14C)
 
     def test_existing_foreign_component_dll_is_removed_for_repair(self):
         proton = self.proton()

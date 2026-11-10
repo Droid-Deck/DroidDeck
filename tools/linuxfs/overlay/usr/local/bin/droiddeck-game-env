@@ -888,7 +888,7 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
                 continue
             machine = pe_machine(path)
-            if machine is None or machine in machines:
+            if machine is None or PE["machine_compatible"](path, machines, machine):
                 continue
             link = windows / folder / (name + ".bl-new")
             backup = windows / folder / (name + FOREIGN_SUFFIX)
@@ -1214,11 +1214,32 @@ def main():
     app_id = game_id(env)
     components = ""
     waiting = bool(app_id and len(command) > 1 and command[1] == "waitforexitandrun")
+    config = {}
+    launch_config = None
+    launch_config_valid = True
+    effective_env = env
     if waiting:
-        components = win_components(prefix_path, app_id, command[0], env)
+        path = Path.home() / ".config/droiddeck/game-environment.json"
+        try:
+            with path.open(encoding="utf-8") as source:
+                config = json.load(source)
+            launch_config = config
+        except FileNotFoundError:
+            launch_config = {"version": 1}
+        except (OSError, ValueError, TypeError, AttributeError):
+            launch_config_valid = False
+        if launch_config_valid:
+            try:
+                effective_env = apply_config(env, launch_config, app_id)
+            except (OSError, ValueError, TypeError, AttributeError):
+                launch_config_valid = False
+        if not launch_config_valid:
+            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if waiting:
+        components = win_components(prefix_path, app_id, command[0], effective_env)
     if prefix_path and command:
         try:
-            fixed = repair_foreign_system_dlls(prefix_path, command[0], env)
+            fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
         except OSError as error:
             fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
@@ -1257,22 +1278,21 @@ def main():
             if dirt_prefix:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = own + ";ws2_32=n,b" if own else "ws2_32=n,b"
-        path = Path.home() / ".config/droiddeck/game-environment.json"
-        config = {}
-        try:
-            with path.open(encoding="utf-8") as source:
-                config = json.load(source)
-            if waiting:
+        if waiting:
+            if launch_config_valid:
                 if "vblank_mode" in config.get("shared", {}):
                     fixes.pop("vblank_mode", None)
-                env = apply_config(env, config, app_id, fixes)
-            else:
+                env = apply_config(env, launch_config, app_id, fixes)
+        else:
+            path = Path.home() / ".config/droiddeck/game-environment.json"
+            try:
+                with path.open(encoding="utf-8") as source:
+                    config = json.load(source)
                 env = apply_config(env, sync_config(config, app_id), app_id)
-        except FileNotFoundError:
-            if waiting:
-                env = apply_config(env, {"version": 1}, app_id, fixes)
-        except (OSError, ValueError, TypeError, AttributeError):
-            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError, TypeError, AttributeError):
+                print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
         if waiting:
             before_debug = env
             env = apply_game_debug_logs(env, config, debug_dir)
