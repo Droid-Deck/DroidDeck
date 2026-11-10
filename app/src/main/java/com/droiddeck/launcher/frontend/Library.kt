@@ -162,15 +162,31 @@ object Library {
         if (withShared) {
             val other = if (arch == "x86_64") "arm64" else "x86_64"
             val shared = sharedApps(context, arch) - out.keys
-            if (shared.isNotEmpty()) runCatching { steamGames(context, arch = other, withShared = false) }.getOrDefault(emptyList())
-                .filter { it.appId in shared }.forEach { out[it.appId] = it }
+            if (shared.isNotEmpty()) {
+                val otherGames = try {
+                    steamGames(context, strictRead = strictRead, arch = other, withShared = false)
+                } catch (e: Exception) {
+                    if (strictRead) throw e
+                    emptyList()
+                }
+                otherGames.filter { it.appId in shared }.forEach { out[it.appId] = it }
+            }
         }
         return out.values.toList()
     }
 
     internal fun sharedApps(context: Context, arch: String): Set<Int> {
         val view = File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/shared/${if (arch == "x86_64") "arm64" else "x86-64"}/steamapps")
-        return view.list().orEmpty().mapNotNull { Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
+        val entries = view.list()
+        if (entries == null) {
+            if (!view.exists() && !view.isDirectory) {
+                return emptySet()
+            }
+            throw IllegalStateException("Não foi possível ler a biblioteca Steam compartilhada.")
+        }
+        return entries.mapNotNull {
+            Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull()
+        }.toSet()
     }
 
     fun steamLibraryArt(context: Context): List<Pair<Int, File>> {

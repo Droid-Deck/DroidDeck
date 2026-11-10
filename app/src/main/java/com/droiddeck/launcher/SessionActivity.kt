@@ -564,6 +564,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     @Volatile private var frameGenInventoryRevision = -1L
     private val frameGenInventoryLock = Any()
     @Volatile private var frameGenInventoryLastAttemptAt = 0L
+    private val frameGenInventoryRetryScheduled = java.util.concurrent.atomic.AtomicBoolean()
 
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     @Volatile private var appliedFrameGenHz: Float? = null
@@ -1323,12 +1324,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
-                    (
-                        SessionState.gameId?.takeIf { it.toLongOrNull() != null }
-                            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
-                    )?.toLongOrNull()
-                } else drawerGameProfileId
+                val appId = drawerGameProfileId
 
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
@@ -1337,14 +1333,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
-                    (
-                        SessionState.gameId?.takeIf { it.toLongOrNull() != null }
-                            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
-                    )?.toLongOrNull()
-                } else drawerGameProfileId
+                val appId = drawerGameProfileId
 
-                appId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
+                if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
+                else FrameGen.clearGame(this@SessionActivity, appId.toString())
                 loadFrameGenFor(appId)
                 readPrefs()
                 applyFrameGen(force = true)
@@ -2507,12 +2499,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
             if (shouldScan) {
                 val currentIds = runCatching {
-                    Library.launchableGames(this)
+                    Library.launchableGames(this, strictRead = true)
                         .mapNotNull { it.profileKey.toLongOrNull() }
                         .toSet()
                 }.getOrNull()
 
-                if (currentIds != null) {
+                if (currentIds == null) {
+                    // Não publicar uma leitura incompleta como inventário válido.
+                    if (frameGenInventoryRetryScheduled.compareAndSet(false, true)) {
+                        uiHandler.postDelayed({
+                            frameGenInventoryRetryScheduled.set(false)
+                            val retry = synchronized(frameGenInventoryLock) {
+                                drawerGameInventoryRevision == inventoryRevision &&
+                                    frameGenInventoryRevision == inventoryRevision &&
+                                    frameGenInventoryIds == null
+                            }
+                            if (retry && !isFinishing && !isDestroyed) {
+                                applyFrameGen()
+                            }
+                        }, 15_000L)
+                    }
+                } else {
                     var published = false
                     synchronized(frameGenInventoryLock) {
                         if (drawerGameInventoryRevision == inventoryRevision &&
