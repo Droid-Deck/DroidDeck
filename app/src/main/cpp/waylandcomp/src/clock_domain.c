@@ -12,15 +12,14 @@
 
 static const int64_t *g_shift;
 static char g_path[PATH_MAX];
+static dev_t g_device;
+static ino_t g_inode;
 
 void droiddeck_clock_domain_set_control(const char *path) {
     int fd;
     struct stat st;
     if (!path || !*path) return;
-    if (g_shift) munmap((void *)g_shift, sizeof(*g_shift));
-    g_shift = NULL;
     if (snprintf(g_path, sizeof(g_path), "%s", path) >= (int)sizeof(g_path)) {
-        g_path[0] = 0;
         return;
     }
     fd = open(g_path, O_RDONLY | O_CLOEXEC);
@@ -28,13 +27,22 @@ void droiddeck_clock_domain_set_control(const char *path) {
         if (fd >= 0) close(fd);
         return;
     }
-    g_shift = mmap(NULL, sizeof(*g_shift), PROT_READ, MAP_SHARED, fd, 0);
+    if (__atomic_load_n(&g_shift, __ATOMIC_ACQUIRE) && st.st_dev == g_device && st.st_ino == g_inode) {
+        close(fd);
+        return;
+    }
+    const int64_t *shift = mmap(NULL, sizeof(*shift), PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
-    if (g_shift == MAP_FAILED) g_shift = NULL;
+    if (shift != MAP_FAILED) {
+        g_device = st.st_dev;
+        g_inode = st.st_ino;
+        __atomic_store_n(&g_shift, shift, __ATOMIC_RELEASE);
+    }
 }
 
 static int64_t shift_ns(void) {
-    int64_t shift = g_shift ? __atomic_load_n(g_shift, __ATOMIC_RELAXED) : 0;
+    const int64_t *mapping = __atomic_load_n(&g_shift, __ATOMIC_ACQUIRE);
+    int64_t shift = mapping ? __atomic_load_n(mapping, __ATOMIC_RELAXED) : 0;
     return shift > 0 ? shift : 0;
 }
 
