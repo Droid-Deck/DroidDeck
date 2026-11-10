@@ -155,6 +155,39 @@ class BwrapSpawnerPlanTest {
         }
     }
 
+    @Test fun sandboxesSwitchOnTheLseEmulatorWhenItIsPreloaded() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val emu = File(rootfs, "usr/local/lib/droiddeck-lse/liblse_emu.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/droiddeck-lse/liblse_emu.so\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp")), dir)
+            assertEquals("/run/droiddeck-preload/liblse_emu.so", plan.env["LD_PRELOAD"])
+            assertEquals("1", plan.env["LSE_EMU"])
+            assertEquals("1", plan.env["LSE_EMU_PATCH"])
+            val chosen = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp"))
+                .apply { getJSONObject("env").put("LSE_EMU_PATCH", "0") }, dir)
+            assertEquals("0", chosen.env["LSE_EMU_PATCH"])
+            assertEquals("1", chosen.env["LSE_EMU"])
+        } finally {
+            listOf(emu, preload).forEach { it.delete() }
+        }
+    }
+
+    @Test fun sandboxesLeaveTheLseSwitchesAloneWithoutTheEmulator() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp")), dir)
+            assertFalse(plan.env.containsKey("LSE_EMU"))
+            assertFalse(plan.env.containsKey("LSE_EMU_PATCH"))
+        } finally {
+            listOf(lib, preload).forEach { it.delete() }
+        }
+    }
+
     @Test fun zypakLaunchesTheBrowserWithoutItsSandbox() {
         val context = RuntimeEnvironment.getApplication()
         val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }
