@@ -107,7 +107,10 @@ internal fun AgentHistory(modifier: Modifier, onOpened: () -> Unit) {
                     Text(chat.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         if (armed) stringResource(R.string.agent_history_delete_warning)
-                        else AgentHarness.byId(chat.harness).name + " · " + DateUtils.getRelativeTimeSpanString(chat.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS),
+                        else AgentHarness.byId(chat.harness).name + " · " + when {
+                            System.currentTimeMillis() - chat.updated < 60_000 -> stringResource(R.string.agent_just_now)
+                            else -> DateUtils.getRelativeTimeSpanString(chat.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
+                        },
                         fontSize = 12.5.sp, color = if (armed) AttentionAmber else pal.onSurfaceVariant,
                     )
                 }

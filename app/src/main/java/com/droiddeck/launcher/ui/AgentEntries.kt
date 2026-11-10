@@ -85,7 +85,7 @@ private fun AgentTurnEnd(entry: Entry.Finished) {
         else -> entry.usage?.let { u ->
             buildList {
                 if (u.durationMs > 0) add(clock(u.durationMs / 1000))
-                if (u.costUsd > 0) add("$" + String.format(java.util.Locale.US, "%.2f", u.costUsd))
+                if (u.costUsd >= 0.005) add("$" + String.format(java.util.Locale.US, "%.2f", u.costUsd))
                 if (u.inputTokens > 0 || u.outputTokens > 0) add(stringResource(R.string.agent_tokens, tokens(u.inputTokens), tokens(u.outputTokens)))
             }.joinToString(" · ")
         }
@@ -146,11 +146,11 @@ private fun AgentToolCall(entry: Entry.Used, running: Boolean) {
     val pal = LocalPalette.current
     var open by rememberSaveable(entry.id.ifEmpty { entry.detail }) { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(Shape12).background(pal.surfaceVariant).animateContentSize().testTag("agent-tool"),
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(Shape12).background(pal.surfaceVariant).animateContentSize(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().clickable { open = !open }.testTag("agent-tool").padding(horizontal = 10.dp, vertical = 8.dp),
         ) {
             Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
                 when {

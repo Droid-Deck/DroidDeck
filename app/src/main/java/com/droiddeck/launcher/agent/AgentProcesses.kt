@@ -55,7 +55,7 @@ object AgentProcesses {
         }
         lastTicks = stats.mapValues { it.value.ticks }
         lastAt = now
-        return out.sortedWith(compareByDescending<Proc> { it.agent }.thenBy { it.seconds * -1 })
+        return out.sortedWith(compareByDescending<Proc> { it.agent }.thenBy { it.seconds })
     }
 
     /** Ends [pid] and everything it started, children first so none is left to be re-parented. */
