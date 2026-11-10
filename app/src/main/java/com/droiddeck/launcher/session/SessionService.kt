@@ -2041,6 +2041,8 @@ class SessionService : Service() {
             if (gen != null && gen != sessionGen) return
             cancelQueuedSteamGame()
             gameExitWatchToken++
+            // also when startup stopped before the guest ran
+            com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
             if (!SessionState.running) return
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
@@ -2142,6 +2144,7 @@ class SessionService : Service() {
     }
 
     override fun onDestroy() {
+        com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
         stopSession(0)
         GameThreadHints.stop()
         if (screenReceiverRegistered) {
