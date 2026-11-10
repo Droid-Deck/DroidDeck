@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+import uuid
+
+
+def create(directory):
+    import dbus
+    import dbus.service
+    from dbus.mainloop.glib import DBusGMainLoop
+    from gi.repository import GLib
+
+    DBusGMainLoop(set_as_default=True)
+    interface = "org.freedesktop.IBus.InputContext"
+    properties = "org.freedesktop.DBus.Properties"
+    bus = dbus.SessionBus()
+
+    def text(value):
+        attributes = dbus.Struct((dbus.String("IBusAttrList"), dbus.Dictionary({}, signature="sv"),
+                                  dbus.Array([], signature="v")), variant_level=1)
+        return dbus.Struct((dbus.String("IBusText"), dbus.Dictionary({}, signature="sv"),
+                            dbus.String(value), attributes), variant_level=1)
+
+    def engine():
+        return dbus.Struct((dbus.String("IBusEngineDesc"), dbus.Dictionary({}, signature="sv"),
+                            *map(dbus.String, ("droiddeck", "Android keyboard", "Android keyboard",
+                                              "en", "GPL-3.0", "DroidDeck", "", "us")),
+                            dbus.UInt32(0), *[dbus.String("") for _ in range(9)]), variant_level=1)
+
+    class Context(dbus.service.Object):
+        def __init__(self, bridge, number, sender):
+            self.bridge = bridge
+            self.sender = sender
+            self.pid = int(bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
+                           .GetConnectionUnixProcessID(sender, dbus_interface="org.freedesktop.DBus"))
+            self.token = ""
+            self.key = ""
+            self.purpose = 0
+            self.hints = 0
+            self.position = None
+            self.relative = False
+            self.path = f"/org/freedesktop/IBus/InputContext_{number}"
+            super().__init__(bus, self.path)
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def FocusIn(self):
+            self.bridge.current = self
+            self.token = str(uuid.uuid4())
+            self.key = ""
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def FocusOut(self):
+            if self.bridge.current is self:
+                self.bridge.current = None
+            self.key = ""
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def Destroy(self):
+            self.FocusOut()
+            self.bridge.contexts.pop(self.path, None)
+            self.remove_from_connection()
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def Enable(self):
+            pass
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def Disable(self):
+            self.FocusOut()
+
+        @dbus.service.method(interface, in_signature="", out_signature="")
+        def Reset(self):
+            self.UpdatePreeditTextWithMode(text(""), 0, False, 0)
+
+        @dbus.service.method(interface, in_signature="uuu", out_signature="b")
+        def ProcessKeyEvent(self, keyval, keycode, state):
+            return False
+
+        @dbus.service.method(interface, in_signature="u", out_signature="")
+        def SetCapabilities(self, caps):
+            pass
+
+        @dbus.service.method(interface, in_signature="iiii", out_signature="")
+        def SetCursorLocation(self, x, y, width, height):
+            self.position = (x, y)
+            self.relative = False
+
+        @dbus.service.method(interface, in_signature="iiii", out_signature="")
+        def SetCursorLocationRelative(self, x, y, width, height):
+            self.position = (x, y)
+            self.relative = True
+
+        @dbus.service.method(interface, in_signature="vuu", out_signature="")
+        def SetSurroundingText(self, value, cursor, anchor):
+            pass
+
+        @dbus.service.method(interface, in_signature="uu", out_signature="")
+        def SetContentType(self, purpose, hints):
+            self.purpose, self.hints = int(purpose), int(hints)
+
+        @dbus.service.method(interface, in_signature="", out_signature="v")
+        def GetEngine(self):
+            return engine()
+
+        @dbus.service.method(interface, in_signature="", out_signature="b")
+        def IsEnabled(self):
+            return True
+
+        @dbus.service.method(interface, in_signature="s", out_signature="")
+        def SetEngine(self, name):
+            pass
+
+        @dbus.service.method(properties, in_signature="ss", out_signature="v")
+        def Get(self, name, property_name):
+            return self.GetAll(name)[property_name]
+
+        @dbus.service.method(properties, in_signature="s", out_signature="a{sv}")
+        def GetAll(self, name):
+            return {"ContentType": dbus.Struct((dbus.UInt32(self.purpose), dbus.UInt32(self.hints))),
+                    "ClientCommitPreedit": dbus.Struct((dbus.Boolean(False),))}
+
+        @dbus.service.method(properties, in_signature="ssv", out_signature="")
+        def Set(self, name, property_name, value):
+            if property_name == "ContentType":
+                self.SetContentType(*value)
+
+        @dbus.service.signal(interface, signature="v")
+        def CommitText(self, value):
+            pass
+
+        @dbus.service.signal(interface, signature="vubu")
+        def UpdatePreeditTextWithMode(self, value, cursor, visible, mode):
+            pass
+
+    class Bridge(dbus.service.Object):
+        def __init__(self):
+            self.contexts = {}
+            self.current = None
+            self.number = 0
+            self.loop = GLib.MainContext.default()
+            self.name = dbus.service.BusName("org.freedesktop.IBus", bus, do_not_queue=True)
+            super().__init__(self.name, "/org/freedesktop/IBus")
+            bus.add_signal_receiver(self.disconnected, signal_name="NameOwnerChanged",
+                                    dbus_interface="org.freedesktop.DBus")
+            machine = Path("/etc/machine-id").read_text().strip()
+            names = {os.environ.get("WAYLAND_DISPLAY", "wayland-1"),
+                     os.environ.get("DISPLAY", ":1").split(":")[-1].split(".")[0]}
+            folder = Path.home() / ".config/ibus/bus"
+            folder.mkdir(parents=True, exist_ok=True)
+            for display in names:
+                path = folder / f"{machine}-unix-{display}"
+                path.write_text(f"IBUS_ADDRESS={os.environ['DBUS_SESSION_BUS_ADDRESS']}\n"
+                                f"IBUS_DAEMON_PID={os.getpid()}\n")
+            address_file = os.environ.get("IBUS_ADDRESS_FILE")
+            if address_file:
+                Path(address_file).write_text(f"IBUS_ADDRESS={os.environ['DBUS_SESSION_BUS_ADDRESS']}\n"
+                                             f"IBUS_DAEMON_PID={os.getpid()}\n")
+
+        def disconnected(self, sender, before, after):
+            if before and not after:
+                for context in list(self.contexts.values()):
+                    if context.sender == sender:
+                        context.Destroy()
+
+        @dbus.service.method("org.freedesktop.IBus", in_signature="s", out_signature="o",
+                             sender_keyword="sender")
+        def CreateInputContext(self, name, sender=None):
+            if len(self.contexts) >= 256:
+                raise dbus.DBusException("Too many input contexts")
+            self.number += 1
+            context = Context(self, self.number, sender)
+            self.contexts[context.path] = context
+            return context.path
+
+        @dbus.service.method("org.freedesktop.IBus", in_signature="", out_signature="v")
+        def GetGlobalEngine(self):
+            return engine()
+
+        @dbus.service.method("org.freedesktop.IBus", in_signature="", out_signature="s")
+        def GetAddress(self):
+            return os.environ["DBUS_SESSION_BUS_ADDRESS"]
+
+        @dbus.service.method(properties, in_signature="ss", out_signature="v")
+        def Get(self, name, property_name):
+            return self.GetAll(name)[property_name]
+
+        @dbus.service.method(properties, in_signature="s", out_signature="a{sv}")
+        def GetAll(self, name):
+            return {"GlobalEngine": dbus.Struct(tuple(engine()), variant_level=2),
+                    "Address": dbus.String(os.environ["DBUS_SESSION_BUS_ADDRESS"]),
+                    "Engines": dbus.Array([engine()], signature="v")}
+
+        @dbus.service.method("org.freedesktop.IBus", in_signature="v", out_signature="v")
+        def Ping(self, value):
+            return value
+
+        def state(self, host):
+            for _ in range(32):
+                if not self.loop.pending():
+                    break
+                self.loop.iteration(False)
+            context = self.current
+            key = host.get("activeKey")
+            if context is None or not key:
+                return None
+            if not any(w.get("key") == key and w.get("pid") == context.pid
+                       for w in host.get("managed", [])):
+                return None
+            if context.position is not None and not context.relative:
+                window = next((w for w in host.get("windows", []) if w.get("key") == key), None)
+                if window is not None:
+                    x, y = context.position
+                    if not (window["x"] <= x < window["x"] + window["clientWidth"] and
+                            window["y"] <= y < window["y"] + window["clientHeight"]):
+                        return None
+            if context.key != key:
+                context.key = key
+                context.token = str(uuid.uuid4())
+            return {"token": context.token, "key": key, "purpose": context.purpose}
+
+        def commit(self, request, host):
+            state = self.state(host)
+            if not state or request.get("key") != state["key"] or request.get("context") != state["token"]:
+                return False
+            value = str(request.get("text", ""))
+            if request.get("action") == "commit":
+                self.current.CommitText(text(value))
+            elif request.get("action") == "preedit":
+                cursor = int(request.get("cursor", 1))
+                offset = len(value) + cursor - 1 if cursor > 0 else cursor
+                self.current.UpdatePreeditTextWithMode(text(value), max(0, min(len(value), offset)),
+                                                       bool(value), 0)
+            else:
+                return False
+            return True
+
+    return Bridge()
+
+
+if __name__ == "__main__":
+    from gi.repository import GLib
+    try:
+        bridge = create(Path(os.environ["BL_LAUNCH_DIR"]) / "agent")
+        GLib.MainLoop().run()
+    except Exception as error:
+        sys.exit(f"droiddeck-ibus: {error}")
