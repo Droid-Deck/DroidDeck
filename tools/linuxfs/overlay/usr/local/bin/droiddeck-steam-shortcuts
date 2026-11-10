@@ -158,7 +158,14 @@ def merge(fresh, current, state, seen):
     entry = dict(current)
     entry["appid"] = fresh["appid"]
     exe = unquoted(fresh["Exe"])
-    if exe != unquoted(current.get("Exe")) and (exe != unquoted(base.get("Exe")) or seen == rev):
+    target = unquoted(current.get("Exe"))
+    # A target Steam still points at after the file is gone starts nothing, so it is not
+    # an edit to keep: the app's own exe replaces it (#694: a hand-typed Target outlived
+    # the game update that removed the file, and every launch died before the game ran).
+    # Only when the folder that holds it is there: an absent folder can equally be an
+    # unmounted card, and that target may work again next session.
+    gone = bool(target) and os.path.isdir(os.path.dirname(target)) and not os.path.isfile(target)
+    if exe != target and (gone or exe != unquoted(base.get("Exe")) or seen == rev):
         entry["Exe"], entry["StartDir"] = fresh["Exe"], fresh["StartDir"]
     for field in ("AppName", "icon"):
         if current.get(field) == base.get(field):
