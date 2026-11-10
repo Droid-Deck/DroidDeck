@@ -14,6 +14,7 @@ PROGRAM = r"""
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <sys/syscall.h>
 #include <sys/timerfd.h>
@@ -37,9 +38,9 @@ static void begin(void) { start = ns(CLOCK_BOOTTIME); }
 static void end(const char *name) { printf("%s %lld\n", name, (long long)((ns(CLOCK_BOOTTIME) - start) / 1000000LL)); }
 
 static unsigned long long memory_probe(void) {
-  static unsigned char memory[4 * 1024 * 1024];
+  static volatile unsigned char memory[4 * 1024 * 1024];
   unsigned long long checksum = 0;
-  for (size_t i = 0; i < sizeof(memory); i += 4096) memory[i] = (unsigned char)i;
+  for (size_t i = 0; i < sizeof(memory); i += 4096) memory[i] = (unsigned char)(i / 4096 + 1);
   for (size_t i = 0; i < sizeof(memory); i += 4096) checksum += memory[i];
   return checksum;
 }
@@ -51,6 +52,11 @@ int main(void) {
   syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &raw);
   printf("rawgap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ((int64_t)raw.tv_sec * 1000000000LL + raw.tv_nsec)) / 1000000LL));
   printf("memory %llu\n", memory_probe());
+  if (getenv("CLOCK_PAUSE_WAIT")) { puts("ready"); fflush(stdout); getchar(); }
+  if (getenv("CLOCK_PAUSE_WAIT")) {
+    printf("livegap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ns(CLOCK_MONOTONIC)) / 1000000LL));
+    printf("livememory %llu\n", memory_probe());
+  }
 
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   pthread_condattr_t attr;
@@ -146,7 +152,37 @@ class ClockPausePreloadTest(unittest.TestCase):
         paused = self.run_program(self.other, SHIFT_MS)
         self.assertAlmostEqual(paused["gap"] - plain["gap"], SHIFT_MS, delta=50)
         self.assertAlmostEqual(paused["rawgap"] - plain["rawgap"], SHIFT_MS, delta=50)
-        self.assertEqual(paused["memory"], plain["memory"])
+        self.assertEqual(plain["memory"], 130560)
+        self.assertEqual(paused["memory"], 130560)
+
+    def test_running_session_program_observes_pause_offset_update(self):
+        self.control.write_bytes(struct.pack("<q", 0))
+        env = dict(os.environ)
+        env["LD_PRELOAD"] = str(self.preload)
+        env["CLOCK_PAUSE_WAIT"] = "1"
+        process = subprocess.Popen([str(self.other)], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True)
+        try:
+            initial_gap = int(process.stdout.readline().split()[1])
+            rawgap = process.stdout.readline().strip()
+            memory = process.stdout.readline().strip()
+            self.assertTrue(rawgap.startswith("rawgap "))
+            self.assertEqual(memory, "memory 130560")
+            process.stdout.readline()
+            with self.control.open("r+b") as control:
+                control.write(struct.pack("<q", SHIFT_MS * 1000000))
+                control.flush()
+            process.stdin.write("\n")
+            process.stdin.flush()
+            output, error = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 0, error)
+            values = dict(line.split() for line in output.splitlines())
+            self.assertAlmostEqual(int(values["livegap"]) - initial_gap, SHIFT_MS, delta=50)
+            self.assertEqual(int(values["livememory"]), 130560)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
 
 
 if __name__ == "__main__":

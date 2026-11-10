@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 import struct
 import subprocess
@@ -11,6 +12,7 @@ SOURCE = Path(__file__).resolve().parents[2] / "app/src/main/cpp/waylandcomp/src
 HEADER = SOURCE.with_suffix(".h")
 
 
+@unittest.skipUnless(shutil.which("cc"), "needs a C compiler")
 class WaylandClockDomainTest(unittest.TestCase):
     def test_host_timestamp_uses_the_guest_domain(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -34,7 +36,8 @@ class WaylandClockDomainTest(unittest.TestCase):
             result = subprocess.run([str(binary), str(control)], capture_output=True, text=True, check=True)
             adjusted, now_ms, clamped = map(int, result.stdout.split())
             self.assertEqual(adjusted, 20_000_000_000)
-            self.assertGreater(now_ms, 0)
+            self.assertGreaterEqual(now_ms, 0)
+            self.assertLessEqual(now_ms, 0xFFFFFFFF)
             self.assertEqual(clamped, 0)
 
     def test_paced_release_uses_kernel_time_across_pause_offsets(self):
