@@ -176,7 +176,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false) {
         fun moved(dx: Float, dy: Float) = Glyph(x + dx, baseline + dy, text, color, sizePx, glow)
     }
-    private class Span(val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false)
+    private class Span(val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false, val advancePx: Float = 0f)
     private class HudRow(val label: Span, val vals: List<Span>, val inline: Boolean = false)
     private val glyphs = ArrayList<Glyph>()
     private val tileRects = ArrayList<RectF>()
@@ -454,17 +454,32 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private fun runWidth(spans: List<Span>): Float {
         var w = 0f
-        for (s in spans) w += measure(s.text, s.sizePx)
+        for (s in spans) w += max(measure(s.text, s.sizePx), s.advancePx)
         return w
     }
 
+    private fun fixedNumber(text: String, color: Int, sizePx: Float, chars: Int, glow: Boolean = false): Span =
+        Span(text, color, sizePx, glow, measure("8".repeat(chars), sizePx))
+
     private fun placeRun(startX: Float, baseline: Float, spans: List<Span>, glow: Boolean = false): Float {
         var x = startX
+        var trailingSpace = 0f
         for (s in spans) {
+            if (s.advancePx > 0f || s.text.firstOrNull()?.isWhitespace() == true) {
+                x += trailingSpace
+                trailingSpace = 0f
+            }
             glyphs.add(Glyph(x, baseline, s.text, blend(s.color), s.sizePx, glow = glow || s.glow))
-            x += measure(s.text, s.sizePx)
+            val textWidth = measure(s.text, s.sizePx)
+            x += textWidth
+            if (s.advancePx > 0f) {
+                trailingSpace = max(s.advancePx - textWidth, 0f)
+            } else {
+                x += trailingSpace
+                trailingSpace = 0f
+            }
         }
-        return x
+        return x + trailingSpace
     }
 
     private fun one(v: Float): String =
@@ -479,14 +494,24 @@ class DroidDeckHudView(context: Context) : View(context) {
     private fun fmt1(v: Float): String = String.format(Locale.US, "%.1f", v)
     private fun lowText(v: Float): String? = if (v <= 0f) null else fmt1(v)
 
-    private fun numUnit(num: String?, unit: String, numPx: Float, unitPx: Float): List<Span> =
-        if (num == null) listOf(Span("—", colDim, numPx), Span(unit, colDim, unitPx))
-        else listOf(Span(num, colValue, numPx), Span(unit, colDim, unitPx))
+    private fun numUnit(num: String?, unit: String, numPx: Float, unitPx: Float): List<Span> {
+        val chars = when (unit) {
+            "%" -> 3
+            "MHz" -> 4
+            "FPS" -> 6
+            "ms" -> 5
+            "W" -> 5
+            "rpm" -> 6
+            else -> 5
+        }
+        val value = num ?: "—"
+        return listOf(fixedNumber(value, if (num == null) colDim else colValue, numPx, chars), Span(unit, colDim, unitPx))
+    }
 
     private fun valueUnit(text: String, numPx: Float, unitPx: Float): List<Span> {
         val i = text.indexOfFirst { !(it.isDigit() || it == '.' || it == '-') }
-        return if (i <= 0) listOf(Span(text, colValue, numPx))
-        else listOf(Span(text.substring(0, i), colValue, numPx), Span(text.substring(i), colDim, unitPx))
+        return if (i <= 0) listOf(fixedNumber(text, colValue, numPx, 5))
+        else listOf(fixedNumber(text.substring(0, i), colValue, numPx, 5), Span(text.substring(i), colDim, unitPx))
     }
 
     private fun tempSpans(c: Int?, sensor: HudMetrics.TempSensor, numPx: Float, unitPx: Float): List<Span> {
@@ -495,14 +520,14 @@ class DroidDeckHudView(context: Context) : View(context) {
         val col = HudMetrics.tempColor(
             c.toFloat(), metrics.resolveThresholds(sensor, tempDisplay), tempDisplay, colValue)
         val i = txt.indexOf('°')
-        return if (i <= 0) listOf(Span(txt, col, numPx))
-        else listOf(Span(txt.substring(0, i), col, numPx), Span(txt.substring(i), colDim, unitPx))
+        return if (i <= 0) listOf(fixedNumber(txt, col, numPx, 3))
+        else listOf(fixedNumber(txt.substring(0, i), col, numPx, 3), Span(txt.substring(i), colDim, unitPx))
     }
 
     private fun gap(unitPx: Float) = Span("  ", colDim, unitPx)
 
     private fun glowing(spans: List<Span>): List<Span> =
-        spans.mapIndexed { i, s -> if (i == 0) Span(s.text, s.color, s.sizePx, glow = true) else s }
+        spans.mapIndexed { i, s -> if (i == 0) Span(s.text, s.color, s.sizePx, glow = true, advancePx = s.advancePx) else s }
 
     private fun hdrLine(px: Float): List<Span> = when (hdrState) {
         DroidDeckHudHdr.ON -> listOf(Span("HDR", colHdr, px))
@@ -894,35 +919,35 @@ class DroidDeckHudView(context: Context) : View(context) {
         val left = ArrayList<Span>()
         val generating = differs(fpsNow)
         val fpsPx = if (generating) bigPx * 0.55f else bigPx
-        left += Span(fpsText(fpsNow), colValue, fpsPx, glow = true)
+        left += fixedNumber(fpsText(fpsNow), colValue, fpsPx, 6, glow = true)
         left += Span("fps", colDim, if (generating) bigUnitPx * 0.8f else bigUnitPx)
 
         val stack = ArrayList<List<Span>>()
         val gpuName = if (showGpuModel && gpuNameText().isNotBlank()) gpuModelSpans(stkPx, colDim, compact = true) else null
         run {
             val l = ArrayList<Span>()
-            if (showGPU && s.gpuPercent != null) { l += Span("GPU ${s.gpuPercent}%", colGpu, stkPx) }
-            if (showCPU) { if (l.isNotEmpty()) l += Span(" · ", colDim, stkPx); l += Span("CPU ${s.cpuPercent ?: "—"}%", colCpu, stkPx) }
+            if (showGPU && s.gpuPercent != null) { l += Span("GPU ", colGpu, stkPx); l += fixedNumber(s.gpuPercent.toString(), colGpu, stkPx, 3); l += Span("%", colGpu, stkPx) }
+            if (showCPU) { if (l.isNotEmpty()) l += Span(" · ", colDim, stkPx); l += Span("CPU ", colCpu, stkPx); l += fixedNumber(s.cpuPercent?.toString() ?: "—", colCpu, stkPx, 3); l += Span("%", colCpu, stkPx) }
             if (l.isNotEmpty()) stack.add(l)
         }
-        if (showRAM) stack.add(listOf(Span("RAM ${s.ramPercent.roundToInt()}%", colRam, stkPx)))
+        if (showRAM) stack.add(listOf(Span("RAM ", colRam, stkPx), fixedNumber(s.ramPercent.roundToInt().toString(), colRam, stkPx, 3), Span("%", colRam, stkPx)))
         if (showBattery || showPower || showBatteryTemp) {
             val l = ArrayList<Span>()
             fun part(spans: List<Span>) {
                 l += if (l.isEmpty()) Span("BAT ", colBat, stkPx) else Span(" · ", colDim, stkPx)
                 l += spans
             }
-            if (showBattery && s.battery.percent != null) part(listOf(Span("${s.battery.percent}%", colBat, stkPx)))
+            if (showBattery && s.battery.percent != null) part(listOf(fixedNumber(s.battery.percent.toString(), colBat, stkPx, 3), Span("%", colBat, stkPx)))
             if (showBatteryTemp && s.battery.tempC != null)
                 part(tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, stkPx, stkPx * 0.62f))
-            if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, stkPx)))
+            if (showPower && s.battery.watts > 0f) part(listOf(fixedNumber(fmt1(s.battery.watts), colDim, stkPx, 5), Span("W", colDim, stkPx)))
             if (l.isNotEmpty()) stack.add(l)
         }
         run {
             val l = ArrayList<Span>()
-            l += Span("${fmt1(1000f / max(fpsNow, 1f))}ms", colDim, stkPx)
+            l += fixedNumber(fmt1(1000f / max(fpsNow, 1f)), colDim, stkPx, 5); l += Span("ms", colDim, stkPx)
             if (displayServer.isNotBlank()) { l += Span(" · ", colDim, stkPx); l += Span(displayServer, colDisp, stkPx) }
-            if (showVram && s.vramText() != null) { l += Span(" · ", colDim, stkPx); l += Span("${s.vramText()} vram", colDim, stkPx) }
+            if (showVram && s.vramText() != null) { l += Span(" · ", colDim, stkPx); l += valueUnit(s.vramText()!!, stkPx, stkPx) }
             stack.add(l)
         }
         if (hdrState != DroidDeckHudHdr.NONE) stack.add(hdrLine(stkPx))
@@ -976,13 +1001,13 @@ class DroidDeckHudView(context: Context) : View(context) {
 
         val minGenerating = differs(fpsNow)
         val big = listOf(
-            Span(fpsText(fpsNow), colValue, if (minGenerating) bigPx * 0.55f else bigPx),
+            fixedNumber(fpsText(fpsNow), colValue, if (minGenerating) bigPx * 0.55f else bigPx, 6),
             Span("fps", colDim, if (minGenerating) bigUnitPx * 0.8f else bigUnitPx))
         val sub = ArrayList<Span>()
         fun low(label: String, value: Float) {
             if (sub.isNotEmpty()) sub += Span("  ·  ", colDim, subPx)
             sub += Span("$label ", colDim, subPx)
-            sub += Span(lowText(value) ?: "—", colFps, subPx)
+            sub += fixedNumber(lowText(value) ?: "—", colFps, subPx, 5)
         }
         if (showLow1) low("1%", lows.low1Fps)
         if (showLow01) low("0.1%", lows.low01Fps)
@@ -1048,7 +1073,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val generating = differs(fpsNow)
         val fps = ArrayList<Span>()
         if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
-        fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
+        fps += fixedNumber(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, 6, glow = true)
         fps += Span("fps", colDim, unitPx)
         x = placeRun(x, baseline, fps) + groupGap
 
@@ -1066,7 +1091,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             fun low(label: String, value: Float) {
                 if (l.isNotEmpty()) l += Span(" ", colDim, rowPx)
                 l += Span("$label ", colDim, rowPx)
-                l += Span(lowText(value) ?: "—", colFps, rowPx)
+                l += fixedNumber(lowText(value) ?: "—", colFps, rowPx, 5)
             }
             if (showLow1) low("1%", lows.low1Fps)
             if (showLow01) low("0.1%", lows.low01Fps)
@@ -1075,13 +1100,13 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
         if (showGPU || showGpuTemp) {
             val l = arrayListOf(Span("GPU", colGpu, rowPx))
-            if (showGPU) l += Span(" ${s.gpuPercent ?: "—"}%", colGpu, rowPx)
+            if (showGPU) { l += Span(" ", colDim, rowPx); l += fixedNumber(s.gpuPercent?.toString() ?: "—", colGpu, rowPx, 3); l += Span("%", colGpu, rowPx) }
             if (showGpuTemp && s.gpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx) }
             groups += l
         }
         if (showCPU || showCpuTemp) {
             val l = arrayListOf(Span("CPU", colCpu, rowPx))
-            if (showCPU) l += Span(" ${s.cpuPercent ?: "—"}%", colCpu, rowPx)
+            if (showCPU) { l += Span(" ", colDim, rowPx); l += fixedNumber(s.cpuPercent?.toString() ?: "—", colCpu, rowPx, 3); l += Span("%", colCpu, rowPx) }
             if (showCpuTemp && s.cpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx) }
             groups += l
         }
@@ -1215,8 +1240,8 @@ class DroidDeckHudView(context: Context) : View(context) {
             val d = (s.netDownBps ?: 0L) / 1024L
             val u = (s.netUpBps ?: 0L) / 1024L
             val v = ArrayList<Span>()
-            v += Span("↓", colDim, unitPx); v += Span(d.toString(), colValue, rowPx)
-            v += Span(" ↑", colDim, unitPx); v += Span(u.toString(), colValue, rowPx)
+            v += Span("↓", colDim, unitPx); v += fixedNumber(d.toString(), colValue, rowPx, 7)
+            v += Span(" ↑", colDim, unitPx); v += fixedNumber(u.toString(), colValue, rowPx, 7)
             v += Span("KB/s", colDim, unitPx)
             right.add(HudRow(Span("NET", colFps, rowPx), v))
         }
