@@ -489,7 +489,6 @@ class ProtonRunTest(Temp):
         self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
         self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
         self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
-        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
         self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
         found = RUN["tools"](str(self.root))
         wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
