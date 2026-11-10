@@ -55,8 +55,7 @@ object ProtonExtras {
 
     private fun usable(dir: File): Boolean {
         val manifest = runCatching { File(dir, "toolmanifest.vdf").readText() }.getOrNull() ?: return false
-        if (!Regex("\\\"commandline\\\"\\s+\\\"/?([^\\\" ]+)").find(manifest)?.groupValues?.getOrNull(1).orEmpty().isNotEmpty()) return false
-        val command = Regex("\\\"commandline\\\"\\s+\\\"/?([^\\\" ]+)").find(manifest)!!.groupValues[1]
+        val command = Regex("\\\"commandline\\\"\\s+\\\"/?([^\\\" ]+)").find(manifest)?.groupValues?.getOrNull(1) ?: return false
         val compat = runCatching { File(dir, "compatibilitytool.vdf").readText() }.getOrNull() ?: return false
         return Regex("\\\"from_oslist\\\"\\s+\\\"[^\\\"]*windows", RegexOption.IGNORE_CASE).containsMatchIn(compat) &&
             File(dir, command).isFile && File(dir, command).canExecute()
