@@ -1320,7 +1320,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val appId = drawerGameProfileId
+                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
+                    (
+                        SessionState.gameId?.takeIf { it.toLongOrNull() != null }
+                            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+                    )?.toLongOrNull()
+                } else drawerGameProfileId
+
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
                 loadFrameGenFor(appId)
@@ -1328,7 +1334,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = drawerGameProfileId
+                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
+                    (
+                        SessionState.gameId?.takeIf { it.toLongOrNull() != null }
+                            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+                    )?.toLongOrNull()
+                } else drawerGameProfileId
+
                 appId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
                 loadFrameGenFor(appId)
                 readPrefs()
