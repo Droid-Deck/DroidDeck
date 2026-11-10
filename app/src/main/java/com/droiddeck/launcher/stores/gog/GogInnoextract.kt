@@ -10,6 +10,10 @@ internal object GogInnoextract {
     private const val REASON_LINES = 3
     private const val REASON_CHARS = 400
     private val TREE = Regex("""^[\s├└│─]+""")
+    private val BOILERPLATE = Regex(
+        """^(\S+ )?warning:|^If you are sure the setup file is not corrupted|^filing a bug report at |^Done with \d+ (errors?|warnings?)""",
+        RegexOption.IGNORE_CASE,
+    )
 
     class Result(val exit: Int, val reason: String) {
         fun failure(message: String): String = if (reason.isEmpty()) message else "$message: $reason"
@@ -36,5 +40,5 @@ internal object GogInnoextract {
         lines.mapNotNull(::detail).takeLast(REASON_LINES).joinToString(" ").take(REASON_CHARS)
 
     private fun detail(raw: String): String? =
-        raw.replace(TREE, "").trim().takeUnless { it.isEmpty() || it.startsWith("Warning:") }
+        raw.replace(TREE, "").trim().takeUnless { it.isEmpty() || BOILERPLATE.containsMatchIn(it) }
 }

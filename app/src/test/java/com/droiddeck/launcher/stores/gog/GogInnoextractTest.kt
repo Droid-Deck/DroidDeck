@@ -89,6 +89,22 @@ class GogInnoextractTest {
         )
     }
 
+    @Test fun aStreamErrorDuringExtractionReportsItsReasonWithoutTheExtractorsBoilerplate() {
+        val result = GogInnoextract.Result(2, GogInnoextract.reason(listOf(
+            "proot warning: can't sanitize binding \"/proc/self/fd/0\": No such file or directory",
+            "proot warning: can't sanitize binding \"/proc/self/fd/1\": No such file or directory",
+            "Stream error while extracting files!",
+            " └─ error reason: zlib error: iostream error",
+            "If you are sure the setup file is not corrupted, consider ",
+            "filing a bug report at https://innoextract.constexpr.org/issues",
+            "Done with 1 error.",
+        )))
+        assertEquals(
+            "The installer could not be extracted (innoextract exit 2): Stream error while extracting files! error reason: zlib error: iostream error",
+            result.failure("The installer could not be extracted (innoextract exit 2)"),
+        )
+    }
+
     @Test fun theReasonKeepsTheLastErrorLinesAndStaysShort() {
         val lines = (1..10).map { "Could not open file \"/mnt/droiddeck-stores/card/setup_$it.exe\"" }
         assertEquals(lines.takeLast(3).joinToString(" "), GogInnoextract.reason(lines))
