@@ -3670,6 +3670,7 @@
     <string name="theme_white_red">Nieve escarlata</string>
     <string name="theme_white_red_detail">Superficies blancas con acentos rojos.</string>
     <string name="rail_soundtracks">Bandas sonoras</string>
+    <string name="rail_music">Música</string>
     <string name="setup_soundtracks">Bandas sonoras</string>
     <string name="soundtracks_empty">Aún no hay bandas sonoras instaladas.</string>
     <string name="soundtracks_search">Buscar bandas sonoras</string>

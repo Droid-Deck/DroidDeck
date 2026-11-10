@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
     
     <string name="rail_soundtracks">Soundtrack</string>
+    <string name="rail_music">Μουσική</string>
     <string name="setup_soundtracks">Soundtrack</string>
     <string name="soundtracks_empty">Δεν υπάρχουν εγκατεστημένα soundtrack ακόμη.</string>
     <string name="soundtracks_search">Αναζήτηση soundtrack</string>

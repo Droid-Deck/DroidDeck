@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">किरमिज़ी बर्फ</string>
     
     <string name="rail_soundtracks">साउंडट्रैक</string>
+    <string name="rail_music">संगीत</string>
     <string name="setup_soundtracks">साउंडट्रैक</string>
     <string name="soundtracks_empty">अभी तक कोई साउंडट्रैक इंस्टॉल नहीं है।</string>
     <string name="soundtracks_search">साउंडट्रैक खोजें</string>

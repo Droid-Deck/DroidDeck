@@ -3698,6 +3698,7 @@
     <string name="theme_white_red">Neige écarlate</string>
     
     <string name="rail_soundtracks">Bandes originales</string>
+    <string name="rail_music">Musique</string>
     <string name="setup_soundtracks">Bandes originales</string>
     <string name="soundtracks_empty">Aucune bande originale installée pour le moment.</string>
     <string name="soundtracks_search">Rechercher des bandes originales</string>

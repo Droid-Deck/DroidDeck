@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Kızıl Kar</string>
     
     <string name="rail_soundtracks">Oyun müzikleri</string>
+    <string name="rail_music">Müzik</string>
     <string name="setup_soundtracks">Oyun müzikleri</string>
     <string name="soundtracks_empty">Henüz oyun müziği yüklenmedi.</string>
     <string name="soundtracks_search">Oyun müziklerinde ara</string>

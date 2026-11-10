@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Helakanpunainen lumi</string>
     
     <string name="rail_soundtracks">Soundtrackit</string>
+    <string name="rail_music">Musiikki</string>
     <string name="setup_soundtracks">Soundtrackit</string>
     <string name="soundtracks_empty">Soundtrackeja ei ole vielä asennettu.</string>
     <string name="soundtracks_search">Hae soundtrackeja</string>

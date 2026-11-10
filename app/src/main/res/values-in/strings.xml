@@ -3629,6 +3629,7 @@
     <string name="theme_white_red">Salju Kirmizi</string>
     
     <string name="rail_soundtracks">Soundtrack</string>
+    <string name="rail_music">Musik</string>
     <string name="setup_soundtracks">Soundtrack</string>
     <string name="soundtracks_empty">Belum ada soundtrack yang terpasang.</string>
     <string name="soundtracks_search">Cari soundtrack</string>

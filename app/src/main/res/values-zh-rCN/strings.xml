@@ -3633,6 +3633,7 @@
     <string name="theme_white_red">猩红之雪</string>
     
     <string name="rail_soundtracks">原声音乐</string>
+    <string name="rail_music">音乐</string>
     <string name="setup_soundtracks">原声音乐</string>
     <string name="soundtracks_empty">尚未安装任何原声音乐。</string>
     <string name="soundtracks_search">搜索原声音乐</string>

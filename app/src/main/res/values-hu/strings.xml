@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Skarlátvörös hó</string>
     
     <string name="rail_soundtracks">Soundtrackek</string>
+    <string name="rail_music">Zene</string>
     <string name="setup_soundtracks">Soundtrackek</string>
     <string name="soundtracks_empty">Még nincs telepített soundtrack.</string>
     <string name="soundtracks_search">Soundtrackek keresése</string>

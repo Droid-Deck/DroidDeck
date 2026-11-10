@@ -3629,6 +3629,7 @@
     <string name="theme_white_red">緋色の雪</string>
     
     <string name="rail_soundtracks">サウンドトラック</string>
+    <string name="rail_music">音楽</string>
     <string name="setup_soundtracks">サウンドトラック</string>
     <string name="soundtracks_empty">インストール済みのサウンドトラックはまだありません。</string>
     <string name="soundtracks_search">サウンドトラックを検索</string>

@@ -195,7 +195,7 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-    "soundtracks" -> R.string.rail_soundtracks to SoundtrackIcon
+    "soundtracks" -> R.string.rail_music to SoundtrackIcon
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers

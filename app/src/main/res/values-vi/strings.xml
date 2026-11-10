@@ -3629,6 +3629,7 @@
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
     
     <string name="rail_soundtracks">Nhạc nền</string>
+    <string name="rail_music">Nhạc</string>
     <string name="setup_soundtracks">Nhạc nền</string>
     <string name="soundtracks_empty">Chưa có nhạc nền nào được cài đặt.</string>
     <string name="soundtracks_search">Tìm nhạc nền</string>

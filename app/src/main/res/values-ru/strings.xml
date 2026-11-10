@@ -3820,6 +3820,7 @@
     <string name="theme_white_red">Алый снег</string>
     
     <string name="rail_soundtracks">Саундтреки</string>
+    <string name="rail_music">Музыка</string>
     <string name="setup_soundtracks">Саундтреки</string>
     <string name="soundtracks_empty">Саундтреки ещё не установлены.</string>
     <string name="soundtracks_search">Поиск саундтреков</string>

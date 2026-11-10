@@ -6,8 +6,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
-private const val NOTES = "M8,5 L17.5,3 L17.5,6.5 L8,8.5 Z M8,5 H9.5 V18 H8 Z M16,3 H17.5 V16 H16 Z " +
-    "M6.7,15.8 A2.8,2.2 0 1,0 6.7,20.2 A2.8,2.2 0 1,0 6.7,15.8 Z M14.7,13.8 A2.8,2.2 0 1,0 14.7,18.2 A2.8,2.2 0 1,0 14.7,13.8 Z"
+private const val NOTES = "M8.4,4.5 L20,2 V6 L8.4,8.5 Z M8.4,4.5 H10.6 V17.5 H8.4 Z M17.9,2 H20 V15.5 H17.9 Z M7.2,14.7 A3.4,2.8 0 1,0 7.2,20.3 A3.4,2.8 0 1,0 7.2,14.7 Z M16.6,12.7 A3.4,2.8 0 1,0 16.6,18.3 A3.4,2.8 0 1,0 16.6,12.7 Z"
 
 internal val SoundtrackIcon: ImageVector by lazy {
     ImageVector.Builder("Soundtrack", 24.dp, 24.dp, 24f, 24f)

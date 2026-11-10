@@ -3629,6 +3629,7 @@
     <string name="theme_white_red">진홍빛 눈</string>
     
     <string name="rail_soundtracks">사운드트랙</string>
+    <string name="rail_music">음악</string>
     <string name="setup_soundtracks">사운드트랙</string>
     <string name="soundtracks_empty">설치된 사운드트랙이 아직 없습니다.</string>
     <string name="soundtracks_search">사운드트랙 검색</string>

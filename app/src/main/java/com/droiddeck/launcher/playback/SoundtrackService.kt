@@ -3,17 +3,22 @@ package com.droiddeck.launcher.playback
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.os.Process
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Soundtrack
+import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
@@ -32,8 +37,44 @@ class SoundtrackService : MediaSessionService() {
         val sessionIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {
             PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
-        session = MediaSession.Builder(this, player).setCallback(Resolver).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
+        player.addListener(object : Player.Listener {
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = refreshButtons()
+            override fun onRepeatModeChanged(repeatMode: Int) = refreshButtons()
+        })
+        session = MediaSession.Builder(this, player).setCallback(Resolver()).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
         setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_soundtrack) })
+    }
+
+    private fun buttons(player: Player): ImmutableList<CommandButton> = ImmutableList.of(
+        CommandButton.Builder()
+            .setDisplayName(getString(R.string.soundtracks_shuffle))
+            .setIconResId(if (player.shuffleModeEnabled) R.drawable.ic_shuffle_on else R.drawable.ic_shuffle_off)
+            .setSessionCommand(SHUFFLE)
+            .build(),
+        CommandButton.Builder()
+            .setDisplayName(
+                getString(
+                    when (player.repeatMode) {
+                        Player.REPEAT_MODE_ALL -> R.string.soundtracks_repeat_all
+                        Player.REPEAT_MODE_ONE -> R.string.soundtracks_repeat_one
+                        else -> R.string.soundtracks_repeat_off
+                    },
+                ),
+            )
+            .setIconResId(
+                when (player.repeatMode) {
+                    Player.REPEAT_MODE_ALL -> R.drawable.ic_repeat_all
+                    Player.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
+                    else -> R.drawable.ic_repeat_off
+                },
+            )
+            .setSessionCommand(REPEAT)
+            .build(),
+    )
+
+    private fun refreshButtons() {
+        val live = session ?: return
+        live.setCustomLayout(buttons(live.player))
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -54,18 +95,41 @@ class SoundtrackService : MediaSessionService() {
 
     companion object {
         const val HINT_OWNER = "droiddeck.owner"
+        private val SHUFFLE = SessionCommand("droiddeck.shuffle", Bundle.EMPTY)
+        private val REPEAT = SessionCommand("droiddeck.repeat", Bundle.EMPTY)
     }
 
-    private object Resolver : MediaSession.Callback {
+    private inner class Resolver : MediaSession.Callback {
         private fun isOwner(controller: MediaSession.ControllerInfo) =
             controller.uid == Process.myUid() && controller.connectionHints.getBoolean(HINT_OWNER, false)
 
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
             if (controller.uid == Process.myUid() || controller.isTrusted) {
-                MediaSession.ConnectionResult.AcceptedResultBuilder(session).build()
+                MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(
+                        MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().add(SHUFFLE).add(REPEAT).build(),
+                    )
+                    .setCustomLayout(buttons(session.player))
+                    .build()
             } else {
                 MediaSession.ConnectionResult.reject()
             }
+
+        override fun onCustomCommand(
+            session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            val player = session.player
+            when (customCommand.customAction) {
+                SHUFFLE.customAction -> player.shuffleModeEnabled = !player.shuffleModeEnabled
+                REPEAT.customAction -> player.repeatMode = when (player.repeatMode) {
+                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                    else -> Player.REPEAT_MODE_OFF
+                }
+                else -> return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
 
         override fun onAddMediaItems(
             mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,

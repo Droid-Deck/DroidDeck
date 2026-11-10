@@ -158,7 +158,7 @@ object Library {
                     val hero = images.find(STEAM_HEROES)
                     val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     out[appId] = SteamGameArt.withOverrides(context, SteamGame(
-                        appId, name, art ?: musicFiles?.let(Soundtrack::cover), label, hero = hero, lastPlayed = lastPlayed,
+                        appId, name, art ?: musicFiles?.let { Soundtrack.cover(it) ?: Soundtrack.cachedCover(context, it) }, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles ?: musicFiles, soundtrack = musicFiles != null,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = images.icon(),

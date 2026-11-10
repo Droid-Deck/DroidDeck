@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Skarlagenssnø</string>
     
     <string name="rail_soundtracks">Lydspor</string>
+    <string name="rail_music">Musikk</string>
     <string name="setup_soundtracks">Lydspor</string>
     <string name="soundtracks_empty">Ingen lydspor installert ennå.</string>
     <string name="soundtracks_search">Søk i lydspor</string>

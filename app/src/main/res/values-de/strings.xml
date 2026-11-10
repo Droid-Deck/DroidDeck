@@ -3659,6 +3659,7 @@
     <string name="theme_white_red">Scharlachroter Schnee</string>
     
     <string name="rail_soundtracks">Soundtracks</string>
+    <string name="rail_music">Musik</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">Noch keine Soundtracks installiert.</string>
     <string name="soundtracks_search">Soundtracks durchsuchen</string>

@@ -3629,6 +3629,7 @@
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     
     <string name="rail_soundtracks">ซาวด์แทร็ก</string>
+    <string name="rail_music">เพลง</string>
     <string name="setup_soundtracks">ซาวด์แทร็ก</string>
     <string name="soundtracks_empty">ยังไม่มีซาวด์แทร็กที่ติดตั้ง</string>
     <string name="soundtracks_search">ค้นหาซาวด์แทร็ก</string>

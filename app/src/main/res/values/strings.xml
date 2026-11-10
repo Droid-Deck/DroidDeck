@@ -3820,6 +3820,7 @@
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="rail_soundtracks">Soundtracks</string>
+    <string name="rail_music">Music</string>
     <string name="setup_soundtracks">Soundtracks</string>
     <string name="soundtracks_empty">No soundtracks installed yet.</string>
     <string name="soundtracks_search">Search soundtracks</string>

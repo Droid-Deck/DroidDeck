@@ -199,12 +199,37 @@ object Soundtrack {
         return out
     }
 
+    private fun coverCache(context: Context, root: File) = File(context.filesDir, "soundtrack-index/cover-${root.path.hashCode().toUInt()}.jpg")
+
+    fun cachedCover(context: Context, root: File): File? = coverCache(context, root).takeIf { it.isFile && it.length() > 0L }
+
+    private fun embeddedCover(context: Context, root: File, files: List<File>): File? {
+        cachedCover(context, root)?.let { return it }
+        for (file in files.take(8)) {
+            val bytes = runCatching {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(file.path)
+                    retriever.embeddedPicture
+                } finally {
+                    runCatching { retriever.release() }
+                }
+            }.getOrNull()?.takeIf { it.isNotEmpty() } ?: continue
+            val out = coverCache(context, root)
+            runCatching {
+                out.parentFile?.mkdirs()
+                out.writeBytes(bytes)
+            }.onSuccess { return out }
+        }
+        return null
+    }
+
     fun load(context: Context, root: File, coverHint: File? = null): Album {
         val files = audioFiles(root)
         val raws = fromCache(context, root, files) ?: files.map { read(it, root) }.also { toCache(context, root, it) }
         val disc = group(raws)
         val artist = disc.values.flatten().map { it.artist }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
-        return Album(disc, artist, coverHint ?: cover(root))
+        return Album(disc, artist, coverHint ?: cover(root) ?: embeddedCover(context, root, files))
     }
 
     fun formatLength(ms: Long): String {
