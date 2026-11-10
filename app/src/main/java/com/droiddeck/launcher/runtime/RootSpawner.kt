@@ -117,7 +117,7 @@ object RootSpawner {
         val guest = mutableListOf("/usr/bin/env", "-i")
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> guest.add("$k=${e.getString(k)}") } }
         guest.addAll(argv)
-        val builder = if (NativeGuest.enabled(context)) {
+        val builder = if (NativeGuest.forSession(context)) {
             NativeGuest.processBuilder(context, root, binds, guest, cwd)
         } else {
             val cmd = LinuxRuntime.prootPrefix(context, root, cwd, true)

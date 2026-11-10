@@ -140,7 +140,7 @@ object GogComet {
         val data = File(context.filesDir, "gog-achievements").apply { mkdirs() }
         val ready = CountDownLatch(1)
         val guest = listOf("/usr/bin/env", "HOME=/root", "XDG_DATA_HOME=${data.path}/data", "XDG_CONFIG_HOME=${data.path}/config", "COMET_LOG=off", "COMET_ALLOWED_CLIENTS=${policy.path}", BIN, "--credentials-stdin")
-        val pb = if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
+        val pb = if (com.droiddeck.launcher.runtime.NativeGuest.forSession(context)) {
             val root = LinuxRuntime.rootDir(context)
             com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
                 LinuxRuntime.binds(context, null, null, Environment.getExternalStorageDirectory(), null), guest).redirectErrorStream(true)

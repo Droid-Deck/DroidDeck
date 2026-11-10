@@ -24,6 +24,16 @@ object NativeGuest {
     fun enabled(context: Context): Boolean =
         SessionPrefs.nativeUserland(context) && available(LinuxRuntime.rootDir(context))
 
+    /** The mode the running session started in; null between sessions. */
+    @Volatile var sessionMode: Boolean? = null
+
+    /**
+     * Whether a session's helpers (root commands, Flatpak sandboxes, installers) run natively: the
+     * session's own mode while one runs, as the setting can change under it and the rootfs is only
+     * prepared for native programs at a session's start.
+     */
+    fun forSession(context: Context): Boolean = sessionMode ?: enabled(context)
+
     /**
      * Development switch: etc/droiddeck/seccomp-sim names a helper (a guest path, then its arguments)
      * that applies Android's app seccomp filter before the program starts, for devices that run apps

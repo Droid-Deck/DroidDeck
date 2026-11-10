@@ -492,7 +492,7 @@ object BwrapSpawner {
 
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
-        val native = if (NativeGuest.enabled(context)) nativeLaunch(context, plan) else null
+        val native = if (NativeGuest.forSession(context)) nativeLaunch(context, plan) else null
         val builder = if (native != null) {
             ProcessBuilder(native.first).redirectErrorStream(true)
                 .directory(File(hostPath(plan.binds, plan.root.path, plan.cwd)).takeIf { it.isDirectory } ?: plan.root)

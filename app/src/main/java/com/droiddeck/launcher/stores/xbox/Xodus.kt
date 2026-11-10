@@ -88,7 +88,7 @@ internal object Xodus {
             val fastPathPreloaded = runCatching {
                 File(root, "etc/ld.so.preload").useLines { lines -> lines.any { it.trim() == ProotFastPath.LIBRARY } }
             }.getOrDefault(false)
-            val native = com.droiddeck.launcher.runtime.NativeGuest.enabled(app)
+            val native = com.droiddeck.launcher.runtime.NativeGuest.forSession(app)
             val fastPathKey = if (!native && ProotFastPath.enabled(app) && fastPathPreloaded &&
                 File(root, ProotFastPath.LIBRARY.removePrefix("/")).isFile) ProotFastPath.key(root, binds) else null
             val guestCommand = mutableListOf(
