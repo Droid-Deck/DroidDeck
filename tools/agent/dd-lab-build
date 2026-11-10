@@ -42,10 +42,15 @@ if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 
+# A full Kotlin compile of the app needs about 3 GB of heap; smaller devices get what they can spare.
+total_mb=$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)
+heap=$(( total_mb * 2 / 5 )); [ $heap -gt 3072 ] && heap=3072; [ $heap -lt 1536 ] && heap=1536
+heap=${DD_LAB_HEAP_MB:-$heap}
+
 # Google publishes aapt2 for x86-64 Linux only; setup wraps it in qemu-user at ~/aapt2/aapt2.
 gradle=(./gradlew :app:processReleaseResources :app:mergeDexRelease --max-workers=2 -PskipRust=true -x buildVkBridgeServer
   -Pandroid.aapt2FromMavenOverride=$HOME/aapt2/aapt2 -Pkotlin.compiler.execution.strategy=in-process
-  -Dorg.gradle.jvmargs=-Xmx1800m --console=plain)
+  -Dorg.gradle.jvmargs=-Xmx${heap}m --console=plain)
 progress planning
 total=$("${gradle[@]}" --dry-run -q 2>/dev/null | grep -c '^:' || true)
 current=$(mktemp)
