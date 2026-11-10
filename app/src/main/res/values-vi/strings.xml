@@ -3623,4 +3623,7 @@
     <string name="input_reset_positions">Đặt lại vị trí</string>
     <string name="input_show_label">Hiện nhãn</string>
     <string name="input_layout_import_failed">Không thể nhập bố cục này</string>
+
+    <string name="theme_white_red">Tuyết đỏ thẫm</string>
+    
 </resources>

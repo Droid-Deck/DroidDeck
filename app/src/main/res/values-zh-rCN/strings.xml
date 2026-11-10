@@ -3627,4 +3627,7 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+
+    <string name="theme_white_red">猩红之雪</string>
+    
 </resources>

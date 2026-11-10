@@ -3626,4 +3626,7 @@
     <string name="input_reset_positions">重設位置</string>
     <string name="input_show_label">顯示標籤</string>
     <string name="input_layout_import_failed">無法匯入此版面配置</string>
+
+    <string name="theme_white_red">緋紅之雪</string>
+    
 </resources>

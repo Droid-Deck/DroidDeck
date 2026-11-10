@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Positionen zurücksetzen</string>
     <string name="input_show_label">Beschriftung anzeigen</string>
     <string name="input_layout_import_failed">Dieses Layout konnte nicht importiert werden</string>
+
+    <string name="theme_white_red">Scharlachroter Schnee</string>
+    
 </resources>

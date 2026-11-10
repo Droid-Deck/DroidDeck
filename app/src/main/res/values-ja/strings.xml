@@ -3623,4 +3623,7 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
+
+    <string name="theme_white_red">緋色の雪</string>
+    
 </resources>

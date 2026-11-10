@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Tilbakestill plasseringer</string>
     <string name="input_show_label">Vis etikett</string>
     <string name="input_layout_import_failed">Kunne ikke importere dette oppsettet</string>
+
+    <string name="theme_white_red">Skarlagenssnø</string>
+    
 </resources>

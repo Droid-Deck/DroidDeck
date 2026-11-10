@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
+
+    <string name="theme_white_red">Skarlagensne</string>
+    
 </resources>

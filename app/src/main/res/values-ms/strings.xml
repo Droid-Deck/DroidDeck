@@ -3623,4 +3623,7 @@
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
     <string name="input_show_label">Tunjukkan label</string>
     <string name="input_layout_import_failed">Susun atur ini tidak dapat diimport</string>
+
+    <string name="theme_white_red">Salji Merah Skarlet</string>
+    
 </resources>

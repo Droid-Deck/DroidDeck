@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+
+    <string name="theme_white_red">किरमिज़ी बर्फ</string>
+    
 </resources>

@@ -3692,4 +3692,7 @@
     <string name="input_reset_positions">Repor posições</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">Não foi possível importar este esquema</string>
+
+    <string name="theme_white_red">Neve Escarlate</string>
+    
 </resources>

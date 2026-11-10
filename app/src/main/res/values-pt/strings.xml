@@ -3692,4 +3692,7 @@
     <string name="input_reset_positions">Redefinir posições</string>
     <string name="input_show_label">Mostrar rótulo</string>
     <string name="input_layout_import_failed">Não foi possível importar este layout</string>
+
+    <string name="theme_white_red">Neve Escarlate</string>
+    
 </resources>

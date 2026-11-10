@@ -3623,4 +3623,7 @@
     <string name="input_reset_positions">위치 초기화</string>
     <string name="input_show_label">라벨 표시</string>
     <string name="input_layout_import_failed">이 레이아웃을 가져올 수 없습니다</string>
+
+    <string name="theme_white_red">진홍빛 눈</string>
+    
 </resources>

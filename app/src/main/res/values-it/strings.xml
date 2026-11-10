@@ -3692,4 +3692,7 @@
     <string name="input_reset_positions">Ripristina posizioni</string>
     <string name="input_show_label">Mostra etichetta</string>
     <string name="input_layout_import_failed">Impossibile importare questo layout</string>
+
+    <string name="theme_white_red">Neve scarlatta</string>
+    
 </resources>

@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>
+
+    <string name="theme_white_red">Ален сняг</string>
+    
 </resources>
