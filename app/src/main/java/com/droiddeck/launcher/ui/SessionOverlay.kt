@@ -257,6 +257,7 @@ class DrawerActions(
     val onHud: (Boolean) -> Unit,
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
     val onHudOrder: (Map<String, Boolean>, List<String>) -> Unit = { _, _ -> },
+    val onHudOrderReset: () -> Unit = {},
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,

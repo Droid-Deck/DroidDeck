@@ -114,7 +114,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
 
         /** The rows a size draws, for the settings screen to list. */
         fun rowsFor(size: DroidDeckHudSize, values: Map<String, String>): List<String> =
-            size.rowsIn(DroidDeckHudConfig.storedOrder(values))
+            size.rowsIn(DroidDeckHudConfig.storedOrder(values, size))
     }
 }
 

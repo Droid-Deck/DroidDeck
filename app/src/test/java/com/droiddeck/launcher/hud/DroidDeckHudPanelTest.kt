@@ -130,9 +130,9 @@ class DroidDeckHudPanelTest {
             view.showForTest(SNAPSHOT, "DXVK", 0L)
             return view.linesForTest().filter { !it.startsWith("DroidDeck") }
         }
-        val powerFirst = only("showPower|showFPS|showRAM")
+        val powerFirst = only("full:showPower|showFPS|showRAM")
         assertEquals(powerFirst.toString(), listOf("PWR", "FPS", "RAM"), powerFirst.map { it.take(3) })
-        val ramFirst = only("showRAM|showFPS|showPower")
+        val ramFirst = only("full:showRAM|showFPS|showPower")
         assertEquals(ramFirst.toString(), listOf("RAM", "FPS", "PWR"), ramFirst.map { it.take(3) })
     }
 
@@ -150,9 +150,9 @@ class DroidDeckHudPanelTest {
             view.showForTest(SNAPSHOT, "DXVK", 0L)
             return view.linesForTest()
         }
-        val fpsFirst = pill("showFPS|showRAM|showPower")
+        val fpsFirst = pill("pill:showFPS|showRAM|showPower")
         assertTrue(fpsFirst.toString(), fpsFirst.any { it.trim() == "0.0fps" })
-        val fpsLast = pill("showRAM|showPower|showFPS")
+        val fpsLast = pill("pill:showRAM|showPower|showFPS")
         assertTrue(fpsLast.toString(), fpsLast.any { it.trim().startsWith("FPS") })
         assertFalse(fpsLast.toString(), fpsLast.any { it.trim() == "0.0fps" })
     }

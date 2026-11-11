@@ -3633,7 +3633,7 @@
     
     <string name="hud_metric_latency">幀時間</string>
     <string name="hud_metric_avg">平均幀率</string>
-    <string name="hud_metric_display">顯示服務</string>
+    <string name="hud_metric_display">顯示伺服器</string>
     <string name="hud_metric_hdr">HDR 狀態</string>
     <string name="hud_readings_shown">已顯示</string>
     <string name="hud_readings_count">%1$d / %2$d</string>

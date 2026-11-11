@@ -52,8 +52,17 @@ internal object DroidDeckHudConfig {
         for ((key, on) in switches) if (key in DEFAULTS) {
             values[key] = flag(on)
         }
-        val moved = order.filter { it in ORDER }
-        values["hudOrder"] = (moved + storedOrder(values).filter { it !in moved }).joinToString("|")
+        val size = DroidDeckHudSize.from(values["hudSize"])
+        val groups = sizeOrders(values).toMutableMap()
+        groups[size] = order.filter { it in ORDER }
+        values["hudOrder"] = encodeOrders(groups)
+        SessionPrefs.setDroidDeckHudConfig(context, encode(values))
+        return values
+    }
+
+    fun clearOrder(context: Context): Map<String, String> {
+        val values = load(context)
+        values["hudOrder"] = ""
         SessionPrefs.setDroidDeckHudConfig(context, encode(values))
         return values
     }
@@ -67,28 +76,33 @@ internal object DroidDeckHudConfig {
      *  [DEFAULTS], so a switch added there shows up here without a second list to keep in step. */
     val ORDER: List<String> = DEFAULTS.keys.filter { it.startsWith("show") && it !in NOT_READINGS }
 
-    /** The stored row order with every metric the config knows appended in the default order. Rows the
-     *  stored order names but this build does not draw are dropped; rows it does not name are appended. */
-    fun order(values: Map<String, String>): List<String> {
-        val stored = storedOrder(values)
-        return stored + ORDER.filter { it !in stored }
+    /** Only the rows the user moved for [size], in the order they left them. */
+    fun storedOrder(values: Map<String, String>, size: DroidDeckHudSize): List<String> =
+        sizeOrders(values)[size] ?: legacyOrder(values)
+
+    /** Orders saved before each size kept its own: one list, applied to every size. */
+    private fun legacyOrder(values: Map<String, String>): List<String> {
+        val raw = values["hudOrder"].orEmpty()
+        if (raw.isBlank() || raw.contains(':')) return emptyList()
+        return raw.split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
     }
 
-    /** Only the rows the user moved, in the order they left them. */
-    fun storedOrder(values: Map<String, String>): List<String> =
-        values["hudOrder"].orEmpty().split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
-
-    fun move(context: Context, key: String, up: Boolean): Map<String, String> {
-        val values = load(context)
-        val order = order(values).toMutableList()
-        val from = order.indexOf(key)
-        val to = from + if (up) -1 else 1
-        if (from < 0 || to !in order.indices) return values
-        order.add(to, order.removeAt(from))
-        values["hudOrder"] = order.joinToString("|")
-        SessionPrefs.setDroidDeckHudConfig(context, encode(values))
-        return values
+    private fun sizeOrders(values: Map<String, String>): Map<DroidDeckHudSize, List<String>> {
+        val raw = values["hudOrder"].orEmpty()
+        if (raw.isBlank()) return emptyMap()
+        val groups = LinkedHashMap<DroidDeckHudSize, List<String>>()
+        for (group in raw.split(';')) {
+            val colon = group.indexOf(':')
+            if (colon <= 0) continue
+            val size = DroidDeckHudSize.values().firstOrNull { it.token == group.substring(0, colon) } ?: continue
+            groups[size] = group.substring(colon + 1).split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
+        }
+        return groups
     }
+
+    private fun encodeOrders(groups: Map<DroidDeckHudSize, List<String>>): String =
+        groups.entries.filter { it.value.isNotEmpty() }
+            .joinToString(";") { "${it.key.token}:${it.value.joinToString("|")}" }
 
     private fun flag(on: Boolean) = if (on) "1" else "0"
 }

@@ -82,11 +82,11 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             initialOn = rows.associateWith { on(it) },
             onDismiss = { editing = false },
             onSave = { switches, order -> a.onHudOrder(switches, order) },
-            onReset = a.onHudReset,
+            onReset = a.onHudOrderReset,
         )
     }
 
-    if (on("showTemp") || on("showGpuTemp")) SettingsGroup(stringResource(R.string.hud_group_temps)) {
+    if (on("showTemp") || on("showGpuTemp") || on("showBatteryTemp")) SettingsGroup(stringResource(R.string.hud_group_temps)) {
         ChoiceRow(host, "hud-temp-unit", stringResource(R.string.hud_temp_unit), null,
             listOf("c" to "°C", "f" to "°F"), if (cfg["tempUnit"].equals("f", true)) "f" else "c",
             chipModifier = track("hud-temp-unit")) { a.onHudSetting("tempUnit", it) }

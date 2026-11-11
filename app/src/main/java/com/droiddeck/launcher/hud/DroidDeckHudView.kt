@@ -329,7 +329,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showLow01 = switchOn("showLow01")
         showDisplay = switchOn("showDisplay")
         showHdr = switchOn("showHdr")
-        storedOrder = DroidDeckHudConfig.storedOrder(mapOf("hudOrder" to cfg.get("hudOrder", "")))
+        storedOrder = DroidDeckHudConfig.storedOrder(mapOf("hudOrder" to cfg.get("hudOrder", "")), size)
         showPerCore = switchOn("showPerCore")
         showSwap = switchOn("showSwap")
         showNet = switchOn("showNet")
@@ -816,10 +816,12 @@ class DroidDeckHudView(context: Context) : View(context) {
             Span(fpsText(fpsNow), colValue, bigPx, glow = true),
             Span("fps", colDim, bigUnitPx),
         )
-        val listed = keys.filter { !hero || it != "showFPS" }.map { key ->
+        val listed = keys.filter { !hero || it != "showFPS" }.flatMap { key ->
             val labelPx = if (tiles) sp(st.key) else basePx
             val valuePx = if (tiles) sp(st.row) else basePx
-            reading(key, s, labelPx, valuePx, unitPx)
+            if (key == "showPerCore" && size == DroidDeckHudSize.MEGA)
+                perCoreRows(s, labelPx, valuePx, unitPx)
+            else listOf(reading(key, s, labelPx, valuePx, unitPx))
         }
         val maxCols = if (size == DroidDeckHudSize.MEGA) 3 else 2
         val cols = when {
@@ -832,13 +834,15 @@ class DroidDeckHudView(context: Context) : View(context) {
             val innerPad = sp(st.innerPad); val tileGap = sp(st.tileGap)
             val keyH = lineH(sp(st.key)); val valH = lineH(sp(st.row))
             val cellW = listed.maxOf { max(measure(it.label.text, it.label.sizePx), runWidth(it.vals)) } + innerPad * 2f
+            val graphMin = if (listed.any { it.key == "showFPSGraph" }) sp(160f) else 0f
+            val cellMin = graphMin + innerPad * 2f
             val cellH = innerPad * 2f + keyH + lineGap + valH
             for ((i, r) in listed.withIndex()) {
                 val x = pad + (i % cols) * (cellW + tileGap)
                 val y = pad + (i / cols) * (cellH + tileGap)
                 tileRects.add(RectF(x, y, x + cellW, y + cellH))
                 if (r.key == "showFPSGraph") {
-                    graphRect = RectF(x + innerPad, y + innerPad, x + cellW - innerPad, y + cellH - innerPad)
+                    graphRect = RectF(x + innerPad, y + innerPad, x + max(cellW, cellMin) - innerPad, y + cellH - innerPad)
                     continue
                 }
                 placeRun(x + innerPad, y + innerPad - ascent(r.label.sizePx), listOf(r.label))
@@ -851,7 +855,9 @@ class DroidDeckHudView(context: Context) : View(context) {
             val columns = (0 until cols).map { c -> listed.filterIndexed { i, _ -> i % cols == c } }
             val labelW = columns.map { col -> col.maxOfOrNull { measure(it.label.text, it.label.sizePx) } ?: 0f }
             val colW = columns.mapIndexed { c, col ->
-                if (col.isEmpty()) 0f else labelW[c] + lvGap + (col.maxOfOrNull { runWidth(it.vals) } ?: 0f)
+                val body = if (col.isEmpty()) 0f else labelW[c] + lvGap + (col.maxOfOrNull { runWidth(it.vals) } ?: 0f)
+                val graph = if (col.any { it.key == "showFPSGraph" }) sp(160f) + labelW[c] + lvGap else 0f
+                max(body, graph)
             }
             val gaps = (0 until cols).count { columns[it].isNotEmpty() }.coerceAtLeast(1) - 1
             val bodyW = colW.sum() + gutter * gaps
@@ -896,6 +902,18 @@ class DroidDeckHudView(context: Context) : View(context) {
     private fun rowHeight(r: HudRow): Float =
         if (r.key == "showFPSGraph") sp(22f)
         else lineH(maxOf(r.label.sizePx, r.vals.maxOfOrNull { it.sizePx } ?: 0f))
+
+    private fun perCoreRows(s: HudMetrics.Snapshot, labelPx: Float, valuePx: Float, unitPx: Float): List<HudRow> {
+        val pct = s.perCorePercent
+        val clk = s.perCoreClockMhz
+        return (0 until max(pct.size, clk.size)).map { i ->
+            val vals = ArrayList<Span>()
+            vals += numUnit(if (i < pct.size && pct[i] >= 0) pct[i].toString() else null, "%", valuePx, unitPx)
+            vals += Span(" ", colDim, unitPx)
+            vals += numUnit(if (i < clk.size && clk[i] > 0) clk[i].toString() else null, "MHz", valuePx, unitPx)
+            HudRow("showPerCore", Span("C$i", colCpu, labelPx), vals)
+        }
+    }
 
     private fun buildStrip(s: HudMetrics.Snapshot) {
         val rowPx = sp(11.5f); val unitPx = rowPx * 0.8f; val fpsPx = sp(15f)
