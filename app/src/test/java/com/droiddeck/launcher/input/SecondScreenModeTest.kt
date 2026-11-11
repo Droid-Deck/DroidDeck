@@ -1,9 +1,27 @@
 package com.droiddeck.launcher.input
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SecondScreenModeTest {
+    @Test fun fallbackSelectionSurvivesRecreationAndRequestedDisplaySurvivesDisconnect() {
+        var saved = 2
+        SecondScreenDisplays.selection(saved, listOf(3), false) { saved = it }
+        assertEquals(3, saved)
+        assertEquals(3, SecondScreenDisplays.selection(saved, listOf(3), true))
+        SecondScreenDisplays.selection(saved, listOf(2), true) { saved = it }
+        assertEquals(3, saved)
+    }
+
+    @Test fun keyboardFallsBackOnlyForADisconnectedRequestedDisplay() {
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3)))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3)))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3)))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3)))
+    }
+
     @Test fun selectedGameDisplayIsNotReplacedWhenItDisconnects() {
         assertEquals(2, SecondScreenDisplays.selection(2, listOf(3), true))
         assertEquals(2, SecondScreenDisplays.selection(2, emptyList(), true))

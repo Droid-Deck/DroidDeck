@@ -43,6 +43,12 @@ object SecondScreenDisplays {
     fun selection(selected: Int, available: List<Int>, gameRequested: Boolean): Int =
         if (selected in available || gameRequested && selected >= 0) selected else available.firstOrNull() ?: -1
 
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean, save: (Int) -> Unit): Int =
+        selection(selected, available, gameRequested).also { if (it != selected) save(it) }
+
+    fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>): Boolean =
+        gameRequested && selected >= 0 && selected !in available
+
     fun available(displayManager: DisplayManager, primaryDisplayId: Int = Display.DEFAULT_DISPLAY): List<SecondScreenDisplay> =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .asSequence()
