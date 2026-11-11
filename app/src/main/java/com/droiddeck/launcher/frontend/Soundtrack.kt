@@ -243,6 +243,7 @@ object Soundtrack {
 
     fun firstCover(context: Context, root: File): File? = cover(root) ?: embeddedCover(context, root, audioFiles(root))
 
+    @Synchronized
     fun trackCover(context: Context, file: File): File? {
         val dir = File(context.filesDir, "soundtrack-index/track-covers")
         val marker = File(dir, "t-" + hashOf("${file.path}|${file.length()}|${file.lastModified()}".toByteArray(Charsets.UTF_8)))
@@ -261,6 +262,7 @@ object Soundtrack {
             dir.mkdirs()
             if (bytes == null) {
                 marker.writeText("")
+                prune(dir, setOf(marker.name))
                 null
             } else {
                 val out = File(dir, "c-" + hashOf(bytes) + ".jpg")
