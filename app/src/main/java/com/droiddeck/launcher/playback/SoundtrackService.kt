@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.playback
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
@@ -26,6 +27,21 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
+
+private class EdgeButtonsProvider(context: Context) : DefaultMediaNotificationProvider(context) {
+    override fun getMediaButtons(
+        session: MediaSession, playerCommands: Player.Commands, customLayout: ImmutableList<CommandButton>, showPauseButton: Boolean,
+    ): ImmutableList<CommandButton> {
+        val all = super.getMediaButtons(session, playerCommands, customLayout, showPauseButton)
+        val custom = all.filter { it.sessionCommand != null }
+        if (custom.size < 2) return all
+        return ImmutableList.builder<CommandButton>()
+            .add(custom.first())
+            .addAll(all.filter { it.sessionCommand == null })
+            .addAll(custom.drop(1))
+            .build()
+    }
+}
 
 class SoundtrackService : MediaSessionService() {
     private var session: MediaSession? = null
@@ -68,7 +84,7 @@ class SoundtrackService : MediaSessionService() {
             }
         })
         session = MediaSession.Builder(this, player).setCallback(Resolver()).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
-        setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_soundtrack) })
+        setMediaNotificationProvider(EdgeButtonsProvider(this).apply { setSmallIcon(R.drawable.ic_soundtrack) })
     }
 
     private fun buttons(player: Player): ImmutableList<CommandButton> = ImmutableList.of(
