@@ -54,6 +54,19 @@ class SessionSuspendControllerTest {
         assertTrue(fixture.game.threads.all { it.state == 't' })
         fixture.controller.resume { assertTrue(it) }
         assertFalse(fixture.signals.any { it.signal == URG })
+        assertEquals("0", fixture.control.readText())
+    }
+
+    @Test fun pageOutSkipsWhenSwapIsUnavailable() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 0L
+        fixture.swapFreeKb = 0L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        fixture.controller.resume { assertTrue(it) }
+        assertEquals("0", fixture.control.readText())
     }
 
     @Test fun pageOutProceedsWhenTheSwapKeepsItsReserve() {

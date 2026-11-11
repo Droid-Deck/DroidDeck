@@ -319,7 +319,14 @@ internal class SessionSuspendController(
         val targets = pagedOutTargets.filterNot { isGone(it) }
         pagedOutTargets = emptyList()
         val control = zramControl?.takeIf { it.isFile } ?: return
-        if (targets.isEmpty() || closing) return
+        if (closing) return
+        if (targets.isEmpty()) {
+            try {
+                control.writeText("0")
+            } catch (_: IOException) {
+            }
+            return
+        }
         val before = memoryKb(targets).second
         val (total, available) = meminfoKb()
         if (!readBackAllowed() || !canTake(before, total, available)) {
@@ -350,34 +357,34 @@ internal class SessionSuspendController(
     }
 
     private fun withinSwapBudget(candidates: List<ProcessRecord>): List<ProcessRecord> {
+        val residents = candidates.map { it to memoryKb(listOf(it)).first }
         val (total, free) = swapKb()
+        if (total <= 0L || free <= 0L) return emptyList()
         var budget = free - total * SWAP_RESERVE_PERCENT / 100
-        return candidates.sortedByDescending { memoryKb(listOf(it)).first }.filter { record ->
-            val resident = memoryKb(listOf(record)).first
+        return residents.sortedByDescending { it.second }.filter { (_, resident) ->
             (resident <= budget).also { if (it) budget -= resident }
-        }
+        }.map { it.first }
     }
 
     private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
         availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
             availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
 
-    private fun meminfoKb(first: String, second: String): Pair<Long, Long> = try {
-        val values = HashMap<String, Long>()
-        File(procRoot, "meminfo").forEachLine { line ->
-            val name = line.substringBefore(':')
-            if (name == first || name == second) {
-                line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
-            }
-        }
-        (values[first] ?: 0L) to (values[second] ?: 0L)
+    private fun memoryInfo() = try {
+        MemoryReadout.parseMeminfo(File(procRoot, "meminfo").readText())
     } catch (_: IOException) {
-        0L to 0L
+        null
     }
 
-    private fun meminfoKb() = meminfoKb("MemTotal", "MemAvailable")
+    private fun meminfoKb(): Pair<Long, Long> {
+        val info = memoryInfo() ?: return 0L to 0L
+        return info.totalKb to info.availableKb
+    }
 
-    private fun swapKb() = meminfoKb("SwapTotal", "SwapFree")
+    private fun swapKb(): Pair<Long, Long> {
+        val info = memoryInfo() ?: return 0L to 0L
+        return info.swapTotalKb to info.swapFreeKb
+    }
 
     private fun isGone(record: ProcessRecord): Boolean =
         try { readProcess(record.pid)?.started != record.started } catch (_: Exception) { false }
