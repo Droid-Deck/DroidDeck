@@ -331,6 +331,21 @@ class DriveTest(Temp):
         os.unlink(path)
         self.assertFalse(BNET["move_installs"](self.root))
 
+    def test_a_database_written_while_it_was_being_read_is_left_as_written(self):
+        game = self.library / "World of Warcraft"
+        game.mkdir()
+        path = self.database(self.product("wow", "Z:" + str(game)))
+        newer = path.read_bytes() + self.field(7, b"newer")
+
+        def processes(pfx, proc="/proc"):
+            path.write_bytes(newer)
+            return []
+
+        with mock.patch.dict(BNET, {"wine_processes": processes}):
+            self.assertFalse(BNET["move_installs"](self.root))
+        self.assertEqual(path.read_bytes(), newer)
+        self.assertTrue(BNET["move_installs"](self.root))
+
 
 class GamepadTest(Temp):
     def registry(self, *entries):

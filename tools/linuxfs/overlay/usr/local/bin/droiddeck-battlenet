@@ -572,9 +572,12 @@ def move_installs(root):
         with open(path, "rb") as f:
             data = f.read()
         moved = rewrite_field(data, INSTALL_FOLDER, lambda value: drive_folder(root, value))
+        if moved == data or wine_processes(os.path.join(prefix(root), "pfx")):
+            return False
+        with open(path, "rb") as f:
+            if f.read() != data:
+                return False
     except (OSError, ValueError):
-        return False
-    if moved == data or wine_processes(os.path.join(prefix(root), "pfx")):
         return False
     with open(path + ".tmp", "wb") as f:
         f.write(moved)
