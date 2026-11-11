@@ -62,6 +62,9 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.sync.Syncthing.init(this)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ubisoft.UbisoftBackend)
+        com.droiddeck.launcher.stores.ea.EaBackend.app = this
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ea.EaBackend)
     }
 
     private fun prefetchAddonPacks() {
@@ -75,6 +78,8 @@ class App : Application() {
                 if (com.droiddeck.launcher.stores.gog.GogComet.enabled(app)) com.droiddeck.launcher.core.AddonPack.COMET.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.XBOX) != null)
                     com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
+                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.UBISOFT) != null)
+                    com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

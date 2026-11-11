@@ -278,6 +278,7 @@ object DeviceReport {
         k("RAM cap", SessionPrefs.ramCapMb(context).let { if (it > 0) "$it MB" else "off" })
         k("VRAM cap", SessionPrefs.vramCapMb(context).let { if (it > 0) "$it MB" else "driver default" })
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
+        k("native userland (no proot)", SessionPrefs.nativeUserland(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))
         k("proot binary", LinuxRuntime.prootSource(context) + " " + LinuxRuntime.prootBinary(context).path)
         k("proot fast path (eligible)", com.droiddeck.launcher.runtime.ProotFastPath.enabled(context))

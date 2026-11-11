@@ -417,7 +417,7 @@ object AddedGames {
 
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>, single: AddedExes.Entry? = null, reuse: Boolean = false) {
         run {
-            val sidecar = StoreGameSidecar.read(folder)
+            val sidecar = StoreGameSidecar.read(folder)?.let { com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, it) }
             sidecar?.takeIf { it.id.isNotEmpty() }?.let { SessionPrefs.followStoreGame(context, "${it.store.id}:${it.id}", folder.path) { old -> !File(old).exists() } }
             val ranking = rank(folder, reuse)
             val candidates = ranking.exes
@@ -457,7 +457,11 @@ object AddedGames {
                 steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId,
                 source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id,
                 exeUncertain = sidecar == null && chosen == null && adopted == null && ranking.uncertain,
-                launchOptions = if (sidecar == null) SessionPrefs.addedGameLaunch(context, folder.path) else "",
+                launchOptions = when {
+                    sidecar == null -> SessionPrefs.addedGameLaunch(context, folder.path)
+                    sidecar.store == Store.UBISOFT -> com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.launchOptions(context)
+                    else -> ""
+                },
                 single = single != null))
         }
     }

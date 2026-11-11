@@ -152,6 +152,16 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   natively reserve 256 GiB above 64 GiB for guest memory: under PRoot the reservation failed and
   the first guest instruction faulted forever. 48-bit address spaces and 32-bit programs are
   unchanged in practice.
+- `0027-guest-seccomp-sigsys.patch` - PRoot treated every seccomp `SIGSYS` as Android's app policy
+  refusing a call: it emulated the few it knows and answered the rest with `ENOSYS`, so a filter
+  the guest installs itself never reached its own handler. Firefox's content sandbox traps
+  `openat` and opens files through a broker in the parent; every font open came back `ENOSYS`,
+  and each tab crashed in `gfxFontGroup::GetDefaultFont`. Android's policy traps with
+  `SECCOMP_RET_DATA` 0, while Firefox's and Chromium's filters tag their traps, so a tagged
+  `SIGSYS` is now delivered to the guest. A trap from the fast path's trampoline still gets
+  `ENOSYS`, because its arguments are host paths; the fast path then stops for that process and
+  repeats the call through a plain `svc`, which the guest's filter traps with the guest path.
+  `bench/guest-trap.c` installs a tagged `openat` trap and checks its handler answers the call.
 
 Old kernel fixes:
 

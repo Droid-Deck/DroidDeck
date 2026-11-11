@@ -482,6 +482,83 @@ class ProtonRunTest(Temp):
         self.assertEqual(found["droiddeck-proton-arm64"],
                          (str(self.root / "compatibilitytools.d/droiddeck-proton-arm64"), "droiddeck-proton"))
 
+    def test_a_valve_depot_is_registered_through_the_droiddeck_wrapper(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.assertEqual(found["droiddeck-proton-arm64"], (str(wrapper), "droiddeck-proton"))
+        self.assertNotIn(name, found)
+
+    def test_an_incomplete_valve_depot_is_not_registered(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        self.assertNotIn("droiddeck-proton-arm64", found)
+        self.assertFalse((self.root / "compatibilitytools.d/droiddeck-proton-arm64").exists())
+
+    def test_a_failed_wrapper_build_does_not_hide_existing_tools(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "steamapps/common/Proton Experimental (ARM64)"
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        build = mock.Mock(side_effect=OSError("read-only"))
+        with mock.patch.dict(RUN["compat"](), {"build_tool": build}):
+            found = RUN["tools"](str(self.root))
+        build.assert_called_once()
+        self.assertIn("droiddeck-proton-11-arm64", found)
+
+    def test_a_runnable_depot_is_chosen_over_a_newer_incomplete_one(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        good = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % good, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % good, b"#!/bin/sh\n", 0o755)
+        broken = "Library/steamapps/common/Proton Experimental (ARM64)"
+        self.write("Library/steamapps/libraryfolders.vdf", b"")
+        self.write("%s/version" % broken, b"2\n")
+        self.write("%s/files/bin-arm64/proton" % broken, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/libraryfolders.vdf", '"path" "%s"' % (self.tmp / "Library"))
+        compat = RUN["compat"]()
+        source = compat["find_source"]
+        self.assertEqual(source(str(self.root), runnable=True), str(self.tmp / good))
+
+    def test_a_registered_wrapper_without_its_launcher_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        launcher = wrapper / RUN["compat"]()["LAUNCHER"]
+        if launcher.exists():
+            launcher.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(os.access(launcher, os.X_OK))
+        self.assertIn("droiddeck-proton-arm64", found)
+
+    def test_a_registered_wrapper_without_its_manifest_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        manifest = wrapper / "toolmanifest.vdf"
+        if manifest.exists():
+            manifest.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(manifest.is_file())
+        self.assertIn("droiddeck-proton-arm64", found)
+
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
         current = RUN["mapping"](str(self.root))

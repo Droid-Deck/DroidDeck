@@ -6,6 +6,7 @@ import kotlin.math.roundToInt
 internal class FrameStats {
     private val graph = FloatArray(GRAPH_FRAMES)
     private var graphHead = 0
+    private var graphFrames = 0L
     private var lastPresentNs = 0L
     private var lastFpsUpdateNs = 0L
     private var framesSinceUpdate = 0
@@ -38,6 +39,7 @@ internal class FrameStats {
         if (lastPresentNs != 0L) {
             graph[graphHead] = frametimeNs / 1e6f
             graphHead = (graphHead + 1) % GRAPH_FRAMES
+            graphFrames++
         }
         val elapsed = timeNs - lastFpsUpdateNs
         if (elapsed >= FPS_PERIOD_NS) {
@@ -68,6 +70,7 @@ internal class FrameStats {
     fun reset() {
         graph.fill(0f)
         graphHead = 0
+        graphFrames = 0L
         lastPresentNs = 0L
         lastFpsUpdateNs = 0L
         framesSinceUpdate = 0
@@ -86,8 +89,9 @@ internal class FrameStats {
     fun frametimeMs(): Float = 1000f / maxOf(fps, 1f)
 
     @Synchronized
-    fun graph(out: FloatArray) {
+    fun graph(out: FloatArray): Long {
         for (i in 0 until GRAPH_FRAMES) out[i] = graph[(graphHead + i) % GRAPH_FRAMES]
+        return graphFrames
     }
 
     @Synchronized
