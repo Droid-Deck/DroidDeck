@@ -2539,6 +2539,8 @@
     <string name="comp_this_device">이 기기</string>
     <string name="proton_remove_title">%1$s을(를) 제거하시겠습니까?</string>
     <string name="setup_tab_diagnostics">진단</string>
+    <string name="setup_build_watermark">빌드 라벨 워터마크</string>
+    <string name="setup_build_watermark_hint">테스트 빌드 라벨을 화면에 표시합니다. 테스트 빌드에서 기본적으로 켜져 있습니다.</string>
     <string name="setup_ready">플레이 준비 완료</string>
     <string name="setup_not_ready">아직 플레이할 준비가 되지 않음</string>
     <string name="setup_ready_runtime">런타임 %1$s</string>

@@ -576,6 +576,7 @@ internal fun SetupPanel(
                     SYNC_TAB -> SyncPanel(host, runtimeOk) { syncAdvanced = true }
                     5 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
+                            ToggleRow(host, "build-watermark", stringResource(R.string.setup_build_watermark), stringResource(R.string.setup_build_watermark_hint), s.buildWatermark) { a.onBuildWatermark() }
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(
                                 host, "enhanced-diagnostics", stringResource(R.string.setup_enhanced_diagnostics),

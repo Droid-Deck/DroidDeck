@@ -2539,6 +2539,8 @@
     <string name="comp_this_device">此裝置</string>
     <string name="proton_remove_title">移除 %1$s？</string>
     <string name="setup_tab_diagnostics">診斷</string>
+    <string name="setup_build_watermark">建置標籤浮水印</string>
+    <string name="setup_build_watermark_hint">在畫面上顯示測試版建置標籤。測試版建置預設啟用。</string>
     <string name="setup_ready">可以開始遊戲</string>
     <string name="setup_not_ready">尚未可以開始遊戲</string>
     <string name="setup_ready_runtime">運行環境 %1$s</string>

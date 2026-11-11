@@ -14,11 +14,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import java.util.WeakHashMap
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.QuestXrActivity
 
 object BuildWatermark {
     private const val TITLE_LIMIT = 80
+    private val activities = WeakHashMap<Activity, Unit>()
 
     fun lines(
         pr: Int = BuildConfig.PR_NUMBER,
@@ -38,31 +40,43 @@ object BuildWatermark {
         if (text.length <= TITLE_LIMIT) text else text.take(TITLE_LIMIT - 1).trimEnd() + "…"
 
     fun install(app: Application) {
-        val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
-        val lines = (listOfNotNull(lab) + lines().orEmpty()).ifEmpty { return }
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (activity is QuestXrActivity) return
-                val decor = activity.window.decorView as? ViewGroup ?: return
-                if (decor.findViewWithTag<View>(TAG) != null) return
-                val margin = (8 * activity.resources.displayMetrics.density).toInt()
-                decor.addView(
-                    MarkView(activity, lines).apply { tag = TAG },
-                    FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        Gravity.BOTTOM or Gravity.END,
-                    ).apply { setMargins(margin, margin, margin, margin) },
-                )
+                synchronized(activities) { activities[activity] = Unit }
+                update(activity)
             }
 
             override fun onActivityStarted(activity: Activity) = Unit
-            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityResumed(activity: Activity) { update(activity) }
             override fun onActivityPaused(activity: Activity) = Unit
             override fun onActivityStopped(activity: Activity) = Unit
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-            override fun onActivityDestroyed(activity: Activity) = Unit
+            override fun onActivityDestroyed(activity: Activity) { synchronized(activities) { activities.remove(activity) } }
         })
+    }
+
+    fun refresh(context: Context) {
+        val current = synchronized(activities) { activities.keys.toList() }
+        current.forEach(::update)
+    }
+
+    private fun update(activity: Activity) {
+        if (activity is QuestXrActivity) return
+        val decor = activity.window.decorView as? ViewGroup ?: return
+        decor.findViewWithTag<View>(TAG)?.let(decor::removeView)
+        val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
+        val build = if (com.droiddeck.launcher.session.SessionPrefs.buildWatermarkEnabled(activity)) lines().orEmpty() else emptyList()
+        val content = (listOfNotNull(lab) + build).ifEmpty { return }
+        val margin = (8 * activity.resources.displayMetrics.density).toInt()
+        decor.addView(
+            MarkView(activity, content).apply { tag = TAG },
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.END,
+            ).apply { setMargins(margin, margin, margin, margin) },
+        )
     }
 
     private const val TAG = "build-watermark"

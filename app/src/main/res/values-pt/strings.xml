@@ -2582,6 +2582,8 @@
     <string name="comp_this_device">Este aparelho</string>
     <string name="proton_remove_title">Remover %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnóstico</string>
+    <string name="setup_build_watermark">Marca de água da compilação</string>
+    <string name="setup_build_watermark_hint">Mostrar no ecrã a etiqueta da compilação de teste. Ativada por predefinição nas compilações de teste.</string>
     <string name="setup_ready">Pronto para jogar</string>
     <string name="setup_not_ready">Ainda não está pronto para jogar</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
