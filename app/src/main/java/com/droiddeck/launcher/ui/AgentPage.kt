@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +86,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
     remember { AgentSetup.check(context) }
     var setup by rememberSaveable { mutableStateOf(false) }
+    val draft = rememberSaveable { mutableStateOf("") }
     if (setup || AgentHost.state == AgentHost.State.MISSING || !(AgentSetup.ready || AgentSetup.completed(context))) {
         AgentSetupView(modifier, onDone = { setup = false })
         return
@@ -99,7 +101,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
                 if (panel == AgentPanel.MODEL) AgentModelPicker()
                 AgentConversation(Modifier.weight(1f))
                 AgentStatus()
-                AgentComposer(inputModifier) { panel = it }
+                AgentComposer(draft, inputModifier) { panel = it }
             }
         }
     }
@@ -283,11 +285,11 @@ private fun labStage(lab: com.droiddeck.launcher.agent.LabProgress) = when (lab.
 }
 
 @Composable
-private fun AgentComposer(inputModifier: Modifier, onPanel: (AgentPanel) -> Unit) {
+private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modifier, onPanel: (AgentPanel) -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    var draft by rememberSaveable { mutableStateOf("") }
+    var draft by draftState
     val working = AgentHost.state == AgentHost.State.WORKING
     val send = send@{
         val text = draft.trim()
