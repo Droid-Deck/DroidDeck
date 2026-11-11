@@ -1588,7 +1588,6 @@ class SessionService : Service() {
     }
 
     private fun watchGameExit(gameId: String, gen: Int, token: Int) {
-        val returnToLauncher = SessionPrefs.returnAfterGame(this)
         Thread({
             val startBy = android.os.SystemClock.elapsedRealtime() + GAME_START_TIMEOUT_MS
             var seen = false
@@ -1609,8 +1608,11 @@ class SessionService : Service() {
                     goneSince = now
                 } else if (now - goneSince >= GAME_EXIT_GRACE_MS) {
                     mainHandler.post {
-                        if (returnToLauncher) returnAfterGame(gameId, gen, token)
-                        else clearActiveScreenEffectsProfile(gameId, gen, token)
+                        if (SessionPrefs.returnAfterGame(this@SessionService)) {
+                            returnAfterGame(gameId, gen, token)
+                        } else {
+                            clearActiveScreenEffectsProfile(gameId, gen, token)
+                        }
                     }
                     return@Thread
                 }
