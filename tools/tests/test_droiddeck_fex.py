@@ -486,6 +486,7 @@ class PrepareTest(FexTestCase):
         base = sniper / "files/lib/x86_64-linux-gnu"
         newer = provider / "files/lib/x86_64-linux-gnu"
         source = self.tmp / "library.c"
+        self.write(newer / "libffi.so.8", b"ffi")
         for folder, symbol in ((base, "wl_proxy_marshal"), (newer, "wl_proxy_marshal_flags")):
             source.write_text("void *%s(void) { return 0; }\n" % symbol)
             subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-Wl,-soname,libwayland-client.so.0",
@@ -596,16 +597,39 @@ class PrepareTest(FexTestCase):
             root = Path(fex["rootfs"]) / "lib" / arch
             self.assertEqual((root / "libwayland-client.so.0").read_bytes(), b"base")
             self.assertFalse(os.path.lexists(root / "libffi.so.8"))
-            self.assertEqual((root / "libwayland-server.so.0").read_bytes(), b"provider")
-            self.assertEqual((root / "libwayland-server.so.0").resolve(),
-                             provider / "files/lib" / arch / "wayland-server-real.so")
+            self.assertFalse(os.path.lexists(root / "libwayland-server.so.0"))
+
+    def test_wayland_requires_usable_provider_ffi_on_both_architectures(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for ffi_state in ("missing", "dangling"):
+            with self.subTest(ffi_state=ffi_state):
+                for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+                    base = sniper / "files/lib" / arch
+                    newer = provider / "files/lib" / arch
+                    for name in ("libwayland-client.so.0", "libwayland-server.so.0"):
+                        self.write(base / name, b"base")
+                        self.write(newer / name, b"provider")
+                    if ffi_state == "dangling":
+                        os.symlink("missing-ffi.so", newer / "libffi.so.8")
+                marker = self.home / ".local/share/droiddeck-fex/rootfs/.droiddeck-fex"
+                if marker.exists():
+                    marker.unlink()
+                fex, _ = self.quiet(FEX["prepare"])
+                for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+                    root = Path(fex["rootfs"]) / "lib" / arch
+                    for name in ("libwayland-client.so.0", "libwayland-server.so.0"):
+                        self.assertEqual((root / name).read_bytes(), b"base")
+                    self.assertFalse(os.path.lexists(root / "libffi.so.8"))
 
     def test_the_old_rootfs_layout_is_rebuilt(self):
         self.fex_tool()
         sniper = self.runtime()
         FEX["materialize"](str(sniper))
         self.graphics(sniper)
-        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 4}):
+        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 5}):
             self.quiet(FEX["prepare"])
         _, said = self.quiet(FEX["prepare"])
         self.assertIn("built the x86 runtime", said)
