@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import queue
+import shlex
 import shutil
 import struct
 import subprocess
@@ -16,8 +17,8 @@ def clock_reset_command(control):
     start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
     end = script.index("\nfi", start) + len("\nfi")
     return ('BL_INSIDE=; BL_ZRAM=0; ' + script[start:end]
-            .replace("/tmp/.bl-clock", str(control))
-            .replace("/tmp/.bl-zram", str(control.parent / "zram")))
+            .replace("/tmp/.bl-clock", shlex.quote(str(control)))
+            .replace("/tmp/.bl-zram", shlex.quote(str(control.parent / "zram"))))
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -232,6 +233,26 @@ class ClockPausePreloadTest(unittest.TestCase):
                 if process.poll() is None:
                     process.kill()
                     process.communicate()
+
+
+class ClockResetCommandTest(unittest.TestCase):
+    def test_reset_keeps_paths_with_spaces_and_shell_syntax_as_single_arguments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "session dir; touch injected $(touch substituted) 'quoted'"
+            folder.mkdir()
+            control = folder / "clock"
+            control.write_bytes(struct.pack("<q", 10_000_000_000) + b"tail")
+            (folder / "zram").write_text("1")
+            bystander = root / "session"
+            bystander.write_text("keep")
+            inode = control.stat().st_ino
+            subprocess.run(["bash", "-c", clock_reset_command(control)], cwd=root, check=True, timeout=5)
+            self.assertEqual(control.stat().st_ino, inode)
+            self.assertEqual(control.read_bytes(), struct.pack("<q", 0) + b"tail")
+            self.assertFalse((folder / "zram").exists())
+            self.assertEqual(bystander.read_text(), "keep")
+            self.assertEqual(sorted(path.name for path in root.iterdir()), sorted([folder.name, bystander.name]))
 
 
 if __name__ == "__main__":
