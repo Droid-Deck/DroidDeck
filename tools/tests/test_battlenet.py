@@ -283,6 +283,54 @@ class DriveTest(Temp):
         self.assertIsNone(BNET["windows_path"](self.root, "D:/../etc"))
         self.assertEqual(BNET["windows_path"](self.root, "D:\\"), str(self.library.parent.parent))
 
+    def field(self, number, value):
+        varint = BNET["encode_varint"]
+        return varint(number << 3 | 2) + varint(len(value)) + value
+
+    def product(self, uid, folder, filler=b""):
+        settings = self.field(1, folder.encode()) + self.field(2, b"us") + b"\x18\x02" + filler
+        return self.field(1, self.field(1, uid.encode()) + self.field(2, uid.encode()) + self.field(3, settings)
+                          + b"\x21" + bytes(8) + b"\x2d" + bytes(4))
+
+    def database(self, *products):
+        path = Path(BNET["drive_c"](self.root)) / "ProgramData/Battle.net/Agent/product.db"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"".join(products) + self.field(7, b"tail"))
+        path.chmod(0o600)
+        return path
+
+    def test_games_registered_through_the_root_drive_move_to_their_volume_drive(self):
+        game = self.library / "World of Warcraft"
+        game.mkdir()
+        other = self.tmp / "root/Games/Other"
+        other.mkdir(parents=True)
+        client = self.product("battle.net", "C:/Program Files (x86)/Battle.net")
+        local = self.product("other", "Z:" + str(other))
+        gone = self.product("gone", "Z:" + str(self.card / "Missing"))
+        path = self.database(client, self.product("wow", "Z:" + str(game), bytes(200)), local, gone)
+        self.assertTrue(BNET["move_installs"](self.root))
+        self.assertEqual(path.read_bytes(), client + self.product("wow", "D:/Games/Battle.net/World of Warcraft", bytes(200))
+                         + local + gone + self.field(7, b"tail"))
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(os.readlink(self.devices / "d:"), str(self.card))
+        self.assertFalse(BNET["move_installs"](self.root))
+
+    def test_registrations_stay_while_the_prefix_runs_or_the_database_is_unreadable(self):
+        game = self.library / "World of Warcraft"
+        game.mkdir()
+        path = self.database(self.product("wow", "Z:" + str(game)))
+        before = path.read_bytes()
+        self.running = [(5, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.exe"])]
+        self.assertFalse(BNET["move_installs"](self.root))
+        self.assertEqual(path.read_bytes(), before)
+        self.running = []
+        for broken in (before[:-3], b"\x0a\xff", b"\x0b\x01"):
+            path.write_bytes(broken)
+            self.assertFalse(BNET["move_installs"](self.root))
+            self.assertEqual(path.read_bytes(), broken)
+        os.unlink(path)
+        self.assertFalse(BNET["move_installs"](self.root))
+
 
 class GamepadTest(Temp):
     def registry(self, *entries):

@@ -42,6 +42,8 @@ START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
 DRIVES = "defghijklmnopqruvwxy"
+PRODUCT_DB = ("ProgramData", "Battle.net", "Agent", "product.db")
+INSTALL_FOLDER = (1, 3, 1)
 CLOSE_GRACE = 15
 HANDOFF_WAIT = 120
 GAME_SETTLE = 20
@@ -501,6 +503,86 @@ def windows_path(root, path):
     return os.path.join(target, *parts)
 
 
+def varint(data, at):
+    value = shift = 0
+    while at < len(data) and shift < 64:
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, at
+        shift += 7
+    raise ValueError("varint")
+
+
+def encode_varint(value):
+    out = bytearray()
+    while value > 0x7F:
+        out.append(value & 0x7F | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+
+def rewrite_field(data, path, change):
+    out, at = bytearray(), 0
+    while at < len(data):
+        start = at
+        tag, at = varint(data, at)
+        kind = tag & 7
+        if kind == 0:
+            at = varint(data, at)[1]
+        elif kind == 1:
+            at += 8
+        elif kind == 5:
+            at += 4
+        elif kind == 2:
+            size, body = varint(data, at)
+            at = body + size
+        else:
+            raise ValueError("wire type")
+        if at > len(data):
+            raise ValueError("length")
+        if kind == 2 and tag >> 3 == path[0]:
+            value = data[body:at]
+            value = change(value) if len(path) == 1 else rewrite_field(value, path[1:], change)
+            out += encode_varint(tag) + encode_varint(len(value)) + value
+        else:
+            out += data[start:at]
+    return bytes(out)
+
+
+def drive_folder(root, value):
+    try:
+        text = value.decode("utf-8")
+    except UnicodeDecodeError:
+        return value
+    if not re.match(r"(?i)^z:[\\/]", text):
+        return value
+    folder = windows_path(root, text)
+    if not folder or not os.path.isdir(folder):
+        return value
+    moved = install_path(root, folder)
+    return value if moved.startswith("Z:") else moved.replace("\\", "/").encode("utf-8")
+
+
+def move_installs(root):
+    path = os.path.join(drive_c(root), *PRODUCT_DB)
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        moved = rewrite_field(data, INSTALL_FOLDER, lambda value: drive_folder(root, value))
+    except (OSError, ValueError):
+        return False
+    if moved == data or wine_processes(os.path.join(prefix(root), "pfx")):
+        return False
+    with open(path + ".tmp", "wb") as f:
+        f.write(moved)
+    shutil.copymode(path, path + ".tmp")
+    os.replace(path + ".tmp", path)
+    return True
+
+
 def wow_folders(root):
     try:
         with open(os.path.join(prefix(root), "pfx", "system.reg"), encoding="utf-8", errors="replace") as f:
@@ -608,6 +690,11 @@ def configure(root, library=None):
     except OSError as error:
         say("Battle.net's config not written: %s" % error)
         return
+    try:
+        if move_installs(root):
+            say("Battle.net's installed games on a mapped volume now use its Wine drive")
+    except OSError as error:
+        say("Battle.net's installed games not moved to their Wine drive: %s" % error)
     try:
         wallpaper(root)
     except OSError as error:
