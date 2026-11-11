@@ -65,6 +65,18 @@ def find_store_game(argv):
     return None
 
 
+def store_launcher(path):
+    found = find_store_game([path])
+    if found is None:
+        return None
+    folder, sidecar = found
+    launcher, exe = str(sidecar.get("launcher") or ""), str(sidecar.get("exe") or "")
+    if not launcher or not exe or (folder / launcher).is_symlink() or not (folder / launcher).is_file():
+        return None
+    same = os.path.realpath(folder / exe).lower() == os.path.realpath(path).lower()
+    return str(folder / launcher) if same else None
+
+
 def drop_stale(folder, now=None):
     code = folder / EPIC_CODE
     try:

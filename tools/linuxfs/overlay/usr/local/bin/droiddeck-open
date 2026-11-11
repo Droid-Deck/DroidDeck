@@ -17,6 +17,7 @@ PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
 APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
 SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
 STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
+STORE_LAUNCH = os.path.join(BIN, "droiddeck-store-launch")
 PROGRAMS = os.path.join(BIN, "droiddeck-desktop-programs")
 CACHE = os.path.join(HOME, ".cache", "droiddeck")
 IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
@@ -272,12 +273,20 @@ def steam_title(path):
         return None
 
 
+def store_launcher(path):
+    try:
+        return runpy.run_path(STORE_LAUNCH)["store_launcher"](path)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def command(path, args, what, window=False, appid=None):
     folder = os.path.dirname(path)
     if what == "steam":
         return [STEAM_LAUNCH, "desktop", appid], folder
     if what == "windows":
-        return [PROTON_RUN] + (["--window"] if window else []) + [path] + args, folder
+        target = None if args else store_launcher(path)
+        return [PROTON_RUN] + (["--window"] if window else []) + [target or path] + args, folder
     if what == "x86 script":
         return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
     if what == "script":

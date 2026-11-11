@@ -136,6 +136,15 @@ class CommandTest(Temp):
         self.assertEqual(OPEN["command"](script, [], "x86 script")[0],
                          [OPEN["FEX"], "run", "--mode", "on", "--for", str(self.tmp), "--", "/bin/sh", script])
 
+    def test_a_store_games_exe_runs_through_its_launcher(self):
+        exe, launcher = str(self.tmp / "game.exe"), str(self.tmp / "launch.bat")
+        with mock.patch.dict(OPEN, {"store_launcher": lambda path: launcher if path == exe else None}):
+            self.assertEqual(OPEN["command"](exe, [], "windows")[0], [OPEN["PROTON_RUN"], launcher])
+            self.assertEqual(OPEN["command"](exe, [], "windows", True)[0], [OPEN["PROTON_RUN"], "--window", launcher])
+            self.assertEqual(OPEN["command"](exe, ["-x"], "windows")[0], [OPEN["PROTON_RUN"], exe, "-x"])
+            other = str(self.tmp / "other.exe")
+            self.assertEqual(OPEN["command"](other, [], "windows")[0], [OPEN["PROTON_RUN"], other])
+
     def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
         program = self.write("storage/tool", elf(183))
         x86 = self.write("storage/game.x86_64", elf(62))
