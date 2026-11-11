@@ -31,6 +31,8 @@ class AgentCallReceiver : BroadcastReceiver() {
                 val dir = File(context.getExternalFilesDir(null), "agent-calls").apply { mkdirs() }
                 File(dir, "$id.json.part").writeText(json)
                 File(dir, "$id.json.part").renameTo(File(dir, "$id.json"))
+            } catch (e: Exception) {
+                android.util.Log.w("AgentCallReceiver", "could not write the answer to $method: ${e.message}")
             } finally {
                 pending.finish()
             }
