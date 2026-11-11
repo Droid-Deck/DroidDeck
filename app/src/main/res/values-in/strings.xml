@@ -2540,7 +2540,7 @@
     <string name="proton_remove_title">Hapus %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
     <string name="setup_build_watermark">Tanda air label build</string>
-    <string name="setup_build_watermark_hint">Tampilkan label build pengujian di layar. Aktif secara default untuk build pengujian.</string>
+    <string name="setup_build_watermark_hint">Tampilkan label build pengujian atau Lab di layar. Aktif secara default.</string>
     <string name="setup_ready">Siap bermain</string>
     <string name="setup_not_ready">Belum siap bermain</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

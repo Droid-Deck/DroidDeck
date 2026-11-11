@@ -2553,7 +2553,7 @@
     <string name="proton_remove_title">移除 %1$s？</string>
     <string name="setup_tab_diagnostics">诊断</string>
     <string name="setup_build_watermark">构建标签水印</string>
-    <string name="setup_build_watermark_hint">在屏幕上显示测试版构建标签。测试版构建默认启用。</string>
+    <string name="setup_build_watermark_hint">在屏幕上显示测试版或 Lab 构建标签。默认启用。</string>
     <string name="setup_ready">可以游玩了</string>
     <string name="setup_not_ready">暂时还不能游玩</string>
     <string name="setup_ready_runtime">运行时 %1$s</string>

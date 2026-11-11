@@ -2621,7 +2621,7 @@
     <string name="proton_remove_title">Usunąć %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostyka</string>
     <string name="setup_build_watermark">Znak wodny z etykietą kompilacji</string>
-    <string name="setup_build_watermark_hint">Pokazuj na ekranie etykietę kompilacji testowej. Domyślnie włączone dla kompilacji testowych.</string>
+    <string name="setup_build_watermark_hint">Pokazuj na ekranie etykietę kompilacji testowej lub Lab. Domyślnie włączone.</string>
     <string name="setup_ready">Gotowe do gry</string>
     <string name="setup_not_ready">Jeszcze nie gotowe do gry</string>
     <string name="setup_ready_runtime">środowisko %1$s</string>

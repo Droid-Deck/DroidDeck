@@ -2567,7 +2567,7 @@
     <string name="proton_remove_title">Fjern %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
     <string name="setup_build_watermark">Vandmærke med buildmærkat</string>
-    <string name="setup_build_watermark_hint">Vis testbuildens mærkat på skærmen. Aktiveret som standard for testbuilds.</string>
+    <string name="setup_build_watermark_hint">Vis mærkatet for test- eller Lab-builden på skærmen. Aktiveret som standard.</string>
     <string name="setup_ready">Klar til at spille</string>
     <string name="setup_not_ready">Ikke klar til at spille endnu</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
