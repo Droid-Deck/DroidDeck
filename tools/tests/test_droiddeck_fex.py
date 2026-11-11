@@ -578,12 +578,34 @@ class PrepareTest(FexTestCase):
         fex, _ = self.quiet(FEX["prepare"])
         self.assertEqual((Path(fex["rootfs"]) / "lib/x86_64-linux-gnu/libwayland-client.so.0").resolve(), base)
 
+    def test_provider_symlinks_require_existing_targets_on_both_architectures(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            base = sniper / "files/lib" / arch
+            newer = provider / "files/lib" / arch
+            self.write(base / "libwayland-client.so.0", b"base")
+            os.symlink("missing-client.so", newer / "libwayland-client.so.0")
+            os.symlink("missing-ffi.so", newer / "libffi.so.8")
+            self.write(newer / "wayland-server-real.so", b"provider")
+            os.symlink("wayland-server-real.so", newer / "libwayland-server.so.0")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            root = Path(fex["rootfs"]) / "lib" / arch
+            self.assertEqual((root / "libwayland-client.so.0").read_bytes(), b"base")
+            self.assertFalse(os.path.lexists(root / "libffi.so.8"))
+            self.assertEqual((root / "libwayland-server.so.0").read_bytes(), b"provider")
+            self.assertEqual((root / "libwayland-server.so.0").resolve(),
+                             provider / "files/lib" / arch / "wayland-server-real.so")
+
     def test_the_old_rootfs_layout_is_rebuilt(self):
         self.fex_tool()
         sniper = self.runtime()
         FEX["materialize"](str(sniper))
         self.graphics(sniper)
-        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 3}):
+        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 4}):
             self.quiet(FEX["prepare"])
         _, said = self.quiet(FEX["prepare"])
         self.assertIn("built the x86 runtime", said)

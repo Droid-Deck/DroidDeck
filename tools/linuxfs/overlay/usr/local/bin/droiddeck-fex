@@ -37,7 +37,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 4
+ROOTFS_LAYOUT = 5
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -313,7 +313,7 @@ def provides_newer(base, provider):
 
 
 def mirror(source, provider, name, target):
-    if provider and name in PROVIDED and os.path.lexists(os.path.join(provider, name)):
+    if provider and name in PROVIDED and os.path.exists(os.path.join(provider, name)):
         os.symlink(os.path.realpath(os.path.join(provider, name)), os.path.join(target, name))
         return
     path = os.path.join(source, name)
@@ -354,7 +354,7 @@ def build_rootfs(base, provider):
             if entry in ARCH_DIRS and os.path.isdir(path) and not os.path.islink(path):
                 provided = os.path.join(provider_files, top, entry)
                 os.makedirs(os.path.join(tmp, top, entry))
-                for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.lexists(os.path.join(provided, name))}:
+                for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.exists(os.path.join(provided, name))}:
                     mirror(path, provided, name, os.path.join(tmp, top, entry))
             else:
                 mirror(source, None, entry, os.path.join(tmp, top))
