@@ -36,6 +36,8 @@ class SteamGameProcessTest {
         process("100", "pgrep", "-a", "-f", "SteamLaunch AppId=[0-9]")
         process("self", "reaper", "SteamLaunch", "AppId=1")
         assertFalse(SteamGameProcess.running("976310", proc))
+        assertFalse(SteamGameProcess.running("1", proc))
+        process("101", "reaper", "SteamLaunch", "AppId=1")
         assertTrue(SteamGameProcess.running("1", proc))
         process("200", "reaper", "SteamLaunch", "AppId=976310", "--", "proton", "waitforexitandrun", "MK11.exe")
         assertTrue(SteamGameProcess.running("976310", proc))
