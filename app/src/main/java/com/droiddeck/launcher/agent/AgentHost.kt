@@ -55,7 +55,8 @@ object AgentHost {
         "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
         "The restart ends this process, and this conversation continues on the new build. " +
-        "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments."
+        "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments. " +
+        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note."
 
     val entries = mutableStateListOf<Entry>()
     val queue = mutableStateListOf<Queued>()
@@ -250,6 +251,7 @@ object AgentHost {
         val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
         val workdir = workspace(app)
         Thread({
+            runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
             val child = try {
                 guest(app, command, workdir).start()
             } catch (e: Exception) {
