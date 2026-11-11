@@ -8,17 +8,18 @@ import android.os.Handler
 import android.os.Looper
 import android.system.Os
 import android.util.Log
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
+class SessionClipboard(private val context: Context, private val hasFocus: () -> Boolean) {
     private val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val handler = Handler(Looper.getMainLooper())
     private val hostFile = File(context.filesDir, "session/android-clipboard")
-    private val guestFile = guestFile(context)
     private val guestObserverLock = Any()
     private var guestObserver: FileObserver? = null
     private var guestQueueExecutor: ExecutorService? = null
@@ -55,12 +56,12 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         }
     }
 
-    private fun watchGuestFile() {
+    private fun watchGuestFile(guestFile: File) {
         val parent = guestFile.parentFile ?: return
         @Suppress("DEPRECATION")
         val observer = object : FileObserver(parent.path, MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
-                if (path == null || !isGuestQueueFile(path)) return
+                if (path == null || !isGuestQueueFile(guestFile, path)) return
                 synchronized(guestObserverLock) {
                     if (!active || guestObserver !== this) return
                     guestQueueExecutor?.execute { consumeGuestFile(this, File(parent, path)) }
@@ -85,10 +86,8 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         }
     }
 
-    private fun isGuestQueueEntry(name: String) = name.startsWith("${guestFile.name}.queue.")
-
-    private fun isGuestQueueFile(name: String) =
-        isGuestQueueEntry(name) && name.endsWith(".ready")
+    private fun isGuestQueueFile(guestFile: File, name: String) =
+        name.startsWith("${guestFile.name}.queue.") && name.endsWith(".ready")
 
     private fun consumeGuestFile(source: FileObserver, file: File) {
         val claimed = File(file.parentFile, "${file.name}.${System.nanoTime()}.claimed")
@@ -151,7 +150,7 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         }
         clipboard.addPrimaryClipChangedListener(androidListener)
         WaylandCompositor.setClipboardListener(guestListener)
-        watchGuestFile()
+        desktopGuestFile(context)?.let { watchGuestFile(it) }
         refresh()
     }
 
@@ -206,7 +205,14 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     }
 
     companion object {
-        fun guestFile(context: Context) = File(context.filesDir, "session/guest-clipboard/text")
+        private fun guestRoot(context: Context) = File(context.filesDir, "session/guest-clipboard")
+
+        fun guestFile(context: Context, sessionId: String) = File(File(guestRoot(context), sessionId), "text")
+
+        private fun desktopGuestFile(context: Context): File? {
+            val sessionId = SessionState.sessionId ?: return null
+            return if (SessionState.mode == SessionService.MODE_DESKTOP) guestFile(context, sessionId) else null
+        }
 
         fun readyGuestFiles(guestFile: File): List<File> =
             guestFile.parentFile?.listFiles()
@@ -214,8 +220,8 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
                 ?.sortedBy { it.name }
                 .orEmpty()
 
-        fun clearGuestQueue(context: Context) {
-            guestFile(context).parentFile?.listFiles()?.forEach { it.delete() }
+        fun clearGuestQueue(context: Context, keepSessionId: String) {
+            guestRoot(context).listFiles()?.filter { it.name != keepSessionId }?.forEach { it.deleteRecursively() }
         }
     }
 }

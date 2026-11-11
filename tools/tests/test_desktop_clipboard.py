@@ -40,12 +40,11 @@ class DesktopClipboardTest(unittest.TestCase):
             (self.root / f'after-{index}').write_text(text)
         count = signals if signals is not None else len(history)
         emit = '\n'.join(f'echo "{SIGNAL}"' for _ in range(count))
-        self.tool('dbus-monitor', f'''touch "{self.root}/signalled"
-{emit}
+        self.tool('dbus-monitor', f'''{emit}
 echo "signal other member=NameAcquired"
 ''')
-        self.tool('qdbus6', f'''prefix=before
-[ ! -f "{self.root}/signalled" ] || prefix=after
+        self.tool('qdbus6', f'''prefix=after
+[ -f "{self.root}/baseline-read" ] || {{ touch "{self.root}/baseline-read"; prefix=before; }}
 file="{self.root}/$prefix-$4"
 [ ! -f "$file" ] || cat "$file"
 echo
@@ -85,6 +84,32 @@ echo
 
     def test_copies_made_before_the_first_read_are_not_lost_or_repeated(self):
         self.run_script(['c', 'b', 'a'], signals=3, before=['old'])
+        self.assertEqual([path.read_text() for path in self.guest_updates()], ['a', 'b', 'c'])
+
+    def test_copy_between_baseline_and_monitor_start_is_forwarded(self):
+        self.run_script(['gap', 'old'], signals=0, before=['old'])
+        self.assertEqual([path.read_text() for path in self.guest_updates()], ['gap'])
+
+    def test_burst_larger_than_sixteen_is_delivered_complete_and_in_order(self):
+        texts = [f'copy {number}' for number in range(30, 0, -1)]
+        self.run_script(texts + ['old'], signals=1, before=['old'])
+        self.assertEqual([path.read_text() for path in self.guest_updates()], texts[::-1])
+
+    def test_history_shifting_during_a_scan_neither_repeats_nor_loses_entries(self):
+        counter = self.root / 'calls'
+        self.tool('dbus-monitor', f'echo "{SIGNAL}"\n')
+        self.tool('qdbus6', f'''calls=$(cat "{counter}" 2>/dev/null || echo 0)
+calls=$((calls + 1))
+echo $calls > "{counter}"
+if [ $calls -le 1 ]; then history=(old)
+elif [ $calls -le 3 ]; then history=(b a old)
+else history=(c b a old)
+fi
+printf '%s\\n' "${{history[$4]}}"
+''')
+        env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', DISPLAY=':0',
+                   BL_ANDROID_CLIPBOARD=str(self.android), BL_GUEST_CLIPBOARD=str(self.guest))
+        subprocess.run(['bash', str(self.script)], env=env, check=True, timeout=20)
         self.assertEqual([path.read_text() for path in self.guest_updates()], ['a', 'b', 'c'])
 
     def test_text_copied_before_startup_is_not_forwarded(self):
