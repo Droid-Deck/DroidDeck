@@ -85,7 +85,7 @@ object AgentSetup {
         AgentHostService.setupStarted(app)
         Thread({
             val result = runCatching {
-                if (step == Step.INSTALL) installHelpers(app)
+                installHelpers(app)
                 val child = AgentHost.guest(app, command).start()
                 child.outputStream.close()
                 child.inputStream.bufferedReader().forEachLine { line ->
@@ -145,6 +145,7 @@ object AgentSetup {
         if (Looper.myLooper() == Looper.getMainLooper()) status[step] = value else main.post { status[step] = value }
     }
 
+    /** Written before every step, so the helpers a step relies on are there and match this DroidDeck version. */
     private fun installHelpers(app: Context) {
         val bin = File(LinuxRuntime.rootDir(app), "root/.local/bin").apply { mkdirs() }
         for (name in HELPERS) {
