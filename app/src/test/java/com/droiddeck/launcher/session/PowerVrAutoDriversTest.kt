@@ -112,4 +112,33 @@ class PowerVrAutoDriversTest {
         assertEquals(false, SessionPrefs.unsupportedXclipse(false) { asked = true; "Xclipse" })
         assertEquals(false, asked)
     }
+
+    @Test fun cachedOnlySessionStartLeavesPrefsWhenTheXclipseIsUnnamed() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-display", "imported-linux"))
+        var reads = 0
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) { reads++; null }
+        assertEquals(1, reads)
+        assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
+        assertEquals("imported-display", SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartWithANamedXclipseClearsOnlyAutoOwnedSelections() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
+            mapOf("device" to "Samsung Xclipse 540")
+        }
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals("imported-display", SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartReadsNoVulkanNameOffXclipse() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = false) {
+            throw AssertionError("queried")
+        }
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+    }
 }

@@ -538,14 +538,25 @@ object SessionPrefs {
     }
 
     @JvmStatic
-    fun ensurePowerVrAutoDrivers(context: Context) {
+    fun ensurePowerVrAutoDrivers(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::cachedOrNull,
+    )
+
+    fun ensurePowerVrAutoDriversAfterGpuQuery(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::query,
+    )
+
+    internal fun reconcilePowerVrAutoDrivers(
+        context: Context, powerVr: Boolean, xclipse: Boolean, vulkan: () -> Map<String, String>?,
+    ) {
         if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
+        val device = if (xclipse) vulkan() ?: return else null
         ensurePowerVrAutoDrivers(
-            context, SystemVulkanDriver.isPowerVr(),
-            unsupportedXclipse(SystemVulkanDriver.isXclipse()) {
-                com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(
-                    SystemVulkanDriver.gpuName(), com.droiddeck.launcher.gpu.VulkanInfo.query(),
-                )
+            context, powerVr,
+            unsupportedXclipse(xclipse) {
+                com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
             },
         )
     }
