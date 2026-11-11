@@ -233,6 +233,38 @@ class InputLayoutToolsTest {
         }
     }
 
+    @Test fun duplicatingElementsWithExplicitBindingsCopiesThemAndLeavesOthersUntouched() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.let { it.copy(elements = InputSurfaceLayout.defaults().filter { e -> e.control in listOf(InputControl.B, InputControl.RIGHT_PAD) }) }
+        val base = library.preset(library.profile("game").binding(InputRole.SECONDARY))
+        val button = layout.elements.first { it.control == InputControl.B }
+        val pad = layout.elements.first { it.control == InputControl.RIGHT_PAD }
+        val custom = base.copy(
+            elements = mapOf(button.id to InputAction.Keys(listOf(30)), pad.id to InputAction.Pointer(500f)),
+            clicks = mapOf(pad.id to InputAction.MouseButton(273)),
+        )
+        val other = base.copy(elements = mapOf(button.id to InputAction.Keys(listOf(31))))
+        var elements = layout.elements
+        var actions = custom.elements
+        var clicks = custom.clicks
+        for (source in listOf(button, pad)) {
+            val copy = source.duplicate("copy-${source.id}", elements)
+            actions = actions + (copy.id to custom.copy(elements = actions).action(source).carriedTo(source))
+            if (source.hasClick) clicks = clicks + (copy.id to custom.copy(elements = actions, clicks = clicks).clickAction(source))
+            elements = elements + copy
+        }
+        val result = custom.copy(elements = actions, clicks = clicks)
+        library.withLayout(layout.copy(elements = elements)).withPreset(result).validate()
+        assertEquals(InputAction.Keys(listOf(30)), result.action(elements.first { it.id == "copy-${button.id}" }))
+        assertEquals(InputAction.Pointer(500f), result.action(elements.first { it.id == "copy-${pad.id}" }))
+        assertEquals(InputAction.MouseButton(273), result.clickAction(elements.first { it.id == "copy-${pad.id}" }))
+        assertEquals(custom.action(button), result.action(button))
+        assertEquals(custom.action(pad), result.action(pad))
+        assertEquals(custom.clickAction(pad), result.clickAction(pad))
+        assertEquals(InputAction.Keys(listOf(31)), other.action(button))
+        assertEquals(base.action(pad), other.action(pad))
+    }
+
     @Test fun duplicateNamesNeverExceedTheNameLimit() {
         for (length in 70..80) {
             val source = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "a", name = "x".repeat(length))
