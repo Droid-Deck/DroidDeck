@@ -950,8 +950,24 @@ def retroarch():
     with open(cfg, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     changed = False
+    paths = {}
+    for i, line in enumerate(lines):
+        key, value = cfg_value(line)
+        if key in system and key != "menu_show_core_updater" and value is not None:
+            paths.setdefault(key, []).append((i, value))
+    for key, entries in paths.items():
+        if not any(value == "" for _, value in entries):
+            continue
+        value = next((value for _, value in entries if value), system[key])
+        first = entries[0][0]
+        replacement = f'{key} = "{value}"'
+        if lines[first] != replacement or len(entries) > 1:
+            changed = True
+        lines[first] = replacement
+        for i, _ in entries[1:]:
+            lines[i] = None
+    lines = [line for line in lines if line is not None]
     seen = set()
-    present = set()
     for i, l in enumerate(lines):
         if l.replace(" ", "").startswith('input_joypad_driver="udev"'):
             lines[i] = 'input_joypad_driver = "sdl2"'
@@ -959,8 +975,6 @@ def retroarch():
         key, value = cfg_value(l)
         if key in system and value is not None:
             seen.add(key)
-        if key in system and value:
-            present.add(key)
         if (
             key == "libretro_directory"
             and value == RETROARCH_PACKAGED[key]
@@ -971,10 +985,9 @@ def retroarch():
             lines[i] = f'{key} = "{system[key]}"'
             changed = True
     for key, value in system.items():
-        if key not in present:
+        if key not in seen:
             if (
                 key == "libretro_directory"
-                and key not in seen
                 and (
                     retroarch_has_cores(os.path.join(d, "cores"))
                     or retroarch_has_cores(RETROARCH_PACKAGED[key])

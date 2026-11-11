@@ -40,10 +40,14 @@ class RetroArchDefaults(unittest.TestCase):
     def run_script(self):
         env = {"HOME": str(self.tmp), "XDG_CONFIG_HOME": str(self.config_home), "PATH": os.environ["PATH"]}
         subprocess.run([sys.executable, "-I", str(self.script)], env=env, check=True, capture_output=True)
-        return dict(
-            (k.strip(), v.strip().strip('"'))
-            for k, _, v in (l.partition("=") for l in self.cfg.read_text().splitlines())
-        )
+        values = {}
+        for line in self.cfg.read_text().splitlines():
+            key, sep, value = line.partition("=")
+            if sep and not line.lstrip().startswith("#"):
+                key = key.strip()
+                self.assertNotIn(key, values, f"Duplicate setting: {key}")
+                values[key] = value.strip().strip('"')
+        return values
 
     def test_new_config_uses_packaged_paths(self):
         values = self.run_script()
@@ -104,6 +108,61 @@ class RetroArchDefaults(unittest.TestCase):
         self.assertEqual(values["assets_directory"], "/usr/share/libretro/assets/")
         self.assertEqual(values["libretro_directory"], "/usr/lib/aarch64-linux-gnu/libretro/")
         self.assertEqual(values["libretro_info_path"], "/usr/share/libretro/info/")
+
+    def test_duplicate_empty_directory_settings_are_repaired(self):
+        self.cfg.parent.mkdir(parents=True)
+        paths = {
+            "assets_directory": "/usr/share/libretro/assets/",
+            "libretro_directory": "/usr/lib/aarch64-linux-gnu/libretro/",
+            "libretro_info_path": "/usr/share/libretro/info/",
+        }
+        for empty_first in (True, False):
+            with self.subTest(empty_first=empty_first):
+                self.cfg.write_text("".join(
+                    f'{key} = "{value}"\n'
+                    for key, path in paths.items()
+                    for value in (("", path) if empty_first else (path, ""))
+                ))
+                values = self.run_script()
+                for key, path in paths.items():
+                    self.assertEqual(values[key], path)
+                before = self.cfg.read_bytes()
+                self.run_script()
+                self.assertEqual(self.cfg.read_bytes(), before)
+
+    def test_duplicate_empty_settings_preserve_custom_paths(self):
+        self.cfg.parent.mkdir(parents=True)
+        paths = {
+            "assets_directory": "/mnt/assets",
+            "libretro_directory": "/mnt/cores",
+            "libretro_info_path": "/mnt/info",
+        }
+        for empty_first in (True, False):
+            with self.subTest(empty_first=empty_first):
+                self.cfg.write_text("".join(
+                    f'{key} = "{value}"\n'
+                    for key, path in paths.items()
+                    for value in (("", path) if empty_first else (path, ""))
+                ) + 'menu_show_core_updater = "true"\nvideo_driver = "vulkan"\n')
+                values = self.run_script()
+                for key, path in paths.items():
+                    self.assertEqual(values[key], path)
+                self.assertEqual(values["menu_show_core_updater"], "true")
+                self.assertEqual(values["video_driver"], "vulkan")
+
+    def test_duplicate_empty_core_setting_preserves_installed_cores(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text(
+            'libretro_directory = ""\n'
+            'libretro_directory = "~/.config/retroarch/cores"\n'
+        )
+        cores = self.tmp / ".config/retroarch/cores"
+        cores.mkdir(parents=True)
+        core = cores / "snes9x_libretro.so"
+        core.write_bytes(b"installed core")
+        values = self.run_script()
+        self.assertEqual(values["libretro_directory"], "~/.config/retroarch/cores")
+        self.assertEqual(core.read_bytes(), b"installed core")
 
     def test_user_choices_are_kept(self):
         self.cfg.parent.mkdir(parents=True)
