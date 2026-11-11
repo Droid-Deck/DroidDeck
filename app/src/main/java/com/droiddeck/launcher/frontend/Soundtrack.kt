@@ -249,7 +249,12 @@ object Soundtrack {
         if (marker.isFile) {
             val name = runCatching { marker.readText().trim() }.getOrDefault("")
             if (name.isEmpty()) return null
-            File(dir, name).takeIf { it.isFile && it.length() > 0L }?.let { return it }
+            File(dir, name).takeIf { it.isFile && it.length() > 0L }?.let {
+                val now = System.currentTimeMillis()
+                marker.setLastModified(now)
+                it.setLastModified(now)
+                return it
+            }
         }
         val bytes = embeddedBytes(file)
         return runCatching {
@@ -261,9 +266,26 @@ object Soundtrack {
                 val out = File(dir, "c-" + hashOf(bytes) + ".jpg")
                 if (!out.isFile || out.length() == 0L) out.writeBytes(bytes)
                 marker.writeText(out.name)
+                prune(dir, setOf(marker.name, out.name))
                 out
             }
         }.getOrNull()
+    }
+
+    private const val TRACK_COVER_BYTES = 64L * 1024 * 1024
+    private const val TRACK_COVER_FILES = 2000
+
+    private fun prune(dir: File, keep: Set<String>) {
+        val all = dir.listFiles()?.filter { it.isFile } ?: return
+        var bytes = all.sumOf { it.length() }
+        var count = all.size
+        for (f in all.sortedBy { it.lastModified() }) {
+            if (bytes <= TRACK_COVER_BYTES && count <= TRACK_COVER_FILES) break
+            if (f.name in keep) continue
+            bytes -= f.length()
+            count--
+            f.delete()
+        }
     }
 
     fun load(context: Context, root: File, coverHint: File? = null): Album {
