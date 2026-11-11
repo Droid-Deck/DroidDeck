@@ -2573,6 +2573,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
+                if (isFinishing || isDestroyed) return@Thread
                 val forcePending = frameGenForcePending.getAndSet(false)
                 val lastAppliedHz = appliedFrameGenHz
                 if (!forcePending && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
