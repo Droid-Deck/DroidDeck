@@ -347,7 +347,7 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            setStartupMovieShuffle(config, SessionPrefs.bootMovieShuffle(context))
+            if (startsSession) setStartupMovieShuffle(config, SessionPrefs.bootMovieShuffle(context))
             if (startsSession) disableIdleSleep(home)
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
@@ -355,7 +355,7 @@ object SessionFiles {
         }
         if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
-        SessionPrefs.setBootMovieShuffleSeen(context, startupMovieShuffle(BootMovieLibrary.steamConfig(context)))
+        startupMovieShuffle(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieShuffleSeen(context, it) }
     }
 
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
@@ -481,8 +481,8 @@ object SessionFiles {
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
-    internal fun startupMovieShuffle(config: File): Boolean {
-        val text = runCatching { config.readText() }.getOrNull() ?: return false
+    internal fun startupMovieShuffle(config: File): Boolean? {
+        val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = activeStartupMovie(text) ?: return false
         return scalar(text.substring(movie.keyStart, movie.close + 1), "Shuffle") == "1"
     }

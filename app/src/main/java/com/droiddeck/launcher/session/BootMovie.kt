@@ -148,7 +148,7 @@ object BootMovie {
     }
 
     internal fun syncShuffleFromSteam(context: Context, config: File) {
-        val steam = SessionFiles.startupMovieShuffle(config)
+        val steam = SessionFiles.startupMovieShuffle(config) ?: return
         if (SessionPrefs.bootMovieShuffleSeen(context) != steam) SessionPrefs.setBootMovieShuffle(context, steam)
         SessionPrefs.setBootMovieShuffleSeen(context, steam)
     }

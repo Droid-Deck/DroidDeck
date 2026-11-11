@@ -26,7 +26,7 @@ object SettingsReset {
         "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
-        "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle", "bootMovieShuffleSeen",
+        "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle",
         "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )
 

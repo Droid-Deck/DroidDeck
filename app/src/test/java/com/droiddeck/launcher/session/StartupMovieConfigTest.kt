@@ -66,9 +66,9 @@ class StartupMovieConfigTest {
 
     @Test fun shuffleIsWrittenIntoBothMovieSectionsAndReadBack() {
         val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
-        assertFalse(SessionFiles.startupMovieShuffle(file))
+        assertEquals(false, SessionFiles.startupMovieShuffle(file))
         assertTrue(SessionFiles.setStartupMovieShuffle(file, true))
-        assertTrue(SessionFiles.startupMovieShuffle(file))
+        assertEquals(true, SessionFiles.startupMovieShuffle(file))
         assertEquals(2, Regex("\"Shuffle\"\\s+\"1\"").findAll(file.readText()).count())
         assertEquals(SessionFiles.BOOT_MOVIE_PATH, SessionFiles.startupMoviePath(file))
     }
@@ -77,7 +77,7 @@ class StartupMovieConfigTest {
         val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", "/uioverrides/movies/Undertale.webm")
         SessionFiles.setStartupMovieShuffle(file, true)
         assertTrue(SessionFiles.setStartupMovieShuffle(file, false))
-        assertFalse(SessionFiles.startupMovieShuffle(file))
+        assertEquals(false, SessionFiles.startupMovieShuffle(file))
         assertEquals("/uioverrides/movies/Undertale.webm", SessionFiles.startupMoviePath(file))
     }
 
@@ -106,7 +106,7 @@ class StartupMovieConfigTest {
         val before = file.readText()
         assertTrue(SessionFiles.setStartupMovieShuffle(file, true))
         assertEquals(before, file.readText())
-        assertFalse(SessionFiles.startupMovieShuffle(file))
+        assertEquals(false, SessionFiles.startupMovieShuffle(file))
     }
 
     @Test fun aShuffleChangedInSteamIsTakenOverAndOtherwiseTheChoiceIsKept() {
@@ -121,6 +121,32 @@ class StartupMovieConfigTest {
         SessionFiles.setStartupMovieShuffle(file, true)
         BootMovie.syncShuffleFromSteam(app, file)
         SessionFiles.setStartupMovieShuffle(file, false)
+        BootMovie.syncShuffleFromSteam(app, file)
+        assertFalse(SessionPrefs.bootMovieShuffle(app))
+    }
+
+    @Test fun anUnreadableConfigKeepsTheSavedShuffleChoice() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        SessionPrefs.setBootMovieShuffle(app, true)
+        SessionPrefs.setBootMovieShuffleSeen(app, true)
+        val missing = File(folder.root, "missing.vdf")
+        assertNull(SessionFiles.startupMovieShuffle(missing))
+        BootMovie.syncShuffleFromSteam(app, missing)
+        assertTrue(SessionPrefs.bootMovieShuffle(app))
+        assertEquals(true, SessionPrefs.bootMovieShuffleSeen(app))
+    }
+
+    @Test fun resetLeavesShuffleOffEvenWhenSteamStillHasItOn() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        SessionFiles.setStartupMovieShuffle(file, true)
+        SessionPrefs.setBootMovieShuffle(app, true)
+        BootMovie.syncShuffleFromSteam(app, file)
+        assertFalse(SettingsReset.isSessionSetting("bootMovieShuffleSeen"))
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().remove("bootMovieShuffle").commit()
         BootMovie.syncShuffleFromSteam(app, file)
         assertFalse(SessionPrefs.bootMovieShuffle(app))
     }
