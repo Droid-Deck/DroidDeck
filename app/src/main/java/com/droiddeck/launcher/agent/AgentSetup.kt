@@ -79,7 +79,8 @@ object AgentSetup {
             Step.CONNECTION -> return
             Step.INSTALL -> {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "apt-get update; apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+                    "dpkg --configure -a; apt-get update; apt-get -f install -y; " +
+                    "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
             Step.GITHUB -> listOf("dd-gh-login")
@@ -96,11 +97,14 @@ object AgentSetup {
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
                 val child = AgentHost.guest(app, command).start()
                 child.outputStream.close()
-                child.inputStream.bufferedReader().forEachLine { line ->
-                    val text = line.trim()
-                    if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
+                    child.inputStream.bufferedReader().forEachLine { line ->
+                        log.appendLine(line)
+                        val text = line.trim()
+                        if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                    }
+                    child.waitFor().also { log.appendLine("exit $it") }
                 }
-                child.waitFor()
             }
             main.post {
                 AgentHostService.setupEnded(app)
@@ -115,6 +119,9 @@ object AgentSetup {
             }
         }, "agent-setup-${step.name.lowercase()}").start()
     }
+
+    /** The whole output of a step's last run; the card shows only its last line. */
+    fun logFile(app: Context, step: Step) = File(app.filesDir, "agent/setup-${step.name.lowercase()}.log")
 
     fun buildToolsInstalled(app: Context) = AgentHost.guestFileExists(app, "/root/aapt2/aapt2") && AgentHost.guestFileExists(app, "$CHECKOUT/.git")
 
