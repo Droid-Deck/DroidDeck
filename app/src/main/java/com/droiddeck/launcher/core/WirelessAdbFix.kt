@@ -79,8 +79,8 @@ object WirelessAdbFix {
         val saved = savedConnection(app) ?: return null
         val host = if (':' in saved.host) "[${saved.host}]" else saved.host
         saved.port?.takeIf { answers(saved.host, it) }?.let { return "$host:$it" }
-        val loopback = runCatching { InetAddress.getByName(saved.host).isLoopbackAddress }.getOrDefault(false)
-        val port = (if (loopback) localConnectPort(app) else findConnectPort(app, saved.host)) ?: return null
+        val live = { port: Int -> answers(saved.host, port) }
+        val port = tlsPortProperty()?.takeIf(live) ?: findConnectPort(app, saved.host, accept = live) ?: return null
         saveConnection(app, saved.host, port)
         return "$host:$port"
     }
@@ -113,7 +113,8 @@ object WirelessAdbFix {
             .invoke(null, "service.adb.tls.port") as? String
     }.getOrNull()?.trim()?.toIntOrNull()?.takeIf { it in 1..65535 }
 
-    fun findConnectPort(context: Context, pairedHost: String, timeoutSeconds: Long = 12): Int? {
+    /** [accept] can pass over stale services that still advertise a port Wireless debugging left. */
+    fun findConnectPort(context: Context, pairedHost: String, timeoutSeconds: Long = 12, accept: (Int) -> Boolean = { true }): Int? {
         val manager = context.applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
         val paired = runCatching { InetAddress.getByName(pairedHost) }.getOrNull() ?: return null
         val matches: (InetAddress) -> Boolean =
@@ -141,7 +142,7 @@ object WirelessAdbFix {
 
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                         val address = serviceInfo.host
-                        if (address != null && matches(address) && finished.compareAndSet(false, true)) {
+                        if (address != null && matches(address) && accept(serviceInfo.port) && finished.compareAndSet(false, true)) {
                             resolvedPort.set(serviceInfo.port)
                             latch.countDown()
                         } else {
