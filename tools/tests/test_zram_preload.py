@@ -10,6 +10,7 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
 PROGRAM = r"""
 #define _GNU_SOURCE
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -29,11 +30,17 @@ static volatile int stop;
 static unsigned char *shared;
 static volatile sig_atomic_t urg_tid;
 static volatile sig_atomic_t usr_tid;
+static int worker_tid;
+static int worker_delivery;
+
+_Static_assert(__atomic_always_lock_free(sizeof(int), 0), "signal state must be lock-free");
 
 static void signal_tid(int sig) {
   sig_atomic_t tid = (sig_atomic_t)syscall(SYS_gettid);
-  if (sig == SIGURG) urg_tid = tid;
-  if (sig == SIGUSR1) usr_tid = tid;
+  if (tid == __atomic_load_n(&worker_tid, __ATOMIC_RELAXED))
+    __atomic_store_n(&worker_delivery, 1, __ATOMIC_RELAXED);
+  if (sig == SIGURG) __atomic_store_n(&urg_tid, tid, __ATOMIC_RELAXED);
+  if (sig == SIGUSR1) __atomic_store_n(&usr_tid, tid, __ATOMIC_RELAXED);
 }
 
 static long status(const char *key) {
@@ -122,11 +129,23 @@ int main(int argc, char **argv) {
       sigaction(SIGUSR1, &signal_action, NULL);
       printf("ready %d\n", getpid());
       fflush(stdout);
-      sleep(2);
+      int id;
+      if (scanf("%d", &id) != 1) return 10;
+      __atomic_store_n(&worker_tid, id, __ATOMIC_RELAXED);
+      printf("armed 1\n");
+      fflush(stdout);
+      char token;
+      ssize_t n;
+      do n = read(STDIN_FILENO, &token, 1); while (n < 0 && errno == EINTR);
+      if (n != 1) return 11;
+      for (int i = 0; i < 5000 &&
+           (!__atomic_load_n(&urg_tid, __ATOMIC_RELAXED) ||
+            !__atomic_load_n(&usr_tid, __ATOMIC_RELAXED)); i++) usleep(1000);
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
-      printf("urg %d\n", urg_tid);
-      printf("usr %d\n", usr_tid);
+      printf("urg %d\n", __atomic_load_n(&urg_tid, __ATOMIC_RELAXED));
+      printf("usr %d\n", __atomic_load_n(&usr_tid, __ATOMIC_RELAXED));
+      printf("worker %d\n", __atomic_load_n(&worker_delivery, __ATOMIC_RELAXED));
       return 0;
     } else if (!strcmp(argv[4], "fork")) {
       pid_t child = fork();
@@ -300,7 +319,7 @@ class ZramPreloadTest(unittest.TestCase):
     def test_process_signals_do_not_reach_zram_worker(self):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
         process = subprocess.Popen([str(self.steam), str(self.ctl), "1", "0", "signals"],
-                                   env=environment, stdout=subprocess.PIPE, text=True)
+                                   env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         try:
             process.stdout.readline()
             ready = process.stdout.readline().split()
@@ -312,11 +331,18 @@ class ZramPreloadTest(unittest.TestCase):
                     worker = int(task.name)
                     break
             self.assertIsNotNone(worker)
+            self.assertEqual(os.sched_getscheduler(process.pid), os.sched_getscheduler(worker))
+            process.stdin.write(f"{worker}\n")
+            process.stdin.flush()
+            self.assertEqual("armed 1", process.stdout.readline().strip())
             for _ in range(100):
                 os.kill(process.pid, signal.SIGURG)
                 os.kill(process.pid, signal.SIGUSR1)
-            output, _ = process.communicate(timeout=10)
+            output, _ = process.communicate(input="x", timeout=10)
             values = dict(line.split() for line in output.splitlines())
+            self.assertNotEqual(0, int(values["urg"]))
+            self.assertNotEqual(0, int(values["usr"]))
+            self.assertEqual(0, int(values["worker"]))
             self.assertNotEqual(worker, int(values["urg"]))
             self.assertNotEqual(worker, int(values["usr"]))
         finally:

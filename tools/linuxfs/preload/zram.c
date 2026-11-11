@@ -3,11 +3,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <sched.h>
 #include <signal.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/resource.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
@@ -159,10 +157,6 @@ static void zr_request(void) {
 static void *zr_worker_main(void *unused) {
   (void)unused;
   prctl(PR_SET_NAME, "zr-worker", 0, 0, 0);
-  pid_t tid = (pid_t)zr_sys(SYS_gettid);
-  struct sched_param param = {0};
-  if (zr_sys(SYS_sched_setscheduler, tid, SCHED_IDLE, &param) < 0)
-    zr_sys(SYS_setpriority, PRIO_PROCESS, tid, 19);
   for (;;) {
     while (!__atomic_exchange_n(&zr_pending, 0, __ATOMIC_SEQ_CST))
       zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAIT, 0, NULL, NULL, 0);
