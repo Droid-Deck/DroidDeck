@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">%1$s 设置</string>
     <string name="game_settings_default">默认</string>
     <string name="game_settings_default_detail">将为此游戏更改的所有内容恢复为应用的设置。</string>
+    <string name="game_nintendo_layout">任天堂按键布局</string>
+    <string name="game_nintendo_layout_detail">交换实体手柄上的 A/B 和 X/Y。</string>
     <string name="game_sync_custom">自定义同步变量</string>
     <string name="comp_game_proton_live">%1$s 的 Proton 选择已保存，现已在 Steam 中可用。</string>
     <string name="comp_game_proton_next">%1$s 的 Proton 选择已保存。启动游戏前请重启 Steam。</string>

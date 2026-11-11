@@ -1049,6 +1049,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
                         refreshGestureConfig()
+                        applyNintendoLayout()
                     }
                     if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
@@ -3039,6 +3040,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
     }
 
+    private fun applyNintendoLayout() {
+        padBridge?.setNintendoLayout(ControllerPrefs.nintendoLayout(this, gestureGame))
+    }
+
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
@@ -4727,6 +4732,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this))
+        applyNintendoLayout()
         refreshSecondScreenDisplays()
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()

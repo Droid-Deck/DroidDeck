@@ -482,6 +482,8 @@
     <string name="game_settings_menu_title">%1$s सेटिंग</string>
     <string name="game_settings_default">डिफ़ॉल्ट</string>
     <string name="game_settings_default_detail">इस गेम के लिए बदली गई हर चीज़ को ऐप की सेटिंग पर वापस लाता है।</string>
+    <string name="game_nintendo_layout">Nintendo बटन लेआउट</string>
+    <string name="game_nintendo_layout_detail">फ़िज़िकल कंट्रोलर पर A/B और X/Y की अदला-बदली करता है।</string>
     <string name="game_sync_custom">कस्टम सिंक वेरिएबल</string>
     <string name="comp_game_proton_live">%1$s का Proton चुनाव सेव है और अभी Steam में उपलब्ध है।</string>
     <string name="comp_game_proton_next">%1$s का Proton चुनाव सेव है। गेम शुरू करने से पहले Steam रीस्टार्ट करें।</string>

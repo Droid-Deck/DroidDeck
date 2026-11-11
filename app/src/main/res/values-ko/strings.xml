@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">%1$s 설정</string>
     <string name="game_settings_default">기본값</string>
     <string name="game_settings_default_detail">이 게임에서 변경한 모든 항목을 앱 설정으로 되돌립니다.</string>
+    <string name="game_nintendo_layout">Nintendo 버튼 배치</string>
+    <string name="game_nintendo_layout_detail">실제 컨트롤러의 A/B와 X/Y를 서로 바꿉니다.</string>
     <string name="game_sync_custom">사용자 지정 동기화 변수</string>
     <string name="comp_game_proton_live">%1$s의 Proton 선택이 저장되었으며 지금 Steam에서 사용할 수 있습니다.</string>
     <string name="comp_game_proton_next">%1$s의 Proton 선택이 저장되었습니다. 게임을 실행하기 전에 Steam을 다시 시작하세요.</string>

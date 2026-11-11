@@ -530,6 +530,8 @@
     <string name="game_settings_menu_title">%1$s Settings</string>
     <string name="game_settings_default">Default</string>
     <string name="game_settings_default_detail">Puts everything changed for this game back to the app\'s settings.</string>
+    <string name="game_nintendo_layout">Nintendo button layout</string>
+    <string name="game_nintendo_layout_detail">Swaps A/B and X/Y on physical controllers.</string>
     <string name="game_sync_custom">Custom sync variables</string>
     <string name="comp_game_proton_live">%1$s\'s Proton choice is saved and available in Steam now.</string>
     <string name="comp_game_proton_next">%1$s\'s Proton choice is saved. Restart Steam before launching the game.</string>

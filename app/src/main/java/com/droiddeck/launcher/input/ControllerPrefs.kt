@@ -138,6 +138,15 @@ object ControllerPrefs {
         prefs(context).edit().putBoolean("joyConVr", on).apply()
     }
 
+    fun nintendoLayout(context: Context, game: String?): Boolean =
+        game != null && prefs(context).getBoolean("nintendo.$game", false)
+
+    fun setNintendoLayout(context: Context, game: String, on: Boolean) {
+        val edit = prefs(context).edit()
+        if (on) edit.putBoolean("nintendo.$game", true) else edit.remove("nintendo.$game")
+        edit.apply()
+    }
+
     fun snap(context: Context): Boolean = prefs(context).getBoolean("snap", true)
 
     fun setSnap(context: Context, on: Boolean) {

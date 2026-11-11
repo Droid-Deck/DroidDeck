@@ -855,6 +855,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
+    var nintendo by remember(scope, current) { mutableStateOf(com.droiddeck.launcher.input.ControllerPrefs.nintendoLayout(appContext, scope)) }
     AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = stringResource(R.string.game_settings_menu_title, game.name)) { first ->
         MenuItem(stringResource(R.string.game_no_steam_title), checked = noSteam, enabled = ready,
             detail = stringResource(R.string.game_no_steam_detail), focusRequester = first) {
@@ -882,11 +883,17 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
                 trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
             ) { host.open = syncKey }
         }
+        MenuItem(stringResource(R.string.game_nintendo_layout), checked = nintendo, enabled = !state.saving,
+            detail = stringResource(R.string.game_nintendo_layout_detail)) {
+            nintendo = !nintendo
+            com.droiddeck.launcher.input.ControllerPrefs.setNintendoLayout(appContext, scope, nintendo)
+        }
         MenuItem(stringResource(R.string.game_settings_default), checked = false, enabled = ready,
             detail = stringResource(R.string.game_settings_default_detail)) {
             save {
                 val failure = runCatching { com.droiddeck.launcher.session.GameProfileManager.reset(it, scope) }.exceptionOrNull()
                 com.droiddeck.launcher.stores.StoresState.post {
+                    if (failure == null) nintendo = false
                     android.widget.Toast.makeText(
                         it,
                         if (failure == null) resetDone else it.getString(R.string.comp_game_reset_failed, failure.message.orEmpty()),

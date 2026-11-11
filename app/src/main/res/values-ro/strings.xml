@@ -484,6 +484,8 @@
     <string name="game_settings_menu_title">Setări %1$s</string>
     <string name="game_settings_default">Implicit</string>
     <string name="game_settings_default_detail">Readuce tot ce s-a schimbat pentru acest joc la setările aplicației.</string>
+    <string name="game_nintendo_layout">Aranjament de butoane Nintendo</string>
+    <string name="game_nintendo_layout_detail">Inversează A/B și X/Y pe controlerele fizice.</string>
     <string name="game_sync_custom">Variabile de sincronizare personalizate</string>
     <string name="comp_game_proton_live">Alegerea Proton pentru %1$s este salvată și disponibilă în Steam acum.</string>
     <string name="comp_game_proton_next">Alegerea Proton pentru %1$s este salvată. Repornește Steam înainte de a lansa jocul.</string>

@@ -480,6 +480,8 @@
     <string name="game_settings_menu_title">%1$s の設定</string>
     <string name="game_settings_default">デフォルト</string>
     <string name="game_settings_default_detail">このゲーム用に変更した内容をすべてアプリの設定に戻します。</string>
+    <string name="game_nintendo_layout">Nintendoのボタン配置</string>
+    <string name="game_nintendo_layout_detail">物理コントローラーのA/BとX/Yを入れ替えます。</string>
     <string name="game_sync_custom">カスタム同期変数</string>
     <string name="comp_game_proton_live">%1$sのProtonの選択を保存しました。Steamですぐに使用できます。</string>
     <string name="comp_game_proton_next">%1$sのProtonの選択を保存しました。ゲームを起動する前にSteamを再起動してください。</string>
