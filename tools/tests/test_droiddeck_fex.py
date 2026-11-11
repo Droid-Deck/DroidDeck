@@ -473,6 +473,27 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "share/ca/real.crt").read_bytes(), b"cert")
         self.assertFalse(os.path.lexists(root / "ab"))
 
+    def test_guest_writes_do_not_mutate_runtime_blob_files(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        self.quiet(FEX["prepare"])
+        root = self.home / ".local/share/droiddeck-fex/rootfs"
+        marker = root / ".droiddeck-fex"
+        stamp = marker.read_text()
+        marker.write_text("3\n" + stamp.partition("\n")[2])
+        source = sniper / "files/ab/cdef-1.bin"
+        guest = root / "bin/["
+        guest.unlink()
+        os.link(source, guest)
+        self.assertEqual(os.stat(source).st_ino, os.stat(guest).st_ino)
+        self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        self.assertNotEqual(os.stat(source).st_ino, os.stat(guest).st_ino)
+        guest.write_bytes(b"guest mutation")
+        self.assertEqual(source.read_bytes(), b"blob")
+        self.assertEqual(guest.read_bytes(), b"guest mutation")
+
     def test_a_rebuilt_x86_runtime_refreshes_the_steam_client_links_and_drops_read_only_trees(self):
         self.fex_tool()
         sniper = self.runtime()

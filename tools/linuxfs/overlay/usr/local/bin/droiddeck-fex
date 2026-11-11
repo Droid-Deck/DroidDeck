@@ -38,7 +38,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 3
+ROOTFS_LAYOUT = 4
 BLOB_DIRS = re.compile(r"^(?:\.ref|[0-9a-f]{2})$")
 ROOTFS_LIBRARY_DIRS = ("lib", "lib64")
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
@@ -323,10 +323,7 @@ def clone(source, target, parents=()):
             clone(os.path.join(real, entry), os.path.join(target, entry), parents + (real,))
         shutil.copystat(real, target)
         return
-    try:
-        os.link(real, target)
-    except OSError:
-        shutil.copy2(real, target)
+    shutil.copy2(real, target)
 
 
 def remove_tree(path):
