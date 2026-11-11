@@ -23,6 +23,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
     private val guestObserverLock = Any()
     private var guestObserver: FileObserver? = null
     private var guestQueueExecutor: ExecutorService? = null
+    private var watchedGuestFile: File? = null
     private val pendingGuestClaims = mutableMapOf<File, File>()
     private var active = false
     private var published = false
@@ -32,6 +33,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
     private var captureBefore: String? = null
     private var captureLate: (() -> Unit)? = null
     private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh(changed = true) }
+    private val sessionIdListener: () -> Unit = { handler.post { bindGuestQueue() } }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
             handler.post { receiveGuestText(text, WaylandCompositor.isClipboardListener(this)) }
@@ -150,21 +152,39 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         }
         clipboard.addPrimaryClipChangedListener(androidListener)
         WaylandCompositor.setClipboardListener(guestListener)
-        desktopGuestFile(context)?.let { watchGuestFile(it) }
+        SessionState.sessionIdListener = sessionIdListener
+        bindGuestQueue()
         refresh()
+    }
+
+    private fun releaseGuestQueue() {
+        guestObserver?.stopWatching()
+        guestObserver = null
+        guestQueueExecutor?.shutdown()
+        guestQueueExecutor = null
+        watchedGuestFile = null
+        pendingGuestClaims.toMap().forEach { (claimed, file) -> claimed.renameTo(file) }
+        pendingGuestClaims.clear()
+    }
+
+    private fun bindGuestQueue() {
+        synchronized(guestObserverLock) {
+            if (!active) return
+            val target = desktopGuestFile(context)
+            if (target == watchedGuestFile) return
+            releaseGuestQueue()
+            watchedGuestFile = target
+            target?.let { watchGuestFile(it) }
+        }
     }
 
     fun stop() {
         synchronized(guestObserverLock) {
             if (!active) return
             active = false
-            guestObserver?.stopWatching()
-            guestObserver = null
-            guestQueueExecutor?.shutdown()
-            guestQueueExecutor = null
-            pendingGuestClaims.toMap().forEach { (claimed, file) -> claimed.renameTo(file) }
-            pendingGuestClaims.clear()
+            releaseGuestQueue()
         }
+        if (SessionState.sessionIdListener === sessionIdListener) SessionState.sessionIdListener = null
         handler.removeCallbacks(captureTimeout)
         capture?.let { capture = null; it(null) }
         clipboard.removePrimaryClipChangedListener(androidListener)
