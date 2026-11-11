@@ -50,7 +50,11 @@ object AgentSetup {
                 Step.INSTALL -> set(step, if (harness.files.all { AgentHost.guestFileExists(app, it) }) Status.DONE else Status.TODO)
                 Step.BUILD_TOOLS -> set(step, if (buildToolsInstalled(app)) Status.DONE else Status.TODO)
                 Step.PREPARE -> set(step, if (prepared(app)) Status.DONE else Status.TODO)
-                Step.CONNECTION -> probes += step to listOf("sh", "-c",
+                // The install brings the userland's adb; until then the app's own pairing is all there is to check.
+                Step.CONNECTION -> if (!AgentHost.guestFileExists(app, "/usr/bin/adb")) {
+                    detail.remove(step)
+                    set(step, if (com.droiddeck.launcher.core.WirelessAdbFix.hasSavedPairing(app)) Status.DONE else Status.TODO)
+                } else probes += step to listOf("sh", "-c",
                     "for i in 1 2 3; do adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " +
                         "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device && exit 0; sleep 1; done; exit 1")
                 Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
