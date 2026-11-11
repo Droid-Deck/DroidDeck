@@ -870,7 +870,8 @@ case $mode in
         }
         bl_client_pressure() {
           [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "$_bl_game" = 1 ] &&
-            [ "${#_bl_pids[@]}" -gt 0 ] && bl_memory_tight || return 0
+            [ "${#_bl_pids[@]}" -gt 0 ] &&
+            { bl_memory_tight || { [ "${1:-}" = tier ] && bl_memory_critical; }; } || return 0
           [ "$_bl_pressure_at" -lt 0 ] ||
             [ $((SECONDS - _bl_pressure_at)) -ge "$_bl_pressure_backoff" ] || return 0
           [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 30 ] || return 0
@@ -901,8 +902,12 @@ case $mode in
         }
         bl_session_pressure() {
           bl_memory_read
-          [ "${BL_ZRAM_IDLE:-1}" = 1 ] || return 0
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
+          if [ "${BL_ZRAM_IDLE:-1}" != 1 ]; then
+            bl_client_pressure tier
+            return 0
+          fi
+          bl_game_focused || return 0
           local _wait=$_bl_tier_backoff _before _pids _targets
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
