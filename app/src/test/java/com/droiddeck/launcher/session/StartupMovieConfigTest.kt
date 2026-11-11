@@ -88,6 +88,19 @@ class StartupMovieConfigTest {
         assertEquals(before, file.readText())
     }
 
+    @Test fun shuffleDoesNotChangeOtherProgramSettings() {
+        val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        val text = file.readText().replace(
+            "\t\t\t}\n\t\t}\n\t}\n",
+            "\t\t\t}\n\t\t}\n\t\t\"OtherProgram\"\n\t\t{\n\t\t\t\"Shuffle\"\t\t\"0\"\n\t\t}\n\t}\n",
+        )
+        file.writeText(text)
+        assertTrue(SessionFiles.setStartupMovieShuffle(file, true))
+        val updated = file.readText()
+        assertEquals(2, Regex("\"Shuffle\"\\s+\"1\"").findAll(updated).count())
+        assertEquals(1, Regex("\"Shuffle\"\\s+\"0\"").findAll(updated).count())
+    }
+
     @Test fun shuffleIsNotAddedWhenThereIsNoMovieSection() {
         val file = folder.newFile().also { it.writeText("\"InstallConfigStore\"\n{\n}\n") }
         val before = file.readText()
