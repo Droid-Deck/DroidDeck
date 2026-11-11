@@ -54,20 +54,28 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         guestFile.parentFile?.mkdirs()
         guestFile.delete()
         @Suppress("DEPRECATION")
-        guestObserver = object : FileObserver(guestFile.parentFile!!.path, MOVED_TO or CLOSE_WRITE) {
+        val observer = object : FileObserver(guestFile.parentFile!!.path, MOVED_TO or CLOSE_WRITE) {
             override fun onEvent(event: Int, path: String?) {
                 if (path != guestFile.name) return
+                val parent = guestFile.parentFile ?: return
+                val pending = File(parent, "${guestFile.name}.${System.nanoTime()}")
+                if (!guestFile.renameTo(pending)) return
                 val text = try {
-                    guestFile.readText(Charsets.UTF_8)
+                    pending.readText(Charsets.UTF_8)
                 } catch (e: IOException) {
                     Log.w("SessionClipboard", "Could not read text copied in the desktop", e)
                     return
                 } finally {
-                    guestFile.delete()
+                    pending.delete()
                 }
-                if (text.isNotEmpty()) handler.post { receiveGuestText(text, true) }
+                if (text.isNotEmpty()) {
+                    val source = this
+                    handler.post { receiveGuestText(text, active && guestObserver === source) }
+                }
             }
-        }.also { it.startWatching() }
+        }
+        guestObserver = observer
+        observer.startWatching()
     }
 
     private val captureTimeout = Runnable {
