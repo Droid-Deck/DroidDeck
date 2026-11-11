@@ -1606,10 +1606,11 @@ class SessionService : Service() {
         val me = android.os.Process.myPid()
         val rootfs = try { File(filesDir, "linuxfs").canonicalPath } catch (e: Exception) { return } + "/"
         val procs = File("/proc").listFiles { f -> f.name.all { it.isDigit() } } ?: return
+        val spared = OrphanReaper.spared()
         var killed = 0
         for (proc in procs) {
             val pid = proc.name.toIntOrNull() ?: continue
-            if (pid == me) continue
+            if (pid == me || pid in spared) continue
             val exe = try { File(proc, "exe").canonicalPath } catch (e: Exception) { continue }
             if (!exe.startsWith(rootfs)) continue
             android.os.Process.killProcess(pid)
@@ -1621,10 +1622,11 @@ class SessionService : Service() {
     private fun killStragglers() {
         val me = android.os.Process.myPid()
         val procs = File("/proc").listFiles { f -> f.name.all { it.isDigit() } } ?: return
+        val spared = OrphanReaper.spared()
         var killed = 0
         for (proc in procs) {
             val pid = proc.name.toIntOrNull() ?: continue
-            if (pid == me) continue
+            if (pid == me || pid in spared) continue
             val cmdline = try {
                 File(proc, "cmdline").readBytes().toString(Charsets.UTF_8).replace('\u0000', ' ')
             } catch (e: Exception) {

@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.nio.file.Files
@@ -260,6 +261,7 @@ object AgentHost {
                 return@Thread
             }
             val started = Turn(child, AgentProcesses.pidOf(child))
+            OrphanReaper.keep(started.pid)
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
@@ -278,6 +280,7 @@ object AgentHost {
             }
             runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
+            OrphanReaper.release(started.pid)
             main.post {
                 if (turn === started) {
                     turn = null
@@ -500,9 +503,15 @@ object AgentHost {
                 val child = guest(app, listOf("sh", "-c",
                     "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
                 main.post { labProcess = child }
-                child.outputStream.close()
-                child.inputStream.readBytes()
-                child.waitFor()
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    child.inputStream.readBytes()
+                    child.waitFor()
+                } finally {
+                    OrphanReaper.release(pid)
+                }
             }.onFailure { Log.w(TAG, "could not run a Lab build", it) }
             main.post {
                 labProcess = null

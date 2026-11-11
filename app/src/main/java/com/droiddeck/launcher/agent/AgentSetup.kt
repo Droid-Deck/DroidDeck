@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -96,14 +97,20 @@ object AgentSetup {
                 installHelpers(app)
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
                 val child = AgentHost.guest(app, command).start()
-                child.outputStream.close()
-                logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
-                    child.inputStream.bufferedReader().forEachLine { line ->
-                        log.appendLine(line)
-                        val text = line.trim()
-                        if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
+                        child.inputStream.bufferedReader().forEachLine { line ->
+                            log.appendLine(line)
+                            val text = line.trim()
+                            if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                        }
+                        child.waitFor().also { log.appendLine("exit $it") }
                     }
-                    child.waitFor().also { log.appendLine("exit $it") }
+                } finally {
+                    OrphanReaper.release(pid)
                 }
             }
             main.post {
