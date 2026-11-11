@@ -87,7 +87,7 @@ def manifest_identity(game):
     for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
         matches = [appid for appid in manifest_ids(library, folder.name) if appid != SPACEWAR]
         if matches:
-            return matches[0] if len(matches) == 1 else None
+            return (matches[0], library) if len(matches) == 1 else None
     return False
 
 
@@ -95,7 +95,7 @@ def identify(game):
     folder = Path(game["folder"])
     found = manifest_identity(game)
     if found is not False:
-        return found
+        return found[0] if found is not None else None
     ids = set()
     for parent in {folder, Path(game["exe"]).parent}:
         try:
@@ -517,13 +517,14 @@ def release(steam_root, game, stale, reason):
 
 
 def share_prefix(steam_root, game):
-    appid = manifest_identity(game)
-    if not appid:
+    identity = manifest_identity(game)
+    if not identity or not identity[0]:
         return
+    appid, steamapps = identity
     shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
     if os.path.lexists(shortcut):
         return
-    for library in libraries(steam_root):
+    for library in dict.fromkeys([steamapps.parent] + libraries(steam_root)):
         prefix = library / "steamapps/compatdata" / str(appid)
         if (prefix / "pfx/drive_c").is_dir():
             try:

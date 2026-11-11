@@ -80,6 +80,18 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
         self.assertEqual(b'cloud', (self.shortcut_prefix() / 'pfx/drive_c/users/steamuser/save.dat').read_bytes())
 
+    def test_matching_install_prefix_precedes_an_older_prefix_in_another_library(self):
+        game, library = self.steam_install()
+        (self.steam / 'steamapps').mkdir(parents=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        older = self.steam / 'steamapps/compatdata/42/pfx/drive_c/users/steamuser'
+        older.mkdir(parents=True)
+        (older / 'save.dat').write_bytes(b'old')
+        imports.route(self.steam, self.acct, [game])
+        self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
+        self.assertEqual(b'cloud', (self.shortcut_prefix() / 'pfx/drive_c/users/steamuser/save.dat').read_bytes())
+        self.assertEqual(b'old', (older / 'save.dat').read_bytes())
+
     def test_an_existing_shortcut_prefix_is_never_replaced(self):
         game, library = self.steam_install()
         (self.steam / 'steamapps').mkdir(parents=True, exist_ok=True)
