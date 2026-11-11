@@ -191,6 +191,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     @Volatile private var inputUsesLocalActions = false
     private var inputUsesPointer = false
     private var inputProfile = InputProfile.defaults(InputProfile.GAME)
+    private var stockInputProfile = InputProfile.defaults(InputProfile.GAME)
     private val inputMotion = InputMotion { inputRouter }
     private val heldKeys = HeldInput { code, down -> WaylandCompositor.nativeSendKey(code, if (down) 1 else 0) }
     private val heldButtons = HeldInput(::sendSceneButton)
@@ -3550,6 +3551,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val library = com.droiddeck.launcher.input.InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
         inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
+        stockInputProfile = InputProfile.defaults(library.profile(library.activeId(desktop)).base)
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
         quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
@@ -4004,7 +4006,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var screenTapsClick = true
 
     private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(onScreenControls, bottomInputControls).any {
-        it.isShown && inputProfile.showsMouseButton(InputRole.PRIMARY, it.shownElements)
+        it.isShown && inputProfile.showsMouseButton(InputRole.PRIMARY, it.shownElements, stockInputProfile)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
