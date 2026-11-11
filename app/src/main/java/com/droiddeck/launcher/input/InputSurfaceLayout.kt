@@ -36,12 +36,16 @@ data class InputSurfaceElement(
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
+    val builtIn: Boolean = isBuiltInId(id, control),
 ) {
+    val classicStyle get() = builtIn && (buttonShape == InputButtonShape.CIRCLE || buttonShape == InputButtonShape.PILL)
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
     fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
         width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
+
+internal fun isBuiltInId(id: String, control: InputControl) = id == "legacy:${control.id}" || id == "builtin:keyboard"
 
 private const val DUPLICATE_OFFSET = .04f
 private const val DUPLICATE_ATTEMPTS = 25

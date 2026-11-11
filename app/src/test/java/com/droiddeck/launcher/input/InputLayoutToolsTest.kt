@@ -286,4 +286,30 @@ class InputLayoutToolsTest {
             all = all + copy
         }
     }
+
+    @Test fun duplicateOfBuiltInControlKeepsClassicStyle() {
+        for ((control, shape) in listOf(InputControl.LS to InputButtonShape.CIRCLE, InputControl.SELECT to InputButtonShape.PILL, InputControl.A to InputButtonShape.CIRCLE)) {
+            val source = InputSurfaceElement(control, .3f, .3f, .2f, .2f, buttonShape = shape)
+            val copy = source.duplicate("copy", listOf(source))
+            assertTrue(source.classicStyle)
+            assertEquals(source.classicStyle, copy.classicStyle)
+            assertNotEquals(source.id, copy.id)
+        }
+    }
+
+    @Test fun customControlsAreNeverClassic() {
+        val custom = InputSurfaceElement(InputControl.A, .3f, .3f, .2f, .2f, "custom", buttonShape = InputButtonShape.CIRCLE)
+        assertFalse(custom.classicStyle)
+        assertFalse(custom.duplicate("copy", listOf(custom)).classicStyle)
+    }
+
+    @Test fun classicStyleSurvivesSavingAndRoundedShapesStayPlain() {
+        val source = InputSurfaceElement(InputControl.B, .3f, .3f, .2f, .2f, buttonShape = InputButtonShape.PILL)
+        val copy = source.duplicate("copy", listOf(source))
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.copy(elements = listOf(source, copy))
+        val restored = InputLibraries.decode(InputLibraries.encode(library.withLayout(layout)))!!.layout("game", InputRole.SECONDARY)!!.elements
+        assertEquals(listOf(true, true), restored.map { it.classicStyle })
+        assertFalse(source.copy(buttonShape = InputButtonShape.ROUNDED).duplicate("r", listOf(source)).classicStyle)
+    }
 }
