@@ -195,6 +195,7 @@ jobs:
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
             !app/src/main/assets/linuxfs/libblaudit.so
             !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddnatv-hook.so
             !app/src/main/assets/linuxfs/libblsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
@@ -900,6 +901,7 @@ jobs:
     uses: ./.github/workflows/scan.yml
     with:
       artifact: droiddeck-signed
+      variant: standard
     secrets: inherit
 
   packs:
