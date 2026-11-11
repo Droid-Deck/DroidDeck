@@ -8,6 +8,7 @@ import os
 import re
 import runpy
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -328,6 +329,16 @@ def clone(source, target, parents=()):
         shutil.copy2(real, target)
 
 
+def remove_tree(path):
+    if os.path.islink(path) or not os.path.isdir(path):
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(path)
+        return
+    for top, _, _ in os.walk(path):
+        os.chmod(top, os.lstat(top).st_mode | stat.S_IRWXU)
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def stays_in_libraries(root, target, link):
     resolved = os.path.normpath(os.path.join(os.path.relpath(target, root), link))
     return resolved.split(os.sep)[0] in ROOTFS_LIBRARY_DIRS
@@ -360,7 +371,7 @@ def build_rootfs(base, provider):
         return False
     for entry in os.listdir(STATE):
         if entry.startswith("rootfs."):
-            shutil.rmtree(os.path.join(STATE, entry), ignore_errors=True)
+            remove_tree(os.path.join(STATE, entry))
     tmp = "%s.%d.tmp" % (rootfs, os.getpid())
     os.makedirs(tmp)
     for entry in os.listdir(base_files):
@@ -384,7 +395,7 @@ def build_rootfs(base, provider):
     if os.path.lexists(rootfs):
         os.rename(rootfs, old)
     os.rename(tmp, rootfs)
-    shutil.rmtree(old, ignore_errors=True)
+    remove_tree(old)
     return True
 
 
@@ -464,7 +475,7 @@ def link_guest_sdk(root):
             continue
         os.makedirs(os.path.dirname(link), exist_ok=True)
         if os.path.lexists(link):
-            os.unlink(link)
+            remove_tree(link)
         os.symlink(directory, link)
 
 

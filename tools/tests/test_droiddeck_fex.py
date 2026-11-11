@@ -473,6 +473,28 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "share/ca/real.crt").read_bytes(), b"cert")
         self.assertFalse(os.path.lexists(root / "ab"))
 
+    def test_a_rebuilt_x86_runtime_refreshes_the_steam_client_links_and_drops_read_only_trees(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        base = sniper / "files"
+        (base / str(self.home).lstrip("/") / ".steam").mkdir(parents=True)
+        os.symlink(self.steam / "linuxarm64", base / str(self.home).lstrip("/") / ".steam/sdk64")
+        self.write(self.steam / "linuxarm64/steamclient.so", elf(183))
+        os.chmod(base / "share/ca", 0o500)
+        self.addCleanup(os.chmod, base / "share/ca", 0o700)
+        self.quiet(FEX["prepare"])
+        rootfs = self.home / ".local/share/droiddeck-fex/rootfs"
+        self.write(self.steam / "linux64/steamclient.so", elf(62))
+        self.write(self.steam / "linux32/steamclient.so", elf(3))
+        os.utime(self.steam / "steamapps/common/SteamLinuxRuntime_4/steamrt4_platform_4.0.20260928.262390/usr-mtree.txt.gz", ns=(1, 1))
+        self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        guest = rootfs / str(self.home).lstrip("/") / ".steam"
+        self.assertEqual(os.readlink(guest / "sdk64"), str(self.steam / "linux64"))
+        self.assertEqual(os.readlink(guest / "sdk32"), str(self.steam / "linux32"))
+        self.assertEqual(sorted(os.listdir(rootfs.parent)), ["config", "lock", "rootfs", "status.json"])
+
     def test_a_runtime_that_is_not_newer_is_left_out(self):
         self.fex_tool()
         sniper = self.runtime()
