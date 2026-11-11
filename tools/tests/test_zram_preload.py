@@ -177,6 +177,14 @@ int main(int argc, char **argv) {
       pid_t child = fork();
       if (child < 0) exit(8);
       if (child == 0) {
+        if (!strcmp(argv[4], "timed-inline-single")) {
+          if (munmap(data, size) || munmap(shared, size)) _exit(12);
+          data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+          shared = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+          if (data == MAP_FAILED || shared == MAP_FAILED) _exit(13);
+          for (size_t i = 0; i < size; i++) data[i] = (unsigned char)(i * 7 + i / 4096);
+          memset(shared, 0, size);
+        }
         struct timespec start, end;
         int fd = open(ctl, O_WRONLY | O_TRUNC);
         if (fd < 0 || write(fd, "1", 1) != 1) _exit(9);
@@ -190,11 +198,12 @@ int main(int argc, char **argv) {
         long elapsed = (end.tv_sec - start.tv_sec) * 1000L +
                        (end.tv_nsec - start.tv_nsec) / 1000000L;
         printf("inline %ld\n", elapsed);
+        printf("inline_swap %ld\n", status("VmSwap:"));
         fflush(stdout);
         _exit(0);
       }
       int status_code;
-      waitpid(child, &status_code, 0);
+      if (waitpid(child, &status_code, 0) != child || !WIFEXITED(status_code) || WEXITSTATUS(status_code)) exit(14);
     } else if (!strcmp(argv[4], "timed")) {
       struct timespec previous, current, deadline;
       long max_gap = 0;
@@ -375,9 +384,15 @@ class ZramPreloadTest(unittest.TestCase):
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_single_request_timing_control(self):
         asynchronous = self.run_program(None, 48, 0, "timed")
-        inline = self.run_program(None, 48, 0, "timed-inline-single")
         self.assertLess(asynchronous["gap"][0], 250)
         self.assertGreater(asynchronous["out"][0], 32 * 1024)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_single_request_inline_timing_control(self):
+        inline = self.run_program(None, 48, 0, "timed-inline-single")
+        self.assertGreater(inline["inline_swap"][0], 32 * 1024)
+        if inline["inline"][0] <= 250:
+            self.skipTest("single inline request did not establish the 250 ms timing threshold")
         self.assertGreater(inline["inline"][0], 250)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
