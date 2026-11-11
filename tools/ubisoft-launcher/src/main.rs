@@ -141,10 +141,11 @@ mod service {
         let mut pushes = 0;
         while let Some(req) = frames.next() {
             match launcher::session_request(&req) {
-                SessionReq::Init => {
+                SessionReq::Init(wants) => {
                     pushes += 1;
-                    send(&pipe, &state.cfg.session());
-                    state.say(&format!("session: init answered ({pushes})"));
+                    send(&pipe, &state.cfg.session(wants));
+                    let asked = wants.map_or("no subsystems named".to_string(), |w| format!("install {}, storage {}", w.install, w.storage));
+                    state.say(&format!("session: init answered ({pushes}; {asked}; {})", hex(&req, 48)));
                 }
                 SessionReq::Installer => {
                     send(&pipe, &state.cfg.installer());

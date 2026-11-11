@@ -143,8 +143,10 @@ impl Config {
         Msg::new().msg(13, Msg::new().uint(1, 1).uint(3, 0).uint(4, OVERLAY_NONE).uint(6, 0)).0
     }
 
-    /// `Rsp.initRsp`: the account, its products and the PC ticket.
-    pub fn session(&self) -> Vec<u8> {
+    /// `Rsp.initRsp`: the account, its products and the PC ticket. `uplay_r2.dll` copies the
+    /// install and storage state into objects it only creates for the subsystems the game asked
+    /// for, without checking them, so those parts follow the request when it names subsystems.
+    pub fn session(&self, wants: Option<Subsystems>) -> Vec<u8> {
         let account = Msg::new()
             .text(1, &self.user_id)
             .text(2, &self.username)
@@ -159,16 +161,25 @@ impl Config {
         body = body
             .msg(6, Msg::new().uint(1, self.product as u64).text(2, ""))
             .uint(7, 0)
-            .text(8, &self.ticket)
-            .msg(14, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language))
+            .text(8, &self.ticket);
+        if wants.map_or(true, |w| w.install) {
+            body = body.msg(14, Msg::new().uint(1, 1).msg(2, self.chunks()).text(3, &self.language));
+        }
+        body = body
             .msg(11, Msg::new().uint(1, 0))
             .uint(12, 0)
             .msg(15, Msg::new().uint(1, 0).uint(2, OVERLAY_NONE))
-            .msg(16, Msg::new().uint(1, 6211).uint(2, 22395).float(3, 1.0))
-            .msg(17, Msg::new().text(1, &self.saves))
+            .msg(16, Msg::new().uint(1, 6211).uint(2, 22395).float(3, 1.0));
+        if wants.map_or(true, |w| w.storage) {
+            body = body.msg(17, Msg::new().text(1, &self.saves));
+        }
+        body = body
             .bytes(18, b"")
             .msg(19, Msg::new().uint(1, 1).uint(2, 1))
             .msg(21, Msg::new().uint(2, 1));
+        if wants.is_some() {
+            body = body.bytes(20, b"");
+        }
         if !self.app_id.is_empty() {
             body = body.msg(22, Msg::new().text(1, &self.app_id));
         }
@@ -216,9 +227,24 @@ const ACKNOWLEDGED: &[(u32, u32, u32, u32, u64)] = &[
     (25, 4, 17, 4, 1), // played with
 ];
 
-/// The id-and-result answer to a request in [ACKNOWLEDGED], with a name for the log.
+/// `Rsp.streamingRsp` (20) for `Req.streamingReq` (27): the game is not streamed, so its streaming
+/// type is `StreamingType_None` and every other streaming query is not found.
+fn streaming(req: &[(u32, Value<'_>)]) -> (Vec<u8>, String) {
+    let id = pb::num(req, 1).unwrap_or(0);
+    let rsp = if pb::has(req, 3) {
+        Msg::new().uint(1, id).uint(2, 1).msg(4, Msg::new().uint(1, 0))
+    } else {
+        Msg::new().uint(1, id).uint(2, 4)
+    };
+    (Msg::new().msg(20, rsp).0, format!("streaming id {id} -> not streamed"))
+}
+
+/// The id-and-result answer to a request in [ACKNOWLEDGED] or a streaming query, with a name for the log.
 pub fn acknowledge(body: &[u8]) -> Option<(Vec<u8>, String)> {
     let f = pb::fields(body)?;
+    if let Some(req) = pb::sub(&f, 27).and_then(pb::fields) {
+        return Some(streaming(&req));
+    }
     for &(req, sub, rsp, rsp_sub, result) in ACKNOWLEDGED {
         let Some(inner) = pb::sub(&f, req).and_then(pb::fields) else { continue };
         let Some(leaf) = pb::sub(&inner, sub).and_then(pb::fields) else { continue };
@@ -229,8 +255,27 @@ pub fn acknowledge(body: &[u8]) -> Option<(Vec<u8>, String)> {
     None
 }
 
+/// The subsystems an `InitReq` asks for (fields 4 to 11).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Subsystems {
+    pub install: bool,
+    pub storage: bool,
+}
+
+impl Subsystems {
+    /// `None` when the request names no subsystem at all.
+    pub fn of(init: &[u8]) -> Option<Subsystems> {
+        let f = pb::fields(init)?;
+        if !(4..=11).any(|n| pb::has(&f, n)) {
+            return None;
+        }
+        let on = |n| pb::num(&f, n).unwrap_or(0) != 0;
+        Some(Subsystems { storage: on(7), install: on(8) })
+    }
+}
+
 pub enum SessionReq {
-    Init,
+    Init(Option<Subsystems>),
     Installer,
     ProductList(u64),
     Other,
@@ -239,7 +284,7 @@ pub enum SessionReq {
 pub fn session_request(body: &[u8]) -> SessionReq {
     match pb::fields(body) {
         Some(f) if pb::sub(&f, 13).and_then(pb::fields).is_some_and(|i| pb::has(&i, 1)) => SessionReq::Installer,
-        Some(f) if pb::has(&f, 1) => SessionReq::Init,
+        Some(f) if pb::has(&f, 1) => SessionReq::Init(pb::sub(&f, 1).and_then(Subsystems::of)),
         Some(f) => match pb::sub(&f, 23).and_then(pb::fields).and_then(|p| pb::sub(&p, 1).and_then(pb::fields)) {
             Some(list) => SessionReq::ProductList(pb::num(&list, 1).unwrap_or(0)),
             None => SessionReq::Other,
@@ -322,7 +367,7 @@ mod tests {
 
     #[test]
     fn the_session_carries_the_ticket_products_and_save_root() {
-        let rsp = config().session();
+        let rsp = config().session(None);
         let init = pb::fields(pb::sub(&pb::fields(&rsp).unwrap(), 1).unwrap()).unwrap();
         assert_eq!(pb::num(&init, 1), Some(1));
         assert_eq!(pb::num(&init, 4), Some(109));
@@ -341,9 +386,47 @@ mod tests {
         assert_eq!((pb::num(&second, 1), pb::num(&second, 2), pb::sub(&second, 3)), (Some(64), Some(1), Some(&b"custo05"[..])));
     }
 
+    fn session_fields(rsp: &[u8]) -> Vec<u32> {
+        let init = pb::fields(pb::sub(&pb::fields(rsp).unwrap(), 1).unwrap()).unwrap();
+        init.iter().map(|(n, _)| *n).collect()
+    }
+
+    #[test]
+    fn an_r2_session_leaves_out_the_install_and_storage_the_game_did_not_ask_for() {
+        let req = Msg::new().msg(1, Msg::new().uint(1, 6145).uint(2, 512).uint(3, 2).uint(4, 1).uint(5, 1).uint(7, 1).uint(8, 0));
+        let SessionReq::Init(wants) = session_request(&req.0) else { panic!() };
+        assert_eq!(wants, Some(Subsystems { install: false, storage: true }));
+        let fields = session_fields(&config().session(wants));
+        assert!(!fields.contains(&14));
+        assert!(fields.contains(&17));
+        assert!(fields.contains(&20));
+        let all = session_fields(&config().session(Some(Subsystems { install: true, storage: true })));
+        assert!(all.contains(&14) && all.contains(&17));
+    }
+
+    #[test]
+    fn streaming_queries_say_the_game_is_not_streamed() {
+        let (answer, _) = acknowledge(&[0xda, 0x01, 0x06, 0x08, 0x80, 0x80, 0x08, 0x1a, 0x00]).unwrap();
+        let rsp = pb::fields(pb::sub(&pb::fields(&answer).unwrap(), 20).unwrap()).unwrap();
+        assert_eq!((pb::num(&rsp, 1), pb::num(&rsp, 2)), (Some(0x20000), Some(1)));
+        assert_eq!(pb::num(&pb::fields(pb::sub(&rsp, 4).unwrap()).unwrap(), 1), Some(0));
+        let (answer, _) = acknowledge(&Msg::new().msg(27, Msg::new().uint(1, 7).bytes(2, b"")).0).unwrap();
+        let rsp = pb::fields(pb::sub(&pb::fields(&answer).unwrap(), 20).unwrap()).unwrap();
+        assert_eq!((pb::num(&rsp, 1), pb::num(&rsp, 2)), (Some(7), Some(4)));
+    }
+
+    #[test]
+    fn an_r1_session_without_subsystems_keeps_install_and_storage() {
+        let SessionReq::Init(wants) = session_request(&Msg::new().msg(1, Msg::new().uint(1, 109).uint(2, 4242)).0) else { panic!() };
+        assert_eq!(wants, None);
+        let fields = session_fields(&config().session(wants));
+        assert!(fields.contains(&14) && fields.contains(&17));
+        assert!(!fields.contains(&20));
+    }
+
     #[test]
     fn requests_are_told_apart() {
-        assert!(matches!(session_request(&Msg::new().msg(1, Msg::new().uint(1, 109)).0), SessionReq::Init));
+        assert!(matches!(session_request(&Msg::new().msg(1, Msg::new().uint(1, 109)).0), SessionReq::Init(None)));
         assert!(matches!(session_request(&Msg::new().msg(13, Msg::new().bytes(1, b"")).0), SessionReq::Installer));
         assert!(matches!(session_request(&[0xba, 0x01, 0x06, 0x0a, 0x04, 0x08, 0x80, 0x80, 0x04]), SessionReq::ProductList(65536)));
         let (answer, _) = acknowledge(&[0x42, 0x08, 0x0a, 0x06, 0x08, 0x80, 0x80, 0x08, 0x10, 0x00]).unwrap();

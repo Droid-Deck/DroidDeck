@@ -34,7 +34,7 @@ followed by a proto2 message, except on `uplay_service_ipc_pipe_`.
 |---|---|---|
 | `game_start_ipc_pipe_` | `UbisoftGameLauncher.exe` | `game_starter.Upstream{1:{1:{1: build, 2: product, 10: exe, 11: arguments, ...}}}` → `Downstream{2:{1:{1:0 (overlay off), 2:0, 3: <root>/ + "/" + <exe under root>, 4: <root>/, 8:3, 9:{1:{1,113,0,1,0} 1:{3,123,0,0,0}}}}}` |
 | `uplay_api_process_ipc_pipe_` | game | `Req.initProcessReq{1: product, 2: game pid, 5: env set}` → `Rsp.initProcessRsp(13){1:1, 3:0 (overlay off), 4:3, 6:0}`. Kept open. Answering it is what releases the starter (below) |
-| `uplay_ipc_pipe_` | game (`uplay_r1.dll`) | `Req.initReq(1)` → `Rsp.initRsp(1)`, answered every time it is asked. `Req.installerReq(13)` with `initInstallerReq` → `Rsp.installerRsp(10){1:{1:1, 2:"", 3: language}}` |
+| `uplay_ipc_pipe_` | game (`uplay_r1.dll`, `uplay_r2.dll`) | `Req.initReq(1)` → `Rsp.initRsp(1)`, answered every time it is asked. `Req.installerReq(13)` with `initInstallerReq` → `Rsp.installerRsp(10){1:{1:1, 2:"", 3: language}}`. `Req.streamingReq(27)` → `Rsp.streamingRsp(20){1: id, 2:1, 4:{1:0}}` for the streaming type (not streamed), `{1: id, 2:4}` for any other streaming query |
 | `uplay_aux_ipc_pipe_` | `uplay_aux_r1(64).dll` (Denuvo) | `{1: rid, 2: init}` → `{1: rid, 2:{1:1, 2: pid, 3:3367, 3:3368, 3:3962}}`; `{1: rid, 3:{2:{2: challenge}}}` → `{1: rid, 3:{2:{2:1, 3:0, 4: game token, 5:""}}}` |
 | `uplay_service_ipc_pipe_` | Ubisoft helpers | Server sends `{3:{1:1, 3:{1: <hwscore path>}}}` once, then only reads, unframed |
 | `upc_api_process_ipc_pipe_standard`, `uplay_protocol_ipc_pipe_`, `uplay_overlay_ipc_pipe_`, `orbit_ipc_pipe_`, `uplay_crash_reporter_ipc_pipe_` | — | Held open, never answered |
@@ -52,8 +52,24 @@ followed by a proto2 message, except on `uplay_service_ipc_pipe_`.
 | 7 isInOfflineMode | 0 |
 | 8 upcTicket | the PC ticket from `GetUplayPCTicket`, never the Denuvo token |
 | 11, 12, 15, 16, 18, 19, 21, 23 | the values a real launch carries (`{1:0}`, 0, overlay `{1:0, 2:3}`, hardware score `{6211, 22395, 1.0f}`, empty, `{1:1, 2:1}`, `{2:1}`, empty) |
+| 14 gameInstall | `{1:1, 2: installed chunks, 3: language}` |
 | 17 storage | `{1: "C:/users/steamuser/Saved Games/Ubisoft/<userId>/<product>/"}`; the game appends file names directly, so the trailing slash matters |
 | 22 ubiServices | `{1: applicationId}` from the account's entitlements, left out when unknown |
+
+### R2 titles
+
+`uplay_r2.dll` speaks the same `mg.protocol.uplaydll` messages (its embedded `UplayDll.proto` is identical to
+`uplay_r1.dll`'s), but its `InitReq` names the subsystems the game uses: fields 4 to 11 (friend, overlay,
+product, storage, install, multiplayer, store, streaming). Its `ApiContext` creates one object per requested
+subsystem and copies the session into them. Friends, overlay, game session, store and crossboot are checked
+for a missing object first; install and storage are not. A `gameInstall` sent to a game that did not ask for
+install is copied into a null object: Prince of Persia: The Lost Crown (6145) asks for overlay, product and store
+only, and crashed reading `0x68` in `uplay_r264.dll+0xaca2` two seconds after the session arrived.
+
+So when the request names subsystems, 14 is sent only with `subSystemInstall` (8), 17 only with
+`subSystemStorage` (7), and an empty `multiplayerInit` (20) is added, which `uplay_r2.dll` asks for even when
+empty. A request that names none gets the session above unchanged. The Lost Crown also opens a second context
+that asks for every subsystem, and it gets the full session.
 
 The overlay is reported off in all three places. `uplay_r1.dll` still loads `overlay.dll` from the
 runtime folder right after the session arrives, whatever the session says; without that file it gives up
@@ -84,7 +100,6 @@ titles without Denuvo never open the aux pipe.
 
 ## Not covered yet
 
-- R2 (`UPC_*`) titles use `uplay_r2.dll`; their pipe traffic has not been captured, so whether the
-  same server answers them is unverified.
+- R2 titles other than The Lost Crown, and R2 requests beyond the session, product list and streaming type.
 - Orbit (`ubiorbitapi_r2`) titles.
 - Achievements, friends, overlay, cloud saves.
