@@ -928,14 +928,21 @@ def retroarch_system_values():
     return {k: v for k, v in pairs if k in RETROARCH_PACKAGED and v is not None}
 
 
+def retroarch_has_cores(directory):
+    return bool(glob.glob(os.path.join(os.path.expanduser(directory), "*.so")))
+
+
 def retroarch():
     d = os.path.join(CONFIG, "retroarch")
     seed(os.path.join(d, "autoconfig/sdl2/Xbox 360 Controller.cfg"), RETROARCH_PROFILE, "RetroArch (profile)")
     cfg = os.path.join(d, "retroarch.cfg")
     system = retroarch_system_values()
-    if glob.glob(os.path.join(d, "cores", "*.so")):
-        system.pop("libretro_directory", None)
     if not os.path.isfile(cfg):
+        if (
+            retroarch_has_cores(os.path.join(d, "cores"))
+            or retroarch_has_cores(RETROARCH_PACKAGED["libretro_directory"])
+        ):
+            system.pop("libretro_directory", None)
         text = 'input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n'
         text += "".join(f'{k} = "{v}"\n' for k, v in system.items())
         seed(cfg, text, "RetroArch")
@@ -943,6 +950,7 @@ def retroarch():
     with open(cfg, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     changed = False
+    seen = set()
     present = set()
     for i, l in enumerate(lines):
         if l.replace(" ", "").startswith('input_joypad_driver="udev"'):
@@ -950,12 +958,29 @@ def retroarch():
             changed = True
         key, value = cfg_value(l)
         if key in system and value is not None:
+            seen.add(key)
+        if key in system and value:
             present.add(key)
+        if (
+            key == "libretro_directory"
+            and value == RETROARCH_PACKAGED[key]
+            and (retroarch_has_cores(value) or retroarch_has_cores(os.path.join(d, "cores")))
+        ):
+            continue
         if key in system and key != "menu_show_core_updater" and value == RETROARCH_PACKAGED[key] and system[key] != value:
             lines[i] = f'{key} = "{system[key]}"'
             changed = True
     for key, value in system.items():
         if key not in present:
+            if (
+                key == "libretro_directory"
+                and key not in seen
+                and (
+                    retroarch_has_cores(os.path.join(d, "cores"))
+                    or retroarch_has_cores(RETROARCH_PACKAGED[key])
+                )
+            ):
+                continue
             lines.append(f'{key} = "{value}"')
             changed = True
     if changed:

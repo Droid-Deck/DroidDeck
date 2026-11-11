@@ -34,10 +34,11 @@ class RetroArchDefaults(unittest.TestCase):
         script = self.tmp / "pad-defaults.py"
         script.write_text(SCRIPT.read_text().replace('"/etc/retroarch.cfg"', repr(str(system))))
         self.script = script
-        self.cfg = self.tmp / "retroarch/retroarch.cfg"
+        self.config_home = self.tmp
+        self.cfg = self.config_home / "retroarch/retroarch.cfg"
 
     def run_script(self):
-        env = {"HOME": str(self.tmp), "XDG_CONFIG_HOME": str(self.tmp), "PATH": os.environ["PATH"]}
+        env = {"HOME": str(self.tmp), "XDG_CONFIG_HOME": str(self.config_home), "PATH": os.environ["PATH"]}
         subprocess.run([sys.executable, "-I", str(self.script)], env=env, check=True, capture_output=True)
         return dict(
             (k.strip(), v.strip().strip('"'))
@@ -80,6 +81,29 @@ class RetroArchDefaults(unittest.TestCase):
         (cores / "snes9x_libretro.so").write_bytes(b"")
         values = self.run_script()
         self.assertNotIn("libretro_directory", values)
+
+    def test_saved_home_core_directory_survives_a_different_xdg_config_home(self):
+        self.config_home = self.tmp / "xdg"
+        self.cfg = self.config_home / "retroarch/retroarch.cfg"
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text(SAVED_DEFAULTS)
+        cores = self.tmp / ".config/retroarch/cores"
+        cores.mkdir(parents=True)
+        (cores / "snes9x_libretro.so").write_bytes(b"")
+        values = self.run_script()
+        self.assertEqual(values["libretro_directory"], "~/.config/retroarch/cores")
+
+    def test_empty_directory_settings_receive_packaged_paths(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text(
+            'assets_directory = ""\n'
+            'libretro_directory = ""\n'
+            'libretro_info_path = ""\n'
+        )
+        values = self.run_script()
+        self.assertEqual(values["assets_directory"], "/usr/share/libretro/assets/")
+        self.assertEqual(values["libretro_directory"], "/usr/lib/aarch64-linux-gnu/libretro/")
+        self.assertEqual(values["libretro_info_path"], "/usr/share/libretro/info/")
 
     def test_user_choices_are_kept(self):
         self.cfg.parent.mkdir(parents=True)
