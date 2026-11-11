@@ -2555,8 +2555,6 @@
     <string name="comp_this_device">Dieses Gerät</string>
     <string name="proton_remove_title">%1$s entfernen?</string>
     <string name="setup_tab_diagnostics">Diagnose</string>
-    <string name="setup_build_watermark">Build-Kennzeichnung als Wasserzeichen</string>
-    <string name="setup_build_watermark_hint">Test-Build-Kennzeichnung auf dem Bildschirm anzeigen. Bei Test-Builds standardmäßig aktiviert.</string>
     <string name="setup_ready">Bereit zum Spielen</string>
     <string name="setup_not_ready">Noch nicht bereit zum Spielen</string>
     <string name="setup_ready_runtime">Laufzeit %1$s</string>

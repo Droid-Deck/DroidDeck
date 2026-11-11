@@ -2566,8 +2566,6 @@
     <string name="comp_this_device">यह डिवाइस</string>
     <string name="proton_remove_title">%1$s हटाएं?</string>
     <string name="setup_tab_diagnostics">डायग्नोस्टिक्स</string>
-    <string name="setup_build_watermark">बिल्ड लेबल वॉटरमार्क</string>
-    <string name="setup_build_watermark_hint">स्क्रीन पर टेस्ट बिल्ड लेबल दिखाएँ। टेस्ट बिल्ड के लिए डिफ़ॉल्ट रूप से चालू।</string>
     <string name="setup_ready">खेलने के लिए तैयार</string>
     <string name="setup_not_ready">अभी खेलने के लिए तैयार नहीं</string>
     <string name="setup_ready_runtime">रनटाइम %1$s</string>

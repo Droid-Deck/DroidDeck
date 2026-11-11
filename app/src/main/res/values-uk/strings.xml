@@ -2620,8 +2620,6 @@
     <string name="comp_this_device">Цей пристрій</string>
     <string name="proton_remove_title">Видалити %1$s?</string>
     <string name="setup_tab_diagnostics">Діагностика</string>
-    <string name="setup_build_watermark">Водяний знак із міткою збірки</string>
-    <string name="setup_build_watermark_hint">Показувати на екрані мітку тестової збірки. Для тестових збірок увімкнено за замовчуванням.</string>
     <string name="setup_ready">Готово до гри</string>
     <string name="setup_not_ready">Ще не готово до гри</string>
     <string name="setup_ready_runtime">середовище %1$s</string>

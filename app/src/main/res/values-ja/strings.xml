@@ -2539,8 +2539,6 @@
     <string name="comp_this_device">このデバイス</string>
     <string name="proton_remove_title">%1$sを削除しますか？</string>
     <string name="setup_tab_diagnostics">診断</string>
-    <string name="setup_build_watermark">ビルドラベルの透かし</string>
-    <string name="setup_build_watermark_hint">テストビルドのラベルを画面に表示します。テストビルドではデフォルトで有効です。</string>
     <string name="setup_ready">プレイの準備完了</string>
     <string name="setup_not_ready">まだプレイの準備ができていません</string>
     <string name="setup_ready_runtime">実行環境 %1$s</string>

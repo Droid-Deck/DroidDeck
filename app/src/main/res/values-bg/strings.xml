@@ -2566,8 +2566,6 @@
     <string name="comp_this_device">Това устройство</string>
     <string name="proton_remove_title">Премахване на %1$s?</string>
     <string name="setup_tab_diagnostics">Диагностика</string>
-    <string name="setup_build_watermark">Воден знак с етикет на компилацията</string>
-    <string name="setup_build_watermark_hint">Показва етикета на тестовата компилация на екрана. Включено е по подразбиране за тестови компилации.</string>
     <string name="setup_ready">Готово за игра</string>
     <string name="setup_not_ready">Още не е готово за игра</string>
     <string name="setup_ready_runtime">среда %1$s</string>

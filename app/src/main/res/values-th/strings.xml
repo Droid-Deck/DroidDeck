@@ -2539,8 +2539,6 @@
     <string name="comp_this_device">อุปกรณ์นี้</string>
     <string name="proton_remove_title">ลบ %1$s?</string>
     <string name="setup_tab_diagnostics">การวินิจฉัย</string>
-    <string name="setup_build_watermark">ลายน้ำป้ายชื่อบิลด์</string>
-    <string name="setup_build_watermark_hint">แสดงป้ายชื่อบิลด์ทดสอบบนหน้าจอ เปิดไว้โดยค่าเริ่มต้นสำหรับบิลด์ทดสอบ</string>
     <string name="setup_ready">พร้อมเล่นแล้ว</string>
     <string name="setup_not_ready">ยังไม่พร้อมเล่น</string>
     <string name="setup_ready_runtime">รันไทม์ %1$s</string>

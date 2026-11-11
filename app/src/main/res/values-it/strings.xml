@@ -2582,8 +2582,6 @@
     <string name="comp_this_device">Questo dispositivo</string>
     <string name="proton_remove_title">Rimuovere %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostica</string>
-    <string name="setup_build_watermark">Filigrana con etichetta build</string>
-    <string name="setup_build_watermark_hint">Mostra sullo schermo l’etichetta della build di test. Attiva per impostazione predefinita nelle build di test.</string>
     <string name="setup_ready">Pronto per giocare</string>
     <string name="setup_not_ready">Non ancora pronto per giocare</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

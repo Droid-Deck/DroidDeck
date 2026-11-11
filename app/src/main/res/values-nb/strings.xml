@@ -2566,8 +2566,6 @@
     <string name="comp_this_device">Denne enheten</string>
     <string name="proton_remove_title">Fjerne %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostikk</string>
-    <string name="setup_build_watermark">Vannmerke for byggetikett</string>
-    <string name="setup_build_watermark_hint">Vis etiketten for testbygget på skjermen. På som standard for testbygg.</string>
     <string name="setup_ready">Klar til å spille</string>
     <string name="setup_not_ready">Ikke klar til å spille ennå</string>
     <string name="setup_ready_runtime">kjøretid %1$s</string>
