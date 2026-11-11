@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -10,6 +12,24 @@ HELPER = '/usr/local/bin/droiddeck-pipewire'
 
 
 class DesktopPipeWireTest(unittest.TestCase):
+    def run_lifecycle_block(self, start, end, bottom):
+        block = DESKTOP[DESKTOP.index(start):DESKTOP.index(end, DESKTOP.index(start))]
+        block = block.replace(HELPER, 'pipewire')
+        script = '''
+pipewire() {
+    if [ "$1" = env ]; then
+        printf ':\\n'
+    else
+        printf 'call:%s\\n' "$1"
+    fi
+}
+''' + block
+        environment = dict(os.environ, BL_BOTTOM_DESKTOP='1' if bottom else '0')
+        result = subprocess.run(['bash', '-c', script], env=environment, capture_output=True,
+                                text=True, timeout=5)
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout.splitlines()
+
     def test_desktop_serves_pipewire_before_plasma_and_stops_it_after(self):
         start = DESKTOP.index(HELPER + ' start')
         env = DESKTOP.index(HELPER + ' env')
@@ -25,13 +45,21 @@ class DesktopPipeWireTest(unittest.TestCase):
         self.assertIn('if [ "$mode" = steam ]; then\n    if ' + HELPER + ' start', SESSION)
 
     def test_bottom_desktop_reuses_the_top_sessions_pipewire(self):
-        start_guard = 'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  if ' + HELPER + ' start'
-        stop_guard = 'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  ' + HELPER + ' stop'
-        self.assertIn(start_guard, DESKTOP)
-        self.assertIn(stop_guard, DESKTOP)
         self.assertIn('export BL_BOTTOM_DESKTOP=1', BOTTOM_DESKTOP)
         self.assertLess(BOTTOM_DESKTOP.index('export BL_BOTTOM_DESKTOP=1'),
                         BOTTOM_DESKTOP.index('exec /usr/local/bin/droiddeck-desktop'))
+        self.assertEqual(['call:start'], self.run_lifecycle_block(
+            'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  if ' + HELPER + ' start',
+            'echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"', False))
+        self.assertEqual([], self.run_lifecycle_block(
+            'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  if ' + HELPER + ' start',
+            'echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"', True))
+        self.assertEqual(['call:stop'], self.run_lifecycle_block(
+            'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  ' + HELPER + ' stop',
+            'echo "== droiddeck-desktop: Plasma ended ($rc)"', False))
+        self.assertEqual([], self.run_lifecycle_block(
+            'if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then\n  ' + HELPER + ' stop',
+            'echo "== droiddeck-desktop: Plasma ended ($rc)"', True))
 
 
 if __name__ == '__main__':
