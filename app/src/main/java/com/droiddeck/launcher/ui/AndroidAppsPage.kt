@@ -110,6 +110,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.PointerEventPass
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
 import com.droiddeck.launcher.HomeHidden
@@ -149,7 +159,13 @@ private sealed interface AppEntry : AppEntryKey {
 }
 
 /** Rearranging the grid: the entry being moved, and what tiles call to start a move or to drop it on their spot. */
-private class AppMove(val moving: String?, val allowed: Boolean, val start: (String) -> Unit, val dropAt: (String) -> Unit)
+private class AppMove(
+    /** Move mode is on: tiles can be dragged, and choosing one picks it up or puts it down. */
+    val arranging: Boolean,
+    val moving: String?, val allowed: Boolean, val start: (String) -> Unit, val tap: (String) -> Unit,
+    /** A tile says a finger came down on it, so that a drag from there carries it. */
+    val arm: (String) -> Unit,
+)
 
 private val LocalAppMove = staticCompositionLocalOf<AppMove?> { null }
 
@@ -256,7 +272,7 @@ internal interface AppEntryKey {
     val updatedAt: Long
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
@@ -304,34 +320,76 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     val grid = rememberLazyGridState()
     val widgetsShown = q.isEmpty() && filter == AppsView.ALL && HomeWidgets.widgets.isNotEmpty()
     val leadItems = if (widgetsShown) 1 else 0
+    var arranging by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(q, filter, sort) { if (moving == null) grid.scrollToItem(0) }
+    LaunchedEffect(q, filter, sort) { if (!arranging) grid.scrollToItem(0) }
     val entriesNow = androidx.compose.runtime.rememberUpdatedState(entries)
-    val moveTo: (Int) -> Unit = moveTo@{ to ->
+    val scope = rememberCoroutineScope()
+    val moveTo: (String?, Int) -> Unit = moveTo@{ key, to ->
         val keys = entriesNow.value.map { it.key }
-        val from = keys.indexOf(moving)
+        val from = keys.indexOf(key)
         val at = to.coerceIn(0, keys.lastIndex)
         if (from < 0 || at == from) return@moveTo
+        // The grid follows its first visible item by key; when the move changes which item that is, hold the scroll where it was.
+        val first = grid.firstVisibleItemIndex - leadItems
+        val firstOffset = grid.firstVisibleItemScrollOffset
         AppsView.setOrder(ctx, keys.toMutableList().apply { add(at, removeAt(from)) })
+        if (first in minOf(from, at)..maxOf(from, at)) scope.launch { grid.scrollToItem(first + leadItems, firstOffset) }
+    }
+    // Dragging by touch: the tile the finger came down on, how far the finger has gone, and where the tile sat when it was picked up.
+    val armed = remember { arrayOfNulls<String>(1) }
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragBy by remember { mutableStateOf(Offset.Zero) }
+    var dragFrom by remember { mutableStateOf(IntOffset.Zero) }
+    val dragCenter: () -> Offset? = {
+        grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == dragKey }?.let { Offset(dragFrom.x + dragBy.x + it.size.width / 2f, dragFrom.y + dragBy.y + it.size.height / 2f) }
+    }
+    val dragOver = {
+        val c = dragCenter()
+        val over = if (c == null) null else grid.layoutInfo.visibleItemsInfo.firstOrNull {
+            it.key != dragKey && c.x >= it.offset.x && c.x < it.offset.x + it.size.width && c.y >= it.offset.y && c.y < it.offset.y + it.size.height
+        }
+        val to = entriesNow.value.indexOfFirst { it.key == over?.key }
+        if (to >= 0) moveTo(dragKey, to)
     }
     val appMove = AppMove(
-        moving, allowed = q.isEmpty() && filter == AppsView.ALL,
+        arranging, moving, allowed = q.isEmpty() && filter == AppsView.ALL,
         start = { key ->
             // Arranging starts from the order on screen, whatever sort made it.
-            if (sort != AppsView.CUSTOM) {
+            if (AppsView.sort != AppsView.CUSTOM) {
                 AppsView.setOrder(ctx, entriesNow.value.map { it.key })
                 AppsView.setSort(ctx, AppsView.CUSTOM)
             }
+            arranging = true
             moving = key
         },
-        dropAt = { key ->
-            if (key != moving) moveTo(entriesNow.value.indexOfFirst { it.key == key })
-            moving = null
+        tap = { key ->
+            if (moving == null) moving = key
+            else {
+                if (key != moving) moveTo(moving, entriesNow.value.indexOfFirst { it.key == key })
+                moving = null
+            }
         },
+        arm = { armed[0] = it },
     )
-    if (moving != null && (!appMove.allowed || entries.none { it.key == moving })) moving = null
-    BackHandler(moving != null) { moving = null }
+    if (arranging && !appMove.allowed) { arranging = false; moving = null; dragKey = null }
+    if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
+    BackHandler(arranging) { if (moving != null) moving = null else arranging = false }
+    LaunchedEffect(dragKey) {
+        if (dragKey == null) return@LaunchedEffect
+        // Near the top or bottom edge the list scrolls under the held tile.
+        val step = 9 * ctx.resources.displayMetrics.density
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { }
+            val c = dragCenter() ?: continue
+            val info = grid.layoutInfo
+            val h = (info.viewportEndOffset - info.afterContentPadding).toFloat()
+            val moved = if (c.y < h * 0.12f) grid.scrollBy(-step) else if (c.y > h * 0.88f) grid.scrollBy(step) else 0f
+            if (moved != 0f) dragOver()
+        }
+    }
     LaunchedEffect(moving, order) {
+        if (dragKey != null) return@LaunchedEffect
         val at = entries.indexOfFirst { it.key == (moving ?: return@LaunchedEffect) }
         if (at < 0) return@LaunchedEffect
         androidx.compose.runtime.withFrameNanos { }
@@ -382,20 +440,60 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(start = padH, end = if (scroller) padH + 22.dp else padH, top = 12.dp, bottom = 16.dp),
-                    modifier = Modifier.fillMaxSize().then(if (moving == null) Modifier else Modifier.onPreviewKeyEvent { event ->
+                    modifier = Modifier.fillMaxSize().then(if (!arranging) Modifier else Modifier.onPreviewKeyEvent { event ->
                         val k = event.nativeKeyEvent
+                        if (k.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) { if (moving != null) moving = null else arranging = false }
+                            return@onPreviewKeyEvent true
+                        }
+                        // With a tile picked up the D-pad carries it; otherwise it moves the cursor as usual.
                         val from = entriesNow.value.indexOfFirst { it.key == moving }
+                        if (from < 0) return@onPreviewKeyEvent false
                         val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
                         val to = when (k.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> from - 1
                             KeyEvent.KEYCODE_DPAD_RIGHT -> from + 1
                             KeyEvent.KEYCODE_DPAD_UP -> if (from - columns >= 0) from - columns else from
                             KeyEvent.KEYCODE_DPAD_DOWN -> if (from + columns <= entriesNow.value.lastIndex) from + columns else from
-                            KeyEvent.KEYCODE_BUTTON_B -> { if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) moving = null; return@onPreviewKeyEvent true }
                             else -> return@onPreviewKeyEvent false
                         }
-                        if (k.action == KeyEvent.ACTION_DOWN && from >= 0) moveTo(to)
+                        if (k.action == KeyEvent.ACTION_DOWN) moveTo(moving, to)
                         true
+                    }.pointerInput(leadItems) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            armed[0] = null
+                            var total = Offset.Zero
+                            var origin = Offset.Zero
+                            var decided = false
+                            while (true) {
+                                val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                total += change.positionChange()
+                                if (!decided && total.getDistance() > viewConfiguration.touchSlop) {
+                                    decided = true
+                                    // A finger that rests on a tile before moving carries it; a quick swipe scrolls the list.
+                                    val key = armed[0]
+                                    val item = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }
+                                    if (key != null && item != null && change.uptimeMillis - down.uptimeMillis >= 120) {
+                                        origin = total
+                                        dragFrom = item.offset
+                                        dragBy = Offset.Zero
+                                        moving = key
+                                        dragKey = key
+                                    }
+                                }
+                                if (dragKey != null) {
+                                    change.consume()
+                                    dragBy = total - origin
+                                    dragOver()
+                                }
+                            }
+                            if (dragKey != null) {
+                                dragKey = null
+                                moving = null
+                            }
+                        }
                     }),
                 ) {
                     if (widgetsShown) item(key = "widgets", span = { GridItemSpan(maxLineSpan) }) {
@@ -420,7 +518,13 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                         )
                     }
                     items(entries, key = { it.key }) { entry ->
-                        CompositionLocalProvider(LocalAppMove provides appMove) {
+                        CompositionLocalProvider(LocalAppMove provides appMove) { Box(
+                            if (entry.key == dragKey) Modifier.zIndex(1f).graphicsLayer {
+                                val at = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == entry.key }?.offset ?: return@graphicsLayer
+                                translationX = dragFrom.x + dragBy.x - at.x
+                                translationY = dragFrom.y + dragBy.y - at.y
+                            } else Modifier.animateItemPlacement(),
+                        ) {
                         when (entry) {
                             is AppEntry.App -> AppTile(
                                 entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
@@ -432,13 +536,19 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                                 openFolder = entry.folder.id
                             }
                         }
-                        }
+                        } }
                     }
                 }
-                if (moving != null) Text(
-                    stringResource(R.string.apps_move_hint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).clip(Shape12).background(colors.surfaceVariant).padding(horizontal = 14.dp, vertical = 8.dp),
-                )
+                if (arranging) Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).clip(Shape12).background(colors.surfaceVariant).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Text(stringResource(R.string.apps_move_hint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    Text(
+                        stringResource(R.string.apps_move_done), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.signal,
+                        modifier = Modifier.clip(Shape12).clickable(role = Role.Button) { arranging = false; moving = null }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
                 if (scroller) AlphabetScroller(entries, grid, leadItems, Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp, top = 8.dp, bottom = 8.dp))
             }
         }
@@ -618,19 +728,26 @@ private fun TileFrame(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
-    val move = LocalAppMove.current?.takeIf { moveKey != null && it.moving != null }
+    val move = LocalAppMove.current?.takeIf { moveKey != null && it.arranging }
     val lifted = move != null && move.moving == moveKey
     val hot = rememberHot(src) || lifted
     val pressed by src.collectIsPressedAsState()
-    // While a tile is being moved, choosing any tile drops it there.
-    val onClick = if (move != null) ({ move.dropAt(moveKey!!) }) else onClick
+    // In move mode, choosing a tile picks it up or puts the held one down there.
+    val onClick = if (move != null) ({ move.tap(moveKey!!) }) else onClick
     val onMenu = if (move != null) ({}) else onMenu
+    val wiggle = if (move != null && !lifted) {
+        val turn by rememberInfiniteTransition(label = "appWiggle").animateFloat(
+            -1.2f, 1.2f, infiniteRepeatable(tween(140 + (id.hashCode() and 31), easing = LinearEasing), RepeatMode.Reverse), label = "appWiggle",
+        )
+        turn
+    } else 0f
     val scale by animateFloatAsState(if (pressed) 0.95f else if (lifted) 1.1f else if (hot) 1.04f else 1f, Motion.sp(0.55f, Spring.StiffnessMedium), label = "appScale")
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
             .paneItem("tile:$id").then(if (first) Modifier.firstTile().paneEntry() else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .then(if (move != null) Modifier.pointerInput(moveKey) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); move.arm(moveKey!!) } } else Modifier)
+            .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = wiggle }
             .clip(Shape12)
             .background(if (hot) colors.surface else colors.surface.copy(alpha = 0.55f))
             .glideBorder(hot, Shape12, pal.signal, hotWidth = 2.5.dp)
@@ -663,6 +780,7 @@ private fun AppTile(
     modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
+    if (menu && LocalAppMove.current?.arranging == true) menu = false
     Box(modifier) {
         TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }, moveKey = if (folderId == null) "app:" + app.key else null) {
             AppIcon(app, 52.dp)
@@ -757,6 +875,7 @@ private fun PinnedTile(pinned: HomePins.Pinned, first: Boolean) {
     var menu by remember { mutableStateOf(false) }
     Box {
         val move = LocalAppMove.current
+        if (menu && move?.arranging == true) menu = false
         TileFrame(pinned.key, first, onClick = { runCatching { HomeApp.startShortcut(ctx, pinned.info) } }, onMenu = { menu = true }, moveKey = pinned.key) {
             Box {
                 val icon = pinned.icon
@@ -802,6 +921,7 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
     var menu by remember { mutableStateOf(false) }
     Box {
         val move = LocalAppMove.current
+        if (menu && move?.arranging == true) menu = false
         TileFrame(entry.key, first, onClick = onOpen, onMenu = { menu = true }, moveKey = entry.key) {
             FolderIcon(entry.apps, 52.dp)
             TileLabel(entry.folder.name)

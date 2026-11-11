@@ -1390,7 +1390,8 @@
     <string name="apps_sort_updated">Recently updated</string>
     <string name="apps_sort_custom">Custom</string>
     <string name="apps_move">Move</string>
-    <string name="apps_move_hint">Move it with the D-pad or tap where it goes · A to place</string>
+    <string name="apps_move_hint">Drag tiles, or A to pick one up and the D-pad to move it</string>
+    <string name="apps_move_done">Done</string>
     <string name="content_desktop_installed">● Desktop installed</string>
     <string name="content_desktop_first_open">Installs on first open</string>
     <string name="content_available">Available to install</string>
