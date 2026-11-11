@@ -209,6 +209,13 @@ class GamesFolderMigrationTest {
         assertEquals(AddedGames.GUEST_DIR + "/PC", binds.getValue(pc.path))
         assertTrue(binds.values.none { it == StoreInstallRoot.INTERNAL_GUEST })
         assertEquals(binds.getValue(stores.path) + "/One/One.exe", AddedGames.guestPath(app, File(stores, "One/One.exe")))
+        val installer = File(stores, "GOG/Game/setup_1.exe").apply { parentFile?.mkdirs(); writeText("MZ") }
+        val guestInstaller = AddedGames.guestPath(app, installer)!!
+        val extractorBinds = StoreInstallRoot.guestBinds(app).map { it.substringBeforeLast(':') to it.substringAfterLast(':') }
+        val covering = extractorBinds.filter { (_, mount) -> guestInstaller.startsWith("$mount/") }.maxByOrNull { it.second.length }!!
+        assertEquals(installer.canonicalFile, File(covering.first + guestInstaller.removePrefix(covering.second)).canonicalFile)
+        val internalInstaller = "${StoreInstallRoot.INTERNAL_GUEST}/GOG/Game/setup_1.exe"
+        assertTrue(extractorBinds.none { (_, mount) -> internalInstaller == mount || internalInstaller.startsWith("$mount/") })
     }
 
     @Test fun twoFoldersOfOneNameKeepTheirOwnGuestPaths() {
