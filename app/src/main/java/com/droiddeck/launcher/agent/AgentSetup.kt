@@ -76,7 +76,7 @@ object AgentSetup {
             Step.CONNECTION -> return
             Step.INSTALL -> {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+                    "apt-get update; apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
             Step.GITHUB -> listOf("dd-gh-login")
