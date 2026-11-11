@@ -8,6 +8,7 @@ export DEBIAN_FRONTEND=noninteractive
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+apt-get update
 apt-get install -y --no-install-recommends git gh adb python3 zip unzip curl openjdk-17-jdk-headless qemu-user zipalign apksigner
 
 command -v claude >/dev/null || [ -x "$HOME/.local/bin/claude" ] ||

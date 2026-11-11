@@ -303,6 +303,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
             android:theme="@style/SessionTheme" />
 
+        <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
             android:exported="false"

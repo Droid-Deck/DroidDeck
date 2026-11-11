@@ -42,6 +42,8 @@ class App : Application() {
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
+        com.droiddeck.launcher.agent.AgentHost.refresh(this)
+        if (com.droiddeck.launcher.agent.AgentHost.available) com.droiddeck.launcher.lab.LabNotice.openOnInstall = "agent"
         com.droiddeck.launcher.lab.LabNotice.started(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
