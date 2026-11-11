@@ -37,7 +37,9 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 2
+ROOTFS_LAYOUT = 3
+BLOB_DIRS = re.compile(r"^(?:\.ref|[0-9a-f]{2})$")
+ROOTFS_LIBRARY_DIRS = ("lib", "lib64")
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -310,9 +312,29 @@ def provides_newer(base, provider):
     return True
 
 
-def mirror(source, provider, name, target):
+def clone(source, target, parents=()):
+    real = os.path.realpath(source)
+    if real in parents or not os.path.lexists(real):
+        return
+    if os.path.isdir(real):
+        os.makedirs(target, exist_ok=True)
+        for entry in os.listdir(real):
+            clone(os.path.join(real, entry), os.path.join(target, entry), parents + (real,))
+        return
+    try:
+        os.link(real, target)
+    except OSError:
+        shutil.copy2(real, target)
+
+
+def stays_in_libraries(root, target, link):
+    resolved = os.path.normpath(os.path.join(os.path.relpath(target, root), link))
+    return resolved.split(os.sep)[0] in ROOTFS_LIBRARY_DIRS
+
+
+def mirror(source, provider, name, target, root):
     if provider and name in PROVIDED and os.path.lexists(os.path.join(provider, name)):
-        os.symlink(os.path.realpath(os.path.join(provider, name)), os.path.join(target, name))
+        clone(os.path.join(provider, name), os.path.join(target, name))
         return
     path = os.path.join(source, name)
     link = os.readlink(path) if os.path.islink(path) else None
@@ -322,10 +344,10 @@ def mirror(source, provider, name, target):
         link = os.path.join(os.path.dirname(link), name)
     if provider and GLIBC_BUILD.match(name):
         return
-    if link and not link.startswith("/"):
+    if link and not link.startswith("/") and stays_in_libraries(root, target, link):
         os.symlink(link, os.path.join(target, name))
     else:
-        os.symlink(os.path.realpath(path), os.path.join(target, name))
+        clone(path, os.path.join(target, name))
 
 
 def build_rootfs(base, provider):
@@ -341,8 +363,8 @@ def build_rootfs(base, provider):
     tmp = "%s.%d.tmp" % (rootfs, os.getpid())
     os.makedirs(tmp)
     for entry in os.listdir(base_files):
-        if entry not in ("lib", "lib64", "usr", MARKER):
-            os.symlink(os.path.realpath(os.path.join(base_files, entry)), os.path.join(tmp, entry))
+        if entry not in ("lib", "lib64", "usr", MARKER) and not BLOB_DIRS.match(entry):
+            clone(os.path.join(base_files, entry), os.path.join(tmp, entry))
     os.symlink(".", os.path.join(tmp, "usr"))
     for top in ("lib", "lib64"):
         source = os.path.join(base_files, top)
@@ -353,9 +375,9 @@ def build_rootfs(base, provider):
                 provided = os.path.join(provider_files, top, entry)
                 os.makedirs(os.path.join(tmp, top, entry))
                 for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.lexists(os.path.join(provided, name))}:
-                    mirror(path, provided, name, os.path.join(tmp, top, entry))
+                    mirror(path, provided, name, os.path.join(tmp, top, entry), tmp)
             else:
-                mirror(source, None, entry, os.path.join(tmp, top))
+                mirror(source, None, entry, os.path.join(tmp, top), tmp)
     write_if_changed(os.path.join(tmp, MARKER), stamp)
     old = "%s.%d.old" % (rootfs, os.getpid())
     if os.path.lexists(rootfs):
@@ -513,8 +535,6 @@ def prepare(app=SNIPER_APPID):
         root = os.path.join(platform, "files")
         if materialize(platform):
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
-        install_preloads(root)
-        install_fonts(root)
         provider = None
         if app == SNIPER_APPID:
             provider = graphics_platform()
@@ -531,6 +551,8 @@ def prepare(app=SNIPER_APPID):
                     say("built the x86 runtime from %s with the C and C++ libraries of %s"
                         % (os.path.basename(platform), os.path.basename(provider)))
                 root = os.path.join(STATE, "rootfs")
+        install_preloads(root)
+        install_fonts(root)
         with contextlib.suppress(OSError):
             link_guest_sdk(root)
         write_config(fex, root)

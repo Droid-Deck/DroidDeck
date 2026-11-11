@@ -450,6 +450,26 @@ class PrepareTest(FexTestCase):
         self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
         self.assertEqual(sorted(os.listdir(root.parent)), ["config", "lock", "rootfs", "status.json"])
 
+    def test_the_built_x86_runtime_holds_nothing_that_leaves_it(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        self.quiet(FEX["prepare"])
+        root = (self.home / ".local/share/droiddeck-fex/rootfs").resolve()
+        entries = 0
+        for directory, dirs, files in os.walk(root):
+            for name in dirs + files:
+                path = Path(directory) / name
+                entries += 1
+                if path.is_symlink():
+                    self.assertFalse(os.path.isabs(os.readlink(path)), path)
+                    self.assertTrue(path.resolve().is_relative_to(root), path)
+        self.assertGreater(entries, 10)
+        self.assertEqual((root / "bin/[").read_bytes(), b"blob")
+        self.assertEqual((root / "share/ca/real.crt").read_bytes(), b"cert")
+        self.assertFalse(os.path.lexists(root / "ab"))
+
     def test_a_runtime_that_is_not_newer_is_left_out(self):
         self.fex_tool()
         sniper = self.runtime()
