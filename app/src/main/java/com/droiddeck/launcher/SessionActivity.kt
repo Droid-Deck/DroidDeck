@@ -4069,6 +4069,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                         touchpad.desktop = SessionState.mode == SessionService.MODE_DESKTOP
+                        touchpad.tapClicks = !onScreenMouseButtonShown()
                         placeTouchpadAtGuest(rect)
                     }
                     touchpad.onTouch(event)
@@ -4077,6 +4078,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
         }
+    }
+
+    private fun onScreenMouseButtonShown(): Boolean {
+        val layout = primaryInputLayout ?: return false
+        return onScreenButtonsVisible && !steamTouchInUse && onScreenControls?.isButtonsOnly != true &&
+            inputProfile.hasMouseButton(InputRole.PRIMARY, layout.style.shown(layout.elements))
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {

@@ -262,6 +262,46 @@ class TouchpadGesturesTest {
         assertFalse(events.contains("left down"))
     }
 
+    @Test fun tapsDoNotClickWhenTapClicksAreOff() {
+        touchpad.tapClicks = false
+        tap()
+        advance(50)
+        tap()
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(60)
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
+        advance(TouchTiming.CLICK_MS + 100)
+        assertEquals(emptyList<String>(), events)
+    }
+
+    @Test fun movementAndHoldDragStillWorkWhenTapClicksAreOff() {
+        touchpad.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (460f to 300f))
+        touch(MotionEvent.ACTION_UP, 0, 1 to (460f to 300f))
+        assertTrue(events.contains("move"))
+        assertFalse(events.any { it.startsWith("left") })
+        events.clear()
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(TouchTiming.HOLD_MS + 50)
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
+        assertEquals(listOf("long press", "left down", "left up"), events)
+    }
+
+    @Test fun tapsClickAgainOnceTapClicksAreBackOn() {
+        touchpad.tapClicks = false
+        tap()
+        touchpad.tapClicks = true
+        tap()
+        advance(TouchTiming.CLICK_MS + 100)
+        assertEquals(listOf("left down", "left up"), events)
+    }
+
     private fun tap() {
         touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
         advance(80)
