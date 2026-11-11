@@ -158,6 +158,8 @@ class InputSurfaceView(
         }
     }
 
+    fun shownElements() = customLayout
+
     fun releaseInputs() {
         val now = android.os.SystemClock.uptimeMillis()
         val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)

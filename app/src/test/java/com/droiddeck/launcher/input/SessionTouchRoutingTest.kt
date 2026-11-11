@@ -1,13 +1,17 @@
 package com.droiddeck.launcher.input
 
 import android.view.View
+import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.ui.InputSurfaceView
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import java.nio.file.Files
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,6 +68,51 @@ class SessionTouchRoutingTest {
         }
     }
 
+    @Test fun pinnedMouseButtonSuppressesTapsAfterSteamTouchIsHiddenForTheKeyboard() {
+        val controls = shownControls(button.copy(alwaysShown = true))
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        ReflectionHelpers.getField<MutableState<Boolean>>(activity, "steamTouchInUse\$delegate").value = true
+        ReflectionHelpers.getField<MutableState<Boolean>>(activity, "pcKeyboardOpen\$delegate").value = true
+        invoke("updateOnScreenControls")
+        assertEquals(View.GONE, steam.visibility)
+        assertEquals(View.VISIBLE, controls.visibility)
+        assertTrue(mouseButtonShown())
+    }
+
+    @Test fun visibleSteamTouchKeepsTapClicksAndGameBindingsHaveNoMouseButton() {
+        shownControls(button)
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        assertFalse(mouseButtonShown())
+        steam.visibility = View.GONE
+        assertTrue(mouseButtonShown())
+        field("inputProfile", InputProfile.defaults(InputProfile.GAME))
+        assertFalse(mouseButtonShown())
+    }
+
+    @Test fun mouseButtonOnTheDeckSurfaceSuppressesTapsOnlyWhileItIsShown() {
+        steam.visibility = View.GONE
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        val deck = InputSurfaceView(activity, null, listOf(button), InputRole.PRIMARY)
+        field("unfoldedDeckSurface", deck)
+        assertTrue(mouseButtonShown())
+        deck.visibility = View.GONE
+        assertFalse(mouseButtonShown())
+        deck.visibility = View.VISIBLE
+        field("inputProfile", InputProfile.defaults(InputProfile.GAME))
+        assertFalse(mouseButtonShown())
+    }
+
+    private val button = InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)
+
+    private fun shownControls(vararg elements: InputSurfaceElement) = OnScreenControls(activity, null).apply {
+        updateLayout(SavedInputLayout("test", "Test", elements.toList(), aspect = 1000f / 600f))
+        measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+        layout(0, 0, 1000, 600)
+        visibility = View.VISIBLE
+        field("onScreenControls", this)
+    }
+
+    private fun mouseButtonShown() = invoke("onScreenMouseButtonShown") as Boolean
     private fun field(name: String, value: Any) = ReflectionHelpers.setField(activity, name, value)
     private fun invoke(name: String) = ReflectionHelpers.callInstanceMethod<Any?>(activity, name)
 }

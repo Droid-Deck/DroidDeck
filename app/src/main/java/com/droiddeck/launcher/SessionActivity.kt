@@ -4081,11 +4081,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onScreenMouseButtonShown(): Boolean {
-        if (steamTouchInUse) return false
-        return listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls).any {
-            it.visibility == View.VISIBLE && !it.isButtonsOnly &&
-                inputProfile.hasMouseButton(InputRole.PRIMARY, it.shownElements())
-        }
+        if (steamTouchControls?.visibility == View.VISIBLE) return false
+        val controls = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
+            .filter { it.visibility == View.VISIBLE && !it.isButtonsOnly }.map { it.shownElements() }
+        val deck = listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
+        return (controls + deck).any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) }
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {
