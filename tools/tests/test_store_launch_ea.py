@@ -67,6 +67,20 @@ class EaHook(unittest.TestCase):
             self.assertEqual(store.store_launcher(str(link)), expected)
             self.assertIsNone(store.find_store_game([str(deep / 'Game.exe')]))
 
+    def test_a_symlinked_exe_finds_the_sidecar_beside_the_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / 'Real/Game.exe'
+            outside.parent.mkdir()
+            outside.write_text('x')
+            folder = Path(tmp) / 'Game'
+            folder.mkdir()
+            (folder / store.LAUNCHER).write_text('x')
+            (folder / 'Game.exe').symlink_to(outside)
+            sidecar = {'store': 'ea', 'id': 'Origin.OFR.50.1', 'exe': 'Game.exe', 'launcher': store.LAUNCHER}
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            self.assertEqual(store.store_launcher(str(folder / 'Game.exe')), str(folder / store.LAUNCHER))
+            self.assertIsNone(store.store_launcher(str(outside)))
+
     def test_legacy_games_are_registered_by_content_id(self):
         sidecar = {'id': 'Origin.OFR.50.0005237', 'title': 'Mass Effect 3 (2012)',
                    'extra': {'contentIds': '71073,71183, bad id', 'displayName': 'Mass Effect 3', 'locale': 'fr_FR'}}

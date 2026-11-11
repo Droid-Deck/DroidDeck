@@ -139,8 +139,8 @@ class CommandTest(Temp):
     def test_a_store_games_exe_runs_through_its_launcher(self):
         exe, launcher = str(self.tmp / "game.exe"), str(self.tmp / "launch.bat")
         with mock.patch.dict(OPEN, {"store_launcher": lambda path: launcher if path == exe else None,
-                                    "exe_prefix": lambda path: 4242}):
-            keep = ["--prefix", "4242"]
+                                    "exe_prefix": lambda path: ["--prefix", "4242", "--compatdata", "/c/4242"]}):
+            keep = ["--prefix", "4242", "--compatdata", "/c/4242"]
             self.assertEqual(OPEN["command"](exe, [], "windows")[0], [OPEN["PROTON_RUN"]] + keep + [launcher])
             self.assertEqual(OPEN["command"](exe, [], "windows", True)[0],
                              [OPEN["PROTON_RUN"], "--window"] + keep + [launcher])
@@ -156,7 +156,8 @@ class CommandTest(Temp):
                 mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run"),
                                     "store_launcher": lambda path: str(self.tmp / "launch.bat")}):
             command = OPEN["command"](str(exe), [], "windows")[0]
-        self.assertEqual(command[1:3], ["--prefix", str(RUN["locate"](str(exe), root).appid)])
+        located = RUN["locate"](str(exe), root)
+        self.assertEqual(command[1:5], ["--prefix", located.appid, "--compatdata", located.compatdata])
         self.assertEqual(str(RUN["own_id"](str(exe))), str(RUN["locate"](str(exe), root).appid))
 
     def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
@@ -759,6 +760,20 @@ class ProtonRunTest(Temp):
         env = calls[0][2]
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(signed))
         self.assertFalse((self.root / "steamapps/compatdata/2733369024").exists())
+
+    def test_a_launcher_run_keeps_the_resolved_compatdata_folder(self):
+        bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        other = self.tmp / "Library2/steamapps/compatdata/555"
+        other.mkdir(parents=True)
+        for compatdata, appid in ((signed, "2733369024"), (other, "555")):
+            with self.subTest(compatdata=str(compatdata)):
+                code, calls, dirs = self.run_main(["--prefix", appid, "--compatdata", str(compatdata), str(bat)])
+                self.assertIsNone(code)
+                self.assertEqual(calls[0][2]["STEAM_COMPAT_DATA_PATH"], str(compatdata))
+        code, calls, dirs = self.run_main(["--prefix", "555", str(bat)])
+        self.assertEqual(calls[0][2]["STEAM_COMPAT_DATA_PATH"], str(self.root / "steamapps/compatdata/555"))
 
     def test_prefix_folder_prefers_initialized_unsigned_over_empty_signed(self):
         signed = self.root / "steamapps/compatdata/-1561598272"

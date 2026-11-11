@@ -277,7 +277,8 @@ def exe_prefix(path):
     try:
         run = runpy.run_path(PROTON_RUN)
         root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or run["STEAM_ROOT"]
-        return run["locate"](path, root).appid
+        target = run["locate"](path, root)
+        return ["--prefix", target.appid, "--compatdata", target.compatdata]
     except (OSError, ValueError, KeyError, IndexError):
         return None
 
@@ -296,7 +297,7 @@ def command(path, args, what, window=False, appid=None):
     if what == "windows":
         launcher = None if args else store_launcher(path)
         prefix = exe_prefix(path) if launcher else None
-        keep = ["--prefix", str(prefix)] if prefix else []
+        keep = prefix or []
         return [PROTON_RUN] + (["--window"] if window else []) + keep + [launcher or path] + args, folder
     if what == "x86 script":
         return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
