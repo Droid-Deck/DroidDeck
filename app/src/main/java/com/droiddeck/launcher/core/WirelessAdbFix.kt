@@ -70,6 +70,25 @@ object WirelessAdbFix {
         "$host:${saved.port ?: ""}"
     }
 
+    /**
+     * The saved pairing's connect address, looked up again when it no longer answers: Wireless
+     * debugging moves to another port whenever it restarts.
+     */
+    fun liveConnectAddress(context: Context): String? {
+        val app = context.applicationContext
+        val saved = savedConnection(app) ?: return null
+        val host = if (':' in saved.host) "[${saved.host}]" else saved.host
+        saved.port?.takeIf { answers(saved.host, it) }?.let { return "$host:$it" }
+        val loopback = runCatching { InetAddress.getByName(saved.host).isLoopbackAddress }.getOrDefault(false)
+        val port = (if (loopback) localConnectPort(app) else findConnectPort(app, saved.host)) ?: return null
+        saveConnection(app, saved.host, port)
+        return "$host:$port"
+    }
+
+    private fun answers(host: String, port: Int) = runCatching {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 500) }
+    }.isSuccess
+
     private fun saveConnection(context: Context, host: String, port: Int) {
         writeAtomically(
             context,

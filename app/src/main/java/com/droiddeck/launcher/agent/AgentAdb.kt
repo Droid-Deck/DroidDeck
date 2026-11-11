@@ -24,7 +24,7 @@ object AgentAdb {
     /** Blocks while it looks up the connect port when none is saved; call it off the main thread. */
     fun prepare(app: Context): Link {
         val key = File(app.noBackupFilesDir, "wireless-adb-key.pem")
-        val address = WirelessAdbFix.savedConnectionAddress(app)
+        val address = WirelessAdbFix.liveConnectAddress(app) ?: WirelessAdbFix.savedConnectionAddress(app)
         if (address == null || !key.isFile) return Link(LEGACY, VENDOR_KEY, false)
         val guestKey = File(LinuxRuntime.rootDir(app), VENDOR_KEY.removePrefix("/"))
         runCatching {
