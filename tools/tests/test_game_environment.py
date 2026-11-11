@@ -846,6 +846,36 @@ class GameEnvironmentTest(unittest.TestCase):
             finally:
                 MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
 
+    def test_the_install_script_seeder_skips_failed_wineserver_waits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            wineserver = str(root / "files/bin-arm64/wineserver")
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+            for failure in (subprocess.TimeoutExpired([wineserver, "-w"], 120), OSError("cannot start"),
+                            subprocess.CalledProcessError(1, [wineserver, "-w"])):
+                with self.subTest(failure=type(failure).__name__):
+                    calls = []
+
+                    def fake_run(args, **kwargs):
+                        calls.append((args, kwargs))
+                        if len(calls) == 2:
+                            self.assertTrue(kwargs["check"])
+                            raise failure
+
+                    MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+                    try:
+                        self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+                        self.assertEqual(len(calls), 2)
+                        self.assertEqual(calls[1][0], [wineserver, "-w"])
+                        self.assertEqual(calls[1][1]["env"]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                    finally:
+                        MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
               '"process 1" "%INSTALLDIR%\\\\x64.cmd" "requirement_os" { "Is64BitWindows" "1" } } '

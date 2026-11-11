@@ -723,9 +723,10 @@ def mark_install_scripts(command, env):
             wineserver = next((path for path in (os.path.join(tool, "files", name, "wineserver") for name in ("bin-arm64", "bin"))
                                if os.access(path, os.X_OK)), os.path.join(tool, "files/bin-arm64/wineserver"))
             subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),
-                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=True)
         except (OSError, subprocess.SubprocessError) as error:
             print("droiddeck-game-env: wineserver wait failed (%s)" % error, file=sys.stderr)
+            return scripts
     try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
