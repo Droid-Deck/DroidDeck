@@ -77,4 +77,19 @@ class PowerVrAutoDriversTest {
         assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
     }
+
+    @Test fun sessionStartKeepsStandaloneDriverOnUnsupportedXclipse() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setAndroidDriver(context, "standalone-display")
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
+        val ownedOnly = SessionPrefs.unsupportedXclipse(true, "Samsung Xclipse 540")
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = ownedOnly)
+        assertEquals("standalone-display", SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+    }
+
+    @Test fun sessionStartOwnershipRuleIgnoresOtherGpus() {
+        assertEquals(false, SessionPrefs.unsupportedXclipse(false, "Samsung Xclipse 540"))
+        assertEquals(false, SessionPrefs.unsupportedXclipse(true, "Samsung Xclipse 920"))
+    }
 }
