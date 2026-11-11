@@ -2,16 +2,15 @@
 #include "clock_domain.h"
 
 #include <fcntl.h>
-#include <limits.h>
+#include <pthread.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
 static const int64_t *g_shift;
-static char g_path[PATH_MAX];
+static pthread_mutex_t g_control_lock = PTHREAD_MUTEX_INITIALIZER;
 static dev_t g_device;
 static ino_t g_inode;
 
@@ -19,16 +18,16 @@ void droiddeck_clock_domain_set_control(const char *path) {
     int fd;
     struct stat st;
     if (!path || !*path) return;
-    if (snprintf(g_path, sizeof(g_path), "%s", path) >= (int)sizeof(g_path)) {
-        return;
-    }
-    fd = open(g_path, O_RDONLY | O_CLOEXEC);
+    pthread_mutex_lock(&g_control_lock);
+    fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0 || fstat(fd, &st) != 0 || st.st_size < (off_t)sizeof(int64_t)) {
         if (fd >= 0) close(fd);
+        pthread_mutex_unlock(&g_control_lock);
         return;
     }
     if (__atomic_load_n(&g_shift, __ATOMIC_ACQUIRE) && st.st_dev == g_device && st.st_ino == g_inode) {
         close(fd);
+        pthread_mutex_unlock(&g_control_lock);
         return;
     }
     const int64_t *shift = mmap(NULL, sizeof(*shift), PROT_READ, MAP_SHARED, fd, 0);
@@ -38,6 +37,7 @@ void droiddeck_clock_domain_set_control(const char *path) {
         g_inode = st.st_ino;
         __atomic_store_n(&g_shift, shift, __ATOMIC_RELEASE);
     }
+    pthread_mutex_unlock(&g_control_lock);
 }
 
 static int64_t shift_ns(void) {

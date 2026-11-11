@@ -149,7 +149,8 @@ int main(int argc, char **argv) {
                 'int main(int argc, char **argv) { (void)argc;\n'
                 '  droiddeck_clock_domain_set_control(argv[1]);\n'
                 '  printf("%lld\\n", (long long)droiddeck_clock_domain_adjust_ns(30LL * 1000000000LL));\n'
-                '  droiddeck_clock_domain_set_control(argv[2]);\n'
+                '  if (rename(argv[2], argv[1]) != 0) return 1;\n'
+                '  droiddeck_clock_domain_set_control(argv[1]);\n'
                 '  printf("%lld\\n", (long long)droiddeck_clock_domain_adjust_ns(30LL * 1000000000LL));\n'
                 '  return 0;\n'
                 '}\n'
@@ -159,6 +160,31 @@ int main(int argc, char **argv) {
                            check=True)
             result = subprocess.run([str(binary), str(control), str(replacement)], capture_output=True, text=True, check=True)
             self.assertEqual(result.stdout.split(), ["20000000000", "10000000000"])
+
+    def test_initially_missing_control_is_mapped_after_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = root / "clock"
+            replacement = root / "replacement"
+            replacement.write_bytes(struct.pack("<q", 20_000_000_000))
+            program = root / "program.c"
+            program.write_text(
+                '#include <stdio.h>\n'
+                '#include "clock_domain.h"\n'
+                'int main(int argc, char **argv) { (void)argc;\n'
+                '  droiddeck_clock_domain_set_control(argv[1]);\n'
+                '  printf("%lld\\n", (long long)droiddeck_clock_domain_adjust_ns(30LL * 1000000000LL));\n'
+                '  if (rename(argv[2], argv[1]) != 0) return 1;\n'
+                '  droiddeck_clock_domain_set_control(argv[1]);\n'
+                '  printf("%lld\\n", (long long)droiddeck_clock_domain_adjust_ns(30LL * 1000000000LL));\n'
+                '  return 0;\n'
+                '}\n'
+            )
+            binary = root / "program"
+            subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", "-O2", "-I", str(SOURCE.parent),
+                            "-o", str(binary), str(program), str(SOURCE)], check=True)
+            result = subprocess.run([str(binary), str(control), str(replacement)], capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.split(), ["30000000000", "10000000000"])
 
 
 if __name__ == "__main__":

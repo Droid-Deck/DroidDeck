@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
+import queue
 import shutil
 import struct
 import subprocess
 import tempfile
+import threading
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
@@ -139,7 +141,7 @@ class ClockPausePreloadTest(unittest.TestCase):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
 
-    def test_non_session_programs_keep_the_real_clock(self):
+    def test_program_without_preload_keeps_the_real_clock(self):
         plain = self.run_program(self.other, 0, preload=False)
         paused = self.run_program(self.other, SHIFT_MS, preload=False)
         self.assertAlmostEqual(paused["gap"], plain["gap"], delta=50)
@@ -160,29 +162,55 @@ class ClockPausePreloadTest(unittest.TestCase):
         env = dict(os.environ)
         env["LD_PRELOAD"] = str(self.preload)
         env["CLOCK_PAUSE_WAIT"] = "1"
-        process = subprocess.Popen([str(self.other)], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, text=True)
-        try:
-            initial_gap = int(process.stdout.readline().split()[1])
-            rawgap = process.stdout.readline().strip()
-            memory = process.stdout.readline().strip()
-            self.assertTrue(rawgap.startswith("rawgap "))
-            self.assertEqual(memory, "memory 130560")
-            process.stdout.readline()
-            with self.control.open("r+b") as control:
-                control.write(struct.pack("<q", SHIFT_MS * 1000000))
-                control.flush()
-            process.stdin.write("\n")
-            process.stdin.flush()
-            output, error = process.communicate(timeout=5)
-            self.assertEqual(process.returncode, 0, error)
-            values = dict(line.split() for line in output.splitlines())
-            self.assertAlmostEqual(int(values["livegap"]) - initial_gap, SHIFT_MS, delta=50)
-            self.assertEqual(int(values["livememory"]), 130560)
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.communicate()
+        with tempfile.TemporaryFile(mode="w+") as errors:
+            process = subprocess.Popen([str(self.other)], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=errors, text=True)
+            lines = queue.Queue()
+
+            def read_handshake():
+                for _ in range(4):
+                    line = process.stdout.readline()
+                    lines.put(line)
+                    if not line:
+                        break
+
+            threading.Thread(target=read_handshake, daemon=True).start()
+            try:
+                handshake = []
+                for _ in range(4):
+                    try:
+                        line = lines.get(timeout=5)
+                    except queue.Empty:
+                        line = ""
+                    if not line:
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=5)
+                        errors.seek(0)
+                        self.fail(f"child handshake timed out or ended early (exit {process.returncode}): {errors.read()}")
+                    handshake.append(line.strip())
+                self.assertEqual(handshake[3], "ready")
+                self.assertTrue(handshake[0].startswith("gap "))
+                initial_gap = int(handshake[0].split()[1])
+                rawgap = handshake[1]
+                memory = handshake[2]
+                self.assertTrue(rawgap.startswith("rawgap "))
+                self.assertEqual(memory, "memory 130560")
+                with self.control.open("r+b") as control:
+                    control.write(struct.pack("<q", SHIFT_MS * 1000000))
+                    control.flush()
+                process.stdin.write("\n")
+                process.stdin.flush()
+                output, _ = process.communicate(timeout=5)
+                errors.seek(0)
+                self.assertEqual(process.returncode, 0, errors.read())
+                values = dict(line.split() for line in output.splitlines())
+                self.assertAlmostEqual(int(values["livegap"]) - initial_gap, SHIFT_MS, delta=50)
+                self.assertEqual(int(values["livememory"]), 130560)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
 
 
 if __name__ == "__main__":
