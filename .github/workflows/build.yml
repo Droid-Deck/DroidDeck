@@ -195,6 +195,7 @@ jobs:
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
             !app/src/main/assets/linuxfs/libblaudit.so
             !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddnatv-hook.so
             !app/src/main/assets/linuxfs/libblsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
@@ -555,6 +556,12 @@ jobs:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
 
+      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/ubisoft-launcher/build.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: xbox-arm64
@@ -791,6 +798,9 @@ jobs:
           set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
+      - name: Ubisoft launcher service host unit tests
+        timeout-minutes: 10
+        run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests
@@ -891,6 +901,7 @@ jobs:
     uses: ./.github/workflows/scan.yml
     with:
       artifact: droiddeck-signed
+      variant: standard
     secrets: inherit
 
   packs:

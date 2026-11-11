@@ -17,17 +17,37 @@ SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
-def game_id(env):
-    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
-    if not prefix:
-        return None
-    value = prefix.rsplit("/", 1)[-1]
-    if not re.fullmatch(r"-?[0-9]+", value):
+# Prefixes several games share; the game itself is the Steam app being launched.
+SHARED_PREFIXES = {"2929927072"}
+
+
+def app_number(value):
+    if not re.fullmatch(r"-?[0-9]+", value or ""):
         return None
     number = int(value)
     if not -(2**31) <= number < 2**32 or number == 0:
         return None
     return str(number % 2**32)
+
+
+def game_id(env):
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return None
+    found = app_number(prefix.rsplit("/", 1)[-1])
+    if found in SHARED_PREFIXES:
+        return app_number(env.get("SteamAppId", "")) or shortcut_number(env.get("SteamGameId", "")) or found
+    return found
+
+
+def shortcut_number(value):
+    """The shortcut appid inside Steam's 64-bit shortcut game id `(appid << 32) | 0x02000000`."""
+    if not re.fullmatch(r"[0-9]{1,20}", value or ""):
+        return None
+    number = int(value)
+    if number >= 2**64 or number & 0xFFFFFFFF != 0x02000000:
+        return None
+    return app_number(str(number >> 32))
 
 
 DOTNET_FEX = {
@@ -1250,6 +1270,10 @@ def main():
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
+    if scripts and not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        # libdbus would autolaunch a session bus under the evaluator's reaper, which then waits for it
+        # forever: Steam keeps seeing the app as running and cannot move or update it
+        env["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
     try:
         digest = scripts_digest(scripts) if scripts else None
     except OSError:
