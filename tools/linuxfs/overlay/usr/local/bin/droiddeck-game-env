@@ -1270,6 +1270,10 @@ def main():
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
+    if scripts and not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        # libdbus would autolaunch a session bus under the evaluator's reaper, which then waits for it
+        # forever: Steam keeps seeing the app as running and cannot move or update it
+        env["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
     try:
         digest = scripts_digest(scripts) if scripts else None
     except OSError:

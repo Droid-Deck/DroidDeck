@@ -85,6 +85,10 @@ class AgentBridgeProvider : ContentProvider() {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
         }
+        "native" -> {
+            AgentAccess.requireCommands(context)
+            AgentNative.run(context, request, timeoutMs(request, 30.0, 0))
+        }
         "cdp" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "cdp"), timeoutMs(request, 15.0, 5_000))
