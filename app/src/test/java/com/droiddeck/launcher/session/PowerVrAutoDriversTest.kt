@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import org.robolectric.RuntimeEnvironment
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.TurnipDriver
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -82,14 +83,33 @@ class PowerVrAutoDriversTest {
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
         SessionPrefs.setAndroidDriver(context, "standalone-display")
         SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
-        val ownedOnly = SessionPrefs.unsupportedXclipse(true, "Samsung Xclipse 540")
+        val ownedOnly = SessionPrefs.unsupportedXclipse(true) { "Samsung Xclipse 540" }
         SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = ownedOnly)
         assertEquals("standalone-display", SessionPrefs.androidDriver(context))
         assertEquals("", SessionPrefs.linuxDriver(context))
     }
 
     @Test fun sessionStartOwnershipRuleIgnoresOtherGpus() {
-        assertEquals(false, SessionPrefs.unsupportedXclipse(false, "Samsung Xclipse 540"))
-        assertEquals(false, SessionPrefs.unsupportedXclipse(true, "Samsung Xclipse 920"))
+        assertEquals(false, SessionPrefs.unsupportedXclipse(false) { "Samsung Xclipse 540" })
+        assertEquals(false, SessionPrefs.unsupportedXclipse(true) { "Samsung Xclipse 920" })
+    }
+
+    @Test fun sessionStartNamesTheXclipseFromVulkanBeforeTheOwnershipRule() {
+        val queried = mapOf("device" to "Samsung Xclipse 920")
+        assertEquals("Xclipse", GpuInfo.systemDriverName("Xclipse", null))
+        assertEquals("Samsung Xclipse 920", GpuInfo.systemDriverName("Xclipse", queried))
+        assertEquals("PowerVR", GpuInfo.systemDriverName("PowerVR", queried))
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
+        val ownedOnly = SessionPrefs.unsupportedXclipse(true) { GpuInfo.systemDriverName("Xclipse", queried) }
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = ownedOnly)
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartLeavesTheGpuUnqueriedOffXclipse() {
+        var asked = false
+        assertEquals(false, SessionPrefs.unsupportedXclipse(false) { asked = true; "Xclipse" })
+        assertEquals(false, asked)
     }
 }

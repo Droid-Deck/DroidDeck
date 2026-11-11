@@ -542,12 +542,16 @@ object SessionPrefs {
         if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
         ensurePowerVrAutoDrivers(
             context, SystemVulkanDriver.isPowerVr(),
-            unsupportedXclipse(SystemVulkanDriver.isXclipse(), com.droiddeck.launcher.gpu.GpuInfo.detect().name),
+            unsupportedXclipse(SystemVulkanDriver.isXclipse()) {
+                com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(
+                    SystemVulkanDriver.gpuName(), com.droiddeck.launcher.gpu.VulkanInfo.query(),
+                )
+            },
         )
     }
 
-    internal fun unsupportedXclipse(xclipse: Boolean, gpuName: String): Boolean =
-        xclipse && com.droiddeck.launcher.gpu.DriverPairs.xclipseNeedsUpstream(gpuName)
+    internal fun unsupportedXclipse(xclipse: Boolean, gpuName: () -> String): Boolean =
+        xclipse && com.droiddeck.launcher.gpu.DriverPairs.xclipseNeedsUpstream(gpuName())
 
     internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean, autoOwnedOnly: Boolean = false) {
         if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
