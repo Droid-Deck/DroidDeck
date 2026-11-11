@@ -20,9 +20,14 @@ unpack() {
         { rm -rf "$dir.new"; echo "droiddeck-pipewire: could not unpack $bundle" >&2; return 1; }
 }
 
+write_fragment() {
+    tmp=$1.$$
+    cat > "$tmp" && mv -f "$tmp" "$1" || { rm -f "$tmp"; return 1; }
+}
+
 access_config() {
     mkdir -p "$dir/share/pipewire/pipewire.conf.d" "$dir/share/wireplumber/wireplumber.conf.d" || return 1
-    cat > "$dir/share/pipewire/pipewire.conf.d/droiddeck-access.conf" <<'EOF' || return 1
+    write_fragment "$dir/share/pipewire/pipewire.conf.d/droiddeck-access.conf" <<'EOF' || return 1
 context.properties = {
     module.access = false
 }
@@ -34,7 +39,7 @@ context.modules = [
     }
 ]
 EOF
-    cat > "$dir/share/wireplumber/wireplumber.conf.d/droiddeck-access.conf" <<'EOF' || return 1
+    write_fragment "$dir/share/wireplumber/wireplumber.conf.d/droiddeck-access.conf" <<'EOF' || return 1
 access.rules = [
     {
         matches = [ { pipewire.access = "unrestricted" } ]
