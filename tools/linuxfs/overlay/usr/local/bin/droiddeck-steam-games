@@ -520,28 +520,57 @@ def release(steam_root, game, stale, reason):
         print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
-def share_prefix(steam_root, game):
+PREFIX_LINKS = ".droiddeck-prefix-links.json"
+
+
+def steam_prefix(steam_root, game):
     identity = manifest_identity(game)
     if not identity or not identity[0]:
-        return
+        return None, None
     appid, steamapps = identity
-    shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
-    if os.path.islink(shortcut) and not os.path.exists(shortcut):
-        shortcut.unlink()
-    if os.path.lexists(shortcut):
-        return
     installed = steamapps == Path(game["folder"]).parent.parent
     for library in [steamapps.parent] if installed else dict.fromkeys([steamapps.parent] + libraries(steam_root)):
         prefix = library / "steamapps/compatdata" / str(appid)
         if (prefix / "pfx/drive_c").is_dir():
-            try:
-                shortcut.parent.mkdir(parents=True, exist_ok=True)
-                shortcut.symlink_to(prefix)
-            except OSError as error:
-                print(f"droiddeck-steam-games: {game.get('name', appid)} keeps its own prefix ({error})")
-            else:
-                print(f"droiddeck-steam-games: {game.get('name', appid)} shares the saves prefix of Steam app {appid}")
-            return
+            return appid, str(prefix)
+    return appid, None
+
+
+def share_prefix(steam_root, game):
+    shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
+    record = Path(steam_root) / "steamapps" / PREFIX_LINKS
+    links = read_json(record, {})
+    if not isinstance(links, dict):
+        links = {}
+    before = dict(links)
+    key = str(shortcut)
+    name = game.get("name", "game")
+    appid, target = steam_prefix(steam_root, game)
+    try:
+        current = os.readlink(shortcut) if os.path.islink(shortcut) else None
+        if current is not None and links.get(key) == current and current != target:
+            if target is not None or (not os.path.exists(shortcut) and Path(current).parent.parent.is_dir()):
+                shortcut.unlink()
+                current = None
+        if current is None:
+            links.pop(key, None)
+        elif current == target:
+            links[key] = current
+        if current is None and os.path.lexists(shortcut):
+            if target is not None:
+                print(f"droiddeck-steam-games: {name} keeps its own prefix; Steam app {appid} saves are in {target}")
+        elif current is None and target is not None:
+            shortcut.parent.mkdir(parents=True, exist_ok=True)
+            shortcut.symlink_to(target)
+            links[key] = target
+            print(f"droiddeck-steam-games: {name} shares the saves prefix of Steam app {appid}")
+    except OSError as error:
+        print(f"droiddeck-steam-games: {name} keeps its own prefix ({error})")
+    if links != before:
+        try:
+            save_json(record, links)
+        except OSError as error:
+            print(f"droiddeck-steam-games: prefix links not recorded ({error})")
 
 
 def route(steam_root, acct, games):

@@ -71,6 +71,13 @@ class ImportsTest(unittest.TestCase):
     def shortcut_prefix(self):
         return self.steam / 'steamapps/compatdata' / str(self.game['appid'] & 0xFFFFFFFF)
 
+    def link_shortcut_prefix(self, target, owned=True):
+        (self.steam / 'steamapps/compatdata').mkdir(parents=True, exist_ok=True)
+        self.shortcut_prefix().symlink_to(target)
+        if owned:
+            imports.save_json(self.steam / 'steamapps' / imports.PREFIX_LINKS,
+                              {str(self.shortcut_prefix()): str(target)})
+
     def test_shortcut_of_a_steam_install_shares_the_steam_apps_prefix(self):
         game, library = self.steam_install()
         (self.steam / 'steamapps').mkdir(parents=True)
@@ -130,18 +137,71 @@ class ImportsTest(unittest.TestCase):
 
     def test_a_dangling_shortcut_prefix_link_is_replaced(self):
         game, library = self.steam_install()
-        (self.steam / 'steamapps/compatdata').mkdir(parents=True)
-        self.shortcut_prefix().symlink_to(self.root / 'moved')
+        self.link_shortcut_prefix(self.root / 'moved')
         imports.route(self.steam, self.acct, [game])
         self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
 
     def test_a_dangling_shortcut_prefix_link_is_removed_without_a_replacement(self):
         game, library = self.steam_install()
         shutil.rmtree(library / 'steamapps/compatdata/42')
-        (self.steam / 'steamapps/compatdata').mkdir(parents=True)
-        self.shortcut_prefix().symlink_to(self.root / 'moved')
+        self.link_shortcut_prefix(self.root / 'moved')
         imports.route(self.steam, self.acct, [game])
         self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+
+    def test_a_link_the_user_made_is_never_changed(self):
+        game, library = self.steam_install()
+        for target in (self.root / 'moved', library / 'steamapps/compatdata/42', self.folder):
+            if os.path.lexists(self.shortcut_prefix()):
+                self.shortcut_prefix().unlink()
+            self.link_shortcut_prefix(target, owned=False)
+            imports.route(self.steam, self.acct, [game])
+            self.assertEqual(str(target), os.readlink(self.shortcut_prefix()))
+
+    def test_a_link_to_the_matching_prefix_becomes_ours(self):
+        game, library = self.steam_install()
+        target = library / 'steamapps/compatdata/42'
+        self.link_shortcut_prefix(target, owned=False)
+        imports.route(self.steam, self.acct, [game])
+        self.assertEqual(str(target), os.readlink(self.shortcut_prefix()))
+        self.assertEqual(str(target), imports.read_json(self.steam / 'steamapps' / imports.PREFIX_LINKS, {})[str(self.shortcut_prefix())])
+
+    def test_our_link_survives_a_library_that_is_temporarily_missing(self):
+        game, library = self.steam_install()
+        imports.route(self.steam, self.acct, [game])
+        hidden = self.root / 'Hidden'
+        library.rename(hidden)
+        imports.route(self.steam, self.acct, [game])
+        self.assertTrue(os.path.islink(self.shortcut_prefix()))
+        hidden.rename(library)
+        imports.route(self.steam, self.acct, [game])
+        self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
+        self.assertEqual(b'cloud', (self.shortcut_prefix() / 'pfx/drive_c/users/steamuser/save.dat').read_bytes())
+
+    def test_our_link_is_dropped_once_its_prefix_is_deleted(self):
+        game, library = self.steam_install()
+        imports.route(self.steam, self.acct, [game])
+        shutil.rmtree(library / 'steamapps/compatdata/42')
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+        self.assertEqual({}, imports.read_json(self.steam / 'steamapps' / imports.PREFIX_LINKS, None))
+
+    def test_a_replaced_link_record_is_forgotten_when_the_user_makes_a_real_prefix(self):
+        game, library = self.steam_install()
+        imports.route(self.steam, self.acct, [game])
+        self.shortcut_prefix().unlink()
+        (self.shortcut_prefix() / 'pfx/drive_c').mkdir(parents=True)
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(self.shortcut_prefix().is_symlink())
+        self.assertEqual({}, imports.read_json(self.steam / 'steamapps' / imports.PREFIX_LINKS, None))
+
+    def test_a_shortcut_prefix_with_its_own_saves_is_reported_and_kept(self):
+        game, library = self.steam_install()
+        local = self.shortcut_prefix() / 'pfx/drive_c'
+        local.mkdir(parents=True)
+        with patch('builtins.print') as printed:
+            imports.route(self.steam, self.acct, [game])
+        self.assertTrue(local.is_dir())
+        self.assertIn('keeps its own prefix', printed.call_args_list[-1][0][0])
 
     def test_a_winnative_game_shares_the_prefix_the_steam_client_uses(self):
         self.winnative_manifest()
