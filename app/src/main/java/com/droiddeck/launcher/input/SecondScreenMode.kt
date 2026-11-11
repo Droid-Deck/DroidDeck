@@ -46,8 +46,8 @@ object SecondScreenDisplays {
     fun selection(selected: Int, available: List<Int>, gameRequested: Boolean, save: (Int) -> Unit): Int =
         selection(selected, available, gameRequested).also { if (it != selected) save(it) }
 
-    fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>, taken: (Int) -> Boolean): Boolean =
-        gameRequested && selected >= 0 && (selected !in available || taken(selected))
+    fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>, visible: Boolean = true, taken: (Int) -> Boolean): Boolean =
+        visible && gameRequested && selected >= 0 && (selected !in available || taken(selected))
 
     fun routeKeyboard(steam: Boolean, enabled: Boolean, panel: Boolean, dock: Boolean, primaryFallback: Boolean): Boolean =
         steam && enabled && (panel || dock || primaryFallback)

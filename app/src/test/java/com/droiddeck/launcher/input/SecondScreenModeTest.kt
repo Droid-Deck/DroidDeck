@@ -18,11 +18,18 @@ class SecondScreenModeTest {
     @Test fun keyboardFallsBackOnlyForADisconnectedRequestedDisplay() {
         val taken: (Int) -> Boolean = { it == 2 }
         val free: (Int) -> Boolean = { false }
-        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3), free))
-        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), free))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3), taken))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3), taken))
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3), taken = free))
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken = taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken = free))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3), taken = taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3), taken = taken))
+    }
+
+    @Test fun primaryFallbackRequiresVisibleActivity() {
+        for (available in listOf(emptyList(), listOf(2))) {
+            assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, available, true) { true })
+            assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, available, false) { true })
+        }
     }
 
     @Test fun keyboardRouteIncludesOccupiedDisplayFallbackOnlyWhenEnabled() {

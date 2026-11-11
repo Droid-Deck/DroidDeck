@@ -57,6 +57,23 @@ class SessionFieldKeyboardTest {
         assertTrue(keyboard.shown)
     }
 
+    @Test fun pendingGuestRequestWaitsForFocusAndCanBeDismissed() {
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "setGameOnBottom", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "setSelectedSecondScreenDisplay", ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 2))
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "setResumed", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        call("openBottomKeyboard")
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "retryFieldKeyboard", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, false))
+        assertFalse(keyboard.shown)
+        call("dismissFieldKeyboard")
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "retryFieldKeyboard", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        assertFalse(keyboard.shown)
+        call("openBottomKeyboard")
+        ReflectionHelpers.callInstanceMethod<Any?>(activity, "retryFieldKeyboard", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        assertTrue(keyboard.shown)
+        call("dismissFieldKeyboard")
+        assertFalse(keyboard.shown)
+    }
+
     private fun openFieldKeyboard() {
         ReflectionHelpers.setField(activity, "fieldKeyboardOnPrimary", true)
         keyboard.show()

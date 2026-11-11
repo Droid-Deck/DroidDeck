@@ -487,6 +487,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
     private var fieldKeyboardOnPrimary = false
+    private var pendingFieldKeyboard = false
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
@@ -1580,21 +1581,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun showPrimaryKeyboard() {
+        pendingFieldKeyboard = false
         fieldKeyboardOnPrimary = false
         keyboard?.show()
     }
 
     private fun togglePrimaryKeyboard() {
+        pendingFieldKeyboard = false
         fieldKeyboardOnPrimary = false
         keyboard?.toggle()
     }
 
     private fun hidePrimaryKeyboard() {
+        pendingFieldKeyboard = false
         fieldKeyboardOnPrimary = false
         keyboard?.hide()
     }
 
     private fun dismissFieldKeyboard() {
+        pendingFieldKeyboard = false
         if (fieldKeyboardOnPrimary) hidePrimaryKeyboard()
     }
 
@@ -3706,15 +3711,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val presentation = bottomKeyboardPresentation()
         if (presentation == null) {
             if (SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
-                    secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken)) {
-                fieldKeyboardOnPrimary = true
-                keyboard?.show()
+                    secondScreenDisplays.map { it.id }, taken = com.droiddeck.launcher.input.DualScreen::taken)) {
+                pendingFieldKeyboard = true
+                retryFieldKeyboard(hasWindowFocus())
             }
             return
         }
+        pendingFieldKeyboard = false
         if (fieldKeyboardOnPrimary) hidePrimaryKeyboard()
         presentation.requestKeyboard(forField = true)
         com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, presentation.display.displayId)
+    }
+
+    private fun retryFieldKeyboard(hasFocus: Boolean) {
+        if (!pendingFieldKeyboard || !hasFocus || !resumed || pipUi) return
+        pendingFieldKeyboard = false
+        fieldKeyboardOnPrimary = true
+        keyboard?.show()
     }
 
     private fun onGameTextField(focused: Boolean) {
@@ -3814,7 +3827,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             secondScreenPresentation?.showsKeyboard == true,
             dockDrawer(),
             SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
-                secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken)))
+                secondScreenDisplays.map { it.id }, resumed && !pipUi, com.droiddeck.launcher.input.DualScreen::taken)))
     }
 
     private fun dropDockedDrawer() {
@@ -4565,6 +4578,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun showPipUi(show: Boolean) {
         pipUi = show
+        updateKeyboardRoute()
+        if (!show) retryFieldKeyboard(hasWindowFocus())
         if (show) {
             if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
@@ -4724,6 +4739,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
+        updateKeyboardRoute()
+        retryFieldKeyboard(hasWindowFocus())
         updateDesktopKeyboardButton()
         com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
             enabled = {
@@ -4782,9 +4799,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
+        updateKeyboardRoute()
         updatePointerCapture()
         updatePadMotion()
+        val pendingKeyboard = pendingFieldKeyboard
         hidePrimaryKeyboard()
+        pendingFieldKeyboard = pendingKeyboard
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
@@ -5339,6 +5359,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
+            retryFieldKeyboard(true)
             goFullscreen()
             refreshClipboard()
         }
