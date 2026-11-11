@@ -430,6 +430,7 @@ internal fun GameActions(
                         openUrl(ctx, item?.storeUrl.orEmpty().ifBlank { GameJoltApi.pageUrl("game", installed.sidecar.id) })
                     }
                 }
+                if (store == Store.EA && installed != null) EaUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
@@ -915,7 +916,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 
 @Composable
 private fun CloudRows(g: Library.SteamGame) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }

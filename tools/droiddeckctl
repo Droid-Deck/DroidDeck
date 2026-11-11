@@ -9,6 +9,7 @@ import gzip
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import struct
@@ -98,6 +99,33 @@ def encode_request(request: dict) -> str:
     return encoded
 
 
+def receiver_call(adb: str, serial: str, method: str, arg: str | None, request: dict | None, timeout: float) -> dict:
+    """The agent bridge through a broadcast, for shells without the `content` command."""
+    # Its receiver is registered by the running app; a broadcast does not start the app the way `content call` does
+    running = run_adb(adb, serial, "shell", f"pidof {PACKAGE}", timeout=30)
+    if not running.stdout.decode(errors="replace").strip():
+        raise ControlError(f"{PACKAGE} is not running and this shell has no `content` command to start it; open DroidDeck once", "APP_NOT_RUNNING")
+    call_id = uuid.uuid4().hex[:16]
+    remote = f"/sdcard/Android/data/{PACKAGE}/files/agent-calls/{call_id}.json"
+    command = ["shell", "am", "broadcast", "-a", f"{PACKAGE}.AGENT_CALL", "-p", PACKAGE,
+               "--es", "method", method, "--es", "id", call_id]
+    if arg is not None:
+        command += ["--es", "arg", shlex.quote(arg)]
+    if request is not None:
+        command += ["--es", "request", encode_request(request)]
+    started = run_adb(adb, serial, *command, timeout=timeout + 30)
+    if started.returncode != 0:
+        raise ControlError((started.stdout + started.stderr).decode(errors="replace").strip() or "ADB broadcast failed", "ADB_FAILED")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = run_adb(adb, serial, "shell", f"cat {remote} 2>/dev/null && rm -f {remote}", timeout=30)
+        text = result.stdout.decode(errors="replace").strip()
+        if result.returncode == 0 and text:
+            return json.loads(text)
+        time.sleep(0.25)
+    raise ControlError(f"No answer to {method} within {timeout:g} s", "TIMEOUT")
+
+
 def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
                   timeout: float = 30) -> dict:
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
@@ -108,6 +136,9 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
         command.extend(["--extra", f"request:s:{encoded}"])
     result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
+    # Only the shell's own answer for a missing `content` binary, never a command's output that quotes it
+    if result.returncode == 127 and "Result:" not in output and "content: inaccessible or not found" in result.stderr.decode(errors="replace") + output:
+        return receiver_call(adb, serial, method, arg, request, timeout)
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
         raise ControlError(output.strip() or "ADB content call failed", "ADB_FAILED")
@@ -140,6 +171,9 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
     output = (result.stdout + result.stderr).decode(errors="replace")
     if result.returncode != 0 or "status: ok" not in output.lower():
         raise ControlError(output.strip() or "The agent start Activity did not launch", "ACTIVITY_START_FAILED")
+    if "activity not started" in output.lower():
+        raise ControlError("Android handed the start request to an existing DroidDeck task instead of starting it: "
+                           + output.strip(), "ACTIVITY_START_FAILED")
 
 
 def confirm_start(adb: str, serial: str, request: dict, previous: dict) -> dict:
@@ -237,10 +271,15 @@ def displays(adb: str, serial: str) -> list[dict]:
         device = re.search(r"mPrimaryDisplayDevice=(.+)", block)
         size = re.search(r"real (\d+) x (\d+)", block)
         name = device.group(1).strip() if device else None
+        physical = devices.get(name) if name else None
+        if name and not physical:
+            # Some ROMs (Retroid Pocket Duo) print the device as "Built-in Screen(local:<id>)"
+            inline = re.search(r"\(local:(\d+)\)$", name)
+            physical = inline.group(1) if inline else None
         out.append({
             "display": logical,
             "name": name,
-            "physicalId": devices.get(name) if name else None,
+            "physicalId": physical,
             "size": [int(size.group(1)), int(size.group(2))] if size else None,
         })
     return out
@@ -750,6 +789,28 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                                f"{(response.get('stderr') or {}).get('text', '')[-400:]}", "GUEST_EXIT")
         return add_serial(response, serial)
 
+    if command == "native":
+        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not argv:
+            raise ControlError("native needs a command after --", "INVALID_ARGUMENTS")
+        if not 0 < args.timeout <= 600:
+            raise ControlError("--timeout must be more than 0 and at most 600 seconds", "INVALID_ARGUMENTS")
+        env = {}
+        for item in args.env or []:
+            key, sep, value = item.partition("=")
+            if not sep:
+                raise ControlError(f"--env takes KEY=VALUE, not {item}", "INVALID_ARGUMENTS")
+            env[key] = value
+        request = {"argv": argv, "timeout": args.timeout, "env": env}
+        if args.cwd:
+            request["cwd"] = args.cwd
+        if args.stdin is not None:
+            request["stdin"] = args.stdin
+        if args.preload:
+            request["preload"] = args.preload
+        response = checked(provider_call(adb, serial, "native", request=request, timeout=args.timeout + 40), "NATIVE_FAILED")
+        return add_serial(response, serial)
+
     if command == "cdp":
         if args.cdp_op == "targets":
             request = {"op": "targets"}
@@ -983,6 +1044,14 @@ def build_parser() -> argparse.ArgumentParser:
     guest.add_argument("--stdin")
     guest.add_argument("--check", action="store_true", help="fail unless the command exits 0")
     guest.add_argument("argv", nargs=argparse.REMAINDER)
+
+    native = commands.add_parser("native", help="run a command in the rootfs without proot (debugging tools)")
+    native.add_argument("--timeout", type=float, default=30)
+    native.add_argument("--env", action="append", metavar="KEY=VALUE")
+    native.add_argument("--cwd")
+    native.add_argument("--stdin")
+    native.add_argument("--preload", action="append", help="guest path of another library to preload before the hook")
+    native.add_argument("argv", nargs=argparse.REMAINDER)
 
     cdp = commands.add_parser("cdp", help="the Steam client's DevTools (debugging tools)")
     cdp_ops = cdp.add_subparsers(dest="cdp_op", required=True)

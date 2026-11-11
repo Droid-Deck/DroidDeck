@@ -1754,13 +1754,6 @@
     <string name="bottom_downloads_shader">Đang tải bộ nhớ đệm shader</string>
     <string name="bottom_downloads_paused">Đã tạm dừng</string>
     <string name="bottom_downloads_queued">Đang chờ bắt đầu</string>
-    <string name="bottom_page_notifications">Thông báo</string>
-    <string name="bottom_notifications_listener">Màn hình dưới DroidDeck</string>
-    <string name="bottom_notifications_why">Hiển thị tin nhắn và các thông báo khác ở đây khi bạn chơi. Chúng chỉ ở trên màn hình này và không được lưu. Android chỉ hỏi một lần: trang quyền truy cập thông báo sẽ mở trên màn hình này; hãy bật DroidDeck ở đó và trang này sẽ tự quay lại.</string>
-    <string name="bottom_notifications_allow">Cho phép truy cập thông báo</string>
-    <string name="bottom_notifications_none">Không có thông báo.</string>
-    <string name="bottom_notifications_count">%1$d thông báo</string>
-    <string name="bottom_notifications_clear">Xóa</string>
     <string name="bottom_page_screenshots">Ảnh chụp màn hình</string>
     <string name="stats_fps_needs_hud">Cần bật HUD để xem FPS</string>
     <string name="stats_speed">Tốc độ</string>
@@ -2839,6 +2832,8 @@
     <string name="display_position_top">Trên</string>
     <string name="display_position_bottom">Dưới</string>
     <string name="display_position_center">Giữa (mặc định)</string>
+    <string name="display_position_left">Trái</string>
+    <string name="display_position_right">Phải</string>
     <string name="setup_tab_storage">Lưu trữ</string>
     <string name="storage_measuring">Đang đo dung lượng…</string>
     <string name="storage_measuring_hint">Lần đầu mất vài giây.</string>
@@ -3631,4 +3626,7 @@
     <string name="input_reset_positions">Đặt lại vị trí</string>
     <string name="input_show_label">Hiện nhãn</string>
     <string name="input_layout_import_failed">Không thể nhập bố cục này</string>
+
+    <string name="theme_white_red">Tuyết đỏ thẫm</string>
+    
 </resources>

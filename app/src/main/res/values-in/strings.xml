@@ -1754,13 +1754,6 @@
     <string name="bottom_downloads_shader">Mengunduh cache shader</string>
     <string name="bottom_downloads_paused">Dijeda</string>
     <string name="bottom_downloads_queued">Menunggu dimulai</string>
-    <string name="bottom_page_notifications">Notifikasi</string>
-    <string name="bottom_notifications_listener">Layar bawah DroidDeck</string>
-    <string name="bottom_notifications_why">Tampilkan pesan dan notifikasi lain di sini saat Anda bermain. Notifikasi hanya muncul di layar ini dan tidak disimpan. Android hanya meminta sekali: halaman akses notifikasinya terbuka di layar ini; aktifkan DroidDeck di sana dan halaman ini akan kembali dengan sendirinya.</string>
-    <string name="bottom_notifications_allow">Izinkan akses notifikasi</string>
-    <string name="bottom_notifications_none">Tidak ada notifikasi.</string>
-    <string name="bottom_notifications_count">%1$d notifikasi</string>
-    <string name="bottom_notifications_clear">Hapus</string>
     <string name="bottom_page_screenshots">Tangkapan layar</string>
     <string name="stats_fps_needs_hud">FPS memerlukan HUD aktif</string>
     <string name="stats_speed">Kecepatan</string>
@@ -2839,6 +2832,8 @@
     <string name="display_position_top">Atas</string>
     <string name="display_position_bottom">Bawah</string>
     <string name="display_position_center">Tengah (bawaan)</string>
+    <string name="display_position_left">Kiri</string>
+    <string name="display_position_right">Kanan</string>
     <string name="setup_tab_storage">Penyimpanan</string>
     <string name="storage_measuring">Mengukur penyimpanan…</string>
     <string name="storage_measuring_hint">Butuh beberapa detik pada kali pertama.</string>
@@ -3631,4 +3626,7 @@
     <string name="input_reset_positions">Atur ulang posisi</string>
     <string name="input_show_label">Tampilkan label</string>
     <string name="input_layout_import_failed">Tata letak ini tidak dapat diimpor</string>
+
+    <string name="theme_white_red">Salju Kirmizi</string>
+    
 </resources>

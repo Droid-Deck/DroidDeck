@@ -152,5 +152,7 @@ internal class AddonPack(
         @JvmField
         val POWERVR = AddonPack("powervr", BuildConfig.PACK_POWERVR_SHA256, BuildConfig.PACK_POWERVR_SIZE,
             listOf("runtime.tzst", "version.txt"))
+        val UBISOFT = AddonPack("ubisoft", BuildConfig.PACK_UBISOFT_SHA256, BuildConfig.PACK_UBISOFT_SIZE,
+            listOf("droiddeck-upc.exe"))
     }
 }

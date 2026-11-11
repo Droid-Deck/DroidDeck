@@ -1754,13 +1754,6 @@
     <string name="bottom_downloads_shader">正在下載著色器快取</string>
     <string name="bottom_downloads_paused">已暫停</string>
     <string name="bottom_downloads_queued">等待開始</string>
-    <string name="bottom_page_notifications">通知</string>
-    <string name="bottom_notifications_listener">DroidDeck 底部螢幕</string>
-    <string name="bottom_notifications_why">在遊玩時於此處顯示訊息和其他通知。通知只會顯示在這個螢幕上，不會儲存。Android 只會詢問一次：通知存取權頁面會在這個螢幕上開啟，在那裡開啟 DroidDeck 後，就會自動回到此頁面。</string>
-    <string name="bottom_notifications_allow">允許通知存取權</string>
-    <string name="bottom_notifications_none">沒有通知。</string>
-    <string name="bottom_notifications_count">%1$d 則通知</string>
-    <string name="bottom_notifications_clear">清除</string>
     <string name="bottom_page_screenshots">螢幕擷取畫面</string>
     <string name="stats_fps_needs_hud">顯示 FPS 需要開啟 HUD</string>
     <string name="stats_speed">速度</string>
@@ -2839,6 +2832,8 @@
     <string name="display_position_top">置頂</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">置中（預設）</string>
+    <string name="display_position_left">左側</string>
+    <string name="display_position_right">右側</string>
     <string name="setup_tab_storage">儲存空間</string>
     <string name="storage_measuring">正在統計儲存空間…</string>
     <string name="storage_measuring_hint">首次統計需要幾秒鐘。</string>
@@ -3634,4 +3629,7 @@
     <string name="input_reset_positions">重設位置</string>
     <string name="input_show_label">顯示標籤</string>
     <string name="input_layout_import_failed">無法匯入此版面配置</string>
+
+    <string name="theme_white_red">緋紅之雪</string>
+    
 </resources>

@@ -1,0 +1,49 @@
+name: Scan APKs
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: Prefix of the signed artifacts to scan, as passed to sign.yml
+        type: string
+        required: true
+      variant:
+        description: Variant to scan, as listed in tools/release/variants.txt; every variant when omitted
+        type: string
+        default: '*'
+      fail_on_detection:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  virustotal:
+    name: VirusTotal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/release
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.artifact }}-${{ inputs.variant }}
+          merge-multiple: true
+          path: scan
+
+      - name: Scan
+        continue-on-error: ${{ !inputs.fail_on_detection }}
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          FAIL_ON_DETECTION: ${{ inputs.fail_on_detection && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VT_API_KEY" ]; then
+            echo "::warning title=VirusTotal::no VIRUSTOTAL_API_KEY secret; skipping the scan"
+            exit 0
+          fi
+          bash tools/release/virustotal-scan.sh scan/*.apk
