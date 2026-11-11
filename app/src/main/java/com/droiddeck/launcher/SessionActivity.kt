@@ -488,6 +488,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pcKeyboardOpen by mutableStateOf(false)
     private var fieldKeyboardOnPrimary = false
     private var pendingFieldKeyboard = false
+    private var fieldKeyboardImeShown = false
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
@@ -782,7 +783,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         keyboard = KeyboardHost(this).also { host ->
             host.onImeChanged = { visible ->
-                if (!visible) fieldKeyboardOnPrimary = false
+                if (visible) fieldKeyboardImeShown = true
+                else if (fieldKeyboardImeShown) {
+                    fieldKeyboardImeShown = false
+                    fieldKeyboardOnPrimary = false
+                }
                 updateDesktopKeyboardButton()
             }
             root.addView(host)
@@ -3710,8 +3715,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun openBottomKeyboard() {
         val presentation = bottomKeyboardPresentation()
         if (presentation == null) {
-            if (SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
-                    secondScreenDisplays.map { it.id }, taken = com.droiddeck.launcher.input.DualScreen::taken)) {
+            if (keyboardBelongsOnPrimary()) {
                 pendingFieldKeyboard = true
                 retryFieldKeyboard(hasWindowFocus())
             }
@@ -3723,10 +3727,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, presentation.display.displayId)
     }
 
+    private fun keyboardBelongsOnPrimary() = SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
+        secondScreenDisplays.map { it.id }, taken = com.droiddeck.launcher.input.DualScreen::taken)
+
     private fun retryFieldKeyboard(hasFocus: Boolean) {
         if (!pendingFieldKeyboard || !hasFocus || !resumed || pipUi) return
         pendingFieldKeyboard = false
+        if (!keyboardBelongsOnPrimary()) return
         fieldKeyboardOnPrimary = true
+        fieldKeyboardImeShown = false
         keyboard?.show()
     }
 
