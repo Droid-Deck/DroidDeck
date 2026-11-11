@@ -65,12 +65,11 @@ object ClaudeCode : AgentHarness {
 
     // DroidDeck runs the agent unattended on the user's own device; permission prompts have no one to answer them.
     override fun turn(message: String, conversation: String?, options: AgentHarness.Options) = buildList {
-        addAll(listOf(binary, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
+        addAll(listOf(binary, "-p", message, "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
         addAll(listOf("--permission-mode", if (options.plan) "plan" else "bypassPermissions"))
         options.model?.let { addAll(listOf("--model", it)) }
         options.brief?.let { addAll(listOf("--append-system-prompt", it)) }
         if (conversation != null) addAll(listOf("--resume", conversation))
-        addAll(listOf("--", message))
     }
 
     override fun parse(line: String): AgentEvent? {
@@ -208,7 +207,6 @@ object Codex : AgentHarness {
         if (conversation != null) addAll(listOf("resume", conversation))
         addAll(listOf("--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"))
         options.model?.let { addAll(listOf("-m", it)) }
-        add("--")
         // codex exec has no system prompt option, so a new conversation starts with the brief.
         add(if (conversation == null && options.brief != null) "${options.brief}\n\n$message" else message)
     }

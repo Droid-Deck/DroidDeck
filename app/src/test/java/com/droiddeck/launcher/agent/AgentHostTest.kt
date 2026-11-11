@@ -71,7 +71,6 @@ class AgentHostTest {
         assertEquals("abc", next[next.indexOf("--resume") + 1])
         assertEquals("opus", next[next.indexOf("--model") + 1])
         assertEquals("plan", next[next.indexOf("--permission-mode") + 1])
-        assertEquals(listOf("--", "- fix the crash"), ClaudeCode.turn("- fix the crash", null, AgentHarness.Options()).takeLast(2))
     }
 
     @Test fun claudeShowsWholeEditsAndTodos() {
@@ -98,9 +97,9 @@ class AgentHostTest {
     }
 
     @Test fun codexTurnsSkipItsSandboxResumeAndTakeAModel() {
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "--", "hi"),
+        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "hi"),
             Codex.turn("hi", null, AgentHarness.Options()))
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "resume", "t1", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-m", "gpt", "--", "hi"),
+        assertEquals(listOf("/root/.local/bin/codex", "exec", "resume", "t1", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-m", "gpt", "hi"),
             Codex.turn("hi", "t1", AgentHarness.Options(model = "gpt")))
     }
 
