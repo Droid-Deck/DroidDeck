@@ -100,7 +100,7 @@ class FastPathFuseDirsTest(unittest.TestCase):
         source = Path(cls.build.name) / "fuse_dirs.c"
         source.write_text(PROGRAM.replace("FASTPATH", str(FASTPATH)))
         cls.program = Path(cls.build.name) / "fuse_dirs"
-        subprocess.run(["gcc", "-O1", "-w", "-pthread", "-o", str(cls.program), str(source), "-ldl"], check=True)
+        subprocess.run(["gcc", "-O1", "-Wall", "-Wextra", "-Werror", "-Wno-format-truncation", "-pthread", "-o", str(cls.program), str(source), "-ldl"], check=True)
 
     @classmethod
     def tearDownClass(cls):

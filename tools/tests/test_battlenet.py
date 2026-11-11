@@ -1372,10 +1372,29 @@ class AgentJobTest(Harness):
         self.files = {".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
                       ".game": json.dumps({"installed": True, "install_dir": "D:/Games/Battle.net/Warcraft Rumble", "local_version": "1",
                                            "binaries": {"game": {"relative_path": "WarcraftRumble.exe"}}})}
-        self.states = [[(7, self.AGENT)], []]
-        with mock.patch.dict(BNET, {"volume_root": lambda path: str(card)}):
+        self.states = [[(7, self.AGENT)]]
+        events = []
+        real_map = BNET["map_drive"]
+
+        def acquire(folder=None):
+            events.append("lock")
+            return self.lock
+
+        def stop(pfx):
+            events.append(("stop", not self.lock.closed))
+            self.states = [[]]
+            return True
+
+        def map_drive(root, volume):
+            events.append(("map", not self.lock.closed))
+            return real_map(root, volume)
+
+        with mock.patch.dict(BNET, {"volume_root": lambda path: str(card), "stop_leftovers": stop, "map_drive": map_drive,
+                                    "acquire": acquire}):
             code = BNET["agent_job"](self.root, "install", "gryphon", "gryphon", folder, "enUS", "USA", "US", poll=0)
         self.assertEqual(code, 0)
+        self.assertEqual(events, ["lock", ("stop", True), ("map", True)])
+        self.assertTrue(self.lock.closed)
         cmd = self.started[0]
         self.assertEqual(cmd[cmd.index("--") + 6], "D:\\Games\\Battle.net\\Warcraft Rumble")
         self.assertEqual(os.readlink(os.path.join(BNET["dosdevices"](self.root), "d:")), str(card))

@@ -239,7 +239,16 @@ object BattleNet {
         if (letter == "c") return File(prefix(context), "pfx/drive_c/$relative")
         val link = File(prefix(context), "pfx/dosdevices/$letter:").toPath()
         val mapped = runCatching { java.nio.file.Files.readSymbolicLink(link).toString() }.getOrNull()
-        val target = (mapped?.takeIf { it.startsWith("/") } ?: if (letter == "z") "/" else return null).trimEnd('/')
+        val target = when {
+            mapped == null -> if (letter == "z") "/" else return null
+            mapped.startsWith("/") -> mapped
+            else -> {
+                val rootfs = LinuxRuntime.rootDir(context).toPath().toAbsolutePath().normalize()
+                val resolved = link.toAbsolutePath().parent.resolve(mapped).normalize()
+                if (!resolved.startsWith(rootfs)) return null
+                "/" + rootfs.relativize(resolved).joinToString("/")
+            }
+        }.trimEnd('/')
         return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
 
