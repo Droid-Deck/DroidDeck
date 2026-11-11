@@ -119,6 +119,12 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [game])
         self.assertFalse(os.path.lexists(self.shortcut_prefix()))
 
+    def test_an_unreadable_library_does_not_stop_the_routing(self):
+        with patch.object(Path, 'glob', side_effect=PermissionError):
+            games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual([self.game], games)
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+
     def test_store_installs_stay_shortcuts_even_when_owned_on_steam(self):
         self.snapshot()
         game = dict(self.game, store='amazon')

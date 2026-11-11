@@ -71,7 +71,11 @@ def store_game(game):
 
 def manifest_ids(steamapps, name):
     matches = []
-    for manifest in Path(steamapps).glob("appmanifest_*.acf"):
+    try:
+        manifests = list(Path(steamapps).glob("appmanifest_*.acf"))
+    except OSError:
+        return matches
+    for manifest in manifests:
         try:
             install = re.search(r'"installdir"\s*"([^"\\]*)"', manifest.read_text(), re.I)
             if install and install[1] == name:
