@@ -538,9 +538,12 @@ static int dir_keep(const char *dir, long fd, struct near *n) {
   ino_t ino;
   long tag = dir_tag();
   struct stat st;
-  if (fd_path(high, seen) < 0 || fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX
-      || sc(SYS_newfstatat, AT_FDCWD, (long)dir, (long)&st, 0, 0) != 0 || st.st_dev != dev || st.st_ino != ino
-      || sc(SYS_lseek, high, tag, SEEK_SET, 0, 0) != tag) return 0;
+  if (fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX
+      || sc(SYS_newfstatat, AT_FDCWD, (long)dir, (long)&st, 0, 0) != 0 || st.st_dev != dev || st.st_ino != ino) {
+    near_put(n);
+    return -1;
+  }
+  if (fd_path(high, seen) < 0 || sc(SYS_lseek, high, tag, SEEK_SET, 0, 0) != tag) return 0;
   unsigned h = hash_of(dir);
   struct dirslot *e = &dirs[h % DIRS];
   if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
