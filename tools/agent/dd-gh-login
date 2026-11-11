@@ -3,6 +3,7 @@
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 adb connect "$serial" >/dev/null 2>&1
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
+gh_pid=$GH_PID
 typed=
 while IFS= read -r line <&"${GH[0]}"; do
   printf '%s\n' "$line"
@@ -20,4 +21,4 @@ while IFS= read -r line <&"${GH[0]}"; do
     (sleep 7; adb -s "$serial" shell "$keys" >/dev/null 2>&1) &
   fi
 done
-wait "$GH_PID"
+wait "$gh_pid"
