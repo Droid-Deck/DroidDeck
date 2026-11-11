@@ -125,19 +125,15 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   chmod 755 /run/droiddeck/kwin/kwin_wayland
   export PATH=/run/droiddeck/kwin:$PATH
 fi
-if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then
-  if /usr/local/bin/droiddeck-pipewire start; then
-    eval "$(/usr/local/bin/droiddeck-pipewire env)"
-  else
-    echo "== pipewire: not running; screen capture has no picture"
-  fi
+if /usr/local/bin/droiddeck-pipewire start; then
+  eval "$(/usr/local/bin/droiddeck-pipewire env)"
+else
+  echo "== pipewire: not running; screen capture has no picture"
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland
 rc=$?
-if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then
-  /usr/local/bin/droiddeck-pipewire stop
-fi
+/usr/local/bin/droiddeck-pipewire stop
 echo "== droiddeck-desktop: Plasma ended ($rc)"
 if [ "$rc" -eq 0 ] && [ -z "${BL_BOTTOM_DESKTOP:-}" ]; then
   /usr/local/bin/droiddeck-steam-launch bigpicture
