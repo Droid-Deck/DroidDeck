@@ -1325,20 +1325,36 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
-                if (appId == null) FrameGen.set(this@SessionActivity, mode)
-                else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
-                loadFrameGenFor(appId)
-                readPrefs()
-                applyFrameGen(force = true)
+                if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
+                    Toast.makeText(
+                        this@SessionActivity,
+                        "Game ID unavailable; global profile was not changed.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    if (appId == null) FrameGen.set(this@SessionActivity, mode)
+                    else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
+                    loadFrameGenFor(appId)
+                    readPrefs()
+                    applyFrameGen(force = true)
+                }
             },
             onFrameGenReset = {
                 val appId = frameGenTargetGameId()
 
-                if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
-                else FrameGen.clearGame(this@SessionActivity, appId.toString())
-                loadFrameGenFor(appId)
-                readPrefs()
-                applyFrameGen(force = true)
+                if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
+                    Toast.makeText(
+                        this@SessionActivity,
+                        "Game ID unavailable; global profile was not changed.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
+                    else FrameGen.clearGame(this@SessionActivity, appId.toString())
+                    loadFrameGenFor(appId)
+                    readPrefs()
+                    applyFrameGen(force = true)
+                }
             },
             onImportLossless = {
                 pickLossless.launch(InAppFilePicker.buildIntent(
@@ -2469,7 +2485,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 SessionState.gameId?.takeIf { it.toLongOrNull() != null }
                     ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
             )?.toLongOrNull()
-            return FrameGen.mode(this, activeAppId?.toString())
+            if (activeAppId == null) return FrameGen.Mode.OFF
+            return FrameGen.mode(this, activeAppId.toString())
         }
 
         val cachedIds = LibraryCache.load(this)
@@ -2478,7 +2495,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         var inventoryRevision = drawerGameInventoryRevision
         var ids = synchronized(frameGenInventoryLock) {
-            if (frameGenInventoryRevision != inventoryRevision) {
+            val now = SystemClock.elapsedRealtime()
+            val cacheExpired = frameGenInventoryIds != null &&
+                frameGenInventoryLastAttemptAt != 0L &&
+                now - frameGenInventoryLastAttemptAt >= 15_000L
+            if (frameGenInventoryRevision != inventoryRevision || cacheExpired) {
                 frameGenInventoryIds = null
                 frameGenInventoryRevision = inventoryRevision
                 frameGenInventoryLastAttemptAt = 0L
