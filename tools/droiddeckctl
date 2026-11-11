@@ -171,6 +171,9 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
     output = (result.stdout + result.stderr).decode(errors="replace")
     if result.returncode != 0 or "status: ok" not in output.lower():
         raise ControlError(output.strip() or "The agent start Activity did not launch", "ACTIVITY_START_FAILED")
+    if "activity not started" in output.lower():
+        raise ControlError("Android handed the start request to an existing DroidDeck task instead of starting it: "
+                           + output.strip(), "ACTIVITY_START_FAILED")
 
 
 def confirm_start(adb: str, serial: str, request: dict, previous: dict) -> dict:

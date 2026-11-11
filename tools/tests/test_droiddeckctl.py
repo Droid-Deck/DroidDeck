@@ -213,6 +213,18 @@ class DroiddeckctlTest(FakeAdbTest):
         started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
         self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
 
+    def test_a_start_delivered_to_an_existing_task_is_a_failure(self):
+        output = (b"Starting: Intent { cmp=com.droiddeck.launcher/.agent.AgentStartActivity (has extras) }\n"
+                  b"Warning: Activity not started, intent has been delivered to currently running top-most instance.\n"
+                  b"Status: ok\nActivity: com.droiddeck.launcher/.FrontEndActivity\nComplete\n")
+
+        def adb(_adb, _serial, *args, timeout=30):
+            return ctl.subprocess.CompletedProcess(args, 0, output, b"")
+
+        with unittest.mock.patch.object(ctl, "run_adb", adb), self.assertRaises(ctl.ControlError) as caught:
+            ctl.start_agent_activity("adb", "fake-1", {"mode": "steam"})
+        self.assertEqual("ACTIVITY_START_FAILED", caught.exception.code)
+
     def test_a_malformed_package_is_refused_before_adb(self):
         with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.example;reboot"}):
             variant = load("droiddeckctl")
