@@ -526,9 +526,12 @@ def share_prefix(steam_root, game):
         return
     appid, steamapps = identity
     shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
+    if os.path.islink(shortcut) and not os.path.exists(shortcut):
+        shortcut.unlink()
     if os.path.lexists(shortcut):
         return
-    for library in dict.fromkeys([steamapps.parent] + libraries(steam_root)):
+    installed = steamapps == Path(game["folder"]).parent.parent
+    for library in [steamapps.parent] if installed else dict.fromkeys([steamapps.parent] + libraries(steam_root)):
         prefix = library / "steamapps/compatdata" / str(appid)
         if (prefix / "pfx/drive_c").is_dir():
             try:

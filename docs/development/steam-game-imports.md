@@ -54,8 +54,9 @@ are kept.
 
 A game that stays a shortcut but sits in a Steam install directory with a single matching
 manifest links its shortcut prefix to that app's existing `compatdata/<appid>`, so cloud
-saves the client downloaded are the ones the shortcut sees. An existing shortcut prefix is
-never replaced, and nothing is copied.
+saves the client downloaded are the ones the shortcut sees. A Steam library install only
+uses its own library's prefix. An existing shortcut prefix is never replaced, a link to a
+missing prefix is removed first, and nothing is copied.
 
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not

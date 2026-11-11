@@ -119,6 +119,39 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [game])
         self.assertFalse(os.path.lexists(self.shortcut_prefix()))
 
+    def test_an_older_prefix_in_another_library_is_not_linked_for_a_steam_install(self):
+        game, library = self.steam_install()
+        shutil.rmtree(library / 'steamapps/compatdata/42')
+        (self.steam / 'steamapps').mkdir(parents=True, exist_ok=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        (self.steam / 'steamapps/compatdata/42/pfx/drive_c').mkdir(parents=True)
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+
+    def test_a_dangling_shortcut_prefix_link_is_replaced(self):
+        game, library = self.steam_install()
+        (self.steam / 'steamapps/compatdata').mkdir(parents=True)
+        self.shortcut_prefix().symlink_to(self.root / 'moved')
+        imports.route(self.steam, self.acct, [game])
+        self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
+
+    def test_a_dangling_shortcut_prefix_link_is_removed_without_a_replacement(self):
+        game, library = self.steam_install()
+        shutil.rmtree(library / 'steamapps/compatdata/42')
+        (self.steam / 'steamapps/compatdata').mkdir(parents=True)
+        self.shortcut_prefix().symlink_to(self.root / 'moved')
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+
+    def test_a_winnative_game_shares_the_prefix_the_steam_client_uses(self):
+        self.winnative_manifest()
+        (self.steam / 'steamapps/libraryfolders.vdf').parent.mkdir(parents=True, exist_ok=True)
+        saves = self.steam / 'steamapps/compatdata/42/pfx/drive_c/users/steamuser'
+        saves.mkdir(parents=True)
+        (saves / 'save.dat').write_bytes(b'cloud')
+        imports.share_prefix(self.steam, self.game)
+        self.assertEqual(self.steam / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
+
     def test_an_unreadable_library_does_not_stop_the_routing(self):
         with patch.object(Path, 'glob', side_effect=PermissionError):
             games, routes = imports.route(self.steam, self.acct, [self.game])
