@@ -41,10 +41,14 @@ static void *worker(void *arg) {
   pthread_barrier_wait(&barrier);
   for (int i = 0; i < ROUNDS; i++) {
     pthread_t thread;
-    pthread_create(&thread, NULL, idle, NULL);
+    if (pthread_create(&thread, NULL, idle, NULL)) {
+      __atomic_add_fetch(&bad, 1, __ATOMIC_RELAXED);
+      continue;
+    }
     if (open("/etc/hostname", O_RDONLY) != ANSWER)
       __atomic_add_fetch(&bad, 1, __ATOMIC_RELAXED);
-    pthread_join(thread, NULL);
+    if (pthread_join(thread, NULL))
+      __atomic_add_fetch(&bad, 1, __ATOMIC_RELAXED);
   }
   return NULL;
 }
@@ -66,12 +70,17 @@ int main(void) {
   pthread_barrier_init(&barrier, NULL, WORKERS + 1);
   pthread_t w[WORKERS];
   for (int i = 0; i < WORKERS; i++)
-    pthread_create(&w[i], NULL, worker, NULL);
-  pthread_barrier_wait(&barrier);
+    if (pthread_create(&w[i], NULL, worker, NULL)) {
+      printf("worker %d did not start\n", i);
+      return 2;
+    }
+  // Workers already exist, blocked above, so TSYNC covers them; they only leave
+  // the barrier once the filter is in.
   if (syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &filter)) {
     perror("seccomp");
     return 77;
   }
+  pthread_barrier_wait(&barrier);
   for (int i = 0; i < WORKERS; i++)
     pthread_join(w[i], NULL);
   printf("bad=%ld traps=%d\n", bad, traps);

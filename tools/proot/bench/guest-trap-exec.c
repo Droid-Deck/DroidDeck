@@ -61,8 +61,14 @@ int main(int argc, char **argv) {
   install_handler();
   if (argc > 1) {
     pthread_t thread;
-    pthread_create(&thread, NULL, idle, NULL);
-    pthread_join(thread, NULL);
+    if (pthread_create(&thread, NULL, idle, NULL)) {
+      perror("pthread_create");
+      return 2;
+    }
+    if (pthread_join(thread, NULL)) {
+      perror("pthread_join");
+      return 2;
+    }
     int fd = open("/etc/hostname", O_RDONLY);
     printf("child: open=%d traps=%d\n", fd, traps);
     return fd == ANSWER && traps == 1 ? 0 : 1;
