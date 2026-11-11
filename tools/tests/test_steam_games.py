@@ -157,13 +157,17 @@ class ImportsTest(unittest.TestCase):
             imports.route(self.steam, self.acct, [game])
             self.assertEqual(str(target), os.readlink(self.shortcut_prefix()))
 
-    def test_a_link_to_the_matching_prefix_becomes_ours(self):
+    def test_a_user_link_to_the_matching_prefix_is_never_recorded_or_removed(self):
         game, library = self.steam_install()
         target = library / 'steamapps/compatdata/42'
         self.link_shortcut_prefix(target, owned=False)
         imports.route(self.steam, self.acct, [game])
         self.assertEqual(str(target), os.readlink(self.shortcut_prefix()))
-        self.assertEqual(str(target), imports.read_json(self.steam / 'steamapps' / imports.PREFIX_LINKS, {})[str(self.shortcut_prefix())])
+        self.assertNotIn(str(self.shortcut_prefix()), imports.read_json(self.steam / 'steamapps' / imports.PREFIX_LINKS, {}))
+        shutil.rmtree(target)
+        imports.route(self.steam, self.acct, [game])
+        self.assertTrue(os.path.islink(self.shortcut_prefix()))
+        self.assertEqual(str(target), os.readlink(self.shortcut_prefix()))
 
     def test_our_link_survives_a_library_that_is_temporarily_missing(self):
         game, library = self.steam_install()

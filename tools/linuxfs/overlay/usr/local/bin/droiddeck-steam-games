@@ -554,8 +554,6 @@ def share_prefix(steam_root, game):
                 current = None
         if current is None:
             links.pop(key, None)
-        elif current == target:
-            links[key] = current
         if current is None and os.path.lexists(shortcut):
             if target is not None:
                 print(f"droiddeck-steam-games: {name} keeps its own prefix; Steam app {appid} saves are in {target}")
