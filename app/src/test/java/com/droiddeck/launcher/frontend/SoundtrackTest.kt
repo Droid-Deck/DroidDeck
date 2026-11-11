@@ -137,4 +137,15 @@ class SoundtrackTest {
     @Test fun addedSoundtracksNeverCollideWithSteamIds() {
         assertTrue(AddedSoundtracks.idOf("/storage/emulated/0/Music/Album") < 0)
     }
+
+    @Test fun addedIdsStayStableWhenAnotherFolderIsRemoved() {
+        assertEquals("Aa".hashCode(), "BB".hashCode())
+        val first = AddedSoundtracks.Entry("/m/Aa", "A")
+        val second = AddedSoundtracks.Entry("/m/BB", "B")
+        val assigned = AddedSoundtracks.assignIds(listOf(first, second))
+        assertTrue(assigned[0].id != assigned[1].id)
+        assertTrue(assigned.all { it.id < 0 })
+        val after = AddedSoundtracks.assignIds(assigned.drop(1))
+        assertEquals(assigned[1].id, after[0].id)
+    }
 }

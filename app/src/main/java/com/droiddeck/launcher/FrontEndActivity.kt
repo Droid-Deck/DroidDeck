@@ -2649,6 +2649,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun addSoundtrack(folder: java.io.File) {
         Thread({
             val added = com.droiddeck.launcher.frontend.AddedSoundtracks.add(this, folder)
+            com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(folder.path))
             val list = com.droiddeck.launcher.frontend.AddedSoundtracks.games(this)
             ui.post {
                 if (added) soundtracks = soundtracks.filter { it.library != Library.ADDED } + list
@@ -2958,7 +2959,13 @@ class FrontEndActivity : ComponentActivity() {
                 (if (ready || com.droiddeck.launcher.runtime.LinuxRuntime.hasRootfs(this)) Library.soundtracks(this, scannedArch) else emptyList()) +
                     com.droiddeck.launcher.frontend.AddedSoundtracks.games(this)
             }.getOrDefault(emptyList())
-            ui.post { if (scanGeneration == libraryScanGeneration) { soundtracks = scannedSoundtracks; soundtracksLoaded = true } }
+            ui.post {
+                if (scanGeneration == libraryScanGeneration) {
+                    com.droiddeck.launcher.playback.SoundtrackController.allow(scannedSoundtracks.mapNotNull { it.gameFiles?.path })
+                    soundtracks = scannedSoundtracks
+                    soundtracksLoaded = true
+                }
+            }
             val games = if (ready || com.droiddeck.launcher.runtime.LinuxRuntime.hasRootfs(this)) Library.launchableGames(this, arch = scannedArch) else emptyList()
             val all = games.distinctBy { it.gameId }
             if (ready && scanGeneration == libraryScanGeneration) com.droiddeck.launcher.frontend.LibraryCache.save(this, all, scannedX64)

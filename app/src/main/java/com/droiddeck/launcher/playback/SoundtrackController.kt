@@ -43,6 +43,7 @@ object SoundtrackController {
         private set
 
     private var app: Context? = null
+    private val removed = HashSet<String>()
     private var activeRoot: String? = null
     private var savedId: String? = null
     private var future: ListenableFuture<MediaController>? = null
@@ -178,6 +179,7 @@ object SoundtrackController {
         val list = items(album, albumTitle)
         if (list.isEmpty()) return
         run(context) { c ->
+            if (root != null && root.path in removed) return@run
             val start = list.indexOfFirst { it.mediaId == startId }.coerceAtLeast(0)
             root?.let { activeRoot = it.path }
             c.setMediaItems(list, start, startMs)
@@ -187,8 +189,13 @@ object SoundtrackController {
         }
     }
 
+    fun allow(paths: Collection<String>) {
+        removed.removeAll(paths.toSet())
+    }
+
     fun toggle(context: Context, album: Soundtrack.Album, albumTitle: String, root: File?) {
         run(context) { c ->
+            if (root != null && root.path in removed) return@run
             if (belongs(root) && c.mediaItemCount > 0) {
                 if (c.isPlaying) c.pause() else c.play()
             } else {
@@ -253,6 +260,7 @@ object SoundtrackController {
     }
 
     fun stopIf(context: Context, root: File?) {
+        root?.let { removed.add(it.path) }
         if (!belongs(root)) return
         run(context) { c ->
             c.stop()

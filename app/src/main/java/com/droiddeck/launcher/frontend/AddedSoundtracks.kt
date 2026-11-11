@@ -8,20 +8,34 @@ import java.io.File
 object AddedSoundtracks {
     private fun file(context: Context) = File(context.filesDir, "added-soundtracks.json")
 
-    class Entry(val path: String, val name: String)
+    class Entry(val path: String, val name: String, val id: Int = 0)
+
+    internal fun assignIds(list: List<Entry>): List<Entry> {
+        val used = list.filter { it.id != 0 }.map { it.id }.toMutableSet()
+        return list.map { e ->
+            if (e.id != 0) e else {
+                var id = idOf(e.path)
+                while (id == 0 || !used.add(id)) id = (id + 1) or Int.MIN_VALUE
+                Entry(e.path, e.name, id)
+            }
+        }
+    }
 
     @Synchronized
     fun entries(context: Context): List<Entry> = runCatching {
         val f = file(context).takeIf { it.isFile } ?: return emptyList()
         val array = JSONArray(f.readText())
-        List(array.length()) { i -> array.getJSONObject(i).let { Entry(it.getString("path"), it.getString("name")) } }
+        val raw = List(array.length()) { i -> array.getJSONObject(i).let { Entry(it.getString("path"), it.getString("name"), it.optInt("id", 0)) } }
+        val ready = assignIds(raw)
+        if (raw.any { it.id == 0 }) save(context, ready)
+        ready
     }.getOrDefault(emptyList())
 
     @Synchronized
     private fun save(context: Context, list: List<Entry>): Boolean =
         runCatching {
             val array = JSONArray()
-            list.forEach { array.put(JSONObject().put("path", it.path).put("name", it.name)) }
+            list.forEach { array.put(JSONObject().put("path", it.path).put("name", it.name).put("id", it.id)) }
             val f = file(context)
             val tmp = File(f.path + ".tmp")
             tmp.writeText(array.toString())
@@ -32,7 +46,7 @@ object AddedSoundtracks {
         if (!folder.isDirectory || Soundtrack.audioFiles(folder).isEmpty()) return false
         return synchronized(this) {
             val list = entries(context)
-            list.any { it.path == folder.path } || save(context, list + Entry(folder.path, folder.name))
+            list.any { it.path == folder.path } || save(context, assignIds(list + Entry(folder.path, folder.name)))
         }
     }
 
@@ -42,14 +56,9 @@ object AddedSoundtracks {
 
     internal fun idOf(path: String): Int = path.hashCode() or Int.MIN_VALUE
 
-    fun games(context: Context): List<Library.SteamGame> {
-        val used = HashSet<Int>()
-        return entries(context).mapNotNull { e ->
-            val dir = File(e.path).takeIf { it.isDirectory } ?: return@mapNotNull null
-            var id = idOf(e.path)
-            while (!used.add(id)) id = (id + 1) or Int.MIN_VALUE
-            game(e, dir, id)
-        }
+    fun games(context: Context): List<Library.SteamGame> = entries(context).mapNotNull { e ->
+        val dir = File(e.path).takeIf { it.isDirectory } ?: return@mapNotNull null
+        game(e, dir, e.id)
     }
 
     private fun game(e: Entry, dir: File, id: Int): Library.SteamGame {
