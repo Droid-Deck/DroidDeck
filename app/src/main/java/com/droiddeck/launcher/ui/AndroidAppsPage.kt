@@ -372,9 +372,11 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
         },
         arm = { armed[0] = it },
     )
-    if (arranging && !appMove.allowed) { arranging = false; moving = null; dragKey = null }
+    // Moving only makes sense in the full Custom list: a search, a filter or another sort ends it.
+    if (arranging && (!appMove.allowed || sort != AppsView.CUSTOM)) { arranging = false; moving = null }
     if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
-    BackHandler(arranging) { if (moving != null) moving = null else arranging = false }
+    if (!arranging && dragKey != null) dragKey = null
+    BackHandler(arranging) { moving = null; arranging = false }
     LaunchedEffect(dragKey) {
         if (dragKey == null) return@LaunchedEffect
         // Near the top or bottom edge the list scrolls under the held tile.
@@ -443,7 +445,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                     modifier = Modifier.fillMaxSize().then(if (!arranging) Modifier else Modifier.onPreviewKeyEvent { event ->
                         val k = event.nativeKeyEvent
                         if (k.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) { if (moving != null) moving = null else arranging = false }
+                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) { moving = null; arranging = false }
                             return@onPreviewKeyEvent true
                         }
                         // With a tile picked up the D-pad carries it; otherwise it moves the cursor as usual.
