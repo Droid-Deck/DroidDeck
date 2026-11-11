@@ -85,6 +85,10 @@ class AgentBridgeProvider : ContentProvider() {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
         }
+        "native" -> {
+            AgentAccess.requireCommands(context)
+            AgentNative.run(context, request, timeoutMs(request, 30.0, 0))
+        }
         "cdp" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "cdp"), timeoutMs(request, 15.0, 5_000))
@@ -284,6 +288,8 @@ class AgentBridgeProvider : ContentProvider() {
         return JSONObject()
             .put("schema", SCHEMA)
             .put("build", BuildConfig.BUILD_LABEL)
+            .put("apkCommit", com.droiddeck.launcher.lab.LabOverlay.apkCommit)
+            .put("lab", com.droiddeck.launcher.lab.LabOverlay.active?.label ?: JSONObject.NULL)
             .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             .put("runtime", JSONObject()
                 .put("installed", LinuxRuntime.isInstalled(context))

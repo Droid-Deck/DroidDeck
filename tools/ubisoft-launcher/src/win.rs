@@ -67,6 +67,7 @@ extern "system" {
     fn GetExitCodeProcess(h: HANDLE, code: *mut u32) -> i32;
     fn OpenProcess(access: u32, inherit: i32, pid: u32) -> HANDLE;
     fn ProcessIdToSessionId(pid: u32, session: *mut u32) -> i32;
+    fn GetNamedPipeClientProcessId(pipe: HANDLE, pid: *mut u32) -> i32;
     fn GetCurrentProcessId() -> u32;
 }
 
@@ -133,6 +134,11 @@ impl Handle {
 
     pub fn set(&self) {
         unsafe { SetEvent(self.0) };
+    }
+
+    pub fn client_pid(&self) -> Option<u32> {
+        let mut pid = 0;
+        (unsafe { GetNamedPipeClientProcessId(self.0, &mut pid) } != 0 && pid != 0).then_some(pid)
     }
 }
 
