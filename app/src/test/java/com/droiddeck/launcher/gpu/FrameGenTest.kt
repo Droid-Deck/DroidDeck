@@ -2,6 +2,8 @@ package com.droiddeck.launcher.gpu
 
 import android.content.Context
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +19,22 @@ class FrameGenTest {
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @Test fun selectedGameIsTheTarget() {
+        assertEquals(42L, FrameGen.targetGame(42L, chosenManually = true) { 7L })
+        assertEquals(42L, FrameGen.targetGame(42L, chosenManually = false) { 7L })
+    }
+
+    @Test fun manuallyChosenDefaultSavesGlobally() {
+        var asked = false
+        assertNull(FrameGen.targetGame(null, chosenManually = true) { asked = true; 7L })
+        assertFalse(asked)
+    }
+
+    @Test fun followingSteamWithoutProfileUsesRunningGame() {
+        assertEquals(7L, FrameGen.targetGame(null, chosenManually = false) { 7L })
+        assertNull(FrameGen.targetGame(null, chosenManually = false) { null })
     }
 
     @Test fun offUntilPicked() {

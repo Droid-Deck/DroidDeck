@@ -218,6 +218,7 @@ class DrawerActions(
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
     val hasGameOverride: Boolean = false,
+    val frameGenGameId: Long? = null,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -562,12 +563,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                                SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
+                                val fgScope = stringResource(
+                                    if (a.frameGenGameId != null) R.string.frame_gen_scope_game else R.string.frame_gen_scope_global,
+                                )
+                                SettingsRow(stringResource(R.string.frame_gen_title), fgScope, highlighted = fgOpen) {
                                     Box {
                                         ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
                                         FrameGenMenu(
                                             host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
-                                            gameProfileId = a.selectedGameProfileId?.toString(),
+                                            gameProfileId = a.frameGenGameId?.toString(),
                                             hasGameOverride = a.hasGameOverride,
                                             onResetGame = a.onFrameGenReset,
                                         )

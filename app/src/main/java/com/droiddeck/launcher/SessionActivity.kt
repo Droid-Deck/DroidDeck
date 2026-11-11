@@ -556,6 +556,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenHasGameOverride by mutableStateOf(false)
+    private var frameGenGameId by mutableStateOf<Long?>(null)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
     private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
@@ -1258,6 +1259,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
             hasGameOverride = frameGenHasGameOverride,
+            frameGenGameId = frameGenGameId,
             lossless = lossless,
             oscMode = oscMode, suspendPolicy = suspendPolicy,
             steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
@@ -1318,22 +1320,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
             onFrameGenPick = { mode ->
                 val selectedAppId = drawerGameProfileId
+                val chosenManually = !drawerGameProfileFollowState.followsSteam
                 Thread({
-                    val appId = selectedAppId ?: activeFrameGenAppId()
+                    val appId = FrameGen.targetGame(selectedAppId, chosenManually, ::activeFrameGenAppId)
                     runOnUiThread {
                         if (appId == null) FrameGen.set(this@SessionActivity, mode)
                         else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
-                        loadFrameGenFor(appId)
                         readPrefs()
+                        loadFrameGenFor(appId)
                         applyFrameGen(force = true)
                     }
                 }, "frame-gen-save").start()
             },
             onFrameGenReset = {
-                val appId = drawerGameProfileId
+                val appId = frameGenGameId
                 appId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
-                loadFrameGenFor(appId)
                 readPrefs()
+                loadFrameGenFor(appId)
                 applyFrameGen(force = true)
             },
             onImportLossless = {
@@ -1685,6 +1688,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun loadFrameGenFor(appId: Long?) {
         val profileId = appId?.toString()
         frameGen = FrameGen.mode(this, profileId)
+        frameGenGameId = appId
         frameGenHasGameOverride = appId?.let {
             FrameGen.hasGameOverride(this, it.toString())
         } == true

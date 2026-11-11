@@ -26,6 +26,7 @@ static float g_flow = 0.8f, g_refresh_hz;
 static char *g_cache_path;
 static _Atomic int   g_cache_gen;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_engine_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static VkDevice g_dev;
 static VkInstance g_inst;
@@ -152,7 +153,9 @@ const char *vkp_framegen_caps_reason(void) { return fge_caps_reason(); }
 
 void vkp_framegen_stats(float out[6]) {
     float accepted = 0.0f, src = 0.0f, thermal = -1.0f;
+    pthread_mutex_lock(&g_engine_lock);
     if (g_engine_ok) fge_telemetry(&accepted, &src, &thermal);
+    pthread_mutex_unlock(&g_engine_lock);
     out[0] = (float)g_planned;
     out[1] = (float)g_planned;
     out[2] = g_source_rate;
@@ -253,13 +256,19 @@ int vkp_framegen_format_ok(VkFormat fmt) {
     return fge_format_ok(fmt);
 }
 
+static void stop_engine(void) {
+    pthread_mutex_lock(&g_engine_lock);
+    fge_stop();
+    g_engine_ok = 0; g_engine_kind = -1;
+    pthread_mutex_unlock(&g_engine_lock);
+}
+
 static void refuse_format(VkFormat fmt, int kind, int w, int h, const char *what) {
     if (g_refused_n < (int)(sizeof(g_refused_fmt) / sizeof(g_refused_fmt[0]))) g_refused_fmt[g_refused_n++] = fmt;
     FGLOG("%s could not %s in format %d (the HDR picture's FP16) at %dx%d: it restarts, and HDR frames go through "
           "it in 8 bits from the next frame", fge_engine_name(kind), what, (int)fmt, w, h);
     destroy_ring();
-    fge_stop();
-    g_engine_ok = 0; g_engine_kind = -1;
+    stop_engine();
 }
 
 int vkp_framegen_active(void) {
@@ -277,7 +286,7 @@ static int ensure_engine(int kind) {
     if (g_engine_ok && g_engine_kind == kind && (kind != VKP_FG_ENGINE_LSFG || g_engine_cache_gen == cache_gen))
         return 1;
     if (start_failed_for(kind)) return 0;
-    if (g_engine_ok) { destroy_ring(); fge_stop(); g_engine_ok = 0; g_engine_kind = -1; }
+    if (g_engine_ok) { destroy_ring(); stop_engine(); }
     char *path = NULL;
     pthread_mutex_lock(&g_lock);
     if (g_cache_path) path = strdup(g_cache_path);
@@ -287,7 +296,9 @@ static int ensure_engine(int kind) {
         mark_failed(kind);
         return 0;
     }
+    pthread_mutex_lock(&g_engine_lock);
     int r = fge_start(kind, path);
+    pthread_mutex_unlock(&g_engine_lock);
     free(path);
     if (r != 0) {
         FGLOG("%s failed to start on the compositor's driver; frame generation stays off",

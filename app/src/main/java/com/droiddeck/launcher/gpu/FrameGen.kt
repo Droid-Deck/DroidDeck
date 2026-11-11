@@ -41,6 +41,9 @@ object FrameGen {
         return Mode(engine, prefs.getInt(gamePrefix + "multiplier", 2).coerceIn(2, 4))
     }
 
+    fun targetGame(selected: Long?, chosenManually: Boolean, active: () -> Long?): Long? =
+        selected ?: if (chosenManually) null else active()
+
     fun hasGameOverride(context: Context, appId: String): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains("game.$appId.engine")
 
