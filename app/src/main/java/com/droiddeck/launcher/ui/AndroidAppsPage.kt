@@ -747,13 +747,19 @@ private fun FolderSheet(
             if (!closing) runCatching { firstApp.requestFocus() }
         }
     }
+    val scope = rememberCoroutineScope()
     val close = {
+        val wasRenaming = renaming
         closing = true
         if (renaming) commit()
         onClose()
         if (inputMode == InputMode.Keyboard && ff != null) {
-            runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
-                .onFailure { runCatching { ff.firstTile.requestFocus() } }
+            val toTile = {
+                runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
+                    .onFailure { runCatching { ff.firstTile.requestFocus() } }
+            }
+            // The name field is a platform view that still holds focus here; the tile can take it once the field is gone.
+            if (wasRenaming) scope.launch { repeat(2) { androidx.compose.runtime.withFrameNanos { } }; toTile() } else toTile()
         }
     }
     BackHandler { close() }
