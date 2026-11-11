@@ -16,8 +16,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -59,7 +63,9 @@ class PresentationWindowTest {
             }
         }
         compose.onNodeWithText("Title").assertIsDisplayed()
+            .assert(hasAnyAncestor(isPopup()))
         compose.onNodeWithText("Body").assertIsDisplayed()
+        compose.onNode(isDialog()).assertDoesNotExist()
         compose.runOnIdle { assertNotNull(KeyWindows.topOn(displayId)) }
         compose.onNodeWithText("Confirm").performClick()
         compose.onNodeWithText("Title").assertDoesNotExist()
@@ -74,7 +80,10 @@ class PresentationWindowTest {
                 }
             }
         }
-        compose.onNodeWithText("Close").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Close").assertIsDisplayed()
+            .assert(hasAnyAncestor(isPopup()))
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Close").assertDoesNotExist()
     }
 
@@ -136,6 +145,9 @@ class PresentationWindowTest {
             presentation.show()
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(dialogComposed)
+            compose.onNodeWithText("Panel").assertIsDisplayed()
+                .assert(hasAnyAncestor(isPopup()))
+            compose.onNode(isDialog()).assertDoesNotExist()
         } finally {
             presentation.dismiss()
             activityController.pause().stop().destroy()
@@ -145,5 +157,22 @@ class PresentationWindowTest {
     @Test fun dialogOutsidePresentationKeepsThePlatformDialog() {
         compose.setContent { GlideDialog(onDismissRequest = {}) { Text("Panel") } }
         compose.onNodeWithText("Panel").assertIsDisplayed()
+            .assert(hasAnyAncestor(isDialog()))
+        compose.onNode(isPopup()).assertDoesNotExist()
+    }
+
+    @Test fun alertOutsidePresentationKeepsThePlatformDialog() {
+        compose.setContent {
+            GlideAlertDialog(
+                onDismissRequest = {},
+                confirmButton = { TextButton(onClick = {}) { Text("Confirm") } },
+                title = { Text("Title") },
+                text = { Text("Body") },
+            )
+        }
+        compose.onNodeWithText("Title").assertIsDisplayed()
+            .assert(hasAnyAncestor(isDialog()))
+        compose.onNodeWithText("Body").assertIsDisplayed()
+        compose.onNode(isPopup()).assertDoesNotExist()
     }
 }
