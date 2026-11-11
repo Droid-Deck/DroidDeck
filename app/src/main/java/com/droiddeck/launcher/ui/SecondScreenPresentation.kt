@@ -239,7 +239,7 @@ class SecondScreenPresentation(
         return super.dispatchGenericMotionEvent(event)
     }
 
-    fun shownControlElements() = controlsView?.takeIf { it.visibility == View.VISIBLE }?.shownElements().orEmpty()
+    fun shownControlElements() = controlsView?.takeIf { isShowing && it.isShown }?.shownElements().orEmpty()
 
     fun refreshControls() {
         if (!created || !currentMode.controls) return

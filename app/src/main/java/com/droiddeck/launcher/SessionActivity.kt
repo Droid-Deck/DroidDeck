@@ -4089,7 +4089,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val primary = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
             .filter { it.visibility == View.VISIBLE }.map { it.shownElements() } +
             listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
-        val secondary = secondScreenPresentation?.shownControlElements().orEmpty()
+        val secondary = secondScreenPresentation?.shownControlElements().orEmpty() +
+            swappedControls?.takeIf { it.isShown }?.shownElements().orEmpty()
         return primary.any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) } ||
             inputProfile.hasMouseButton(InputRole.SECONDARY, secondary)
     }
@@ -4111,6 +4112,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private var directTouchTapsOff = false
+    private var swappedControls: com.droiddeck.launcher.ui.InputSurfaceView? = null
 
     private fun moveDirectPointer(x: Float, y: Float) {
         if (pointerLocked) gestureOutput.moveTo(x, y) else movePointer(x, y)
@@ -4130,6 +4132,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             directTouchTapsOff = onScreenMouseButtonShown()
+            if (::twoFingerGestures.isInitialized) twoFingerGestures.tapClicks = !directTouchTapsOff
             if (directTouchTapsOff && !programLocksPointer()) {
                 gesturePointerReady = false
                 directTouchHold.cancel()
@@ -4137,6 +4140,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         if (directTouchTapsOff && !programLocksPointer()) {
+            lockedSwipeX = event.x
+            lockedSwipeY = event.y
             val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
             if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
                 moveDirectPointer(event.x, event.y)
@@ -5217,7 +5222,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         androidx.compose.runtime.key(profileLayout) {
                             androidx.compose.ui.viewinterop.AndroidView(
                                 factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
-                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()) },
+                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+                                    .also { swappedControls = it } },
+                                onRelease = { if (swappedControls === it) swappedControls = null },
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                             )
                         }

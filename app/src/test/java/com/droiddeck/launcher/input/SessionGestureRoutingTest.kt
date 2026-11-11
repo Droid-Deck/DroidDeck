@@ -268,6 +268,35 @@ class SessionGestureRoutingTest {
         assertEquals(1, directTouches.size)
     }
 
+    @Test fun directTouchDownDetectsAShownMouseButtonAndSwitchesSuppressionPerStream() {
+        prepare(SessionPrefs.TOUCH_DIRECT)
+        SessionState.outputSize = 1000 to 600
+        val controls = OnScreenControls(activity, null).apply {
+            updateLayout(SavedInputLayout("test", "Test", listOf(InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)), aspect = 1000f / 600f))
+            measure(android.view.View.MeasureSpec.makeMeasureSpec(1000, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(600, android.view.View.MeasureSpec.EXACTLY))
+            layout(0, 0, 1000, 600)
+            visibility = android.view.View.VISIBLE
+        }
+        setField("onScreenControls", controls)
+        fun stream(profile: InputProfile): Boolean {
+            setField("inputProfile", profile)
+            val now = SystemClock.uptimeMillis()
+            var duringStream = false
+            for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                val event = MotionEvent.obtain(now, now, action, 300f, 300f, 0)
+                try { ReflectionHelpers.callInstanceMethod<Any?>(activity, "dispatchDirectTouch",
+                    ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event)) } finally { event.recycle() }
+                if (action == MotionEvent.ACTION_DOWN) duringStream = ReflectionHelpers.getField(activity, "directTouchTapsOff")
+            }
+            assertFalse(ReflectionHelpers.getField<Boolean>(activity, "directTouchTapsOff"))
+            return duringStream
+        }
+        assertFalse(stream(InputProfile.defaults(InputProfile.DESKTOP)))
+        assertTrue(stream(InputProfile.defaults(InputProfile.DESKTOP)
+            .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))))
+    }
+
     private fun tapThreeFingers(expectSteamGesture: Boolean) {
         val down = SystemClock.uptimeMillis()
         fun send(action: Int, index: Int, count: Int) {
