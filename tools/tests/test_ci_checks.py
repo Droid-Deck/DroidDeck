@@ -48,9 +48,10 @@ class CiChecksTest(unittest.TestCase):
 
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
-        for name in ('xbox', 'python-runner', 'components-runner'):
+        for name in ('xbox', 'components-runner'):
             self.assertEqual(jobs[name]['needs'], 'source')
-        self.assertEqual(set(jobs['python-tests']['needs']), {'source', 'python-runner'})
+        self.assertEqual(jobs['python-tests']['needs'], 'source')
+        self.assertEqual(jobs['python-tests']['runs-on'], 'ubuntu-24.04')
         node = [step for step in jobs['python-tests']['steps'] if step.get('uses', '').startswith('actions/setup-node@')]
         self.assertEqual(len(node), 1)
         self.assertEqual(set(jobs['components']['needs']), {'source', 'components-runner'})

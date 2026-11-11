@@ -802,18 +802,11 @@ jobs:
         timeout-minutes: 10
         run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
 
-  python-runner:
-    needs: source
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    uses: ./.github/workflows/pick-runner.yml
-    secrets:
-      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
-
   python-tests:
     name: Python and native regression tests
-    needs: [source, python-runner]
+    needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ${{ fromJSON(needs.python-runner.outputs.labels) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
