@@ -28,6 +28,8 @@
     <string name="suspend_now">立即暂停</string>
     <string name="stop_session">停止会话</string>
     <string name="frame_gen_title">帧生成</string>
+    <string name="frame_gen_scope_game">此游戏的设置</string>
+    <string name="frame_gen_scope_global">默认设置</string>
     <string name="frame_gen_hint">选择帧生成模式</string>
     <string name="frame_gen_off">关闭</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2835,6 +2837,8 @@
     <string name="display_position_top">置顶</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">居中（默认）</string>
+    <string name="display_position_left">左侧</string>
+    <string name="display_position_right">右侧</string>
     <string name="setup_tab_storage">存储</string>
     <string name="storage_measuring">正在统计存储…</string>
     <string name="storage_measuring_hint">首次统计需要几秒钟。</string>
@@ -3627,4 +3631,7 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+
+    <string name="theme_white_red">猩红之雪</string>
+
 </resources>

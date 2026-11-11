@@ -28,6 +28,8 @@
     <string name="suspend_now">Felfüggesztés most</string>
     <string name="stop_session">Munkamenet leállítása</string>
     <string name="frame_gen_title">Képkocka-generálás</string>
+    <string name="frame_gen_scope_game">A játék beállításai</string>
+    <string name="frame_gen_scope_global">Alapértelmezett beállítások</string>
     <string name="frame_gen_hint">Válassza ki a képkocka-generálás módját</string>
     <string name="frame_gen_off">Ki</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">Fent</string>
     <string name="display_position_bottom">Lent</string>
     <string name="display_position_center">Középen (alapértelmezett)</string>
+    <string name="display_position_left">Bal</string>
+    <string name="display_position_right">Jobb</string>
     <string name="setup_tab_storage">Tárhely</string>
     <string name="storage_measuring">Tárhely mérése…</string>
     <string name="storage_measuring_hint">Első alkalommal pár másodpercig tart.</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+
+    <string name="theme_white_red">Skarlátvörös hó</string>
+
 </resources>

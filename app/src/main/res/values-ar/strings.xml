@@ -28,6 +28,8 @@
     <string name="suspend_now">تعليق الآن</string>
     <string name="stop_session">إيقاف الجلسة</string>
     <string name="frame_gen_title">توليد الإطارات</string>
+    <string name="frame_gen_scope_game">إعدادات هذه اللعبة</string>
+    <string name="frame_gen_scope_global">الإعدادات الافتراضية</string>
     <string name="frame_gen_hint">اختر وضع توليد الإطارات</string>
     <string name="frame_gen_off">إيقاف</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2976,6 +2978,8 @@
     <string name="display_position_top">أعلى</string>
     <string name="display_position_bottom">أسفل</string>
     <string name="display_position_center">الوسط (افتراضي)</string>
+    <string name="display_position_left">يسار</string>
+    <string name="display_position_right">يمين</string>
     <string name="setup_tab_storage">التخزين</string>
     <string name="storage_measuring">جارٍ قياس التخزين…</string>
     <string name="storage_measuring_hint">يستغرق القياس الأول بضع ثوانٍ.</string>
@@ -3809,4 +3813,7 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+
+    <string name="theme_white_red">ثلج قرمزي</string>
+
 </resources>

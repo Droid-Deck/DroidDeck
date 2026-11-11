@@ -28,6 +28,8 @@
     <string name="suspend_now">Приостановить сейчас</string>
     <string name="stop_session">Остановить сессию</string>
     <string name="frame_gen_title">Генерация кадров</string>
+    <string name="frame_gen_scope_game">Настройки этой игры</string>
+    <string name="frame_gen_scope_global">Настройки по умолчанию</string>
     <string name="frame_gen_hint">Выберите режим генерации кадров</string>
     <string name="frame_gen_off">Выкл.</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -3001,6 +3003,8 @@
     <string name="display_position_top">Сверху</string>
     <string name="display_position_bottom">Снизу</string>
     <string name="display_position_center">По центру (по умолчанию)</string>
+    <string name="display_position_left">Слева</string>
+    <string name="display_position_right">Справа</string>
     <string name="setup_tab_storage">Хранилище</string>
     <string name="storage_measuring">Измерение хранилища…</string>
     <string name="storage_measuring_hint">В первый раз занимает несколько секунд.</string>
@@ -3814,4 +3818,7 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+
+    <string name="theme_white_red">Алый снег</string>
+
 </resources>

@@ -28,6 +28,8 @@
     <string name="suspend_now">Şimdi askıya al</string>
     <string name="stop_session">Oturumu durdur</string>
     <string name="frame_gen_title">Kare oluşturma</string>
+    <string name="frame_gen_scope_game">Bu oyunun ayarları</string>
+    <string name="frame_gen_scope_global">Varsayılan ayarlar</string>
     <string name="frame_gen_hint">Kare oluşturma modunu seçin</string>
     <string name="frame_gen_off">Kapalı</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">Üst</string>
     <string name="display_position_bottom">Alt</string>
     <string name="display_position_center">Orta (varsayılan)</string>
+    <string name="display_position_left">Sol</string>
+    <string name="display_position_right">Sağ</string>
     <string name="setup_tab_storage">Depolama</string>
     <string name="storage_measuring">Depolama ölçülüyor…</string>
     <string name="storage_measuring_hint">İlk seferde birkaç saniye sürer.</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">Konumları sıfırla</string>
     <string name="input_show_label">Etiketi göster</string>
     <string name="input_layout_import_failed">Bu düzen içe aktarılamadı</string>
+
+    <string name="theme_white_red">Kızıl Kar</string>
+
 </resources>

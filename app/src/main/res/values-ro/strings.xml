@@ -28,6 +28,8 @@
     <string name="suspend_now">Suspendă acum</string>
     <string name="stop_session">Oprește sesiunea</string>
     <string name="frame_gen_title">Generare de cadre</string>
+    <string name="frame_gen_scope_game">Setări pentru acest joc</string>
+    <string name="frame_gen_scope_global">Setări implicite</string>
     <string name="frame_gen_hint">Selectează modul de generare a cadrelor</string>
     <string name="frame_gen_off">Dezactivat</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2889,6 +2891,8 @@
     <string name="display_position_top">Sus</string>
     <string name="display_position_bottom">Jos</string>
     <string name="display_position_center">Centru (implicit)</string>
+    <string name="display_position_left">Stânga</string>
+    <string name="display_position_right">Dreapta</string>
     <string name="setup_tab_storage">Stocare</string>
     <string name="storage_measuring">Se măsoară stocarea…</string>
     <string name="storage_measuring_hint">Prima dată durează câteva secunde.</string>
@@ -3692,4 +3696,7 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+
+    <string name="theme_white_red">Zăpadă stacojie</string>
+
 </resources>

@@ -28,6 +28,8 @@
     <string name="suspend_now">Призупинити зараз</string>
     <string name="stop_session">Завершити сеанс</string>
     <string name="frame_gen_title">Генерація кадрів</string>
+    <string name="frame_gen_scope_game">Налаштування цієї гри</string>
+    <string name="frame_gen_scope_global">Типові налаштування</string>
     <string name="frame_gen_hint">Виберіть режим генерації кадрів</string>
     <string name="frame_gen_off">Вимк.</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2918,6 +2920,8 @@
     <string name="display_position_top">Угорі</string>
     <string name="display_position_bottom">Унизу</string>
     <string name="display_position_center">По центру (типово)</string>
+    <string name="display_position_left">Ліворуч</string>
+    <string name="display_position_right">Праворуч</string>
     <string name="setup_tab_storage">Сховище</string>
     <string name="storage_measuring">Вимірювання сховища…</string>
     <string name="storage_measuring_hint">Уперше триває кілька секунд.</string>
@@ -3731,4 +3735,7 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+
+    <string name="theme_white_red">Багряний сніг</string>
+
 </resources>

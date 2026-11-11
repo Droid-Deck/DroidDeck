@@ -28,6 +28,8 @@
     <string name="suspend_now">หยุดชั่วคราวตอนนี้</string>
     <string name="stop_session">หยุดเซสชัน</string>
     <string name="frame_gen_title">การสร้างเฟรม</string>
+    <string name="frame_gen_scope_game">การตั้งค่าสำหรับเกมนี้</string>
+    <string name="frame_gen_scope_global">การตั้งค่าเริ่มต้น</string>
     <string name="frame_gen_hint">เลือกโหมดการสร้างเฟรม</string>
     <string name="frame_gen_off">ปิด</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2831,6 +2833,8 @@
     <string name="display_position_top">บน</string>
     <string name="display_position_bottom">ล่าง</string>
     <string name="display_position_center">กลาง (ค่าเริ่มต้น)</string>
+    <string name="display_position_left">ซ้าย</string>
+    <string name="display_position_right">ขวา</string>
     <string name="setup_tab_storage">พื้นที่จัดเก็บ</string>
     <string name="storage_measuring">กำลังวัดพื้นที่…</string>
     <string name="storage_measuring_hint">ครั้งแรกใช้เวลาสองสามวินาที</string>
@@ -3623,4 +3627,7 @@
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>
+
+    <string name="theme_white_red">หิมะสีแดงชาด</string>
+
 </resources>

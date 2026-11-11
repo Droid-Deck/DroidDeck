@@ -28,6 +28,8 @@
     <string name="suspend_now">Sett på pause nå</string>
     <string name="stop_session">Avslutt sesjon</string>
     <string name="frame_gen_title">Bildegenerering</string>
+    <string name="frame_gen_scope_game">Innstillinger for dette spillet</string>
+    <string name="frame_gen_scope_global">Standardinnstillinger</string>
     <string name="frame_gen_hint">Velg modus for bildegenerering</string>
     <string name="frame_gen_off">Av</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">Øverst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Midten (standard)</string>
+    <string name="display_position_left">Venstre</string>
+    <string name="display_position_right">Høyre</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Måler lagring…</string>
     <string name="storage_measuring_hint">Første gang tar noen sekunder.</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">Tilbakestill plasseringer</string>
     <string name="input_show_label">Vis etikett</string>
     <string name="input_layout_import_failed">Kunne ikke importere dette oppsettet</string>
+
+    <string name="theme_white_red">Skarlagenssnø</string>
+
 </resources>

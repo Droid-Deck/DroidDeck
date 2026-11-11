@@ -28,6 +28,8 @@
     <string name="suspend_now">Pausa nu</string>
     <string name="stop_session">Stoppa sessionen</string>
     <string name="frame_gen_title">Bildrutegenerering</string>
+    <string name="frame_gen_scope_game">Inställningar för det här spelet</string>
+    <string name="frame_gen_scope_global">Standardinställningar</string>
     <string name="frame_gen_hint">Välj läge för bildrutegenerering</string>
     <string name="frame_gen_off">Av</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">Överst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Mitten (standard)</string>
+    <string name="display_position_left">Vänster</string>
+    <string name="display_position_right">Höger</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Mäter lagring…</string>
     <string name="storage_measuring_hint">Första gången tar några sekunder.</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+
+    <string name="theme_white_red">Scharlakansröd snö</string>
+
 </resources>

@@ -28,6 +28,8 @@
     <string name="suspend_now">Jeda sekarang</string>
     <string name="stop_session">Hentikan sesi</string>
     <string name="frame_gen_title">Pembuatan frame</string>
+    <string name="frame_gen_scope_game">Pengaturan untuk game ini</string>
+    <string name="frame_gen_scope_global">Pengaturan bawaan</string>
     <string name="frame_gen_hint">Pilih mode pembuatan frame</string>
     <string name="frame_gen_off">Nonaktif</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2831,6 +2833,8 @@
     <string name="display_position_top">Atas</string>
     <string name="display_position_bottom">Bawah</string>
     <string name="display_position_center">Tengah (bawaan)</string>
+    <string name="display_position_left">Kiri</string>
+    <string name="display_position_right">Kanan</string>
     <string name="setup_tab_storage">Penyimpanan</string>
     <string name="storage_measuring">Mengukur penyimpanan…</string>
     <string name="storage_measuring_hint">Butuh beberapa detik pada kali pertama.</string>
@@ -3623,4 +3627,7 @@
     <string name="input_reset_positions">Atur ulang posisi</string>
     <string name="input_show_label">Tampilkan label</string>
     <string name="input_layout_import_failed">Tata letak ini tidak dapat diimpor</string>
+
+    <string name="theme_white_red">Salju Kirmizi</string>
+
 </resources>

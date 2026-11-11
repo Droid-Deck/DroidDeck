@@ -28,6 +28,8 @@
     <string name="suspend_now">अभी सस्पेंड करें</string>
     <string name="stop_session">सेशन बंद करें</string>
     <string name="frame_gen_title">फ़्रेम जनरेशन</string>
+    <string name="frame_gen_scope_game">इस गेम की सेटिंग</string>
+    <string name="frame_gen_scope_global">डिफ़ॉल्ट सेटिंग</string>
     <string name="frame_gen_hint">फ़्रेम जनरेशन मोड चुनें</string>
     <string name="frame_gen_off">बंद</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">ऊपर</string>
     <string name="display_position_bottom">नीचे</string>
     <string name="display_position_center">बीच में (डिफ़ॉल्ट)</string>
+    <string name="display_position_left">बाएँ</string>
+    <string name="display_position_right">दाएँ</string>
     <string name="setup_tab_storage">स्टोरेज</string>
     <string name="storage_measuring">स्टोरेज मापा जा रहा है…</string>
     <string name="storage_measuring_hint">पहली बार कुछ सेकंड लगते हैं।</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+
+    <string name="theme_white_red">किरमिज़ी बर्फ</string>
+
 </resources>

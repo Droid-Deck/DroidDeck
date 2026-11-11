@@ -28,6 +28,8 @@
     <string name="suspend_now">Αναστολή τώρα</string>
     <string name="stop_session">Διακοπή συνεδρίας</string>
     <string name="frame_gen_title">Δημιουργία καρέ</string>
+    <string name="frame_gen_scope_game">Ρυθμίσεις για αυτό το παιχνίδι</string>
+    <string name="frame_gen_scope_global">Προεπιλεγμένες ρυθμίσεις</string>
     <string name="frame_gen_hint">Επιλέξτε τη λειτουργία δημιουργίας καρέ</string>
     <string name="frame_gen_off">Ανενεργό</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2860,6 +2862,8 @@
     <string name="display_position_top">Πάνω</string>
     <string name="display_position_bottom">Κάτω</string>
     <string name="display_position_center">Κέντρο (προεπιλογή)</string>
+    <string name="display_position_left">Αριστερά</string>
+    <string name="display_position_right">Δεξιά</string>
     <string name="setup_tab_storage">Αποθήκευση</string>
     <string name="storage_measuring">Μέτρηση αποθήκευσης…</string>
     <string name="storage_measuring_hint">Την πρώτη φορά παίρνει λίγα δευτερόλεπτα.</string>
@@ -3653,4 +3657,7 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+
+    <string name="theme_white_red">Κατακόκκινο χιόνι</string>
+
 </resources>
