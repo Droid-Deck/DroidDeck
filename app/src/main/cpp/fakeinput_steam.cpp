@@ -2322,7 +2322,15 @@ __attribute__((visibility("hidden"))) static bool is_deck_sysfs_path(const char 
   if (!path) return false;
   if (!strncmp(path, "/sys/devices/droiddeck", 22) || !strncmp(path, "/sys/class/hidraw", 17)) return true;
   const char *listing = deck_listing_dir();
-  return listing && !strncmp(path, listing, strlen(listing));
+  if (!listing) return false;
+  if (!strncmp(path, listing, strlen(listing))) return true;
+  // Without proot, a descriptor's /proc/self/fd link names the stand-in where it really is (the
+  // listing's parent holds devices/ and class-hidraw/), not /sys
+  const char *slash = strrchr(listing, '/');
+  if (!slash || slash == listing) return false;
+  size_t root = static_cast<size_t>(slash - listing);
+  return !strncmp(path, listing, root) && path[root] == '/' &&
+         (!strncmp(path + root, "/devices", 8) || !strncmp(path + root, "/class-hidraw", 13));
 }
 
 __attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {

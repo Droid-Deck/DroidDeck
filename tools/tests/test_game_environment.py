@@ -2738,6 +2738,17 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
 
+    def test_x64_visual_cpp_runtime_in_arm64_system32_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            for name in ("msvcp140.dll", "VCRUNTIME140.dll", "msvcp_win.dll"):
+                (builtins / name.lower()).write_bytes(pe_image(0xAA64))
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertFalse((windows / "system32/msvcp140.dll").is_symlink())
+            self.assertFalse((windows / "system32/VCRUNTIME140.dll").is_symlink())
+
     def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)

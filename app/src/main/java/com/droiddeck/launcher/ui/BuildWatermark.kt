@@ -38,7 +38,8 @@ object BuildWatermark {
         if (text.length <= TITLE_LIMIT) text else text.take(TITLE_LIMIT - 1).trimEnd() + "…"
 
     fun install(app: Application) {
-        val lines = lines() ?: return
+        val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
+        val lines = (listOfNotNull(lab) + lines().orEmpty()).ifEmpty { return }
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (activity is QuestXrActivity) return
