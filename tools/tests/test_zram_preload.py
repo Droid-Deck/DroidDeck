@@ -384,16 +384,13 @@ class ZramPreloadTest(unittest.TestCase):
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_single_request_timing_control(self):
         asynchronous = self.run_program(None, 48, 0, "timed")
-        self.assertLess(asynchronous["gap"][0], 250)
         self.assertGreater(asynchronous["out"][0], 32 * 1024)
-
-    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
-    def test_single_request_inline_timing_control(self):
         inline = self.run_program(None, 48, 0, "timed-inline-single")
         self.assertGreater(inline["inline_swap"][0], 32 * 1024)
         if inline["inline"][0] <= 250:
             self.skipTest("single inline request did not establish the 250 ms timing threshold")
         self.assertGreater(inline["inline"][0], 250)
+        self.assertLess(asynchronous["gap"][0], 250)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_forked_child_still_acknowledges_pageout(self):
