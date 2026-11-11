@@ -69,16 +69,62 @@ class SessionClipboardTest {
             assertTrue(queued.exists())
             SessionState.sessionId = sessionId
             shadowOf(Looper.getMainLooper()).idle()
-            val deadline = System.currentTimeMillis() + 5000
-            while (queued.exists() && System.currentTimeMillis() < deadline) Thread.sleep(20)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertFalse(queued.exists())
             val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val deadline = System.currentTimeMillis() + 5000
+            while (manager.primaryClip?.getItemAt(0)?.text?.toString() != "from desktop" && System.currentTimeMillis() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(20)
+            }
+            assertFalse(queued.exists())
             assertEquals("from desktop", manager.primaryClip?.getItemAt(0)?.text?.toString())
         } finally {
             clipboard.stop()
             SessionState.sessionId = null
         }
+    }
+
+    private fun awaitClaimed(dir: File) {
+        val deadline = System.currentTimeMillis() + 5000
+        while (dir.listFiles()!!.none { it.name.endsWith(".claimed") } && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun runDeferredCopy(androidChangesWhileAway: Boolean): String? {
+        val sessionId = if (androidChangesWhileAway) "focus-newer" else "focus-same"
+        val dir = SessionClipboard.guestFile(context, sessionId).parentFile!!
+        dir.mkdirs()
+        File(dir, "text.queue.1.1.ready").writeText("from desktop")
+        SessionState.sessionId = sessionId
+        SessionState.mode = SessionService.MODE_DESKTOP
+        val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "phone"))
+        var focus = false
+        val clipboard = SessionClipboard(context) { focus }
+        clipboard.start()
+        try {
+            awaitClaimed(dir)
+            assertEquals("phone", manager.primaryClip?.getItemAt(0)?.text?.toString())
+            assertTrue(dir.listFiles()!!.any { it.name.endsWith(".claimed") })
+            if (androidChangesWhileAway) manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "newer"))
+            focus = true
+            clipboard.refresh()
+            assertTrue(dir.listFiles()!!.none { it.name.endsWith(".claimed") })
+            return manager.primaryClip?.getItemAt(0)?.text?.toString()
+        } finally {
+            clipboard.stop()
+            SessionState.sessionId = null
+        }
+    }
+
+    @Test fun copyArrivingWithoutFocusIsDeliveredWhenFocusReturns() {
+        assertEquals("from desktop", runDeferredCopy(androidChangesWhileAway = false))
+    }
+
+    @Test fun copyArrivingWithoutFocusDoesNotOverwriteANewerAndroidCopy() {
+        assertEquals("newer", runDeferredCopy(androidChangesWhileAway = true))
     }
 
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
