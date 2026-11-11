@@ -1,0 +1,312 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mark Gee
+Date: Wed, 11 Nov 2026 14:34:44 +0800
+Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
+
+---
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -29,6 +29,8 @@
+ #include <limits.h>      /* PATH_MAX, */
+ #include <string.h>      /* strcpy */
+ #include <sys/prctl.h>   /* PR_SET_DUMPABLE */
++#include <signal.h>      /* SIG_BLOCK, */
++#include <linux/seccomp.h> /* SECCOMP_SET_MODE_FILTER, */
+ #include <termios.h>     /* TCSETS, TCSANOW */
+ 
+ #include "cli/note.h"
+@@ -38,6 +40,7 @@
+ #include "ptrace/ptrace.h"
+ #include "ptrace/wait.h"
+ #include "syscall/heap.h"
++#include "syscall/seccomp.h"
+ #include "extension/extension.h"
+ #include "execve/execve.h"
+ #include "tracee/tracee.h"
+@@ -88,6 +91,31 @@ static int translate_sysarg(Tracee *tracee, Reg reg, Type type)
+ 	return translate_path2(tracee, AT_FDCWD, old_path, reg, type);
+ }
+ 
++/**
++ * Drop SIGSYS from a mask the guest blocks, see guard_guest_seccomp().
++ */
++static void keep_sigsys_unblocked(Tracee *tracee)
++{
++	const uint64_t sigsys = 1ULL << (SIGSYS - 1);
++	int how = (int) peek_reg(tracee, CURRENT, SYSARG_1);
++	word_t set = peek_reg(tracee, CURRENT, SYSARG_2);
++	word_t copy;
++	uint64_t mask;
++
++	if ((how != SIG_BLOCK && how != SIG_SETMASK) || set == 0
++	    || peek_reg(tracee, CURRENT, SYSARG_4) != sizeof(mask)
++	    || read_data(tracee, &mask, set, sizeof(mask)) < 0
++	    || (mask & sigsys) == 0)
++		return;
++
++	mask &= ~sigsys;
++	copy = alloc_mem(tracee, sizeof(mask));
++	if (copy == 0 || write_data(tracee, copy, &mask, sizeof(mask)) < 0)
++		return;
++
++	poke_reg(tracee, SYSARG_2, copy);
++}
++
+ /**
+  * Translate the input arguments of the current @tracee's syscall in the
+  * @tracee->pid process area. This function sets @tracee->status to
+@@ -727,6 +755,23 @@ int translate_syscall_enter(Tracee *tracee)
+ 			set_sysnum(tracee, PR_void);
+ 			status = 0;
+ 		}
++		else if (peek_reg(tracee, CURRENT, SYSARG_1) == PR_SET_SECCOMP
++			 && peek_reg(tracee, CURRENT, SYSARG_2) == SECCOMP_MODE_FILTER)
++			guard_guest_seccomp(tracee, false);
++		status = 0;
++		break;
++
++	case PR_seccomp:
++		if (peek_reg(tracee, CURRENT, SYSARG_1) == SECCOMP_SET_MODE_FILTER)
++			guard_guest_seccomp(tracee,
++				(peek_reg(tracee, CURRENT, SYSARG_2) & SECCOMP_FILTER_FLAG_TSYNC) != 0);
++		status = 0;
++		break;
++
++	case PR_rt_sigprocmask:
++		if (tracee->guest_seccomp)
++			keep_sigsys_unblocked(tracee);
++		status = 0;
+ 		break;
+ 
+ #ifdef __ANDROID__
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -47,9 +47,15 @@
+ #include <linux/fs.h>
+ #include <assert.h>        /* assert(3), */
+ #include <sys/mman.h>      /* PROT_*, */
++#include <signal.h>        /* SIG_UNBLOCK, */
++#include <inttypes.h>      /* PRIu64, */
+ 
+ #include "syscall/seccomp.h"
++#include "syscall/chain.h"
+ #include "tracee/tracee.h"
++#include "tracee/mem.h"
++#include "tracee/reg.h"
++#include "tracee/abi.h"
+ #include "syscall/syscall.h"
+ #include "syscall/sysnum.h"
+ #include "extension/extension.h"
+@@ -236,6 +242,27 @@ static int add_trace_syscall_if_arg(struct sock_fprog *program, word_t syscall,
+ 	return add_statements(program, LENGTH_TRACE_SYSCALL_IF_ARG, statements);
+ }
+ 
++static int add_trace_syscall_if_arg_either(struct sock_fprog *program, word_t syscall,
++				size_t arg, uint32_t value1, uint32_t value2, int flag)
++{
++	const size_t arg_offset = offsetof(struct seccomp_data, args[arg]);
++
++	#define LENGTH_TRACE_SYSCALL_IF_ARG_EITHER 6
++	struct sock_filter statements[LENGTH_TRACE_SYSCALL_IF_ARG_EITHER] = {
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, syscall, 0, 5),
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, arg_offset),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, value1, 1, 0),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, value2, 0, 1),
++		BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_TRACE + flag),
++		BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW)
++	};
++
++	DEBUG_FILTER("FILTER:     trace if syscall == %ld and arg %zd == %u or %u\n",
++		syscall, arg, value1, value2);
++
++	return add_statements(program, LENGTH_TRACE_SYSCALL_IF_ARG_EITHER, statements);
++}
++
+ static int add_trace_prlimit_stack(struct sock_fprog *program, word_t syscall, int flag)
+ {
+ 	const size_t resource_offset = offsetof(struct seccomp_data, args[1]);
+@@ -311,7 +338,9 @@ static size_t trace_length_raw(Sysnum sysnum)
+ {
+ 	switch (sysnum) {
+ 	case PR_prctl:
++		return LENGTH_TRACE_SYSCALL_IF_ARG_EITHER;
+ 	case PR_setrlimit:
++	case PR_seccomp:
+ 		return LENGTH_TRACE_SYSCALL_IF_ARG;
+ 	case PR_prlimit64:
+ 		return LENGTH_TRACE_PRLIMIT_STACK;
+@@ -333,7 +362,10 @@ static int add_trace(struct sock_fprog *program, Sysnum sysnum, word_t syscall,
+ 
+ 	switch (sysnum) {
+ 	case PR_prctl:
+-		return add_trace_syscall_if_arg(program, syscall, 0, PR_SET_DUMPABLE, flag);
++		return add_trace_syscall_if_arg_either(program, syscall, 0,
++			PR_SET_DUMPABLE, PR_SET_SECCOMP, flag);
++	case PR_seccomp:
++		return add_trace_syscall_if_arg(program, syscall, 0, SECCOMP_SET_MODE_FILTER, flag);
+ 	case PR_setrlimit:
+ 		return add_trace_syscall_if_arg(program, syscall, 0, RLIMIT_STACK, flag);
+ 	case PR_prlimit64:
+@@ -638,6 +670,7 @@ static FilteredSysnum proot_sysnums[] = {
+ 	{ PR_renameat,		FILTER_SYSEXIT },
+ 	{ PR_renameat2,		FILTER_SYSEXIT },
+ 	{ PR_rmdir,		0 },
++	{ PR_seccomp,		0 },
+ 	{ PR_setrlimit,		FILTER_SYSEXIT },
+ 	{ PR_setxattr,		0 },
+ 	{ PR_socketcall,	FILTER_SYSEXIT },
+@@ -843,6 +876,81 @@ word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum)
+ 	return sysnum < PR_NB_SYSNUM ? flags[sysnum] : FILTER_SYSEXIT;
+ }
+ 
++/**
++ * A seccomp trap that fires while SIGSYS is blocked makes the kernel
++ * reset the SIGSYS handler to SIG_DFL, even when PRoot answers the
++ * call and swallows the signal.  glibc starts every thread with all
++ * signals blocked and calls set_robust_list, which Android's policy
++ * traps, so a guest relying on its own filter's SIGSYS must never
++ * block it.  In sysenter of a call that installs the guest's filter,
++ * install first a filter that traces each rt_sigprocmask blocking
++ * signals, so that translate_syscall_enter() keeps SIGSYS out of the
++ * mask, then run the guest's call.  Only tasks with a filter of their
++ * own take those stops.
++ */
++void guard_guest_seccomp(Tracee *tracee, bool thread_group)
++{
++	SeccompArch seccomp_archs[] = SECCOMP_ARCHS;
++	const size_t args_0 = offsetof(struct seccomp_data, args[0]);
++	const size_t args_1 = offsetof(struct seccomp_data, args[1]);
++	struct sock_filter code[] = {
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, arch)),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, seccomp_archs[0].value, 0, 9),
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, nr)),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,
++			detranslate_sysnum(ABI_DEFAULT, PR_rt_sigprocmask), 0, 7),
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, args_0),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, SIG_UNBLOCK, 5, 0),
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, args_1),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, 0, 0, 2),
++		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, args_1 + sizeof(uint32_t)),
++		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0),
++		BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_TRACE),
++		BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
++	};
++	struct sock_fprog program = { .len = sizeof(code) / sizeof(code[0]) };
++	struct sock_fprog guest;
++	word_t code_address;
++	word_t program_address;
++
++	/* Feature probes pass no filter and change nothing.  */
++	if (get_abi(tracee) != ABI_DEFAULT
++	    || read_data(tracee, &guest, peek_reg(tracee, CURRENT, SYSARG_3), sizeof(guest)) < 0
++	    || guest.len == 0)
++		return;
++
++	set_guest_seccomp(tracee, thread_group);
++
++	/* Without proot's own filter, a trace event would switch the
++	 * tracer to seccomp mode; the masks are then filtered at the
++	 * syscall stops it already takes.  */
++	if (tracee->seccomp != ENABLED)
++		return;
++
++	code_address = alloc_mem(tracee, sizeof(code));
++	if (code_address == 0 || write_data(tracee, code_address, code, sizeof(code)) < 0)
++		return;
++
++	program.filter = (struct sock_filter *) code_address;
++	program_address = alloc_mem(tracee, sizeof(program));
++	if (program_address == 0 || write_data(tracee, program_address, &program, sizeof(program)) < 0
++	    || restart_original_syscall(tracee) < 0)
++		return;
++
++	/* The guard goes in through the guest's own syscall: with a
++	 * chain pending, a new syscall number isn't pushed to the kernel
++	 * (NT_ARM_SYSTEM_CALL on arm64).  */
++	if (get_sysnum(tracee, CURRENT) == PR_seccomp)
++		poke_reg(tracee, SYSARG_2, thread_group ? SECCOMP_FILTER_FLAG_TSYNC : 0);
++	poke_reg(tracee, SYSARG_3, program_address);
++
++	/* The guest's call runs once this one exits.  */
++	tracee->restart_how = PTRACE_SYSCALL;
++
++	VERBOSE(tracee, 2, "vpid %" PRIu64 ": guarding SIGSYS ahead of the guest's seccomp filter",
++		tracee->vpid);
++}
++
+ #else
+ 
+ #include "tracee/tracee.h"
+@@ -853,4 +961,9 @@ int enable_syscall_filtering(const Tracee *tracee UNUSED)
+ 	return 0;
+ }
+ 
++void guard_guest_seccomp(Tracee *tracee, bool thread_group)
++{
++	set_guest_seccomp(tracee, thread_group);
++}
++
+ #endif /* defined(HAVE_SECCOMP_FILTER) */
+--- a/src/syscall/seccomp.h
++++ b/src/syscall/seccomp.h
+@@ -46,5 +46,6 @@ typedef struct {
+ extern int enable_syscall_filtering(const Tracee *tracee);
+ extern word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum);
+ extern bool from_fastpath_stub(const Tracee *tracee);
++extern void guard_guest_seccomp(Tracee *tracee, bool thread_group);
+ 
+ #endif /* SECCOMP_H */
+--- a/src/tracee/tracee.c
++++ b/src/tracee/tracee.c
+@@ -628,6 +628,7 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
+ 	child->verbose = parent->verbose;
+ 	child->seccomp = parent->seccomp;
+ 	child->sysexit_pending = parent->sysexit_pending;
++	child->guest_seccomp = parent->guest_seccomp;
+ #ifdef HAS_POKEDATA_WORKAROUND
+ 	child->pokedata_workaround_stub_addr = parent->pokedata_workaround_stub_addr;
+ #endif
+@@ -870,6 +871,22 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
+ 	return 0;
+ }
+ 
++/* Note a guest seccomp filter on @tracee, or on its whole thread group
++ * for SECCOMP_FILTER_FLAG_TSYNC.  */
++void set_guest_seccomp(Tracee *tracee, bool thread_group)
++{
++	Tracee *thread;
++
++	tracee->guest_seccomp = true;
++	if (!thread_group)
++		return;
++
++	LIST_FOREACH(thread, &tracees, link) {
++		if (thread->tgid == tracee->tgid)
++			thread->guest_seccomp = true;
++	}
++}
++
+ /* Send the KILL signal to all tracees.  */
+ void kill_all_tracees()
+ {
+--- a/src/tracee/tracee.h
++++ b/src/tracee/tracee.h
+@@ -252,6 +252,10 @@ typedef struct tracee {
+ 
+ 	word_t robust_list;
+ 
++	/* The guest installed a seccomp filter of its own, which this
++	 * task inherits like the kernel's filters, across execve too.  */
++	bool guest_seccomp;
++
+ 	/**********************************************************************
+ 	 * Shared or private resources, depending on the CLONE_FS/VM flags.   *
+ 	 **********************************************************************/
+@@ -320,6 +324,7 @@ extern void terminate_tracee(Tracee *tracee);
+ extern void free_terminated_tracees();
+ extern int swap_config(Tracee *tracee1, Tracee *tracee2);
+ extern void kill_all_tracees();
++extern void set_guest_seccomp(Tracee *tracee, bool thread_group);
+ 
+ typedef LIST_HEAD(tracees, tracee) Tracees;
+ extern Tracees *get_tracees_list_head();
