@@ -37,7 +37,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 3
+ROOTFS_LAYOUT = 4
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -46,6 +46,7 @@ PROVIDED = frozenset((
     "libnss_compat.so.2", "libnss_dns.so.2", "libnss_files.so.2", "libnss_hesiod.so.2", "libthread_db.so.1",
     "libmemusage.so", "libpcprofile.so", "libc_malloc_debug.so.0", "gconv", "libstdc++.so.6", "libgcc_s.so.1",
     "libssl.so.3", "libcrypto.so.3",
+    "libfreetype.so.6", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libbz2.so.1.0", "libz.so.1",
     "libwayland-client.so.0", "libwayland-cursor.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
 ))
 GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
