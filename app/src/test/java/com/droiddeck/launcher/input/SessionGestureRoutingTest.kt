@@ -35,6 +35,7 @@ class SessionGestureRoutingTest {
     private lateinit var directHold: DirectTouchHold
     private val keys = mutableListOf<Pair<Int, Boolean>>()
     private val directButtons = mutableListOf<Pair<Int, Boolean>>()
+    private val directTouches = mutableListOf<Int>()
     private val scrollPositions = mutableListOf<Pair<Float, Float>>()
     private val scrollDeltas = mutableListOf<Pair<Float, Float>>()
     private var keyboards = 0
@@ -221,7 +222,7 @@ class SessionGestureRoutingTest {
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
         }, object : DirectTouchHold.Touch {
-            override fun down(pointerId: Int, x: Float, y: Float) {}
+            override fun down(pointerId: Int, x: Float, y: Float) { directTouches += 0 }
             override fun move(pointerId: Int, x: Float, y: Float) {}
             override fun up(pointerId: Int, x: Float, y: Float) {}
             override fun cancel() {}
@@ -234,6 +235,37 @@ class SessionGestureRoutingTest {
             override fun onLongPress() {}
         })
         setField("scrollTouch", launcherScroll)
+    }
+
+    @Test fun pointerLockedTapsAreDroppedWhileMouseButtonsAreShownAndSwipesStillAim() {
+        prepare(SessionPrefs.TOUCH_DIRECT)
+        setField("pointerLocked", true)
+        SessionState.outputSize = 1000 to 600
+        val rect = android.graphics.RectF(0f, 0f, 1000f, 600f)
+        fun forward(action: Int, x: Float, y: Float) {
+            val now = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(now, now, action, x, y, 0)
+            try { ReflectionHelpers.callInstanceMethod<Any?>(activity, "forwardTouch",
+                ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event),
+                ReflectionHelpers.ClassParameter.from(android.graphics.RectF::class.java, rect)) } finally { event.recycle() }
+        }
+        fun tap() {
+            forward(MotionEvent.ACTION_DOWN, 300f, 300f)
+            forward(MotionEvent.ACTION_UP, 300f, 300f)
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+        }
+        setField("directTouchTapsOff", true)
+        tap()
+        assertTrue(directTouches.isEmpty())
+        assertTrue(directButtons.isEmpty())
+        CompositorShadow.sceneInputs = 0
+        forward(MotionEvent.ACTION_DOWN, 300f, 300f)
+        forward(MotionEvent.ACTION_MOVE, 400f, 300f)
+        assertTrue(CompositorShadow.sceneInputs > 0)
+        forward(MotionEvent.ACTION_UP, 400f, 300f)
+        setField("directTouchTapsOff", false)
+        tap()
+        assertEquals(1, directTouches.size)
     }
 
     private fun tapThreeFingers(expectSteamGesture: Boolean) {
@@ -263,9 +295,10 @@ class SessionGestureRoutingTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class CompositorShadow {
         companion object {
+            @JvmStatic var sceneInputs = 0
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
-            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
+            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) { sceneInputs++ }
         }
     }
 }

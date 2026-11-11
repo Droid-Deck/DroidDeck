@@ -102,6 +102,28 @@ class SessionTouchRoutingTest {
         assertFalse(mouseButtonShown())
     }
 
+    @Test fun pinnedMouseButtonInButtonsOnlyControlsSuppressesTaps() {
+        steam.visibility = View.GONE
+        field("inputProfile", userMouseButtonProfile)
+        val controls = shownControls(button.copy(alwaysShown = true))
+        controls.setButtonsOnly(true)
+        assertTrue(mouseButtonShown())
+        val plain = shownControls(button)
+        plain.setButtonsOnly(true)
+        assertFalse(mouseButtonShown())
+    }
+
+    @Test fun mouseClickOnAStickOrTrackpadSuppressesTaps() {
+        steam.visibility = View.GONE
+        val stick = InputSurfaceElement(InputControl.LS, .1f, .3f, .3f, .4f)
+        shownControls(stick)
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        assertFalse(mouseButtonShown())
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP)
+            .copy(clicks = mapOf(InputRole.PRIMARY to mapOf(stick.id to InputAction.MouseButton(274)))))
+        assertTrue(mouseButtonShown())
+    }
+
     private val userMouseButtonProfile = InputProfile.defaults(InputProfile.DESKTOP)
         .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))
 

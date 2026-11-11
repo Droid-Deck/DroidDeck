@@ -47,4 +47,22 @@ class InputProfileMouseButtonTest {
         assertFalse(saved.hasMouseButton(InputRole.PRIMARY, listOf(a, trigger)))
         assertTrue(saved.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274)).hasMouseButton(InputRole.PRIMARY, listOf(a)))
     }
+
+    @Test fun configuredStickAndTrackpadClickMouseButtonsCount() {
+        val stick = InputSurfaceElement(InputControl.LS, 0f, 0f, .3f, .3f)
+        val desktop = InputProfile.defaults(InputProfile.DESKTOP)
+        assertFalse(desktop.hasMouseButton(InputRole.PRIMARY, listOf(stick, trackpad)))
+        assertFalse(InputProfile.defaults(InputProfile.GAME).hasMouseButton(InputRole.PRIMARY, listOf(stick, trackpad)))
+        val stickClick = desktop.copy(clicks = mapOf(InputRole.PRIMARY to mapOf(stick.id to InputAction.MouseButton(274))))
+        assertTrue(stickClick.hasMouseButton(InputRole.PRIMARY, listOf(stick)))
+        assertFalse(stickClick.hasMouseButton(InputRole.SECONDARY, listOf(stick)))
+        val padClick = InputProfile.defaults(InputProfile.GAME).copy(clicks = mapOf(InputRole.PRIMARY to mapOf(trackpad.id to InputAction.MouseButton(272))))
+        assertTrue(padClick.hasMouseButton(InputRole.PRIMARY, listOf(trackpad)))
+    }
+
+    @Test fun secondaryRoleBindingCountsOnlyForTheSecondaryRole() {
+        val secondary = InputProfile.defaults(InputProfile.GAME).withBinding(InputRole.SECONDARY, InputControl.A, InputAction.MouseButton(272))
+        assertTrue(secondary.hasMouseButton(InputRole.SECONDARY, listOf(a)))
+        assertFalse(secondary.hasMouseButton(InputRole.PRIMARY, listOf(a)))
+    }
 }

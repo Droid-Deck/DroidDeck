@@ -804,7 +804,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     scrollRestY = 0f
                 }
                 override fun replay(event: MotionEvent) {
-                    if (directTouchMovesOnly) moveDirectPointer(event.x, event.y)
+                    if (directTouchTapsOff && !programLocksPointer()) moveDirectPointer(event.x, event.y)
                     else drawnRect()?.let { forwardTouch(event, it) }
                 }
                 override fun rightClick(x: Float, y: Float) {
@@ -4086,10 +4086,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun onScreenMouseButtonShown(): Boolean {
         if (steamTouchControls?.visibility == View.VISIBLE) return false
-        val controls = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
-            .filter { it.visibility == View.VISIBLE && !it.isButtonsOnly }.map { it.shownElements() }
-        val deck = listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
-        return (controls + deck).any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) }
+        val primary = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
+            .filter { it.visibility == View.VISIBLE }.map { it.shownElements() } +
+            listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
+        val secondary = secondScreenPresentation?.shownControlElements().orEmpty()
+        return primary.any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) } ||
+            inputProfile.hasMouseButton(InputRole.SECONDARY, secondary)
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {
@@ -4108,7 +4110,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showCursor(cx, cy)
     }
 
-    private var directTouchMovesOnly = false
+    private var directTouchTapsOff = false
 
     private fun moveDirectPointer(x: Float, y: Float) {
         if (pointerLocked) gestureOutput.moveTo(x, y) else movePointer(x, y)
@@ -4127,22 +4129,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            directTouchMovesOnly = !programLocksPointer() && onScreenMouseButtonShown()
-            if (directTouchMovesOnly) {
+            directTouchTapsOff = onScreenMouseButtonShown()
+            if (directTouchTapsOff && !programLocksPointer()) {
                 gesturePointerReady = false
                 directTouchHold.cancel()
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
             }
         }
-        if (directTouchMovesOnly) {
+        if (directTouchTapsOff && !programLocksPointer()) {
             val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
             if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
                 moveDirectPointer(event.x, event.y)
-            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchMovesOnly = false
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
             return true
         }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true
-        return forwardTouch(event, rect)
+        val forwarded = forwardTouch(event, rect)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
+        return forwarded
     }
 
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
@@ -4175,7 +4179,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
         }
-        directTouchHold.onTouch(event)
+        if (!directTouchTapsOff) directTouchHold.onTouch(event)
         return true
     }
 

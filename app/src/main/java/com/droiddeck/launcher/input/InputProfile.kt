@@ -53,10 +53,11 @@ data class InputProfile(
 
     fun hasMouseButton(role: InputRole, elements: List<InputSurfaceElement>): Boolean {
         val stock = defaults(base)
+        fun chosen(action: InputAction, shipped: InputAction) = action is InputAction.MouseButton && action != shipped
         return elements.any {
-            val action = elementAction(role, it.id, it.control)
-            (it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER) && action is InputAction.MouseButton &&
-                action != stock.elementAction(role, it.id, it.control)
+            val pressable = it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER
+            pressable && chosen(elementAction(role, it.id, it.control), stock.elementAction(role, it.id, it.control)) ||
+                it.hasClick && chosen(elementClickAction(role, it), stock.elementClickAction(role, it))
         }
     }
 

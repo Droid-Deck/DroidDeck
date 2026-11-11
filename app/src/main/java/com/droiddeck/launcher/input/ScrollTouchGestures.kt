@@ -130,7 +130,7 @@ class ScrollTouchGestures(
     private fun sample(x: Float, y: Float, t: Long) {
         if (!scrolling && !dragging && hypot(x - startX, y - startY) > slopPx) {
             handler.removeCallbacks(longPress)
-            if (held && tapClicks) {
+            if (held) {
                 dragging = true
                 listener.onButton(PointerGestures.BTN_LEFT, true)
             } else {
