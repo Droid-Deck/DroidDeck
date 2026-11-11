@@ -3634,4 +3634,5 @@
 
     <string name="theme_white_red">猩红之雪</string>
 
+    <string name="frame_gen_game_id_unavailable">游戏 ID 不可用；全局配置未更改。</string>
 </resources>

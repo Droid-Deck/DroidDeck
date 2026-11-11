@@ -3630,4 +3630,5 @@
 
     <string name="theme_white_red">Salju Kirmizi</string>
 
+    <string name="frame_gen_game_id_unavailable">ID game tidak tersedia; profil global tidak diubah.</string>
 </resources>

@@ -3671,4 +3671,5 @@
     <string name="input_layout_import_failed">No se pudo importar esta disposición</string>
     <string name="theme_white_red">Nieve escarlata</string>
     <string name="theme_white_red_detail">Superficies blancas con acentos rojos.</string>
+    <string name="frame_gen_game_id_unavailable">El ID del juego no está disponible; no se modificó el perfil global.</string>
 </resources>

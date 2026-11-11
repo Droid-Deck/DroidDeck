@@ -3699,4 +3699,5 @@
 
     <string name="theme_white_red">Neige écarlate</string>
 
+    <string name="frame_gen_game_id_unavailable">ID du jeu indisponible ; le profil global n’a pas été modifié.</string>
 </resources>

@@ -3630,4 +3630,5 @@
 
     <string name="theme_white_red">緋色の雪</string>
 
+    <string name="frame_gen_game_id_unavailable">ゲーム ID を取得できません。グローバルプロファイルは変更されていません。</string>
 </resources>

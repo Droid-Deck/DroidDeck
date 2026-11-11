@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
 
+    <string name="frame_gen_game_id_unavailable">Το αναγνωριστικό παιχνιδιού δεν είναι διαθέσιμο· το καθολικό προφίλ δεν άλλαξε.</string>
 </resources>

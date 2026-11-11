@@ -3816,4 +3816,5 @@
 
     <string name="theme_white_red">ثلج قرمزي</string>
 
+    <string name="frame_gen_game_id_unavailable">معرّف اللعبة غير متاح؛ لم يتم تغيير الملف الشخصي العام.</string>
 </resources>

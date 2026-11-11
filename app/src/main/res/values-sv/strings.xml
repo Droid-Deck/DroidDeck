@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Scharlakansröd snö</string>
 
+    <string name="frame_gen_game_id_unavailable">Spel-ID är inte tillgängligt; den globala profilen ändrades inte.</string>
 </resources>

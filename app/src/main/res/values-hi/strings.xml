@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">किरमिज़ी बर्फ</string>
 
+    <string name="frame_gen_game_id_unavailable">गेम ID उपलब्ध नहीं है; वैश्विक प्रोफ़ाइल नहीं बदली गई।</string>
 </resources>

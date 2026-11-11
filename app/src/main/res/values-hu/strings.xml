@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Skarlátvörös hó</string>
 
+    <string name="frame_gen_game_id_unavailable">A játékazonosító nem érhető el; a globális profil nem változott.</string>
 </resources>

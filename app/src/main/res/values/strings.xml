@@ -3819,4 +3819,5 @@
     <string name="display_position_left">Left</string>
     <string name="display_position_right">Right</string>
     <string name="theme_white_red">Scarlet Snow</string>
+    <string name="frame_gen_game_id_unavailable">Game ID unavailable; global profile was not changed.</string>
 </resources>

@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Scharlakenrode sneeuw</string>
 
+    <string name="frame_gen_game_id_unavailable">Game-ID niet beschikbaar; het globale profiel is niet gewijzigd.</string>
 </resources>

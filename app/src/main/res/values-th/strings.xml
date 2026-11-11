@@ -3630,4 +3630,5 @@
 
     <string name="theme_white_red">หิมะสีแดงชาด</string>
 
+    <string name="frame_gen_game_id_unavailable">ไม่มี ID เกม จึงไม่มีการเปลี่ยนแปลงโปรไฟล์ส่วนกลาง</string>
 </resources>

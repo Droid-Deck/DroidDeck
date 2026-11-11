@@ -3738,4 +3738,5 @@
 
     <string name="theme_white_red">Szkarłatny śnieg</string>
 
+    <string name="frame_gen_game_id_unavailable">Identyfikator gry jest niedostępny; profil globalny nie został zmieniony.</string>
 </resources>

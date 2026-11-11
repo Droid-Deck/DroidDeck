@@ -3821,4 +3821,5 @@
 
     <string name="theme_white_red">Алый снег</string>
 
+    <string name="frame_gen_game_id_unavailable">Идентификатор игры недоступен; глобальный профиль не изменён.</string>
 </resources>

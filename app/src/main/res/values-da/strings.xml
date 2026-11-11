@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Skarlagensne</string>
 
+    <string name="frame_gen_game_id_unavailable">Spil-id er ikke tilgængeligt; den globale profil blev ikke ændret.</string>
 </resources>

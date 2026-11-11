@@ -3699,4 +3699,5 @@
 
     <string name="theme_white_red">Neve scarlatta</string>
 
+    <string name="frame_gen_game_id_unavailable">ID del gioco non disponibile; il profilo globale non è stato modificato.</string>
 </resources>

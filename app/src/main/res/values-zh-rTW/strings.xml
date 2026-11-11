@@ -3633,4 +3633,5 @@
 
     <string name="theme_white_red">緋紅之雪</string>
 
+    <string name="frame_gen_game_id_unavailable">遊戲 ID 無法使用；全域設定檔未變更。</string>
 </resources>

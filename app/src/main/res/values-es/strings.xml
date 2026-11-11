@@ -3699,4 +3699,5 @@
 
     <string name="theme_white_red">Nieve escarlata</string>
 
+    <string name="frame_gen_game_id_unavailable">El ID del juego no está disponible; no se modificó el perfil global.</string>
 </resources>

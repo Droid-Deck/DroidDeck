@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Ален сняг</string>
 
+    <string name="frame_gen_game_id_unavailable">Идентификаторът на играта не е наличен; глобалният профил не е променен.</string>
 </resources>

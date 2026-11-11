@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Helakanpunainen lumi</string>
 
+    <string name="frame_gen_game_id_unavailable">Pelin tunnus ei ole käytettävissä; yleistä profiilia ei muutettu.</string>
 </resources>

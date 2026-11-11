@@ -1328,7 +1328,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
                     Toast.makeText(
                         this@SessionActivity,
-                        "Game ID unavailable; global profile was not changed.",
+                        "getString(R.string.frame_gen_game_id_unavailable)",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
@@ -1345,7 +1345,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
                     Toast.makeText(
                         this@SessionActivity,
-                        "Game ID unavailable; global profile was not changed.",
+                        "getString(R.string.frame_gen_game_id_unavailable)",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {

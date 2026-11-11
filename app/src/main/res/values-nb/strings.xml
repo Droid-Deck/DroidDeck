@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Skarlagenssnø</string>
 
+    <string name="frame_gen_game_id_unavailable">Spill-ID er ikke tilgjengelig; den globale profilen ble ikke endret.</string>
 </resources>

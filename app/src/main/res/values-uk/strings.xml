@@ -3738,4 +3738,5 @@
 
     <string name="theme_white_red">Багряний сніг</string>
 
+    <string name="frame_gen_game_id_unavailable">Ідентифікатор гри недоступний; глобальний профіль не змінено.</string>
 </resources>

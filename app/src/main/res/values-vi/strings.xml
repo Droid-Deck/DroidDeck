@@ -3630,4 +3630,5 @@
 
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
 
+    <string name="frame_gen_game_id_unavailable">Không có ID trò chơi; hồ sơ toàn cục không được thay đổi.</string>
 </resources>

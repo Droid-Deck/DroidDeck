@@ -3660,4 +3660,5 @@
 
     <string name="theme_white_red">Scharlachroter Schnee</string>
 
+    <string name="frame_gen_game_id_unavailable">Spiel-ID nicht verfügbar; das globale Profil wurde nicht geändert.</string>
 </resources>
