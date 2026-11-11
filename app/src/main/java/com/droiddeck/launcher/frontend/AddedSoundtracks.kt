@@ -57,12 +57,12 @@ object AddedSoundtracks {
 
     fun games(context: Context): List<Library.SteamGame> = entries(context).mapNotNull { e ->
         val dir = File(e.path).takeIf { it.isDirectory } ?: return@mapNotNull null
-        game(e, dir, e.id)
+        game(context, e, dir, e.id)
     }
 
-    private fun game(e: Entry, dir: File, id: Int): Library.SteamGame {
+    private fun game(context: Context, e: Entry, dir: File, id: Int): Library.SteamGame {
         return Library.SteamGame(
-            appId = id, name = e.name, art = Soundtrack.cover(dir), library = Library.ADDED, gameId = id.toLong() and 0xFFFFFFFFL,
+            appId = id, name = e.name, art = Soundtrack.firstCover(context, dir), library = Library.ADDED, gameId = id.toLong() and 0xFFFFFFFFL,
             gameFiles = dir, source = Library.ADDED, soundtrack = true,
         )
     }

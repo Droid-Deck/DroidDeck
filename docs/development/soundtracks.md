@@ -27,7 +27,7 @@ Setup > Launcher > Soundtracks. When off, the tab disappears and installed Steam
 
 ## Cover art
 
-Steam's own library cache image first, then `AlbumArtwork`, `cover`, `folder` and similar files in the soundtrack folder. The SteamGridDB artwork changer applies to Steam soundtracks like any other Steam entry.
+Steam's own library cache image first, then `AlbumArtwork`, `cover`, `folder` and similar files in the soundtrack folder. When none exists, the picture embedded in the first track that has one is used, so the grid shows it without opening the album. The player page shows the embedded picture of the track that is playing and falls back to the album cover for tracks without one. The SteamGridDB artwork changer applies to Steam soundtracks like any other Steam entry.
 
 ## Player page
 

@@ -132,10 +132,15 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
     val pal = LocalPalette.current
     val belongs = SoundtrackController.belongs(game.gameFiles)
     val playing = belongs && SoundtrackController.playing
+    val currentTrack = if (belongs) SoundtrackController.currentId else null
+    val trackArt by produceState<java.io.File?>(null, currentTrack) {
+        value = currentTrack?.let { id -> withContext(Dispatchers.IO) { Soundtrack.trackCover(ctx, java.io.File(id)) } }
+    }
+    val shownArt: Any? = trackArt ?: art
     Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.size(120.dp).clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f))) {
-                if (art != null) AsyncImage(art, contentDescription = game.name, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().testTag("soundtrack-cover"))
+                if (shownArt != null) AsyncImage(shownArt, contentDescription = game.name, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().testTag("soundtrack-cover"))
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
                 Text(

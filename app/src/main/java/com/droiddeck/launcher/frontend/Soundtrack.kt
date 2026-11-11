@@ -207,25 +207,61 @@ object Soundtrack {
 
     fun cachedCover(context: Context, root: File): File? = coverCache(context, root).takeIf { it.isFile && it.length() > 0L }
 
+    private fun embeddedBytes(file: File): ByteArray? = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.path)
+            retriever.embeddedPicture
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+    private fun hashOf(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes).take(16).joinToString("") { "%02x".format(it) }
+
     private fun embeddedCover(context: Context, root: File, files: List<File>): File? {
         cachedCover(context, root)?.let { return it }
+        val miss = File(coverCache(context, root).path + ".none")
+        if (runCatching { miss.isFile && miss.readText().trim() == files.size.toString() }.getOrDefault(false)) return null
         for (file in files.take(8)) {
-            val bytes = runCatching {
-                val retriever = MediaMetadataRetriever()
-                try {
-                    retriever.setDataSource(file.path)
-                    retriever.embeddedPicture
-                } finally {
-                    runCatching { retriever.release() }
-                }
-            }.getOrNull()?.takeIf { it.isNotEmpty() } ?: continue
+            val bytes = embeddedBytes(file) ?: continue
             val out = coverCache(context, root)
             runCatching {
                 out.parentFile?.mkdirs()
                 out.writeBytes(bytes)
             }.onSuccess { return out }
         }
+        runCatching {
+            miss.parentFile?.mkdirs()
+            miss.writeText(files.size.toString())
+        }
         return null
+    }
+
+    fun firstCover(context: Context, root: File): File? = cover(root) ?: embeddedCover(context, root, audioFiles(root))
+
+    fun trackCover(context: Context, file: File): File? {
+        val dir = File(context.filesDir, "soundtrack-index/track-covers")
+        val marker = File(dir, "t-" + hashOf("${file.path}|${file.length()}|${file.lastModified()}".toByteArray(Charsets.UTF_8)))
+        if (marker.isFile) {
+            val name = runCatching { marker.readText().trim() }.getOrDefault("")
+            if (name.isEmpty()) return null
+            File(dir, name).takeIf { it.isFile && it.length() > 0L }?.let { return it }
+        }
+        val bytes = embeddedBytes(file)
+        return runCatching {
+            dir.mkdirs()
+            if (bytes == null) {
+                marker.writeText("")
+                null
+            } else {
+                val out = File(dir, "c-" + hashOf(bytes) + ".jpg")
+                if (!out.isFile || out.length() == 0L) out.writeBytes(bytes)
+                marker.writeText(out.name)
+                out
+            }
+        }.getOrNull()
     }
 
     fun load(context: Context, root: File, coverHint: File? = null): Album {
