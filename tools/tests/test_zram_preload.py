@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
       send_request('1');
       wait_ack();
       printf("burstack 1\n");
-    } else if (!strcmp(argv[4], "timed-inline")) {
+    } else if (!strcmp(argv[4], "timed-inline") || !strcmp(argv[4], "timed-inline-single")) {
       pid_t child = fork();
       if (child < 0) exit(8);
       if (child == 0) {
@@ -182,7 +182,8 @@ int main(int argc, char **argv) {
         if (fd < 0 || write(fd, "1", 1) != 1) _exit(9);
         close(fd);
         clock_gettime(CLOCK_MONOTONIC, &start);
-        for (int i = 0; i < 64; i++) {
+        int requests = !strcmp(argv[4], "timed-inline-single") ? 1 : 64;
+        for (int i = 0; i < requests; i++) {
           send_request('1');
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -370,6 +371,14 @@ class ZramPreloadTest(unittest.TestCase):
     def test_inline_pageout_exceeds_async_timing_tolerance(self):
         out = self.run_program(None, 256, 0, "timed-inline")
         self.assertGreater(out["inline"][0], 250)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_single_request_timing_control(self):
+        asynchronous = self.run_program(None, 48, 0, "timed")
+        inline = self.run_program(None, 48, 0, "timed-inline-single")
+        self.assertLess(asynchronous["gap"][0], 250)
+        self.assertGreater(asynchronous["out"][0], 32 * 1024)
+        self.assertGreater(inline["inline"][0], 250)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_forked_child_still_acknowledges_pageout(self):
