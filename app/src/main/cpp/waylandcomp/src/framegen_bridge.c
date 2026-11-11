@@ -26,7 +26,7 @@ static float g_flow = 0.8f, g_refresh_hz;
 static char *g_cache_path;
 static _Atomic int   g_cache_gen;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t g_engine_lock = PTHREAD_MUTEX_INITIALIZER;
+static _Atomic float g_thermal = -1.0f;
 
 static VkDevice g_dev;
 static VkInstance g_inst;
@@ -152,15 +152,11 @@ int vkp_framegen_problem(void) {
 const char *vkp_framegen_caps_reason(void) { return fge_caps_reason(); }
 
 void vkp_framegen_stats(float out[6]) {
-    float accepted = 0.0f, src = 0.0f, thermal = -1.0f;
-    pthread_mutex_lock(&g_engine_lock);
-    if (g_engine_ok) fge_telemetry(&accepted, &src, &thermal);
-    pthread_mutex_unlock(&g_engine_lock);
     out[0] = (float)g_planned;
     out[1] = (float)g_planned;
     out[2] = g_source_rate;
     out[3] = g_presented_rate;
-    out[4] = thermal;
+    out[4] = atomic_load(&g_thermal);
     out[5] = -1.0f;
 }
 
@@ -257,10 +253,9 @@ int vkp_framegen_format_ok(VkFormat fmt) {
 }
 
 static void stop_engine(void) {
-    pthread_mutex_lock(&g_engine_lock);
     fge_stop();
     g_engine_ok = 0; g_engine_kind = -1;
-    pthread_mutex_unlock(&g_engine_lock);
+    atomic_store(&g_thermal, -1.0f);
 }
 
 static void refuse_format(VkFormat fmt, int kind, int w, int h, const char *what) {
@@ -296,9 +291,7 @@ static int ensure_engine(int kind) {
         mark_failed(kind);
         return 0;
     }
-    pthread_mutex_lock(&g_engine_lock);
     int r = fge_start(kind, path);
-    pthread_mutex_unlock(&g_engine_lock);
     free(path);
     if (r != 0) {
         FGLOG("%s failed to start on the compositor's driver; frame generation stays off",
@@ -395,6 +388,9 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
     uint32_t n_gen = fge_plan(g_ring_n, game_frames ? game_frames : g_source_frames, g_presented_rate);
     if (n_gen > g_ring_n) n_gen = g_ring_n;
     g_planned = n_gen;
+    float accepted, src, thermal;
+    fge_telemetry(&accepted, &src, &thermal);
+    atomic_store(&g_thermal, thermal);
 
     VkImageMemoryBarrier bars[1 + VKP_FG_MAX_GENERATIONS];
     uint32_t nb = 0;

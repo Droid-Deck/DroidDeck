@@ -557,13 +557,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenGameId by mutableStateOf<Long?>(null)
+    private var frameGenScopeFromRunningGame = false
+    private val frameGenScopeRequests = java.util.concurrent.atomic.AtomicInteger()
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
     private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
-    @Volatile private var frameGenInventoryIds: Set<Long>? = null
-    @Volatile private var frameGenInventoryRevision = -1L
-    private val frameGenInventoryLock = Any()
-    @Volatile private var frameGenInventoryLastAttemptAt = 0L
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     @Volatile private var appliedFrameGenHz: Float? = null
     private var fexPreset by mutableStateOf("")
@@ -1319,24 +1317,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val selectedAppId = drawerGameProfileId
-                val chosenManually = !drawerGameProfileFollowState.followsSteam
-                Thread({
-                    val appId = FrameGen.targetGame(selectedAppId, chosenManually, ::activeFrameGenAppId)
-                    runOnUiThread {
-                        if (appId == null) FrameGen.set(this@SessionActivity, mode)
-                        else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
-                        readPrefs()
-                        loadFrameGenFor(appId)
-                        applyFrameGen(force = true)
-                    }
-                }, "frame-gen-save").start()
+                val appId = frameGenGameId
+                if (appId == null) FrameGen.set(this@SessionActivity, mode)
+                else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
+                readPrefs()
+                applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = frameGenGameId
-                appId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
+                frameGenGameId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
                 readPrefs()
-                loadFrameGenFor(appId)
                 applyFrameGen(force = true)
             },
             onImportLossless = {
@@ -1686,12 +1675,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun loadFrameGenFor(appId: Long?) {
-        val profileId = appId?.toString()
-        frameGen = FrameGen.mode(this, profileId)
+        val request = frameGenScopeRequests.incrementAndGet()
+        val chosenManually = !drawerGameProfileFollowState.followsSteam
+        if (appId != null || chosenManually) {
+            showFrameGenScope(appId, fromRunningGame = false)
+            return
+        }
+        showFrameGenScope(frameGenGameId.takeIf { frameGenScopeFromRunningGame }, frameGenScopeFromRunningGame)
+        Thread({
+            val running = FrameGen.targetGame(null, chosenManually = false, ::activeFrameGenAppId)
+            runOnUiThread {
+                if (request == frameGenScopeRequests.get()) showFrameGenScope(running, running != null)
+            }
+        }, "frame-gen-scope").start()
+    }
+
+    private fun showFrameGenScope(appId: Long?, fromRunningGame: Boolean) {
+        frameGen = FrameGen.mode(this, appId?.toString())
         frameGenGameId = appId
-        frameGenHasGameOverride = appId?.let {
-            FrameGen.hasGameOverride(this, it.toString())
-        } == true
+        frameGenScopeFromRunningGame = fromRunningGame && appId != null
+        frameGenHasGameOverride = appId?.let { FrameGen.hasGameOverride(this, it.toString()) } == true
     }
 
     private fun refreshDrawerGameProfile() {

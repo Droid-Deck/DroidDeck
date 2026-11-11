@@ -563,7 +563,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                                val fgScope = stringResource(
+                                val fgGameName = a.gameProfiles.firstOrNull { it.first == a.frameGenGameId }?.second
+                                val fgScope = fgGameName ?: stringResource(
                                     if (a.frameGenGameId != null) R.string.frame_gen_scope_game else R.string.frame_gen_scope_global,
                                 )
                                 SettingsRow(stringResource(R.string.frame_gen_title), fgScope, highlighted = fgOpen) {
