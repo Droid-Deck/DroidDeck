@@ -609,7 +609,7 @@ class PrepareTest(FexTestCase):
                 for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
                     base = sniper / "files/lib" / arch
                     newer = provider / "files/lib" / arch
-                    for name in ("libwayland-client.so.0", "libwayland-server.so.0"):
+                    for name in ("libwayland-client.so.0", "libwayland-server.so.0", "libwayland-cursor.so.0"):
                         self.write(base / name, b"base")
                         self.write(newer / name, b"provider")
                     if ffi_state == "dangling":
@@ -620,16 +620,42 @@ class PrepareTest(FexTestCase):
                 fex, _ = self.quiet(FEX["prepare"])
                 for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
                     root = Path(fex["rootfs"]) / "lib" / arch
-                    for name in ("libwayland-client.so.0", "libwayland-server.so.0"):
+                    for name in ("libwayland-client.so.0", "libwayland-server.so.0", "libwayland-cursor.so.0"):
                         self.assertEqual((root / name).read_bytes(), b"base")
                     self.assertFalse(os.path.lexists(root / "libffi.so.8"))
+
+    def test_wayland_cursor_requires_usable_provider_client_on_both_architectures(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for client_state in ("missing", "dangling"):
+            with self.subTest(client_state=client_state):
+                for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+                    base = sniper / "files/lib" / arch
+                    newer = provider / "files/lib" / arch
+                    self.write(base / "libwayland-client.so.0", b"base client")
+                    self.write(base / "libwayland-cursor.so.0", b"base cursor")
+                    self.write(newer / "libwayland-cursor.so.0", b"provider cursor")
+                    self.write(newer / "libffi.so.8", b"provider ffi")
+                    if client_state == "dangling":
+                        os.symlink("missing-client.so", newer / "libwayland-client.so.0")
+                marker = self.home / ".local/share/droiddeck-fex/rootfs/.droiddeck-fex"
+                if marker.exists():
+                    marker.unlink()
+                fex, _ = self.quiet(FEX["prepare"])
+                for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+                    root = Path(fex["rootfs"]) / "lib" / arch
+                    self.assertEqual((root / "libwayland-client.so.0").read_bytes(), b"base client")
+                    self.assertEqual((root / "libwayland-cursor.so.0").read_bytes(), b"base cursor")
+                    self.assertEqual((root / "libffi.so.8").read_bytes(), b"provider ffi")
 
     def test_the_old_rootfs_layout_is_rebuilt(self):
         self.fex_tool()
         sniper = self.runtime()
         FEX["materialize"](str(sniper))
         self.graphics(sniper)
-        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 5}):
+        with mock.patch.dict(G, {"ROOTFS_LAYOUT": 6}):
             self.quiet(FEX["prepare"])
         _, said = self.quiet(FEX["prepare"])
         self.assertIn("built the x86 runtime", said)

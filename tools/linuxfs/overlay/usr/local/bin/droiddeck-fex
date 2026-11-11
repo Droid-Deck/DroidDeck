@@ -37,7 +37,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 6
+ROOTFS_LAYOUT = 7
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -313,9 +313,10 @@ def provides_newer(base, provider):
 
 
 def mirror(source, provider, name, target):
-    wayland_needs_ffi = name in ("libwayland-client.so.0", "libwayland-server.so.0")
+    wayland_needs_ffi = name in ("libwayland-client.so.0", "libwayland-server.so.0", "libwayland-cursor.so.0")
     usable_provider = provider and os.path.exists(os.path.join(provider, name)) and (
-        not wayland_needs_ffi or os.path.exists(os.path.join(provider, "libffi.so.8")))
+        not wayland_needs_ffi or os.path.exists(os.path.join(provider, "libffi.so.8"))) and (
+        name != "libwayland-cursor.so.0" or os.path.exists(os.path.join(provider, "libwayland-client.so.0")))
     if name in PROVIDED and usable_provider:
         os.symlink(os.path.realpath(os.path.join(provider, name)), os.path.join(target, name))
         return
