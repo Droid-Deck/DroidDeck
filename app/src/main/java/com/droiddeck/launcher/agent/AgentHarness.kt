@@ -27,6 +27,8 @@ interface AgentHarness {
     fun turn(message: String, conversation: String?, options: Options): List<String>
     /** One line of the CLI's output, or null when it carries nothing to show. */
     fun parse(line: String): AgentEvent?
+    /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
+    fun prepare(rootfs: File) {}
 
     data class Model(val id: String, val label: String)
 
@@ -58,6 +60,28 @@ object ClaudeCode : AgentHarness {
     override val signedIn = listOf("sh", "-c", "$binary auth status | grep -q '\"loggedIn\": true'")
     override val signIn = listOf(binary, "auth", "login", "--claudeai")
     override val plans = true
+
+    /**
+     * Commits and pull requests the agent makes carry no Claude Code credit or co-author line by
+     * default. Only keys the user has not set are written, so their own choice stays.
+     */
+    override fun prepare(rootfs: File) {
+        val file = File(rootfs, "root/.claude/settings.json")
+        val settings = if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() ?: return else JSONObject()
+        var changed = false
+        if (!settings.has("includeCoAuthoredBy")) {
+            settings.put("includeCoAuthoredBy", false)
+            changed = true
+        }
+        if (!settings.has("attribution")) {
+            settings.put("attribution", JSONObject().put("commit", "").put("pr", ""))
+            changed = true
+        }
+        if (changed) runCatching {
+            file.parentFile?.mkdirs()
+            file.writeText(settings.toString(2) + "\n")
+        }
+    }
 
     override fun models(rootfs: File) = listOf(
         AgentHarness.Model("opus", "Opus"), AgentHarness.Model("sonnet", "Sonnet"), AgentHarness.Model("haiku", "Haiku"),
