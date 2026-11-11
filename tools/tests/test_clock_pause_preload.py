@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import queue
+import re
 import shlex
 import shutil
 import struct
@@ -16,9 +17,10 @@ def clock_reset_command(control):
     script = (PRELOAD.parent / "overlay/usr/local/bin/droiddeck-session").read_text()
     start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
     end = script.index("\nfi", start) + len("\nfi")
-    return ('BL_INSIDE=; BL_ZRAM=0; ' + script[start:end]
-            .replace("/tmp/.bl-clock", shlex.quote(str(control)))
-            .replace("/tmp/.bl-zram", shlex.quote(str(control.parent / "zram"))))
+    paths = {"/tmp/.bl-clock": shlex.quote(str(control)),
+             "/tmp/.bl-zram": shlex.quote(str(control.parent / "zram"))}
+    pattern = "|".join(re.escape(token) for token in paths)
+    return 'BL_INSIDE=; BL_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -253,6 +255,21 @@ class ClockResetCommandTest(unittest.TestCase):
             self.assertFalse((folder / "zram").exists())
             self.assertEqual(bystander.read_text(), "keep")
             self.assertEqual(sorted(path.name for path in root.iterdir()), sorted([folder.name, bystander.name]))
+
+    def test_reset_does_not_rewrite_placeholders_inside_substituted_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "tmp/.bl-zram/$(touch injected)"
+            folder.mkdir(parents=True)
+            control = folder / "clock"
+            control.write_bytes(struct.pack("<q", 10_000_000_000))
+            (folder / "zram").write_text("1")
+            inode = control.stat().st_ino
+            subprocess.run(["bash", "-c", clock_reset_command(control)], cwd=root, check=True, timeout=5)
+            self.assertEqual(control.stat().st_ino, inode)
+            self.assertEqual(control.read_bytes(), struct.pack("<q", 0))
+            self.assertFalse((folder / "zram").exists())
+            self.assertEqual([path.name for path in root.iterdir()], ["tmp"])
 
 
 if __name__ == "__main__":
