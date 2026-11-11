@@ -560,7 +560,7 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(guest, steamHere, agentEnvironment)
+            addClientEnvironment(gen, guest, steamHere, agentEnvironment)
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -874,7 +874,7 @@ class SessionService : Service() {
         return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
+    private fun addClientEnvironment(gen: Int, guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -900,8 +900,11 @@ class SessionService : Service() {
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("BL_ANDROID_CLIPBOARD=" + File(filesDir, "session/android-clipboard").path)
         if (SessionState.mode == MODE_DESKTOP) {
-            SessionState.sessionId?.let { sessionId ->
-                com.droiddeck.launcher.input.SessionClipboard.clearGuestQueue(this, sessionId)
+            synchronized(stopLock) {
+                SessionState.sessionId?.takeIf { gen == sessionGen }?.also {
+                    com.droiddeck.launcher.input.SessionClipboard.clearGuestQueue(this, it)
+                }
+            }?.let { sessionId ->
                 guest.add("BL_GUEST_CLIPBOARD=" + com.droiddeck.launcher.input.SessionClipboard.guestFile(this, sessionId).path)
             }
         }
