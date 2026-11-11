@@ -28,6 +28,8 @@
     <string name="suspend_now">Pozastavit teď</string>
     <string name="stop_session">Ukončit relaci</string>
     <string name="frame_gen_title">Generování snímků</string>
+    <string name="frame_gen_scope_game">Nastavení pro tuto hru</string>
+    <string name="frame_gen_scope_global">Výchozí nastavení</string>
     <string name="frame_gen_hint">Vyberte režim generování snímků</string>
     <string name="frame_gen_off">Vypnuto</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
