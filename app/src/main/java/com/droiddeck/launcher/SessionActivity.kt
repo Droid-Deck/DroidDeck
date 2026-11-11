@@ -1676,14 +1676,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenTargetGameId(): Long? {
-        if (drawerGameProfileSelectionMade) return drawerGameProfileId
-        drawerGameProfileId?.let { return it }
-        if (SessionState.mode != SessionService.MODE_RUN) return null
+        // Enquanto um jogo estiver rodando, use o ID real da sessão.
+        // O perfil selecionado no menu não deve substituir o jogo ativo.
+        if (SessionState.mode == SessionService.MODE_RUN) {
+            return (
+                SessionState.gameId?.toLongOrNull()
+                    ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
+            )
+        }
 
-        return (
-            SessionState.gameId?.toLongOrNull()
-                ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
-        )
+        if (drawerGameProfileSelectionMade) return drawerGameProfileId
+        return drawerGameProfileId
     }
 
     private fun loadFrameGenFor(appId: Long?) {
