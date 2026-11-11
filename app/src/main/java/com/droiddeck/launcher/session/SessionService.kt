@@ -1500,7 +1500,6 @@ class SessionService : Service() {
         val gameId = pendingSteamGameId ?: return
         val gen = pendingSteamGameGeneration
         val exitWatchToken = pendingSteamGameExitWatchToken
-        // Ignore a stale callback without cancelling a newer queued launch.
         if (exitWatchToken != gameExitWatchToken) return
         if (gen != sessionGen || !SessionState.running || SessionState.stopRequested ||
             SessionState.mode != MODE_STEAM || SessionState.gameId != gameId ||
