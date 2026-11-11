@@ -525,10 +525,10 @@ class DroidDeckHudView(context: Context) : View(context) {
         return listOf(fixedNumber(value, if (num == null) colDim else colValue, numPx, chars), Span(unit, colDim, unitPx))
     }
 
-    private fun valueUnit(text: String, numPx: Float, unitPx: Float): List<Span> {
+    private fun valueUnit(text: String, numPx: Float, unitPx: Float, valueColor: Int = colValue, unitColor: Int = colDim): List<Span> {
         val i = text.indexOfFirst { !(it.isDigit() || it == '.' || it == '-') }
-        return if (i <= 0) listOf(fixedNumber(text, colValue, numPx, 5))
-        else listOf(fixedNumber(text.substring(0, i), colValue, numPx, 5), Span(text.substring(i), colDim, unitPx))
+        return if (i <= 0) listOf(fixedNumber(text, valueColor, numPx, 5))
+        else listOf(fixedNumber(text.substring(0, i), valueColor, numPx, 5), Span(text.substring(i), unitColor, unitPx))
     }
 
     private fun tempSpans(c: Int?, sensor: HudMetrics.TempSensor, numPx: Float, unitPx: Float): List<Span> {
@@ -966,7 +966,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (l.isNotEmpty()) stack.add(l)
         }
         if (showVram) s.vramText()?.let { value ->
-            stack.add(listOf(Span("VRAM ", colVram, stkPx)) + valueUnit(value, stkPx, stkPx))
+            stack.add(listOf(Span("VRAM ", colVram, stkPx)) + valueUnit(value, stkPx, stkPx, colVram, colVram))
         }
         if (showRAM) stack.add(listOf(Span("RAM ", colRam, stkPx), fixedNumber(s.ramPercent.roundToInt().toString(), colRam, stkPx, 3), Span("%", colRam, stkPx)))
         if (showBattery || showPower || showBatteryTemp) {
