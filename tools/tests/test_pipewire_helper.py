@@ -23,6 +23,7 @@ class PipeWireHelperTest(unittest.TestCase):
         self.helper = self.root / 'droiddeck-pipewire'
         self.helper.write_text(text)
         self.environment = dict(os.environ, XDG_RUNTIME_DIR=str(self.runtime))
+        self.started = []
 
     def pack(self, daemon_body):
         tree = self.root / 'tree'
@@ -54,9 +55,9 @@ class PipeWireHelperTest(unittest.TestCase):
         slow.chmod(0o755)
         self.environment['PATH'] = '%s:%s' % (stubs, os.environ['PATH'])
 
-    def run_helper(self, *args):
+    def run_helper(self, *args, environment=None):
         with tempfile.TemporaryFile('w+') as out, tempfile.TemporaryFile('w+') as err:
-            done = subprocess.run(['sh', str(self.helper), *args], env=self.environment, stdout=out, stderr=err,
+            done = subprocess.run(['sh', str(self.helper), *args], env=environment or self.environment, stdout=out, stderr=err,
                                   text=True, timeout=15)
             out.seek(0)
             err.seek(0)
@@ -64,6 +65,8 @@ class PipeWireHelperTest(unittest.TestCase):
 
     def tearDown(self):
         self.run_helper('stop')
+        for environment in self.started:
+            self.run_helper('stop', environment=environment)
 
     def test_env_points_clients_at_the_bundle(self):
         out = self.run_helper('env').stdout
@@ -141,9 +144,13 @@ class PipeWireHelperTest(unittest.TestCase):
     def test_concurrent_starts_share_one_unpack(self):
         self.pack_with_stub_zstd('sleep 1\n')
         errors = [tempfile.TemporaryFile('w+') for _ in range(3)]
-        runs = [subprocess.Popen(['sh', str(self.helper), 'start'], env=self.environment,
+        for index in range(len(errors)):
+            runtime = self.root / ('run%d' % index)
+            runtime.mkdir()
+            self.started.append(dict(self.environment, XDG_RUNTIME_DIR=str(runtime)))
+        runs = [subprocess.Popen(['sh', str(self.helper), 'start'], env=environment,
                                  stdout=subprocess.DEVNULL, stderr=err, text=True)
-                for err in errors]
+                for environment, err in zip(self.started, errors)]
         for run, err in zip(runs, errors):
             run.wait(timeout=30)
             err.seek(0)
