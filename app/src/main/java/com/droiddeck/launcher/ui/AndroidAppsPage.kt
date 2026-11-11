@@ -791,8 +791,9 @@ private fun FolderSheet(
                         Text(
                             folder.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                            // A faint chip at rest shows the name can be selected, now that the pencil is gone.
                             modifier = Modifier.clip(Shape12)
-                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.onBackground.copy(alpha = 0.07f))
                                 .glideBorder(hot, Shape12, pal.signal)
                                 .hoverable(src)
                                 .clickable(interactionSource = src, indication = LocalIndication.current, onClickLabel = stringResource(R.string.apps_folder_rename), role = Role.Button, onClick = rename)
