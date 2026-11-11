@@ -782,14 +782,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             root.addView(controls)
         }
         keyboard = KeyboardHost(this).also { host ->
-            host.onImeChanged = { visible ->
-                if (visible) fieldKeyboardImeShown = true
-                else if (fieldKeyboardImeShown) {
-                    fieldKeyboardImeShown = false
-                    fieldKeyboardOnPrimary = false
-                }
-                updateDesktopKeyboardButton()
-            }
+            host.onImeChanged = ::onPrimaryImeChanged
             root.addView(host)
         }
         desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { showPrimaryKeyboard() }
@@ -1601,6 +1594,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pendingFieldKeyboard = false
         fieldKeyboardOnPrimary = false
         keyboard?.hide()
+    }
+
+    private fun onPrimaryImeChanged(visible: Boolean) {
+        if (visible) fieldKeyboardImeShown = true
+        else if (fieldKeyboardImeShown) {
+            fieldKeyboardImeShown = false
+            fieldKeyboardOnPrimary = false
+        }
+        updateDesktopKeyboardButton()
     }
 
     private fun dismissFieldKeyboard() {
@@ -3735,7 +3737,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pendingFieldKeyboard = false
         if (!keyboardBelongsOnPrimary()) return
         fieldKeyboardOnPrimary = true
-        fieldKeyboardImeShown = false
+        fieldKeyboardImeShown = keyboard?.hideMeansDismissal == true
         keyboard?.show()
     }
 
