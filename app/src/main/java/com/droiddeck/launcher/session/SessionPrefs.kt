@@ -752,6 +752,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
     }
 
+    fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", false)
+
+    fun setNativeUserland(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("nativeUserland", on).apply()
+    }
+
     fun prootFastPath(context: Context): Boolean = prefs(context).getBoolean("prootFastPath", true)
 
     fun setProotFastPath(context: Context, on: Boolean) {
