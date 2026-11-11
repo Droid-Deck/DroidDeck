@@ -121,17 +121,26 @@ object LabOverlay {
     fun turnOff(context: Context) {
         val root = root(context)
         archive(root, File(root, "active"), Reason.TURNED_OFF)
+        archive(root, File(root, "next"), Reason.TURNED_OFF)
         File(root, "next").deleteRecursively()
         File(root, "starts").delete()
         restart(context)
     }
 
-    /** Stages [build] for the next start; the caller restarts the app. */
+    /** Stages [build] for the next start and keeps a build that was waiting; the caller restarts the app. */
     fun stage(context: Context, build: Saved) {
         val root = root(context)
-        File(root, "next").deleteRecursively()
+        val next = File(root, "next")
+        val waiting = File(root, "next.replaced").apply { deleteRecursively() }
+        next.renameTo(waiting)
+        next.deleteRecursively()
         File(build.dir, "reason").delete()
-        if (!build.dir.renameTo(File(root, "next"))) error("could not stage ${build.dir.name}")
+        if (!build.dir.renameTo(next)) {
+            waiting.renameTo(next)
+            error("could not stage ${build.dir.name}")
+        }
+        archive(root, waiting, Reason.REPLACED)
+        waiting.deleteRecursively()
     }
 
     fun delete(build: Saved) {

@@ -120,11 +120,11 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     StatusPanel(s, u, ua, me)
                     Box(Modifier.height(18.dp))
                     ChannelLabel()
-                    ChannelPicker(u, ua)
+                    ChannelPicker(u, ua, s.sessionRunning)
                 } else {
                     ChannelLabel()
                     Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
+                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua, s.sessionRunning) }
                         Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
                     }
                 }
@@ -262,7 +262,7 @@ private fun ChannelLabel() {
 }
 
 @Composable
-private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
+private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: Boolean) {
     val colors = MaterialTheme.colorScheme
     val catalog = u.catalog
     val tests = catalog?.tests.orEmpty()
@@ -285,7 +285,7 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
             }
         }
-        LabBuilds()
+        LabBuilds(sessionRunning)
     }
 }
 

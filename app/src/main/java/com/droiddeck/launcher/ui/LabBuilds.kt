@@ -41,7 +41,7 @@ import com.droiddeck.launcher.lab.LabOverlay
  * [onRebuild] offers to build a kept one again for this install, when something can.
  */
 @Composable
-internal fun LabBuilds(onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
+internal fun LabBuilds(sessionRunning: Boolean = false, onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
     val context = LocalContext.current
     var version by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -53,6 +53,7 @@ internal fun LabBuilds(onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
     val active = LabOverlay.active
     val paused = active == null && current != null && LabOverlay.skipped == LabOverlay.SKIPPED_APP_IMAGE
     val restartFailed = stringResource(R.string.lab_restart_failed)
+    val canRestart = !busy && !sessionRunning
 
     /** Android may have given the APK an app image again, which a Lab build cannot load over. */
     fun restart() {
@@ -89,13 +90,13 @@ internal fun LabBuilds(onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
                     },
                     warn = active == null,
                 ) {
-                    if (paused) PrimaryButton(stringResource(R.string.lab_restart), compact = true, enabled = !busy) { restart() }
-                    SecondaryButton(stringResource(R.string.lab_turn_off), compact = true, enabled = !busy) { LabOverlay.turnOff(context) }
+                    if (paused) PrimaryButton(stringResource(R.string.lab_restart), compact = true, enabled = canRestart) { restart() }
+                    SecondaryButton(stringResource(R.string.lab_turn_off), compact = true, enabled = canRestart) { LabOverlay.turnOff(context) }
                 }
             }
             if (pending != null) rows += {
                 BuildRow(pending, false, stringResource(R.string.lab_waiting), warn = false) {
-                    PrimaryButton(stringResource(R.string.lab_restart), compact = true, enabled = !busy) { restart() }
+                    PrimaryButton(stringResource(R.string.lab_restart), compact = true, enabled = canRestart) { restart() }
                 }
             }
             for (build in saved) rows += {
@@ -114,9 +115,9 @@ internal fun LabBuilds(onRebuild: ((LabOverlay.Info) -> Unit)? = null) {
                     if (!build.usable && !armed && info != null && onRebuild != null) SecondaryButton(stringResource(R.string.lab_rebuild), compact = true, enabled = !busy) {
                         onRebuild(info)
                     }
-                    if (build.usable && !armed) SecondaryButton(stringResource(R.string.lab_use), compact = true, enabled = !busy) {
+                    if (build.usable && !armed) SecondaryButton(stringResource(R.string.lab_use), compact = true, enabled = canRestart) {
                         runCatching { LabOverlay.stage(context, build) }
-                            .onSuccess { restart() }
+                            .onSuccess { version++; restart() }
                             .onFailure { error = it.message }
                     }
                     SecondaryButton(stringResource(if (armed) R.string.lab_delete_confirm else R.string.lab_delete), compact = true, enabled = !busy) {

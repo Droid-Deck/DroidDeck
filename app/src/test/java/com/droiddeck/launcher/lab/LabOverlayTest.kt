@@ -133,6 +133,17 @@ class LabOverlayTest {
         assertNotNull(LabOverlay.active)
     }
 
+    @Test fun stagingAKeptBuildKeepsTheOneThatWasWaiting() {
+        stage("builds/1")
+        stage("next")
+        File(root, "next/overlay.json").writeText("""{"label":"feat/y @ def5678","baseCommit":"${BuildConfig.SOURCE_COMMIT}","baseApk":"${app.applicationInfo.sourceDir}"}""")
+        LabOverlay.stage(app, LabOverlay.saved(app).single())
+        assertEquals("feat/x @ abc1234", LabOverlay.pending(app)?.label)
+        val kept = LabOverlay.saved(app).single()
+        assertEquals("feat/y @ def5678", kept.info?.label)
+        assertEquals(LabOverlay.Reason.REPLACED, kept.reason)
+    }
+
     @Test fun onlyTheNewestBuildsAreKept() {
         repeat(15) {
             stage("active")
