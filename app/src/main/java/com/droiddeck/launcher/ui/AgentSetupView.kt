@@ -12,10 +12,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,19 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
         AgentSetup.check(context)
         AgentStorage.measure(context)
     }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        var left = false
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) left = true
+            if (event == Lifecycle.Event.ON_RESUME && left) {
+                left = false
+                AgentSetup.check(context)
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(stringResource(R.string.agent_setup_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
         if (!AgentSetup.runtimeInstalled) {
@@ -58,7 +75,7 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (harness in AgentHarness.all) {
                 val chosen = harness == AgentHost.harness
-                if (chosen) PrimaryButton(harness.name, compact = true) {} else SecondaryButton(harness.name, compact = true) { AgentHost.choose(context, harness) }
+                if (chosen) PrimaryButton(harness.name, compact = true) {} else SecondaryButton(harness.name, enabled = !AgentSetup.busy, compact = true) { AgentHost.choose(context, harness) }
             }
         }
         val steps = Step.entries
@@ -91,7 +108,7 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                     },
                     title, detail, divider = index < steps.lastIndex,
                 ) {
-                    val blocked = (step == Step.SIGN_IN && AgentSetup.status[Step.INSTALL] != Status.DONE) ||
+                    val blocked = (step in setOf(Step.SIGN_IN, Step.GITHUB, Step.BUILD_TOOLS) && AgentSetup.status[Step.INSTALL] != Status.DONE) ||
                         (step == Step.PREPARE && AgentSetup.status[Step.BUILD_TOOLS] != Status.DONE)
                     if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
                         val label = stringResource(if (status == Status.FAILED) R.string.agent_setup_retry else action(step))
@@ -101,7 +118,7 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                 }
             }
         }
-        if (AgentSetup.ready) PrimaryButton(stringResource(R.string.agent_setup_done), main = true, onClick = onDone)
+        if (AgentSetup.ready || AgentSetup.completed(context)) PrimaryButton(stringResource(R.string.agent_setup_done), main = true, onClick = onDone)
         StorageCard()
     }
 }

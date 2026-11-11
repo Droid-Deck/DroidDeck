@@ -28,15 +28,19 @@ object AgentSetup {
 
     val ready: Boolean get() = Step.entries.filter { it.required }.all { status[it] == Status.DONE }
 
-    /** Set once the required steps have all passed, so the chat opens without waiting for the checks. */
-    fun completed(context: Context) = AgentHost.prefs(context).getBoolean(completedKey(), false)
+    /** A step's action is running; its result belongs to the harness it started for. */
+    val busy: Boolean get() = status.values.any { it == Status.WORKING }
 
-    private fun completedKey() = "setup_completed_${AgentHost.harness.id}"
+    /** Set once the required steps have all passed, so the chat opens without waiting for the checks. */
+    fun completed(context: Context) = AgentHost.prefs(context).getBoolean(completedKey(AgentHost.harness), false)
+
+    private fun completedKey(harness: AgentHarness) = "setup_completed_${harness.id}"
 
     private val main = Handler(Looper.getMainLooper())
     private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
     private const val CHECKOUT = "/root/DroidDeck"
     private val HELPERS = listOf("android-open", "dd-gh-login")
+    private const val PROBE_TIMEOUT_S = 60L
 
     fun check(context: Context) {
         val app = context.applicationContext
@@ -61,7 +65,7 @@ object AgentSetup {
                 Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
             }
         }
-        Thread({ for ((step, command) in probes) probe(app, step, command) }, "agent-checks").start()
+        Thread({ for ((step, command) in probes) probe(app, harness, step, command) }, "agent-checks").start()
     }
 
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
@@ -122,19 +126,26 @@ object AgentSetup {
         detail.clear()
     }
 
-    private fun probe(app: Context, step: Step, command: List<String>) {
+    private fun probe(app: Context, harness: AgentHarness, step: Step, command: List<String>) {
         var output = ""
         val ok = runCatching {
             val child = AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION).start()
             child.outputStream.close()
-            output = child.inputStream.bufferedReader().readText()
-            child.waitFor(60, TimeUnit.SECONDS) && child.exitValue() == 0
+            val reader = Thread({ output = child.inputStream.bufferedReader().readText() }, "agent-check-output").apply { isDaemon = true; start() }
+            val exited = child.waitFor(PROBE_TIMEOUT_S, TimeUnit.SECONDS)
+            if (!exited) {
+                AgentProcesses.killTree(AgentProcesses.pidOf(child))
+                child.destroyForcibly()
+            }
+            reader.join(2_000)
+            exited && child.exitValue() == 0
         }.onFailure { output = it.message.orEmpty() }.getOrDefault(false)
         main.post {
+            if (AgentHost.harness != harness) return@post
             if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
             val last = output.lines().lastOrNull { it.isNotBlank() && !noise(it.trim()) }?.trim()?.take(160)
             if (!ok && step.required && last != null) detail[step] = last else if (ok) detail.remove(step)
-            if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(), true).apply()
+            if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(harness), true).apply()
         }
     }
 

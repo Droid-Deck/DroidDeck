@@ -153,6 +153,7 @@ object AgentHost {
         if (state == State.WORKING || id == chat) return
         val harnessId = AgentChats.read(AgentChats.file(app, id)).harness
         if (harnessId != null && harnessId != harness.id) {
+            if (AgentSetup.busy) return
             prefs(app).edit().putString(HARNESS_KEY, harnessId).apply()
             AgentSetup.forget()
             refresh(app)
@@ -197,7 +198,7 @@ object AgentHost {
 
     /** Switches the agent CLI; a conversation belongs to one CLI, so a new one starts. */
     fun choose(context: Context, choice: AgentHarness) {
-        if (choice == harness || state == State.WORKING) return
+        if (choice == harness || state == State.WORKING || AgentSetup.busy) return
         forget(context)
         AgentSetup.forget()
         prefs(context).edit().putString(HARNESS_KEY, choice.id).apply()
