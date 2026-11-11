@@ -81,13 +81,21 @@ def manifest_ids(steamapps, name):
     return matches
 
 
-def identify(game):
+def manifest_identity(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
     for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
         matches = [appid for appid in manifest_ids(library, folder.name) if appid != SPACEWAR]
         if matches:
             return matches[0] if len(matches) == 1 else None
+    return False
+
+
+def identify(game):
+    folder = Path(game["folder"])
+    found = manifest_identity(game)
+    if found is not False:
+        return found
     ids = set()
     for parent in {folder, Path(game["exe"]).parent}:
         try:
@@ -508,6 +516,26 @@ def release(steam_root, game, stale, reason):
         print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
+def share_prefix(steam_root, game):
+    appid = manifest_identity(game)
+    if not appid:
+        return
+    shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
+    if os.path.lexists(shortcut):
+        return
+    for library in libraries(steam_root):
+        prefix = library / "steamapps/compatdata" / str(appid)
+        if (prefix / "pfx/drive_c").is_dir():
+            try:
+                shortcut.parent.mkdir(parents=True, exist_ok=True)
+                shortcut.symlink_to(prefix)
+            except OSError as error:
+                print(f"droiddeck-steam-games: {game.get('name', appid)} keeps its own prefix ({error})")
+            else:
+                print(f"droiddeck-steam-games: {game.get('name', appid)} shares the saves prefix of Steam app {appid}")
+            return
+
+
 def route(steam_root, acct, games):
     snapshot = read_json(Path(acct) / "config" / STATE, {})
     if not isinstance(snapshot, dict):
@@ -557,6 +585,7 @@ def route(steam_root, acct, games):
         elif named and seeded(steamapps, game, appid):
             routes[str(game["appid"])] = appid
             continue
+        share_prefix(steam_root, game)
         shortcuts.append(game)
     try:
         park(steamapps)

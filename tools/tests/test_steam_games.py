@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -55,6 +56,56 @@ class ImportsTest(unittest.TestCase):
         self.assertIn('"Universe" "1"', manifest.read_text())
         self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
         self.assertEqual(b'game', self.exe.read_bytes())
+
+    def steam_install(self, appid=42):
+        library = self.root / 'Library'
+        folder = library / 'steamapps/common/Example'
+        folder.mkdir(parents=True)
+        (folder / 'Example.exe').write_bytes(b'game')
+        (library / f'steamapps/appmanifest_{appid}.acf').write_text(f'"AppState"\n{{\n"appid" "{appid}"\n"installdir" "Example"\n}}\n')
+        saves = library / f'steamapps/compatdata/{appid}/pfx/drive_c/users/steamuser'
+        saves.mkdir(parents=True)
+        (saves / 'save.dat').write_bytes(b'cloud')
+        return dict(self.game, folder=str(folder), exe=str(folder / 'Example.exe'), dir=str(folder)), library
+
+    def shortcut_prefix(self):
+        return self.steam / 'steamapps/compatdata' / str(self.game['appid'] & 0xFFFFFFFF)
+
+    def test_shortcut_of_a_steam_install_shares_the_steam_apps_prefix(self):
+        game, library = self.steam_install()
+        (self.steam / 'steamapps').mkdir(parents=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        games, routes = imports.route(self.steam, self.acct, [game])
+        self.assertEqual(([game], {}), (games, routes))
+        self.assertEqual(library / 'steamapps/compatdata/42', self.shortcut_prefix().resolve())
+        self.assertEqual(b'cloud', (self.shortcut_prefix() / 'pfx/drive_c/users/steamuser/save.dat').read_bytes())
+
+    def test_an_existing_shortcut_prefix_is_never_replaced(self):
+        game, library = self.steam_install()
+        (self.steam / 'steamapps').mkdir(parents=True, exist_ok=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        local = self.shortcut_prefix() / 'pfx/drive_c'
+        local.mkdir(parents=True)
+        (local / 'local.dat').write_bytes(b'local')
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(self.shortcut_prefix().is_symlink())
+        self.assertEqual(b'local', (local / 'local.dat').read_bytes())
+        self.assertEqual(b'cloud', (library / 'steamapps/compatdata/42/pfx/drive_c/users/steamuser/save.dat').read_bytes())
+
+    def test_shortcuts_without_a_manifest_identity_keep_their_own_prefix(self):
+        game, library = self.steam_install()
+        (self.steam / 'steamapps').mkdir(parents=True, exist_ok=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        imports.route(self.steam, self.acct, [self.game, dict(game, folder=str(self.folder.parent / 'Other'))])
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
+
+    def test_a_manifest_without_a_steam_prefix_links_nothing(self):
+        game, library = self.steam_install()
+        shutil.rmtree(library / 'steamapps/compatdata/42')
+        (self.steam / 'steamapps').mkdir(parents=True, exist_ok=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text(f'"libraryfolders"\n{{\n"1" {{ "path" "{library}" }}\n}}\n')
+        imports.route(self.steam, self.acct, [game])
+        self.assertFalse(os.path.lexists(self.shortcut_prefix()))
 
     def test_store_installs_stay_shortcuts_even_when_owned_on_steam(self):
         self.snapshot()
