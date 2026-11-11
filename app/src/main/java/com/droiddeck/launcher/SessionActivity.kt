@@ -1678,8 +1678,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenTargetGameId(): Long? {
-        // Enquanto um jogo estiver rodando, use o ID real da sessão.
-        // O perfil selecionado no menu não deve substituir o jogo ativo.
+        
         if (SessionState.mode == SessionService.MODE_RUN) {
             return (
                 SessionState.gameId?.toLongOrNull()
