@@ -1753,13 +1753,6 @@
     <string name="bottom_downloads_shader">シェーダーキャッシュをダウンロード中</string>
     <string name="bottom_downloads_paused">一時停止中</string>
     <string name="bottom_downloads_queued">開始待ち</string>
-    <string name="bottom_page_notifications">通知</string>
-    <string name="bottom_notifications_listener">DroidDeck下部画面</string>
-    <string name="bottom_notifications_why">プレイ中、メッセージなどの通知をここに表示します。通知はこの画面にのみ表示され、保存されません。Androidによる確認は一度だけです。この画面に通知へのアクセスのページが開くので、そこでDroidDeckをオンにすると、このページに自動的に戻ります。</string>
-    <string name="bottom_notifications_allow">通知へのアクセスを許可</string>
-    <string name="bottom_notifications_none">通知はありません。</string>
-    <string name="bottom_notifications_count">%1$d件の通知</string>
-    <string name="bottom_notifications_clear">クリア</string>
     <string name="bottom_page_screenshots">スクリーンショット</string>
     <string name="stats_fps_needs_hud">FPSの表示にはHUDをオンにする必要があります</string>
     <string name="stats_speed">速度</string>
@@ -2838,6 +2831,8 @@
     <string name="display_position_top">上</string>
     <string name="display_position_bottom">下</string>
     <string name="display_position_center">中央（既定）</string>
+    <string name="display_position_left">左</string>
+    <string name="display_position_right">右</string>
     <string name="setup_tab_storage">ストレージ</string>
     <string name="storage_measuring">ストレージを集計しています…</string>
     <string name="storage_measuring_hint">初回の集計には数秒かかります。</string>
@@ -3630,4 +3625,7 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
+
+    <string name="theme_white_red">緋色の雪</string>
+    
 </resources>

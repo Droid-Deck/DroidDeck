@@ -1,0 +1,27 @@
+query sdkEntitlements($productIds: [String!]!, $includeChildGroups: Boolean!, $groupNames: [String!]!, $entitlementTag: String!, $pageSize: Int!, $pageNumber: Int!) {
+    me {
+        sdkEntitlements(
+            productIds: $productIds,
+            includeChildGroups: $includeChildGroups,
+            groupNames: $groupNames,
+            entitlementTag: $entitlementTag,
+            paging: {
+                pageSize: $pageSize, pageNumber: $pageNumber
+            }
+        ) {
+            entitlements {
+                entitlementTag
+                entitlementType
+                grantDate
+                groupName
+                id
+                productId
+                terminationDate
+                useCount
+                version
+                __typename
+            }
+            __typename
+        }
+    }
+}
