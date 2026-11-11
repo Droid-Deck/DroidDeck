@@ -93,6 +93,7 @@ object AgentSetup {
         Thread({
             val result = runCatching {
                 installHelpers(app)
+                runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
                 val child = AgentHost.guest(app, command).start()
                 child.outputStream.close()
                 child.inputStream.bufferedReader().forEachLine { line ->
