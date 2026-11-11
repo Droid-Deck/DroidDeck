@@ -17,6 +17,7 @@ BUILTIN_MARKS = (b"Wine builtin DLL", b"Wine placeholder DLL")
 ARCH_DIRS = ("system32", "syswow64")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 HIVES = {"HKLM": "system.reg", "HKCU": "user.reg"}
+PROTON_MONO = ("files/share/wine/mono", "dist/share/wine/mono")
 VALUE_TYPES = {"key", "sz", "expand_sz", "multi_sz", "dword", "binary", "append", "prepend"}
 
 
@@ -38,7 +39,7 @@ def wanted(app_id, selection=SELECTION):
     return ids
 
 
-def component(store, cid):
+def component(store, cid, mono=frozenset()):
     root = Path(store) / cid
     try:
         with open(root / "component.json", encoding="utf-8") as source:
@@ -66,7 +67,7 @@ def component(store, cid):
         for rel, _ in files:
             parts = Path(rel.lower()).parts
             gac_paths = (("windows", "assembly"), ("windows", "microsoft.net", "assembly"))
-            if rel.lower().endswith(".dll") and any(
+            if rel.lower().endswith(".dll") and Path(rel).stem.lower() in mono and any(
                     parts[i:i + len(prefix)] == prefix
                     and i + len(prefix) < len(parts)
                     and (parts[i + len(prefix)] == "gac" or parts[i + len(prefix)].startswith("gac_"))
@@ -76,6 +77,23 @@ def component(store, cid):
         values = [{"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": name,
                    "type": "sz", "data": "Gac=n"} for name in assemblies] + values
     return overrides, files, requires, values
+
+
+def mono_assemblies(pfx, proton=None):
+    candidates = [[spelled(Path(pfx) / "drive_c/windows/mono/mono-2.0/lib/mono/gac")]]
+    if proton:
+        candidates += [sorted((Path(proton) / home).glob("wine-mono*/lib/mono/gac")) for home in PROTON_MONO]
+    for gacs in candidates:
+        names = set()
+        for gac in gacs:
+            try:
+                with os.scandir(gac) as entries:
+                    names.update(entry.name.lower() for entry in entries if entry.is_dir())
+            except OSError:
+                pass
+        if names:
+            return names
+    return set()
 
 
 def registry_values(root):
@@ -530,7 +548,8 @@ def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT,
     return "wincomp: %s waited %dms for %s" % (app_id, waited, ",".join(asked))
 
 
-def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
+def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending, *,
+          proton=None):
     compat = Path(compat_path)
     pfx = compat / "pfx"
     waited = wait(app_id, pending, store) if wait else None
@@ -556,8 +575,9 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             saved_requires = dict(saved_requires, **{cid: loose})
             inferred.add(cid)
     kept_overrides, kept_requires = {}, {}
+    mono = mono_assemblies(pfx, proton)
     for cid in expand(store, ids, saved_requires):
-        found = component(store, cid)
+        found = component(store, cid, mono)
         if found is None:
             if cid in saved_requires or cid in recorded or cid in owners or cid in registry_owners:
                 held.add(cid)
@@ -657,10 +677,10 @@ def overrides_value(names):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("usage: droiddeck-wincomponents <compatdata dir> <appid>", file=sys.stderr)
+    if len(sys.argv) not in (3, 4):
+        print("usage: droiddeck-wincomponents <compatdata dir> <appid> [proton dir]", file=sys.stderr)
         return 2
-    names, notes = apply(sys.argv[1], sys.argv[2])
+    names, notes = apply(sys.argv[1], sys.argv[2], proton=sys.argv[3] if len(sys.argv) == 4 else None)
     for note in notes:
         print(note)
     print("WINEDLLOVERRIDES=" + overrides_value(names))
