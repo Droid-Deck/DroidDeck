@@ -16,10 +16,13 @@ class SecondScreenModeTest {
     }
 
     @Test fun keyboardFallsBackOnlyForADisconnectedRequestedDisplay() {
-        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3)))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3)))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3)))
-        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3)))
+        val taken: (Int) -> Boolean = { it == 2 }
+        val free: (Int) -> Boolean = { false }
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3), free))
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), free))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3), taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3), taken))
     }
 
     @Test fun selectedGameDisplayIsNotReplacedWhenItDisconnects() {

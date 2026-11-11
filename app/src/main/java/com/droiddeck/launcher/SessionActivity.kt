@@ -3705,7 +3705,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun openBottomKeyboard() {
         val presentation = bottomKeyboardPresentation()
         if (presentation == null) {
-            if (SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay, secondScreenDisplays.map { it.id })) {
+            if (SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
+                    secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken)) {
                 fieldKeyboardOnPrimary = true
                 keyboard?.show()
             }
