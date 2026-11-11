@@ -59,8 +59,13 @@ internal fun InputSurfaceElement.duplicate(id: String, siblings: List<InputSurfa
     return copy(id = id, control = kind.control, name = named(number), x = px, y = py).bounded()
 }
 
-internal fun InputAction.carriedTo(source: InputSurfaceElement): InputAction =
+private fun InputAction.carriedTo(source: InputSurfaceElement): InputAction =
     if (this is InputAction.Native && target == null && source.id.startsWith("legacy:")) InputAction.Native(source.control) else this
+
+internal fun SavedInputBindings.withDuplicate(source: InputSurfaceElement, copy: InputSurfaceElement) = copy(
+    elements = elements + (copy.id to action(source).carriedTo(source)),
+    clicks = if (source.hasClick) clicks + (copy.id to clickAction(source)) else clicks,
+)
 
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
 

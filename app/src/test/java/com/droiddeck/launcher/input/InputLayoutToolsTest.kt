@@ -224,9 +224,7 @@ class InputLayoutToolsTest {
         for (source in layout.elements) {
             val copy = source.duplicate("copy", layout.elements)
             assertEquals(copy.kind.control, copy.control)
-            val actions = mapOf(copy.id to base.action(source).carriedTo(source))
-            val clicks = if (source.hasClick) mapOf(copy.id to base.clickAction(source)) else emptyMap()
-            val preset = base.copy(elements = actions, clicks = clicks)
+            val preset = base.copy(elements = base.elements.filterKeys { it == source.id }, clicks = base.clicks.filterKeys { it == source.id }).withDuplicate(source, copy)
             library.withLayout(layout.copy(elements = layout.elements + copy)).withPreset(preset).validate()
             assertEquals(InputAction.Native(source.control), preset.action(copy))
             if (source.hasClick) assertEquals(base.clickAction(source), preset.clickAction(copy))
@@ -243,26 +241,25 @@ class InputLayoutToolsTest {
             elements = mapOf(button.id to InputAction.Keys(listOf(30)), pad.id to InputAction.Pointer(500f)),
             clicks = mapOf(pad.id to InputAction.MouseButton(273)),
         )
-        val other = base.copy(elements = mapOf(button.id to InputAction.Keys(listOf(31))))
+        val other = base.copy(id = "other", name = "Other", elements = mapOf(button.id to InputAction.Keys(listOf(31))))
+        val fixture = library.withLayout(layout).withPreset(custom).withPreset(other).validate()
         var elements = layout.elements
-        var actions = custom.elements
-        var clicks = custom.clicks
+        var result = custom
         for (source in listOf(button, pad)) {
             val copy = source.duplicate("copy-${source.id}", elements)
-            actions = actions + (copy.id to custom.copy(elements = actions).action(source).carriedTo(source))
-            if (source.hasClick) clicks = clicks + (copy.id to custom.copy(elements = actions, clicks = clicks).clickAction(source))
+            result = result.withDuplicate(source, copy)
             elements = elements + copy
         }
-        val result = custom.copy(elements = actions, clicks = clicks)
-        library.withLayout(layout.copy(elements = elements)).withPreset(result).validate()
+        val updated = fixture.withLayout(layout.copy(elements = elements)).withPreset(result).validate()
+        assertEquals(other, updated.preset(other.id))
         assertEquals(InputAction.Keys(listOf(30)), result.action(elements.first { it.id == "copy-${button.id}" }))
         assertEquals(InputAction.Pointer(500f), result.action(elements.first { it.id == "copy-${pad.id}" }))
         assertEquals(InputAction.MouseButton(273), result.clickAction(elements.first { it.id == "copy-${pad.id}" }))
         assertEquals(custom.action(button), result.action(button))
         assertEquals(custom.action(pad), result.action(pad))
         assertEquals(custom.clickAction(pad), result.clickAction(pad))
-        assertEquals(InputAction.Keys(listOf(31)), other.action(button))
-        assertEquals(base.action(pad), other.action(pad))
+        assertEquals(InputAction.Keys(listOf(31)), updated.preset(other.id).action(button))
+        assertEquals(base.action(pad), updated.preset(other.id).action(pad))
     }
 
     @Test fun duplicateNamesNeverExceedTheNameLimit() {
