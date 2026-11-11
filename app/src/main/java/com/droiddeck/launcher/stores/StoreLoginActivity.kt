@@ -335,6 +335,7 @@ class StoreLoginActivity : ComponentActivity() {
         }
         if (f.readsPage) {
             view.evaluateJavascript("(function(){ try { return document.body.innerText; } catch(e){ return ''; } })()") { json ->
+                if (flow !== f) return@evaluateJavascript
                 val page = json ?: ""
                 val step = f.browserStep(page)
                 if (step == null || !continueInBrowser(step)) Thread({ settle(f.finish(this, view, page)) }, "store-login").start()
