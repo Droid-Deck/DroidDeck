@@ -55,6 +55,7 @@ class SoundtrackService : MediaSessionService() {
     private var sleepAtTrackEnd = false
     private val handler = Handler(Looper.getMainLooper())
     private val sleepRunnable = Runnable { session?.player?.pause() }
+    private val covers = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "soundtrack-cover").apply { isDaemon = true } }
 
     override fun onCreate() {
         super.onCreate()
@@ -76,6 +77,7 @@ class SoundtrackService : MediaSessionService() {
                 if (!playWhenReady) sleepAtTrackEnd = false
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                refreshTrackCover(mediaItem)
                 val ended = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
                 if (sleepAtTrackEnd && ended) {
                     sleepAtTrackEnd = false
@@ -113,6 +115,25 @@ class SoundtrackService : MediaSessionService() {
             .setSessionCommand(REPEAT)
             .build(),
     )
+
+    private fun refreshTrackCover(item: MediaItem?) {
+        val current = item ?: return
+        if (current.mediaMetadata.artworkUri?.path.orEmpty().contains("/steam-art/")) return
+        val file = File(current.mediaId)
+        covers.execute {
+            val art = Soundtrack.trackCover(this, file) ?: return@execute
+            handler.post {
+                val player = exo ?: return@post
+                val live = player.currentMediaItem ?: return@post
+                val uri = Uri.fromFile(art)
+                if (live.mediaId != current.mediaId || live.mediaMetadata.artworkUri == uri) return@post
+                player.replaceMediaItem(
+                    player.currentMediaItemIndex,
+                    live.buildUpon().setMediaMetadata(live.mediaMetadata.buildUpon().setArtworkUri(uri).build()).build(),
+                )
+            }
+        }
+    }
 
     private fun releaseEffects() {
         runCatching { equalizer?.release() }
@@ -172,6 +193,7 @@ class SoundtrackService : MediaSessionService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(sleepRunnable)
+        covers.shutdownNow()
         releaseEffects()
         session?.let {
             it.player.release()
