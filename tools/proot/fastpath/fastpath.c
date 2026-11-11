@@ -416,10 +416,12 @@ static int host_bind(const char *h) {
 }
 
 static unsigned hash_of(const char *s);
+static long long now_ns(void);
 #define DIRS 64
 #define DIR_FD_FLOOR 1000
-struct dirslot { unsigned hash; int fd, refs; dev_t dev; ino_t ino; char path[PATH_MAX]; char seen[PATH_MAX]; };
+struct dirslot { unsigned hash, epoch; int fd, refs; dev_t dev; ino_t ino; long tag; long long stamp; char path[PATH_MAX]; char seen[PATH_MAX]; };
 static struct dirslot dirs[DIRS];
+static unsigned dir_epoch;
 struct near { long fd; int slot, own; const char *name; };
 
 static int fuse_bind(const char *h) {
@@ -451,6 +453,47 @@ static int fd_id(long fd, dev_t *dev, ino_t *ino) {
   return 0;
 }
 
+static long dir_tag(void) {
+  static uint64_t state;
+  uint64_t z = __atomic_add_fetch(&state, 0x9e3779b97f4a7c15ULL, __ATOMIC_RELAXED), seed = 0;
+  const void *random = (const void *)getauxval(AT_RANDOM);
+  if (random) memcpy(&seed, random, sizeof seed);
+  z += seed;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return (long)((z ^ (z >> 31)) & 0xffffffffffULL) + 1;
+}
+
+static int dir_owned(const struct dirslot *e) {
+  dev_t dev;
+  ino_t ino;
+  return e->fd > 0 && sc(SYS_lseek, e->fd, 0, SEEK_CUR, 0, 0) == e->tag
+         && fd_id(e->fd, &dev, &ino) == 0 && dev == e->dev && ino == e->ino;
+}
+
+static int dir_fresh(struct dirslot *e, const char *dir) {
+  long long t = now_ns();
+  if (t - __atomic_load_n(&e->stamp, __ATOMIC_RELAXED) < ttl_ns) return 1;
+  struct stat st;
+  if (sc(SYS_newfstatat, AT_FDCWD, (long)dir, (long)&st, 0, 0) != 0 || st.st_dev != e->dev || st.st_ino != e->ino) {
+    __atomic_add_fetch(&dir_epoch, 1, __ATOMIC_RELEASE);
+    return 0;
+  }
+  __atomic_store_n(&e->stamp, t, __ATOMIC_RELAXED);
+  return 1;
+}
+
+static void dirs_drop(const char *host) {
+  size_t len = strlen(host);
+  if (pthread_mutex_trylock(&dir_lock) != 0) {
+    __atomic_add_fetch(&dir_epoch, 1, __ATOMIC_RELEASE);
+    return;
+  }
+  for (int i = 0; i < DIRS; i++)
+    if (dirs[i].path[0] && under(dirs[i].path, host, len)) dirs[i].path[0] = 0;
+  pthread_mutex_unlock(&dir_lock);
+}
+
 static void near_put(struct near *n) {
   if (n->own) sc(SYS_close, n->fd, 0, 0, 0, 0);
   else if (n->slot >= 0) __atomic_sub_fetch(&dirs[n->slot].refs, 1, __ATOMIC_RELEASE);
@@ -463,12 +506,13 @@ static int dir_cached(const char *dir, struct near *n) {
   unsigned h = hash_of(dir);
   struct dirslot *e = &dirs[h % DIRS];
   if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
-  int hit = e->fd >= 0 && e->hash == h && e->path[0] && strcmp(e->path, dir) == 0;
+  int hit = e->fd >= 0 && e->hash == h && e->path[0] && strcmp(e->path, dir) == 0
+            && e->epoch == __atomic_load_n(&dir_epoch, __ATOMIC_ACQUIRE);
   if (hit) __atomic_add_fetch(&e->refs, 1, __ATOMIC_ACQUIRE);
   pthread_mutex_unlock(&dir_lock);
   if (!hit) return 0;
   char now[PATH_MAX];
-  if (fd_path(e->fd, now) == 0 && strcmp(now, e->seen) == 0) {
+  if (fd_path(e->fd, now) == 0 && strcmp(now, e->seen) == 0 && dir_fresh(e, dir)) {
     n->fd = e->fd;
     n->slot = (int)(e - dirs);
     n->own = 0;
@@ -492,15 +536,18 @@ static int dir_keep(const char *dir, long fd, struct near *n) {
   char seen[PATH_MAX];
   dev_t dev;
   ino_t ino;
-  if (fd_path(high, seen) < 0 || fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX) return 0;
+  long tag = dir_tag();
+  if (fd_path(high, seen) < 0 || fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX
+      || sc(SYS_lseek, high, tag, SEEK_SET, 0, 0) != tag) return 0;
   unsigned h = hash_of(dir);
   struct dirslot *e = &dirs[h % DIRS];
   if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
   if (__atomic_load_n(&e->refs, __ATOMIC_ACQUIRE) == 0) {
-    dev_t odev;
-    ino_t oino;
-    if (e->fd > 0 && fd_id(e->fd, &odev, &oino) == 0 && odev == e->dev && oino == e->ino) sc(SYS_close, e->fd, 0, 0, 0, 0);
+    if (dir_owned(e)) sc(SYS_close, e->fd, 0, 0, 0, 0);
     e->hash = h;
+    e->epoch = __atomic_load_n(&dir_epoch, __ATOMIC_ACQUIRE);
+    e->tag = tag;
+    e->stamp = now_ns();
     e->fd = (int)high;
     e->dev = dev;
     e->ino = ino;
@@ -518,7 +565,7 @@ static int dir_get(char *dir, size_t floor, struct near *n) {
   size_t len = strlen(dir), at = len;
   while (!dir_cached(dir, n)) {
     if (at <= floor) {
-      long fd = sc(SYS_openat, AT_FDCWD, (long)dir, O_PATH | O_DIRECTORY | O_CLOEXEC, 0, 0);
+      long fd = sc(SYS_openat, AT_FDCWD, (long)dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0, 0);
       if (fd < 0 || dir_keep(dir, fd, n) < 0) return -1;
       break;
     }
@@ -531,7 +578,7 @@ static int dir_get(char *dir, size_t floor, struct near *n) {
     dir[at] = '/';
     const char *name = dir + at + 1;
     size_t next = at + 1 + strlen(name);
-    long fd = sc(SYS_openat, n->fd, (long)name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, 0);
+    long fd = sc(SYS_openat, n->fd, (long)name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, 0);
     near_put(n);
     if (fd < 0 || dir_keep(dir, fd, n) < 0) return -1;
     at = next;
@@ -1396,7 +1443,10 @@ static long fp_chmod(int dirfd, const char *path, mode_t mode, int flags) {
   struct res r;
   long rs = flags ? FP_SLOW : resolve(dirfd, path, 1 | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
-  if (rs == 0 || rs == UNSEEN) rs = hsc(SYS_fchmodat, r.host, mode, 0, 0);
+  if (rs == 0 || rs == UNSEEN) {
+    rs = hsc(SYS_fchmodat, r.host, mode, 0, 0);
+    if (rs == 0) dirs_drop(r.host);
+  }
   return rs;
 }
 int fchmodat(int dirfd, const char *path, mode_t mode, int flags) {
@@ -1409,7 +1459,10 @@ static long fp_chown(int dirfd, const char *path, uid_t uid, gid_t gid, int flag
   struct res r;
   long rs = flags & ~AT_SYMLINK_NOFOLLOW ? FP_SLOW : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
-  if (rs == 0 || rs == UNSEEN) rs = hsc(SYS_fchownat, r.host, (long)uid, (long)gid, flags);
+  if (rs == 0 || rs == UNSEEN) {
+    rs = hsc(SYS_fchownat, r.host, (long)uid, (long)gid, flags);
+    if (rs == 0) dirs_drop(r.host);
+  }
   return rs;
 }
 int fchownat(int dirfd, const char *path, uid_t uid, gid_t gid, int flags) {

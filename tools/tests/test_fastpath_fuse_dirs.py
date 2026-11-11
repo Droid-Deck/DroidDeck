@@ -5,10 +5,13 @@ import subprocess
 import tempfile
 import unittest
 
+USERNS = shutil.which("unshare") is not None and subprocess.run(["unshare", "-Urm", "true"], capture_output=True).returncode == 0
+
 FASTPATH = Path(__file__).resolve().parents[1] / "proot/fastpath/fastpath.c"
 
 PROGRAM = r"""
 #include "FASTPATH"
+#include <sys/mount.h>
 
 static long host_sys(long nr, long a, long b, long c, long d, long e, long f) {
   long r = syscall(nr, a, b, c, d, e, f);
@@ -30,6 +33,8 @@ static int high_fds(void) {
 
 int main(int argc, char **argv) {
   static char hosts[MAX_BINDS][PATH_MAX], guests[MAX_BINDS][512];
+  static int taken[DIRS];
+  int ntaken = 0;
   fp_sys = host_sys;
   snprintf(root, sizeof root, "%s", argv[1]);
   rootlen = strlen(root);
@@ -84,6 +89,33 @@ int main(int argc, char **argv) {
       puts(out);
     } else if (!strcmp(op, "fds")) {
       printf("%d\n", high_fds());
+    } else if (!strcmp(op, "ttl")) {
+      ttl_ns = atoll(argv[++i]) * 1000000LL;
+    } else if (!strcmp(op, "sleep")) {
+      usleep(atoi(argv[++i]) * 1000);
+    } else if (!strcmp(op, "chmod")) {
+      show(fp_chmod(AT_FDCWD, argv[i + 1], strtol(argv[i + 2], NULL, 8), 0));
+      i += 2;
+    } else if (!strcmp(op, "host-mount")) {
+      show(mount("tmpfs", argv[++i], "tmpfs", 0, NULL) == 0 ? 0 : -errno);
+    } else if (!strcmp(op, "take-over")) {
+      for (int fd = DIR_FD_FLOOR; fd < DIR_FD_FLOOR + DIRS; fd++) {
+        char link[40], out[PATH_MAX];
+        snprintf(link, sizeof link, "/proc/self/fd/%d", fd);
+        long n = host_sys(SYS_readlinkat, AT_FDCWD, (long)link, (long)out, sizeof out - 1, 0, 0);
+        if (n <= 0) continue;
+        out[n] = 0;
+        long mine = host_sys(SYS_openat, AT_FDCWD, (long)out, O_RDONLY | O_DIRECTORY, 0, 0, 0);
+        host_sys(SYS_dup3, mine, fd, 0, 0, 0, 0);
+        host_sys(SYS_close, mine, 0, 0, 0, 0, 0);
+        taken[ntaken++] = fd;
+      }
+      puts("ok");
+    } else if (!strcmp(op, "taken")) {
+      int open_fds = 0;
+      for (int t = 0; t < ntaken; t++)
+        if (lseek(taken[t], 0, SEEK_CUR) == 0) open_fds++;
+      printf("%d/%d\n", open_fds, ntaken);
     }
   }
   return 0;
@@ -115,8 +147,8 @@ class FastPathFuseDirsTest(unittest.TestCase):
         self.card = base / "card"
         (self.card / "Games/steamapps/common/Game/Data").mkdir(parents=True)
 
-    def ask(self, *ops):
-        argv = [str(self.program), str(self.root), str(self.card), "/mnt/card", "--", *ops]
+    def ask(self, *ops, wrap=()):
+        argv = [*wrap, str(self.program), str(self.root), str(self.card), "/mnt/card", "--", *ops]
         return subprocess.run(argv, capture_output=True, text=True, timeout=20, check=True).stdout.split()
 
     def test_files_deep_in_a_fuse_library_are_created_renamed_and_removed(self):
@@ -163,6 +195,43 @@ class FastPathFuseDirsTest(unittest.TestCase):
                        "stat", f"{data}/a", "first-fd")
         self.assertEqual(["ok", "ok", "ok", "ok", "/dev/null"], out)
         self.assertEqual({"a", "b"}, {p.name for p in (self.card / "Games/steamapps/common/Game/Data").iterdir()})
+
+    def test_a_folder_the_program_opened_itself_stays_open_when_the_cache_moves_on(self):
+        data = self.card / "Games/steamapps/common/Game/Data"
+        ops = ["fuse", "touch", "/mnt/card/Games/steamapps/common/Game/Data/a", "take-over"]
+        for n in range(200):
+            (data / f"d{n}").mkdir()
+            ops += ["touch", f"/mnt/card/Games/steamapps/common/Game/Data/d{n}/x"]
+        out = self.ask(*ops, "taken")
+        self.assertEqual(["ok"] * 202, out[:-1])
+        opened, total = map(int, out[-1].split("/"))
+        self.assertGreater(total, 0)
+        self.assertEqual(total, opened)
+        self.assertEqual(200, len(list(data.glob("d*/x"))))
+
+    @unittest.skipIf(os.geteuid() == 0, "root passes folder permissions")
+    def test_a_parent_folder_closed_by_the_program_stops_cached_access_at_once(self):
+        game = self.card / "Games/steamapps/common/Game"
+        (game / "Data/keep").write_text("x")
+        self.addCleanup(os.chmod, game, 0o755)
+        out = self.ask("fuse", "stat", "/mnt/card/Games/steamapps/common/Game/Data/keep",
+                       "chmod", "/mnt/card/Games/steamapps/common/Game", "000",
+                       "stat", "/mnt/card/Games/steamapps/common/Game/Data/keep",
+                       "touch", "/mnt/card/Games/steamapps/common/Game/Data/new")
+        self.assertEqual(["ok", "ok"], out[:2])
+        self.assertNotIn("ok", out[2:])
+        os.chmod(game, 0o755)
+        self.assertEqual(["keep"], [p.name for p in (game / "Data").iterdir()])
+
+    @unittest.skipUnless(USERNS, "mount namespaces are not available")
+    def test_a_mount_placed_over_a_cached_folder_receives_later_writes(self):
+        data = self.card / "Games/steamapps/common/Game/Data"
+        out = self.ask("fuse", "ttl", "1", "touch", "/mnt/card/Games/steamapps/common/Game/Data/under",
+                       "host-mount", str(data), "sleep", "20",
+                       "touch", "/mnt/card/Games/steamapps/common/Game/Data/over",
+                       "stat", "/mnt/card/Games/steamapps/common/Game/Data/under", wrap=("unshare", "-Urm"))
+        self.assertEqual(["ok", "ok", "ok", "E2"], out)
+        self.assertEqual(["under"], [p.name for p in data.iterdir()])
 
     def test_other_filesystems_keep_absolute_paths_and_open_no_folders(self):
         data = "/mnt/card/Games/steamapps/common/Game/Data"
