@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Wisselen tussen stick en trackpad</string>
     <string name="deck_close">Bediening op tweede scherm sluiten</string>
     <string name="deck_open_steam_menu">Steam-menu openen</string>
     <string name="deck_right_trackpad">Rechtertrackpad</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Shadercache downloaden</string>
     <string name="bottom_downloads_paused">Gepauzeerd</string>
     <string name="bottom_downloads_queued">Wacht om te starten</string>
-    <string name="bottom_page_notifications">Meldingen</string>
-    <string name="bottom_notifications_listener">DroidDeck onderste scherm</string>
-    <string name="bottom_notifications_why">Toon berichten en andere meldingen hier terwijl je speelt. Ze blijven alleen op dit scherm en worden niet opgeslagen. Android vraagt dit één keer: de pagina voor meldingstoegang opent op dit scherm; zet DroidDeck daar aan en deze pagina komt vanzelf terug.</string>
-    <string name="bottom_notifications_allow">Meldingstoegang toestaan</string>
-    <string name="bottom_notifications_none">Geen meldingen.</string>
-    <string name="bottom_notifications_count">%1$d meldingen</string>
-    <string name="bottom_notifications_clear">Wissen</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">Voor FPS moet de HUD aan staan</string>
     <string name="stats_speed">Snelheid</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Boven</string>
     <string name="display_position_bottom">Onder</string>
     <string name="display_position_center">Midden (standaard)</string>
+    <string name="display_position_left">Links</string>
+    <string name="display_position_right">Rechts</string>
     <string name="setup_tab_storage">Opslag</string>
     <string name="storage_measuring">Opslag meten…</string>
     <string name="storage_measuring_hint">De eerste keer duurt een paar seconden.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>
+
+    <string name="theme_white_red">Scharlakenrode sneeuw</string>
+    
 </resources>

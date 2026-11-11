@@ -1224,7 +1224,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stik</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Tukar antara stik dan trackpad</string>
     <string name="deck_close">Tutup kawalan skrin kedua</string>
     <string name="deck_open_steam_menu">Buka menu Steam</string>
     <string name="deck_right_trackpad">Trackpad kanan</string>
@@ -1754,13 +1753,6 @@
     <string name="bottom_downloads_shader">Memuat turun cache shader</string>
     <string name="bottom_downloads_paused">Dijeda</string>
     <string name="bottom_downloads_queued">Menunggu untuk bermula</string>
-    <string name="bottom_page_notifications">Pemberitahuan</string>
-    <string name="bottom_notifications_listener">Skrin bawah DroidDeck</string>
-    <string name="bottom_notifications_why">Paparkan mesej dan pemberitahuan lain di sini semasa anda bermain. Ia hanya kekal pada skrin ini dan tidak disimpan. Android bertanya sekali sahaja: halaman akses pemberitahuannya dibuka pada skrin ini; hidupkan DroidDeck di sana dan halaman ini akan kembali dengan sendirinya.</string>
-    <string name="bottom_notifications_allow">Benarkan akses pemberitahuan</string>
-    <string name="bottom_notifications_none">Tiada pemberitahuan.</string>
-    <string name="bottom_notifications_count">%1$d pemberitahuan</string>
-    <string name="bottom_notifications_clear">Kosongkan</string>
     <string name="bottom_page_screenshots">Tangkapan skrin</string>
     <string name="stats_fps_needs_hud">FPS memerlukan HUD dihidupkan</string>
     <string name="stats_speed">Kelajuan</string>
@@ -2839,6 +2831,8 @@
     <string name="display_position_top">Atas</string>
     <string name="display_position_bottom">Bawah</string>
     <string name="display_position_center">Tengah (lalai)</string>
+    <string name="display_position_left">Kiri</string>
+    <string name="display_position_right">Kanan</string>
     <string name="setup_tab_storage">Storan</string>
     <string name="storage_measuring">Mengukur storan…</string>
     <string name="storage_measuring_hint">Mengambil beberapa saat pada kali pertama.</string>
@@ -3631,4 +3625,7 @@
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
     <string name="input_show_label">Tunjukkan label</string>
     <string name="input_layout_import_failed">Susun atur ini tidak dapat diimport</string>
+
+    <string name="theme_white_red">Salji Merah Skarlet</string>
+    
 </resources>

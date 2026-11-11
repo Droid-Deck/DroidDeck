@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Kontroller</string>
     <string name="deck_surface_stick">Stikke</string>
     <string name="deck_surface_trackpad">Styreflate</string>
-    <string name="deck_surface_switch">Bytt mellom stikke og styreflate</string>
     <string name="deck_close">Lukk kontroller for andre skjerm</string>
     <string name="deck_open_steam_menu">Åpne Steam-menyen</string>
     <string name="deck_right_trackpad">Høyre styreflate</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Laster ned shaderbuffer</string>
     <string name="bottom_downloads_paused">Pauset</string>
     <string name="bottom_downloads_queued">Venter på å starte</string>
-    <string name="bottom_page_notifications">Varslinger</string>
-    <string name="bottom_notifications_listener">DroidDeck nedre skjerm</string>
-    <string name="bottom_notifications_why">Vis meldinger og andre varslinger her mens du spiller. De vises bare på denne skjermen og lagres ikke. Android spør én gang: siden for varseltilgang åpnes på denne skjermen; slå på DroidDeck der, så kommer denne siden tilbake av seg selv.</string>
-    <string name="bottom_notifications_allow">Tillat varseltilgang</string>
-    <string name="bottom_notifications_none">Ingen varslinger.</string>
-    <string name="bottom_notifications_count">%1$d varslinger</string>
-    <string name="bottom_notifications_clear">Fjern</string>
     <string name="bottom_page_screenshots">Skjermbilder</string>
     <string name="stats_fps_needs_hud">FPS krever at HUD-en er på</string>
     <string name="stats_speed">Fart</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Øverst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Midten (standard)</string>
+    <string name="display_position_left">Venstre</string>
+    <string name="display_position_right">Høyre</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Måler lagring…</string>
     <string name="storage_measuring_hint">Første gang tar noen sekunder.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Tilbakestill plasseringer</string>
     <string name="input_show_label">Vis etikett</string>
     <string name="input_layout_import_failed">Kunne ikke importere dette oppsettet</string>
+
+    <string name="theme_white_red">Skarlagenssnø</string>
+    
 </resources>

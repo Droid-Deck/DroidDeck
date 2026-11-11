@@ -1223,7 +1223,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Zwischen Stick und Trackpad wechseln</string>
     <string name="deck_close">Steuerung auf dem Zweitbildschirm schließen</string>
     <string name="deck_open_steam_menu">Steam-Menü öffnen</string>
     <string name="deck_right_trackpad">Rechtes Trackpad</string>
@@ -1770,13 +1769,6 @@
     <string name="bottom_downloads_shader">Shader-Cache wird heruntergeladen</string>
     <string name="bottom_downloads_paused">Pausiert</string>
     <string name="bottom_downloads_queued">Wartet auf Start</string>
-    <string name="bottom_page_notifications">Benachrichtigungen</string>
-    <string name="bottom_notifications_listener">DroidDeck – unterer Bildschirm</string>
-    <string name="bottom_notifications_why">Zeigt Nachrichten und andere Benachrichtigungen hier an, während du spielst. Sie bleiben nur auf diesem Bildschirm und werden nicht gespeichert. Android fragt einmal: Die Seite für den Benachrichtigungszugriff öffnet sich auf diesem Bildschirm; aktiviere dort DroidDeck, dann kehrt diese Seite von selbst zurück.</string>
-    <string name="bottom_notifications_allow">Benachrichtigungszugriff erlauben</string>
-    <string name="bottom_notifications_none">Keine Benachrichtigungen.</string>
-    <string name="bottom_notifications_count">%1$d Benachrichtigungen</string>
-    <string name="bottom_notifications_clear">Löschen</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">FPS benötigt das aktive HUD</string>
     <string name="stats_speed">Geschwindigkeit</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Oben</string>
     <string name="display_position_bottom">Unten</string>
     <string name="display_position_center">Mitte (Standard)</string>
+    <string name="display_position_left">Links</string>
+    <string name="display_position_right">Rechts</string>
     <string name="setup_tab_storage">Speicher</string>
     <string name="storage_measuring">Speicher wird erfasst…</string>
     <string name="storage_measuring_hint">Die erste Erfassung dauert ein paar Sekunden.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Positionen zurücksetzen</string>
     <string name="input_show_label">Beschriftung anzeigen</string>
     <string name="input_layout_import_failed">Dieses Layout konnte nicht importiert werden</string>
+
+    <string name="theme_white_red">Scharlachroter Schnee</string>
+    
 </resources>

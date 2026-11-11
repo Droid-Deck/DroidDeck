@@ -1282,7 +1282,6 @@
     <string name="deck_tab_gamepad">Геймпад</string>
     <string name="deck_surface_stick">Стик</string>
     <string name="deck_surface_trackpad">Тачпад</string>
-    <string name="deck_surface_switch">Переключение между стиком и тачпадом</string>
     <string name="deck_close">Закрыть управление вторым экраном</string>
     <string name="deck_open_steam_menu">Открыть меню Steam</string>
     <string name="deck_right_trackpad">Правый тачпад</string>
@@ -1889,13 +1888,6 @@
     <string name="bottom_downloads_shader">Загрузка кэша шейдеров</string>
     <string name="bottom_downloads_paused">Приостановлено</string>
     <string name="bottom_downloads_queued">Ожидает начала</string>
-    <string name="bottom_page_notifications">Уведомления</string>
-    <string name="bottom_notifications_listener">Нижний экран DroidDeck</string>
-    <string name="bottom_notifications_why">Показывает сообщения и другие уведомления здесь, пока вы играете. Они отображаются только на этом экране и не сохраняются. Android спросит один раз: на этом экране откроется страница доступа к уведомлениям; включите там DroidDeck, и эта страница вернется сама.</string>
-    <string name="bottom_notifications_allow">Разрешить доступ к уведомлениям</string>
-    <string name="bottom_notifications_none">Нет уведомлений.</string>
-    <string name="bottom_notifications_count">Уведомлений: %1$d</string>
-    <string name="bottom_notifications_clear">Очистить</string>
     <string name="bottom_page_screenshots">Скриншоты</string>
     <string name="stats_fps_needs_hud">Для FPS нужно включить HUD</string>
     <string name="stats_speed">Скорость</string>
@@ -3009,6 +3001,8 @@
     <string name="display_position_top">Сверху</string>
     <string name="display_position_bottom">Снизу</string>
     <string name="display_position_center">По центру (по умолчанию)</string>
+    <string name="display_position_left">Слева</string>
+    <string name="display_position_right">Справа</string>
     <string name="setup_tab_storage">Хранилище</string>
     <string name="storage_measuring">Измерение хранилища…</string>
     <string name="storage_measuring_hint">В первый раз занимает несколько секунд.</string>
@@ -3822,4 +3816,7 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+
+    <string name="theme_white_red">Алый снег</string>
+    
 </resources>

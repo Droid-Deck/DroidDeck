@@ -1238,7 +1238,6 @@
     <string name="deck_tab_gamepad">Manette</string>
     <string name="deck_surface_stick">Joystick</string>
     <string name="deck_surface_trackpad">Pavé tactile</string>
-    <string name="deck_surface_switch">Basculer entre joystick et pavé tactile</string>
     <string name="deck_close">Fermer les commandes du deuxième écran</string>
     <string name="deck_open_steam_menu">Ouvrir le menu Steam</string>
     <string name="deck_right_trackpad">Pavé tactile droit</string>
@@ -1802,13 +1801,6 @@
     <string name="bottom_downloads_shader">Téléchargement du cache de shaders</string>
     <string name="bottom_downloads_paused">En pause</string>
     <string name="bottom_downloads_queued">En attente de démarrage</string>
-    <string name="bottom_page_notifications">Notifications</string>
-    <string name="bottom_notifications_listener">Écran inférieur DroidDeck</string>
-    <string name="bottom_notifications_why">Affichez ici les messages et autres notifications pendant que vous jouez. Ils restent uniquement sur cet écran et ne sont pas enregistrés. Android ne le demande qu\'une fois : sa page d\'accès aux notifications s\'ouvre sur cet écran ; activez-y DroidDeck et cette page reviendra d\'elle-même.</string>
-    <string name="bottom_notifications_allow">Autoriser l\'accès aux notifications</string>
-    <string name="bottom_notifications_none">Aucune notification.</string>
-    <string name="bottom_notifications_count">%1$d notifications</string>
-    <string name="bottom_notifications_clear">Effacer</string>
     <string name="bottom_page_screenshots">Captures d\'écran</string>
     <string name="stats_fps_needs_hud">Les FPS nécessitent d\'activer le HUD</string>
     <string name="stats_speed">Vitesse</string>
@@ -2897,6 +2889,8 @@
     <string name="display_position_top">Haut</string>
     <string name="display_position_bottom">Bas</string>
     <string name="display_position_center">Centre (par défaut)</string>
+    <string name="display_position_left">Gauche</string>
+    <string name="display_position_right">Droite</string>
     <string name="setup_tab_storage">Stockage</string>
     <string name="storage_measuring">Mesure du stockage…</string>
     <string name="storage_measuring_hint">Cela prend quelques secondes la première fois.</string>
@@ -3700,4 +3694,7 @@
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>
+
+    <string name="theme_white_red">Neige écarlate</string>
+    
 </resources>

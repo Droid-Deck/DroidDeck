@@ -23,6 +23,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -184,6 +185,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
+    private var nativeUserland by mutableStateOf(false)
     private var cursorComposite by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
@@ -873,6 +875,7 @@ class FrontEndActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
+            Library.recordPlayed(this, game)
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                 .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
                 .returnTo(returnHome)
@@ -888,7 +891,15 @@ class FrontEndActivity : ComponentActivity() {
                         putExtra(SessionService.EXTRA_STEAM_URL,
                             com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
                     }
-                }, steamSession = true)
+                }
+                .playing(game), steamSession = true)
+    }
+
+    private fun Intent.playing(game: Library.SteamGame): Intent =
+        apply { if (game.library == Library.ADDED) putExtra(SessionActivity.EXTRA_PLAYED_GAME, game.gameIdString) }
+
+    private fun recordPlayed(intent: Intent) {
+        intent.getStringExtra(SessionActivity.EXTRA_PLAYED_GAME)?.let { Library.recordPlayed(this, it) }
     }
 
     private fun Intent.returnTo(returnHome: Boolean): Intent {
@@ -915,14 +926,17 @@ class FrontEndActivity : ComponentActivity() {
                     .putExtra(SessionService.EXTRA_PROGRAM, command.program)
                     .putExtra(SessionService.EXTRA_PROGRAM_ARGS, command.args.toTypedArray())
                     .putExtra(SessionService.EXTRA_GAME_ID, com.droiddeck.launcher.session.NoSteamLaunch.scope(game))
+                    .playing(game)
                 when {
                     !SessionState.running -> startSessionOrWait(next)
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
-                    command.program == com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET && handToBattleNet(command.args, returnHome) { pendingSwitch = next } -> {}
-                    SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args ->
+                    command.program == com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET && handToBattleNet(command.args, next, returnHome) -> {}
+                    SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args -> {
+                        recordPlayed(next)
                         startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                             .returnTo(returnHome)
                             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                    }
                     else -> pendingSwitch = next
                 }
             }
@@ -1123,6 +1137,10 @@ class FrontEndActivity : ComponentActivity() {
         applyLauncherFullscreen()
         updates.start()
         setContent {
+            val prootPack by com.droiddeck.launcher.core.AddonPack.PROOT.state.collectAsState()
+            androidx.compose.runtime.LaunchedEffect(prootPack) {
+                if (prootPack == com.droiddeck.launcher.core.AddonPack.State.Ready && installed == null) refresh()
+            }
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
@@ -2276,14 +2294,14 @@ class FrontEndActivity : ComponentActivity() {
                 when {
                     !SessionState.running -> startSessionOrWait(next)
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
-                    handToBattleNet(full) { pendingSwitch = next } -> {}
+                    handToBattleNet(full, next) -> {}
                     else -> pendingSwitch = next
                 }
             }
         }, "battlenet-open").start()
     }
 
-    private fun handToBattleNet(args: List<String>, returnHome: Boolean = false, otherwise: () -> Unit): Boolean {
+    private fun handToBattleNet(args: List<String>, next: Intent, returnHome: Boolean = false): Boolean {
         if (SessionState.mode != SessionService.MODE_RUN || SessionState.program != com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET) return false
         val library = args.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
         val sessionLibrary = SessionState.programArgs.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
@@ -2294,10 +2312,13 @@ class FrontEndActivity : ComponentActivity() {
             val handed = request.isEmpty() || com.droiddeck.launcher.stores.battlenet.BattleNetClient.request(LinuxRuntime.sessionRoot(app), request)
             ui.post {
                 if (isDestroyed) return@post
-                if (!handed) otherwise()
-                else startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
-                    .returnTo(returnHome)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                if (!handed) pendingSwitch = next
+                else {
+                    recordPlayed(next)
+                    startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                        .returnTo(returnHome)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                }
             }
         }, "battlenet-request").start()
         return true
@@ -2537,7 +2558,7 @@ class FrontEndActivity : ComponentActivity() {
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
             ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
-            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
@@ -2555,6 +2576,7 @@ class FrontEndActivity : ComponentActivity() {
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
+            onNativeUserland = { on -> SessionPrefs.setNativeUserland(this, on); nativeUserland = on },
             onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
@@ -2777,6 +2799,7 @@ class FrontEndActivity : ComponentActivity() {
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
+        nativeUserland = SessionPrefs.nativeUserland(this)
         cursorComposite = SessionPrefs.cursorComposite(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()

@@ -20,6 +20,14 @@ class SortCatalogItemsTest {
         assertEquals(listOf("Zelda", "Beta", "alpha"), sortCatalogItems(items, "titleDesc").map { it.title })
     }
 
+    @Test fun anEntryTimeFallsBackWhenTheFirstSourceHasNone() {
+        assertEquals(30L, entryTime(30L, 20L))
+        assertEquals(20L, entryTime(0L, 20L))
+        assertEquals(20L, entryTime(null, 20L))
+        assertEquals(0L, entryTime(0L, null))
+        assertEquals(0L, entryTime(null, 0L))
+    }
+
     @Test fun playedAndInstalledComeFirstWithTitlesBreakingTies() {
         val items = listOf(item("1", "Zelda"), item("2", "alpha"), item("3", "Beta"))
         val played = mapOf("gog:3" to 900L, "gog:1" to 900L)

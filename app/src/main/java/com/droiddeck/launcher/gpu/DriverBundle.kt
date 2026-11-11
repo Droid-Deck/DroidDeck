@@ -159,6 +159,12 @@ object DriverBundle {
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
     }
 
+    fun selectDisplay(context: Context, id: String) {
+        val left = active(context)
+        SessionPrefs.setAndroidDriver(context, id)
+        if (left != null && left.androidId != id) SessionPrefs.setLinuxDriver(context, "")
+    }
+
     fun remove(context: Context, bundle: Bundle) {
         TurnipDriver(context).remove(bundle.androidId)
         LinuxVulkanDriverManager(context).removeDriver(bundle.linuxId)

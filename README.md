@@ -7,10 +7,10 @@
 
 DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
 
-<p align="center"><b>100% open source. No ads. No telemetry. No source withheld.</b></p>
+<p align="center"><b>100% open source. No ads. No telemetry. No proprietary components. No source withheld.</b></p>
 
 <p align="center">
-  <a href="https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.9/DroidDeck-0.6.9.apk"><img src="https://img.shields.io/badge/Download-DroidDeck%200.6.9%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download DroidDeck 0.6.9"></a>
+  <a href="https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.1/DroidDeck-0.7.1.apk"><img src="https://img.shields.io/badge/Download-DroidDeck%200.7.1%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download DroidDeck 0.7.1"></a>
   <a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a>
 </p>
 
@@ -36,9 +36,9 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 ## Install
 
-1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx is experimental. Mali, Xclipse, PowerVR and Adreno 710 are unsupported. No root needed.
+1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx, Mali, Xclipse and PowerVR are experimental. Adreno 710 is currently unsupported. No root needed.
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
-3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.9/DroidDeck-0.6.9.apk), install the Linux runtime, press **Play** and sign in to Steam.
+3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.1/DroidDeck-0.7.1.apk), install the Linux runtime, press **Play** and sign in to Steam.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
 
 Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
@@ -79,7 +79,8 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - droiddeck-ntsync follows the [Linux](https://github.com/torvalds/linux) ntsync semantics in `Documentation/userspace-api/ntsync.rst` (GPL-2.0).
 - The proot fast path orders bindings like [PRoot](https://github.com/proot-me/proot)'s `path/binding.c` (GPL-2.0-or-later).
 - DiRT 3 and DiRT Showdown keep their telemetry socket the way RoccoC's DiRTTelemetryErrorFix (MIT) does, based on the fix by Carsten Gottschling.
-- Games use [Mesa](https://gitlab.freedesktop.org/mesa/mesa) Turnip's per render pass memory choice. The Steam client keeps `TU_DEBUG=sysmem`.
+- Zink on PowerVR keeps colour textures in colour with Icenowy Zheng's upstream [Mesa](https://gitlab.freedesktop.org/mesa/mesa) fix d55418dae7 (MIT), carried as a runtime patch.
+- Games and AppImage, Flatpak and Snap programs such as emulators use [Mesa](https://gitlab.freedesktop.org/mesa/mesa) Turnip's per render pass memory choice. The Steam client and Chromium-based apps keep `TU_DEBUG=sysmem`.
 - Black Ops III and Dark Souls Remastered start without [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) (BSD-2-Clause), whose `311210.py` and `570940.py` fail under ARM64 Proton.
 - [ReSkate](https://github.com/Dingo-Shenanigans/ReSkate) (GPL-3.0) by Dingo Shenanigans uses the launch option from its README and D3D12 feature level 12_1.
 - The arm64 client's sign in was checked by reading Steam's saved token with the `ConnectCache` format from [deadlock-api-ingest](https://github.com/deadlock-api/deadlock-api-ingest).
@@ -92,6 +93,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them.
 - Epic's official Linux launcher preview runs through FEX. That setup is outside Epic's listed Linux support.
 - Battle.net is by [@kayakyakr](https://github.com/kayakyakr). It runs Blizzard's own client in Proton (downloaded from Blizzard, not included) and shows key art from the [Battle.net Shop](https://shop.battle.net). Without Steam, its games see the pad as an Xbox 360 controller via `PROTON_SPOOF_STEAMINPUT_VIDPID` in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/winebus.sys`.
+- The EA store follows the EA app's protocols as documented by [ArmchairDevelopers](https://github.com/ArmchairDevelopers)' [Maxima](https://github.com/ArmchairDevelopers/Maxima) (GPL-3.0): sign-in, the GraphQL queries (included verbatim, since EA matches them by hash), build archives, online activation licences and the LSX game endpoint. The code is DroidDeck's own.
 - Battle.net installs drive Blizzard's Agent the way [@barncastle](https://github.com/barncastle)'s [Battle.Net-Installer](https://github.com/barncastle/Battle.Net-Installer) does, with requests from [wowdev.wiki](https://wowdev.wiki/Agent). Read without taking code: [@mubaraknumann](https://github.com/mubaraknumann)'s [unifideck](https://github.com/mubaraknumann/unifideck), [@djmittens](https://github.com/djmittens)'s [neo-mittens](https://github.com/djmittens/neo-mittens) `bnetswitch`, [@BCD1210](https://github.com/BCD1210)'s [soju](https://github.com/BCD1210/soju) and [Lutris](https://github.com/lutris/lutris)'s `product.db` reader.
 - World of Warcraft addon imports replace an addon's folder from a temporary copy, as [WowUp](https://github.com/WowUp/WowUp) does, and read flavour folders the way [WoWDeck](https://github.com/sigboe/wowdeck) does. No code from either is used.
 - The World of Warcraft addon Download window searches [WoWInterface](https://www.wowinterface.com) through its MMOUI API. [CurseForge](https://www.curseforge.com/wow) opens in the user's browser, with no API and no key.

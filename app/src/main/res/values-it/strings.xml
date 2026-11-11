@@ -1230,7 +1230,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Levetta</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Alterna tra levetta e trackpad</string>
     <string name="deck_close">Chiudi i controlli sul secondo schermo</string>
     <string name="deck_open_steam_menu">Apri il menu Steam</string>
     <string name="deck_right_trackpad">Trackpad destro</string>
@@ -1794,13 +1793,6 @@
     <string name="bottom_downloads_shader">Download della cache degli shader</string>
     <string name="bottom_downloads_paused">In pausa</string>
     <string name="bottom_downloads_queued">In attesa di avvio</string>
-    <string name="bottom_page_notifications">Notifiche</string>
-    <string name="bottom_notifications_listener">Schermo inferiore DroidDeck</string>
-    <string name="bottom_notifications_why">Mostra qui messaggi e altre notifiche mentre giochi. Restano solo su questo schermo e non vengono salvate. Android lo chiede una sola volta: la sua pagina di accesso alle notifiche si apre su questo schermo; attiva DroidDeck lì e questa pagina torna da sola.</string>
-    <string name="bottom_notifications_allow">Consenti accesso alle notifiche</string>
-    <string name="bottom_notifications_none">Nessuna notifica.</string>
-    <string name="bottom_notifications_count">%1$d notifiche</string>
-    <string name="bottom_notifications_clear">Cancella</string>
     <string name="bottom_page_screenshots">Screenshot</string>
     <string name="stats_fps_needs_hud">Gli FPS richiedono l\'HUD attivo</string>
     <string name="stats_speed">Velocità</string>
@@ -2897,6 +2889,8 @@
     <string name="display_position_top">In alto</string>
     <string name="display_position_bottom">In basso</string>
     <string name="display_position_center">Centro (predefinito)</string>
+    <string name="display_position_left">Sinistra</string>
+    <string name="display_position_right">Destra</string>
     <string name="setup_tab_storage">Archiviazione</string>
     <string name="storage_measuring">Misurazione dell\'archiviazione…</string>
     <string name="storage_measuring_hint">La prima volta richiede qualche secondo.</string>
@@ -3700,4 +3694,7 @@
     <string name="input_reset_positions">Ripristina posizioni</string>
     <string name="input_show_label">Mostra etichetta</string>
     <string name="input_layout_import_failed">Impossibile importare questo layout</string>
+
+    <string name="theme_white_red">Neve scarlatta</string>
+    
 </resources>

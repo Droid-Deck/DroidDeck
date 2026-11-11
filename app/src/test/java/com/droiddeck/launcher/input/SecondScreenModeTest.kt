@@ -64,4 +64,13 @@ class SecondScreenModeTest {
             assertEquals(SecondScreenMode.TERMINAL, SecondScreenMode.opening("terminal", deckPad, dashboard, desktopSession = true))
         }
     }
+
+    @Test fun theEditorOpensOnTheChosenBottomScreenUnlessAnotherAppHoldsIt() {
+        val free = { _: Int -> false }
+        assertEquals(listOf(2, 3), SecondScreenDisplays.editorCandidates(2, listOf(2, 3), free))
+        assertEquals(listOf(3, 2), SecondScreenDisplays.editorCandidates(3, listOf(2, 3), free))
+        assertEquals(listOf(-1, 2), SecondScreenDisplays.editorCandidates(-1, listOf(2), free))
+        assertEquals(listOf(3), SecondScreenDisplays.editorCandidates(2, listOf(2, 3)) { it == 2 })
+        assertEquals(emptyList<Int>(), SecondScreenDisplays.editorCandidates(2, listOf(2)) { it == 2 })
+    }
 }

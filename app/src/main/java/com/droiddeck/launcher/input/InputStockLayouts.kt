@@ -45,6 +45,14 @@ internal object InputStockLayouts {
             InputSurfaceElement(InputControl.SELECT, .42f, .3f, .07f, .1f, buttonShape = InputButtonShape.PILL),
             InputSurfaceElement(InputControl.START, .51f, .3f, .07f, .1f, buttonShape = InputButtonShape.PILL))
     }
+    fun gamepad(leftPad: Boolean, rightStick: Boolean) = gamepad().map {
+        when {
+            leftPad && it.control == InputControl.LS -> InputSurfaceElement(InputControl.LEFT_PAD, it.x, it.y, it.width, it.height)
+            rightStick && it.control == InputControl.RIGHT_PAD -> InputSurfaceElement(InputControl.RS, it.x, it.y, it.width, it.height)
+            else -> it
+        }
+    }
+
     fun layouts() = listOf(
         SavedInputLayout(InputLibraries.DECK, "Deck grips + trackpads", pads() + grips(), style = NEUTRAL, screen = InputLayoutScreen.SECONDARY),
         SavedInputLayout(InputLibraries.TRACKPAD, "Trackpad + keyboard", listOf(

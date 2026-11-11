@@ -219,7 +219,6 @@ class DrawerActions(
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
-    val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val micAvailable: Boolean = false,
@@ -325,6 +324,7 @@ class DrawerActions(
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     val onClose: () -> Unit,
+    val onDismissScreen: (() -> Unit)? = null,
     val components: ComponentsManager.Snapshot? = null,
     val systemPowerVr: Boolean = false,
     val onComponentsRefresh: () -> Unit = {},
@@ -488,7 +488,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) {
                     SteamActionPill(
                         stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
-                    ) { host.open = null; a.onClose() }
+                    ) { host.open = null; (a.onDismissScreen ?: a.onClose)() }
                     if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
                         stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),

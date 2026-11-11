@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Peliohjain</string>
     <string name="deck_surface_stick">Tatti</string>
     <string name="deck_surface_trackpad">Kosketuslevy</string>
-    <string name="deck_surface_switch">Vaihda tatin ja kosketuslevyn välillä</string>
     <string name="deck_close">Sulje toisen näytön ohjaimet</string>
     <string name="deck_open_steam_menu">Avaa Steam-valikko</string>
     <string name="deck_right_trackpad">Oikea kosketuslevy</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Ladataan sävytinvälimuistia</string>
     <string name="bottom_downloads_paused">Keskeytetty</string>
     <string name="bottom_downloads_queued">Odottaa alkamista</string>
-    <string name="bottom_page_notifications">Ilmoitukset</string>
-    <string name="bottom_notifications_listener">DroidDeckin alanäyttö</string>
-    <string name="bottom_notifications_why">Näytä viestit ja muut ilmoitukset täällä pelatessasi. Ne näkyvät vain tällä näytöllä, eikä niitä tallenneta. Android kysyy kerran: sen ilmoitusten käyttöoikeussivu avautuu tälle näytölle; kytke DroidDeck siellä päälle, niin tämä sivu palaa itsestään.</string>
-    <string name="bottom_notifications_allow">Salli ilmoitusten käyttö</string>
-    <string name="bottom_notifications_none">Ei ilmoituksia.</string>
-    <string name="bottom_notifications_count">Ilmoituksia: %1$d</string>
-    <string name="bottom_notifications_clear">Tyhjennä</string>
     <string name="bottom_page_screenshots">Kuvakaappaukset</string>
     <string name="stats_fps_needs_hud">FPS vaatii HUD:n päälle</string>
     <string name="stats_speed">Nopeus</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Ylhäällä</string>
     <string name="display_position_bottom">Alhaalla</string>
     <string name="display_position_center">Keskellä (oletus)</string>
+    <string name="display_position_left">Vasen</string>
+    <string name="display_position_right">Oikea</string>
     <string name="setup_tab_storage">Tallennustila</string>
     <string name="storage_measuring">Mitataan tallennustilaa…</string>
     <string name="storage_measuring_hint">Ensimmäisellä kerralla kestää muutaman sekunnin.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Palauta sijainnit</string>
     <string name="input_show_label">Näytä nimi</string>
     <string name="input_layout_import_failed">Tätä asettelua ei voitu tuoda</string>
+
+    <string name="theme_white_red">Helakanpunainen lumi</string>
+    
 </resources>

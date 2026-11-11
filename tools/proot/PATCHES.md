@@ -142,6 +142,26 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   `statx` (`newfstatat`) and `memfd_create`. Syscalls outside the trampoline and sessions
   without `PROOT_FASTPATH` are unchanged. `bench/statx-trap.c` traps `statx` and checks an
   existing directory still reads as one.
+- `0026-arm64-kernel-program-layout.patch` - on ARM64, PRoot put its loader at 128 GiB, a PIE
+  program at 192 GiB and its interpreter at 252 GiB. Android kernels give a process a 39-bit
+  (512 GiB) address space, so those three split the low half into holes of 64 GiB or less, and a
+  program that reserves one large contiguous range there could not get it. The Linux kernel loads
+  a PIE program at two thirds of the address space (`ELF_ET_DYN_BASE`, 0x5555555000 with 39 bits)
+  and keeps the range below it free; the loader, program and interpreter now sit there too, which
+  leaves 64 GiB to 336 GiB free as on a native kernel. Switch emulators that run guest code
+  natively reserve 256 GiB above 64 GiB for guest memory: under PRoot the reservation failed and
+  the first guest instruction faulted forever. 48-bit address spaces and 32-bit programs are
+  unchanged in practice.
+- `0027-guest-seccomp-sigsys.patch` - PRoot treated every seccomp `SIGSYS` as Android's app policy
+  refusing a call: it emulated the few it knows and answered the rest with `ENOSYS`, so a filter
+  the guest installs itself never reached its own handler. Firefox's content sandbox traps
+  `openat` and opens files through a broker in the parent; every font open came back `ENOSYS`,
+  and each tab crashed in `gfxFontGroup::GetDefaultFont`. Android's policy traps with
+  `SECCOMP_RET_DATA` 0, while Firefox's and Chromium's filters tag their traps, so a tagged
+  `SIGSYS` is now delivered to the guest. A trap from the fast path's trampoline still gets
+  `ENOSYS`, because its arguments are host paths; the fast path then stops for that process and
+  repeats the call through a plain `svc`, which the guest's filter traps with the guest path.
+  `bench/guest-trap.c` installs a tagged `openat` trap and checks its handler answers the call.
 
 Old kernel fixes:
 

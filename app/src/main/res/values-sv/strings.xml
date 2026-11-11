@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Handkontroll</string>
     <string name="deck_surface_stick">Styrspak</string>
     <string name="deck_surface_trackpad">Styrplatta</string>
-    <string name="deck_surface_switch">Växla mellan styrspak och styrplatta</string>
     <string name="deck_close">Stäng kontrollerna på andra skärmen</string>
     <string name="deck_open_steam_menu">Öppna Steam-menyn</string>
     <string name="deck_right_trackpad">Höger styrplatta</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Laddar ned shadercache</string>
     <string name="bottom_downloads_paused">Pausad</string>
     <string name="bottom_downloads_queued">Väntar på att starta</string>
-    <string name="bottom_page_notifications">Aviseringar</string>
-    <string name="bottom_notifications_listener">DroidDecks nedre skärm</string>
-    <string name="bottom_notifications_why">Visa meddelanden och andra aviseringar här medan du spelar. De visas bara på den här skärmen och sparas inte. Android frågar en gång: sidan för aviseringsåtkomst öppnas på den här skärmen; slå på DroidDeck där så kommer den här sidan tillbaka av sig själv.</string>
-    <string name="bottom_notifications_allow">Tillåt aviseringsåtkomst</string>
-    <string name="bottom_notifications_none">Inga aviseringar.</string>
-    <string name="bottom_notifications_count">%1$d aviseringar</string>
-    <string name="bottom_notifications_clear">Rensa</string>
     <string name="bottom_page_screenshots">Skärmbilder</string>
     <string name="stats_fps_needs_hud">FPS kräver att HUD:en är på</string>
     <string name="stats_speed">Hastighet</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Överst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Mitten (standard)</string>
+    <string name="display_position_left">Vänster</string>
+    <string name="display_position_right">Höger</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Mäter lagring…</string>
     <string name="storage_measuring_hint">Första gången tar några sekunder.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+
+    <string name="theme_white_red">Scharlakansröd snö</string>
+    
 </resources>

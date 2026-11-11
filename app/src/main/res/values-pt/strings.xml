@@ -1230,7 +1230,6 @@
     <string name="deck_tab_gamepad">Controle</string>
     <string name="deck_surface_stick">Analógico</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Alternar entre analógico e trackpad</string>
     <string name="deck_close">Fechar controles da segunda tela</string>
     <string name="deck_open_steam_menu">Abrir o menu Steam</string>
     <string name="deck_right_trackpad">Trackpad direito</string>
@@ -1794,13 +1793,6 @@
     <string name="bottom_downloads_shader">Baixando o cache de shaders</string>
     <string name="bottom_downloads_paused">Pausado</string>
     <string name="bottom_downloads_queued">Aguardando para começar</string>
-    <string name="bottom_page_notifications">Notificações</string>
-    <string name="bottom_notifications_listener">Tela inferior do DroidDeck</string>
-    <string name="bottom_notifications_why">Mostre aqui mensagens e outras notificações enquanto você joga. Elas ficam só nesta tela e não são salvas. O Android pergunta uma vez: a página de acesso a notificações dele abre nesta tela; ative o DroidDeck lá e esta página volta sozinha.</string>
-    <string name="bottom_notifications_allow">Permitir acesso a notificações</string>
-    <string name="bottom_notifications_none">Nenhuma notificação.</string>
-    <string name="bottom_notifications_count">%1$d notificações</string>
-    <string name="bottom_notifications_clear">Limpar</string>
     <string name="bottom_page_screenshots">Capturas de tela</string>
     <string name="stats_fps_needs_hud">O FPS precisa do HUD ativado</string>
     <string name="stats_speed">Velocidade</string>
@@ -2895,6 +2887,8 @@
     <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
     <string name="display_picture_position">Posição da imagem</string>
     <string name="display_position_top">Topo</string>
+    <string name="display_position_left">Esquerda</string>
+    <string name="display_position_right">Direita</string>
     <string name="display_position_bottom">Base</string>
     <string name="display_position_center">Centro (padrão)</string>
     <string name="setup_tab_storage">Armazenamento</string>
@@ -3700,4 +3694,7 @@
     <string name="input_reset_positions">Redefinir posições</string>
     <string name="input_show_label">Mostrar rótulo</string>
     <string name="input_layout_import_failed">Não foi possível importar este layout</string>
+
+    <string name="theme_white_red">Neve Escarlate</string>
+    
 </resources>

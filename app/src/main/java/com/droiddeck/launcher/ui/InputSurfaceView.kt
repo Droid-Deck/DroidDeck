@@ -32,10 +32,12 @@ import com.droiddeck.launcher.input.InputSurfaceStyle
 import com.droiddeck.launcher.input.pointerSubset
 import com.droiddeck.launcher.input.InputSurfaceSource
 import com.droiddeck.launcher.input.InputElementKind
+import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -195,7 +197,7 @@ class InputSurfaceView(
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, source = source)
-                InputElementKind.DPAD -> DirectionPad(context, source)
+                InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
         }
@@ -541,6 +543,7 @@ class InputSurfaceView(
                     if (touching || clicking) shade(color, 160, 1f) else shade(color, 120, 0.35f), if (touching) light(color, 230, 0.7f) else light(color, 150, 0.25f))
                 if (!element.showLabel) return
                 labelPaint.color = textColor(touching)
+                if (drawDirectionLabels(canvas, source, false, cx, cy, radius * 0.66f, radius * 0.34f, labelPaint)) return
                 labelPaint.textSize = knobRadius * 0.8f
                 val label = if (element.name == element.control.label) glyph(element.control) else element.name
                 canvas.drawText(label, cx + knobX, cy + knobY + labelPaint.textSize * 0.35f, labelPaint)
@@ -552,6 +555,9 @@ class InputSurfaceView(
             canvas.drawCircle(cx, cy, reach(), ring)
             knob.color = if (touching) ACCENT else KNOB
             canvas.drawCircle(cx + knobX, cy + knobY, reach() * 0.45f, knob)
+            if (!element.showLabel) return
+            labelPaint.color = if (touching) ACCENT else TEXT
+            drawDirectionLabels(canvas, source, false, cx, cy, reach() * 1.32f, reach() * 0.68f, labelPaint)
         }
 
         @SuppressLint("ClickableViewAccessibility")
@@ -613,10 +619,11 @@ class InputSurfaceView(
         }
     }
 
-    private inner class DirectionPad(context: Context, private val source: InputSurfaceSource? = null) : View(context) {
+    private inner class DirectionPad(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource? = null) : View(context) {
         private val density = resources.displayMetrics.density
         private var held = 0
         private val arm = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = TEXT }
         private val rect = RectF()
 
         override fun onDraw(canvas: Canvas) {
@@ -636,6 +643,7 @@ class InputSurfaceView(
             armRect(2, cx + thick, cy - thick, cx + half, cy + thick)
             arm.color = KNOB
             canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, arm)
+            if (element.showLabel) drawDirectionLabels(canvas, source, true, cx, cy, (half + thick) / 2f, thick * 1.7f, label)
         }
 
         @SuppressLint("ClickableViewAccessibility")
@@ -715,6 +723,29 @@ class InputSurfaceView(
             InputControl.GUIDE -> "◉"
             InputControl.QAM -> "⋯"
             else -> control.id.uppercase()
+        }
+
+        private val CARDINAL = listOf(0f to -1f, 1f to 0f, 0f to 1f, -1f to 0f)
+        private val DIAGONAL = listOf(.7071f to -.7071f, .7071f to .7071f, -.7071f to .7071f, -.7071f to -.7071f)
+
+        internal fun directionLabels(context: Context, action: InputAction.Directions?, cardinalOnly: Boolean): List<Pair<Pair<Float, Float>, String>> {
+            if (action == null) return emptyList()
+            val codes = listOf(action.up, action.right, action.down, action.left).zip(CARDINAL) +
+                if (cardinalOnly) emptyList() else action.diagonals.orEmpty().zip(DIAGONAL)
+            return codes.filter { it.first != 0 }.map { (code, unit) -> unit to pcKeyLabel(context, code) }
+        }
+
+        private fun View.drawDirectionLabels(canvas: Canvas, source: InputSurfaceSource?, cardinalOnly: Boolean, cx: Float, cy: Float,
+            distance: Float, box: Float, paint: Paint): Boolean {
+            val labels = directionLabels(context, source?.directions, cardinalOnly)
+            paint.style = Paint.Style.FILL
+            for ((unit, text) in labels) {
+                paint.textSize = box * .6f
+                val measured = paint.measureText(text)
+                if (measured > box) paint.textSize *= box / measured
+                canvas.drawText(text, cx + unit.first * distance, cy + unit.second * distance - (paint.ascent() + paint.descent()) / 2f, paint)
+            }
+            return labels.isNotEmpty()
         }
 
         private fun drawArrow(canvas: Canvas, x: Float, y: Float, size: Float, direction: Int, paint: Paint) {

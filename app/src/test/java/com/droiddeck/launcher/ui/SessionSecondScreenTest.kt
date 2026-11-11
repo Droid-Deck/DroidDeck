@@ -376,7 +376,7 @@ class SessionSecondScreenTest {
             isHomeApp = false, androidApps = emptyList(), hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
-            onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
+            suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},

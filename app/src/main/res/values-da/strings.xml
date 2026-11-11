@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Skift mellem stick og trackpad</string>
     <string name="deck_close">Luk kontrollerne til den anden skærm</string>
     <string name="deck_open_steam_menu">Åbn Steam-menuen</string>
     <string name="deck_right_trackpad">Højre trackpad</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Downloader shader-cache</string>
     <string name="bottom_downloads_paused">På pause</string>
     <string name="bottom_downloads_queued">Venter på at starte</string>
-    <string name="bottom_page_notifications">Notifikationer</string>
-    <string name="bottom_notifications_listener">DroidDecks nederste skærm</string>
-    <string name="bottom_notifications_why">Vis beskeder og andre notifikationer her, mens du spiller. De bliver kun på denne skærm og gemmes ikke. Android spørger én gang: siden for notifikationsadgang åbnes på denne skærm; slå DroidDeck til der, så vender denne side selv tilbage.</string>
-    <string name="bottom_notifications_allow">Tillad notifikationsadgang</string>
-    <string name="bottom_notifications_none">Ingen notifikationer.</string>
-    <string name="bottom_notifications_count">%1$d notifikationer</string>
-    <string name="bottom_notifications_clear">Ryd</string>
     <string name="bottom_page_screenshots">Skærmbilleder</string>
     <string name="stats_fps_needs_hud">FPS kræver, at HUD er slået til</string>
     <string name="stats_speed">Hastighed</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Øverst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Midten (standard)</string>
+    <string name="display_position_left">Venstre</string>
+    <string name="display_position_right">Højre</string>
     <string name="setup_tab_storage">Lager</string>
     <string name="storage_measuring">Måler lager…</string>
     <string name="storage_measuring_hint">Første gang tager et par sekunder.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
+
+    <string name="theme_white_red">Skarlagensne</string>
+    
 </resources>

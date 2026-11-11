@@ -648,7 +648,10 @@
     <string name="perf_xalia_hint">Disables Proton\'s gamepad navigation helper, which costs CPU in every game.</string>
     <string name="perf_seccomp">Run proot without seccomp</string>
     <string name="perf_seccomp_hint">May fix missing-syscall errors on some kernels. Can reduce performance.</string>
+    <string name="perf_native_userland">Run without proot (experimental)</string>
+    <string name="perf_native_userland_hint">Starts the Linux side directly on Android. Applies to the next session. Turn off if something fails to start.</string>
     <string name="perf_fastpath">proot fast path</string>
+    <string name="perf_fastpath_needs_proot">Not used without proot.</string>
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
     <string name="perf_cursor_composite">Draw the cursor inside gamescope</string>
@@ -1118,6 +1121,29 @@
     <string name="upd_tests">Test builds</string>
     <string name="upd_tests_hint">Try a fix before it\'s released</string>
     <string name="upd_tests_none">None right now</string>
+    <string name="upd_lab">Lab build</string>
+    <string name="lab_builds">Lab builds</string>
+    <string name="lab_in_use">In use</string>
+    <string name="lab_paused_row">Paused after Android re-optimized DroidDeck</string>
+    <string name="lab_not_loaded">Not loaded: %1$s</string>
+    <string name="lab_waiting">Waiting for a restart</string>
+    <string name="lab_kept">Kept</string>
+    <string name="lab_other_install">For another version</string>
+    <string name="lab_rebuild">Rebuild</string>
+    <string name="lab_delete_warning">Deletes this build from the device</string>
+    <string name="lab_restart">Restart on it</string>
+    <string name="lab_turn_off">Turn off</string>
+    <string name="lab_use">Use</string>
+    <string name="lab_delete">Delete</string>
+    <string name="lab_delete_confirm">Delete now</string>
+    <string name="lab_restart_failed">Could not prepare the restart: %1$s. Pair wireless debugging in Setup and try again.</string>
+    <string name="lab_installed_title">Lab build installed</string>
+    <string name="lab_installed_text">DroidDeck restarted on %1$s</string>
+    <string name="lab_paused_title">Lab build paused</string>
+    <string name="lab_paused_text">Android re-optimized DroidDeck, so %1$s is not loaded. Open Updates to restart on it.</string>
+    <string name="lab_off_title">Lab build turned off</string>
+    <string name="lab_off_other_install">It was built for another version of DroidDeck. It is kept in Updates.</string>
+    <string name="lab_off_did_not_start">DroidDeck did not start on it twice</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
@@ -1382,7 +1408,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Switch between stick and trackpad</string>
     <string name="deck_close">Close second-screen controls</string>
     <string name="deck_open_steam_menu">Open Steam menu</string>
     <string name="deck_right_trackpad">Right trackpad</string>
@@ -1966,13 +1991,6 @@
     <string name="bottom_downloads_shader">Downloading shader cache</string>
     <string name="bottom_downloads_paused">Paused</string>
     <string name="bottom_downloads_queued">Waiting to start</string>
-    <string name="bottom_page_notifications">Notifications</string>
-    <string name="bottom_notifications_listener">DroidDeck bottom screen</string>
-    <string name="bottom_notifications_why">Show messages and other notifications here while you play. They stay on this screen only and are not saved. Android asks once: its notification access page opens on this screen; turn DroidDeck on there and this page comes back by itself.</string>
-    <string name="bottom_notifications_allow">Allow notification access</string>
-    <string name="bottom_notifications_none">No notifications.</string>
-    <string name="bottom_notifications_count">%1$d notifications</string>
-    <string name="bottom_notifications_clear">Clear</string>
     <string name="bottom_page_screenshots">Screenshots</string>
     <string name="stats_fps_needs_hud">FPS needs the HUD on</string>
     <string name="stats_speed">Speed</string>
@@ -3114,6 +3132,8 @@
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
+    <string name="display_position_left">Left</string>
+    <string name="display_position_right">Right</string>
     <string name="display_position_bottom">Bottom</string>
     <string name="display_position_center">Center (default)</string>
     <string name="glasses_6dof">6DoF virtual screen</string>
@@ -3822,4 +3842,7 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+
+    <string name="theme_white_red">Scarlet Snow</string>
+    <string name="theme_white_red_detail">White surfaces with red accents.</string>
 </resources>

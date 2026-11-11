@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Χειριστήριο</string>
     <string name="deck_surface_stick">Μοχλός</string>
     <string name="deck_surface_trackpad">Πινακίδα αφής</string>
-    <string name="deck_surface_switch">Εναλλαγή μεταξύ μοχλού και πινακίδας αφής</string>
     <string name="deck_close">Κλείσιμο χειριστηρίων δεύτερης οθόνης</string>
     <string name="deck_open_steam_menu">Άνοιγμα μενού Steam</string>
     <string name="deck_right_trackpad">Δεξιά πινακίδα αφής</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Λήψη cache shader</string>
     <string name="bottom_downloads_paused">Σε παύση</string>
     <string name="bottom_downloads_queued">Αναμονή για έναρξη</string>
-    <string name="bottom_page_notifications">Ειδοποιήσεις</string>
-    <string name="bottom_notifications_listener">DroidDeck – κάτω οθόνη</string>
-    <string name="bottom_notifications_why">Εμφάνιση μηνυμάτων και άλλων ειδοποιήσεων εδώ ενώ παίζετε. Παραμένουν μόνο σε αυτή την οθόνη και δεν αποθηκεύονται. Το Android ρωτά μία φορά: η σελίδα πρόσβασης ειδοποιήσεων ανοίγει σε αυτή την οθόνη· ενεργοποιήστε εκεί το DroidDeck και αυτή η σελίδα επιστρέφει μόνη της.</string>
-    <string name="bottom_notifications_allow">Αποδοχή πρόσβασης ειδοποιήσεων</string>
-    <string name="bottom_notifications_none">Δεν υπάρχουν ειδοποιήσεις.</string>
-    <string name="bottom_notifications_count">%1$d ειδοποιήσεις</string>
-    <string name="bottom_notifications_clear">Απαλοιφή</string>
     <string name="bottom_page_screenshots">Στιγμιότυπα οθόνης</string>
     <string name="stats_fps_needs_hud">Τα FPS απαιτούν ενεργό HUD</string>
     <string name="stats_speed">Ταχύτητα</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Πάνω</string>
     <string name="display_position_bottom">Κάτω</string>
     <string name="display_position_center">Κέντρο (προεπιλογή)</string>
+    <string name="display_position_left">Αριστερά</string>
+    <string name="display_position_right">Δεξιά</string>
     <string name="setup_tab_storage">Αποθήκευση</string>
     <string name="storage_measuring">Μέτρηση αποθήκευσης…</string>
     <string name="storage_measuring_hint">Την πρώτη φορά παίρνει λίγα δευτερόλεπτα.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+
+    <string name="theme_white_red">Κατακόκκινο χιόνι</string>
+    
 </resources>

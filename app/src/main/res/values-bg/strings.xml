@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Геймпад</string>
     <string name="deck_surface_stick">Стик</string>
     <string name="deck_surface_trackpad">Тракпад</string>
-    <string name="deck_surface_switch">Превключване между стик и тракпад</string>
     <string name="deck_close">Затваряне на контролите за втория екран</string>
     <string name="deck_open_steam_menu">Отваряне на менюто на Steam</string>
     <string name="deck_right_trackpad">Десен тракпад</string>
@@ -1778,13 +1777,6 @@
     <string name="bottom_downloads_shader">Изтегляне на кеша на шейдърите</string>
     <string name="bottom_downloads_paused">На пауза</string>
     <string name="bottom_downloads_queued">Изчаква стартиране</string>
-    <string name="bottom_page_notifications">Известия</string>
-    <string name="bottom_notifications_listener">Долен екран на DroidDeck</string>
-    <string name="bottom_notifications_why">Показвайте тук съобщения и други известия, докато играете. Те остават само на този екран и не се запазват. Android пита веднъж: страницата за достъп до известията се отваря на този екран; включете DroidDeck там и тази страница ще се върне сама.</string>
-    <string name="bottom_notifications_allow">Разрешаване на достъпа до известията</string>
-    <string name="bottom_notifications_none">Няма известия.</string>
-    <string name="bottom_notifications_count">Известия: %1$d</string>
-    <string name="bottom_notifications_clear">Изчисти</string>
     <string name="bottom_page_screenshots">Екранни снимки</string>
     <string name="stats_fps_needs_hud">За FPS трябва HUD да е включен</string>
     <string name="stats_speed">Скорост</string>
@@ -2868,6 +2860,8 @@
     <string name="display_position_top">Горе</string>
     <string name="display_position_bottom">Долу</string>
     <string name="display_position_center">В средата (по подразбиране)</string>
+    <string name="display_position_left">Наляво</string>
+    <string name="display_position_right">Надясно</string>
     <string name="setup_tab_storage">Съхранение</string>
     <string name="storage_measuring">Измерване на съхранението…</string>
     <string name="storage_measuring_hint">Първият път отнема няколко секунди.</string>
@@ -3661,4 +3655,7 @@
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>
+
+    <string name="theme_white_red">Ален сняг</string>
+    
 </resources>

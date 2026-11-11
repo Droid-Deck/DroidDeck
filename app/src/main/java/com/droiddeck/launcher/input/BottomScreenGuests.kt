@@ -9,6 +9,7 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -33,6 +34,8 @@ object BottomScreenGuests {
         else -> null
     }
 
+    internal fun current(arrivedAt: Long, ownShownAt: Long?): Boolean = ownShownAt == null || arrivedAt >= ownShownAt
+
     internal fun ignorable(type: Int): Boolean = type == AccessibilityWindowInfo.TYPE_INPUT_METHOD ||
         type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY ||
         type == AccessibilityWindowInfo.TYPE_SPLIT_SCREEN_DIVIDER ||
@@ -43,7 +46,7 @@ object BottomScreenGuests {
 }
 
 class BottomScreenWatch(private val service: AccessibilityService) {
-    private class Arrival(val pkg: String)
+    private class Arrival(val pkg: String, val at: Long)
 
     private val thread = HandlerThread("bottom-screen").apply { start() }
     private val handler = Handler(thread.looper)
@@ -52,6 +55,8 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private var homes: Set<String> = emptySet()
     private var keyboards: Set<String> = emptySet()
     private var holders: Map<Int, String?> = emptyMap()
+    private var ownWindows: Map<Int, Set<Int>> = emptyMap()
+    private val ownShownAt = mutableMapOf<Int, Long>()
     private val check = Runnable { evaluate() }
 
     fun start() {
@@ -72,7 +77,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val pkg = event.packageName?.toString() ?: return
                 if (event.displayId == Display.DEFAULT_DISPLAY || pkg == own || pkg == SYSTEM_UI) return
-                arrivals[event.displayId] = Arrival(pkg)
+                arrivals[event.displayId] = Arrival(pkg, event.eventTime)
             }
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> Unit
             else -> return
@@ -97,19 +102,25 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         val all = runCatching { service.windowsOnAllDisplays }.getOrNull() ?: return
         val displays = service.getSystemService(DisplayManager::class.java) ?: return
         val taken = mutableMapOf<Int, String?>()
+        val shown = mutableMapOf<Int, Set<Int>>()
+        val now = SystemClock.uptimeMillis()
         for (i in 0 until all.size()) {
             val id = all.keyAt(i)
             if (id == Display.DEFAULT_DISPLAY) continue
             val display = displays.getDisplay(id)?.takeIf(DualScreen::builtIn) ?: continue
             val windows = all.valueAt(i)
-            val topPkg = windows.asSequence()
                 .filter { !BottomScreenGuests.ignorable(it.type) && cover(it, display) >= BottomScreenGuests.MIN_COVER }
                 .sortedByDescending { it.layer }
-                .firstNotNullOfOrNull { packageOf(it)?.takeUnless { pkg -> pkg == own } }
-            val arrival = seen[id]
-            if (topPkg != null && arrival != null) arrivals.remove(id, arrival)
+                .map { it to packageOf(it) }
+            val ours = windows.filter { it.second == own }.map { it.first.id }.toSet()
+            if (!ownWindows[id].orEmpty().containsAll(ours)) ownShownAt[id] = now
+            shown[id] = ours
+            val topPkg = windows.firstNotNullOfOrNull { it.second?.takeUnless { pkg -> pkg == own } }
+            val arrival = seen[id]?.takeIf { BottomScreenGuests.current(it.at, ownShownAt[id]) }
+            seen[id]?.takeIf { topPkg != null || arrival == null }?.let { arrivals.remove(id, it) }
             BottomScreenGuests.holder(topPkg, arrival?.pkg?.takeUnless { it in keyboards }, homes)?.let { taken[id] = it }
         }
+        ownWindows = shown
         if (current !== this) return
         if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
         holders = taken

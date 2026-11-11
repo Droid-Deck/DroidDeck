@@ -58,11 +58,17 @@ class CiChecksTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             sudo = root / 'sudo'
-            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\nexit "${APT_RESULT:-0}"\n')
+            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\n'
+                            'for arg; do case "$arg" in Dir::Etc::sourcelist=*) '
+                            'grep -h "^URIs:" "${arg#*=}" >> "$APT_LOG.mirrors";; esac; done\n'
+                            'exit "${APT_RESULT:-0}"\n')
             sudo.chmod(0o755)
             query = root / 'dpkg-query'
             query.write_text('#!/bin/sh\nexit 1\n')
             query.chmod(0o755)
+            dpkg = root / 'dpkg'
+            dpkg.write_text('#!/bin/sh\necho "${DPKG_ARCH:-amd64}"\n')
+            dpkg.chmod(0o755)
             log = root / 'apt.log'
             sources = root / 'ubuntu.sources'
             sources.write_text('URIs: http://mirror.invalid/ubuntu\n')
@@ -71,8 +77,23 @@ class CiChecksTest(unittest.TestCase):
             installer = ROOT / 'tools/ci/install-ubuntu-packages.sh'
             result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17'))
             self.assertEqual(result.returncode, 17)
-            self.assertEqual(len(log.read_text().splitlines()), 2)
+            self.assertEqual(len(log.read_text().splitlines()), 3)
+            mirrors = Path(str(log) + '.mirrors')
+            self.assertEqual(mirrors.read_text().splitlines(), [
+                'URIs: http://mirror.invalid/ubuntu',
+                'URIs: https://archive.ubuntu.com/ubuntu',
+                'URIs: https://mirrors.edge.kernel.org/ubuntu',
+            ])
             log.unlink()
+            mirrors.unlink()
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17', DPKG_ARCH='arm64'))
+            self.assertEqual(result.returncode, 17)
+            self.assertEqual(mirrors.read_text().splitlines()[1:], [
+                'URIs: https://ports.ubuntu.com/ubuntu-ports',
+                'URIs: https://mirrors.ocf.berkeley.edu/ubuntu-ports',
+            ])
+            log.unlink()
+            mirrors.unlink()
             subprocess.run(['bash', str(installer), 'qemu-user'], env=env, check=True)
             update, install = log.read_text().splitlines()
             for command in (update, install):

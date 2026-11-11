@@ -558,11 +558,11 @@ object SessionPrefs {
 
     fun picturePosition(context: Context): String =
         prefs(context).getString("picturePosition", "center")
-            ?.takeIf { it in listOf("top", "bottom", "center") } ?: "center"
+            ?.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center"
 
     fun setPicturePosition(context: Context, position: String) {
         prefs(context).edit().putString("picturePosition",
-            position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
+            position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
@@ -750,6 +750,12 @@ object SessionPrefs {
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
+    }
+
+    fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", false)
+
+    fun setNativeUserland(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("nativeUserland", on).apply()
     }
 
     fun prootFastPath(context: Context): Boolean = prefs(context).getBoolean("prootFastPath", true)
@@ -1554,10 +1560,6 @@ object SessionPrefs {
     fun gamepadSurface(context: Context, right: Boolean): String =
         prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
             ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
-
-    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
-        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
-    }
 
     fun deckPanel(context: Context): com.droiddeck.launcher.input.DeckPanel =
         com.droiddeck.launcher.input.DeckPanel.from(prefs(context).getString("deckPanel", null))
