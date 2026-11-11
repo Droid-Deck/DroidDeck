@@ -61,7 +61,7 @@ if [ ! -x "$sdk/cmdline-tools/latest/bin/sdkmanager" ]; then
   mv "$sdk/cmdline-tools/cmdline-tools" "$sdk/cmdline-tools/latest"
 fi
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
-yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+(set +o pipefail; yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null)
 "$sdk/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 
 adb connect 127.0.0.1:5555 || true

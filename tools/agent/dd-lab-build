@@ -35,7 +35,7 @@ device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
 # The app's agent loses every process it started when its turn ends, a build included, so it asks
 # the app to run the build in a process of its own and follows that build here.
-agent=/data/user/0/$pkg/files/agent
+agent=${DD_AGENT_INBOX:-/data/user/0/$pkg/files/agent}
 if [ -n "${DD_AGENT:-}" ] && [ -z "${DD_LAB_DETACHED:-}" ] && [ -d "$agent" ]; then
   trap - ERR
   log=$cache/dd-lab-build.log
@@ -102,7 +102,7 @@ export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on $installed_la
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   progress sdk
-  yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+  (set +o pipefail; yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null)
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 
@@ -125,7 +125,19 @@ gradle=(./gradlew :app:processReleaseResources :app:mergeDexRelease --max-worker
   -Pandroid.aapt2FromMavenOverride=$HOME/aapt2/aapt2 -Pkotlin.compiler.execution.strategy=daemon
   -Pkotlin.daemon.jvmargs=-Xmx${kotlin_heap}m -Dorg.gradle.jvmargs=-Xmx${gradle_heap}m --console=plain)
 progress planning
-mapfile -t plan < <("${gradle[@]}" --dry-run -q 2>/dev/null | awk '/^:/ {print $1}' || true)
+plan_file=$cache/dd-lab-build-plan
+plan_key=$(
+  {
+    printf '%s\n' "$repo" "${gradle[@]}"
+    git ls-files -z -- '*gradle*' | xargs -0 -r sha256sum
+  } | sha256sum | cut -d ' ' -f1
+)
+if [ "$(head -n 1 "$plan_file" 2>/dev/null)" != "$plan_key" ]; then
+  plan_output=$("${gradle[@]}" --dry-run) || fail "Gradle planning failed: $plan_output"
+  { printf '%s\n' "$plan_key"; awk '/^:/ {print $1}' <<<"$plan_output"; } > "$plan_file.part"
+  mv "$plan_file.part" "$plan_file"
+fi
+mapfile -t plan < <(tail -n +2 "$plan_file")
 total=${#plan[@]}
 
 # Each task's estimate is how long it took last time; a full compile of the app takes about 15 minutes.
