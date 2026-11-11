@@ -27,6 +27,25 @@ object AppUiPrefs {
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putInt("orientation", value).apply()
     }
 
+    const val HOME_PAGE_STEAM = "steam"
+    const val HOME_PAGE_APPS = "android-apps"
+
+    val homePageOptions = listOf(
+        HOME_PAGE_STEAM to R.string.rail_steam,
+        HOME_PAGE_APPS to R.string.content_android_apps,
+    )
+
+    fun homePage(context: Context): String =
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE)
+            .getString("home-page", null)
+            .takeIf { value -> homePageOptions.any { it.first == value } }
+            ?: HOME_PAGE_STEAM
+
+    fun setHomePage(context: Context, value: String) {
+        require(homePageOptions.any { it.first == value })
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putString("home-page", value).apply()
+    }
+
     internal fun normalizeScale(percent: Int): Int = percent.takeIf { it in scales } ?: DEFAULT_SCALE
 
     fun scale(context: Context): Int = normalizeScale(
