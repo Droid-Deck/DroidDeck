@@ -273,6 +273,15 @@ def steam_title(path):
         return None
 
 
+def exe_prefix(path):
+    try:
+        run = runpy.run_path(PROTON_RUN)
+        root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or run["STEAM_ROOT"]
+        return run["locate"](path, root).appid
+    except (OSError, ValueError, KeyError, IndexError):
+        return None
+
+
 def store_launcher(path):
     try:
         return runpy.run_path(STORE_LAUNCH)["store_launcher"](path)
@@ -285,8 +294,10 @@ def command(path, args, what, window=False, appid=None):
     if what == "steam":
         return [STEAM_LAUNCH, "desktop", appid], folder
     if what == "windows":
-        target = None if args else store_launcher(path)
-        return [PROTON_RUN] + (["--window"] if window else []) + [target or path] + args, folder
+        launcher = None if args else store_launcher(path)
+        prefix = exe_prefix(path) if launcher else None
+        keep = ["--prefix", str(prefix)] if prefix else []
+        return [PROTON_RUN] + (["--window"] if window else []) + keep + [launcher or path] + args, folder
     if what == "x86 script":
         return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
     if what == "script":

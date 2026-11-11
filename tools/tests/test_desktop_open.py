@@ -138,12 +138,26 @@ class CommandTest(Temp):
 
     def test_a_store_games_exe_runs_through_its_launcher(self):
         exe, launcher = str(self.tmp / "game.exe"), str(self.tmp / "launch.bat")
-        with mock.patch.dict(OPEN, {"store_launcher": lambda path: launcher if path == exe else None}):
-            self.assertEqual(OPEN["command"](exe, [], "windows")[0], [OPEN["PROTON_RUN"], launcher])
-            self.assertEqual(OPEN["command"](exe, [], "windows", True)[0], [OPEN["PROTON_RUN"], "--window", launcher])
+        with mock.patch.dict(OPEN, {"store_launcher": lambda path: launcher if path == exe else None,
+                                    "exe_prefix": lambda path: 4242}):
+            keep = ["--prefix", "4242"]
+            self.assertEqual(OPEN["command"](exe, [], "windows")[0], [OPEN["PROTON_RUN"]] + keep + [launcher])
+            self.assertEqual(OPEN["command"](exe, [], "windows", True)[0],
+                             [OPEN["PROTON_RUN"], "--window"] + keep + [launcher])
             self.assertEqual(OPEN["command"](exe, ["-x"], "windows")[0], [OPEN["PROTON_RUN"], exe, "-x"])
             other = str(self.tmp / "other.exe")
             self.assertEqual(OPEN["command"](other, [], "windows")[0], [OPEN["PROTON_RUN"], other])
+
+    def test_a_store_games_launcher_keeps_the_exes_prefix(self):
+        exe = self.tmp / "game.exe"
+        exe.write_text("x")
+        root = str(self.tmp / "steam")
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": root}), \
+                mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run"),
+                                    "store_launcher": lambda path: str(self.tmp / "launch.bat")}):
+            command = OPEN["command"](str(exe), [], "windows")[0]
+        self.assertEqual(command[1:3], ["--prefix", str(RUN["locate"](str(exe), root).appid)])
+        self.assertEqual(str(RUN["own_id"](str(exe))), str(RUN["locate"](str(exe), root).appid))
 
     def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
         program = self.write("storage/tool", elf(183))
