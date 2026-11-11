@@ -13,6 +13,7 @@ object GamesFolderMigration {
 
     @Synchronized
     fun run(context: Context) {
+        repathInternalGuest(context)
         val dirs = SessionPrefs.addedGamesDirs(context)
         if (dirs.isEmpty()) return
         val roots = legacyRoots(SessionPrefs.gameFolderBinds(context).map { it.first } + dirs)
@@ -56,6 +57,23 @@ object GamesFolderMigration {
         }
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         SessionPrefs.setGamesFoldersMigrated(context)
+    }
+
+    private fun repathInternalGuest(context: Context) {
+        val binds = SessionPrefs.gameFolderBinds(context)
+        if (binds.none { it.second == StoreInstallRoot.INTERNAL_GUEST }) return
+        val hosts = binds.map { it.first }
+        val roots = legacyRoots(hosts).associateBy { it.host.path }
+        val taken = binds.map { it.second }.filter { it != StoreInstallRoot.INTERNAL_GUEST }.toMutableSet()
+        SessionPrefs.setGameFolderBinds(context, binds.map { (host, guest) ->
+            if (guest != StoreInstallRoot.INTERNAL_GUEST) return@map host to guest
+            val base = roots.getValue(host).guest
+            var next = base
+            var n = 2
+            while (next in taken) next = "$base-${n++}"
+            taken.add(next)
+            host to next
+        })
     }
 
     internal fun legacyRoots(paths: List<String>): List<AddedGames.Root> {

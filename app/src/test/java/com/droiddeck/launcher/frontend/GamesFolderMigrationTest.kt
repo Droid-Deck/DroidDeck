@@ -195,6 +195,22 @@ class GamesFolderMigrationTest {
         assertEquals(binds.getValue(stores.path) + "/One/One.exe", games.getValue("One").guestExe)
     }
 
+    @Test fun aSavedBindAtTheInternalStoreGuestIsRepathed() {
+        val stores = File(tmp.newFolder("card"), "Stores").apply { exe(this, "One/One.exe") }
+        val pc = tmp.newFolder("PC").apply { exe(this, "Two/Two.exe") }
+        SessionPrefs.setGameFolderBinds(
+            app,
+            listOf(stores.path to StoreInstallRoot.INTERNAL_GUEST, pc.path to AddedGames.GUEST_DIR + "/PC"),
+        )
+        GamesFolderMigration.run(app)
+        val binds = SessionPrefs.gameFolderBinds(app).toMap()
+        assertTrue(binds.getValue(stores.path) != StoreInstallRoot.INTERNAL_GUEST)
+        assertTrue(binds.getValue(stores.path).startsWith("${AddedGames.GUEST_DIR}/Stores-"))
+        assertEquals(AddedGames.GUEST_DIR + "/PC", binds.getValue(pc.path))
+        assertTrue(binds.values.none { it == StoreInstallRoot.INTERNAL_GUEST })
+        assertEquals(binds.getValue(stores.path) + "/One/One.exe", AddedGames.guestPath(app, File(stores, "One/One.exe")))
+    }
+
     @Test fun twoFoldersOfOneNameKeepTheirOwnGuestPaths() {
         val a = File(tmp.newFolder("a"), "Games").apply { mkdirs() }
         val b = File(tmp.newFolder("b"), "Games").apply { mkdirs() }
