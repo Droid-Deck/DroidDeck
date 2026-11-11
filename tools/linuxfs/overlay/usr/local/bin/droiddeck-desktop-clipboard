@@ -5,6 +5,16 @@ child=$!
 trap 'kill "$child" 2>/dev/null' EXIT
 trap 'exit 0' TERM INT
 if [ -n "${BL_GUEST_CLIPBOARD:-}" ]; then
+  mkdir -p "${BL_GUEST_CLIPBOARD%/*}"
+  sequence=0
+  for file in "$BL_GUEST_CLIPBOARD".queue.*; do
+    [ -f "$file" ] || continue
+    suffix=${file##*.queue.}
+    number=${suffix%%.*}
+    if [[ $number =~ ^[0-9]+$ ]] && ((10#$number > sequence)); then
+      sequence=$((10#$number))
+    fi
+  done
   exec {signals}< <(exec dbus-monitor --session "type=signal,interface=org.kde.klipper.klipper,member=clipboardHistoryUpdated")
   monitor=$!
   trap 'kill "$child" "$monitor" 2>/dev/null' EXIT
@@ -14,7 +24,9 @@ if [ -n "${BL_GUEST_CLIPBOARD:-}" ]; then
     text=${text%x}
     text=${text%$'\n'}
     [ -n "$text" ] && [ "${#text}" -le 262144 ] || continue
-    printf %s "$text" > "$BL_GUEST_CLIPBOARD.pending" && mv -f "$BL_GUEST_CLIPBOARD.pending" "$BL_GUEST_CLIPBOARD"
+    sequence=$((sequence + 1))
+    stem="$BL_GUEST_CLIPBOARD.queue.$(printf '%020d' "$sequence").$BASHPID"
+    printf %s "$text" > "$stem.pending" && mv -f "$stem.pending" "$stem.ready"
   done
 fi
 wait "$child"

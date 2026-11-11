@@ -11,13 +11,18 @@ import android.util.Log
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val handler = Handler(Looper.getMainLooper())
     private val hostFile = File(context.filesDir, "session/android-clipboard")
     private val guestFile = guestFile(context)
+    private val guestObserverLock = Any()
     private var guestObserver: FileObserver? = null
+    private var guestQueueExecutor: ExecutorService? = null
+    private val pendingGuestClaims = mutableMapOf<File, File>()
     private var active = false
     private var published = false
     private var shared: String? = null
@@ -51,31 +56,88 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     }
 
     private fun watchGuestFile() {
-        guestFile.parentFile?.mkdirs()
-        guestFile.delete()
+        val parent = guestFile.parentFile ?: return
         @Suppress("DEPRECATION")
-        val observer = object : FileObserver(guestFile.parentFile!!.path, MOVED_TO or CLOSE_WRITE) {
+        val observer = object : FileObserver(parent.path, MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
-                if (path != guestFile.name) return
-                val parent = guestFile.parentFile ?: return
-                val pending = File(parent, "${guestFile.name}.${System.nanoTime()}")
-                if (!guestFile.renameTo(pending)) return
-                val text = try {
-                    pending.readText(Charsets.UTF_8)
-                } catch (e: IOException) {
-                    Log.w("SessionClipboard", "Could not read text copied in the desktop", e)
-                    return
-                } finally {
-                    pending.delete()
-                }
-                if (text.isNotEmpty()) {
-                    val source = this
-                    handler.post { receiveGuestText(text, active && guestObserver === source) }
+                if (path == null || !isGuestQueueFile(path)) return
+                synchronized(guestObserverLock) {
+                    if (!active || guestObserver !== this) return
+                    guestQueueExecutor?.execute { consumeGuestFile(this, File(parent, path)) }
                 }
             }
         }
-        guestObserver = observer
-        observer.startWatching()
+        synchronized(guestObserverLock) {
+            if (!active) return
+            val executor = Executors.newSingleThreadExecutor { Thread(it, "SessionClipboard") }
+            guestQueueExecutor = executor
+            executor.execute {
+                parent.mkdirs()
+                val staleQueueNames = parent.listFiles()?.asSequence()
+                    ?.filter { isGuestQueueEntry(it.name) }
+                    ?.map { it.name }
+                    ?.toSet()
+                    .orEmpty()
+                synchronized(guestObserverLock) {
+                    if (!active || guestQueueExecutor !== executor) return@execute
+                    guestObserver = observer
+                    observer.startWatching()
+                    executor.execute {
+                        parent.listFiles()?.asSequence()
+                            ?.filter { isGuestQueueEntry(it.name) }
+                            ?.sortedBy { it.name }
+                            ?.forEach { file ->
+                                if (file.name in staleQueueNames) file.delete()
+                                else if (isGuestQueueFile(file.name)) consumeGuestFile(observer, file)
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun isGuestQueueEntry(name: String) = name.startsWith("${guestFile.name}.queue.")
+
+    private fun isGuestQueueFile(name: String) =
+        isGuestQueueEntry(name) && name.endsWith(".ready")
+
+    private fun consumeGuestFile(source: FileObserver, file: File) {
+        val claimed = File(file.parentFile, "${file.name}.${System.nanoTime()}.claimed")
+        val current = synchronized(guestObserverLock) {
+            active && guestObserver === source && file.renameTo(claimed)
+        }
+        if (!current) return
+        val text = try {
+            GuestClipboardTextReader.read(claimed)
+        } catch (e: IOException) {
+            Log.w("SessionClipboard", "Could not read text copied in the desktop", e)
+            null
+        }
+        if (text.isNullOrEmpty()) {
+            claimed.delete()
+            return
+        }
+        val deliver = synchronized(guestObserverLock) {
+            if (active && guestObserver === source) {
+                pendingGuestClaims[claimed] = file
+                true
+            } else {
+                claimed.renameTo(file)
+                false
+            }
+        }
+        if (!deliver) return
+        handler.post {
+            synchronized(guestObserverLock) {
+                pendingGuestClaims.remove(claimed)
+                if (active && guestObserver === source) {
+                    receiveGuestText(text, true)
+                    claimed.delete()
+                } else {
+                    claimed.renameTo(file)
+                }
+            }
+        }
     }
 
     private val captureTimeout = Runnable {
@@ -94,8 +156,10 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     }
 
     fun start() {
-        if (active) return
-        active = true
+        synchronized(guestObserverLock) {
+            if (active) return
+            active = true
+        }
         clipboard.addPrimaryClipChangedListener(androidListener)
         WaylandCompositor.setClipboardListener(guestListener)
         watchGuestFile()
@@ -103,14 +167,20 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     }
 
     fun stop() {
-        if (!active) return
-        active = false
+        synchronized(guestObserverLock) {
+            if (!active) return
+            active = false
+            guestObserver?.stopWatching()
+            guestObserver = null
+            guestQueueExecutor?.shutdown()
+            guestQueueExecutor = null
+            pendingGuestClaims.toMap().forEach { (claimed, file) -> claimed.renameTo(file) }
+            pendingGuestClaims.clear()
+        }
         handler.removeCallbacks(captureTimeout)
         capture?.let { capture = null; it(null) }
         clipboard.removePrimaryClipChangedListener(androidListener)
         WaylandCompositor.clearClipboardListener(guestListener)
-        guestObserver?.stopWatching()
-        guestObserver = null
         handler.removeCallbacksAndMessages(null)
     }
 
