@@ -932,16 +932,20 @@ def retroarch_has_cores(directory):
     return bool(glob.glob(os.path.join(os.path.expanduser(directory), "*.so")))
 
 
+def retroarch_installed_cores(d):
+    for directory in (os.path.join(d, "cores"), RETROARCH_PACKAGED["libretro_directory"]):
+        if retroarch_has_cores(directory):
+            return directory
+    return None
+
+
 def retroarch():
     d = os.path.join(CONFIG, "retroarch")
     seed(os.path.join(d, "autoconfig/sdl2/Xbox 360 Controller.cfg"), RETROARCH_PROFILE, "RetroArch (profile)")
     cfg = os.path.join(d, "retroarch.cfg")
     system = retroarch_system_values()
     if not os.path.isfile(cfg):
-        if (
-            retroarch_has_cores(os.path.join(d, "cores"))
-            or retroarch_has_cores(RETROARCH_PACKAGED["libretro_directory"])
-        ):
+        if retroarch_installed_cores(d):
             system.pop("libretro_directory", None)
         text = 'input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n'
         text += "".join(f'{k} = "{v}"\n' for k, v in system.items())
@@ -958,7 +962,10 @@ def retroarch():
     for key, entries in paths.items():
         if not any(value == "" for _, value in entries):
             continue
-        value = next((value for _, value in entries if value), system[key])
+        fallback = system[key]
+        if key == "libretro_directory":
+            fallback = retroarch_installed_cores(d) or fallback
+        value = next((value for _, value in entries if value), fallback)
         first = entries[0][0]
         replacement = f'{key} = "{value}"'
         if lines[first] != replacement or len(entries) > 1:
@@ -986,13 +993,7 @@ def retroarch():
             changed = True
     for key, value in system.items():
         if key not in seen:
-            if (
-                key == "libretro_directory"
-                and (
-                    retroarch_has_cores(os.path.join(d, "cores"))
-                    or retroarch_has_cores(RETROARCH_PACKAGED[key])
-                )
-            ):
+            if key == "libretro_directory" and retroarch_installed_cores(d):
                 continue
             lines.append(f'{key} = "{value}"')
             changed = True

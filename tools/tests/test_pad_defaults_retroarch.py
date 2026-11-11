@@ -164,6 +164,28 @@ class RetroArchDefaults(unittest.TestCase):
         self.assertEqual(values["libretro_directory"], "~/.config/retroarch/cores")
         self.assertEqual(core.read_bytes(), b"installed core")
 
+    def test_empty_core_setting_keeps_installed_core_directory(self):
+        locations = {
+            "xdg": ("xdg", "xdg/retroarch/cores", lambda tmp: str(tmp / "xdg/retroarch/cores")),
+            "home": ("xdg", ".config/retroarch/cores", lambda tmp: "~/.config/retroarch/cores"),
+            "default": (".", "retroarch/cores", lambda tmp: str(tmp / "retroarch/cores")),
+        }
+        for name, (config_home, cores_dir, expected) in locations.items():
+            with self.subTest(location=name):
+                shutil.rmtree(self.tmp / "xdg", True)
+                shutil.rmtree(self.tmp / ".config", True)
+                shutil.rmtree(self.tmp / "retroarch", True)
+                self.config_home = self.tmp / config_home
+                self.cfg = self.config_home / "retroarch/retroarch.cfg"
+                self.cfg.parent.mkdir(parents=True, exist_ok=True)
+                self.cfg.write_text('libretro_directory = ""\nassets_directory = ""\n')
+                cores = self.tmp / cores_dir
+                cores.mkdir(parents=True, exist_ok=True)
+                (cores / "snes9x_libretro.so").write_bytes(b"")
+                values = self.run_script()
+                self.assertEqual(values["libretro_directory"], expected(self.tmp))
+                self.assertEqual(values["assets_directory"], "/usr/share/libretro/assets/")
+
     def test_user_choices_are_kept(self):
         self.cfg.parent.mkdir(parents=True)
         self.cfg.write_text(
