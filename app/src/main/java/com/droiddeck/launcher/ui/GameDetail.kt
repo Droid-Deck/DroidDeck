@@ -1015,7 +1015,7 @@ internal fun FactRow(label: String, value: String, labelWidth: androidx.compose.
 @Composable
 internal fun catalogSize(item: CatalogItem?): Long {
     val ctx = LocalContext.current
-    if (item != null) LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
+    if (item != null) LaunchedEffect(item.key, item.accessible) { StoreSizes.request(ctx, item) }
     return item?.let { StoreSizes.size(it) } ?: 0L
 }
 
