@@ -1325,10 +1325,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
-                if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
+                if (appId == null &&
+                    SessionState.mode == SessionService.MODE_RUN &&
+                    !drawerGameProfileSelectionMade) {
                     Toast.makeText(
                         this@SessionActivity,
-                        "getString(R.string.frame_gen_game_id_unavailable)",
+                        getString(R.string.frame_gen_game_id_unavailable),
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
@@ -1342,10 +1344,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onFrameGenReset = {
                 val appId = frameGenTargetGameId()
 
-                if (appId == null && SessionState.mode == SessionService.MODE_RUN) {
+                if (appId == null &&
+                    SessionState.mode == SessionService.MODE_RUN &&
+                    !drawerGameProfileSelectionMade) {
                     Toast.makeText(
                         this@SessionActivity,
-                        "getString(R.string.frame_gen_game_id_unavailable)",
+                        getString(R.string.frame_gen_game_id_unavailable),
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
