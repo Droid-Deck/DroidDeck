@@ -731,15 +731,15 @@ def mark_install_scripts(command, env):
     if not scripts:
         return []
     data = env.get("STEAM_COMPAT_DATA_PATH")
+    tool = os.path.dirname(command[0])
     new_prefix = data and not os.path.isfile(os.path.join(data, "pfx", "system.reg"))
-    if new_prefix:
+    if new_prefix and not any(Path(tool, "files", "share").glob("default_pfx*/system.reg")):
         try:
             subprocess.run([command[0], "run", "cmd.exe", "/c", "exit", "0"], env=env,
                            stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
         except (OSError, subprocess.SubprocessError) as error:
             print("droiddeck-game-env: prefix initialization failed (%s)" % error, file=sys.stderr)
         try:
-            tool = os.path.dirname(command[0])
             wineserver = next((path for path in (os.path.join(tool, "files", name, "wineserver") for name in ("bin-arm64", "bin"))
                                if os.access(path, os.X_OK)), os.path.join(tool, "files/bin-arm64/wineserver"))
             subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),

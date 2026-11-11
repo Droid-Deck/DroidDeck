@@ -842,6 +842,7 @@ class GameEnvironmentTest(unittest.TestCase):
             root = Path(tmp)
             (root / "files/bin-arm64").mkdir(parents=True)
             (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
             script = root / "legacycompat/evaluatorscript_409710.vdf"
             script.parent.mkdir(parents=True)
             script.write_text("{}")
@@ -874,6 +875,7 @@ class GameEnvironmentTest(unittest.TestCase):
             root = Path(tmp)
             (root / "files/bin-arm64").mkdir(parents=True)
             (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
             script = root / "legacycompat/evaluatorscript_409710.vdf"
             script.parent.mkdir(parents=True)
             script.write_text("{}")
@@ -923,6 +925,52 @@ class GameEnvironmentTest(unittest.TestCase):
                         self.assertEqual(calls[1][1]["env"]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
                     finally:
                         MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def run_install_marker(self, root, env):
+        script = root / "legacycompat/evaluatorscript_409710.vdf"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("{}")
+        calls = []
+        module = MODULE["mark_install_scripts"].__globals__["subprocess"]
+        run = module.run
+        module.run = lambda args, **kw: calls.append((args, kw["env"]))
+        try:
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+        finally:
+            module.run = run
+        return calls
+
+    def test_the_install_script_wait_finds_wineserver_in_files_bin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin").mkdir(parents=True)
+            (root / "files/bin/wineserver").write_text("")
+            (root / "files/bin/wineserver").chmod(0o755)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                                   "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
+            self.assertEqual(calls[1][0], [str(root / "files/bin/wineserver"), "-w"])
+            self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
+
+    def test_the_install_script_seeder_skips_the_probe_without_compat_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)})
+            self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+
+    def test_the_install_script_seeder_skips_the_probe_when_proton_has_a_template_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for template in ("default_pfx", "default_pfx_arm64"):
+                with self.subTest(template=template):
+                    reg = root / "files/share" / template / "system.reg"
+                    reg.parent.mkdir(parents=True)
+                    reg.write_text("")
+                    calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                                           "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
+                    self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+                    reg.unlink()
+                    reg.parent.rmdir()
 
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
