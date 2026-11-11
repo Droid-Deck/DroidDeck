@@ -454,6 +454,18 @@ internal fun AdbTextField(
                             }
                         }
                         showSoftInputOnFocus = !bottomTyping
+                        // B on a controller puts the keyboard away first; with no keyboard up it goes back as usual.
+                        var hidingKeyboard = false
+                        setOnKeyListener { view, keyCode, event ->
+                            if (keyCode != android.view.KeyEvent.KEYCODE_BUTTON_B) return@setOnKeyListener false
+                            if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                                hidingKeyboard = android.os.Build.VERSION.SDK_INT >= 30 &&
+                                    view.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+                                if (hidingKeyboard) (view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                                    ?.hideSoftInputFromWindow(view.windowToken, 0)
+                            }
+                            hidingKeyboard
+                        }
                         setOnClickListener { if (hasFocus() && !typeOnBottom(this) && bottomTypingLatest.value) showKeyboardHere(this) }
                         setOnFocusChangeListener { _, hasFocus ->
                             focused = hasFocus
