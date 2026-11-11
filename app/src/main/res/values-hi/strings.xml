@@ -1777,13 +1777,6 @@
     <string name="bottom_downloads_shader">शेडर कैश डाउनलोड हो रहा है</string>
     <string name="bottom_downloads_paused">रुका हुआ</string>
     <string name="bottom_downloads_queued">शुरू होने का इंतज़ार</string>
-    <string name="bottom_page_notifications">नोटिफ़िकेशन</string>
-    <string name="bottom_notifications_listener">DroidDeck नीचे की स्क्रीन</string>
-    <string name="bottom_notifications_why">खेलते समय मैसेज और अन्य नोटिफ़िकेशन यहां दिखाएं। वे सिर्फ़ इसी स्क्रीन पर रहते हैं और सेव नहीं होते। Android एक बार पूछता है: उसका नोटिफ़िकेशन ऐक्सेस पेज इसी स्क्रीन पर खुलता है; वहां DroidDeck चालू करें और यह पेज अपने-आप वापस आ जाएगा।</string>
-    <string name="bottom_notifications_allow">नोटिफ़िकेशन ऐक्सेस की अनुमति दें</string>
-    <string name="bottom_notifications_none">कोई नोटिफ़िकेशन नहीं।</string>
-    <string name="bottom_notifications_count">%1$d नोटिफ़िकेशन</string>
-    <string name="bottom_notifications_clear">साफ़ करें</string>
     <string name="bottom_page_screenshots">स्क्रीनशॉट</string>
     <string name="stats_fps_needs_hud">FPS के लिए HUD चालू होना चाहिए</string>
     <string name="stats_speed">स्पीड</string>
@@ -2867,6 +2860,8 @@
     <string name="display_position_top">ऊपर</string>
     <string name="display_position_bottom">नीचे</string>
     <string name="display_position_center">बीच में (डिफ़ॉल्ट)</string>
+    <string name="display_position_left">बाएँ</string>
+    <string name="display_position_right">दाएँ</string>
     <string name="setup_tab_storage">स्टोरेज</string>
     <string name="storage_measuring">स्टोरेज मापा जा रहा है…</string>
     <string name="storage_measuring_hint">पहली बार कुछ सेकंड लगते हैं।</string>
@@ -3660,4 +3655,7 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+
+    <string name="theme_white_red">किरमिज़ी बर्फ</string>
+    
 </resources>
