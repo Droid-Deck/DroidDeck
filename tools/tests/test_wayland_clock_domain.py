@@ -1,3 +1,5 @@
+import ctypes
+import mmap
 import shutil
 from pathlib import Path
 import struct
@@ -5,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
+from tools.tests.test_clock_pause_preload import clock_reset_command
 from tools.tests.test_output_refresh import extract_function as extract_void_function
 from tools.tests.test_scene_limit_hold import extract_function
 
@@ -160,6 +163,79 @@ int main(int argc, char **argv) {
                            check=True)
             result = subprocess.run([str(binary), str(control), str(replacement)], capture_output=True, text=True, check=True)
             self.assertEqual(result.stdout.split(), ["20000000000", "10000000000"])
+
+    def test_session_transition_clears_stale_offset_but_live_failures_preserve_it(self):
+        harness = r'''
+#include <assert.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <unistd.h>
+#include "clock_domain.h"
+
+int main(int argc, char **argv) {
+    (void)argc;
+    int64_t shift = 10000000000LL;
+    int fd = open(argv[1], O_CREAT | O_RDWR, 0600);
+    assert(fd >= 0);
+    assert(write(fd, &shift, sizeof(shift)) == sizeof(shift));
+    droiddeck_clock_domain_set_control(argv[1]);
+    assert(droiddeck_clock_domain_adjust_ns(30000000000LL) == 20000000000LL);
+    assert(unlink(argv[1]) == 0);
+    droiddeck_clock_domain_set_control(argv[1]);
+    assert(droiddeck_clock_domain_adjust_ns(30000000000LL) == 20000000000LL);
+    int replacement = open(argv[1], O_CREAT | O_RDWR, 0600);
+    assert(replacement >= 0);
+    droiddeck_clock_domain_set_control(argv[1]);
+    assert(droiddeck_clock_domain_adjust_ns(30000000000LL) == 20000000000LL);
+    droiddeck_clock_domain_set_control(NULL);
+    droiddeck_clock_domain_set_control(argv[1]);
+    assert(droiddeck_clock_domain_adjust_ns(30000000000LL) == 30000000000LL);
+    shift = 20000000000LL;
+    assert(write(replacement, &shift, sizeof(shift)) == sizeof(shift));
+    droiddeck_clock_domain_set_control(argv[1]);
+    assert(droiddeck_clock_domain_adjust_ns(30000000000LL) == 10000000000LL);
+    close(replacement);
+    close(fd);
+    return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            program = root / "program.c"
+            program.write_text(harness)
+            binary = root / "program"
+            subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", "-O2", "-I", str(SOURCE.parent),
+                            "-o", str(binary), str(program), str(SOURCE)], check=True)
+            subprocess.run([str(binary), str(root / "clock")], check=True, timeout=5)
+        host = SOURCE.parents[3] / "java/com/droiddeck/launcher/wayland/CompositorHost.kt"
+        self.assertIn("nativeSetClockControl(null)", host.read_text().split("fun newSession() {", 1)[1].split("}", 1)[0])
+
+    def test_startup_reset_keeps_host_and_guest_on_the_same_inode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control = root / "clock"
+            control.write_bytes(struct.pack("<q", 10_000_000_000))
+            library = root / "clock.so"
+            subprocess.run(["cc", "-shared", "-fPIC", "-pthread", "-Wall", "-Wextra", "-Werror",
+                            "-o", str(library), str(SOURCE)], check=True)
+            host = ctypes.CDLL(str(library))
+            host.droiddeck_clock_domain_set_control.argtypes = [ctypes.c_char_p]
+            host.droiddeck_clock_domain_adjust_ns.argtypes = [ctypes.c_int64]
+            host.droiddeck_clock_domain_adjust_ns.restype = ctypes.c_int64
+            host.droiddeck_clock_domain_set_control(str(control).encode())
+            with control.open("r+b") as file, mmap.mmap(file.fileno(), 8) as guest:
+                inode = control.stat().st_ino
+                subprocess.run(["bash", "-c", clock_reset_command(control)],
+                               check=True, timeout=5)
+                self.assertEqual(control.stat().st_ino, inode)
+                self.assertEqual(struct.unpack("<q", guest[:])[0], 0)
+                self.assertEqual(host.droiddeck_clock_domain_adjust_ns(30_000_000_000), 30_000_000_000)
+                file.seek(0)
+                file.write(struct.pack("<q", 20_000_000_000))
+                file.flush()
+                self.assertEqual(struct.unpack("<q", guest[:])[0], 20_000_000_000)
+                self.assertEqual(host.droiddeck_clock_domain_adjust_ns(30_000_000_000), 10_000_000_000)
+            host.droiddeck_clock_domain_set_control(None)
 
     def test_initially_missing_control_is_mapped_after_creation(self):
         with tempfile.TemporaryDirectory() as directory:

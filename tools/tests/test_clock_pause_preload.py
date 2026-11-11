@@ -10,6 +10,15 @@ import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
+
+def clock_reset_command(control):
+    script = (PRELOAD.parent / "overlay/usr/local/bin/droiddeck-session").read_text()
+    start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
+    end = script.index("\nfi", start) + len("\nfi")
+    return ('BL_INSIDE=; BL_ZRAM=0; ' + script[start:end]
+            .replace("/tmp/.bl-clock", str(control))
+            .replace("/tmp/.bl-zram", str(control.parent / "zram")))
+
 PROGRAM = r"""
 #define _GNU_SOURCE
 #include <linux/futex.h>
@@ -158,6 +167,12 @@ class ClockPausePreloadTest(unittest.TestCase):
         self.assertEqual(paused["memory"], 130560)
 
     def test_running_session_program_observes_pause_offset_update(self):
+        self.check_running_offset_update(False)
+
+    def test_session_reset_preserves_live_guest_mapping(self):
+        self.check_running_offset_update(True)
+
+    def check_running_offset_update(self, reset):
         self.control.write_bytes(struct.pack("<q", 0))
         env = dict(os.environ)
         env["LD_PRELOAD"] = str(self.preload)
@@ -196,6 +211,12 @@ class ClockPausePreloadTest(unittest.TestCase):
                 memory = handshake[2]
                 self.assertTrue(rawgap.startswith("rawgap "))
                 self.assertEqual(memory, "memory 130560")
+                if reset:
+                    inode = self.control.stat().st_ino
+                    subprocess.run(["bash", "-c", clock_reset_command(self.control)],
+                                   check=True, timeout=5)
+                    self.assertEqual(self.control.stat().st_ino, inode)
+                    self.assertEqual(self.control.read_bytes(), struct.pack("<q", 0))
                 with self.control.open("r+b") as control:
                     control.write(struct.pack("<q", SHIFT_MS * 1000000))
                     control.flush()

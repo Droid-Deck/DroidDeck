@@ -17,15 +17,21 @@ static ino_t g_inode;
 void droiddeck_clock_domain_set_control(const char *path) {
     int fd;
     struct stat st;
-    if (!path || !*path) return;
     pthread_mutex_lock(&g_control_lock);
+    if (!path || !*path) {
+        const int64_t *previous = g_shift;
+        g_shift = NULL;
+        if (previous) munmap((void *)previous, sizeof(*previous));
+        pthread_mutex_unlock(&g_control_lock);
+        return;
+    }
     fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0 || fstat(fd, &st) != 0 || st.st_size < (off_t)sizeof(int64_t)) {
         if (fd >= 0) close(fd);
         pthread_mutex_unlock(&g_control_lock);
         return;
     }
-    if (__atomic_load_n(&g_shift, __ATOMIC_ACQUIRE) && st.st_dev == g_device && st.st_ino == g_inode) {
+    if (g_shift && st.st_dev == g_device && st.st_ino == g_inode) {
         close(fd);
         pthread_mutex_unlock(&g_control_lock);
         return;
@@ -35,14 +41,18 @@ void droiddeck_clock_domain_set_control(const char *path) {
     if (shift != MAP_FAILED) {
         g_device = st.st_dev;
         g_inode = st.st_ino;
-        __atomic_store_n(&g_shift, shift, __ATOMIC_RELEASE);
+        const int64_t *previous = g_shift;
+        g_shift = shift;
+        if (previous) munmap((void *)previous, sizeof(*previous));
     }
     pthread_mutex_unlock(&g_control_lock);
 }
 
 static int64_t shift_ns(void) {
-    const int64_t *mapping = __atomic_load_n(&g_shift, __ATOMIC_ACQUIRE);
+    pthread_mutex_lock(&g_control_lock);
+    const int64_t *mapping = g_shift;
     int64_t shift = mapping ? __atomic_load_n(mapping, __ATOMIC_RELAXED) : 0;
+    pthread_mutex_unlock(&g_control_lock);
     return shift > 0 ? shift : 0;
 }
 

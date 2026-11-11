@@ -136,7 +136,9 @@ object CompositorHost {
         vsyncRunning = false
     }
 
+    @Synchronized
     fun newSession() {
+        WaylandCompositor.nativeSetClockControl(null)
         if (started) WaylandCompositor.nativeResetFirstFrame()
     }
 
