@@ -5,7 +5,10 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattService
 import android.os.Handler
+import com.droiddeck.launcher.input.steamcontroller.Sc2015ReportParser
+import com.droiddeck.launcher.input.steamcontroller.Sc2015State
 import com.droiddeck.launcher.input.steamcontroller.SteamControllerModel
 import com.droiddeck.launcher.input.steamcontroller.SteamControllerUuids
 import org.junit.After
@@ -21,7 +24,10 @@ import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.shadows.ShadowBluetoothGatt
+import java.io.File
+import java.util.ArrayDeque
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, shadows = [SteamControllerBleTest.Writer::class])
@@ -42,6 +48,9 @@ class SteamControllerBleTest {
         Writer.reports.clear()
         Writer.connections.clear()
         Writer.features = 0
+        Writer.featureReplies.clear()
+        Writer.featureRequest = 0L
+        Writer.tritonOutput = null
         router.setProfile(InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Keys(listOf(57))))
         controller = SteamControllerBle(RuntimeEnvironment.getApplication(), router)
@@ -181,6 +190,114 @@ class SteamControllerBleTest {
         assertEquals(45, Writer.reports.last().size)
     }
 
+    @Test fun fwTimestampPrefersNewerShippedValueAndFallsBack() {
+        val cfg = File(RuntimeEnvironment.getApplication().filesDir, "linuxfs/root/.local/share/Steam/bin/hardwareupdater/hardwareupdater.cfg")
+        cfg.parentFile!!.mkdirs()
+        cfg.writeText("TRITON_FW_TS: 0x7FFFFFFF\n")
+        assertEquals(0x7FFFFFFF, ReflectionHelpers.callInstanceMethod<Int>(controller, "resolveFwTimestamp"))
+        cfg.writeText("TRITON_FW_TS: 0x00000001\n")
+        assertEquals(Sc2015ReportParser.TRITON_FW_TIMESTAMP, ReflectionHelpers.callInstanceMethod<Int>(controller, "resolveFwTimestamp"))
+        cfg.delete()
+        assertEquals(Sc2015ReportParser.TRITON_FW_TIMESTAMP, ReflectionHelpers.callInstanceMethod<Int>(controller, "resolveFwTimestamp"))
+    }
+
+    @Test fun original2015SuppressesRumbleAndCapturesImuAndFeatureCommand() {
+        ReflectionHelpers.setField(controller, "model", SteamControllerModel.ORIGINAL_2015)
+        ReflectionHelpers.callInstanceMethod<Unit>(controller, "sendOutputReport",
+            ReflectionHelpers.ClassParameter.from(Boolean::class.java, false),
+            ReflectionHelpers.ClassParameter.from(ByteArray::class.java, byteArrayOf(0x80.toByte(), 0x01, 0x02)))
+        assertTrue(ReflectionHelpers.getField<ArrayDeque<*>>(controller, "queuedWrites").isEmpty())
+        ReflectionHelpers.callInstanceMethod<Unit>(controller, "sendOutputReport",
+            ReflectionHelpers.ClassParameter.from(Boolean::class.java, true),
+            ReflectionHelpers.ClassParameter.from(ByteArray::class.java, byteArrayOf(0x00, 0x87.toByte(), 0x06, 0x08, 0x07, 0x00, 0x30, 0x18, 0x00)))
+        assertEquals(0x87, ReflectionHelpers.getField<Int>(controller, "pendingFeatureCmd2015"))
+        assertArrayEquals(byteArrayOf(0xC0.toByte(), 0x87.toByte(), 0x03, 0x30, 0x18, 0x00),
+            ReflectionHelpers.getField<ByteArray>(controller, "lastImuModeCmd2015"))
+        assertFalse(ReflectionHelpers.getField<ArrayDeque<*>>(controller, "queuedWrites").isEmpty())
+    }
+
+    @Test fun original2015AnswersFeatureRequestSynthetically() {
+        ReflectionHelpers.setField(controller, "pendingFeatureCmd2015", 0x83)
+        Writer.featureRequest = 42L
+        connect2015()
+        assertEquals(1, Writer.featureReplies.size)
+        assertEquals(42L, Writer.featureReplies[0].first)
+        val reply = Writer.featureReplies[0].second!!
+        assertEquals(62, reply.size)
+        assertEquals(0x83, reply[0].toInt() and 0xFF)
+    }
+
+    @Test fun subscribeSelects2015AndSubscribesWithNotification() {
+        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:66")
+        val gatt = ShadowBluetoothGatt.newInstance(device)
+        val service = BluetoothGattService(SteamControllerUuids.SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        val input = BluetoothGattCharacteristic(SteamControllerUuids.INPUT_2015, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0)
+        val cccd = BluetoothGattDescriptor(SteamControllerUuids.CCCD, 0)
+        input.addDescriptor(cccd)
+        service.addCharacteristic(input)
+        shadowOf(gatt).addDiscoverableService(service)
+        shadowOf(gatt).setGattCallback(object : BluetoothGattCallback() {})
+        gatt.discoverServices()
+        ReflectionHelpers.setField(controller, "gatt", gatt)
+        ReflectionHelpers.callInstanceMethod<Unit>(controller, "subscribe",
+            ReflectionHelpers.ClassParameter.from(BluetoothGatt::class.java, gatt))
+        assertEquals(SteamControllerModel.ORIGINAL_2015, ReflectionHelpers.getField<SteamControllerModel>(controller, "model"))
+        assertEquals(0x45, ReflectionHelpers.getField<Int>(controller, "reportId"))
+        assertArrayEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE, cccd.value)
+    }
+
+    @Test fun subscribePrefersTritonOver2015AndUsesIndicationWithoutNotify() {
+        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:66")
+        val gatt = ShadowBluetoothGatt.newInstance(device)
+        val service = BluetoothGattService(SteamControllerUuids.SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        val triton = BluetoothGattCharacteristic(SteamControllerUuids.INPUT_0X45, BluetoothGattCharacteristic.PROPERTY_INDICATE, 0)
+        val tritonCccd = BluetoothGattDescriptor(SteamControllerUuids.CCCD, 0)
+        triton.addDescriptor(tritonCccd)
+        service.addCharacteristic(triton)
+        val input2015 = BluetoothGattCharacteristic(SteamControllerUuids.INPUT_2015, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0)
+        input2015.addDescriptor(BluetoothGattDescriptor(SteamControllerUuids.CCCD, 0))
+        service.addCharacteristic(input2015)
+        shadowOf(gatt).addDiscoverableService(service)
+        shadowOf(gatt).setGattCallback(object : BluetoothGattCallback() {})
+        gatt.discoverServices()
+        ReflectionHelpers.setField(controller, "gatt", gatt)
+        ReflectionHelpers.callInstanceMethod<Unit>(controller, "subscribe",
+            ReflectionHelpers.ClassParameter.from(BluetoothGatt::class.java, gatt))
+        assertEquals(SteamControllerModel.TRITON_2025, ReflectionHelpers.getField<SteamControllerModel>(controller, "model"))
+        assertEquals(0x45, ReflectionHelpers.getField<Int>(controller, "reportId"))
+        assertArrayEquals(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE, tritonCccd.value)
+    }
+
+    @Test fun keepAliveExpiresStationaryPadTouchAndRepublishesCentered() {
+        connect2015()
+        val state2015 = ReflectionHelpers.getField<Sc2015State>(controller, "state2015")
+        state2015.buttons = Sc2015ReportParser.BUTTON_RPAD_TOUCH
+        state2015.rightPadX = 20000
+        state2015.rightPadY = -20000
+        state2015.rightPadSeenMs = 0L
+        val reportsBefore = Writer.reports.size
+        shadowOf(handler.looper).idleFor(400, TimeUnit.MILLISECONDS)
+        assertEquals(0, state2015.buttons and Sc2015ReportParser.BUTTON_RPAD_TOUCH)
+        assertTrue(Writer.reports.size > reportsBefore)
+        val last = Writer.reports.last()
+        assertEquals(0, (last[23].toInt() and 0xFF) or ((last[24].toInt() and 0xFF) shl 8))
+    }
+
+    private fun connect2015() {
+        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:66")
+        val gatt = ShadowBluetoothGatt.newInstance(device)
+        val characteristic = BluetoothGattCharacteristic(SteamControllerUuids.INPUT_2015, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0)
+        val descriptor = BluetoothGattDescriptor(SteamControllerUuids.CCCD, 0)
+        characteristic.addDescriptor(descriptor)
+        ReflectionHelpers.setField(controller, "gatt", gatt)
+        ReflectionHelpers.setField(controller, "input", SteamControllerUuids.INPUT_2015)
+        ReflectionHelpers.setField(controller, "reportId", 0x45)
+        ReflectionHelpers.setField(controller, "model", SteamControllerModel.ORIGINAL_2015)
+        ReflectionHelpers.setField(controller, "running", true)
+        ReflectionHelpers.getField<BluetoothGattCallback>(controller, "callback")
+            .onDescriptorWrite(gatt, descriptor, BluetoothGatt.GATT_SUCCESS)
+    }
+
     private fun subscribe(target: SteamControllerBle) {
         val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:55")
         val gatt = ShadowBluetoothGatt.newInstance(device)
@@ -203,10 +320,15 @@ class SteamControllerBleTest {
         companion object {
             val reports = ArrayList<ByteArray>()
             val connections = ArrayList<Boolean>()
+            val featureReplies = ArrayList<Pair<Long, ByteArray?>>()
             var features = 0
+            var featureRequest = 0L
+            var tritonOutput: ByteArray? = null
             @JvmStatic @Implementation fun writeTritonState(slot: Int, reportId: Int, report: ByteArray) { reports += report.copyOf() }
             @JvmStatic @Implementation fun setTritonConnected(slot: Int, connected: Boolean) { connections += connected }
-            @JvmStatic @Implementation fun writeTritonFeatureReply(slot: Int, request: Long, report: ByteArray?) { features++ }
+            @JvmStatic @Implementation fun writeTritonFeatureReply(slot: Int, request: Long, report: ByteArray?) { features++; featureReplies += request to report?.copyOf() }
+            @JvmStatic @Implementation fun readTritonFeatureRequest(slot: Int): Long = featureRequest
+            @JvmStatic @Implementation fun readTritonOutput(slot: Int, lastSequence: Long): ByteArray? = tritonOutput
         }
     }
 }
