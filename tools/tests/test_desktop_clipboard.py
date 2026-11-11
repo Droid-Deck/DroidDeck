@@ -31,19 +31,23 @@ class DesktopClipboardTest(unittest.TestCase):
         path.write_text('#!/bin/bash\n' + body)
         path.chmod(0o755)
 
-    def run_script(self, klipper_texts, guest=True):
-        if isinstance(klipper_texts, str):
-            klipper_texts = [klipper_texts]
-        for index, text in enumerate(klipper_texts, 1):
-            (self.root / f'klipper-text-{index}').write_text(text)
-        signals = '\n'.join(f'echo "{SIGNAL}"' for _ in klipper_texts)
-        self.tool('dbus-monitor', signals + '\necho "signal other member=NameAcquired"\n')
-        self.tool('qdbus6', f'''count_file="{self.root}/count"
-count=0
-[ ! -f "$count_file" ] || count=$(cat "$count_file")
-count=$((count + 1))
-printf %s "$count" > "$count_file"
-cat "{self.root}/klipper-text-$count"
+    def run_script(self, history, guest=True, signals=None, before=()):
+        if isinstance(history, str):
+            history = [history]
+        for index, text in enumerate(before):
+            (self.root / f'before-{index}').write_text(text)
+        for index, text in enumerate(history):
+            (self.root / f'after-{index}').write_text(text)
+        count = signals if signals is not None else len(history)
+        emit = '\n'.join(f'echo "{SIGNAL}"' for _ in range(count))
+        self.tool('dbus-monitor', f'''touch "{self.root}/signalled"
+{emit}
+echo "signal other member=NameAcquired"
+''')
+        self.tool('qdbus6', f'''prefix=before
+[ ! -f "{self.root}/signalled" ] || prefix=after
+file="{self.root}/$prefix-$4"
+[ ! -f "$file" ] || cat "$file"
 echo
 ''')
         env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', DISPLAY=':0',
@@ -76,8 +80,20 @@ echo
         self.assertFalse(self.guest_updates())
 
     def test_rapid_copies_are_queued_in_order(self):
-        self.run_script(['first copy', 'second copy'])
+        self.run_script(['second copy', 'first copy'], signals=2)
         self.assertEqual([path.read_text() for path in self.guest_updates()], ['first copy', 'second copy'])
+
+    def test_copies_made_before_the_first_read_are_not_lost_or_repeated(self):
+        self.run_script(['c', 'b', 'a'], signals=3, before=['old'])
+        self.assertEqual([path.read_text() for path in self.guest_updates()], ['a', 'b', 'c'])
+
+    def test_text_copied_before_startup_is_not_forwarded(self):
+        self.run_script(['old'], before=['old'])
+        self.assertFalse(self.guest_updates())
+
+    def test_only_entries_newer_than_the_last_delivered_are_forwarded(self):
+        self.run_script(['new', 'old'], before=['old'])
+        self.assertEqual([path.read_text() for path in self.guest_updates()], ['new'])
 
     def test_android_helper_runs_with_android_file_only(self):
         self.run_script('x')

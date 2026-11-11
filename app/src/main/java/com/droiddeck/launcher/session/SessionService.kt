@@ -880,7 +880,10 @@ class SessionService : Service() {
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("BL_ANDROID_CLIPBOARD=" + File(filesDir, "session/android-clipboard").path)
-        if (SessionState.mode == MODE_DESKTOP) guest.add("BL_GUEST_CLIPBOARD=" + com.droiddeck.launcher.input.SessionClipboard.guestFile(this).path)
+        if (SessionState.mode == MODE_DESKTOP) {
+            com.droiddeck.launcher.input.SessionClipboard.clearGuestQueue(this)
+            guest.add("BL_GUEST_CLIPBOARD=" + com.droiddeck.launcher.input.SessionClipboard.guestFile(this).path)
+        }
         guest.add("GAMESCOPE_FORCE_GENERAL_QUEUE=1")
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")

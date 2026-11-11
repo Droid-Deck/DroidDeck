@@ -15,18 +15,33 @@ if [ -n "${BL_GUEST_CLIPBOARD:-}" ]; then
       sequence=$((10#$number))
     fi
   done
+  history_item() {
+    item=$(qdbus6 org.kde.klipper /klipper org.kde.klipper.klipper.getClipboardHistoryItem "$1"; printf x)
+    item=${item%x}
+    item=${item%$'\n'}
+  }
+  history_item 0
+  last=$item
   exec {signals}< <(exec dbus-monitor --session "type=signal,interface=org.kde.klipper.klipper,member=clipboardHistoryUpdated")
   monitor=$!
   trap 'kill "$child" "$monitor" 2>/dev/null' EXIT
   while read -r -u "$signals" line; do
     [[ $line == *member=clipboardHistoryUpdated* ]] || continue
-    text=$(qdbus6 org.kde.klipper /klipper org.kde.klipper.klipper.getClipboardContents; printf x)
-    text=${text%x}
-    text=${text%$'\n'}
-    [ -n "$text" ] && [ "${#text}" -le 262144 ] || continue
-    sequence=$((sequence + 1))
-    stem="$BL_GUEST_CLIPBOARD.queue.$(printf '%020d' "$sequence").$BASHPID"
-    printf %s "$text" > "$stem.pending" && mv -f "$stem.pending" "$stem.ready"
+    fresh=()
+    for ((index = 0; index < 16; index++)); do
+      history_item "$index"
+      [ -n "$item" ] && [ "$item" != "$last" ] || break
+      fresh+=("$item")
+    done
+    [ "${#fresh[@]}" -gt 0 ] || continue
+    last=${fresh[0]}
+    for ((index = ${#fresh[@]} - 1; index >= 0; index--)); do
+      text=${fresh[index]}
+      [ "${#text}" -le 262144 ] || continue
+      sequence=$((sequence + 1))
+      stem="$BL_GUEST_CLIPBOARD.queue.$(printf '%020d' "$sequence").$BASHPID"
+      printf %s "$text" > "$stem.pending" && mv -f "$stem.pending" "$stem.ready"
+    done
   done
 fi
 wait "$child"

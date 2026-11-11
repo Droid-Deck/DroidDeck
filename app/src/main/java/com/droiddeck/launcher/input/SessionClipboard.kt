@@ -73,23 +73,12 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
             guestQueueExecutor = executor
             executor.execute {
                 parent.mkdirs()
-                val staleQueueNames = parent.listFiles()?.asSequence()
-                    ?.filter { isGuestQueueEntry(it.name) }
-                    ?.map { it.name }
-                    ?.toSet()
-                    .orEmpty()
                 synchronized(guestObserverLock) {
                     if (!active || guestQueueExecutor !== executor) return@execute
                     guestObserver = observer
                     observer.startWatching()
                     executor.execute {
-                        parent.listFiles()?.asSequence()
-                            ?.filter { isGuestQueueEntry(it.name) }
-                            ?.sortedBy { it.name }
-                            ?.forEach { file ->
-                                if (file.name in staleQueueNames) file.delete()
-                                else if (isGuestQueueFile(file.name)) consumeGuestFile(observer, file)
-                            }
+                        readyGuestFiles(guestFile).forEach { consumeGuestFile(observer, it) }
                     }
                 }
             }
@@ -218,5 +207,15 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
 
     companion object {
         fun guestFile(context: Context) = File(context.filesDir, "session/guest-clipboard/text")
+
+        fun readyGuestFiles(guestFile: File): List<File> =
+            guestFile.parentFile?.listFiles()
+                ?.filter { it.name.startsWith("${guestFile.name}.queue.") && it.name.endsWith(".ready") }
+                ?.sortedBy { it.name }
+                .orEmpty()
+
+        fun clearGuestQueue(context: Context) {
+            guestFile(context).parentFile?.listFiles()?.forEach { it.delete() }
+        }
     }
 }
