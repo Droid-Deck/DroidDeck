@@ -147,7 +147,11 @@ object AgentSetup {
             if (AgentHost.harness != harness) return@post
             if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
             val last = output.lines().lastOrNull { it.isNotBlank() && !noise(it.trim()) }?.trim()?.take(160)
-            if (!ok && step.required && last != null) detail[step] = last else if (ok) detail.remove(step)
+            when {
+                ok -> detail.remove(step)
+                step == Step.CONNECTION -> detail[step] = app.getString(com.droiddeck.launcher.R.string.agent_connection_off)
+                step.required && last != null -> detail[step] = last
+            }
             if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(harness), true).apply()
         }
     }
