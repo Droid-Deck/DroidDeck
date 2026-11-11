@@ -30,6 +30,7 @@ static volatile int stop;
 static unsigned char *shared;
 static volatile sig_atomic_t urg_tid;
 static volatile sig_atomic_t usr_tid;
+static int urg_count, usr_count;
 static int worker_tid;
 static int worker_delivery;
 
@@ -39,8 +40,14 @@ static void signal_tid(int sig) {
   sig_atomic_t tid = (sig_atomic_t)syscall(SYS_gettid);
   if (tid == __atomic_load_n(&worker_tid, __ATOMIC_RELAXED))
     __atomic_store_n(&worker_delivery, 1, __ATOMIC_RELAXED);
-  if (sig == SIGURG) __atomic_store_n(&urg_tid, tid, __ATOMIC_RELAXED);
-  if (sig == SIGUSR1) __atomic_store_n(&usr_tid, tid, __ATOMIC_RELAXED);
+  if (sig == SIGURG) {
+    __atomic_store_n(&urg_tid, tid, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&urg_count, 1, __ATOMIC_RELEASE);
+  }
+  if (sig == SIGUSR1) {
+    __atomic_store_n(&usr_tid, tid, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&usr_count, 1, __ATOMIC_RELEASE);
+  }
 }
 
 static long status(const char *key) {
@@ -134,13 +141,15 @@ int main(int argc, char **argv) {
       __atomic_store_n(&worker_tid, id, __ATOMIC_RELAXED);
       printf("armed 1\n");
       fflush(stdout);
-      char token;
-      ssize_t n;
-      do n = read(STDIN_FILENO, &token, 1); while (n < 0 && errno == EINTR);
-      if (n != 1) return 11;
-      for (int i = 0; i < 5000 &&
-           (!__atomic_load_n(&urg_tid, __ATOMIC_RELAXED) ||
-            !__atomic_load_n(&usr_tid, __ATOMIC_RELAXED)); i++) usleep(1000);
+      for (int round = 1; round <= 100; round++) {
+        int i;
+        for (i = 0; i < 5000 &&
+             (__atomic_load_n(&urg_count, __ATOMIC_ACQUIRE) < round ||
+              __atomic_load_n(&usr_count, __ATOMIC_ACQUIRE) < round); i++) usleep(1000);
+        if (i == 5000) return 11;
+        printf("received %d\n", round);
+        fflush(stdout);
+      }
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
       printf("urg %d\n", __atomic_load_n(&urg_tid, __ATOMIC_RELAXED));
@@ -338,7 +347,8 @@ class ZramPreloadTest(unittest.TestCase):
             for _ in range(100):
                 os.kill(process.pid, signal.SIGURG)
                 os.kill(process.pid, signal.SIGUSR1)
-            output, _ = process.communicate(input="x", timeout=10)
+                self.assertEqual(f"received {_ + 1}", process.stdout.readline().strip())
+            output, _ = process.communicate(timeout=10)
             values = dict(line.split() for line in output.splitlines())
             self.assertNotEqual(0, int(values["urg"]))
             self.assertNotEqual(0, int(values["usr"]))
