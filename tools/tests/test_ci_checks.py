@@ -67,7 +67,7 @@ class CiChecksTest(unittest.TestCase):
             query.write_text('#!/bin/sh\nexit 1\n')
             query.chmod(0o755)
             dpkg = root / 'dpkg'
-            dpkg.write_text('#!/bin/sh\necho amd64\n')
+            dpkg.write_text('#!/bin/sh\necho "${DPKG_ARCH:-amd64}"\n')
             dpkg.chmod(0o755)
             log = root / 'apt.log'
             sources = root / 'ubuntu.sources'
@@ -83,6 +83,14 @@ class CiChecksTest(unittest.TestCase):
                 'URIs: http://mirror.invalid/ubuntu',
                 'URIs: https://archive.ubuntu.com/ubuntu',
                 'URIs: https://mirrors.edge.kernel.org/ubuntu',
+            ])
+            log.unlink()
+            mirrors.unlink()
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17', DPKG_ARCH='arm64'))
+            self.assertEqual(result.returncode, 17)
+            self.assertEqual(mirrors.read_text().splitlines()[1:], [
+                'URIs: https://ports.ubuntu.com/ubuntu-ports',
+                'URIs: https://mirrors.ocf.berkeley.edu/ubuntu-ports',
             ])
             log.unlink()
             mirrors.unlink()

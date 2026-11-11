@@ -34,10 +34,10 @@ fi
 [ -f "$ubuntu_sources" ] || exit 1
 sources=$(mktemp --suffix=.sources)
 trap 'rm -f "$sources"' EXIT
-# kernel.org is outside Canonical's network, so it still answers when Azure runners cannot reach Canonical.
+# The last mirror of each list is outside Canonical's network, so it still answers when runners cannot reach Canonical.
 mirrors=(https://archive.ubuntu.com/ubuntu https://mirrors.edge.kernel.org/ubuntu)
 case "$(dpkg --print-architecture)" in
-  arm64) mirrors=(https://ports.ubuntu.com/ubuntu-ports) ;;
+  arm64) mirrors=(https://ports.ubuntu.com/ubuntu-ports https://mirrors.ocf.berkeley.edu/ubuntu-ports) ;;
 esac
 status=1
 for mirror in "${mirrors[@]}"; do
