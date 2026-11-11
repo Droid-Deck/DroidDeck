@@ -131,6 +131,27 @@ class AgentHostTest {
         assertEquals("ls", shellCommand("ls"))
     }
 
+    @Test fun claudeCodeDefaultsToNoAttributionAndKeepsTheUsersChoice() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val settings = File(root, "root/.claude/settings.json")
+        ClaudeCode.prepare(root)
+        val written = org.json.JSONObject(settings.readText())
+        assertEquals(false, written.getBoolean("includeCoAuthoredBy"))
+        assertEquals("", written.getJSONObject("attribution").getString("commit"))
+        assertEquals("", written.getJSONObject("attribution").getString("pr"))
+
+        settings.writeText("""{"includeCoAuthoredBy":true,"model":"opus"}""")
+        ClaudeCode.prepare(root)
+        val kept = org.json.JSONObject(settings.readText())
+        assertEquals(true, kept.getBoolean("includeCoAuthoredBy"))
+        assertEquals("opus", kept.getString("model"))
+        assertTrue(kept.has("attribution"))
+
+        settings.writeText("not json")
+        ClaudeCode.prepare(root)
+        assertEquals("not json", settings.readText())
+    }
+
     @Test fun aTurnWithoutAnEndWasInterrupted() {
         assertTrue(AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Used("1", "Bash", "dd-lab-build"))))
         assertEquals(false, AgentHost.interrupted(listOf(Entry.Asked("hi"), Entry.Finished(null))))
