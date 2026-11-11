@@ -36,6 +36,7 @@ sealed interface InputAction {
 
 data class InputProfile(
     val id: String,
+    val base: String = id,
     val bindings: Map<InputRole, Map<InputControl, InputAction>> = emptyMap(),
     val keys: List<PhysicalInputBinding> = emptyList(),
     val elements: Map<InputRole, Map<String, InputAction>> = emptyMap(),
@@ -51,7 +52,7 @@ data class InputProfile(
         elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
 
     fun hasMouseButton(role: InputRole, elements: List<InputSurfaceElement>): Boolean {
-        val stock = defaults(id)
+        val stock = defaults(base)
         return elements.any {
             val action = elementAction(role, it.id, it.control)
             (it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER) && action is InputAction.MouseButton &&
@@ -81,7 +82,7 @@ data class InputProfile(
                 InputControl.LEFT_PAD to InputAction.Scroll(), InputControl.RIGHT_PAD to InputAction.Pointer(),
                 InputControl.LEFT_CLICK to InputAction.MouseButton(273), InputControl.RIGHT_CLICK to InputAction.MouseButton(272),
             )
-            return InputProfile(DESKTOP, InputRole.entries.associateWith { desktop })
+            return InputProfile(DESKTOP, bindings = InputRole.entries.associateWith { desktop })
         }
     }
 }

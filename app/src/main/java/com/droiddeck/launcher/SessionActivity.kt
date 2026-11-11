@@ -804,7 +804,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     scrollRestY = 0f
                 }
                 override fun replay(event: MotionEvent) {
-                    drawnRect()?.let { forwardTouch(event, it) }
+                    if (directTouchMovesOnly) moveDirectPointer(event.x, event.y)
+                    else drawnRect()?.let { forwardTouch(event, it) }
                 }
                 override fun rightClick(x: Float, y: Float) {
                     pointerListener.onLongPress()
@@ -4109,6 +4110,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var directTouchMovesOnly = false
 
+    private fun moveDirectPointer(x: Float, y: Float) {
+        if (pointerLocked) gestureOutput.moveTo(x, y) else movePointer(x, y)
+    }
+
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
@@ -4124,13 +4129,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             directTouchMovesOnly = !programLocksPointer() && onScreenMouseButtonShown()
             if (directTouchMovesOnly) {
+                gesturePointerReady = false
                 directTouchHold.cancel()
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
             }
         }
         if (directTouchMovesOnly) {
+            val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
+            if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
+                moveDirectPointer(event.x, event.y)
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchMovesOnly = false
-            else movePointer(event.x, event.y)
             return true
         }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true

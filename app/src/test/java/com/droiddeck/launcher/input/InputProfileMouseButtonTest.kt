@@ -41,4 +41,10 @@ class InputProfileMouseButtonTest {
         assertTrue(bound.hasMouseButton(InputRole.PRIMARY, listOf(custom)))
         assertFalse(bound.hasMouseButton(InputRole.SECONDARY, listOf(custom)))
     }
+
+    @Test fun savedDesktopProfileComparesAgainstItsDesktopBase() {
+        val saved = InputProfile.defaults(InputProfile.DESKTOP).copy(id = "saved:1", base = InputProfile.DESKTOP)
+        assertFalse(saved.hasMouseButton(InputRole.PRIMARY, listOf(a, trigger)))
+        assertTrue(saved.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274)).hasMouseButton(InputRole.PRIMARY, listOf(a)))
+    }
 }
