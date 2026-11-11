@@ -90,7 +90,7 @@ object AgentSetup {
                 child.outputStream.close()
                 child.inputStream.bufferedReader().forEachLine { line ->
                     val text = line.trim()
-                    if (text.isNotEmpty()) main.post { detail[step] = text.take(160) }
+                    if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
                 }
                 child.waitFor()
             }
@@ -132,11 +132,14 @@ object AgentSetup {
         }.onFailure { output = it.message.orEmpty() }.getOrDefault(false)
         main.post {
             if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
-            val last = output.lines().lastOrNull { it.isNotBlank() }?.trim()?.take(160)
+            val last = output.lines().lastOrNull { it.isNotBlank() && !noise(it.trim()) }?.trim()?.take(160)
             if (!ok && step.required && last != null) detail[step] = last else if (ok) detail.remove(step)
             if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(), true).apply()
         }
     }
+
+    /** proot warns about its bindings on every start; that says nothing about the step. */
+    private fun noise(line: String) = line.startsWith("proot warning")
 
     private fun set(step: Step, value: Status) {
         if (Looper.myLooper() == Looper.getMainLooper()) status[step] = value else main.post { status[step] = value }
