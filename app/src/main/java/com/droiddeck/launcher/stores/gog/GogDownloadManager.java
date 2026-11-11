@@ -323,15 +323,15 @@ public final class GogDownloadManager {
         }
         String guestSetup = guestDir + "/" + setupName;
         cb.onProgress("Extracting installer…", 95);
-        GogInnoextract.Result result;
+        int rc;
         try {
-            result = GogInnoextract.extract(ctx, guestSetup, guestDir, "gog-innoextract", cancelled,
+            rc = GogInnoextract.extract(ctx, guestSetup, guestDir, "gog-innoextract", cancelled,
                     line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
         } catch (Exception e) {
             throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());
         }
         if (cancelled.get()) return;
-        if (result.getExit() != 0) throw new InstallException(result.failure("The installer could not be extracted (innoextract exit " + result.getExit() + ")"));
+        if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
     }
 
     static long installerBytesNeeded(long downloadBytes, long installedBytes) {

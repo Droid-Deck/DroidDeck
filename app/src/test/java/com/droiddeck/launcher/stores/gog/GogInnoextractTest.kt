@@ -90,45 +90,4 @@ class GogInnoextractTest {
         assertTrue(internalGuest.startsWith(StoreInstallRoot.INTERNAL_GUEST + "/GOG/"))
         assertNull(hostOf("$internalGuest/setup_1207658935.exe", StoreInstallRoot.guestBinds(app)))
     }
-
-    @Test fun aFailedExtractionReportsTheExtractorsOwnError() {
-        val result = GogInnoextract.Result(2, GogInnoextract.reason(listOf(
-            "Warning: Unexpected setup data version: Inno Setup Setup Data (6.4.0)",
-            "Stream error while parsing setup headers!",
-            " ├─ detected setup version: 6.4.0",
-            " └─ error reason: iostream error",
-            "",
-        )))
-        assertEquals(
-            "The installer could not be extracted (innoextract exit 2): Stream error while parsing setup headers! detected setup version: 6.4.0 error reason: iostream error",
-            result.failure("The installer could not be extracted (innoextract exit 2)"),
-        )
-    }
-
-    @Test fun aStreamErrorDuringExtractionReportsItsReasonWithoutTheExtractorsBoilerplate() {
-        val result = GogInnoextract.Result(2, GogInnoextract.reason(listOf(
-            "proot warning: can't sanitize binding \"/proc/self/fd/0\": No such file or directory",
-            "proot warning: can't sanitize binding \"/proc/self/fd/1\": No such file or directory",
-            "Stream error while extracting files!",
-            " └─ error reason: zlib error: iostream error",
-            "If you are sure the setup file is not corrupted, consider ",
-            "filing a bug report at https://innoextract.constexpr.org/issues",
-            "Done with 1 error.",
-        )))
-        assertEquals(
-            "The installer could not be extracted (innoextract exit 2): Stream error while extracting files! error reason: zlib error: iostream error",
-            result.failure("The installer could not be extracted (innoextract exit 2)"),
-        )
-    }
-
-    @Test fun theReasonKeepsTheLastErrorLinesAndStaysShort() {
-        val lines = (1..10).map { "Could not open file \"/mnt/droiddeck-stores/card/setup_$it.exe\"" }
-        assertEquals(lines.takeLast(3).joinToString(" "), GogInnoextract.reason(lines))
-        assertEquals(400, GogInnoextract.reason(listOf("x".repeat(1000))).length)
-    }
-
-    @Test fun anExtractionWithoutOutputKeepsTheExitMessage() {
-        val result = GogInnoextract.Result(2, GogInnoextract.reason(listOf("", "Warning: Unexpected setup data version")))
-        assertEquals("GOG installer extraction failed (exit 2)", result.failure("GOG installer extraction failed (exit 2)"))
-    }
 }

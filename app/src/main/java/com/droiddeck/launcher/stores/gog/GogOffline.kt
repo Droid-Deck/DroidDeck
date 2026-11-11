@@ -69,9 +69,9 @@ internal object GogOffline {
         val source = AddedGames.guestPath(context, installer) ?: error("The GOG installer is not visible to Linux")
         val target = AddedGames.guestPath(context, extracted) ?: error("The GOG staging folder is not visible to Linux")
         handle.stage(DownloadStage.INSTALL, "Extracting the full offline installer")
-        val result = GogInnoextract.extract(context, source, target, "gog-refresh", stop, handle::log)
+        val rc = GogInnoextract.extract(context, source, target, "gog-refresh", stop, handle::log)
         if (stop.get()) return
-        check(result.exit == 0) { result.failure("GOG installer extraction failed (exit ${result.exit})") }
+        check(rc == 0) { "GOG installer extraction failed (exit $rc)" }
         applyRefresh(proposal, extracted, handle, stop)
     }
 
