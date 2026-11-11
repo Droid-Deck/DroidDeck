@@ -14,15 +14,19 @@ class EpicLoginTest {
     private fun corrective(action: String) =
         """{"errorCode":"errors.com.epicgames.oauth.corrective_action_required","metadata":{"correctiveAction":"$action"}}"""
 
+    private fun epicLogin() = EpicLogin("https://www.epicgames.com/id/authorize", "test-agent", "http://127.0.0.1/launcher/authorized")
+
     @Test fun aRedirectPageAskingForTermsIsACorrectiveAction() {
         assertEquals("PRIVACY_POLICY_ACCEPTANCE", EpicLogin.correctiveAction(innerText(corrective("PRIVACY_POLICY_ACCEPTANCE"))))
         assertEquals("EULA_ACCEPTANCE", EpicLogin.correctiveAction(innerText(corrective("EULA_ACCEPTANCE"))))
         assertEquals("EULA_ACCEPTANCE", EpicLogin.correctiveAction(corrective("EULA_ACCEPTANCE")))
+        assertEquals(EpicLogin.ACCOUNT_SIGN_IN_URL, epicLogin().browserStep(innerText(corrective("EULA_ACCEPTANCE"))))
     }
 
-    @Test fun aCorrectiveActionWithoutItsNameStillLeavesTheSignInPage() {
+    @Test fun aCorrectiveActionWithoutItsNameStillSelectsTheBrowserStep() {
         val body = """{"errorCode":"errors.com.epicgames.oauth.corrective_action_required"}"""
         assertEquals("unknown", EpicLogin.correctiveAction(innerText(body)))
+        assertEquals(EpicLogin.ACCOUNT_SIGN_IN_URL, epicLogin().browserStep(innerText(body)))
     }
 
     @Test fun anAuthorizationCodeOrAnotherErrorStaysInTheSignInPage() {
@@ -33,7 +37,10 @@ class EpicLoginTest {
             "null",
             "",
         )
-        for (page in pages) assertNull(page, EpicLogin.correctiveAction(page))
+        for (page in pages) {
+            assertNull(page, EpicLogin.correctiveAction(page))
+            assertNull(page, epicLogin().browserStep(page))
+        }
     }
 
     @Test fun otherSignInFlowsHaveNoBrowserStep() {

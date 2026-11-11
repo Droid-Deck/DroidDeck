@@ -7,7 +7,7 @@ import com.droiddeck.launcher.stores.StoreLoginActivity
 import org.json.JSONObject
 import org.json.JSONTokener
 
-internal class EpicLogin private constructor(
+internal class EpicLogin internal constructor(
     override val startUrl: String,
     override val userAgent: String,
     private val redirectPrefix: String,
