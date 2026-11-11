@@ -560,7 +560,7 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(gen, guest, steamHere, agentEnvironment)
+            addClientEnvironment(guest, gen, steamHere, agentEnvironment)
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -874,7 +874,7 @@ class SessionService : Service() {
         return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
-    private fun addClientEnvironment(gen: Int, guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
+    private fun addClientEnvironment(guest: MutableList<String>, gen: Int, steamHere: Boolean, agentEnvironment: List<String>) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
