@@ -464,6 +464,14 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             com.droiddeck.launcher.sync.SyncthingService.NAV -> com.droiddeck.launcher.sync.Syncthing.requestOpen()
             "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
+            com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS -> {
+                // Home lands on the apps page itself, so a page open over the rail (Components, Performance) closes first.
+                if (s.pageKey != null) a.onPageBack()
+                Hops.origin = null
+                Hops.restore = null
+                Hops.sinking = null
+                selected = target
+            }
             else -> selected = target
         }
         a.onNavigated()
