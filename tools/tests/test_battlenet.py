@@ -281,6 +281,7 @@ class DriveTest(Temp):
                          os.path.join(BNET["drive_c"](self.root), "Program Files (x86)/World of Warcraft"))
         self.assertIsNone(BNET["windows_path"](self.root, "E:/Games/X"))
         self.assertIsNone(BNET["windows_path"](self.root, "D:/../etc"))
+        self.assertEqual(BNET["windows_path"](self.root, "D:\\"), str(self.library.parent.parent))
 
 
 class GamepadTest(Temp):
@@ -1255,6 +1256,7 @@ class AgentTest(Temp):
         script = BNET["AGENT_SCRIPT"]
         self.assertIn("port = a(0), action = a(1), uid = a(2), product = a(3), dir = a(4)", script)
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
+        self.assertIn(r'''"game_dir":"' + dir.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '","geo''', script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
 
     def test_the_driver_asks_blizzards_chinese_repository_for_chinese_installs(self):

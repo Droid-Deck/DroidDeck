@@ -124,7 +124,7 @@ function install() {
   save(".form", form);
   if (form.indexOf('"' + lang + '"') < 0) lang = "enUS";
   var locale = lang.toLowerCase();
-  call("POST", "/install/" + uid, '{"account_country":"' + country + '","finalized":true,"game_dir":"' + dir + '","geo_ip_country":"' +
+  call("POST", "/install/" + uid, '{"account_country":"' + country + '","finalized":true,"game_dir":"' + dir.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '","geo_ip_country":"' +
     region + '","language":["' + locale + '"],"selected_asset_locale":"' + locale + '","selected_locale":"' + locale +
     '","shortcut":"none","tome_torrent":""}');
   watch("/install/" + uid);
@@ -486,7 +486,7 @@ def windows_path(root, path):
     if not found:
         return None
     parts = [part for part in re.split(r"[\\/]+", found.group(2)) if part]
-    if not parts or ".." in parts:
+    if ".." in parts:
         return None
     letter = found.group(1).lower()
     link = os.path.join(dosdevices(root), letter + ":")
