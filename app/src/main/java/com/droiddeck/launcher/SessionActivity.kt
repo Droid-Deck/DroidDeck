@@ -1060,13 +1060,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
-                    if (
-                        SessionState.mode == SessionService.MODE_STEAM &&
-                        CompositorHost.isStarted
-                    ) {
-                        applyFrameGen()
-                    }
-
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1083,6 +1076,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
                         refreshGestureConfig()
+                    }
+                    if (
+                        SessionState.mode == SessionService.MODE_STEAM &&
+                        CompositorHost.isStarted
+                    ) {
+                        applyFrameGen()
                     }
                     if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
@@ -1329,7 +1328,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val appId = frameGenTargetGameId()
+                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
+                    frameGenTargetGameId()
+                } else {
+                    drawerGameProfileId
+                }
 
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
@@ -1338,7 +1341,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = frameGenTargetGameId()
+                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
+                    frameGenTargetGameId()
+                } else {
+                    drawerGameProfileId
+                }
 
                 if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
                 else FrameGen.clearGame(this@SessionActivity, appId.toString())
@@ -2575,7 +2582,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val activeAppId = AgentGuest.activeSteamAppId(
             this, cachedIds + (ids ?: emptySet())
         )
-        return FrameGen.mode(this, activeAppId?.toString())
+        if (activeAppId == null) return FrameGen.Mode.OFF
+        return FrameGen.mode(this, activeAppId.toString())
     }
 
     private fun applyFrameGen(force: Boolean = false) {
