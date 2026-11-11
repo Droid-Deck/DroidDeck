@@ -72,6 +72,7 @@ class StoreLoginActivity : ComponentActivity() {
     private var store: Store? = null
     private var clientUrl: String? = null
     private var flow: Flow? = null
+    private var pendingBrowserStep: String? = null
     private var webViewRef: WebView? = null
     private var popupWebView: WebView? = null
     private lateinit var contentHost: FrameLayout
@@ -211,6 +212,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun reloadLogin() {
         dismissPopup(); clearError()
+        pendingBrowserStep = null
         captured.set(false)
         val fresh = generateState()
         oauthState = fresh
@@ -355,6 +357,10 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun continueInBrowser(url: String): Boolean {
         if (isFinishing || isDestroyed) return false
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            pendingBrowserStep = url
+            return true
+        }
         val opened = runCatching { startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))) }
             .onFailure { Log.w(TAG, "no browser took the sign-in step: ${it.javaClass.simpleName}") }
             .isSuccess
@@ -381,6 +387,10 @@ class StoreLoginActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        pendingBrowserStep?.let { step ->
+            pendingBrowserStep = null
+            if (!continueInBrowser(step)) reloadLogin()
+        }
         if (clientUrl != null && !isFinishing) com.droiddeck.launcher.session.SessionService.holdForSignIn(this, true)
     }
 
