@@ -79,7 +79,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
     fun release() {
         val current = grab ?: return
         grab = null
-        current.running = false
+        current.cancel()
     }
 
     fun close() {
@@ -118,8 +118,12 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         private val endpoint: UsbEndpoint,
         private val previous: Thread?,
     ) {
-        @Volatile var running = true
+        @Volatile private var running = true
+        private val claimLock = Any()
         val thread = Thread(::run, "usb-mouse")
+
+        /** Once this returns, the reader either never claims the interface or sees the cancellation after claiming. */
+        fun cancel() = synchronized(claimLock) { running = false }
 
         // The reader owns the connection: closing it while a transfer is pending would free it under the transfer.
         // A previous reader may still hold the interface, which would make this claim fail.
@@ -133,11 +137,12 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
             var claimed = false
             var boot = false
             try {
-                claimed = running && connection.claimInterface(mouse, true)
+                claimed = synchronized(claimLock) { running && connection.claimInterface(mouse, true) }
                 if (!claimed) {
                     main.post { ended(markFailed = false) }
                     return
                 }
+                if (!running) return
                 val format = setUp(connection)
                 if (format == null) {
                     main.post { ended(markFailed = true) }
