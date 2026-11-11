@@ -16,19 +16,21 @@ HELPER = '/usr/local/bin/droiddeck-pipewire'
 
 
 class DesktopPipeWireTest(unittest.TestCase):
-    def run_lifecycle_block(self, start, end, bottom):
+    def run_lifecycle_block(self, start, end, bottom, start_status=0, probe_env=False):
         block = DESKTOP[DESKTOP.index(start):DESKTOP.index(end, DESKTOP.index(start))]
         block = block.replace(HELPER, 'pipewire')
         script = '''
 pipewire() {
     if [ "$1" = env ]; then
-        printf ':\\n'
+        printf 'export PW_ENV=set\\n'
     else
         printf 'call:%s\\n' "$1"
+        [ "$1" != start ] || return "$PW_START_STATUS"
     fi
 }
-''' + block
-        environment = dict(os.environ, BL_BOTTOM_DESKTOP='1' if bottom else '0')
+''' + block + ('echo "env:${PW_ENV:-unset}"\n' if probe_env else '')
+        environment = dict(os.environ, BL_BOTTOM_DESKTOP='1' if bottom else '0',
+                           PW_START_STATUS=str(start_status))
         result = subprocess.run(['bash', '-c', script], env=environment, capture_output=True,
                                 text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -61,6 +63,21 @@ pipewire() {
             self.assertEqual(['call:stop'], self.run_lifecycle_block(
                 HELPER + ' stop',
                 'echo "== droiddeck-desktop: Plasma ended ($rc)"', bottom))
+
+    def test_successful_start_exports_the_client_environment(self):
+        for bottom in (False, True):
+            self.assertEqual(['call:start', 'env:set'], self.run_lifecycle_block(
+                'if ' + HELPER + ' start',
+                'echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"', bottom, probe_env=True))
+
+    def test_failed_start_reports_it_and_leaves_the_environment_alone(self):
+        for bottom in (False, True):
+            self.assertEqual(
+                ['call:start', '== pipewire: not running; screen capture has no picture', 'env:unset'],
+                self.run_lifecycle_block(
+                    'if ' + HELPER + ' start',
+                    'echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"', bottom,
+                    start_status=1, probe_env=True))
 
 
 if __name__ == '__main__':

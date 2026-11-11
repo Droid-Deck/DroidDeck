@@ -54,8 +54,12 @@ env)
     client_env
     ;;
 start)
-    unpack || exit 1
-    access_config || { echo "droiddeck-pipewire: could not write the access settings" >&2; exit 1; }
+    mkdir -p "$(dirname "$dir")" 2>/dev/null
+    (
+        flock 9 || exit 1
+        unpack || exit 1
+        access_config || { echo "droiddeck-pipewire: could not write the access settings" >&2; exit 1; }
+    ) 9> "$dir.lock" || exit 1
     stop
     mkdir -p "$state"
     eval "$(client_env)"

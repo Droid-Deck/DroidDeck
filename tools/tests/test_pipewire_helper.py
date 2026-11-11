@@ -104,6 +104,34 @@ class PipeWireHelperTest(unittest.TestCase):
         self.assertIn('could not write the access settings', result.stderr)
         self.assertFalse((self.runtime / 'droiddeck-pipewire/pids').exists())
 
+    def test_concurrent_starts_share_one_unpack(self):
+        tree = self.root / 'tree'
+        daemon = tree / 'bin/pipewire'
+        daemon.parent.mkdir(parents=True)
+        daemon.write_text('#!/bin/sh\npython3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); '
+                          's.bind(sys.argv[1]); import time; time.sleep(30)" "$XDG_RUNTIME_DIR/pipewire-0"\n')
+        (tree / 'bin/wireplumber').write_text('#!/bin/sh\nexec sleep 30\n')
+        for script in daemon.parent.iterdir():
+            script.chmod(0o755)
+        with tarfile.open(self.bundle, 'w') as archive:
+            archive.add(tree, arcname='.')
+        stubs = self.root / 'stubs'
+        stubs.mkdir()
+        slow = stubs / 'zstd'
+        slow.write_text('#!/bin/sh\nsleep 1\nexec cat -- "$2"\n')
+        slow.chmod(0o755)
+        self.environment['PATH'] = '%s:%s' % (stubs, os.environ['PATH'])
+        errors = [tempfile.TemporaryFile('w+') for _ in range(3)]
+        runs = [subprocess.Popen(['sh', str(self.helper), 'start'], env=self.environment,
+                                 stdout=subprocess.DEVNULL, stderr=err, text=True)
+                for err in errors]
+        for run, err in zip(runs, errors):
+            run.wait(timeout=30)
+            err.seek(0)
+            self.assertEqual(run.returncode, 0, err.read())
+        self.assertTrue((self.dir / 'bin/pipewire').is_file())
+        self.assertFalse((self.lib / 'droiddeck-pipewire.new').exists())
+
     def test_unchanged_bundle_is_not_unpacked_again(self):
         self.pack('exec sleep 30')
         self.run_helper('start')
