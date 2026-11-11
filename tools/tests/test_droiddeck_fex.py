@@ -5,6 +5,7 @@ import json
 import os
 import runpy
 import shutil
+import stat
 import struct
 import subprocess
 import tempfile
@@ -455,8 +456,10 @@ class PrepareTest(FexTestCase):
         sniper = self.runtime()
         FEX["materialize"](str(sniper))
         self.graphics(sniper)
+        os.chmod(sniper / "files/share/ca", 0o750)
         self.quiet(FEX["prepare"])
         root = (self.home / ".local/share/droiddeck-fex/rootfs").resolve()
+        self.assertEqual(stat.S_IMODE(os.stat(root / "share/ca").st_mode), 0o750)
         entries = 0
         for directory, dirs, files in os.walk(root):
             for name in dirs + files:

@@ -320,6 +320,7 @@ def clone(source, target, parents=()):
         os.makedirs(target, exist_ok=True)
         for entry in os.listdir(real):
             clone(os.path.join(real, entry), os.path.join(target, entry), parents + (real,))
+        shutil.copystat(real, target)
         return
     try:
         os.link(real, target)
