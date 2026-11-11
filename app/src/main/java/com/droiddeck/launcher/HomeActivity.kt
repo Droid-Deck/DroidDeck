@@ -23,8 +23,10 @@ class HomeActivity : Activity() {
                 .setAction(SessionService.ACTION_HOME_GUIDE)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         } else {
+            // Without NEW_TASK the front end joins this activity's task, which Android started as the Home task
+            // and so never shows as a card on the recents screen.
             Intent(this, FrontEndActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         startActivity(destination)
         finish()
