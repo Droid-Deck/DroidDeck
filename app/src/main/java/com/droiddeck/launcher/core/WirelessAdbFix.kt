@@ -79,14 +79,41 @@ object WirelessAdbFix {
         val saved = savedConnection(app) ?: return null
         val host = if (':' in saved.host) "[${saved.host}]" else saved.host
         saved.port?.takeIf { answers(saved.host, it) }?.let { return "$host:$it" }
-        val live = { port: Int -> answers(saved.host, port) }
-        val port = tlsPortProperty()?.takeIf(live) ?: findConnectPort(app, saved.host, accept = live) ?: return null
+        val loopback = runCatching { InetAddress.getByName(saved.host).isLoopbackAddress }.getOrDefault(false)
+        val port = if (loopback) loopbackAdbPort(app) else findConnectPort(app, saved.host, accept = { answers(saved.host, it) })
+        port ?: return null
         saveConnection(app, saved.host, port)
         return "$host:$port"
     }
 
-    private fun answers(host: String, port: Int) = runCatching {
-        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 500) }
+    /**
+     * Wireless debugging's port on this device. Apps can read neither service.adb.tls.port nor the
+     * socket table, and mDNS often advertises nothing, so the ephemeral range Linux gives adbd is
+     * scanned on loopback (closed ports refuse at once) and the open ports are tried with our key.
+     */
+    private fun loopbackAdbPort(app: Context): Int? {
+        val open = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+        val workers = 32
+        val range = EPHEMERAL_PORTS
+        (0 until workers).map { worker ->
+            Thread {
+                var port = range.first + worker
+                while (port <= range.last) {
+                    if (answers(LOOPBACK, port, 150)) open += port
+                    port += workers
+                }
+            }.apply { start() }
+        }.forEach { it.join() }
+        loadOrCreateIdentity(app)
+        return open.sorted().firstOrNull { port ->
+            runCatching { Kadb.create(LOOPBACK, port, 1_000, 3_000).use { it.shell("true").exitCode == 0 } }.getOrDefault(false)
+        }
+    }
+
+    private val EPHEMERAL_PORTS = 32768..60999
+
+    private fun answers(host: String, port: Int, timeoutMs: Int = 500) = runCatching {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), timeoutMs) }
     }.isSuccess
 
     private fun saveConnection(context: Context, host: String, port: Int) {
