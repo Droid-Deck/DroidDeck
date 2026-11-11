@@ -499,6 +499,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
+    private var observedScreenEffectsProfileId by mutableStateOf<String?>(null)
     private var cardboard by mutableStateOf(Cardboard.OFF)
     private var headTracker: HeadTracker? = null
     private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
@@ -544,6 +545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val screenEffectsProfilePrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == SessionPrefs.SCREEN_EFFECTS_ACTIVE_PROFILE_KEY) uiHandler.post {
             val profileId = SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+            observedScreenEffectsProfileId = profileId
             effects = SessionPrefs.screenEffects(this@SessionActivity, profileId)
             effects.push(upscaler)
         }
@@ -1866,13 +1868,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun currentScreenEffectsProfileId(): String? {
-        if (SessionState.running) return SessionPrefs.activeScreenEffectsProfileId(this)
+        if (SessionState.running) {
+            return observedScreenEffectsProfileId
+                ?: SessionPrefs.activeScreenEffectsProfileId(this)
+        }
         val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
-        val gameId = intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+        val explicitGameId = intent.getStringExtra(SessionService.EXTRA_GAME_ID)
             ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
-                ?.let { Regex("""(?:run|rungameid|launch)/(\d+)""", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+            ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
+        val steamUrlGameId = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+            ?.takeIf { it.startsWith("steam://rungameid/") }
+            ?.removePrefix("steam://rungameid/")
+            ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
+        val gameId = explicitGameId ?: steamUrlGameId
 
         return SessionPrefs.screenEffectsProfileId(
             mode,
@@ -4771,6 +4779,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
+        observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
         refreshInputProfile()
         refreshControls()
