@@ -1152,10 +1152,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onAndroidKeyboard = { pcKeyboardOpen = false; keyboard?.toggle() },
                     onClose = { pcKeyboardOpen = false },
                 )
-                if (!drawerOpen && !pcKeyboardOpen) com.droiddeck.launcher.ui.AgentBubble {
-                    drawerPage = SessionDrawerPage.AGENT
-                    drawerOpen = true
-                }
                 if (!drawerDocked) SessionMenu(docked = false)
                 LaunchedEffect(achievementsOpen) {
                     if (achievementsOpen) {
