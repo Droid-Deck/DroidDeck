@@ -545,10 +545,11 @@ object SessionPrefs {
 
     internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean, autoOwnedOnly: Boolean = false) {
         if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
-        if (autoOwnedOnly && setOf(androidDriver(context), linuxDriver(context))
-                .filter { it.isNotEmpty() && it != TurnipDriver.AUTO }
-                .any { it !in gpuAutoInstalled(context) }) return
-        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
+        val owned = gpuAutoInstalled(context)
+        val edit = prefs(context).edit()
+        if (!autoOwnedOnly || linuxDriver(context) in owned) edit.putString("linuxDriver", "")
+        if (!autoOwnedOnly || androidDriver(context) in owned) edit.putString("androidDriver", TurnipDriver.AUTO)
+        edit.apply()
     }
 
     fun gpuAutoInstalled(context: Context): Set<String> =

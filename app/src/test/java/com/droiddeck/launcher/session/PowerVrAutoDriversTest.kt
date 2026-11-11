@@ -55,6 +55,22 @@ class PowerVrAutoDriversTest {
         assertEquals("old-display", SessionPrefs.androidDriver(context))
     }
 
+    @Test fun autoClearsOwnedDisplayButKeepsManualLinux() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-display"))
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = true)
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+        assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
+    }
+
+    @Test fun autoClearsOwnedLinuxButKeepsManualDisplay() {
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
+        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true, autoOwnedOnly = true)
+        assertEquals("imported-display", SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+    }
+
     @Test fun adrenoAutoChoicesRemain() {
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
         SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = false)

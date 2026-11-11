@@ -113,7 +113,6 @@ object DriverPairs {
             }
     }
 
-    /** Old RADV-Xclipse supports only the documented 530, 920, and 940 models. */
     internal fun xclipseNeedsUpstream(name: String): Boolean =
         XCLIPSE_MODEL.find(name)?.groupValues?.get(1) !in SUPPORTED_XCLIPSE_MODELS
 
