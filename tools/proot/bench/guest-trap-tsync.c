@@ -82,7 +82,10 @@ int main(void) {
   }
   pthread_barrier_wait(&barrier);
   for (int i = 0; i < WORKERS; i++)
-    pthread_join(w[i], NULL);
+    if (pthread_join(w[i], NULL)) {
+      printf("worker %d could not be joined\n", i);
+      return 2;
+    }
   printf("bad=%ld traps=%d\n", bad, traps);
   return bad == 0 && traps >= WORKERS * ROUNDS ? 0 : 1;
 }

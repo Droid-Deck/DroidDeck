@@ -152,9 +152,8 @@ int main(int argc, char **argv) {
   pid_t child = fork();
   if (child == 0) {
     pthread_t thread;
-    if (pthread_create(&thread, NULL, idle, NULL))
+    if (pthread_create(&thread, NULL, idle, NULL) || pthread_join(thread, NULL))
       _exit(2);
-    pthread_join(thread, NULL);
     _exit(open("/etc/hostname", O_RDONLY) == ANSWER ? 0 : 1);
   }
   int status;
