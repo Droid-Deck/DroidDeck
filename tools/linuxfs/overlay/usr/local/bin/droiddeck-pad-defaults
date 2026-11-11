@@ -943,13 +943,20 @@ def retroarch():
     with open(cfg, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     changed = False
+    present = set()
     for i, l in enumerate(lines):
         if l.replace(" ", "").startswith('input_joypad_driver="udev"'):
             lines[i] = 'input_joypad_driver = "sdl2"'
             changed = True
         key, value = cfg_value(l)
-        if key in system and value == RETROARCH_PACKAGED[key] and system[key] != value:
+        if key in system and value is not None:
+            present.add(key)
+        if key in system and key != "menu_show_core_updater" and value == RETROARCH_PACKAGED[key] and system[key] != value:
             lines[i] = f'{key} = "{system[key]}"'
+            changed = True
+    for key, value in system.items():
+        if key not in present:
+            lines.append(f'{key} = "{value}"')
             changed = True
     if changed:
         with open(cfg + ".tmp", "w", encoding="utf-8") as f:

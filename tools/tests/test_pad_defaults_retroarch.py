@@ -58,20 +58,51 @@ class RetroArchDefaults(unittest.TestCase):
         self.cfg.write_text(SAVED_DEFAULTS)
         values = self.run_script()
         self.assertEqual(values["assets_directory"], "/usr/share/libretro/assets/")
+        self.assertEqual(values["libretro_directory"], "/usr/lib/aarch64-linux-gnu/libretro/")
+        self.assertEqual(values["libretro_info_path"], "/usr/share/libretro/info/")
+        self.assertEqual(values["menu_show_core_updater"], "true")
+        self.assertEqual(values["input_joypad_driver"], "sdl2")
+
+    def test_previous_seed_receives_missing_packaged_settings(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text('input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n')
+        values = self.run_script()
+        self.assertEqual(values["assets_directory"], "/usr/share/libretro/assets/")
+        self.assertEqual(values["libretro_directory"], "/usr/lib/aarch64-linux-gnu/libretro/")
         self.assertEqual(values["libretro_info_path"], "/usr/share/libretro/info/")
         self.assertEqual(values["menu_show_core_updater"], "false")
-        self.assertEqual(values["input_joypad_driver"], "sdl2")
+
+    def test_previous_seed_keeps_downloaded_cores(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text('input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n')
+        cores = self.tmp / "retroarch/cores"
+        cores.mkdir()
+        (cores / "snes9x_libretro.so").write_bytes(b"")
+        values = self.run_script()
+        self.assertNotIn("libretro_directory", values)
 
     def test_user_choices_are_kept(self):
         self.cfg.parent.mkdir(parents=True)
         self.cfg.write_text(
-            'assets_directory = "/mnt/assets"\nlibretro_directory = "~/.config/retroarch/cores"\n'
+            'assets_directory = "/mnt/assets"\n'
+            'libretro_directory = "~/.config/retroarch/cores"\n'
+            'libretro_info_path = "/mnt/info"\n'
+            'menu_show_core_updater = "true"\n'
         )
         (self.tmp / "retroarch/cores").mkdir()
         (self.tmp / "retroarch/cores/snes9x_libretro.so").write_bytes(b"")
         values = self.run_script()
         self.assertEqual(values["assets_directory"], "/mnt/assets")
         self.assertEqual(values["libretro_directory"], "~/.config/retroarch/cores")
+        self.assertEqual(values["libretro_info_path"], "/mnt/info")
+        self.assertEqual(values["menu_show_core_updater"], "true")
+
+    def test_other_emulator_config_is_unchanged(self):
+        config = self.tmp / "ppsspp/PSP/SYSTEM/controls.ini"
+        config.parent.mkdir(parents=True)
+        config.write_text("custom controls\n")
+        self.run_script()
+        self.assertEqual(config.read_text(), "custom controls\n")
 
     def test_without_a_system_config_nothing_changes(self):
         (self.tmp / "retroarch.system.cfg").unlink()
