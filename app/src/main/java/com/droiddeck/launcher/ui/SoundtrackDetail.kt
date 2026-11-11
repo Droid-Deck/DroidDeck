@@ -136,7 +136,8 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
     val trackArt by produceState<java.io.File?>(null, currentTrack) {
         value = currentTrack?.let { id -> withContext(Dispatchers.IO) { Soundtrack.trackCover(ctx, java.io.File(id)) } }
     }
-    val shownArt: Any? = trackArt ?: art
+    val pinned = game.art?.path.orEmpty().contains("/steam-art/")
+    val shownArt: Any? = if (pinned) art else trackArt ?: art
     Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.size(120.dp).clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f))) {
