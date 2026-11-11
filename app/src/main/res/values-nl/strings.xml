@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Grafische weergave resetten en SteamVR opnieuw openen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kon niet automatisch opnieuw starten. Sluit de app volledig af en open hem daarna opnieuw.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>De eerste keer wordt Steam gedownload. Dat kan een paar minuten duren.</item>
+        <item>Je controller wordt aan Steam getoond als een Steam Deck-controller. Schakel in de sessie-instellingen over op een Steam Controller, DualShock 4, DualSense of Xbox 360-pad; dit geldt vanaf de volgende sessie.</item>
+        <item>Houd Terug ingedrukt op je controller om het Snelmenu van Steam te openen. Terug ingedrukt houden voor Steam-sneltoetsen moet aanstaan in de sessie-instellingen.</item>
+        <item>Gedrag op de achtergrond bepaalt wat er gebeurt als je de app verlaat: Systeemeigen maakt Steam klaar voor slaapstand, Automatisch pauzeert het, Handmatig wacht op Hervatten, Nooit laat het doorlopen.</item>
+        <item>Steam-games gebruiken de Framelimiet van Steam in het Snelmenu. Het scherm schakelt naar een verversingssnelheid waar de limiet gelijk op deelt, als die er is.</item>
+        <item>Modus voor lage latentie in het sessiemenu stuurt controllerinvoer met 1000 Hz in plaats van 250 Hz, voor iets meer CPU en batterij.</item>
+        <item>Elke game heeft een eigen profiel met Proton, FEX, componenten en omgevingsinstellingen.</item>
+        <item>Het sessiemenu heeft een microfoonschakelaar voor voicechat en een knop Nu onderbreken om de sessie op verzoek te bevriezen.</item>
+        <item>Sleep de DroidDeck-HUD om hem te verplaatsen, knijp om het formaat te wijzigen en duw hem tegen een rand om hem als klein FPS-tabblad vast te zetten.</item>
+        <item>Op handhelds met twee schermen kan het onderste scherm downloads, meldingen, screenshots en Steam-chat tonen. Met Schermen wisselen komt de game daar te staan.</item>
+        <item>Voeg Steam-bibliotheken toe vanaf een SD-kaart, USB-stick of SSD, en DroidDeck houdt de games bij elkaar in je Bibliotheek.</item>
+        <item>Met Winkels log je in bij GOG, itch.io, Battle.net, Amazon Games en Game Jolt, en installeer en update je hun games vanuit DroidDeck.</item>
+        <item>Componenten zoals FEX, DXVK en VKD3D-Proton updaten zichzelf, en Proton Experimental ARM64 is de standaard, of Proton 11.0 ARM64 zodra die build is geïnstalleerd.</item>
+        <item>Steam comprimeren terwijl een game draait maakt RAM vrij op apparaten die weinig geheugen hebben.</item>
+        <item>Veeg vanaf de rechterrand naar binnen om het sessiemenu te openen: touchpadmodus, Pc-toetsenbord, modus voor lage latentie, gameprofiel en meer.</item>
+        <item>Draait een game traag? Begrens de framerate in het Snelmenu en probeer dan een andere Proton-versie of FEX-preset in de componenten van de game.</item>
+        <item>Kraakt de audio of ontbreekt het geluid? Probeer de schakelaar DirectAudio voor games in de Steam-instellingen onder Audio.</item>
+        <item>Installatie, en dan Opslag, kan shadercaches en overgebleven prefixes van verwijderde games wissen.</item>
+        <item>Een bug gevonden? Logs delen in het sessiemenu bundelt diagnostiek. Plaats die in #bug-reports op Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>De eerste keer wordt de desktop ingesteld. Dat kan een paar minuten duren.</item>
+        <item>Aanraking werkt als touchpad: sleep om de aanwijzer te verplaatsen, tik om te klikken.</item>
+        <item>Gedrag op de achtergrond bepaalt wat er gebeurt als je de app verlaat: Handmatig wacht standaard op Hervatten, Automatisch pauzeert, Nooit laat het doorlopen.</item>
+        <item>Veeg vanaf de rechterrand naar binnen om het sessiemenu te openen en kies dan Pc-toetsenbord om te typen in apps die het Android-toetsenbord negeren.</item>
+        <item>Het Pc-toetsenbord in het sessiemenu heeft instelbare grootte, dekking en toetsgroepen.</item>
+        <item>Je controller wordt weergegeven als een Xbox 360-pad. Gebruik anders de bediening op het scherm.</item>
+        <item>Het sessiemenu heeft een microfoonschakelaar en een knop Nu onderbreken om de sessie op verzoek te bevriezen.</item>
+        <item>Een bug gevonden? Logs delen in het sessiemenu bundelt diagnostiek. Plaats die in #bug-reports op Discord.</item>
+    </string-array>
     <string name="session_channel">Sessie</string>
     <string name="session_channel_description">Wordt getoond zolang er een Steam- of desktopsessie open is</string>
     <string name="session_notification">Steam is actief</string>

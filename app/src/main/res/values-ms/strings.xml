@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Menetapkan semula grafik dan membuka SteamVR sekali lagi…</string>
     <string name="steamvr_recovery_failed">DroidDeck tidak dapat dimulakan semula secara automatik. Tutup apl sepenuhnya, kemudian buka semula.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Larian pertama memuat turun Steam. Ini mungkin mengambil masa beberapa minit.</item>
+        <item>Pengawal anda dipaparkan kepada Steam sebagai pengawal Steam Deck. Tukarkannya kepada pad Steam Controller, DualShock 4, DualSense atau Xbox 360 dalam tetapan sesi; ia berkuat kuasa pada sesi seterusnya.</item>
+        <item>Tahan Kembali pada pengawal anda untuk membuka menu Akses pantas Steam. Tahan Kembali untuk pintasan Steam mesti dihidupkan dalam tetapan sesi.</item>
+        <item>Gelagat latar belakang menentukan apa yang berlaku apabila anda meninggalkan apl: Asli menyediakan Steam untuk tidur, Auto menjedanya, Manual menunggu Sambung, Tidak pernah membiarkannya terus berjalan.</item>
+        <item>Permainan Steam menggunakan Had bingkai Steam dalam Akses pantas. Paparan bertukar kepada kadar segar semula yang boleh dibahagi sama rata oleh had itu apabila ada.</item>
+        <item>Mod kependaman rendah dalam menu sesi menghantar input pengawal pada 1000 Hz dan bukannya 250 Hz, dengan sedikit lebih CPU dan bateri.</item>
+        <item>Setiap permainan mempunyai profilnya sendiri dengan Proton, FEX, komponen dan tetapan persekitaran.</item>
+        <item>Menu sesi mempunyai togol mikrofon untuk sembang suara dan butang Gantung sekarang untuk membekukan sesi apabila diperlukan.</item>
+        <item>Seret HUD DroidDeck untuk menggerakkannya, cubit untuk mengubah saiznya, dan tolak ke tepi untuk memautkannya sebagai tab FPS kecil.</item>
+        <item>Pada konsol pegang tangan dwiskrin, skrin bawah boleh menunjukkan muat turun, pemberitahuan, tangkapan skrin dan sembang Steam. Tukar skrin meletakkan permainan di bawah sana.</item>
+        <item>Tambah pustaka Steam daripada kad SD, pemacu USB atau SSD, dan DroidDeck menyatukan permainan dalam Pustaka anda.</item>
+        <item>Kedai membolehkan anda log masuk ke GOG, itch.io, Battle.net, Amazon Games dan Game Jolt, kemudian memasang dan mengemas kini permainan mereka daripada DroidDeck.</item>
+        <item>Komponen seperti FEX, DXVK dan VKD3D-Proton mengemas kini sendiri, dan Proton Experimental ARM64 ialah lalai, atau Proton 11.0 ARM64 sebaik sahaja binaan itu dipasang.</item>
+        <item>Mampatkan Steam semasa permainan berjalan membebaskan RAM pada peranti yang kekurangan memori.</item>
+        <item>Leret masuk dari tepi kanan untuk membuka menu sesi: mod pad sentuh, Papan kekunci PC, Mod kependaman rendah, profil permainan dan banyak lagi.</item>
+        <item>Permainan berjalan perlahan? Hadkan kadar bingkai dalam Akses pantas, kemudian cuba versi Proton atau pratetap FEX lain dalam komponen permainan.</item>
+        <item>Bunyi permainan berderak atau tiada? Cuba togol DirectAudio untuk permainan dalam tetapan Steam di bawah Audio.</item>
+        <item>Persediaan, kemudian Storan, boleh mengosongkan cache shader dan prefix yang tertinggal daripada permainan yang anda buang.</item>
+        <item>Menemui pepijat? Kongsi log dalam menu sesi menghimpunkan diagnostik. Siarkan dalam #bug-reports di Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Larian pertama menyediakan desktop. Ini mungkin mengambil masa beberapa minit.</item>
+        <item>Sentuhan berfungsi sebagai pad sentuh: seret untuk menggerakkan penuding, ketik untuk klik.</item>
+        <item>Gelagat latar belakang menentukan apa yang berlaku apabila anda meninggalkan apl: Manual menunggu Sambung secara lalai, Auto menjeda, Tidak pernah membiarkannya terus berjalan.</item>
+        <item>Leret masuk dari tepi kanan untuk membuka menu sesi, kemudian pilih Papan kekunci PC untuk menaip dalam apl yang mengabaikan papan kekunci Android.</item>
+        <item>Papan kekunci PC dalam menu sesi mempunyai saiz, kelegapan dan kumpulan kekunci yang boleh dilaraskan.</item>
+        <item>Pengawal anda dipaparkan sebagai pad Xbox 360. Jika tidak, gunakan kawalan atas skrin.</item>
+        <item>Menu sesi mempunyai togol mikrofon dan butang Gantung sekarang untuk membekukan sesi apabila diperlukan.</item>
+        <item>Menemui pepijat? Kongsi log dalam menu sesi menghimpunkan diagnostik. Siarkan dalam #bug-reports di Discord.</item>
+    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_channel_description">Dipaparkan semasa sesi Steam atau desktop sedang dibuka</string>
     <string name="session_notification">Steam sedang berjalan</string>

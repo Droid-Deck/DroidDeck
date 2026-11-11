@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">正在重設圖形並重新開啟 SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck 無法自動重新啟動。請完全關閉應用程式，然後重新開啟。</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>首次執行會下載 Steam，可能需要幾分鐘。</item>
+        <item>你的控制器在 Steam 中會顯示為 Steam Deck 控制器。可在工作階段設定中切換為 Steam Controller、DualShock 4、DualSense 或 Xbox 360 控制器，下次工作階段生效。</item>
+        <item>長按控制器上的返回鍵可開啟 Steam 的快速存取選單。必須在工作階段設定中開啟「長按返回鍵使用 Steam 快捷操作」。</item>
+        <item>背景行為決定你離開應用程式時會發生什麼：「原生」會讓 Steam 做好休眠準備，「自動」會暫停，「手動」會等你點擊「繼續」，「從不」則保持執行。</item>
+        <item>Steam 遊戲使用快速存取中 Steam 的影格率限制。如果有能被該上限整除的更新率，顯示器會切換到該更新率。</item>
+        <item>工作階段選單中的低延遲模式會以 1000 Hz 而非 250 Hz 傳送控制器輸入，代價是略多一點 CPU 和電量消耗。</item>
+        <item>每個遊戲都有自己的設定檔，包含 Proton、FEX、元件和環境設定。</item>
+        <item>工作階段選單裡有用於語音聊天的麥克風開關，以及可隨時凍結工作階段的「立即暫停」按鈕。</item>
+        <item>拖曳 DroidDeck HUD 可移動它，雙指捏合可調整大小，推到螢幕邊緣可停靠為小型 FPS 分頁。</item>
+        <item>在雙螢幕掌機上，下方螢幕可以顯示下載、通知、截圖和 Steam 聊天。「交換螢幕」會改為把遊戲放到下方螢幕。</item>
+        <item>可加入 SD 卡、USB 隨身碟或 SSD 上的 Steam 遊戲庫，DroidDeck 會把這些遊戲集中在你的收藏庫中。</item>
+        <item>「遊戲商店」讓你登入 GOG、itch.io、Battle.net、Amazon Games 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
+        <item>FEX、DXVK 和 VKD3D-Proton 等元件會自動更新，預設使用 Proton Experimental ARM64，安裝 Proton 11.0 ARM64 後則預設使用它。</item>
+        <item>「遊戲執行時壓縮 Steam」可在記憶體不足的裝置上釋放 RAM。</item>
+        <item>從右邊緣向內滑動可開啟工作階段選單：觸控板模式、電腦鍵盤、低延遲、遊戲設定檔等。</item>
+        <item>遊戲執行緩慢？先在快速存取中限制影格率，再到遊戲的元件中嘗試其他 Proton 版本或 FEX 預設。</item>
+        <item>遊戲音訊爆音或沒有聲音？請在 Steam 設定的「音訊」下嘗試「遊戲使用 DirectAudio」開關。</item>
+        <item>「設定」下的「儲存空間」可以清理已移除遊戲留下的著色器快取和殘留前綴。</item>
+        <item>遇到故障？工作階段選單中的「分享日誌」會打包診斷資訊。請發布到 Discord 的 #bug-reports。</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>首次執行會設定桌面，可能需要幾分鐘。</item>
+        <item>觸控的作用類似觸控板：拖曳可移動游標，輕點即可點按。</item>
+        <item>背景行為決定你離開應用程式時會發生什麼：「手動」預設會等你點擊「繼續」，「自動」會暫停，「從不」則保持執行。</item>
+        <item>從右邊緣向內滑動可開啟工作階段選單，然後選擇「電腦鍵盤」，即可在忽略 Android 鍵盤的應用程式中輸入。</item>
+        <item>工作階段選單中的電腦鍵盤可調整大小、不透明度和按鍵群組。</item>
+        <item>你的控制器會顯示為 Xbox 360 控制器。否則請使用螢幕上的控制項。</item>
+        <item>工作階段選單裡有麥克風開關和可隨時凍結工作階段的「立即暫停」按鈕。</item>
+        <item>遇到故障？工作階段選單中的「分享日誌」會打包診斷資訊。請發布到 Discord 的 #bug-reports。</item>
+    </string-array>
     <string name="session_channel">工作階段</string>
     <string name="session_channel_description">在 Steam 或桌面工作階段開啟時顯示</string>
     <string name="session_notification">Steam 正在執行</string>

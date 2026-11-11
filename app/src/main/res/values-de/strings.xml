@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Grafik wird zurückgesetzt und SteamVR neu geöffnet …</string>
     <string name="steamvr_recovery_failed">DroidDeck konnte nicht automatisch neu starten. Schließe die App vollständig und öffne sie dann erneut.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Beim ersten Start wird Steam heruntergeladen. Das kann einige Minuten dauern.</item>
+        <item>Dein Controller erscheint in Steam als Steam-Deck-Controller. Stelle ihn in den Sitzungseinstellungen auf Steam Controller, DualShock 4, DualSense oder Xbox 360 um; das gilt ab der nächsten Sitzung.</item>
+        <item>Halte Zurück auf deinem Controller gedrückt, um das Schnellzugriffsmenü von Steam zu öffnen. Zurück halten für Steam-Kürzel muss in den Sitzungseinstellungen aktiviert sein.</item>
+        <item>Verhalten im Hintergrund legt fest, was beim Verlassen der App passiert: Nativ bereitet Steam auf den Ruhezustand vor, Auto pausiert es, Manuell wartet auf Fortsetzen, Nie lässt es weiterlaufen.</item>
+        <item>Steam-Spiele nutzen das Frame Limit von Steam im Schnellzugriff. Das Display wechselt auf eine Bildwiederholrate, durch die sich das Limit teilen lässt, sofern es eine gibt.</item>
+        <item>Modus mit geringer Latenz im Sitzungsmenü sendet Controller-Eingaben mit 1000 Hz statt 250 Hz, auf Kosten von etwas mehr CPU-Last und Akkuverbrauch.</item>
+        <item>Jedes Spiel hat ein eigenes Profil mit Proton, FEX, Komponenten und Umgebungseinstellungen.</item>
+        <item>Das Sitzungsmenü hat einen Mikrofonschalter für den Sprachchat und eine Schaltfläche Jetzt anhalten, mit der du die Sitzung nach Bedarf einfrierst.</item>
+        <item>Ziehe das DroidDeck-HUD, um es zu verschieben, zoome mit zwei Fingern, um die Größe zu ändern, und schiebe es an einen Rand, um es als kleinen FPS-Tab anzudocken.</item>
+        <item>Bei Handhelds mit zwei Bildschirmen kann der untere Bildschirm Downloads, Benachrichtigungen, Screenshots und den Steam-Chat anzeigen. Bildschirme tauschen legt stattdessen das Spiel dorthin.</item>
+        <item>Füge Steam-Bibliotheken von einer SD-Karte, einem USB-Laufwerk oder einer SSD hinzu, und DroidDeck hält die Spiele in deiner Bibliothek zusammen.</item>
+        <item>Mit Stores meldest du dich bei GOG, itch.io, Battle.net, Amazon Games und Game Jolt an und installierst und aktualisierst deren Spiele direkt in DroidDeck.</item>
+        <item>Komponenten wie FEX, DXVK und VKD3D-Proton aktualisieren sich selbst, und Proton Experimental ARM64 ist der Standard, oder Proton 11.0 ARM64, sobald diese Version installiert ist.</item>
+        <item>Steam komprimieren, während ein Spiel läuft gibt auf Geräten mit knappem Arbeitsspeicher RAM frei.</item>
+        <item>Wische vom rechten Rand nach innen, um das Sitzungsmenü zu öffnen: Touchpad-Modus, PC-Tastatur, Modus mit geringer Latenz, Spielprofil und mehr.</item>
+        <item>Das Spiel läuft langsam? Begrenze die Bildrate im Schnellzugriff und probiere dann eine andere Proton-Version oder ein anderes FEX-Preset in den Komponenten des Spiels.</item>
+        <item>Knacken oder fehlender Spielton? Probiere den Schalter DirectAudio für Spiele in den Steam-Einstellungen unter Audio.</item>
+        <item>Einrichtung und dann Speicher kann Shader-Caches und übrig gebliebene Präfixe von entfernten Spielen löschen.</item>
+        <item>Auf einen Fehler gestoßen? Logs teilen im Sitzungsmenü bündelt Diagnosedaten. Poste sie in #bug-reports auf Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Beim ersten Start wird der Desktop eingerichtet. Das kann einige Minuten dauern.</item>
+        <item>Touch funktioniert wie ein Touchpad: Ziehen bewegt den Zeiger, Tippen klickt.</item>
+        <item>Verhalten im Hintergrund legt fest, was beim Verlassen der App passiert: Manuell wartet standardmäßig auf Fortsetzen, Auto pausiert, Nie lässt es weiterlaufen.</item>
+        <item>Wische vom rechten Rand nach innen, um das Sitzungsmenü zu öffnen, und wähle dann PC-Tastatur, um in Apps zu tippen, die die Android-Tastatur ignorieren.</item>
+        <item>Die PC-Tastatur im Sitzungsmenü hat einstellbare Größe, Deckkraft und Tastengruppen.</item>
+        <item>Dein Controller erscheint als Xbox-360-Controller. Andernfalls nutze die Bedienelemente auf dem Bildschirm.</item>
+        <item>Das Sitzungsmenü hat einen Mikrofonschalter und eine Schaltfläche Jetzt anhalten, mit der du die Sitzung nach Bedarf einfrierst.</item>
+        <item>Auf einen Fehler gestoßen? Logs teilen im Sitzungsmenü bündelt Diagnosedaten. Poste sie in #bug-reports auf Discord.</item>
+    </string-array>
     <string name="session_channel">Sitzung</string>
     <string name="session_channel_description">Wird angezeigt, solange eine Steam- oder Desktop-Sitzung geöffnet ist</string>
     <string name="session_notification">Steam läuft</string>

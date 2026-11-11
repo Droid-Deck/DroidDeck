@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Återställer grafiken och öppnar SteamVR igen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kunde inte starta om automatiskt. Stäng appen helt och öppna den sedan igen.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Första körningen laddar ner Steam. Det kan ta några minuter.</item>
+        <item>Din kontroll visas för Steam som en Steam Deck-kontroll. Byt till en Steam Controller-, DualShock 4-, DualSense- eller Xbox 360-kontroll i sessionsinställningarna; det gäller från nästa session.</item>
+        <item>Håll Bakåt på kontrollen för att öppna Steams Snabbåtkomst-meny. Håll Bakåt för Steam-genvägar måste vara på i sessionsinställningarna.</item>
+        <item>Bakgrundsbeteende avgör vad som händer när du lämnar appen: Inbyggd förbereder Steam för vila, Auto pausar den, Manuell väntar på Återuppta, Aldrig håller den igång.</item>
+        <item>Steam-spel använder Steams Bildgräns i Snabbåtkomst. Skärmen växlar till en uppdateringsfrekvens som gränsen delas jämnt av när det finns en.</item>
+        <item>Läge för låg latens i sessionsmenyn skickar kontrollinmatning med 1000 Hz i stället för 250 Hz, mot lite mer CPU och batteri.</item>
+        <item>Varje spel har en egen profil med Proton, FEX, komponenter och miljöinställningar.</item>
+        <item>Sessionsmenyn har en mikrofonknapp för röstchatt och en Pausa nu-knapp för att frysa sessionen när du vill.</item>
+        <item>Dra DroidDeck-HUD:en för att flytta den, nyp för att ändra storlek och skjut den över en kant för att docka den som en liten FPS-flik.</item>
+        <item>På handhållna enheter med två skärmar kan nedre skärmen visa nedladdningar, aviseringar, skärmdumpar och Steam-chatt. Byt skärmar lägger spelet där nere i stället.</item>
+        <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
+        <item>Butiker låter dig logga in på GOG, itch.io, Battle.net, Amazon Games och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
+        <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
+        <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
+        <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>
+        <item>Går spelet långsamt? Begränsa bildfrekvensen i Snabbåtkomst och prova sedan en annan Proton-version eller FEX-förinställning i spelets komponenter.</item>
+        <item>Knaster eller saknat ljud i spelet? Prova växlaren DirectAudio för spel i Steam-inställningarna under Ljud.</item>
+        <item>Konfiguration och sedan Lagring kan rensa shader-cachar och kvarglömda prefix från spel du tagit bort.</item>
+        <item>Stöter du på ett fel? Dela loggar i sessionsmenyn paketerar diagnostik. Posta dem i #bug-reports på Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Första körningen konfigurerar skrivbordet. Det kan ta några minuter.</item>
+        <item>Beröring fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
+        <item>Bakgrundsbeteende avgör vad som händer när du lämnar appen: Manuell väntar på Återuppta som standard, Auto pausar, Aldrig håller den igång.</item>
+        <item>Svep in från högerkanten för att öppna sessionsmenyn och välj sedan PC-tangentbord för att skriva i appar som ignorerar Android-tangentbordet.</item>
+        <item>PC-tangentbordet i sessionsmenyn har justerbar storlek, opacitet och tangentgrupper.</item>
+        <item>Din kontroll visas som en Xbox 360-kontroll. Annars använder du kontrollerna på skärmen.</item>
+        <item>Sessionsmenyn har en mikrofonknapp och en Pausa nu-knapp för att frysa sessionen när du vill.</item>
+        <item>Stöter du på ett fel? Dela loggar i sessionsmenyn paketerar diagnostik. Posta dem i #bug-reports på Discord.</item>
+    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Visas medan en Steam- eller skrivbordssession är öppen</string>
     <string name="session_notification">Steam körs</string>

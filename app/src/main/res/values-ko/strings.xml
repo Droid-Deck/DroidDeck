@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">그래픽을 초기화하고 SteamVR을 다시 여는 중…</string>
     <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>처음 실행하면 Steam을 다운로드합니다. 몇 분 걸릴 수 있습니다.</item>
+        <item>컨트롤러는 Steam에 Steam Deck 컨트롤러로 표시됩니다. 세션 설정에서 Steam Controller, DualShock 4, DualSense 또는 Xbox 360 패드로 바꿀 수 있으며, 다음 세션부터 적용됩니다.</item>
+        <item>컨트롤러의 뒤로를 길게 누르면 Steam의 빠른 액세스 메뉴가 열립니다. 세션 설정에서 뒤로 길게 눌러 Steam 단축키가 켜져 있어야 합니다.</item>
+        <item>백그라운드 동작은 앱을 벗어났을 때 어떻게 할지 정합니다. 네이티브는 Steam을 절전에 대비시키고, 자동은 일시 중지하고, 수동은 재개를 기다리며, 안 함은 계속 실행합니다.</item>
+        <item>Steam 게임은 빠른 액세스의 Steam 프레임 제한을 사용합니다. 제한값으로 나누어떨어지는 주사율이 있으면 디스플레이가 그 주사율로 전환됩니다.</item>
+        <item>세션 메뉴의 저지연 모드는 컨트롤러 입력을 250 Hz 대신 1000 Hz로 보내며, CPU와 배터리를 조금 더 사용합니다.</item>
+        <item>각 게임에는 Proton, FEX, 구성 요소, 환경 설정이 포함된 자체 프로필이 있습니다.</item>
+        <item>세션 메뉴에는 음성 채팅용 마이크 토글과 필요할 때 세션을 정지시키는 지금 일시 중지 버튼이 있습니다.</item>
+        <item>DroidDeck HUD는 드래그해서 옮기고, 핀치해서 크기를 바꾸고, 화면 가장자리 밖으로 밀면 작은 FPS 탭으로 고정됩니다.</item>
+        <item>듀얼 스크린 휴대용 기기에서는 아래쪽 화면에 다운로드, 알림, 스크린샷, Steam 채팅을 표시할 수 있습니다. 화면 바꾸기를 누르면 게임이 그쪽으로 옮겨집니다.</item>
+        <item>SD 카드, USB 드라이브, SSD에서 Steam 라이브러리를 추가할 수 있으며, DroidDeck이 게임을 라이브러리에 함께 모아 줍니다.</item>
+        <item>스토어에서는 GOG, itch.io, Battle.net, Amazon Games, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
+        <item>FEX, DXVK, VKD3D-Proton 같은 구성 요소는 스스로 업데이트되며, 기본값은 Proton Experimental ARM64이고 Proton 11.0 ARM64 빌드가 설치되면 그쪽이 기본값이 됩니다.</item>
+        <item>게임 실행 중 Steam 압축은 메모리가 부족한 기기에서 RAM을 확보해 줍니다.</item>
+        <item>오른쪽 가장자리에서 안쪽으로 스와이프하면 세션 메뉴가 열립니다. 터치패드 모드, PC 키보드, 저지연 모드, 게임 프로필 등이 있습니다.</item>
+        <item>게임이 느린가요? 빠른 액세스에서 프레임 레이트를 제한한 다음, 게임의 구성 요소에서 다른 Proton 버전이나 FEX 프리셋을 시도해 보세요.</item>
+        <item>게임 소리가 지직거리거나 나오지 않나요? Steam 설정의 오디오에서 게임에서 DirectAudio 사용 토글을 시도해 보세요.</item>
+        <item>설정의 저장 공간에서 셰이더 캐시와 삭제한 게임에 남은 프리픽스를 정리할 수 있습니다.</item>
+        <item>버그를 만났나요? 세션 메뉴의 로그 공유가 진단 정보를 묶어 줍니다. Discord의 #bug-reports에 올려 주세요.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>처음 실행하면 데스크톱을 설정합니다. 몇 분 걸릴 수 있습니다.</item>
+        <item>터치는 터치패드처럼 동작합니다. 드래그하면 포인터가 움직이고, 탭하면 클릭합니다.</item>
+        <item>백그라운드 동작은 앱을 벗어났을 때 어떻게 할지 정합니다. 수동은 기본적으로 재개를 기다리고, 자동은 일시 중지하며, 안 함은 계속 실행합니다.</item>
+        <item>오른쪽 가장자리에서 안쪽으로 스와이프해 세션 메뉴를 연 다음 PC 키보드를 선택하면, Android 키보드를 무시하는 앱에서도 입력할 수 있습니다.</item>
+        <item>세션 메뉴의 PC 키보드는 크기, 불투명도, 키 그룹을 조절할 수 있습니다.</item>
+        <item>컨트롤러는 Xbox 360 패드로 표시됩니다. 그렇지 않으면 화면 컨트롤을 사용하세요.</item>
+        <item>세션 메뉴에는 마이크 토글과 필요할 때 세션을 정지시키는 지금 일시 중지 버튼이 있습니다.</item>
+        <item>버그를 만났나요? 세션 메뉴의 로그 공유가 진단 정보를 묶어 줍니다. Discord의 #bug-reports에 올려 주세요.</item>
+    </string-array>
     <string name="session_channel">세션</string>
     <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
     <string name="session_notification">Steam이 실행 중입니다</string>

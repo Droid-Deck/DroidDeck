@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Mereset grafis dan membuka kembali SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck tidak bisa dimulai ulang secara otomatis. Tutup aplikasi sepenuhnya, lalu buka lagi.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Saat pertama kali dijalankan, Steam akan diunduh. Ini mungkin memerlukan beberapa menit.</item>
+        <item>Kontrolermu terlihat oleh Steam sebagai kontroler Steam Deck. Ubah menjadi pad Steam Controller, DualShock 4, DualSense, atau Xbox 360 di pengaturan sesi; perubahan berlaku pada sesi berikutnya.</item>
+        <item>Tahan Kembali di kontrolermu untuk membuka menu Akses cepat Steam. Tahan Kembali untuk pintasan Steam harus aktif di pengaturan sesi.</item>
+        <item>Perilaku latar belakang menentukan apa yang terjadi saat kamu meninggalkan aplikasi: Native menyiapkan Steam untuk tidur, Otomatis menjedanya, Manual menunggu Lanjutkan, Tidak pernah membiarkannya tetap berjalan.</item>
+        <item>Gim Steam memakai Batas frame Steam di Akses cepat. Layar beralih ke refresh rate yang dapat dibagi rata oleh batas tersebut jika ada.</item>
+        <item>Mode latensi rendah di menu sesi mengirim input kontroler pada 1000 Hz, bukan 250 Hz, dengan sedikit tambahan penggunaan CPU dan baterai.</item>
+        <item>Setiap gim punya profilnya sendiri dengan Proton, FEX, komponen, dan pengaturan lingkungan.</item>
+        <item>Menu sesi memiliki tombol mikrofon untuk obrolan suara dan tombol Jeda sekarang untuk membekukan sesi sesuai permintaan.</item>
+        <item>Seret HUD DroidDeck untuk memindahkannya, cubit untuk mengubah ukurannya, dan dorong ke luar tepi layar untuk menambatkannya sebagai tab FPS kecil.</item>
+        <item>Pada konsol genggam layar ganda, layar bawah dapat menampilkan unduhan, notifikasi, tangkapan layar, dan obrolan Steam. Tukar layar menempatkan gim di sana.</item>
+        <item>Tambahkan pustaka Steam dari kartu SD, drive USB, atau SSD, dan DroidDeck menyatukan semua gim di Pustaka kamu.</item>
+        <item>Toko memungkinkanmu masuk ke GOG, itch.io, Battle.net, Amazon Games, dan Game Jolt, lalu memasang dan memperbarui gim mereka dari DroidDeck.</item>
+        <item>Komponen seperti FEX, DXVK, dan VKD3D-Proton memperbarui diri sendiri, dan Proton Experimental ARM64 menjadi default, atau Proton 11.0 ARM64 setelah build tersebut terpasang.</item>
+        <item>Kompres Steam saat gim berjalan membebaskan RAM pada perangkat yang kekurangan memori.</item>
+        <item>Geser masuk dari tepi kanan untuk membuka menu sesi: mode touchpad, Keyboard PC, Mode latensi rendah, Profil gim, dan lainnya.</item>
+        <item>Gim berjalan lambat? Batasi frame rate di Akses cepat, lalu coba versi Proton lain atau preset FEX lain di komponen gim.</item>
+        <item>Audio gim pecah atau tidak ada? Coba opsi DirectAudio untuk gim di pengaturan Steam pada bagian Audio.</item>
+        <item>Penyiapan, lalu Penyimpanan, dapat membersihkan cache shader dan prefix sisa dari gim yang sudah kamu hapus.</item>
+        <item>Menemukan bug? Bagikan log di menu sesi mengumpulkan data diagnostik. Kirim ke #bug-reports di Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Saat pertama kali dijalankan, desktop disiapkan. Ini mungkin memerlukan beberapa menit.</item>
+        <item>Sentuhan berfungsi sebagai touchpad: seret untuk menggerakkan penunjuk, ketuk untuk mengeklik.</item>
+        <item>Perilaku latar belakang menentukan apa yang terjadi saat kamu meninggalkan aplikasi: Manual menunggu Lanjutkan secara default, Otomatis menjeda, Tidak pernah membiarkannya tetap berjalan.</item>
+        <item>Geser masuk dari tepi kanan untuk membuka menu sesi, lalu pilih Keyboard PC untuk mengetik di aplikasi yang mengabaikan keyboard Android.</item>
+        <item>Keyboard PC di menu sesi memiliki ukuran, opasitas, dan grup tombol yang dapat diatur.</item>
+        <item>Kontrolermu terlihat sebagai pad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
+        <item>Menu sesi memiliki tombol mikrofon dan tombol Jeda sekarang untuk membekukan sesi sesuai permintaan.</item>
+        <item>Menemukan bug? Bagikan log di menu sesi mengumpulkan data diagnostik. Kirim ke #bug-reports di Discord.</item>
+    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_channel_description">Ditampilkan saat sesi Steam atau desktop berjalan</string>
     <string name="session_notification">Steam berjalan</string>

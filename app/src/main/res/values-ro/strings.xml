@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Se resetează grafica și se redeschide SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck nu a putut reporni automat. Închide complet aplicația, apoi redeschide-o.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>La prima rulare se descarcă Steam. Poate dura câteva minute.</item>
+        <item>Controllerul tău apare în Steam ca un controller Steam Deck. Schimbă-l pe un Steam Controller, DualShock 4, DualSense sau Xbox 360 din setările sesiunii; se aplică de la sesiunea următoare.</item>
+        <item>Ține apăsat Înapoi pe controller pentru a deschide meniul Acces rapid din Steam. Ține apăsat Înapoi pentru comenzi Steam trebuie să fie activat în setările sesiunii.</item>
+        <item>Comportament în fundal decide ce se întâmplă când părăsești aplicația: Nativ pregătește Steam pentru repaus, Automat îl pune în pauză, Manual așteaptă Reluare, Niciodată îl lasă să ruleze.</item>
+        <item>Jocurile Steam folosesc Limita de cadre din Steam, în Acces rapid. Ecranul trece la o rată de reîmprospătare pe care limita o împarte exact, când există una.</item>
+        <item>Mod latență redusă din meniul sesiunii trimite intrările controllerului la 1000 Hz în loc de 250 Hz, cu puțin mai mult CPU și baterie.</item>
+        <item>Fiecare joc are propriul profil, cu Proton, FEX, componente și setări de mediu.</item>
+        <item>Meniul sesiunii are un comutator pentru microfon, pentru chat vocal, și un buton Suspendă acum, ca să îngheți sesiunea la cerere.</item>
+        <item>Trage HUD-ul DroidDeck ca să-l muți, ciupește ca să-l redimensionezi și împinge-l peste o margine ca să-l ancorezi ca o mică filă FPS.</item>
+        <item>Pe consolele portabile cu două ecrane, ecranul de jos poate afișa descărcări, notificări, capturi de ecran și chatul Steam. Schimbă ecranele mută jocul acolo.</item>
+        <item>Adaugă biblioteci Steam de pe un card SD, o unitate USB sau un SSD, iar DroidDeck păstrează jocurile împreună în Biblioteca ta.</item>
+        <item>Magazine îți permite să te conectezi la GOG, itch.io, Battle.net, Amazon Games și Game Jolt, apoi să instalezi și să actualizezi jocurile lor din DroidDeck.</item>
+        <item>Componente precum FEX, DXVK și VKD3D-Proton se actualizează singure, iar Proton Experimental ARM64 este implicit, sau Proton 11.0 ARM64 odată ce acea versiune este instalată.</item>
+        <item>Comprimă Steam cât rulează un joc eliberează RAM pe dispozitivele cu memorie puțină.</item>
+        <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii: mod touchpad, Tastatură de PC, Mod latență redusă, profilul jocului și altele.</item>
+        <item>Jocul rulează greu? Limitează rata de cadre în Acces rapid, apoi încearcă altă versiune de Proton sau alt preset FEX în componentele jocului.</item>
+        <item>Sunet de joc cu pârâituri sau lipsă? Încearcă opțiunea DirectAudio pentru jocuri din setările Steam, la Sunet.</item>
+        <item>Configurare, apoi Stocare, poate șterge cache-urile de shadere și prefixele rămase de la jocurile eliminate.</item>
+        <item>Ai dat de o eroare? Partajează jurnalele din meniul sesiunii strânge diagnosticele. Postează-le în #bug-reports pe Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>La prima rulare se configurează desktopul. Poate dura câteva minute.</item>
+        <item>Atingerea funcționează ca un touchpad: trage ca să muți cursorul, atinge ca să dai clic.</item>
+        <item>Comportament în fundal decide ce se întâmplă când părăsești aplicația: Manual așteaptă Reluare în mod implicit, Automat pune în pauză, Niciodată lasă să ruleze.</item>
+        <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii, apoi alege Tastatură de PC ca să scrii în aplicațiile care ignoră tastatura Android.</item>
+        <item>Tastatura de PC din meniul sesiunii are dimensiune, opacitate și grupuri de taste reglabile.</item>
+        <item>Controllerul tău apare ca un controller Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
+        <item>Meniul sesiunii are un comutator pentru microfon și un buton Suspendă acum, ca să îngheți sesiunea la cerere.</item>
+        <item>Ai dat de o eroare? Partajează jurnalele din meniul sesiunii strânge diagnosticele. Postează-le în #bug-reports pe Discord.</item>
+    </string-array>
     <string name="session_channel">Sesiune</string>
     <string name="session_channel_description">Apare cât timp o sesiune Steam sau desktop este activă</string>
     <string name="session_notification">Steam este în execuție</string>

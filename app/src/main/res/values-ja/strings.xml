@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">グラフィックをリセットして SteamVR を開き直しています…</string>
     <string name="steamvr_recovery_failed">DroidDeck を自動的に再起動できませんでした。アプリを完全に終了してから、もう一度開いてください。</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>初回起動時にSteamをダウンロードします。数分かかる場合があります。</item>
+        <item>コントローラーはSteamにSteam Deckコントローラーとして認識されます。セッション設定でSteam Controller、DualShock 4、DualSense、Xbox 360パッドに切り替えられます。変更は次のセッションから反映されます。</item>
+        <item>コントローラーの戻るを長押しすると、Steamのクイックアクセスメニューが開きます。セッション設定で「戻る長押しでSteamショートカット」をオンにしておく必要があります。</item>
+        <item>バックグラウンド動作は、アプリを離れたときの挙動を決めます。ネイティブはSteamをスリープに備えさせ、自動は一時停止し、手動は「再開」を待ち、しないは実行し続けます。</item>
+        <item>Steamのゲームは、クイックアクセスにあるSteamのフレームレート制限を使います。上限を均等に割り切れるリフレッシュレートがあれば、ディスプレイはそれに切り替わります。</item>
+        <item>セッションメニューの低遅延モードは、コントローラー入力を250 Hzではなく1000 Hzで送信します。その分、CPUとバッテリーの消費が少し増えます。</item>
+        <item>各ゲームには、Proton、FEX、コンポーネント、環境設定を含む専用のプロファイルがあります。</item>
+        <item>セッションメニューには、ボイスチャット用のマイク切り替えと、必要なときにセッションを凍結する「今すぐ一時停止」ボタンがあります。</item>
+        <item>DroidDeckのHUDはドラッグで移動、ピンチでサイズ変更でき、画面の端へ押し出すと小さなFPSタブとしてドックされます。</item>
+        <item>2画面のハンドヘルドでは、下の画面にダウンロード、通知、スクリーンショット、Steamチャットを表示できます。「画面を入れ替え」を使うと、代わりにゲームをそこに表示します。</item>
+        <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
+        <item>ストアでは、GOG、itch.io、Battle.net、Amazon Games、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
+        <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
+        <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
+        <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
+        <item>ゲームが重い場合は、クイックアクセスでフレームレートを制限し、ゲームのコンポーネントで別のProtonバージョンやFEXプリセットを試してください。</item>
+        <item>ゲームの音が割れる、または出ない場合は、Steam設定のオーディオにある「ゲームでDirectAudioを使用」を試してください。</item>
+        <item>セットアップのストレージでは、シェーダーキャッシュや、削除したゲームの残ったプレフィックスを消去できます。</item>
+        <item>不具合に遭遇しましたか？セッションメニューの「ログを共有」で診断情報をまとめられます。Discordの#bug-reportsに投稿してください。</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>初回起動時にデスクトップをセットアップします。数分かかる場合があります。</item>
+        <item>タッチはタッチパッドとして動作します。ドラッグでポインターを動かし、タップでクリックします。</item>
+        <item>バックグラウンド動作は、アプリを離れたときの挙動を決めます。手動は既定で「再開」を待ち、自動は一時停止し、しないは実行し続けます。</item>
+        <item>画面の右端から内側にスワイプしてセッションメニューを開き、PCキーボードを選ぶと、Androidのキーボードを受け付けないアプリでも入力できます。</item>
+        <item>セッションメニューのPCキーボードは、サイズ、不透明度、キーグループを調整できます。</item>
+        <item>コントローラーはXbox 360パッドとして認識されます。そうでない場合は、画面上のコントロールを使ってください。</item>
+        <item>セッションメニューには、マイク切り替えと、必要なときにセッションを凍結する「今すぐ一時停止」ボタンがあります。</item>
+        <item>不具合に遭遇しましたか？セッションメニューの「ログを共有」で診断情報をまとめられます。Discordの#bug-reportsに投稿してください。</item>
+    </string-array>
     <string name="session_channel">セッション</string>
     <string name="session_channel_description">Steamまたはデスクトップのセッション中に表示</string>
     <string name="session_notification">Steamが実行中です</string>

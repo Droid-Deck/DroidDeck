@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">A grafika visszaállítása és a SteamVR újranyitása…</string>
     <string name="steamvr_recovery_failed">A DroidDeck nem tudott automatikusan újraindulni. Zárja be teljesen az alkalmazást, majd nyissa meg újra.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Az első indításkor letöltődik a Steam. Ez eltarthat néhány percig.</item>
+        <item>A kontrollered Steam Deck kontrollerként jelenik meg a Steam számára. A munkamenet beállításaiban átállíthatod Steam Controller, DualShock 4, DualSense vagy Xbox 360 kontrollerre; a változás a következő munkamenettől él.</item>
+        <item>Tartsd nyomva a kontrolleren a Vissza gombot a Steam Gyors hozzáférés menüjének megnyitásához. A Vissza nyomva tartása Steam parancsokhoz beállításnak bekapcsolva kell lennie a munkamenet beállításaiban.</item>
+        <item>A Háttérbeli viselkedés dönti el, mi történik, ha elhagyod az alkalmazást: a Natív felkészíti a Steamet az altatásra, az Automatikus szüneteltet, a Manuális megvárja a Folytatást, a Soha futva tartja.</item>
+        <item>A Steam-játékok a Steam Képkockakorlátját használják a Gyors hozzáférésben. A kijelző olyan frissítési gyakoriságra vált, amellyel a korlát egyenletesen osztható, ha van ilyen.</item>
+        <item>A munkamenet menü Alacsony késleltetésű módja 250 Hz helyett 1000 Hz-cel küldi a kontroller bemenetét, kicsit több CPU- és akkumulátorhasználat árán.</item>
+        <item>Minden játéknak saját profilja van a Proton, FEX, összetevők és környezeti beállítások számára.</item>
+        <item>A munkamenet menüben van egy mikrofonkapcsoló a hangchathez, és egy Felfüggesztés most gomb a munkamenet igény szerinti befagyasztásához.</item>
+        <item>Húzd odébb a DroidDeck HUD-ot a mozgatáshoz, csípéssel méretezd át, és told ki a szélén túlra, hogy kis FPS-fülként rögzüljön.</item>
+        <item>Dupla kijelzős kézikonzolokon az alsó kijelző letöltéseket, értesítéseket, képernyőképeket és Steam-csevegést mutathat. A kijelzők cseréje oda teszi át a játékot.</item>
+        <item>Adj hozzá Steam-könyvtárakat SD-kártyáról, USB-meghajtóról vagy SSD-ről, és a DroidDeck egy helyen tartja a játékokat a Könyvtárban.</item>
+        <item>Az Áruházak lehetővé teszi, hogy bejelentkezz a GOG, itch.io, Battle.net, Amazon Games és Game Jolt szolgáltatásokba, majd telepítsd és frissítsd a játékaikat a DroidDeckből.</item>
+        <item>Az olyan összetevők, mint a FEX, a DXVK és a VKD3D-Proton, maguktól frissülnek, az alapértelmezett pedig a Proton Experimental ARM64, vagy a Proton 11.0 ARM64, ha az a build telepítve van.</item>
+        <item>A Steam tömörítése játék közben RAM-ot szabadít fel a kevés memóriával rendelkező eszközökön.</item>
+        <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához: érintőpad mód, PC-billentyűzet, alacsony késleltetésű mód, játékprofil és más.</item>
+        <item>Lassan fut a játék? Korlátozd a képkockasebességet a Gyors hozzáférésben, majd próbálj ki másik Proton-verziót vagy FEX-előbeállítást a játék összetevőiben.</item>
+        <item>Ropog vagy hiányzik a játék hangja? Próbáld ki a DirectAudio a játékokhoz kapcsolót a Steam beállításaiban a Hang alatt.</item>
+        <item>A Beállítás, azon belül a Tárhely törölheti a shader-gyorsítótárakat és az eltávolított játékok megmaradt prefixeit.</item>
+        <item>Hibába futottál? A munkamenet menü Naplók megosztása pontja összegyűjti a diagnosztikát. Tedd közzé a Discord #bug-reports csatornáján.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Az első indításkor beállítódik az asztal. Ez eltarthat néhány percig.</item>
+        <item>Az érintés érintőpadként működik: húzással mozgathatod a mutatót, koppintással kattinthatsz.</item>
+        <item>A Háttérbeli viselkedés dönti el, mi történik, ha elhagyod az alkalmazást: a Manuális alapból megvárja a Folytatást, az Automatikus szüneteltet, a Soha futva tartja.</item>
+        <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához, majd válaszd a PC-billentyűzet pontot az Android billentyűzetet figyelmen kívül hagyó alkalmazásokban való gépeléshez.</item>
+        <item>A munkamenet menü PC-billentyűzetének mérete, átlátszatlansága és billentyűcsoportjai állíthatók.</item>
+        <item>A kontrollered Xbox 360 kontrollerként jelenik meg. Ha nem, használd a képernyőn lévő vezérlőket.</item>
+        <item>A munkamenet menüben van egy mikrofonkapcsoló és egy Felfüggesztés most gomb a munkamenet igény szerinti befagyasztásához.</item>
+        <item>Hibába futottál? A munkamenet menü Naplók megosztása pontja összegyűjti a diagnosztikát. Tedd közzé a Discord #bug-reports csatornáján.</item>
+    </string-array>
     <string name="session_channel">Munkamenet</string>
     <string name="session_channel_description">Megjelenik, amíg egy Steam- vagy asztali munkamenet aktív</string>
     <string name="session_notification">A Steam fut</string>

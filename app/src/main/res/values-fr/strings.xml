@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Réinitialisation du rendu graphique et réouverture de SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck n\'a pas pu redémarrer automatiquement. Fermez complètement l\'application, puis rouvrez-la.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Le premier lancement télécharge Steam. Cela peut prendre quelques minutes.</item>
+        <item>Votre manette apparaît dans Steam comme une manette Steam Deck. Passez à une manette Steam Controller, DualShock 4, DualSense ou Xbox 360 dans les paramètres de session ; le changement s\'applique à la session suivante.</item>
+        <item>Maintenez Retour sur votre manette pour ouvrir le menu Accès rapide de Steam. L\'option Maintenir Retour pour les raccourcis Steam doit être activée dans les paramètres de session.</item>
+        <item>Comportement en arrière-plan détermine ce qui se passe quand vous quittez l\'application : Natif prépare Steam à la mise en veille, Auto le met en pause, Manuel attend Reprendre, Jamais le laisse tourner.</item>
+        <item>Les jeux Steam utilisent la Limite d\'images de Steam dans Accès rapide. L\'écran passe à une fréquence de rafraîchissement que la limite divise exactement, s\'il en existe une.</item>
+        <item>Le Mode faible latence du menu de session envoie les commandes de la manette à 1000 Hz au lieu de 250 Hz, pour un peu plus de CPU et de batterie.</item>
+        <item>Chaque jeu a son propre profil avec Proton, FEX, composants et paramètres d\'environnement.</item>
+        <item>Le menu de session propose un bouton micro pour le chat vocal et un bouton Mettre en pause maintenant pour figer la session à la demande.</item>
+        <item>Faites glisser le HUD DroidDeck pour le déplacer, pincez pour le redimensionner, et poussez-le hors d\'un bord pour l\'ancrer en petit onglet FPS.</item>
+        <item>Sur les consoles portables à double écran, l\'écran du bas peut afficher les téléchargements, les notifications, les captures d\'écran et le chat Steam. Inverser les écrans y place le jeu à la place.</item>
+        <item>Ajoutez des bibliothèques Steam depuis une carte SD, une clé USB ou un SSD, et DroidDeck réunit les jeux dans votre Bibliothèque.</item>
+        <item>Boutiques vous permet de vous connecter à GOG, itch.io, Battle.net, Amazon Games et Game Jolt, puis d\'installer et de mettre à jour leurs jeux depuis DroidDeck.</item>
+        <item>Les composants comme FEX, DXVK et VKD3D-Proton se mettent à jour seuls, et Proton Experimental ARM64 est la valeur par défaut, ou Proton 11.0 ARM64 une fois cette version installée.</item>
+        <item>Compresser Steam pendant un jeu libère de la RAM sur les appareils qui en manquent.</item>
+        <item>Balayez depuis le bord droit pour ouvrir le menu de session : mode pavé tactile, Clavier PC, Mode faible latence, Profil du jeu et plus encore.</item>
+        <item>Jeu lent ? Limitez la fréquence d\'images dans Accès rapide, puis essayez une autre version de Proton ou un autre préréglage FEX dans les composants du jeu.</item>
+        <item>Audio du jeu qui grésille ou absent ? Essayez l\'option Utiliser DirectAudio pour le jeu dans les paramètres Steam, sous Audio.</item>
+        <item>Configuration, puis Stockage, peut effacer les caches de shaders et les préfixes restants des jeux supprimés.</item>
+        <item>Un bug ? Partager les journaux dans le menu de session regroupe les diagnostics. Publiez-les dans #bug-reports sur Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Le premier lancement configure le bureau. Cela peut prendre quelques minutes.</item>
+        <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, touchez pour cliquer.</item>
+        <item>Comportement en arrière-plan détermine ce qui se passe quand vous quittez l\'application : Manuel attend Reprendre par défaut, Auto met en pause, Jamais laisse tourner.</item>
+        <item>Balayez depuis le bord droit pour ouvrir le menu de session, puis choisissez Clavier PC pour saisir du texte dans les applis qui ignorent le clavier Android.</item>
+        <item>Le Clavier PC du menu de session a une taille, une opacité et des groupes de touches réglables.</item>
+        <item>Votre manette apparaît comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
+        <item>Le menu de session propose un bouton micro et un bouton Mettre en pause maintenant pour figer la session à la demande.</item>
+        <item>Un bug ? Partager les journaux dans le menu de session regroupe les diagnostics. Publiez-les dans #bug-reports sur Discord.</item>
+    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Affiché lorsqu\'une session Steam ou Bureau est ouverte</string>
     <string name="session_notification">Steam est en cours d\'exécution</string>

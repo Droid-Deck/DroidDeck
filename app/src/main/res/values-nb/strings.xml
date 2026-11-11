@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Tilbakestiller grafikken og åpner SteamVR igjen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kunne ikke starte på nytt automatisk. Lukk appen helt, og åpne den igjen.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Første oppstart laster ned Steam. Det kan ta noen minutter.</item>
+        <item>Kontrolleren din vises for Steam som en Steam Deck-kontroller. Bytt til en Steam Controller, DualShock 4, DualSense eller Xbox 360-kontroller i øktinnstillingene; det gjelder fra neste økt.</item>
+        <item>Hold Tilbake på kontrolleren for å åpne Steams Hurtigmeny. Hold Tilbake for Steam-snarveier må være slått på i øktinnstillingene.</item>
+        <item>Bakgrunnsoppførsel bestemmer hva som skjer når du forlater appen: Nativ gjør Steam klar for hvilemodus, Auto setter det på pause, Manuell venter på Gjenoppta, Aldri lar det kjøre.</item>
+        <item>Steam-spill bruker Steams Bildefrekvensgrense i Hurtigmeny. Skjermen bytter til en oppdateringsfrekvens som grensen går opp i, når det finnes en.</item>
+        <item>Modus for lav forsinkelse i øktmenyen sender kontrollerinndata med 1000 Hz i stedet for 250 Hz, mot litt mer CPU og batteribruk.</item>
+        <item>Hvert spill har sin egen profil med Proton, FEX, komponenter og miljøinnstillinger.</item>
+        <item>Øktmenyen har en mikrofonbryter for talechat og en Sett på pause nå-knapp for å fryse økten ved behov.</item>
+        <item>Dra DroidDeck-HUDen for å flytte den, knip for å endre størrelsen, og skyv den ut mot en kant for å feste den som en liten FPS-fane.</item>
+        <item>På håndholdte enheter med to skjermer kan den nederste skjermen vise nedlastinger, varsler, skjermbilder og Steam-chat. Bytt skjermer legger spillet nederst i stedet.</item>
+        <item>Legg til Steam-biblioteker fra et SD-kort, en USB-stasjon eller en SSD, så holder DroidDeck spillene samlet i Biblioteket ditt.</item>
+        <item>Butikker lar deg logge inn på GOG, itch.io, Battle.net, Amazon Games og Game Jolt, og deretter installere og oppdatere spillene deres fra DroidDeck.</item>
+        <item>Komponenter som FEX, DXVK og VKD3D-Proton oppdaterer seg selv, og Proton Experimental ARM64 er standard, eller Proton 11.0 ARM64 når den versjonen er installert.</item>
+        <item>Komprimer Steam mens et spill kjører frigjør minne på enheter som har lite.</item>
+        <item>Sveip inn fra høyre kant for å åpne øktmenyen: styreflatemodus, PC-tastatur, modus for lav forsinkelse, spillprofil og mer.</item>
+        <item>Kjører spillet tregt? Begrens bildefrekvensen i Hurtigmeny, og prøv deretter en annen Proton-versjon eller FEX-forhåndsinnstilling i spillets komponenter.</item>
+        <item>Knitrende eller manglende spillyd? Prøv bryteren DirectAudio for spill i Steam-innstillingene under Lyd.</item>
+        <item>Oppsett og deretter Lagring kan tømme shader-hurtigbuffere og gjenværende prefikser fra spill du har fjernet.</item>
+        <item>Har du funnet en feil? Del logger i øktmenyen samler diagnostikk. Legg dem ut i #bug-reports på Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Første oppstart setter opp skrivebordet. Det kan ta noen minutter.</item>
+        <item>Berøring fungerer som en styreflate: dra for å flytte pekeren, trykk for å klikke.</item>
+        <item>Bakgrunnsoppførsel bestemmer hva som skjer når du forlater appen: Manuell venter på Gjenoppta som standard, Auto setter på pause, Aldri lar det kjøre.</item>
+        <item>Sveip inn fra høyre kant for å åpne øktmenyen, og velg deretter PC-tastatur for å skrive i apper som ignorerer Android-tastaturet.</item>
+        <item>PC-tastaturet i øktmenyen har justerbar størrelse, gjennomsiktighet og tastegrupper.</item>
+        <item>Kontrolleren din vises som en Xbox 360-kontroller. Ellers kan du bruke kontrollene på skjermen.</item>
+        <item>Øktmenyen har en mikrofonbryter og en Sett på pause nå-knapp for å fryse økten ved behov.</item>
+        <item>Har du funnet en feil? Del logger i øktmenyen samler diagnostikk. Legg dem ut i #bug-reports på Discord.</item>
+    </string-array>
     <string name="session_channel">Sesjon</string>
     <string name="session_channel_description">Vises mens en Steam- eller skrivebordssesjon er åpen</string>
     <string name="session_notification">Steam kjører</string>

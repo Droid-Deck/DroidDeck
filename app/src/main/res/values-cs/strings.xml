@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Resetování grafiky a opětovné otevírání SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
+        <item>Váš ovladač se Steamu hlásí jako ovladač Steam Deck. V nastavení relace ho přepněte na Steam Controller, DualShock 4, DualSense nebo Xbox 360; použije se od příští relace.</item>
+        <item>Podržením Zpět na ovladači otevřete nabídku Quick Access ve Steamu. V nastavení relace musí být zapnuté Podržení Zpět pro zkratky Steam.</item>
+        <item>Chování na pozadí určuje, co se stane po opuštění aplikace: Nativní připraví Steam na uspání, Automaticky ho pozastaví, Manuální čeká na Obnovit, Nikdy ho nechá běžet.</item>
+        <item>Hry ze Steamu používají Frame Limit ze Steamu v Quick Access. Displej se přepne na obnovovací frekvenci, kterou limit dělí beze zbytku, pokud nějaká existuje.</item>
+        <item>Režim nízkého zpoždění v nabídce relace posílá vstup z ovladače rychlostí 1000 Hz místo 250 Hz za cenu o něco vyššího zatížení procesoru a baterie.</item>
+        <item>Každá hra má vlastní profil s nastavením Proton, FEX, komponent a prostředí.</item>
+        <item>Nabídka relace obsahuje přepínač mikrofonu pro hlasový chat a tlačítko Pozastavit teď, které relaci na požádání zmrazí.</item>
+        <item>HUD DroidDeck přesunete přetažením, velikost změníte roztažením prsty a když ho odsunete k okraji, připne se jako malá karta s FPS.</item>
+        <item>U kapesních konzolí se dvěma displeji může spodní displej zobrazovat stahování, oznámení, snímky obrazovky a chat Steamu. Prohodit obrazovky tam místo toho přesune hru.</item>
+        <item>Přidejte knihovny Steamu z SD karty, USB disku nebo SSD a DroidDeck udrží hry pohromadě v Knihovně.</item>
+        <item>Obchody vám umožní přihlásit se do GOG, itch.io, Battle.net, Amazon Games a Game Jolt a pak instalovat a aktualizovat jejich hry přímo z DroidDeck.</item>
+        <item>Komponenty jako FEX, DXVK a VKD3D-Proton se aktualizují samy a výchozí je Proton Experimental ARM64, případně Proton 11.0 ARM64, jakmile je tato verze nainstalovaná.</item>
+        <item>Komprimovat Steam během hry uvolní RAM na zařízeních s nedostatkem paměti.</item>
+        <item>Přejetím od pravého okraje otevřete nabídku relace: režim touchpadu, Klávesnice PC, Režim nízkého zpoždění, profil hry a další.</item>
+        <item>Hra běží pomalu? Omezte snímkovou frekvenci v Quick Access a zkuste jinou verzi Proton nebo jinou předvolbu FEX v komponentách hry.</item>
+        <item>Praskání nebo chybějící zvuk ve hře? Zkuste přepínač DirectAudio pro hry v nastavení Steamu v části Zvuk.</item>
+        <item>Příprava a potom Úložiště umí vymazat mezipaměti shaderů a zbylé prefixy po odstraněných hrách.</item>
+        <item>Narazili jste na chybu? Sdílet protokoly v nabídce relace sbalí diagnostiku. Pošlete ji do #bug-reports na Discordu.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>První spuštění připraví plochu. Může to trvat několik minut.</item>
+        <item>Dotyk funguje jako touchpad: tažením pohybujete ukazatelem, klepnutím klikáte.</item>
+        <item>Chování na pozadí určuje, co se stane po opuštění aplikace: Manuální ve výchozím stavu čeká na Obnovit, Automaticky pozastaví, Nikdy nechá běžet.</item>
+        <item>Přejetím od pravého okraje otevřete nabídku relace a poté zvolte Klávesnice PC, abyste mohli psát v aplikacích, které ignorují klávesnici Androidu.</item>
+        <item>Klávesnice PC v nabídce relace má nastavitelnou velikost, průhlednost a skupiny kláves.</item>
+        <item>Váš ovladač se hlásí jako ovladač Xbox 360. Jinak použijte ovládací prvky na obrazovce.</item>
+        <item>Nabídka relace obsahuje přepínač mikrofonu a tlačítko Pozastavit teď, které relaci na požádání zmrazí.</item>
+        <item>Narazili jste na chybu? Sdílet protokoly v nabídce relace sbalí diagnostiku. Pošlete ji do #bug-reports na Discordu.</item>
+    </string-array>
     <string name="session_channel">Relace</string>
     <string name="session_channel_description">Zobrazuje se, když je otevřená relace Steamu nebo Plochy</string>
     <string name="session_notification">Steam běží</string>

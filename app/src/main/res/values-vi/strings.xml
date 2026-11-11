@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Đang đặt lại đồ họa và mở lại SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck không thể tự khởi động lại. Hãy đóng hẳn ứng dụng rồi mở lại.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Lần chạy đầu tiên sẽ tải Steam. Việc này có thể mất vài phút.</item>
+        <item>Tay cầm của bạn hiện với Steam như tay cầm Steam Deck. Hãy chuyển sang tay cầm Steam Controller, DualShock 4, DualSense hoặc Xbox 360 trong cài đặt phiên; thay đổi áp dụng từ phiên sau.</item>
+        <item>Giữ Quay lại trên tay cầm để mở menu Truy cập nhanh của Steam. Phải bật "Giữ Quay lại cho phím tắt Steam" trong cài đặt phiên.</item>
+        <item>Hành vi khi ở nền quyết định điều gì xảy ra khi bạn rời ứng dụng: Gốc chuẩn bị Steam để ngủ, Tự động tạm dừng nó, Thủ công chờ Tiếp tục, Không bao giờ giữ nó luôn chạy.</item>
+        <item>Game Steam dùng Giới hạn khung hình của Steam trong Truy cập nhanh. Màn hình chuyển sang tần số quét mà mức giới hạn chia hết khi có.</item>
+        <item>Chế độ độ trễ thấp trong menu phiên gửi đầu vào tay cầm ở 1000 Hz thay vì 250 Hz, đổi lại tốn thêm một chút CPU và pin.</item>
+        <item>Mỗi game có hồ sơ riêng với Proton, FEX, các thành phần và cài đặt môi trường.</item>
+        <item>Menu phiên có nút bật/tắt micro cho chat thoại và nút Tạm dừng ngay để đóng băng phiên khi cần.</item>
+        <item>Kéo HUD của DroidDeck để di chuyển, chụm hai ngón để đổi kích thước, và đẩy nó ra mép để thu gọn thành một tab FPS nhỏ.</item>
+        <item>Trên máy cầm tay hai màn hình, màn hình dưới có thể hiển thị tải xuống, thông báo, ảnh chụp màn hình và chat Steam. Hoán đổi màn hình sẽ đặt game xuống đó thay thế.</item>
+        <item>Thêm thư viện Steam từ thẻ SD, ổ USB hoặc SSD, và DroidDeck sẽ gom các game lại trong Thư viện của bạn.</item>
+        <item>Cửa hàng cho phép bạn đăng nhập GOG, itch.io, Battle.net, Amazon Games và Game Jolt, rồi cài đặt và cập nhật game của họ ngay từ DroidDeck.</item>
+        <item>Các thành phần như FEX, DXVK và VKD3D-Proton tự cập nhật, và mặc định là Proton Experimental ARM64, hoặc Proton 11.0 ARM64 khi bản dựng đó đã được cài.</item>
+        <item>Nén Steam khi game đang chạy giúp giải phóng RAM trên các thiết bị thiếu bộ nhớ.</item>
+        <item>Vuốt vào từ mép phải để mở menu phiên: chế độ bàn di chuột, Bàn phím PC, độ trễ thấp, hồ sơ game và nhiều hơn nữa.</item>
+        <item>Game chạy chậm? Hãy giới hạn tốc độ khung hình trong Truy cập nhanh, rồi thử phiên bản Proton khác hoặc bộ cài đặt sẵn FEX khác trong các thành phần của game.</item>
+        <item>Âm thanh game bị rè hoặc mất tiếng? Hãy thử bật DirectAudio cho game trong cài đặt Steam, mục Âm thanh.</item>
+        <item>Thiết lập, rồi Lưu trữ, có thể xóa bộ nhớ đệm trình đổ bóng và tiền tố còn sót lại của các game bạn đã gỡ.</item>
+        <item>Gặp lỗi? Chia sẻ log trong menu phiên sẽ gói gọn dữ liệu chẩn đoán. Hãy đăng chúng trong #bug-reports trên Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Lần chạy đầu tiên sẽ thiết lập máy tính để bàn. Việc này có thể mất vài phút.</item>
+        <item>Cảm ứng hoạt động như bàn di chuột: kéo để di chuyển con trỏ, chạm để nhấp.</item>
+        <item>Hành vi khi ở nền quyết định điều gì xảy ra khi bạn rời ứng dụng: Thủ công mặc định chờ Tiếp tục, Tự động tạm dừng, Không bao giờ giữ nó luôn chạy.</item>
+        <item>Vuốt vào từ mép phải để mở menu phiên, rồi chọn Bàn phím PC để gõ trong các ứng dụng bỏ qua bàn phím Android.</item>
+        <item>Bàn phím PC trong menu phiên có thể điều chỉnh kích thước, độ mờ và nhóm phím.</item>
+        <item>Tay cầm của bạn hiện là tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
+        <item>Menu phiên có nút bật/tắt micro và nút Tạm dừng ngay để đóng băng phiên khi cần.</item>
+        <item>Gặp lỗi? Chia sẻ log trong menu phiên sẽ gói gọn dữ liệu chẩn đoán. Hãy đăng chúng trong #bug-reports trên Discord.</item>
+    </string-array>
     <string name="session_channel">Phiên</string>
     <string name="session_channel_description">Hiển thị khi có phiên Steam hoặc desktop đang mở</string>
     <string name="session_notification">Steam đang chạy</string>

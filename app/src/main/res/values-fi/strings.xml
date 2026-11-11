@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">Nollataan grafiikkaa ja avataan SteamVR uudelleen…</string>
     <string name="steamvr_recovery_failed">DroidDeck ei pystynyt käynnistymään uudelleen automaattisesti. Sulje sovellus kokonaan ja avaa se sitten uudelleen.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
+        <item>Ohjaimesi näkyy Steamille Steam Deck -ohjaimena. Vaihda se Steam Controller-, DualShock 4-, DualSense- tai Xbox 360 -ohjaimeksi istunnon asetuksissa; muutos tulee voimaan seuraavassa istunnossa.</item>
+        <item>Pidä ohjaimen Takaisin-painiketta pohjassa avataksesi Steamin Pikavalikon. Asetuksen Pidä Takaisin pohjassa Steam-pikanäppäimille on oltava päällä istunnon asetuksissa.</item>
+        <item>Taustatoiminta määrää, mitä tapahtuu, kun poistut sovelluksesta: Natiivi valmistelee Steamin lepotilaan, Automaattinen keskeyttää sen, Manuaalinen odottaa Jatka-painiketta, Ei koskaan pitää sen käynnissä.</item>
+        <item>Steam-pelit käyttävät Steamin Kuvanopeusrajaa Pikavalikossa. Näyttö vaihtaa virkistystaajuuteen, jolla raja jakautuu tasan, jos sellainen on.</item>
+        <item>Matalan viiveen tila istuntovalikossa lähettää ohjaimen syötteen 1000 Hz:n taajuudella 250 Hz:n sijaan, hieman suuremmalla suoritin- ja akunkulutuksella.</item>
+        <item>Jokaisella pelillä on oma profiilinsa, jossa on Proton-, FEX-, komponentti- ja ympäristöasetukset.</item>
+        <item>Istuntovalikossa on mikrofonin kytkin puhekeskustelua varten ja Keskeytä nyt -painike istunnon jäädyttämiseen tarvittaessa.</item>
+        <item>Siirrä DroidDeckin HUD vetämällä, muuta sen kokoa nipistämällä ja telakoi se pieneksi FPS-välilehdeksi työntämällä se reunan yli.</item>
+        <item>Kaksinäyttöisissä käsikonsoleissa alanäyttö voi näyttää lataukset, ilmoitukset, kuvakaappaukset ja Steam-chatin. Vaihda näytöt siirtää pelin sinne.</item>
+        <item>Lisää Steam-kirjastoja SD-kortilta, USB-asemalta tai SSD-levyltä, ja DroidDeck pitää pelit yhdessä Kirjastossasi.</item>
+        <item>Kaupat-osiossa voit kirjautua sisään palveluihin GOG, itch.io, Battle.net, Amazon Games ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
+        <item>Komponentit, kuten FEX, DXVK ja VKD3D-Proton, päivittyvät itsestään, ja oletuksena on Proton Experimental ARM64 tai Proton 11.0 ARM64, kun kyseinen versio on asennettu.</item>
+        <item>Pakkaa Steam pelin ollessa käynnissä vapauttaa RAM-muistia laitteilla, joilla muisti on vähissä.</item>
+        <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon: kosketuslevytila, PC-näppäimistö, matalan viiveen tila, pelin profiili ja muuta.</item>
+        <item>Peli pyörii hitaasti? Rajoita kuvanopeutta Pikavalikossa ja kokeile sitten toista Proton-versiota tai FEX-esiasetusta pelin komponenteissa.</item>
+        <item>Rätisevä tai puuttuva pelin ääni? Kokeile Steamin asetuksissa kohdassa Ääni asetusta DirectAudio peleille.</item>
+        <item>Asetukset ja sen alla Tallennustila voi tyhjentää shader-välimuistit ja poistettujen pelien jäljelle jääneet prefixit.</item>
+        <item>Osuitko virheeseen? Jaa lokit istuntovalikossa kokoaa diagnostiikkatiedot. Julkaise ne kanavalla #bug-reports Discordissa.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Ensimmäinen käynnistys valmistelee työpöydän. Tämä voi kestää muutaman minuutin.</item>
+        <item>Kosketus toimii kosketuslevynä: siirrä osoitinta vetämällä, napsauta napauttamalla.</item>
+        <item>Taustatoiminta määrää, mitä tapahtuu, kun poistut sovelluksesta: Manuaalinen odottaa oletuksena Jatka-painiketta, Automaattinen keskeyttää, Ei koskaan pitää käynnissä.</item>
+        <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon ja valitse PC-näppäimistö kirjoittaaksesi sovelluksissa, jotka ohittavat Androidin näppäimistön.</item>
+        <item>Istuntovalikon PC-näppäimistön koko, peittävyys ja näppäinryhmät ovat säädettävissä.</item>
+        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muuten käytä näytön ohjaimia.</item>
+        <item>Istuntovalikossa on mikrofonin kytkin ja Keskeytä nyt -painike istunnon jäädyttämiseen tarvittaessa.</item>
+        <item>Osuitko virheeseen? Jaa lokit istuntovalikossa kokoaa diagnostiikkatiedot. Julkaise ne kanavalla #bug-reports Discordissa.</item>
+    </string-array>
     <string name="session_channel">Istunto</string>
     <string name="session_channel_description">Näkyy, kun Steam- tai työpöytäistunto on käynnissä</string>
     <string name="session_notification">Steam on käynnissä</string>

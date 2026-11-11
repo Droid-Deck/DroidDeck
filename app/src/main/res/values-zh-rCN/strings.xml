@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">正在重置图形并重新打开 SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck 无法自动重启。请完全关闭应用，然后重新打开。</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>首次运行会下载 Steam，可能需要几分钟。</item>
+        <item>你的手柄在 Steam 中显示为 Steam Deck 手柄。可在会话设置中切换为 Steam Controller、DualShock 4、DualSense 或 Xbox 360 手柄，下次会话生效。</item>
+        <item>长按手柄上的返回键可打开 Steam 的快捷访问菜单。必须在会话设置中开启“长按返回键使用 Steam 快捷操作”。</item>
+        <item>后台行为决定你离开应用时会发生什么：原生会让 Steam 做好睡眠准备，自动会暂停，手动会等待点按恢复，“从不”则保持运行。</item>
+        <item>Steam 游戏使用快捷访问中 Steam 的帧率限制。如果存在能被该上限整除的刷新率，显示器会切换到该刷新率。</item>
+        <item>会话菜单中的低延迟模式会以 1000 Hz 而非 250 Hz 发送手柄输入，代价是略多一点 CPU 和电量消耗。</item>
+        <item>每个游戏都有自己的配置档案，包含 Proton、FEX、组件和环境设置。</item>
+        <item>会话菜单里有用于语音聊天的麦克风开关，以及可随时冻结会话的“立即暂停”按钮。</item>
+        <item>拖动 DroidDeck HUD 可移动它，双指捏合可调整大小，推到屏幕边缘可停靠为小型 FPS 标签。</item>
+        <item>在双屏掌机上，下屏可以显示下载、通知、截图和 Steam 聊天。“交换屏幕”会改为把游戏放到下屏。</item>
+        <item>可添加 SD 卡、USB 驱动器或 SSD 上的 Steam 游戏库，DroidDeck 会把这些游戏集中在你的库中。</item>
+        <item>游戏商店让你登录 GOG、itch.io、Battle.net、Amazon Games 和 Game Jolt，然后在 DroidDeck 中安装和更新它们的游戏。</item>
+        <item>FEX、DXVK 和 VKD3D-Proton 等组件会自动更新，默认使用 Proton Experimental ARM64，安装 Proton 11.0 ARM64 后则默认使用它。</item>
+        <item>“游戏运行时压缩 Steam”可在内存不足的设备上释放 RAM。</item>
+        <item>从右边缘向内滑动可打开会话菜单：触控板模式、PC 键盘、低延迟、游戏配置档案等。</item>
+        <item>游戏运行缓慢？先在快捷访问中限制帧率，再到游戏的组件中尝试其他 Proton 版本或 FEX 预设。</item>
+        <item>游戏音频爆音或没有声音？请在 Steam 设置的“音频”下尝试“游戏使用 DirectAudio”开关。</item>
+        <item>“配置”下的“存储”可以清理已移除游戏留下的着色器缓存和残留前缀。</item>
+        <item>遇到故障？会话菜单中的“分享日志”会打包诊断信息。请发布到 Discord 的 #bug-reports。</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>首次运行会设置桌面，可能需要几分钟。</item>
+        <item>触摸的作用类似触控板：拖动可移动指针，轻点即可点击。</item>
+        <item>后台行为决定你离开应用时会发生什么：手动默认会等待点按恢复，自动会暂停，“从不”则保持运行。</item>
+        <item>从右边缘向内滑动可打开会话菜单，然后选择“PC 键盘”，即可在忽略 Android 键盘的应用中输入。</item>
+        <item>会话菜单中的 PC 键盘可调整大小、不透明度和按键分组。</item>
+        <item>你的手柄会显示为 Xbox 360 手柄。否则请使用屏幕上的控件。</item>
+        <item>会话菜单里有麦克风开关和可随时冻结会话的“立即暂停”按钮。</item>
+        <item>遇到故障？会话菜单中的“分享日志”会打包诊断信息。请发布到 Discord 的 #bug-reports。</item>
+    </string-array>
     <string name="session_channel">会话</string>
     <string name="session_channel_description">在 Steam 或桌面会话打开时显示</string>
     <string name="session_notification">Steam 正在运行</string>

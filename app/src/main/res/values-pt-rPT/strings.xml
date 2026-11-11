@@ -8,6 +8,37 @@
     <string name="steamvr_recovery_restarting">A repor os gráficos e a reabrir o SteamVR…</string>
     <string name="steamvr_recovery_failed">O DroidDeck não conseguiu reiniciar automaticamente. Feche completamente a app e volte a abri-la.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Na primeira execução, o Steam é transferido. Isto pode demorar alguns minutos.</item>
+        <item>O seu comando aparece para o Steam como um comando do Steam Deck. Mude para um Steam Controller, DualShock 4, DualSense ou comando Xbox 360 nas definições da sessão; aplica-se na sessão seguinte.</item>
+        <item>Mantenha Voltar premido no comando para abrir o menu Acesso rápido do Steam. A opção Manter Voltar premido para atalhos do Steam tem de estar ativada nas definições da sessão.</item>
+        <item>Comportamento em segundo plano define o que acontece quando sai da app: Nativo prepara o Steam para suspensão, Automático pausa-o, Manual espera por Retomar, Nunca mantém-no em execução.</item>
+        <item>Os jogos Steam usam o Limite de fotogramas do Steam no Acesso rápido. O ecrã muda para uma taxa de atualização que o limite divida por igual, quando existe uma.</item>
+        <item>O Modo de baixa latência no menu da sessão envia a entrada do comando a 1000 Hz em vez de 250 Hz, com um pouco mais de CPU e bateria.</item>
+        <item>Cada jogo tem o seu próprio perfil com Proton, FEX, componentes e definições de ambiente.</item>
+        <item>O menu da sessão tem um botão de microfone para conversa por voz e um botão Suspender agora para congelar a sessão quando quiser.</item>
+        <item>Arraste o HUD do DroidDeck para o mover, junte os dedos em pinça para o redimensionar e empurre-o para um limite do ecrã para o fixar como um pequeno separador de FPS.</item>
+        <item>Em consolas portáteis com dois ecrãs, o ecrã de baixo pode mostrar transferências, notificações, capturas de ecrã e a conversa do Steam. Trocar ecrãs coloca lá o jogo.</item>
+        <item>Adicione bibliotecas Steam de um cartão SD, unidade USB ou SSD, e o DroidDeck mantém os jogos juntos na sua Biblioteca.</item>
+        <item>Lojas permite iniciar sessão no GOG, itch.io, Battle.net, Amazon Games e Game Jolt, e depois instalar e atualizar os jogos deles a partir do DroidDeck.</item>
+        <item>Componentes como FEX, DXVK e VKD3D-Proton atualizam-se sozinhos, e o Proton Experimental ARM64 é o predefinido, ou o Proton 11.0 ARM64 quando essa versão estiver instalada.</item>
+        <item>Comprimir o Steam durante um jogo liberta RAM em dispositivos com pouca memória.</item>
+        <item>Deslize a partir do limite direito para abrir o menu da sessão: modo de painel tátil, Teclado de PC, Modo de baixa latência, perfil do jogo e mais.</item>
+        <item>O jogo está lento? Limite a taxa de fotogramas no Acesso rápido e experimente outra versão do Proton ou outra predefinição do FEX nos componentes do jogo.</item>
+        <item>Áudio do jogo com estalidos ou ausente? Experimente a opção DirectAudio para jogos nas definições do Steam, em Áudio.</item>
+        <item>Configuração, e depois Armazenamento, pode limpar caches de shaders e prefixos restantes de jogos que removeu.</item>
+        <item>Encontrou um erro? Partilhar registos no menu da sessão reúne os diagnósticos. Publique-os em #bug-reports no Discord.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Na primeira execução, o ambiente de trabalho é configurado. Isto pode demorar alguns minutos.</item>
+        <item>O toque funciona como painel tátil: arraste para mover o ponteiro, toque para clicar.</item>
+        <item>Comportamento em segundo plano define o que acontece quando sai da app: Manual espera por Retomar por predefinição, Automático pausa, Nunca mantém em execução.</item>
+        <item>Deslize a partir do limite direito para abrir o menu da sessão e escolha Teclado de PC para escrever em apps que ignoram o teclado do Android.</item>
+        <item>O Teclado de PC no menu da sessão tem tamanho, opacidade e grupos de teclas ajustáveis.</item>
+        <item>O seu comando aparece como um comando Xbox 360. Caso contrário, use os controlos no ecrã.</item>
+        <item>O menu da sessão tem um botão de microfone e um botão Suspender agora para congelar a sessão quando quiser.</item>
+        <item>Encontrou um erro? Partilhar registos no menu da sessão reúne os diagnósticos. Publique-os em #bug-reports no Discord.</item>
+    </string-array>
     <string name="session_channel">Sessão</string>
     <string name="session_channel_description">Apresentada enquanto houver uma sessão do Steam ou do ambiente de trabalho aberta</string>
     <string name="session_notification">O Steam está em execução</string>
