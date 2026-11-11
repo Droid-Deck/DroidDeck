@@ -33,11 +33,12 @@ followed by a proto2 message, except on `uplay_service_ipc_pipe_`.
 | Pipe | Client | Exchange |
 |---|---|---|
 | `game_start_ipc_pipe_` | `UbisoftGameLauncher.exe` | `game_starter.Upstream{1:{1:{1: build, 2: product, 10: exe, 11: arguments, ...}}}` → `Downstream{2:{1:{1:0 (overlay off), 2:0, 3: <root>/ + "/" + <exe under root>, 4: <root>/, 8:3, 9:{1:{1,113,0,1,0} 1:{3,123,0,0,0}}}}}` |
-| `uplay_api_process_ipc_pipe_` | game | `Req.initProcessReq{1: product, 2: game pid, 5: env set}` → `Rsp.initProcessRsp(13){1:1, 3:0 (overlay off), 4:3, 6:0}`. Kept open. Answering it is what releases the starter (below) |
-| `uplay_ipc_pipe_` | game (`uplay_r1.dll`, `uplay_r2.dll`) | `Req.initReq(1)` → `Rsp.initRsp(1)`, answered every time it is asked. `Req.installerReq(13)` with `initInstallerReq` → `Rsp.installerRsp(10){1:{1:1, 2:"", 3: language}}`. `Req.streamingReq(27)` → `Rsp.streamingRsp(20){1: id, 2:1, 4:{1:0}}` for the streaming type (not streamed), `{1: id, 2:4}` for any other streaming query |
+| `uplay_api_process_ipc_pipe_` | game | `Req.initProcessReq{1: product, 2: game pid, 5: env set}` → `Rsp.initProcessRsp(13){1:1, 3:0 (overlay off), 4:3, 6:0}`. Kept open. Answering it is what releases the starter (below). Far Cry 3 Blood Dragon sends only `{2: pid, 5:1}`; a missing pid is taken from the pipe's client process |
+| `uplay_ipc_pipe_` | game (`uplay_r1.dll`, `uplay_r2.dll`) | `Req.initReq(1)` → `Rsp.initRsp(1)`, answered every time it is asked. `Req.installerReq(13)` with `initInstallerReq` → `Rsp.installerRsp(10){1:{1:1, 2:"", 3: language}}`. `Req.userReq(11).getCredentialsReq(1){1: id}` → `Rsp.userRsp(8).getCredentialsRsp(1){1: id, 2: username, 3: "" (password), 4: userId, 5: email}`. `Req.streamingReq(27)` → `Rsp.streamingRsp(20){1: id, 2:1, 4:{1:0}}` for the streaming type (not streamed), `{1: id, 2:4}` for any other streaming query |
 | `uplay_aux_ipc_pipe_` | `uplay_aux_r1(64).dll` (Denuvo) | `{1: rid, 2: init}` → `{1: rid, 2:{1:1, 2: pid, 3:3367, 3:3368, 3:3962}}`; `{1: rid, 3:{2:{2: challenge}}}` → `{1: rid, 3:{2:{2:1, 3:0, 4: game token, 5:""}}}` |
 | `uplay_service_ipc_pipe_` | Ubisoft helpers | Server sends `{3:{1:1, 3:{1: <hwscore path>}}}` once, then only reads, unframed |
-| `upc_api_process_ipc_pipe_standard`, `uplay_protocol_ipc_pipe_`, `uplay_overlay_ipc_pipe_`, `orbit_ipc_pipe_`, `uplay_crash_reporter_ipc_pipe_` | — | Held open, never answered |
+| `orbit_ipc_pipe_` | game (`ubiorbitapi_r2.dll`) | `mg.protocol.orbitdll` from the DLL's own `proto_orbitdll/OrbitDll.proto`. `Req{1: id, 12: init{1: product}}` → `Rsp{1: id, 12:{1: save folder, 2:1}}`; `getLoginDetails(2)` → `{1: username, 2:"", 3:""}`; `getOsi(3){1: sub}` → `{2:1}` (failed, no online-services pipe) |
+| `upc_api_process_ipc_pipe_standard`, `uplay_protocol_ipc_pipe_`, `uplay_overlay_ipc_pipe_`, `uplay_crash_reporter_ipc_pipe_` | — | Held open, never answered |
 
 ### The session (`InitRsp`)
 
@@ -76,6 +77,12 @@ runtime folder right after the session arrives, whatever the session says; witho
 with `UplayAPI [ERROR]: Startup failed: cannot load uplay library` (Assassin's Creed Chronicles: China
 then sits on a black screen and aborts with code 3 after about 160 s), so the runtime includes it.
 
+### Orbit titles
+
+Older titles such as Far Cry 3 Blood Dragon (205) load `ubiorbitapi_r2.dll` next to `uplay_r1.dll` and ask
+`orbit_ipc_pipe_` for `init` before anything else; unanswered, the game waits forever on a black screen. The DLL
+keeps savegames itself as `*.save` files in the folder `init` returns, the same save folder as field 17 above.
+
 ## Start sequence
 
 1. `droiddeck-upc.exe` creates the pipes and an auto-reset event marked inheritable, then starts the
@@ -100,6 +107,6 @@ titles without Denuvo never open the aux pipe.
 
 ## Not covered yet
 
-- R2 titles other than The Lost Crown, and R2 requests beyond the session, product list and streaming type.
-- Orbit (`ubiorbitapi_r2`) titles.
+- R2 titles other than The Lost Crown, and R2 requests beyond the session, credentials, product list and streaming type.
+- Orbit's online-services pipe (`getOsi` is declined) and Orbit titles other than Far Cry 3 Blood Dragon.
 - Achievements, friends, overlay, cloud saves.
