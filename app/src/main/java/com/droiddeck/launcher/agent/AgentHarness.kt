@@ -181,6 +181,7 @@ object Codex : AgentHarness {
         mkdir -p /root/.local/bin
         for name in codex codex-code-mode-host; do
           url=${'$'}(printf '%s' "${'$'}release" | grep -o "https://[^\"]*/${'$'}name-aarch64-unknown-linux-musl.tar.gz" | head -1)
+          echo "Downloading ${'$'}name"
           curl -fsSL "${'$'}url" | tar -xz -C /tmp
           install -m755 /tmp/${'$'}name-aarch64-unknown-linux-musl /root/.local/bin/${'$'}name
         done
