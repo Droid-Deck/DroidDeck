@@ -25,6 +25,17 @@ class SecondScreenModeTest {
         assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3), taken))
     }
 
+    @Test fun keyboardRouteIncludesOccupiedDisplayFallbackOnlyWhenEnabled() {
+        val fallback = SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2)) { it == 2 }
+        assertTrue(fallback)
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(true, false, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(false, true, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(true, true, false, false, false))
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, true, false, false))
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, false, true, false))
+    }
+
     @Test fun selectedGameDisplayIsNotReplacedWhenItDisconnects() {
         assertEquals(2, SecondScreenDisplays.selection(2, listOf(3), true))
         assertEquals(2, SecondScreenDisplays.selection(2, emptyList(), true))

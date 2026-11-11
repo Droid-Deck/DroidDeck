@@ -49,6 +49,9 @@ object SecondScreenDisplays {
     fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>, taken: (Int) -> Boolean): Boolean =
         gameRequested && selected >= 0 && (selected !in available || taken(selected))
 
+    fun routeKeyboard(steam: Boolean, enabled: Boolean, panel: Boolean, dock: Boolean, primaryFallback: Boolean): Boolean =
+        steam && enabled && (panel || dock || primaryFallback)
+
     fun available(displayManager: DisplayManager, primaryDisplayId: Int = Display.DEFAULT_DISPLAY): List<SecondScreenDisplay> =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .asSequence()

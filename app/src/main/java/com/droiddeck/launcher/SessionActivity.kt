@@ -3808,9 +3808,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updateKeyboardRoute() {
-        AgentGuest.routeKeyboard(this, SessionState.mode == SessionService.MODE_STEAM &&
-            (secondScreenPresentation?.showsKeyboard == true || dockDrawer()) &&
-            SessionPrefs.androidTextFieldKeyboard(this))
+        AgentGuest.routeKeyboard(this, SecondScreenDisplays.routeKeyboard(
+            SessionState.mode == SessionService.MODE_STEAM,
+            SessionPrefs.androidTextFieldKeyboard(this),
+            secondScreenPresentation?.showsKeyboard == true,
+            dockDrawer(),
+            SecondScreenDisplays.keyboardOnPrimary(gameOnBottom, selectedSecondScreenDisplay,
+                secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken)))
     }
 
     private fun dropDockedDrawer() {
