@@ -1,7 +1,18 @@
 #!/bin/sh
 # Opens a URL in Android's browser on the display the agent is being used on ($DD_BROWSER_DISPLAY).
+# DroidDeck opens what is left in files/agent/open-url; adb is the fallback for an app that does not.
 url=$1
 [ -n "$url" ] || exit 1
+inbox=/data/user/0/com.droiddeck.launcher/files/agent
+if [ -d "$inbox" ] && printf '%s\n' "$url" > "$inbox/open-url.part" && mv -f "$inbox/open-url.part" "$inbox/open-url"; then
+  i=0
+  while [ $i -lt 30 ]; do
+    [ -e "$inbox/open-url" ] || exit 0
+    sleep 0.2
+    i=$((i + 1))
+  done
+  rm -f "$inbox/open-url"
+fi
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 adb connect "$serial" >/dev/null 2>&1
 quoted=$(printf "%s" "$url" | sed "s/'/'\\\\''/g")

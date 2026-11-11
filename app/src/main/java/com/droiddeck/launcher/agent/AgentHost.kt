@@ -120,6 +120,7 @@ object AgentHost {
     fun refresh(context: Context) {
         val app = context.applicationContext
         appContext = app
+        File(app.filesDir, "agent").mkdirs()
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
         plan = prefs(app).getBoolean(PLAN_KEY, false)
@@ -425,18 +426,40 @@ object AgentHost {
         now = SystemClock.elapsedRealtime()
         appContext?.let { app ->
             claimLabRequest(app)
+            claimOpenUrl(app)
             // proot comes from an add-on pack fetched after the app starts, so the runtime can become usable later.
             if (!available && state != State.WORKING) available = LinuxRuntime.hasRootfs(app)
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
             AgentHostService.update(app)
         }
-        main.postDelayed(::tick, if (state == State.WORKING || lab != null) TICK_MS else IDLE_TICK_MS)
+        val busy = state == State.WORKING || lab != null || AgentSetup.status.values.any { it == AgentSetup.Status.WORKING }
+        main.postDelayed(::tick, if (busy) TICK_MS else IDLE_TICK_MS)
     }
 
     /**
      * dd-lab-build run by the agent hands its build to the app: the turn's processes end with the
      * turn, and a build must outlive a turn that ends early or is stopped.
      */
+    /**
+     * android-open, the userland's $BROWSER, leaves a URL here for the app to open, so sign-ins
+     * work without Wireless debugging.
+     */
+    private fun claimOpenUrl(app: Context) {
+        val request = File(app.filesDir, OPEN_URL)
+        if (!request.isFile) return
+        val claimed = File(app.filesDir, "$OPEN_URL.claimed")
+        if (!request.renameTo(claimed)) return
+        val url = runCatching { claimed.readText().trim() }.getOrNull()
+        claimed.delete()
+        if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(AgentAdb.browserDisplay).toBundle()
+        runCatching { app.startActivity(intent, options) }
+            .recoverCatching { app.startActivity(intent) }
+            .onFailure { Log.w(TAG, "could not open $url", it) }
+    }
+
     private fun claimLabRequest(app: Context) {
         val request = File(app.filesDir, LAB_REQUEST)
         if (!request.isFile) return
@@ -479,6 +502,7 @@ object AgentHost {
     private const val PLAN_KEY = "plan"
     private const val RESUME = "agent/resume"
     private const val LAB_REQUEST = "agent/lab-request"
+    private const val OPEN_URL = "agent/open-url"
     private const val LAB_CHAT_KEY = "lab_chat"
     /** The raw output of the latest turn, for working out what a CLI did when the chat shows nothing. */
     private const val TURN_LOG = "agent/turn.log"
