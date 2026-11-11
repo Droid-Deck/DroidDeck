@@ -3,6 +3,7 @@ package com.droiddeck.launcher.frontend
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -180,6 +181,18 @@ class GamesFolderMigrationTest {
         assertEquals(binds, SessionPrefs.gameFolderBinds(app))
         assertEquals(before, AddedGames.scan(app).map { it.appId to it.guestExe })
         assertEquals(listOf(pc.path to AddedGames.GUEST_DIR + "/PC"), binds)
+    }
+
+    @Test fun aMigratedFolderNamedStoresDoesNotTakeTheInternalStoreGuest() {
+        val stores = File(tmp.newFolder("card"), "Stores").apply { exe(this, "One/One.exe") }
+        val pc = tmp.newFolder("PC").apply { exe(this, "Two/Two.exe") }
+        SessionPrefs.setAddedGamesDirs(app, listOf(stores.path, pc.path))
+        GamesFolderMigration.run(app)
+        val binds = SessionPrefs.gameFolderBinds(app).toMap()
+        assertTrue(binds.getValue(stores.path) != StoreInstallRoot.INTERNAL_GUEST)
+        assertEquals(AddedGames.GUEST_DIR + "/PC", binds.getValue(pc.path))
+        val games = AddedGames.scan(app).associateBy { it.name }
+        assertEquals(binds.getValue(stores.path) + "/One/One.exe", games.getValue("One").guestExe)
     }
 
     @Test fun twoFoldersOfOneNameKeepTheirOwnGuestPaths() {

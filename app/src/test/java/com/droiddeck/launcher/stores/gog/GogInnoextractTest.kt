@@ -75,13 +75,20 @@ class GogInnoextractTest {
         assertTrue(AddedGames.guestPath(app, folder)!!.startsWith("/root/Games/Stores/GOG/"))
     }
 
-    @Test fun anAddedFolderNamedStoresDoesNotHideTheInternalInstallRoot() {
-        val shadow = File(app.filesDir, "extra/Stores").apply { mkdirs() }
-        val normal = File(app.filesDir, "extra/Library").apply { mkdirs() }
-        SessionPrefs.setGameFolderBinds(app, listOf(shadow.path to "/root/Games/Stores", normal.path to "/root/Games/Library"))
-        val binds = StoreInstallRoot.guestBinds(app)
-        assertTrue(binds.none { it.endsWith(":/root/Games/Stores") })
-        assertTrue(binds.contains("${normal.path}:/root/Games/Library"))
+    @Test fun anAddedFolderNamedStoresIsMountedWithoutHidingTheInternalInstallRoot() {
+        val drive = File(app.filesDir, "usb/Stores").apply { mkdirs() }
+        AddedGames.bindFolder(app, drive)
+        val guest = AddedGames.guestPath(app, drive)!!
+        assertTrue(guest != StoreInstallRoot.INTERNAL_GUEST && !guest.startsWith(StoreInstallRoot.INTERNAL_GUEST + "/"))
+        SessionPrefs.setDefaultStorageFolder(app, drive.path, "Stores")
+        val chosen = File(drive, "Games/GOG/Chosen")
+        assertTrue(AddedGames.guestPath(app, chosen)!!.startsWith("$guest/"))
+        assertExtractorSeesEveryPart(chosen, listOf("setup_1207658934.exe", "setup_1207658934-1.bin"))
+        val internal = File(StoreInstallRoot.internalRoot(app), "GOG/Internal")
+        installer(internal, listOf("setup_1207658935.exe"))
+        val internalGuest = AddedGames.guestPath(app, internal)!!
+        assertTrue(internalGuest.startsWith(StoreInstallRoot.INTERNAL_GUEST + "/GOG/"))
+        assertNull(hostOf("$internalGuest/setup_1207658935.exe", StoreInstallRoot.guestBinds(app)))
     }
 
     @Test fun aFailedExtractionReportsTheExtractorsOwnError() {

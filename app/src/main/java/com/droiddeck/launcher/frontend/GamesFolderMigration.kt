@@ -63,7 +63,8 @@ object GamesFolderMigration {
         val names = hosts.groupingBy { it.name.lowercase() }.eachCount()
         return hosts.map { host ->
             val name = host.name.ifEmpty { "games" }
-            val guestName = if ((names[name.lowercase()] ?: 0) > 1) name + "-" + "%08x".format(CRC32().apply { update(host.path.toByteArray()) }.value).take(4) else name
+            val clash = (names[name.lowercase()] ?: 0) > 1 || "${AddedGames.GUEST_DIR}/$name" == StoreInstallRoot.INTERNAL_GUEST
+            val guestName = if (clash) name + "-" + "%08x".format(CRC32().apply { update(host.path.toByteArray()) }.value).take(4) else name
             AddedGames.Root(host, "${AddedGames.GUEST_DIR}/$guestName")
         }
     }

@@ -3,6 +3,7 @@ package com.droiddeck.launcher.frontend
 import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import android.os.Environment
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -364,6 +365,15 @@ class AddedExesTest {
         assertEquals(3, guests.size)
         assertEquals(3, guests.toSet().size)
         assertEquals("$clash-2", guests.last())
+    }
+
+    @Test fun aFolderNamedStoresIsNotBoundOverTheInternalStoreRoot() {
+        noGamesFolders()
+        val stores = File(tmp.newFolder("card"), "Stores").apply { exe(File(this, "One/One.exe")) }
+        val result = AddedGames.addFolder(app, stores)
+        val guest = SessionPrefs.gameFolderBinds(app).single().second
+        assertTrue(guest != StoreInstallRoot.INTERNAL_GUEST && guest.startsWith("${AddedGames.GUEST_DIR}/Stores-"))
+        assertEquals("$guest/One/One.exe", result.added.single().guestExe)
     }
 
     @Test fun aRemovedSingleExeGameStaysOffUntilPickedAgain() {
