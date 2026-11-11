@@ -17,6 +17,7 @@ class TouchpadGestures(
     var bounds: android.graphics.RectF = android.graphics.RectF(0f, 0f, 1f, 1f)
     var sensitivity = 1.15f
     var desktop = false
+    var clicks = true
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastX = 0f
@@ -50,12 +51,17 @@ class TouchpadGestures(
         held = true
         dragging = true
         listener.onLongPress()
-        listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
+        press(PointerGestures.BTN_LEFT)
     }
     private val clickUp = Runnable { releaseClick() }
 
+    private fun press(button: Int) {
+        if (clicks) listener.onButton(button, true, x, y)
+    }
+
     private fun click(button: Int) {
         releaseClick()
+        if (!clicks) return
         listener.onButton(button, true, x, y)
         clicked = button
         handler.postDelayed(clickUp, TouchTiming.CLICK_MS)
@@ -108,12 +114,12 @@ class TouchpadGestures(
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
                 fingers = 1; pinching = false
                 anchorId = event.getPointerId(0); moverId = -1; holdDrag = false; scrollLocked = false
-                if (event.eventTime - lastTapAt < TouchTiming.DOUBLE_TAP_MS) {
+                if (clicks && event.eventTime - lastTapAt < TouchTiming.DOUBLE_TAP_MS) {
                     dragging = true
-                    listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
+                    press(PointerGestures.BTN_LEFT)
                 } else {
                     dragging = false
-                    handler.postDelayed(longPress, TouchTiming.HOLD_MS)
+                    if (clicks) handler.postDelayed(longPress, TouchTiming.HOLD_MS)
                 }
                 return true
             }
@@ -153,7 +159,7 @@ class TouchpadGestures(
                             secondWasTap = false
                             if (!dragging) {
                                 dragging = true
-                                listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
+                                press(PointerGestures.BTN_LEFT)
                             }
                         }
                     }

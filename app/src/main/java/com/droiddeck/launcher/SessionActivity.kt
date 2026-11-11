@@ -807,6 +807,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     drawnRect()?.let { forwardTouch(event, it) }
                 }
                 override fun rightClick(x: Float, y: Float) {
+                    if (!screenTapsClick) return
                     pointerListener.onLongPress()
                     pointerListener.onButton(PointerGestures.BTN_RIGHT, true, x, y)
                     surfaceView.postDelayed({ pointerListener.onButton(PointerGestures.BTN_RIGHT, false, x, y) }, 50L)
@@ -4000,6 +4001,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var lockedSwipeY = 0f
     private var dismissTouch = false
     private var sessionTouchDown = false
+    private var screenTapsClick = true
+
+    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(onScreenControls, bottomInputControls).any {
+        it.isShown && inputProfile.showsMouseButton(InputRole.PRIMARY, it.shownElements)
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
@@ -4035,6 +4041,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             steamDesktopUi = SessionState.steamUi == "desktop",
         )
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            screenTapsClick = !onScreenMouseButtonShown()
+            touchpad.clicks = screenTapsClick
+        }
         if (route != touchRoute) {
             Log.i(TAG, "touch route $touchRoute -> $route (mode=$routedTouchMode steamUi=${SessionState.steamUi} scrollLayer=$scrollTouchGesture)")
             touchRoute = route
@@ -4141,7 +4151,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
         }
-        directTouchHold.onTouch(event)
+        if (screenTapsClick) directTouchHold.onTouch(event)
+        else if (!pointerLocked && (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_MOVE))
+            movePointer(event.x, event.y)
         return true
     }
 

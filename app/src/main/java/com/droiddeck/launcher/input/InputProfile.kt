@@ -53,6 +53,11 @@ data class InputProfile(
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
         ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
 
+    fun showsMouseButton(role: InputRole, shown: List<InputSurfaceElement>): Boolean = shown.any { element ->
+        listOf(elementAction(role, element.id, element.control), elementClickAction(role, element))
+            .any { it is InputAction.MouseButton && it.validFor(element.control) }
+    }
+
     companion object {
         const val GAME = "game"
         const val DESKTOP = "desktop"

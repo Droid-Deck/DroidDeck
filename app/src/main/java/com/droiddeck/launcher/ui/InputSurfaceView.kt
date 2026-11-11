@@ -59,6 +59,7 @@ class InputSurfaceView(
     private var requestedLayout = customLayout
     init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
+    val shownElements: List<InputSurfaceElement> get() = customLayout
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
     private var forwardedPointers = 0
 
