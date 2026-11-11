@@ -4,7 +4,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -73,11 +72,7 @@ internal fun HudReadingsDialog(
         var i = 0
         initialOrder.map { if (it in visible) moved[i++] else it }
     }
-    var resetting by remember { mutableStateOf(false) }
-    val shown = rememberShown {
-        if (resetting) onReset() else onSave(enabled.toMap(), merged())
-        onDismiss()
-    }
+    val shown = rememberShown { onDismiss() }
     val close = { shown.targetState = false }
     val rowPx = with(LocalDensity.current) { ROW_HEIGHT.toPx() }
 
@@ -86,29 +81,9 @@ internal fun HudReadingsDialog(
 
     AppDialog(shown, close, "hudReadings", wide = false, scrollable = false, modifier = Modifier.fillMaxHeight()) {
         val state = rememberLazyListState()
-        LaunchedEffect(dragging) {
-            if (dragging < 0) return@LaunchedEffect
-            while (isActive) {
-                val info = state.layoutInfo
-                val top = info.viewportStartOffset
-                val bottom = info.viewportEndOffset
-                val item = info.visibleItemsInfo.firstOrNull { it.index == dragging }
-                val step = when {
-                    item == null -> 0f
-                    item.offset + dragOffset < top -> -rowPx / 4f
-                    item.offset + dragOffset + item.size > bottom -> rowPx / 4f
-                    else -> 0f
-                }
-                if (step != 0f) {
-                    val moved = state.scrollBy(step)
-                    if (moved != 0f) dragOffset -= moved
-                }
-                delay(16)
-            }
-        }
         val handlePx = with(LocalDensity.current) { HANDLE_WIDTH.toPx() }
-        val save = { close() }
-        val restore = { resetting = true; close() }
+        val save = { onSave(enabled.toMap(), merged()); close() }
+        val restore = { onReset(); close() }
         Column(Modifier.fillMaxSize()) {
             val list = @Composable { m: Modifier ->
                 LazyColumn(state = state, modifier = m.pointerInput(Unit) {
@@ -118,21 +93,21 @@ internal fun HudReadingsDialog(
                             it.offset <= down.position.y && down.position.y < it.offset + it.size
                         }
                         if (item == null || down.position.x > handlePx) return@awaitEachGesture
-                        dragging = item.index
+                        val start = item.index
+                        dragging = start
                         dragOffset = 0f
                         while (true) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
-                            val dy = change.positionChange().y
+                            val travel = change.position.y - down.position.y
                             change.consume()
                             if (!change.pressed) break
-                            dragOffset += dy
-                            val target = (dragging + ((dragOffset + rowPx / 2f) / rowPx).toInt()).coerceIn(0, order.lastIndex)
+                            val target = (start + (travel / rowPx).roundToInt()).coerceIn(0, order.lastIndex)
                             while (target != dragging) {
                                 val step = if (target > dragging) 1 else -1
                                 order.add(dragging + step, order.removeAt(dragging))
                                 dragging += step
-                                dragOffset -= step * rowPx
                             }
+                            dragOffset = travel - (dragging - start) * rowPx
                         }
                         dragging = -1
                         dragOffset = 0f
