@@ -10,12 +10,12 @@ if [ -z "$pkg" ] && [[ ${DD_AGENT_INBOX:-} =~ ^/data/(user/[0-9]+|data)/([^/]+)/
   pkg=${BASH_REMATCH[2]}
 fi
 pkg=${pkg:-com.droiddeck.launcher}
-export DROIDDECK_PACKAGE=$pkg
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 mode=build
 explain=()
 for arg in "$@"; do
   case $arg in
+    --package=*) pkg=${arg#--package=} ;;
     --no-restart) mode=no-restart ;;
     --prepare) mode=prepare ;;
     --explain) explain=(--info -Pkotlin.build.report.output=file) ;;
@@ -36,6 +36,8 @@ progress() {  # stage [permille task done total eta]
 fail() { progress failed 0 "$*"; echo "dd-lab-build: $*" >&2; exit 1; }
 trap 'progress failed 0 stopped; exit 143' INT TERM
 trap 'progress failed 0 "a command failed on line $LINENO"' ERR
+[[ $pkg =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]] || fail "invalid Android package: $pkg"
+export DROIDDECK_PACKAGE=$pkg
 device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
 # The app's agent loses every process it started when its turn ends, a build included, so it asks
@@ -45,7 +47,7 @@ if [ -n "${DD_AGENT:-}" ] && [ -z "${DD_LAB_DETACHED:-}" ] && [ -d "$agent" ]; t
   trap - ERR
   log=$cache/dd-lab-build.log
   rm -f "$progress_file"
-  python3 -c 'import json,os,sys; print(json.dumps({"cwd": os.getcwd(), "args": sys.argv[1:]}))' "$@" > "$agent/lab-request.part"
+  python3 -c 'import json,os,sys; print(json.dumps({"cwd": os.getcwd(), "args": [*sys.argv[1:], "--package=" + os.environ["DROIDDECK_PACKAGE"]]}))' "$@" > "$agent/lab-request.part"
   mv "$agent/lab-request.part" "$agent/lab-request"
   echo "DroidDeck runs this build itself, so it keeps going if this turn ends. Its log follows."
   for _ in $(seq 1 30); do [ -f "$progress_file" ] && break; sleep 1; done
