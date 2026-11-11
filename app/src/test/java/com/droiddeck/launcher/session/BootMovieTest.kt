@@ -94,6 +94,7 @@ class BootMovieTest {
     @Test fun resetCoversTheChoiceButNotTheImportedName() {
         assertTrue(SettingsReset.isSessionSetting("bootMovie"))
         assertTrue(SettingsReset.isSessionSetting("bootMovieSound"))
+        assertTrue(SettingsReset.isSessionSetting("bootMovieShuffle"))
         assertFalse(SettingsReset.isSessionSetting("bootMovieCustomName"))
     }
 }

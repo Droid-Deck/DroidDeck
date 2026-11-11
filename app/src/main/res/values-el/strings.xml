@@ -3056,6 +3056,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">Τα 60 fps φαίνονται πιο ομαλά, αλλά επιβαρύνουν περισσότερο τον επεξεργαστή όσο ξεκινά το Steam. Ένα βίντεο που επιλέχθηκε στις ρυθμίσεις του Steam εμφανίζεται κι εδώ.</string>
     <string name="boot_movie_sound">Ήχος</string>
+    <string name="boot_movie_shuffle">Τυχαία σειρά</string>
     <string name="boot_movie_custom">Δικό σας βίντεο</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
     <string name="boot_movie_import">Εισαγωγή</string>

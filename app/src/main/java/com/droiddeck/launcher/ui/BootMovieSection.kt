@@ -150,7 +150,7 @@ internal fun BootMovieGroup(s: ModeSettings, a: ModeSettingsActions, host: MenuH
             TabChip(stringResource(R.string.boot_movie_tab_sound), tab == MovieTab.SOUND, Modifier.weight(1f)) { tab = MovieTab.SOUND }
         }
         when (tab) {
-            MovieTab.INSTALLED -> InstalledTab(a)
+            MovieTab.INSTALLED -> InstalledTab(a, host)
             MovieTab.IMPORT -> ImportTab(s, a)
             MovieTab.REPO -> RepoTab(a)
             MovieTab.SOUND -> SoundTab(s, a, host)
@@ -159,7 +159,7 @@ internal fun BootMovieGroup(s: ModeSettings, a: ModeSettingsActions, host: MenuH
 }
 
 @Composable
-private fun InstalledTab(a: ModeSettingsActions) {
+private fun InstalledTab(a: ModeSettingsActions, host: MenuHost) {
     var browsing by remember { mutableStateOf(false) }
     val snapshot = rememberMovies(0, a.onBootMovieChanged)
     val current = snapshot?.let { snap -> snap.entries.firstOrNull { it.id == snap.selected }?.title }
@@ -167,11 +167,17 @@ private fun InstalledTab(a: ModeSettingsActions) {
     SettingsRow(stringResource(R.string.boot_movie_installed), hint) {
         SecondaryButton(stringResource(R.string.boot_movie_browse), onClick = { browsing = true })
     }
+    val app = LocalContext.current.applicationContext
+    var shuffle by remember { mutableStateOf(SessionPrefs.bootMovieShuffle(app)) }
+    LaunchedEffect(snapshot) { shuffle = SessionPrefs.bootMovieShuffle(app) }
+    ToggleRow(
+        host, "boot-movie-shuffle", stringResource(R.string.boot_movie_shuffle),
+        stringResource(R.string.common_applies_next_session), shuffle,
+    ) { on -> shuffle = on; SessionPrefs.setBootMovieShuffle(app, on) }
     Text(
         stringResource(R.string.boot_movie_note), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 14.dp).padding(bottom = 12.dp),
     )
-    val app = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }

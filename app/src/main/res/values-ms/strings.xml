@@ -3027,6 +3027,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps kelihatan lebih lancar tetapi menggunakan lebih banyak CPU semasa Steam bermula. Video yang dipilih dalam tetapan Steam sendiri turut dipaparkan di sini.</string>
     <string name="boot_movie_sound">Bunyi</string>
+    <string name="boot_movie_shuffle">Rawak</string>
     <string name="boot_movie_custom">Video anda sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV atau WebM. Format lain dan fail melebihi %1$d MB ditukar kepada WebM 720p pada peranti, sehingga %2$d saat.</string>
     <string name="boot_movie_import">Import</string>

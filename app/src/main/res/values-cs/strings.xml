@@ -3132,6 +3132,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps vypadá plynuleji, ale při spouštění Steamu víc zatěžuje procesor. Video vybrané přímo v nastavení Steamu se zde také zobrazí.</string>
     <string name="boot_movie_sound">Zvuk</string>
+    <string name="boot_movie_shuffle">Náhodné pořadí</string>
     <string name="boot_movie_custom">Vlastní video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV nebo WebM. Jiné formáty a soubory nad %1$d MB se v zařízení převedou na WebM 720p, nejvýše %2$d sekund.</string>
     <string name="boot_movie_import">Importovat</string>

@@ -4,7 +4,9 @@ Settings → Boot movie has four tabs.
 
 - **Installed**: "Browse" lists every movie Steam can play: DroidDeck's two, plus every `.webm` in Steam's
   `config/uioverrides/movies` folder (imported, installed from SteamDeckRepo, or put there by Steam). The list is re-read
-  every two seconds, so a movie picked or removed inside Steam shows up, and a movie picked inside Steam becomes the choice.
+  every two seconds, so a movie picked or removed inside Steam shows up, and a movie picked inside Steam becomes the choice. The Shuffle switch is Steam's own `Shuffle` setting (`startup_movie_shuffle` in
+  Steam's client settings, `Shuffle` next to `MovieID` and `LocalPath`): it is written at the next session start, a change made in Steam is
+  taken over, and with it off the selected movie plays as before.
 - **Import**: the same importer as before (copy, remux or on-device transcode to VP8/Opus). The result is written into
   Steam's movies folder, so Steam lists it as well.
 - **SteamDeckRepo**: browses `https://steamdeckrepo.com/api/posts` (`sort`, `device`, `search`, `page`; 12 posts a page).

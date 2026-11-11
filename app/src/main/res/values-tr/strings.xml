@@ -3056,6 +3056,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps daha akıcı görünür ama Steam açılırken işlemciyi daha çok kullanır. Steam\'in kendi ayarlarında seçilen bir video da burada görünür.</string>
     <string name="boot_movie_sound">Ses</string>
+    <string name="boot_movie_shuffle">Karıştır</string>
     <string name="boot_movie_custom">Kendi videon</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
     <string name="boot_movie_import">İçe aktar</string>

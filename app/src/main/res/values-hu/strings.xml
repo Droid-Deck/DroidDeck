@@ -3056,6 +3056,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">A 60 fps simább, de jobban terheli a processzort a Steam indulása közben. A Steam saját beállításaiban választott videó itt is megjelenik.</string>
     <string name="boot_movie_sound">Hang</string>
+    <string name="boot_movie_shuffle">Véletlen sorrend</string>
     <string name="boot_movie_custom">Saját videó</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV vagy WebM. Más formátumokat és a %1$d MB-nál nagyobb fájlokat az eszköz 720p WebM-re alakítja, legfeljebb %2$d másodpercig.</string>
     <string name="boot_movie_import">Importálás</string>

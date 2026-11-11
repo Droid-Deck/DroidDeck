@@ -3208,6 +3208,7 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d إطار/ث</string>
     <string name="boot_movie_note">معدل 60 إطارًا/ث أكثر سلاسة لكنه يستهلك المعالج أكثر أثناء بدء Steam. فيديو مختار في إعدادات Steam نفسها يظهر هنا أيضًا.</string>
     <string name="boot_movie_sound">الصوت</string>
+    <string name="boot_movie_shuffle">عشوائي</string>
     <string name="boot_movie_custom">فيديو خاص بك</string>
     <string name="boot_movie_custom_hint">MP4 أو MOV أو MKV أو WebM. تُحوَّل الصيغ الأخرى والملفات الأكبر من %1$d ميغابايت إلى WebM بدقة 720p على الجهاز، حتى %2$d ثانية.</string>
     <string name="boot_movie_import">استيراد</string>
