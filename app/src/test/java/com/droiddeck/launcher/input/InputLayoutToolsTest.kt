@@ -216,4 +216,45 @@ class InputLayoutToolsTest {
             }
         }
     }
+
+    @Test fun duplicatingLegacyElementsKeepsTheirBehaviourAndSavesValidly() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.let { it.copy(elements = InputSurfaceLayout.defaults().filter { e -> e.control in listOf(InputControl.B, InputControl.RIGHT_PAD) }) }
+        val base = library.preset(library.profile("game").binding(InputRole.SECONDARY))
+        for (source in layout.elements) {
+            val copy = source.duplicate("copy", layout.elements)
+            assertEquals(copy.kind.control, copy.control)
+            val actions = mapOf(copy.id to base.action(source).carriedTo(source))
+            val clicks = if (source.hasClick) mapOf(copy.id to base.clickAction(source)) else emptyMap()
+            val preset = base.copy(elements = actions, clicks = clicks)
+            library.withLayout(layout.copy(elements = layout.elements + copy)).withPreset(preset).validate()
+            assertEquals(InputAction.Native(source.control), preset.action(copy))
+            if (source.hasClick) assertEquals(base.clickAction(source), preset.clickAction(copy))
+        }
+    }
+
+    @Test fun duplicateNamesNeverExceedTheNameLimit() {
+        for (length in 70..80) {
+            val source = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "a", name = "x".repeat(length))
+            var siblings = listOf(source)
+            repeat(12) {
+                val copy = source.duplicate("c$it", siblings)
+                assertTrue("$length: ${copy.name.length}", copy.name.length <= 80)
+                assertTrue(copy.name.trim() == copy.name)
+                assertTrue(siblings.none { s -> s.name == copy.name })
+                siblings = siblings + copy
+            }
+        }
+    }
+
+    @Test fun repeatedDuplicationAtTheCornerNeverStacksElements() {
+        val source = InputSurfaceElement(InputControl.A, .75f, .75f, .25f, .25f, "a", name = "Jump")
+        var all = listOf(source)
+        repeat(10) {
+            val copy = all.last().duplicate("c$it", all)
+            assertEquals(copy, copy.bounded())
+            assertTrue(all.none { e -> e.x == copy.x && e.y == copy.y })
+            all = all + copy
+        }
+    }
 }

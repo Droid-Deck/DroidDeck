@@ -110,7 +110,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun duplicate(e: InputSurfaceElement) {
         val copy = e.duplicate(newInputId(), elements)
         checkpoint()
-        actions = actions + (copy.id to action(e))
+        actions = actions + (copy.id to action(e).carriedTo(e))
         if (e.hasClick) clicks = clicks + (copy.id to clickAction(e))
         elements = elements + copy
         selected = copy.id

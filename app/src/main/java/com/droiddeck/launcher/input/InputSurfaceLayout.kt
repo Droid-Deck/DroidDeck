@@ -3,6 +3,7 @@ package com.droiddeck.launcher.input
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 
 enum class InputElementKind(val control: InputControl) {
     BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
@@ -43,14 +44,23 @@ data class InputSurfaceElement(
 }
 
 private const val DUPLICATE_OFFSET = .04f
+private const val DUPLICATE_ATTEMPTS = 25
+private val DUPLICATE_DIRECTIONS = listOf(1 to 1, -1 to -1, 1 to -1, -1 to 1)
 
 internal fun InputSurfaceElement.duplicate(id: String, siblings: List<InputSurfaceElement>): InputSurfaceElement {
     val base = name.replace(Regex("\\s+\\d+$"), "")
     val taken = siblings.map { it.name }.toSet()
-    val number = generateSequence(2) { it + 1 }.first { "$base $it" !in taken }
-    fun shift(start: Float, size: Float) = if (start + size + DUPLICATE_OFFSET <= 1f) start + DUPLICATE_OFFSET else (start - DUPLICATE_OFFSET).coerceAtLeast(0f)
-    return copy(id = id, name = "$base $number", x = shift(x, width), y = shift(y, height)).bounded()
+    fun named(number: Int) = " $number".let { suffix -> base.take(80 - suffix.length).trimEnd() + suffix }
+    val number = generateSequence(2) { it + 1 }.first { named(it) !in taken }
+    fun place(start: Float, size: Float, steps: Int) = (start + steps * DUPLICATE_OFFSET).coerceIn(0f, (1f - size).coerceAtLeast(0f))
+    fun occupied(x: Float, y: Float) = siblings.any { abs(it.x - x) < .0001f && abs(it.y - y) < .0001f && abs(it.width - width) < .0001f && abs(it.height - height) < .0001f }
+    val spots = (1..DUPLICATE_ATTEMPTS).flatMap { k -> DUPLICATE_DIRECTIONS.map { (dx, dy) -> place(x, width, dx * k) to place(y, height, dy * k) } }
+    val (px, py) = spots.firstOrNull { (cx, cy) -> !occupied(cx, cy) } ?: spots.first()
+    return copy(id = id, control = kind.control, name = named(number), x = px, y = py).bounded()
 }
+
+internal fun InputAction.carriedTo(source: InputSurfaceElement): InputAction =
+    if (this is InputAction.Native && target == null && source.id.startsWith("legacy:")) InputAction.Native(source.control) else this
 
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
 
