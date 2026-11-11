@@ -42,6 +42,16 @@ data class InputSurfaceElement(
         width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
 
+private const val DUPLICATE_OFFSET = .04f
+
+internal fun InputSurfaceElement.duplicate(id: String, siblings: List<InputSurfaceElement>): InputSurfaceElement {
+    val base = name.replace(Regex("\\s+\\d+$"), "")
+    val taken = siblings.map { it.name }.toSet()
+    val number = generateSequence(2) { it + 1 }.first { "$base $it" !in taken }
+    fun shift(start: Float, size: Float) = if (start + size + DUPLICATE_OFFSET <= 1f) start + DUPLICATE_OFFSET else (start - DUPLICATE_OFFSET).coerceAtLeast(0f)
+    return copy(id = id, name = "$base $number", x = shift(x, width), y = shift(y, height)).bounded()
+}
+
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
 
 val InputSurfaceElement.quickButton: InputCommand? get() = when {

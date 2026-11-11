@@ -3631,4 +3631,5 @@
 
     <string name="theme_white_red">緋紅之雪</string>
     
+    <string name="input_duplicate_element">複製控制項</string>
 </resources>

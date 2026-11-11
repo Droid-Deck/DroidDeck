@@ -3632,4 +3632,5 @@
 
     <string name="theme_white_red">猩红之雪</string>
     
+    <string name="input_duplicate_element">复制控件</string>
 </resources>

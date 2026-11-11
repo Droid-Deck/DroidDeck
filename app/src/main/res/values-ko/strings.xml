@@ -3628,4 +3628,5 @@
 
     <string name="theme_white_red">진홍빛 눈</string>
     
+    <string name="input_duplicate_element">컨트롤 복제</string>
 </resources>

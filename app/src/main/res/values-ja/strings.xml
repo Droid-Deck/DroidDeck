@@ -3628,4 +3628,5 @@
 
     <string name="theme_white_red">緋色の雪</string>
     
+    <string name="input_duplicate_element">コントロールを複製</string>
 </resources>

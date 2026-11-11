@@ -31,6 +31,31 @@ class InputLayoutToolsTest {
         assertEquals(elements.map { it.name }, bigger.map { it.name })
     }
 
+    @Test fun duplicateKeepsEverythingButIdNameAndPlacement() {
+        val source = InputSurfaceElement(InputControl.A, .4f, .4f, .2f, .2f, "a", name = "Jump", opacity = .5f, toggle = true, buttonShape = InputButtonShape.CIRCLE, image = "x.png")
+        val copy = source.duplicate("b", listOf(source))
+        assertEquals(source.copy(id = "b", name = "Jump 2", x = .44f, y = .44f), copy)
+    }
+
+    @Test fun duplicateNamesAreUniqueAndIgnoreExistingNumbers() {
+        val a = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "a", name = "Jump 2")
+        val b = a.copy(id = "b", name = "Jump")
+        val copy = a.duplicate("c", listOf(a, b, a.copy(id = "d", name = "Jump 3")))
+        assertEquals("Jump 4", copy.name)
+        assertEquals("Jump 2", b.duplicate("e", listOf(b)).name)
+    }
+
+    @Test fun duplicateStaysInsideTheScreenForEveryKind() {
+        for (kind in InputElementKind.entries) {
+            val edge = InputSurfaceElement(kind.control, .85f, .85f, .15f, .15f, "e", kind, "Edge")
+            val copy = edge.duplicate("f", listOf(edge))
+            assertEquals(kind, copy.kind)
+            assertEquals(copy, copy.bounded())
+            assertTrue(copy.x < edge.x && copy.y < edge.y)
+            assertNotEquals(edge.id, copy.id)
+        }
+    }
+
     @Test fun resetPositionsOnlyRestoresGeometryOfElementsTheDefaultsKnow() {
         val defaults = listOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "legacy:a"))
         val moved = listOf(defaults[0].copy(x = .5f, y = .6f, width = .3f, name = "Jump", opacity = .5f),

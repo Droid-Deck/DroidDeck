@@ -3697,4 +3697,5 @@
 
     <string name="theme_white_red">Neige écarlate</string>
     
+    <string name="input_duplicate_element">Dupliquer la commande</string>
 </resources>

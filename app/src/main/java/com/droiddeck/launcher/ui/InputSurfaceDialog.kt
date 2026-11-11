@@ -107,6 +107,14 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
+    fun duplicate(e: InputSurfaceElement) {
+        val copy = e.duplicate(newInputId(), elements)
+        checkpoint()
+        actions = actions + (copy.id to action(e))
+        if (e.hasClick) clicks = clicks + (copy.id to clickAction(e))
+        elements = elements + copy
+        selected = copy.id
+    }
     fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (rescales) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
@@ -339,6 +347,7 @@ private fun SurfaceSelection(draft: SurfaceDraft) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PrimaryButton(stringResource(R.string.input_properties), compact = true) { draft.clickProperties = false; draft.properties = true }
                 if (e.hasClick) SecondaryButton(stringResource(R.string.input_click_properties), compact = true) { draft.clickProperties = true; draft.properties = true }
+                SecondaryButton(stringResource(R.string.input_duplicate_element), enabled = draft.elements.size < 64, compact = true) { draft.duplicate(e) }
                 SecondaryButton(stringResource(R.string.input_remove_element), compact = true) {
                     draft.checkpoint(); draft.elements = draft.elements.filterNot { it.id == e.id }; draft.actions = draft.actions - e.id; draft.clicks = draft.clicks - e.id; draft.selected = null
                 }
