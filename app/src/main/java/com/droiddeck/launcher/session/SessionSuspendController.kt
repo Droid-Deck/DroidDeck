@@ -46,6 +46,8 @@ internal class SessionSuspendController(
         val tracer: Int,
     )
 
+    private data class ProcessMemory(val residentKb: Long?, val swapKb: Long?)
+
     private data class TaskIdentity(val process: ProcessRecord, val tid: Int, val started: Long)
 
     @Volatile private var closing = false
@@ -357,7 +359,9 @@ internal class SessionSuspendController(
     }
 
     private fun withinSwapBudget(candidates: List<ProcessRecord>): List<ProcessRecord> {
-        val residents = candidates.map { it to memoryKb(listOf(it)).first }
+        val residents = candidates.mapNotNull { record ->
+            processMemoryKb(record)?.residentKb?.let { record to it }
+        }
         val (total, free) = swapKb()
         if (total <= 0L || free <= 0L) return emptyList()
         var budget = free - total * SWAP_RESERVE_PERCENT / 100
@@ -393,17 +397,25 @@ internal class SessionSuspendController(
         var resident = 0L
         var swap = 0L
         for (record in records) {
-            try {
-                File(procRoot, "${record.pid}/status").useLines { lines ->
-                    for (line in lines) {
-                        val kb = line.substringAfter(':').trim().substringBefore(' ').toLongOrNull() ?: continue
-                        if (line.startsWith("VmRSS:")) resident += kb else if (line.startsWith("VmSwap:")) swap += kb
-                    }
-                }
-            } catch (_: IOException) {
-            }
+            val memory = processMemoryKb(record) ?: continue
+            resident += memory.residentKb ?: 0L
+            swap += memory.swapKb ?: 0L
         }
         return resident to swap
+    }
+
+    private fun processMemoryKb(record: ProcessRecord): ProcessMemory? = try {
+        var resident: Long? = null
+        var swap: Long? = null
+        File(procRoot, "${record.pid}/status").useLines { lines ->
+            for (line in lines) {
+                val kb = line.substringAfter(':').trim().substringBefore(' ').toLongOrNull() ?: continue
+                if (line.startsWith("VmRSS:")) resident = kb else if (line.startsWith("VmSwap:")) swap = kb
+            }
+        }
+        ProcessMemory(resident, swap)
+    } catch (_: IOException) {
+        null
     }
 
     private fun stop(records: List<ProcessRecord>) {
