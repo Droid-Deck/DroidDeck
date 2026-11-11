@@ -347,15 +347,18 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            if (startsSession) setStartupMovieShuffle(config, SessionPrefs.bootMovieShuffle(context))
-            if (startsSession) disableIdleSleep(home)
+            if (startsSession) {
+                val shuffle = SessionPrefs.bootMovieShuffle(context)
+                setStartupMovieShuffle(config, shuffle)
+                if (startupMovieShuffle(config) == shuffle) SessionPrefs.setBootMovieShuffleSeen(context, config, shuffle)
+                disableIdleSleep(home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
         if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
-        startupMovieShuffle(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieShuffleSeen(context, it) }
     }
 
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {

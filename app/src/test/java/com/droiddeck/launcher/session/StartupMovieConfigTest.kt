@@ -130,12 +130,12 @@ class StartupMovieConfigTest {
         app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
         SessionPrefs.setBootMovieShuffle(app, true)
-        SessionPrefs.setBootMovieShuffleSeen(app, true)
+        SessionPrefs.setBootMovieShuffleSeen(app, file, true)
         val missing = File(folder.root, "missing.vdf")
         assertNull(SessionFiles.startupMovieShuffle(missing))
         BootMovie.syncShuffleFromSteam(app, missing)
         assertTrue(SessionPrefs.bootMovieShuffle(app))
-        assertEquals(true, SessionPrefs.bootMovieShuffleSeen(app))
+        assertEquals(true, SessionPrefs.bootMovieShuffleSeen(app, file))
     }
 
     @Test fun resetLeavesShuffleOffEvenWhenSteamStillHasItOn() {
@@ -145,9 +145,23 @@ class StartupMovieConfigTest {
         SessionFiles.setStartupMovieShuffle(file, true)
         SessionPrefs.setBootMovieShuffle(app, true)
         BootMovie.syncShuffleFromSteam(app, file)
-        assertFalse(SettingsReset.isSessionSetting("bootMovieShuffleSeen"))
+        assertFalse(SettingsReset.isSessionSetting("bootMovieShuffleSeen:${file.path}"))
         app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().remove("bootMovieShuffle").commit()
         BootMovie.syncShuffleFromSteam(app, file)
         assertFalse(SessionPrefs.bootMovieShuffle(app))
+    }
+
+    @Test fun eachSteamHomeKeepsItsOwnShuffleBaseline() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val arm = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        val x64 = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        BootMovie.syncShuffleFromSteam(app, arm)
+        BootMovie.syncShuffleFromSteam(app, x64)
+        SessionFiles.setStartupMovieShuffle(arm, true)
+        BootMovie.syncShuffleFromSteam(app, arm)
+        assertTrue(SessionPrefs.bootMovieShuffle(app))
+        BootMovie.syncShuffleFromSteam(app, x64)
+        assertTrue(SessionPrefs.bootMovieShuffle(app))
     }
 }
