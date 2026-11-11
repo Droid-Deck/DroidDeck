@@ -18,7 +18,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -554,7 +553,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
                 ) { selectedGlassesTab = it }
-                Column(
+                // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
+                if (page == SessionDrawerPage.AGENT) AgentPage(
+                    Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
+                    inputModifier = focus.track(page, "agent-input"),
+                    visible = open,
+                ) else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
@@ -766,13 +770,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 track = { key -> focus.track(page, key) },
                             )
                         }
-                        SessionDrawerPage.AGENT -> AgentPage(
-                            Modifier.fillMaxWidth()
-                                .height((LocalConfiguration.current.screenHeightDp - 190).coerceAtLeast(240).dp)
-                                .padding(horizontal = 14.dp),
-                            inputModifier = focus.track(page, "agent-input"),
-                            visible = open,
-                        )
+                        SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
                                 SettingsRow(stringResource(R.string.drawer_launch_app), null) {
