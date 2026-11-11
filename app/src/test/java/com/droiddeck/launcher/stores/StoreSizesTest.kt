@@ -63,4 +63,26 @@ class StoreSizesTest {
         assertEquals(null, second.get())
         assertEquals(0, requests.size)
     }
+
+    @Test fun aContinuationThatRequestsAgainAfterAFailureStartsANewLookup() {
+        val requests = ConcurrentHashMap<String, CompletableFuture<Long?>>()
+        val pending = CompletableFuture<Long?>()
+        val first = StoreSizes.shared(requests, ea.key) { pending }
+        val retried = CompletableFuture<Long?>()
+        first.thenAccept { bytes ->
+            if (bytes == null) retried.complete(StoreSizes.shared(requests, ea.key) { CompletableFuture.completedFuture(9L) }.get())
+        }
+        pending.complete(null)
+        assertEquals(9L, retried.get())
+    }
+
+    @Test fun concurrentCallersShareOneLookup() {
+        val requests = ConcurrentHashMap<String, CompletableFuture<Long?>>()
+        val pending = CompletableFuture<Long?>()
+        var starts = 0
+        val callers = (1..3).map { StoreSizes.shared(requests, ea.key) { starts++; pending } }
+        pending.complete(3L)
+        assertEquals(1, starts)
+        callers.forEach { assertEquals(3L, it.get()) }
+    }
 }

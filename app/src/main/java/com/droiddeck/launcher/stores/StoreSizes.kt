@@ -71,9 +71,16 @@ object StoreSizes {
         key: String,
         start: () -> CompletableFuture<Long?>,
     ): CompletableFuture<Long?> {
-        val future = requests.computeIfAbsent(key) { start() }
-        future.whenComplete { bytes, _ -> if (bytes == null) requests.remove(key, future) }
-        return future
+        var created: CompletableFuture<Long?>? = null
+        val shared = requests.computeIfAbsent(key) { CompletableFuture<Long?>().also { created = it } }
+        if (created === shared) {
+            val source = runCatching(start).getOrElse { CompletableFuture.failedFuture(it) }
+            source.whenComplete { bytes, error ->
+                if (bytes == null) requests.remove(key, shared)
+                if (error != null) shared.completeExceptionally(error) else shared.complete(bytes)
+            }
+        }
+        return shared
     }
 
     val onDisk = mutableStateMapOf<String, Long>()
