@@ -91,6 +91,8 @@ class AgentHostTest {
             Codex.parse("""{"type":"item.completed","item":{"id":"i3","type":"file_change","status":"completed","changes":[{"path":"a.kt"},{"path":"b.kt"}]}}""")!!.entries.first())
         assertEquals(listOf(Entry.Finished(null)), Codex.parse("""{"type":"turn.completed","usage":{}}""")!!.entries)
         assertEquals(listOf(Entry.Finished("quota")), Codex.parse("""{"type":"turn.failed","error":{"message":"quota"}}""")!!.entries)
+        assertNull(Codex.parse("""{"type":"error","message":"Reconnecting... 1/5 (stream disconnected before completion)"}"""))
+        assertEquals(listOf(Entry.Finished("unauthorized")), Codex.parse("""{"type":"error","message":"unauthorized"}""")!!.entries)
         assertNull(Codex.parse("""{"type":"item.started","item":{"type":"reasoning"}}"""))
     }
 

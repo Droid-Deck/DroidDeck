@@ -247,7 +247,10 @@ object Codex : AgentHarness {
                 usage = o.optJSONObject("usage")?.let { AgentHost.Usage(0, 0.0, it.optLong("input_tokens") + it.optLong("cached_input_tokens"), it.optLong("output_tokens")) },
             )
             "turn.failed" -> listOf(AgentHost.Entry.Finished(o.optJSONObject("error")?.optString("message") ?: "turn failed"))
-            "error" -> listOf(AgentHost.Entry.Finished(o.optString("message").ifEmpty { "error" }))
+            // codex reports a dropped stream it is retrying as an error event, and the turn goes on.
+            "error" -> o.optString("message").let { message ->
+                if (message.startsWith("Reconnecting...")) emptyList() else listOf(AgentHost.Entry.Finished(message.ifEmpty { "error" }))
+            }
             else -> emptyList()
         }
         return if (entries.isEmpty()) null else AgentEvent(entries = entries)
