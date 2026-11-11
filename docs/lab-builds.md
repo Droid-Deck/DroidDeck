@@ -27,7 +27,7 @@ change.
 
 ## What a Lab build cannot change
 
-The manifest, native code (`cpp`, `jniLibs`, Rust), Gradle files, `App`, and `LabOverlay` itself:
+The manifest, native code (`cpp`, `jniLibs`, Rust), Gradle files, `App`, `AppLanguage`, and `LabOverlay` itself:
 they are loaded before a Lab build can be, or are not part of it. `dd-lab-build` refuses those
 changes; they need a new APK.
 

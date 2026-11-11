@@ -65,9 +65,11 @@ repo=$(git rev-parse --show-toplevel) || fail "run it inside the DroidDeck check
 cd "$repo"
 adb connect "$serial" >/dev/null 2>&1 || true
 
-state=$(python3 tools/droiddeckctl state 2>/dev/null | sed -n '/^{/,$p')
+state=$(python3 tools/droiddeckctl state 2>/dev/null | sed -n '/^{/,$p') || fail "could not read DroidDeck's state; is it running and is adb connected?"
 # A Lab build reports its own label, so the APK's commit comes from apkCommit when the app has it.
-label=$(python3 -c 'import json,sys; s=json.load(sys.stdin); print(s.get("apkCommit") or s["build"].rsplit(" at ", 1)[-1])' <<<"$state")
+label=$(python3 -c 'import json,sys; s=json.load(sys.stdin); print(s.get("apkCommit") or s["build"].rsplit(" at ", 1)[-1])' <<<"$state") ||
+  fail "DroidDeck's state did not say which build is installed"
+installed_label=$(python3 -c 'import json,re,sys; print(re.sub(r"^(?:\w+ \w+ · |lab on )+", "", json.load(sys.stdin)["build"]))' <<<"$state")
 if ! base=$(git rev-parse --verify --quiet "$label^{commit}"); then
   progress fetching 0 "the installed commit"
   git fetch --quiet --tags origin >/dev/null 2>&1 || true
@@ -79,12 +81,14 @@ if [ $mode = prepare ]; then
   # Compiling the installed commit itself gives later builds of branches on it incremental caches.
   if ! git merge-base --is-ancestor "$base" HEAD; then
     git diff --quiet && git diff --cached --quiet || fail "HEAD does not build on the installed commit and has uncommitted changes"
+    was=$(git branch --show-current)
     git checkout --quiet --detach "$base"
+    echo "Checked out the installed commit ${base:0:9} to prepare it${was:+; $was is unchanged}"
   fi
 else
   git diff --quiet && git diff --cached --quiet || fail "commit your changes first"
   git merge-base --is-ancestor "$base" HEAD || fail "HEAD does not build on the installed commit ${base:0:9}; branch from it"
-  blocked=$(git diff --name-only "$base" HEAD | grep -E 'AndroidManifest\.xml$|/cpp/|/jniLibs/|\.rs$|(^|/)build\.gradle$|/App\.kt$|/lab/LabOverlay\.kt$' || true)
+  blocked=$(git diff --name-only "$base" HEAD | grep -E 'AndroidManifest\.xml$|/cpp/|/jniLibs/|\.rs$|(^|/)build\.gradle$|/App\.kt$|/AppLanguage\.kt$|/lab/LabOverlay\.kt$' || true)
   [ -z "$blocked" ] || fail "these need a new APK, not a Lab build: $(echo $blocked)"
 fi
 apk=$(device pm path $pkg | sed -n 's/^package://p' | grep 'base\.apk$' | head -1)
@@ -92,8 +96,9 @@ apk=$(device pm path $pkg | sed -n 's/^package://p' | grep 'base\.apk$' | head -
 
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 ANDROID_HOME=$HOME/android-sdk
 # BuildConfig describes the installed base, not each Lab commit; its commit changing would make the
-# Kotlin compile redo the whole app (the overlay's own label names the Lab build).
-export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on ${base:0:7}" DROIDDECK_BUILD_TREE_STATE=clean GITHUB_HEAD_REF=lab
+# Kotlin compile redo the whole app (the overlay's own label names the Lab build). Updates reads the
+# installed variant (non-adreno) from the build label.
+export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on $installed_label" DROIDDECK_BUILD_TREE_STATE=clean GITHUB_HEAD_REF=lab
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   progress sdk
@@ -200,7 +205,7 @@ cp "$linked" "$work/overlay.apk"
 (cd app/build/intermediates/dex/release/mergeDexRelease && zip -q "$work/overlay.apk" classes*.dex)
 name="$(git branch --show-current) @ $(git rev-parse --short HEAD)"
 python3 -c 'import json,sys,time; print(json.dumps({"label": sys.argv[1], "baseCommit": sys.argv[2], "baseApk": sys.argv[3], "built": int(time.time())}))' \
-  "$name" "$base" "$apk" > "$work/overlay.json"
+  "$name" "$label" "$apk" > "$work/overlay.json"
 
 lab=/data/user/0/$pkg/files/lab
 mkdir -p "$lab"
