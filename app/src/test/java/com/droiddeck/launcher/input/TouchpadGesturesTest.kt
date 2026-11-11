@@ -310,6 +310,27 @@ class TouchpadGesturesTest {
         assertEquals(listOf("left down", "left up"), events)
     }
 
+    @Test fun aTapWhileClicksWereOffDoesNotStartADragOnceTheyAreBackOn() {
+        touchpad.clicks = false
+        tap()
+        advance(20)
+        touchpad.clicks = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        assertEquals(emptyList<String>(), events)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
+        advance(200)
+        assertEquals(listOf("left down", "left up"), events)
+    }
+
+    @Test fun doubleTapStillDragsWhileClicksStayOn() {
+        tap()
+        advance(20)
+        touchpad.clicks = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        assertEquals(listOf("left down", "left up", "left down"), events)
+    }
+
     private fun tap() {
         touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
         advance(80)

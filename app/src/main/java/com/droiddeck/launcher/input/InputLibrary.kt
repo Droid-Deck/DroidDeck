@@ -102,9 +102,9 @@ data class InputLibrary(
         val stock = InputStockLayouts.presets(InputStockLayouts.layouts())
         return compileParts(defaults.id, InputRole.entries.associateWith { role ->
             val part = if (role == InputRole.SECONDARY) panelPart(isDesktop, panel) else activePart(isDesktop, role)
-            val layout = part.layout?.let { id -> layouts.firstOrNull { it.id == id } }
-            stock.firstOrNull { it.id == part.bindings } ?: SavedInputBindings(part.bindings, "", role == InputRole.PHYSICAL, part.layout,
-                defaults.bindings[role].orEmpty(), layout?.let(InputStockLayouts::actions).orEmpty(), clicks = layout?.let(InputStockLayouts::clicks).orEmpty())
+            val origin = layouts.firstOrNull { it.id == part.layout }?.origin ?: part.layout
+            stock.firstOrNull { it.id == part.bindings || (origin != null && it.layoutId == origin) }
+                ?: SavedInputBindings(part.bindings, "", role == InputRole.PHYSICAL, part.layout, defaults.bindings[role].orEmpty())
         })
     }
 

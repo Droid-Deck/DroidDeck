@@ -18,6 +18,10 @@ class TouchpadGestures(
     var sensitivity = 1.15f
     var desktop = false
     var clicks = true
+        set(value) {
+            if (field != value) lastTapAt = 0L
+            field = value
+        }
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastX = 0f

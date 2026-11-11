@@ -615,4 +615,22 @@ class InputLibraryTest {
         val rebound = stock.withPreset(stock.preset(InputStockLayouts.TRACKPAD).let { it.copy(clicks = it.clicks + (pad.id to InputAction.MouseButton(273))) })
         assertTrue(rebound.compileActive(true).showsMouseButton(InputRole.SECONDARY, listOf(pad), rebound.compileStock(true)))
     }
+
+    @Test fun copiedStockPanelsKeepTapsClickingUntilAMouseButtonIsAdded() {
+        val stock = InputLibraries.read(context)
+        for (desktop in listOf(false, true)) {
+            val source = stock.panelLayout(desktop, null)!!
+            val copied = stock.useLayout(stock.activeId(desktop), InputRole.SECONDARY, source.id, shared = false)
+            val layout = copied.activeLayout(desktop, InputRole.SECONDARY)!!
+            assertNotEquals(source.id, layout.id)
+            assertEquals(source.id, layout.origin)
+            assertFalse(copied.compileActive(desktop).showsMouseButton(InputRole.SECONDARY, layout.elements, copied.compileStock(desktop)))
+            val added = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, id = "custom:added")
+            val grown = copied.withLayout(layout.copy(elements = layout.elements + added))
+            val bindings = grown.activePart(desktop, InputRole.SECONDARY).bindings
+            val bound = grown.withPreset(grown.preset(bindings).let { it.copy(elements = it.elements + (added.id to InputAction.MouseButton(272))) })
+            assertTrue(bound.compileActive(desktop).showsMouseButton(InputRole.SECONDARY, layout.elements + added, bound.compileStock(desktop)))
+            assertFalse(bound.compileActive(desktop).showsMouseButton(InputRole.SECONDARY, layout.elements, bound.compileStock(desktop)))
+        }
+    }
 }
