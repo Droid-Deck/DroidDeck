@@ -4,6 +4,21 @@ Date: Wed, 11 Nov 2026 14:34:44 +0800
 Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 
 ---
+--- a/src/compat.h
++++ b/src/compat.h
+@@ -132,6 +132,12 @@
+ #    ifndef PTRACE_O_TRACEEXIT
+ #        define PTRACE_O_TRACEEXIT	0x00000040
+ #    endif
++#    ifndef PTRACE_GETSIGMASK
++#        define PTRACE_GETSIGMASK	0x420a
++#    endif
++#    ifndef PTRACE_SETSIGMASK
++#        define PTRACE_SETSIGMASK	0x420b
++#    endif
+ #    ifndef PTRACE_O_TRACESECCOMP
+ #        define PTRACE_O_TRACESECCOMP	0x00000080
+ #    endif
 --- a/src/execve/exit.c
 +++ b/src/execve/exit.c
 @@ -400,6 +400,9 @@ void translate_execve_exit(Tracee *tracee)
@@ -319,6 +334,16 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +extern void guard_guest_seccomp(Tracee *tracee, bool thread_group);
  
  #endif /* SECCOMP_H */
+--- a/src/tracee/event.c
++++ b/src/tracee/event.c
+@@ -656,6 +656,7 @@ int handle_tracee_event(Tracee *tracee, int tracee_status)
+ 			if (tracee->sigstop == SIGSTOP_IGNORED) {
+ 				tracee->sigstop = SIGSTOP_ALLOWED;
+ 				signal = 0;
++				unblock_sigsys_in_new_thread(tracee);
+ 			}
+ 			break;
+ 
 --- a/src/tracee/tracee.c
 +++ b/src/tracee/tracee.c
 @@ -628,6 +628,8 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
@@ -330,7 +355,19 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  #ifdef HAS_POKEDATA_WORKAROUND
  	child->pokedata_workaround_stub_addr = parent->pokedata_workaround_stub_addr;
  #endif
-@@ -870,6 +872,40 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
+@@ -782,8 +784,10 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
+ 			child->as_ptracee.event4.proot.value   = 0;
+ 		}
+ 
+-		if (!keep_stopped)
++		if (!keep_stopped) {
++			unblock_sigsys_in_new_thread(child);
+ 			(void) restart_tracee(child, 0);
++		}
+ 	}
+ 
+ 	VERBOSE(child, 1, "vpid %" PRIu64 ": pid %d", child->vpid, child->pid);
+@@ -870,6 +874,70 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
  	return 0;
  }
  
@@ -368,6 +405,36 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +		set_guest_seccomp(tracee, tracee->guest_seccomp_tsync);
 +}
 +
++/* glibc blocks every signal around clone, so a new thread starts with
++ * SIGSYS blocked and makes its first syscalls (set_robust_list) that way.
++ * Android's policy traps those, and a trap with SIGSYS blocked resets the
++ * process's SIGSYS handler, which a sandbox may have just installed in
++ * another thread.  glibc restores the thread's intended mask right after,
++ * so only that window changes.  Called at the thread's first stop, before
++ * it runs.  */
++void unblock_sigsys_in_new_thread(Tracee *tracee)
++{
++	const uint64_t sigsys = 1ULL << (SIGSYS - 1);
++	static bool warned = false;
++	uint64_t mask;
++
++	if (!tracee->clone)
++		return;
++
++	if (ptrace(PTRACE_GETSIGMASK, tracee->pid, sizeof(mask), &mask) < 0) {
++		if (!warned) {
++			warned = true;
++			note(tracee, WARNING, SYSTEM, "ptrace(GETSIGMASK)");
++		}
++		return;
++	}
++	if ((mask & sigsys) == 0)
++		return;
++
++	mask &= ~sigsys;
++	(void) ptrace(PTRACE_SETSIGMASK, tracee->pid, sizeof(mask), &mask);
++}
++
  /* Send the KILL signal to all tracees.  */
  void kill_all_tracees()
  {
@@ -394,10 +461,11 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  	/**********************************************************************
  	 * Shared or private resources, depending on the CLONE_FS/VM flags.   *
  	 **********************************************************************/
-@@ -320,6 +334,8 @@ extern void terminate_tracee(Tracee *tracee);
+@@ -320,6 +334,9 @@ extern void terminate_tracee(Tracee *tracee);
  extern void free_terminated_tracees();
  extern int swap_config(Tracee *tracee1, Tracee *tracee2);
  extern void kill_all_tracees();
++extern void unblock_sigsys_in_new_thread(Tracee *tracee);
 +extern void set_guest_seccomp(Tracee *tracee, bool thread_group);
 +extern void commit_guest_seccomp(Tracee *tracee);
  
