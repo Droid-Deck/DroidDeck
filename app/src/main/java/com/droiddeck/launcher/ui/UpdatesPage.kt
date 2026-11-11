@@ -285,7 +285,15 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: B
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
             }
         }
-        LabBuilds(sessionRunning)
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val agentReady = com.droiddeck.launcher.agent.AgentHost.installed &&
+            (com.droiddeck.launcher.agent.AgentSetup.ready || com.droiddeck.launcher.agent.AgentSetup.completed(context))
+        LabBuilds(sessionRunning, onRebuild = if (agentReady) { info ->
+            com.droiddeck.launcher.agent.AgentHost.send(context, context.getString(R.string.agent_rebuild_lab, info.label))
+            context.startActivity(android.content.Intent(context, com.droiddeck.launcher.FrontEndActivity::class.java)
+                .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "agent")
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        } else null)
     }
 }
 
