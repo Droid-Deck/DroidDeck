@@ -57,10 +57,13 @@ object AgentSetup {
                 // The install brings the userland's adb; until then the app's own pairing is all there is to check.
                 Step.CONNECTION -> if (!AgentHost.guestFileExists(app, "/usr/bin/adb")) {
                     detail.remove(step)
-                    set(step, if (com.droiddeck.launcher.core.WirelessAdbFix.hasSavedPairing(app)) Status.DONE else Status.TODO)
+                    Thread({
+                        val live = com.droiddeck.launcher.core.WirelessAdbFix.liveConnectAddress(app) != null
+                        set(step, if (live) Status.DONE else Status.TODO)
+                    }, "agent-connection").start()
                 } else probes += step to listOf("sh", "-c",
                     "for i in 1 2 3; do adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " +
-                        "adb -s \"\$ADB_SERIAL\" get-state 2>&1 | tee /dev/stderr | grep -q device && exit 0; sleep 1; done; exit 1")
+                        "state=\$(adb -s \"\$ADB_SERIAL\" get-state 2>&1); echo \"\$state\"; [ \"\$state\" = device ] && exit 0; sleep 1; done; exit 1")
                 Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
                 Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
             }
