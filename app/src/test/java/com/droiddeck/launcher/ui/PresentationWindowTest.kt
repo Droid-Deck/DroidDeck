@@ -13,7 +13,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.assert
@@ -22,8 +21,8 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isPopup
-import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.window.DialogProperties
@@ -46,6 +45,11 @@ import org.robolectric.shadows.ShadowDisplayManager
 @Config(sdk = [28], qualifiers = "w640dp-h480dp-land", application = android.app.Application::class)
 class PresentationWindowTest {
     @get:Rule val compose = createRobolectricComposeRule()
+
+    private fun tapOutsidePopup() {
+        val popup = compose.onNode(isPopup())
+        popup.performTouchInput { click(percentOffset(.99f, .99f)) }
+    }
 
     @Test fun alertInsidePresentationRendersDismissesAndTracksItsWindow() {
         var shown by mutableStateOf(true)
@@ -94,7 +98,7 @@ class PresentationWindowTest {
                 if (shown) GlideDialog(onDismissRequest = { shown = false }) { Text("Panel") }
             }
         }
-        compose.onAllNodes(isRoot())[1].performTouchInput { click(Offset(1f, 1f)) }
+        tapOutsidePopup()
         compose.onNodeWithText("Panel").assertDoesNotExist()
     }
 
@@ -108,7 +112,7 @@ class PresentationWindowTest {
                 ) { Text("Panel") }
             }
         }
-        compose.onAllNodes(isRoot())[1].performTouchInput { click(Offset(1f, 1f)) }
+        tapOutsidePopup()
         compose.onNodeWithText("Panel").assertIsDisplayed()
         assertEquals(0, dismissals)
     }
