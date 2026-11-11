@@ -1,7 +1,8 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.session.SessionDisplay
-import com.droiddeck.launcher.ui.GamepadGeometry.Slot
+import com.droiddeck.launcher.input.GamepadGeometry
+import com.droiddeck.launcher.input.GamepadGeometry.Slot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

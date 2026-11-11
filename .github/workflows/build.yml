@@ -136,11 +136,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  components:
-    name: Prepare verified components
+  components-runner:
     needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
+  components:
+    name: Prepare verified components
+    needs: [source, components-runner]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -188,6 +195,7 @@ jobs:
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
             !app/src/main/assets/linuxfs/libblaudit.so
             !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddnatv-hook.so
             !app/src/main/assets/linuxfs/libblsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
@@ -306,6 +314,11 @@ jobs:
       - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
         run: python3 tools/components/prepare.py dirt-ws2
 
+      - name: Cache graphics driver inputs
+        uses: actions/cache@v4
+        with:
+          path: app/build/quest-inputs
+          key: quest-inputs-${{ hashFiles('tools/quest/build-driver.py') }}
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components
@@ -318,11 +331,18 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  build-runner:
+    needs: [components]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   build:
-    needs: [source, components, xbox]
+    needs: [source, components, xbox, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}
@@ -536,6 +556,12 @@ jobs:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
 
+      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/ubisoft-launcher/build.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: xbox-arm64
@@ -544,9 +570,11 @@ jobs:
       - name: Cache checksum-pinned pack inputs
         uses: actions/cache@v4
         with:
-          path: ~/.cache/droiddeck-pack-inputs
-          key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
-          restore-keys: pack-inputs-v1-
+          path: |
+            ~/.cache/droiddeck-pack-inputs
+            ~/.cache/droiddeck-build
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
           python3 tools/powervr/fetch.py
@@ -770,6 +798,9 @@ jobs:
           set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
+      - name: Ubisoft launcher service host unit tests
+        timeout-minutes: 10
+        run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests
@@ -860,6 +891,17 @@ jobs:
     with:
       environment: signing-main
       variants: ${{ needs.build.outputs.variants }}
+    secrets: inherit
+
+  scan:
+    needs: sign
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/scan.yml
+    with:
+      artifact: droiddeck-signed
+      variant: standard
     secrets: inherit
 
   packs:

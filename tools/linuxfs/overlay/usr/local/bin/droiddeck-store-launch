@@ -5,6 +5,8 @@ import binascii
 import json
 import os
 import re
+import shlex
+import shutil
 import sys
 import time
 import subprocess
@@ -275,6 +277,10 @@ def exited(argv, code=0):
             subprocess.run([EPIC_CLIENT, "exited", "--code", str(code)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, timeout=10)
         except (OSError, subprocess.TimeoutExpired):
             pass
+    if found is not None and launch_dir and str(found[1].get("store")) == "ea":
+        ask(Path(launch_dir) / "stores", {"op": "ea-exited", "store": "ea", "id": str(found[1].get("id"))}, timeout=1.0)
+        log("ea %s exited" % found[1].get("id"))
+        return 0
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
@@ -282,6 +288,218 @@ def exited(argv, code=0):
     log("cloud %s %s up requested" % (store, game))
     return 0
 
+
+UBISOFT_DIR = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
+UBISOFT_WINDOWS_DIR = "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\"
+UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
+UBISOFT_CACHE = Path("/root/.cache/droiddeck/ubisoft")
+UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
+UBISOFT_SERVICE = Path("/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe")
+UBISOFT_ASK_WAIT = 45.0
+UBISOFT_EXTRACT_WAIT = 300
+# Ubisoft's own game-side runtime from the Connect installer, unmodified: the API and aux DLLs the
+# game's loader opens from InstallDir, the starter it re-executes into and its imports, and the overlay
+# DLLs uplay_r1.dll loads even with the overlay off (its startup fails without them).
+UBISOFT_RUNTIME = ("uplay_r1.dll", "uplay_r164.dll", "uplay_aux_r1.dll", "uplay_aux_r164.dll",
+                   "uplay_r2.dll", "uplay_r264.dll", "ubiorbitapi_r2.dll", "ubiorbitapi_r264.dll",
+                   "UbisoftGameLauncher.exe", "UbisoftGameLauncher64.exe", "discord-rpc.x86.dll",
+                   "discord-rpc.x64.dll", "steam_api.dll", "steam_api64.dll", "overlay.dll", "overlay64.dll")
+UBISOFT_VIEWS = ("[Software\\\\Ubisoft\\\\Launcher%s]", "[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher%s]")
+MIN_INSTALLER = 1 << 20
+
+
+def ubisoft_runtime_dir(compat_data):
+    return Path(compat_data) / "pfx" / UBISOFT_DIR
+
+
+def ubisoft_runtime_ready(compat_data):
+    folder = ubisoft_runtime_dir(compat_data)
+    return all((folder / name).is_file() for name in UBISOFT_RUNTIME)
+
+
+def fetch_installer(url=UBISOFT_INSTALLER_URL, folder=UBISOFT_CACHE):
+    target = folder / "UbisoftConnectInstaller.exe"
+    if target.is_file() and target.stat().st_size >= MIN_INSTALLER:
+        return target
+    import urllib.request
+    folder.mkdir(parents=True, exist_ok=True)
+    part = target.with_name(target.name + ".part")
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(request, timeout=60) as reply, open(part, "wb") as out:
+        shutil.copyfileobj(reply, out)
+    if part.stat().st_size < MIN_INSTALLER:
+        part.unlink()
+        raise OSError("installer too small")
+    os.replace(part, target)
+    return target
+
+
+def install_runtime(compat_data, wait=UBISOFT_EXTRACT_WAIT):
+    if ubisoft_runtime_ready(compat_data):
+        return "present"
+    if not (Path(compat_data) / "pfx").is_dir():
+        return "no-prefix"
+    try:
+        installer = fetch_installer()
+    except OSError as error:
+        return "download-failed-" + type(error).__name__
+    target = ubisoft_runtime_dir(compat_data)
+    target.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="droiddeck-ubisoft-", dir=str(UBISOFT_CACHE)) as tmp:
+        try:
+            subprocess.run(["7z", "e", "-y", "-o" + tmp, str(installer)] + list(UBISOFT_RUNTIME), stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=wait)
+        except subprocess.TimeoutExpired:
+            return "extract-timeout"
+        except OSError:
+            return "no-7z"
+        missing = [name for name in UBISOFT_RUNTIME if not (Path(tmp) / name).is_file()]
+        if missing:
+            return "extract-missing-" + ",".join(missing)
+        for name in UBISOFT_RUNTIME:
+            shutil.copyfile(Path(tmp) / name, target / name)
+    if not ubisoft_runtime_ready(compat_data):
+        return "copy-failed"
+    try:
+        installer.unlink()
+    except OSError:
+        pass
+    return "installed"
+
+
+def ubisoft_product(sidecar):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    try:
+        return int(str(extra.get("productId") or ""))
+    except ValueError:
+        return None
+
+
+def ubisoft_install_dir(folder):
+    return windows_path(str(folder)).replace("\\", "/").rstrip("/") + "/"
+
+
+def register_ubisoft(folder, product, compat_data):
+    reg = Path(compat_data) / "pfx" / "system.reg"
+    if not reg.is_file():
+        return "no-registry"
+    if not wait_for_server(reg.parent):
+        return "server-running"
+    for view in UBISOFT_VIEWS:
+        set_value(reg, view % "", "InstallDir", UBISOFT_WINDOWS_DIR)
+        set_value(reg, view % ("\\\\Installs\\\\%d" % product), "InstallDir", ubisoft_install_dir(folder))
+    return "registered %d" % product
+
+
+UBISOFT_HIVES = {"HKEY_LOCAL_MACHINE": "system.reg", "HKEY_CURRENT_USER": "user.reg"}
+
+
+def manifest_value(values, folder, language):
+    """The value Connect writes for a manifest registry entry: the install folder, the entry for the
+    language being played, or the only entry there is."""
+    entries = [v for v in values if isinstance(v, dict)]
+    if not entries:
+        return None
+    names = [str(v.get("name") or "") for v in entries]
+    if "$INSTALL_DIR" in names:
+        return windows_path(str(folder)).rstrip("\\") + "\\"
+    for v in entries:
+        if str(v.get("value") or "").lower() == language.lower():
+            return str(v.get("value"))
+    prefix = language.split("-")[0].lower()
+    for v in entries:
+        if str(v.get("value") or "").lower().split("-")[0] == prefix:
+            return str(v.get("value"))
+    return str(entries[0].get("value") or entries[0].get("name") or "")
+
+
+def apply_manifest_registry(compat_data, registry, folder, language):
+    written = 0
+    for item in registry or []:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("key") or "").replace("/", "\\")
+        hive, _, rest = path.partition("\\")
+        target = UBISOFT_HIVES.get(hive.upper())
+        if not target or "\\" not in rest:
+            continue
+        subkey, _, name = rest.rpartition("\\")
+        value = manifest_value(item.get("values"), folder, language)
+        if value is None or not name:
+            continue
+        reg = Path(compat_data) / "pfx" / target
+        parts = subkey.split("\\")
+        views = [parts]
+        if target == "system.reg" and len(parts) > 1 and parts[0].lower() == "software" and parts[1].lower() != "wow6432node":
+            views.append(parts[:1] + ["Wow6432Node"] + parts[1:])
+        for view in views:
+            key = "[" + "\\\\".join(view) + "]"
+            if set_value(reg, key, name, value):
+                written += 1
+    return written
+
+
+def ubisoft_launch(folder, sidecar, product, compat_data, answer):
+    """The launch file droiddeck-upc.exe reads: the game, the account and this launch's ticket."""
+    account = answer.get("account") if isinstance(answer.get("account"), dict) else {}
+    user = str(account.get("userId") or "user")
+    saves = Path(compat_data) / "pfx" / "drive_c/users/steamuser/Saved Games/Ubisoft" / user / str(product)
+    saves.mkdir(parents=True, exist_ok=True)
+    exe = str(sidecar.get("exe") or "").replace("\\", "/")
+    workdir = folder / str(sidecar.get("workdir")) if sidecar.get("workdir") else folder
+    UBISOFT_CACHE.mkdir(parents=True, exist_ok=True)
+    return {
+        "productId": product,
+        "exe": windows_path(str(folder / exe)),
+        "args": " ".join(str(a) for a in sidecar.get("args") or []),
+        "workdir": windows_path(str(workdir)),
+        "account": account,
+        "ticket": str(answer.get("ticket") or ""),
+        "owned": [int(i) for i in answer.get("owned") or [] if str(i).isdigit()],
+        "products": [p for p in answer.get("products") or [] if isinstance(p, dict) and isinstance(p.get("id"), int)],
+        "appId": str(answer.get("appId") or ""),
+        "chunks": [c for c in answer.get("chunks") or [] if isinstance(c, dict) and isinstance(c.get("id"), int)],
+        "saves": "C:/users/steamuser/Saved Games/Ubisoft/%s/%d/" % (user, product),
+        "language": str(answer.get("language") or "en-US"),
+        "bridge": windows_path(str(UBISOFT_CACHE / ("bridge-%d" % product))),
+        "log": windows_path(str(UBISOFT_CACHE / ("upc-%d.log" % product))),
+    }
+
+
+def prepare_ubisoft(folder, sidecar, compat_data, launch_dir, proton="", ask_app=None):
+    launch = folder / UBISOFT_LAUNCH
+    try:
+        launch.unlink()
+    except OSError:
+        pass
+    if not compat_data:
+        return "no-prefix"
+    product = ubisoft_product(sidecar)
+    if product is None:
+        return "no-product"
+    if not UBISOFT_SERVICE.is_file():
+        return "no-service"
+    made = create_prefix(compat_data, proton) if not (Path(compat_data) / "pfx/user.reg").is_file() else "present"
+    if made not in ("present", "created"):
+        return "prefix " + made
+    runtime = install_runtime(compat_data)
+    if not ubisoft_runtime_ready(compat_data):
+        return "runtime " + runtime
+    registry = register_ubisoft(folder, product, compat_data)
+    if not launch_dir:
+        return "runtime %s, %s, no-channel" % (runtime, registry)
+    answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "ubisoft-launch", "store": "ubisoft", "id": str(sidecar.get("id"))},
+                              timeout=UBISOFT_ASK_WAIT)
+    if not isinstance(answer, dict) or not answer.get("ok") or not answer.get("ticket"):
+        reason = "timeout" if answer is None else str(answer.get("reason") or "refused")
+        return "runtime %s, %s, session %s" % (runtime, registry, reason)
+    written = 0
+    if answer.get("registry") and wait_for_server(Path(compat_data) / "pfx"):
+        written = apply_manifest_registry(compat_data, answer.get("registry"), folder, str(answer.get("language") or "en-US"))
+    tmp = launch.with_name(launch.name + ".tmp")
+    tmp.write_text(json.dumps(ubisoft_launch(folder, sidecar, product, compat_data, answer)))
+    os.replace(tmp, launch)
+    return "runtime %s, %s, %d manifest value(s), session ready" % (runtime, registry, written)
 
 COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 
@@ -352,6 +570,7 @@ def prepare_gog(sidecar, compat_data, launch_dir):
 
 GOG_SCRIPTS = "goggame-*.script"
 GOG_REGISTRY_MARK = ".droiddeck-gog-registry"
+GOG_SUPPORT_MARK = ".droiddeck-gog-support"
 GOG_ROOTS = {"HKEY_LOCAL_MACHINE": "HKEY_LOCAL_MACHINE", "HKLM": "HKEY_LOCAL_MACHINE",
              "HKEY_CURRENT_USER": "HKEY_CURRENT_USER", "HKCU": "HKEY_CURRENT_USER",
              "HKEY_CLASSES_ROOT": "HKEY_CLASSES_ROOT", "HKCR": "HKEY_CLASSES_ROOT"}
@@ -611,6 +830,458 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=Non
         return "import-failed" + note
 
 
+EA_HARDWARE = ".droiddeck-ea-hw.json"
+EA_CLIENT = "C:\\Program Files (x86)\\Origin\\Origin.exe"
+EA_WMI = (
+    ("boardManufacturer", "Win32_BaseBoard", "Manufacturer"),
+    ("boardSerial", "Win32_BaseBoard", "SerialNumber"),
+    ("biosManufacturer", "Win32_BIOS", "Manufacturer"),
+    ("biosSerial", "Win32_BIOS", "SerialNumber"),
+    ("osInstallDate", "Win32_OperatingSystem", "InstallDate"),
+    ("osSerial", "Win32_OperatingSystem", "SerialNumber"),
+    ("gpuPnpId", "Win32_VideoController", "PNPDeviceID"),
+    ("cpuManufacturer", "Win32_Processor", "Manufacturer"),
+    ("processorId", "Win32_Processor", "ProcessorId"),
+    ("brand", "Win32_Processor", "Name"),
+)
+EA_ROOTS = {"HKLM": "HKEY_LOCAL_MACHINE", "HKCU": "HKEY_CURRENT_USER"}
+
+
+def decode_output(data):
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff") or (len(data) > 1 and data[1:2] == b"\x00"):
+        return data.decode("utf-16", "replace")
+    return data.decode("utf-8", "replace")
+
+
+def wmi_value(text):
+    rows = [row.strip() for row in text.replace("\r", "\n").split("\n") if row.strip()]
+    return rows[1] if len(rows) > 1 else ""
+
+
+CPUID_LEAVES = (0, 1, 0x80000002, 0x80000003, 0x80000004)
+
+
+def cpuid_exe():
+    """A 32-bit console program that writes the raw CPUID leaves an x86 game sees under the emulator."""
+    import struct
+    base, rva = 0x400000, 0x1000
+    buf, written = base + rva + 0x180, base + rva + 0x1D0
+    iat = base + rva + 0x138
+    code = b"\x53\x57\xbf" + struct.pack("<I", buf)
+    for leaf in CPUID_LEAVES:
+        code += b"\xb8" + struct.pack("<I", leaf) + b"\x31\xc9\x0f\xa2\x89\x07\x89\x5f\x04\x89\x4f\x08\x89\x57\x0c\x83\xc7\x10"
+    code += b"\x6a\xf5\xff\x15" + struct.pack("<I", iat)
+    code += b"\x6a\x00\x68" + struct.pack("<I", written) + b"\x6a\x50\x68" + struct.pack("<I", buf) + b"\x50\xff\x15" + struct.pack("<I", iat + 4)
+    code += b"\x6a\x00\xff\x15" + struct.pack("<I", iat + 8)
+    section = bytearray(0x200)
+    section[:len(code)] = code
+    names = [(0x148, b"GetStdHandle"), (0x158, b"WriteFile"), (0x164, b"ExitProcess")]
+    struct.pack_into("<IIIII", section, 0x100, rva + 0x128, 0, 0, rva + 0x172, rva + 0x138)
+    for i, (at, name) in enumerate(names):
+        struct.pack_into("<I", section, 0x128 + 4 * i, rva + at)
+        struct.pack_into("<I", section, 0x138 + 4 * i, rva + at)
+        section[at + 2:at + 2 + len(name)] = name
+    section[0x172:0x172 + 12] = b"KERNEL32.dll"
+    header = bytearray(0x200)
+    header[0:2] = b"MZ"
+    struct.pack_into("<I", header, 0x3C, 0x40)
+    header[0x40:0x44] = b"PE\0\0"
+    struct.pack_into("<HHIIIHH", header, 0x44, 0x14C, 1, 0, 0, 0, 0xE0, 0x0103)
+    opt = struct.pack("<HBBIIIIIIIIIHHHHHHIIIIHHIIIIII", 0x10B, 0, 0, 0x200, 0, 0, rva, rva, rva, base, 0x1000, 0x200,
+                      4, 0, 0, 0, 4, 0, 0, 0x2000, 0x200, 0, 3, 0, 0x100000, 0x1000, 0x100000, 0x1000, 0, 16)
+    dirs = bytearray(128)
+    struct.pack_into("<II", dirs, 8, rva + 0x100, 40)
+    struct.pack_into("<II", dirs, 96, rva + 0x138, 16)
+    header[0x58:0x58 + 0xE0] = opt + bytes(dirs)
+    header[0x138:0x138 + 40] = struct.pack("<8sIIIIIIHHI", b".text", 0x1000, rva, 0x200, 0x200, 0, 0, 0, 0, 0xE0000060)
+    return bytes(header) + bytes(section)
+
+
+EA_STUB_DIR = "Program Files (x86)/Origin"
+EA_STUB = "C:\\Program Files (x86)\\Origin\\Origin.exe"
+
+
+def origin_stub_exe():
+    """A 32-bit program that only sleeps: the process older EA SDKs look for while a game runs."""
+    import struct
+    base, rva = 0x400000, 0x1000
+    iat = base + rva + 0x138
+    code = b"\x6a\xff\xff\x15" + struct.pack("<I", iat) + b"\xeb\xf6"
+    section = bytearray(0x200)
+    section[:len(code)] = code
+    struct.pack_into("<IIIII", section, 0x100, rva + 0x128, 0, 0, rva + 0x172, rva + 0x138)
+    struct.pack_into("<I", section, 0x128, rva + 0x148)
+    struct.pack_into("<I", section, 0x138, rva + 0x148)
+    section[0x14A:0x14A + 5] = b"Sleep"
+    section[0x172:0x172 + 12] = b"KERNEL32.dll"
+    header = bytearray(cpuid_exe()[:0x200])
+    struct.pack_into("<H", header, 0x58 + 68, 2)
+    return bytes(header) + bytes(section)
+
+
+def install_origin_stub(compat_data):
+    if not compat_data:
+        return "no-prefix"
+    target = Path(compat_data) / "pfx/drive_c" / EA_STUB_DIR / "Origin.exe"
+    data = origin_stub_exe()
+    try:
+        if target.is_file() and target.read_bytes() == data:
+            return "ready"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return "written"
+    except OSError:
+        return "failed"
+
+
+def cpuid_values(raw):
+    import struct
+    if len(raw) < 80:
+        return {}
+    regs = [struct.unpack_from("<IIII", raw, 16 * i) for i in range(5)]
+    vendor = struct.pack("<III", regs[0][1], regs[0][3], regs[0][2]).split(b"\0")[0].decode("latin-1")
+    brand = b"".join(struct.pack("<IIII", *r) for r in regs[2:]).split(b"\0")[0].decode("latin-1")
+    return {"cpuVendor": vendor, "cpuEax": "%08X" % regs[1][0], "cpuEdx": "%08X" % regs[1][3],
+            "cpuEcx": "%08x" % regs[1][2], "cpuBrand": brand}
+
+
+EA_PROBE_FIELDS = ("boardManufacturer", "biosManufacturer", "osInstallDate", "osSerial", "volumeSerial", "hostname",
+                   "cpuVendor", "cpuEax", "cpuEdx", "cpuEcx")
+
+
+def probe_complete(values):
+    return all(str(values.get(key) or "").strip() for key in EA_PROBE_FIELDS)
+
+
+def ea_hardware(compat_data, proton, timeout=240):
+    pfx = Path(compat_data) / "pfx"
+    cache = pfx / EA_HARDWARE
+    try:
+        cached = json.loads(cache.read_text())
+        if isinstance(cached, dict) and probe_complete(cached):
+            return cached, "cached"
+    except (OSError, ValueError):
+        pass
+    if not proton or not Path(proton).is_file():
+        return {}, "no-proton"
+    values = {}
+    with tempfile.TemporaryDirectory(prefix="droiddeck-ea-") as tmp:
+        folder = Path(tmp)
+        lines = ["@echo off"]
+        for key, cls, prop in EA_WMI:
+            lines.append('wmic path %s get %s > "%s"' % (cls, prop, windows_path(str(folder / (key + ".txt")))))
+        lines.append('vol C: > "%s"' % windows_path(str(folder / "volume.txt")))
+        lines.append('hostname > "%s"' % windows_path(str(folder / "hostname.txt")))
+        (folder / "cpuid.exe").write_bytes(cpuid_exe())
+        lines.append('"%s" > "%s"' % (windows_path(str(folder / "cpuid.exe")), windows_path(str(folder / "cpuid.bin"))))
+        bat = folder / "probe.bat"
+        bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
+        try:
+            subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return {}, "timeout"
+        except OSError:
+            return {}, "failed"
+        for key, _, _ in EA_WMI:
+            try:
+                values[key] = wmi_value(decode_output((folder / (key + ".txt")).read_bytes()))
+            except OSError:
+                values[key] = ""
+        try:
+            found = re.search(r"([0-9A-Fa-f]{4})-([0-9A-Fa-f]{4})", decode_output((folder / "volume.txt").read_bytes()))
+            values["volumeSerial"] = (found.group(1) + found.group(2)).lower() if found else ""
+        except OSError:
+            values["volumeSerial"] = ""
+        try:
+            values["hostname"] = decode_output((folder / "hostname.txt").read_bytes()).strip().splitlines()[0].strip()
+        except (OSError, IndexError):
+            values["hostname"] = ""
+        try:
+            values.update(cpuid_values((folder / "cpuid.bin").read_bytes()))
+        except OSError:
+            pass
+    if probe_complete(values):
+        try:
+            cache.write_text(json.dumps(values))
+        except OSError:
+            pass
+        return values, "probed"
+    return values, "incomplete"
+
+
+def ea_registry_entries(folder, sidecar):
+    install = windows_path(str(folder)).rstrip("\\") + "\\"
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    title = str(extra.get("displayName") or sidecar.get("title") or folder.name).strip()
+    locale = str(extra.get("locale") or "en_US")
+    entries = [
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\EA Desktop", "InstallSuccessful", "true"),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\Origin", "InstallSuccessful", "true"),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\Origin", "ClientPath", EA_CLIENT),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Origin", "ClientPath", EA_CLIENT),
+    ]
+    for content in [c.strip() for c in str(extra.get("contentIds") or extra.get("contentId") or "").split(",")]:
+        if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", content):
+            key = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Origin Games\\" + content
+            entries += [(key, "DisplayName", title), (key, "Install Dir", install), (key, "Locale", locale)]
+    try:
+        keys = json.loads(extra.get("registry") or "[]")
+    except ValueError:
+        keys = []
+    for pair in keys if isinstance(keys, list) else []:
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        key, name = str(pair[0]), str(pair[1])
+        root, _, rest = key.partition("\\")
+        key = EA_ROOTS.get(root.upper(), root) + ("\\" + rest if rest else "")
+        if key.upper().startswith(("HKEY_LOCAL_MACHINE\\", "HKEY_CURRENT_USER\\")) and name and "\n" not in key + name:
+            entries.append((key, name, install))
+            if title:
+                entries.append((key, "DisplayName", title))
+            entries.append((key, "Locale", locale))
+    return entries
+
+
+def ea_registry(folder, sidecar, compat_data, proton, timeout=90):
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    pfx = Path(compat_data) / "pfx"
+    text = "Windows Registry Editor Version 5.00\r\n\r\n" + "".join(
+        '[%s]\r\n"%s"="%s"\r\n\r\n' % (key, reg_escape(name), reg_escape(value)) for key, name, value in ea_registry_entries(folder, sidecar))
+    stamp = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    marker = pfx / (".droiddeck-ea-registry-" + re.sub(r"[^A-Za-z0-9._-]", "_", str(sidecar.get("id"))))
+    try:
+        if marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file():
+            return "ready"
+        with tempfile.TemporaryDirectory(prefix="droiddeck-ea-") as tmp:
+            source = Path(tmp) / "registry.reg"
+            source.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
+            executable = pfx / "drive_c/windows/system32/reg.exe"
+            for view in ("/reg:32", "/reg:64"):
+                run = subprocess.run([proton, "run", str(executable) if executable.is_file() else "reg.exe", "import", windows_path(str(source)), view],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+                if run.returncode:
+                    return "import-failed"
+        marker.write_text(stamp)
+        return "written"
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "import-failed"
+
+
+def find_case(folder, relative):
+    current = Path(folder)
+    for part in [p for p in relative.replace("\\", "/").split("/") if p and p != "."]:
+        exact = current / part
+        if exact.exists():
+            current = exact
+            continue
+        try:
+            current = next(c for c in current.iterdir() if c.name.lower() == part.lower())
+        except (OSError, StopIteration):
+            return None
+    return current if current != Path(folder) else None
+
+
+def touchup_args(raw, locale, install):
+    raw = raw.replace("{locale}", locale)
+    raw = raw.replace('"{installLocation}"', '"%s"' % install).replace("{installLocation}", install)
+    try:
+        return shlex.split(raw.replace("\\", "\\\\"))
+    except ValueError:
+        return raw.split()
+
+
+def ea_touchup(folder, sidecar, compat_data, proton, timeout=900):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    relative = str(extra.get("touchup") or "")
+    if not relative:
+        return "none"
+    exe = find_case(folder, relative)
+    if exe is None or not exe.is_file():
+        return "missing"
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    pfx = Path(compat_data) / "pfx"
+    stamp = str(sidecar.get("installVersion") or "") + " " + str(sidecar.get("installedAt") or "")
+    marker = pfx / (".droiddeck-ea-touchup-" + re.sub(r"[^A-Za-z0-9._-]", "_", str(sidecar.get("id"))))
+    try:
+        if marker.is_file() and marker.read_text() == stamp:
+            return "done"
+    except OSError:
+        pass
+    args = touchup_args(str(extra.get("touchupArgs") or ""), str(extra.get("locale") or "en_US"), windows_path(str(folder)).rstrip("\\"))
+    try:
+        run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
+    except subprocess.TimeoutExpired:
+        result = "timeout"
+    except OSError:
+        return "failed"
+    try:
+        marker.write_text(stamp)
+    except OSError:
+        pass
+    return result
+
+
+def write_licenses(compat_data, licenses):
+    if not compat_data:
+        return 0
+    root = Path(compat_data) / "pfx/drive_c"
+    written = 0
+    for item in licenses or []:
+        relative = str(item.get("path") or "") if isinstance(item, dict) else ""
+        if not relative or relative.startswith("/") or ".." in relative.split("/"):
+            continue
+        target = root / relative
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(base64.b64decode(item.get("data") or ""))
+            written += 1
+        except (OSError, binascii.Error):
+            pass
+    return written
+
+
+def prepare_ea(folder, sidecar, compat_data, launch_dir):
+    game = str(sidecar.get("id"))
+    proton = os.environ.get("BL_STORE_PROTON", "")
+    made = create_prefix(compat_data, proton)
+    ready = made in ("present", "created") or (compat_data and (Path(compat_data) / "pfx/user.reg").is_file())
+    stub = install_origin_stub(compat_data) if ready else "no-prefix"
+    hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
+    answer = None
+    if launch_dir:
+        answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}, timeout=40.0)
+    sidecar = sidecar_at(Path(folder)) or sidecar
+    log("ea %s prefix=%s stub=%s hardware=%s registry=%s touchup=%s" % (
+        game, made, stub, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
+    if answer is None:
+        log("ea %s session=no reason=%s" % (game, "timeout" if launch_dir else "no-channel"))
+        return
+    written = write_licenses(compat_data, answer.get("licenses"))
+    log("ea %s session=%s reason=%s lsx=%s licence=%s files=%d" % (
+        game, "yes" if answer.get("ok") else "no", answer.get("reason", ""), answer.get("lsx"), answer.get("license", ""), written))
+
+
+def gog_support_actions(folder):
+    found = []
+    for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
+        product = script.name[len("goggame-"):-len(".script")]
+        try:
+            actions = json.loads(script.read_text(encoding="utf-8-sig")).get("actions")
+        except (OSError, ValueError, AttributeError):
+            continue
+        for action in actions if isinstance(actions, list) else []:
+            install = action.get("install") if isinstance(action, dict) else None
+            if isinstance(install, dict) and install.get("action") == "supportData" \
+                    and isinstance(install.get("arguments"), dict):
+                found.append((product, install["arguments"]))
+    return found
+
+
+def gog_support_bases(folder, product, pfx):
+    user = Path(pfx) / "drive_c" / "users" / "steamuser"
+    support = Path(folder) / "support" / product
+    return {"app": Path(folder), "supportdir": support, "support": support,
+            "userdocs": user / "Documents", "localappdata": user / "AppData" / "Local"}
+
+
+def gog_inside(path, base):
+    root = os.path.realpath(base)
+    real = os.path.realpath(path)
+    return real == root or real.startswith(root + os.sep)
+
+
+def gog_support_path(text, bases):
+    match = re.fullmatch(r"\{(\w+)\}(.*)", text) if isinstance(text, str) else None
+    if not match or match.group(1).lower() not in bases:
+        return None
+    parts = [part for part in re.split(r"[\\/]+", match.group(2)) if part]
+    if any(part in (".", "..") for part in parts):
+        return None
+    base = bases[match.group(1).lower()]
+    path = base
+    for part in parts:
+        exact = path / part
+        if not exact.exists() and path.is_dir():
+            exact = next((child for child in path.iterdir() if child.name.lower() == part.lower()), exact)
+        path = exact
+    if path != base and not gog_inside(path.parent, base):
+        return None
+    return path, base
+
+
+def gog_copy_file(source, target, root):
+    if not gog_inside(target.parent, root):
+        raise OSError("outside " + str(root))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_symlink():
+        target.unlink()
+    shutil.copy2(source, target, follow_symlinks=False)
+
+
+def gog_support_data(folder, compat_data, proton):
+    actions = gog_support_actions(folder)
+    if not actions:
+        return "none"
+    pfx = Path(compat_data) / "pfx" if compat_data else None
+    if not pfx or not (pfx / "drive_c" / "users" / "steamuser").is_dir():
+        made = create_prefix(compat_data, proton)
+        if made not in ("present", "created") or not (pfx / "drive_c" / "users" / "steamuser").is_dir():
+            return "no-prefix"
+    stamp = hashlib.sha256(json.dumps(actions, sort_keys=True).encode("utf-8")).hexdigest()
+    marker = pfx / GOG_SUPPORT_MARK
+    try:
+        if marker.is_file() and marker.read_text() == stamp:
+            return "ready"
+    except OSError:
+        pass
+    copied = skipped = missing = 0
+    for product, arguments in actions:
+        bases = gog_support_bases(folder, product, pfx)
+        found = gog_support_path(arguments.get("target"), bases)
+        origin = gog_support_path(arguments["source"], bases) if "source" in arguments else None
+        if found is None or ("source" in arguments and origin is None):
+            skipped += 1
+            continue
+        target, root = found
+        source = origin[0] if origin else None
+        try:
+            if source is None:
+                target.mkdir(parents=True, exist_ok=True)
+            elif not source.exists():
+                missing += 1
+            elif source.is_dir() and not source.is_symlink():
+                for top, dirs, files in os.walk(source):
+                    for name in sorted(files + [d for d in dirs if (Path(top) / d).is_symlink()]):
+                        item = Path(top) / name
+                        destination = target / item.relative_to(source)
+                        if (destination.exists() or destination.is_symlink()) and not arguments.get("overwrite"):
+                            continue
+                        gog_copy_file(item, destination, root)
+                        copied += 1
+                target.mkdir(parents=True, exist_ok=True)
+            elif (target.exists() or target.is_symlink()) and not arguments.get("overwrite"):
+                continue
+            else:
+                gog_copy_file(source, target, root)
+                copied += 1
+        except OSError:
+            skipped += 1
+    note = "".join(" %s=%d" % (name, count) for name, count in (("skipped", skipped), ("missing", missing)) if count)
+    if not skipped:
+        try:
+            marker.write_text(stamp)
+        except OSError:
+            pass
+    return "copied=%d%s" % (copied, note)
+
+
 def main(argv):
     if os.environ.get("DROIDDECK_GOG_MAINTENANCE") == "1":
         return 0
@@ -654,6 +1325,16 @@ def main(argv):
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+        log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+    if store == "ubisoft":
+        try:
+            log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))
+        except OSError as e:
+            try:
+                (folder / UBISOFT_LAUNCH).unlink()
+            except OSError:
+                pass
+            log("ubisoft %s: not prepared (%s), starting directly" % (game, e))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
@@ -691,6 +1372,9 @@ def main(argv):
                 got = bool(answer.get("code"))
                 log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
+    if store == "ea":
+        prepare_ea(folder, sidecar, compat_data, launch_dir)
+        return STORE_GAME
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))

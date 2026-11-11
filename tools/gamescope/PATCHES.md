@@ -302,6 +302,7 @@ For games that confine a visible cursor and warp it, which the automatic rule ca
 The rule only counted a lock with a cursor position hint. A game that hides the cursor and confines the
 pointer through a grab (Wine's ClipCursor) has a constraint with no hint, so the nested pointer stayed
 absolute, the constraint held the X pointer still and no raw motion was produced: the camera froze.
+0133 narrows this, and the upstream hint rule, to games that hold the X pointer.
 
 ## 0129 steamcompmgr, wayland: release a pointer lock at the game's pointer
 
@@ -326,8 +327,26 @@ each frame's motion to the X pointer itself until the game stops warping. Absolu
 motion, as a real compositor does, so XInput2 raw motion reaches games that read only that. A touch moves the
 pointer without relative motion, so tapping the screen does not turn the camera.
 
+The X pointer is read in root coordinates and the seat position is local to the focused window, so the X pointer
+is moved into the focused window's coordinates before the two are compared. Without that, any window not at the
+root origin (a dialog, or a windowed program) looked like a game warping the pointer, following started, and the
+pointer was pinned to the window's corner. A touch always lands where the finger is and ends following, so taps
+work in every window.
+
 ## 0132 sdl, steamcompmgr: follow a game's window mode
 With `--follow-game-window-mode`, the outer window of a nested SDL gamescope follows the focused game window. A window
 asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen without minimise or maximise functions or
 decorations in `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
 game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
+
+## 0133 steamcompmgr, wlserver: a pointer constraint is relative only while the game holds the X pointer
+
+A game that hides the system cursor, draws its own and grabs the pointer to its window (Stardew Valley, Balatro) gets a lock
+from Xwayland, which emulates the game's warps with a cursor position hint. Upstream kept any hinted lock relative and 0128
+added every other constraint, so gamescope held the host's pointer lock and DroidDeck turned every direct touch swipe into
+camera motion: dragging in those games only moved their cursor. Without relative mode such a lock still follows gamescope's
+relative motion and touches still place the pointer. gamescope now compares the motion it sends (seat movement, or relative
+motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, also when its hint arrives with the game's first warp, and is released
+after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
+of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
+(PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.

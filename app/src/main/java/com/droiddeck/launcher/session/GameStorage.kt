@@ -57,8 +57,10 @@ object GameStorage {
         return pref.isNotEmpty() && pref != SessionPrefs.GAME_STORAGE_OFF && !attached(File(pref))
     }
 
-    internal fun attached(path: File): Boolean =
-        attached(path, runCatching { Environment.getExternalStorageState(path) }.getOrNull())
+    internal fun attached(
+        path: File,
+        stateOf: (File) -> String? = { runCatching { Environment.getExternalStorageState(it) }.getOrNull() },
+    ): Boolean = attached(path, stateOf(File(UsbLink.storagePath(path.path))))
 
     internal fun attached(
         path: File,
@@ -66,8 +68,9 @@ object GameStorage {
         externalStoragePath: Boolean = isExternalStoragePath(path),
     ): Boolean = when {
         state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY -> true
+        path.isDirectory -> true
         externalStoragePath -> false
-        state == Environment.MEDIA_UNKNOWN || state == null -> path.isDirectory || path.parentFile?.isDirectory == true
+        state == Environment.MEDIA_UNKNOWN || state == null -> path.parentFile?.isDirectory == true
         else -> false
     }
 

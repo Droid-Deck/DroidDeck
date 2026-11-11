@@ -430,6 +430,7 @@ internal fun GameActions(
                         openUrl(ctx, item?.storeUrl.orEmpty().ifBlank { GameJoltApi.pageUrl("game", installed.sidecar.id) })
                     }
                 }
+                if (store == Store.EA && installed != null) EaUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
@@ -874,12 +875,15 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
 
 @Composable
 private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
+    var browsing by remember(g.gameId) { mutableStateOf<WowAddons.Target?>(null) }
+    browsing?.let { AddonBrowserDialog(targets, it) { browsing = null } }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         targets.forEach { target ->
             val names by produceState(emptyList<String>(), target.addOns, WowAddons.imports) {
                 value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
+            MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
             MenuItem(
                 stringResource(R.string.games_import_addons), checked = false,
                 detail = pluralStringResource(R.plurals.games_addons_count, names.size, names.size),
@@ -912,7 +916,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 
 @Composable
 private fun CloudRows(g: Library.SteamGame) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }

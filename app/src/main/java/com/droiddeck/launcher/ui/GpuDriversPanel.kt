@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -134,8 +133,6 @@ class GpuDriversState(
     val runtime: DriverSlot = DriverSlot(),
     val canRestart: Boolean = true,
     val checkedAt: Long = 0L,
-    val tpUbwcMode: String? = null,
-    val tpUbwcRestartRequired: Boolean = false,
 ) {
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
@@ -156,7 +153,6 @@ class GpuDriversActions(
     val onRestoreBundled: () -> Unit = {},
     val onMode: (String) -> Unit = {},
     val onRestart: () -> Unit = {},
-    val onTpUbwcMode: (String) -> Unit = {},
 )
 
 @Composable
@@ -257,27 +253,6 @@ internal fun GpuDriversBody(
             GPU_MODE_AUTO -> AutoBody(gpu, actions)
             GPU_MODE_PAIR -> PairBody(gpu, actions)
             else -> MixBody(single, actions, slotFocus, onOpenSlot)
-        }
-        gpu.tpUbwcMode?.let { selected ->
-            var advanced by rememberSaveable { mutableStateOf(false) }
-            SecondaryButton(stringResource(R.string.gpu_advanced) + if (advanced) " ▴" else " ▾", modifier = Modifier.fillMaxWidth()) { advanced = !advanced }
-            AnimatedVisibility(advanced) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ChoiceRow(
-                        rememberMenuHost(), "tp-ubwc", stringResource(R.string.gpu_ubwc_title),
-                        stringResource(R.string.gpu_ubwc_hint),
-                        listOf(
-                            SessionPrefs.TP_UBWC_AUTO to stringResource(R.string.common_auto),
-                            SessionPrefs.TP_UBWC_ON to stringResource(R.string.widgets_on),
-                            SessionPrefs.TP_UBWC_OFF to stringResource(R.string.widgets_off),
-                        ), selected, onPick = actions.onTpUbwcMode,
-                    )
-                    if (gpu.tpUbwcRestartRequired) {
-                        Text(stringResource(R.string.gpu_ubwc_restart), fontSize = 13.sp, color = AttentionAmber)
-                        if (gpu.canRestart) SecondaryButton(stringResource(R.string.gpu_restart_now), onClick = actions.onRestart)
-                    }
-                }
-            }
         }
     }
 }

@@ -101,23 +101,31 @@ def description_excerpt(body):
     return ""
 
 
-def build_content(repo, number, title, sha, apk, release, description=None):
+def commit_subject(message):
+    subject = (message or "").splitlines()[0].strip() if message else ""
+    return plain_title(subject[:300])
+
+
+def build_content(repo, number, title, sha, apk, release, description=None, commit_message=None):
     excerpt = description_excerpt(description)
+    subject = commit_subject(commit_message)
     return (f"**Signed test build** `pr-{number}` · `{sha[:7]}`\n"
             f"[#{number}](https://github.com/{repo}/pull/{number}): {plain_title(title)}\n"
+            + (f"Latest commit: {subject}\n" if subject else "")
             + (f"\n{excerpt}\n\n" if excerpt else "") +
             "_Not merged — for testing._\n"
             f"In the app: **Updates → Test builds → #{number}**\n"
             f"Download: [standard APK](<{apk}>) · [all variants](<{release}>)")
 
 
-def retired_content(content, merged):
-    label = "Merged" if merged else "Closed"
-    if content.startswith(("**Merged** —", "**Closed** —")):
+def retired_content(content, merged=False, superseded_by=None):
+    label = f"Superseded by `{superseded_by[:7]}`" if superseded_by else ("Merged" if merged else "Closed")
+    if content.startswith(("**Merged** —", "**Closed** —", "**Superseded by `")):
         content = "\n".join(line[2:-2] if line.startswith("~~") and line.endswith("~~") else line
                             for line in content.splitlines()[2:])
     struck = "\n".join(f"~~{line}~~" if line else "" for line in content.splitlines())
-    return f"**{label}** — this test build is no longer available.\n\n{struck}"
+    note = "This test build has been replaced." if superseded_by else "This test build is no longer available."
+    return f"**{label}** — {note}\n\n{struck}"
 
 
 def sync(mode, repo, number, discord, sha="", apk="", release=""):
@@ -136,6 +144,11 @@ def sync(mode, repo, number, discord, sha="", apk="", release=""):
             return
         raise RuntimeError("Signed build report comment is missing")
     message_id = saved_message(comment["body"], discord.id)
+    state_match = STATE.search(comment["body"])
+    try:
+        old_state = json.loads(state_match.group(1)) if state_match else {}
+    except ValueError:
+        old_state = {}
     if mode == "retire":
         if message_id:
             message = discord.request("GET", f"/messages/{message_id}")
@@ -144,16 +157,41 @@ def sync(mode, repo, number, discord, sha="", apk="", release=""):
                                 {"content": retired_content(message["content"], pull.get("merged", False)),
                                  "allowed_mentions": {"parse": []}, "flags": 4})
         return
-    content = build_content(repo, number, pull["title"], sha, apk, release, pull.get("body"))
+    try:
+        commit = github(f"repos/{repo}/commits/{sha}") or {}
+    except RuntimeError:
+        commit = {}
+    commit_message = (commit.get("commit") or {}).get("message", "")
+    content = build_content(repo, number, pull["title"], sha, apk, release, pull.get("body"), commit_message)
     if len(content) > 1800:
         raise RuntimeError("Discord announcement is too long")
     payload = {"content": content, "allowed_mentions": {"parse": []}, "flags": 4}
-    message = discord.request("PATCH", f"/messages/{message_id}", payload) if message_id else None
+    old_message = None
+    previous_sha = old_state.get("sha")
+    if message_id and not previous_sha:
+        old_message = discord.request("GET", f"/messages/{message_id}")
+        if old_message:
+            match = re.search(r"`([0-9a-f]{7})`", old_message.get("content", ""))
+            previous_sha = match.group(1) if match else None
+    if message_id and (previous_sha == sha or previous_sha == sha[:7]):
+        message = discord.request("PATCH", f"/messages/{message_id}", payload)
+    else:
+        if message_id and old_state.get("sha"):
+            previous = discord.request("GET", f"/messages/{message_id}")
+            if previous:
+                discord.request("PATCH", f"/messages/{message_id}",
+                                {"content": retired_content(previous["content"], superseded_by=sha),
+                                 "allowed_mentions": {"parse": []}, "flags": 4})
+        elif message_id and old_message:
+            discord.request("PATCH", f"/messages/{message_id}",
+                            {"content": retired_content(old_message["content"], superseded_by=sha),
+                             "allowed_mentions": {"parse": []}, "flags": 4})
+        message = None
     if message is None:
         message = discord.request("POST", "?wait=true", payload)
         if message is None:
             raise RuntimeError("Discord webhook no longer exists")
-    state = {"webhook_id": discord.id, "message_id": message["id"]}
+    state = {"webhook_id": discord.id, "message_id": message["id"], "sha": sha}
     latest = github(f"repos/{repo}/issues/comments/{comment['id']}")
     body = STATE.sub("", latest["body"]).rstrip() + f"\n<!-- droiddeck-discord: {json.dumps(state)} -->"
     github(f"repos/{repo}/issues/comments/{comment['id']}", "PATCH", {"body": body})

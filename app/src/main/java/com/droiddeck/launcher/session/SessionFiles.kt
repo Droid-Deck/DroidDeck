@@ -33,6 +33,37 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
+    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+
+    /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
+    fun ensureUbisoftService(context: Context) {
+        AddonPack.UBISOFT.ensure(context) { app ->
+            com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
+                ?.let { stageUbisoftService(app, it, null) }
+        }
+    }
+
+    @Synchronized
+    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
+        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
+        val target = File(root, UBISOFT_SERVICE)
+        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
+        val staged = File(target.parentFile, target.name + ".staged")
+        var installed = false
+        try {
+            target.parentFile?.mkdirs()
+            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
+                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+            }
+            installed = staged.setExecutable(true, false) && staged.renameTo(target)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
+        } finally {
+            if (!installed) staged.delete()
+        }
+        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+    }
+
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
@@ -40,8 +71,10 @@ object SessionFiles {
         WinComponents.publish(context)
         val files = arrayOf(
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
             "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
@@ -50,6 +83,7 @@ object SessionFiles {
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
             "libblaudit.so" to "usr/local/lib/libblaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
@@ -112,6 +146,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
+            "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -248,18 +283,23 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        stageUbisoftService(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
+        val nativeUserland = SessionPrefs.nativeUserland(context)
+        if (nativeUserland) com.droiddeck.launcher.runtime.NativeGuest.prepare(context, root)
         if (ProotFastPath.enabled(context)) {
             val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
             preload.append(library + "\n")
             if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
         }
         val etc = File(root, "etc").apply { mkdirs() }
+        File(etc, "droiddeck").mkdirs()
+        FileUtils.writeString(File(etc, "droiddeck/native-preload"), preload.toString())
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
             || !staged.renameTo(File(etc, "ld.so.preload"))) {

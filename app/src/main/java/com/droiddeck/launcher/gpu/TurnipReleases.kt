@@ -97,6 +97,7 @@ object TurnipReleases {
                 // Venus): its driver pairs fall past the first 15, so it is read in one full page.
                 val perPage = if (src.repo == NON_ADRENO_REPO) 100 else 15
                 val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=$perPage"))
+                val found = JSONArray()
                 val seen = HashSet<String>()
                 var newest: String? = null
                 for (i in 0 until releases.length()) {
@@ -114,12 +115,13 @@ object TurnipReleases {
                         val label = kind.label
                         val sha = Hashes.githubSha256(a.optString("digest")) ?: continue
                         if (!seen.add(if (kind.bundle) kind.pair else "$linux|$label")) continue
-                        assets.put(JSONObject().put("source", src.label).put("tag", tag).put("name", name)
+                        found.put(JSONObject().put("source", src.label).put("tag", tag).put("name", name)
                             .put("url", a.getString("browser_download_url")).put("size", a.optLong("size"))
                             .put("linux", linux).put("label", label).put("sha256", sha).put("pair", kind.pair)
                             .put("bundle", kind.bundle).put("id", a.optLong("id")).put("updated_at", a.optString("updated_at")))
                     }
                 }
+                for (i in 0 until found.length()) assets.put(found.get(i))
                 if (newest != null) latest.put(JSONObject().put("source", src.label).put("tag", newest))
             } catch (e: Exception) {
                 failed.add(src.label)
@@ -127,7 +129,8 @@ object TurnipReleases {
             }
         }
         if (failed.size == sources.size) throw lastError ?: IOException("no source answered")
-        runCatching { get(context, AutoPicks.URL, AutoPicks.URL) }
+        carryOver(failed, prefs(context).getString(KEY_RELEASE, null)?.let { runCatching { JSONObject(it) }.getOrNull() }, assets, latest)
+        runCatching { fetch(context, AutoPicks.URL, AutoPicks.URL) }
             .onFailure { Log.i(TAG, "auto picks: ${it.message}") }
             .getOrNull()?.takeIf { AutoPicks.parse(it) != null }
             ?.let { prefs(context).edit().putString(KEY_PICKS, it).apply() }
@@ -137,12 +140,22 @@ object TurnipReleases {
         return parse(stored)
     }
 
+    internal var fetch: (Context, String, String) -> String = { context, source, url -> get(context, source, url) }
+
+    internal fun carryOver(failed: List<String>, previous: JSONObject?, assets: JSONArray, latest: JSONArray) {
+        if (previous == null || failed.isEmpty()) return
+        for ((key, into) in listOf("assets" to assets, "latest" to latest)) {
+            val old = previous.optJSONArray(key) ?: continue
+            for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optString("source") in failed }?.let(into::put)
+        }
+    }
+
     private fun get(context: Context, url: String): String {
         val sources = DownloadSource.candidates(url)
         var last: IOException? = null
         for ((index, source) in sources.withIndex()) {
             try {
-                val body = get(context, source, url)
+                val body = fetch(context, source, url)
                 DownloadSource.succeeded(source)
                 return body
             } catch (e: IOException) {

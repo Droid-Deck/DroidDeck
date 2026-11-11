@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -155,6 +156,7 @@ class RuntimeUserDataCarryTest {
     }
 
     @Test fun anUnreadableAppImageDirectoryAbortsBeforeMovingHome() {
+        assumeFilePermissionsEnforced()
         assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
         val old = userTree()
         val images = File(old, "opt/appimages")
@@ -264,6 +266,7 @@ class RuntimeUserDataCarryTest {
     }
 
     @Test fun anInaccessibleLiveHomeIsNeverTreatedAsMissing() {
+        assumeFilePermissionsEnforced()
         assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
         val root = tmp.newFolder("runtime")
         val staging = tmp.newFolder("runtime.new")

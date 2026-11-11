@@ -22,8 +22,12 @@
 #define MAX_LISTINGS 16
 #define MAX_ENTRIES 100000
 #define MAX_HANDLES 64
+#define MAX_UP 32
 #define FUSE_MAGIC 0x65735546
 #define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
+#define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR | IN_MASK_ADD)
+#define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)
+#define LINKED (IN_DELETE_SELF | IN_MOVE_SELF | IN_DONT_FOLLOW | IN_MASK_ADD)
 
 #if __SIZEOF_POINTER__ == 8
 
@@ -42,10 +46,14 @@ struct listing {
   int refs;
   int detached;
   int wd;
+  int up[MAX_UP], nup;
+  int blind;
   size_t n, cap;
   struct entry *e;
   char *recs;
   size_t len;
+  char *where;
+  int folds;
 };
 
 struct handle {
@@ -55,6 +63,8 @@ struct handle {
   size_t pos;
   int fd;
   int wd;
+  int up[MAX_UP], nup;
+  int blind;
   int dirty;
   char *path;
   struct dirent64 out;
@@ -147,6 +157,7 @@ static void destroy(struct listing *l) {
   for (size_t i = 0; i < l->n; i++) free(l->e[i].name);
   free(l->e);
   free(l->recs);
+  free(l->where);
   free(l);
 }
 
@@ -155,13 +166,24 @@ static void unref(struct listing *l) {
 }
 
 
+static int under(const int *up, int nup, int wd) {
+  for (int i = 0; i < nup; i++)
+    if (up[i] == wd) return 1;
+  return 0;
+}
+
 static void release(int wd) {
   if (wd < 0 || notify < 0) return;
   for (int i = 0; i < MAX_LISTINGS; i++)
-    if (table[i] && table[i]->wd == wd) return;
+    if (table[i] && (table[i]->wd == wd || under(table[i]->up, table[i]->nup, wd))) return;
   for (int i = 0; i < high_water; i++)
-    if (handles[i] && handles[i]->wd == wd) return;
+    if (handles[i] && (handles[i]->wd == wd || under(handles[i]->up, handles[i]->nup, wd))) return;
   inotify_rm_watch(notify, wd);
+}
+
+static void let_go(int wd, const int *up, int nup) {
+  release(wd);
+  for (int i = 0; i < nup; i++) release(up[i]);
 }
 
 static void detach(struct listing *l) {
@@ -172,17 +194,32 @@ static void detach(struct listing *l) {
 
 static void drop(int slot) {
   struct listing *l = table[slot];
-  int wd = l->wd;
+  int wd = l->wd, up[MAX_UP], nup = l->nup;
+  memcpy(up, l->up, sizeof(up));
   table[slot] = NULL;
   detach(l);
-  release(wd);
+  let_go(wd, up, nup);
 }
 
-static void changed(int wd) {
+static void changed(int wd, uint32_t mask) {
+  int gone = (mask & GONE) != 0;
   for (int i = 0; i < MAX_LISTINGS; i++)
-    if (table[i] && (table[i]->wd == wd || wd < 0)) drop(i);
+    if (table[i] && (table[i]->wd == wd || wd < 0 || (gone && under(table[i]->up, table[i]->nup, wd)))) drop(i);
   for (int i = 0; i < high_water; i++)
-    if (handles[i] && (handles[i]->wd == wd || wd < 0)) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
+    if (handles[i] && (handles[i]->wd == wd || wd < 0 || (gone && under(handles[i]->up, handles[i]->nup, wd))))
+      __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
+}
+
+static void forget_below(const char *path) {
+  if (path == NULL || path[0] != '/') return;
+  size_t n = strlen(path);
+  while (n > 1 && path[n - 1] == '/') n--;
+  for (int i = 0; i < MAX_LISTINGS; i++) {
+    struct listing *l = table[i];
+    if (l == NULL || l->where == NULL) continue;
+    int prefix = l->folds ? strncasecmp(l->where, path, n) == 0 : strncmp(l->where, path, n) == 0;
+    if (prefix && (l->where[n] == '/' || l->where[n] == 0)) drop(i);
+  }
 }
 
 static void pump(struct expect *x, int nx) {
@@ -194,7 +231,7 @@ static void pump(struct expect *x, int nx) {
     if (n <= 0) {
       if (n < 0 && errno != EAGAIN && errno != EINTR) {
         notify = -2;
-        changed(-1);
+        changed(-1, 0);
       }
       break;
     }
@@ -202,7 +239,7 @@ static void pump(struct expect *x, int nx) {
       struct inotify_event *ev = (struct inotify_event *)p;
       p += sizeof(*ev) + ev->len;
       if (ev->mask & IN_Q_OVERFLOW) {
-        changed(-1);
+        changed(-1, 0);
         continue;
       }
       int k = 0;
@@ -212,21 +249,21 @@ static void pump(struct expect *x, int nx) {
         for (int i = 0; i < high_water; i++)
           if (handles[i] && handles[i]->wd == ev->wd) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
       } else {
-        changed(ev->wd);
+        changed(ev->wd, ev->mask);
       }
     }
   }
   errno = saved;
 }
 
-static int watch(const char *path) {
+static int watch(const char *path, uint32_t mask) {
   if (notify == -1) notify = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
   if (notify < 0) {
     notify = -2;
     return -1;
   }
   int saved = errno;
-  int wd = inotify_add_watch(notify, path, WATCHED);
+  int wd = inotify_add_watch(notify, path, mask);
   errno = saved;
   return wd;
 }
@@ -257,10 +294,11 @@ static void install(struct listing *l) {
   int slot = find(l->dev, l->ino);
   if (slot >= 0) {
     struct listing *old = table[slot];
-    int old_wd = old->wd;
+    int old_wd = old->wd, up[MAX_UP], nup = old->nup;
+    memcpy(up, old->up, sizeof(up));
     table[slot] = l;
     detach(old);
-    if (old_wd != l->wd) release(old_wd);
+    let_go(old_wd, up, nup);
     return;
   }
   int victim = -1;
@@ -387,11 +425,47 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   return NULL;
 }
 
+static int above(struct handle *h, const char *path) {
+  char up[PATH_MAX];
+  size_t n = strlen(path);
+  while (n > 1 && path[n - 1] == '/') n--;
+  if (n >= sizeof(up)) return 0;
+  memcpy(up, path, n);
+  up[n] = 0;
+  size_t root = (size_t)(strstr(path, "/steamapps") - path) + 10;
+  for (size_t i = 1; i <= n; i++) {
+    if (up[i] != '/' && up[i] != 0) continue;
+    char at = up[i];
+    up[i] = 0;
+    int wd = i < n ? watch(up, ABOVE) : h->wd;
+    int link = watch(up, LINKED);
+    up[i] = at;
+    if (link < 0) h->blind = 1;
+    else if (link != wd) {
+      h->blind = 1;
+      release(link);
+    }
+    if (i == n) break;
+    if (wd < 0 && i < root) {
+      h->blind = 1;
+      continue;
+    }
+    if (wd < 0) return 0;
+    if (wd == h->wd || under(h->up, h->nup, wd)) continue;
+    if (h->nup == MAX_UP) {
+      release(wd);
+      return 0;
+    }
+    h->up[h->nup++] = wd;
+  }
+  return 1;
+}
+
 static int track(struct handle *h, const char *path) {
   pthread_mutex_lock(&lock);
-  h->wd = watch(path);
-  DIR *d = h->wd >= 0 ? wrap(h) : NULL;
-  if (d == NULL && h->wd >= 0) release(h->wd);
+  h->wd = watch(path, WATCHED);
+  DIR *d = h->wd >= 0 && above(h, path) ? wrap(h) : NULL;
+  if (d == NULL) let_go(h->wd, h->up, h->nup);
   pthread_mutex_unlock(&lock);
   return d != NULL;
 }
@@ -404,6 +478,10 @@ static void filling(struct handle *h, DIR *real, const struct stat *st, long lon
     h->fill->filled = now;
     h->fill->used = now;
     h->fill->wd = h->wd;
+    memcpy(h->fill->up, h->up, sizeof(h->up));
+    h->fill->nup = h->nup;
+    h->fill->blind = h->blind;
+    h->fill->where = strdup(h->path);
   }
 }
 
@@ -411,7 +489,7 @@ static void untrack(struct handle *h) {
   pthread_mutex_lock(&lock);
   int i = registered((DIR *)h);
   if (i >= 0) __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
-  release(h->wd);
+  let_go(h->wd, h->up, h->nup);
   pthread_mutex_unlock(&lock);
 }
 
@@ -454,11 +532,27 @@ static void abandon(struct handle *h) {
   h->fill = NULL;
 }
 
+static int folds(const char *path, const struct stat *st) {
+  char swapped[PATH_MAX];
+  struct stat b;
+  const char *at = strstr(path, "/steamapps");
+  size_t n = strlen(path);
+  if (at == NULL || n >= sizeof(swapped)) return 0;
+  memcpy(swapped, path, n + 1);
+  for (char *c = swapped + (at - path); *c; c++)
+    if ((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z')) *c ^= 0x20;
+  int saved = errno;
+  int same_dir = stat(swapped, &b) == 0 && b.st_dev == st->st_dev && b.st_ino == st->st_ino;
+  errno = saved;
+  return same_dir;
+}
+
 static void finish(struct handle *h) {
   struct listing *l = h->fill;
   struct stat st;
   h->fill = NULL;
   int current = stat(h->path, &st) == 0 && same(l, &st);
+  if (current) l->folds = folds(h->path, &st);
   pthread_mutex_lock(&lock);
   if (!changing) pump(NULL, 0);
   if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
@@ -536,7 +630,7 @@ int closedir(DIR *d) {
   if (h) {
     __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
     if (h->snap) unref(h->snap);
-    release(h->wd);
+    let_go(h->wd, h->up, h->nup);
   }
   pthread_mutex_unlock(&lock);
   if (h == NULL) return next_closedir(d);
@@ -658,6 +752,11 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
     copy->filled = l->filled;
     copy->used = l->used;
     copy->wd = l->wd;
+    memcpy(copy->up, l->up, sizeof(l->up));
+    copy->nup = l->nup;
+    copy->blind = l->blind;
+    copy->where = l->where ? strdup(l->where) : NULL;
+    copy->folds = l->folds;
     copy->detached = 0;
     stamp(copy, &s->before);
     table[slot] = copy;
@@ -738,6 +837,7 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
     struct expect x; \
     pthread_mutex_lock(&lock); \
     int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
+    if (r == 0 && what == REMOVED) forget_below(path); \
     pthread_mutex_unlock(&lock); \
     end(&x, nx); \
     pthread_mutex_unlock(&oplock); \
@@ -770,6 +870,7 @@ ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
       if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
       nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
     } \
+    if (r == 0 && gone) { forget_below(from); forget_below(to); } \
     pthread_mutex_unlock(&lock); \
     end(x, nx); \
     pthread_mutex_unlock(&oplock); \
@@ -784,7 +885,61 @@ TWO_PATHS(rename, 1, IN_MOVED_TO, next_rename)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
 TWO_PATHS(symlink, 0, IN_CREATE, next_symlink)
 
+static int named(const struct listing *l, const char *name) {
+  for (size_t i = 0; i < l->n; i++)
+    if (strcasecmp(l->e[i].name, name) == 0) return 1;
+  return 0;
+}
+
+static int folded_match(const char *where, const char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  if (at == NULL) return 0;
+  size_t n = (size_t)(at - where);
+  return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
+}
+
+static int same_dir(const struct listing *l, const char *dir) {
+  struct stat st;
+  int saved = errno;
+  int same = stat(dir, &st) == 0 && st.st_dev == l->dev && st.st_ino == l->ino;
+  errno = saved;
+  return same;
+}
+
+static int listed_absent(const char *dir, const char *name, long long now) {
+  for (int i = 0; i < MAX_LISTINGS; i++) {
+    struct listing *l = table[i];
+    if (l == NULL || l->where == NULL || l->blind || now - l->filled >= DIR_TTL_NS) continue;
+    if (strcmp(l->where, dir) == 0) return !named(l, name);
+    if (l->folds && folded_match(l->where, dir)) return same_dir(l, dir) && !named(l, name);
+  }
+  return 0;
+}
+
+int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int bl_dircache_absent(const char *path) {
+  struct side s;
+  if (!watching(path) || !split(path, &s)) return 0;
+  for (const char *c = s.name; *c; c++)
+    if ((unsigned char)*c >= 0x80) return 0;
+  long long now = now_ns();
+  pthread_mutex_lock(&lock);
+  int absent = 0;
+  if (!changing) {
+    pump(NULL, 0);
+    absent = listed_absent(s.dir, s.name, now);
+  }
+  pthread_mutex_unlock(&lock);
+  return absent;
+}
+
 #else
+
+int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int bl_dircache_absent(const char *path) {
+  (void)path;
+  return 0;
+}
 
 int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));

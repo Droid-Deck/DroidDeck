@@ -55,8 +55,9 @@ profile are never removed. Steam's process log tells it how long each game ran. 
 for at least a minute on the previous build and then exits within 30 seconds twice
 on the new one rolls back every component line that changed since that boot, and
 each failed build is skipped until a newer one is published. Games with their own component override are
-not counted. DXVK stays on Manual while a GPU rule pins a DXVK version (Adreno 6xx and
-the Vulkan bridge). Manual keeps the existing download, import and restore lists.
+not counted. DXVK stays on Manual while the Vulkan bridge or the PowerVR runtime chooses DXVK.
+On an Adreno 6xx, DXVK Auto keeps every DroidDeck-Proton build on DXVK-gplasync 2.7.1 instead of
+following the nightlies (see below). Manual keeps the existing download, import and restore lists.
 
 Before publishing game component choices, DroidDeck preserves each Proton build's
 original components, including an explicitly empty bundle when a component is not
@@ -225,6 +226,9 @@ On an Adreno 6xx, Turnip does not expose `storageBuffer8BitAccess`, which DXVK 3
 requires. A Steam or desktop session installs DXVK 2.7.1 into any Proton whose
 DXVK is still the copy that Proton shipped, including after a Proton update put
 that copy back. A DXVK package chosen in Components stays for that Proton build.
+With DXVK on Auto, DroidDeck-Proton builds get DXVK-gplasync 2.7.1 instead, replacing the
+shipped copy, the forced DXVK 2.7.1 or an older Auto choice; other Proton builds keep DXVK 2.7.1.
+Adreno 7xx and 8xx follow the DXVK nightlies as before.
 
 The variable-name picker offers 24 predefined variables and a Custom entry. Like
 WinNative, known variables use toggles, value dropdowns, multi-select lists, or

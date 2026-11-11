@@ -109,6 +109,7 @@ import com.droiddeck.launcher.stores.itch.ItchUpdates
 import com.droiddeck.launcher.stores.gog.GogMaintenance
 import com.droiddeck.launcher.stores.retainOrder
 import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
+import com.droiddeck.launcher.stores.entryTime
 import com.droiddeck.launcher.stores.sortGames
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
@@ -296,8 +297,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val sizesPending = sizeSort && !sizesWaited && candidates.any { sizeOf(it) == null }
     val sorted = sortGames(
         candidates, sort, title = { it.title }, releaseDate = { it.item?.releaseDate.orEmpty() },
-        lastPlayed = { e -> e.game?.lastPlayed ?: e.storeKey?.let { lastPlayed[it] } ?: 0L },
-        installedAt = { e -> e.storeKey?.let { installedAt[it] } ?: 0L },
+        lastPlayed = { e -> entryTime(e.game?.lastPlayed, e.storeKey?.let { lastPlayed[it] }) },
+        installedAt = { e -> entryTime(e.storeKey?.let { installedAt[it] }, e.game?.installedAt) },
         size = { e -> sizeOf(e) ?: 0L },
     )
     var stable by remember { mutableStateOf(emptyList<LibraryEntry>()) }
@@ -741,7 +742,7 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownlo
     }
 }
 
-private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available } == true ||
+private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
     e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
 
 @Composable
