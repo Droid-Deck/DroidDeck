@@ -55,10 +55,10 @@ data class InputProfile(
 
     fun showsMouseButton(role: InputRole, shown: List<InputSurfaceElement>, stock: InputProfile): Boolean = shown.any { element ->
         val action = elementAction(role, element.id, element.control).takeIf {
-            elements[role]?.containsKey(element.id) == true || it != stock.elementAction(role, element.id, element.control)
+            elements[role]?.get(element.id) != stock.elements[role]?.get(element.id) || it != stock.elementAction(role, element.id, element.control)
         }
         val click = elementClickAction(role, element).takeIf {
-            clicks[role]?.containsKey(element.id) == true || it != stock.elementClickAction(role, element)
+            clicks[role]?.get(element.id) != stock.clicks[role]?.get(element.id) || it != stock.elementClickAction(role, element)
         }
         listOfNotNull(action, click).any { it is InputAction.MouseButton && it.validFor(element.control) }
     }

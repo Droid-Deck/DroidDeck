@@ -3551,7 +3551,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val library = com.droiddeck.launcher.input.InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
         inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
-        stockInputProfile = InputProfile.defaults(library.profile(library.activeId(desktop)).base)
+        stockInputProfile = library.compileStock(desktop, secondScreenMode.panel(this))
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
         quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
@@ -4005,9 +4005,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var sessionTouchDown = false
     private var screenTapsClick = true
 
-    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(onScreenControls, bottomInputControls).any {
-        it.isShown && inputProfile.showsMouseButton(InputRole.PRIMARY, it.shownElements, stockInputProfile)
-    }
+    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(
+        onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedDeckSurface,
+        secondScreenPresentation?.controlsView,
+    ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)

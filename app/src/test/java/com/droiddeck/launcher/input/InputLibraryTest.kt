@@ -592,4 +592,27 @@ class InputLibraryTest {
         assertEquals(old.preset(InputStockLayouts.TRACKPAD), upgraded.preset(InputStockLayouts.TRACKPAD))
         assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layouts.single { it.id == InputLibraries.DECK }.elements)
     }
+
+    @Test fun stockSecondScreenPanelsKeepTapsClicking() {
+        val library = InputLibraries.read(context)
+        for (desktop in listOf(false, true)) for (panel in listOf(null, InputStockLayouts.TRACKPAD) + DeckPanel.entries.map { it.bindings }) {
+            val shown = library.panelLayout(desktop, panel)!!.elements
+            assertTrue(shown.isNotEmpty())
+            assertFalse(library.compileActive(desktop, panel).showsMouseButton(InputRole.SECONDARY, shown, library.compileStock(desktop, panel)))
+        }
+    }
+
+    @Test fun userBoundSecondScreenMouseButtonIsDetected() {
+        val stock = InputLibraries.read(context)
+        val grips = DeckPanel.GRIPS.bindings
+        val button = stock.panelLayout(false, grips)!!.elements.first { it.control.dimensions == 1 }
+        val bound = stock.withPreset(stock.preset(grips).copy(elements = mapOf(button.id to InputAction.MouseButton(272))))
+        for (desktop in listOf(false, true)) {
+            assertTrue(bound.compileActive(desktop, grips).showsMouseButton(InputRole.SECONDARY, listOf(button), bound.compileStock(desktop, grips)))
+            assertFalse(bound.compileActive(desktop, grips).showsMouseButton(InputRole.PRIMARY, listOf(button), bound.compileStock(desktop, grips)))
+        }
+        val pad = stock.panelLayout(true, InputStockLayouts.TRACKPAD)!!.elements.single()
+        val rebound = stock.withPreset(stock.preset(InputStockLayouts.TRACKPAD).let { it.copy(clicks = it.clicks + (pad.id to InputAction.MouseButton(273))) })
+        assertTrue(rebound.compileActive(true).showsMouseButton(InputRole.SECONDARY, listOf(pad), rebound.compileStock(true)))
+    }
 }

@@ -48,7 +48,7 @@ class InputSurfaceView(
     context: Context,
     private val pad: PadBridge? = null,
     private var customLayout: List<InputSurfaceElement> = emptyList(),
-    private val inputRole: InputRole = InputRole.SECONDARY,
+    val inputRole: InputRole = InputRole.SECONDARY,
     private var surfaceStyle: InputSurfaceStyle = InputSurfaceStyle(),
     private val haptics: Boolean = inputRole != InputRole.PRIMARY,
 ) : FrameLayout(context) {
