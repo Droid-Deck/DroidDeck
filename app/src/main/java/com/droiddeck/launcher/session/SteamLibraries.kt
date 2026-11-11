@@ -175,7 +175,7 @@ object SteamLibraries {
 
     internal fun overlaps(a: String, b: String): Boolean = a == b || a.startsWith("$b/") || b.startsWith("$a/")
 
-    private fun canonical(file: File): String = UsbLink.storagePath(runCatching { file.canonicalPath }.getOrDefault(file.absolutePath))
+    internal fun canonical(file: File): String = UsbLink.storagePath(runCatching { file.canonicalPath }.getOrDefault(file.absolutePath))
 
     private const val SCAN_DEPTH = 2
     private const val SCAN_LIMIT = 4000

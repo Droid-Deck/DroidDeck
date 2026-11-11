@@ -144,6 +144,14 @@ class SteamLibrariesTest {
         assertEquals("${lib.guest}/steamapps/common/Game", AddedGames.guestPath(app, scanned.folder))
     }
 
+    @Test fun rawAndStorageMountViewsOverlapButDistinctFoldersDoNot() {
+        val raw = SteamLibraries.canonical(File("/mnt/media_rw/ABCD-1234/Games"))
+        val storage = SteamLibraries.canonical(File("/storage/ABCD-1234/Games"))
+        assertEquals(storage, raw)
+        assertTrue(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Games/Steam"))))
+        assertFalse(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Other"))))
+    }
+
     @Test fun unreadableOrInvalidEntriesAreDropped() {
         assertTrue(SteamLibraries.parse("{oops").isEmpty())
         assertEquals(listOf("2"), SteamLibraries.parse("""[{"id":"../x","path":"/a"},{"id":"2","path":"/b","label":""}]""").map { it.id })
