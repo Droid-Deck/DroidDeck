@@ -198,6 +198,91 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(path.stat().st_mtime_ns, mtime)
 
 
+class DriveTest(Temp):
+    def setUp(self):
+        super().setUp()
+        self.root = str(self.tmp / "Steam")
+        self.devices = Path(BNET["dosdevices"](self.root))
+        self.card = self.tmp / "card"
+        self.library = self.card / "Games/Battle.net"
+        self.library.mkdir(parents=True)
+        self.running = []
+        patcher = mock.patch.dict(BNET, {"say": lambda message: None, "wine_processes": lambda pfx, proc="/proc": list(self.running),
+                                         "volume_root": lambda path: str(self.card) if BNET["inside"](path, str(self.card)) else "/"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_volume_ends_where_the_device_changes(self):
+        devices = {"/": 1, "/mnt": 1, "/mnt/card": 7, "/mnt/card/Games": 7, "/mnt/card/Games/Battle.net": 7, "/root": 1, "/root/Games": 1}
+        with mock.patch.object(os, "stat", lambda path: mock.Mock(st_dev=devices[path])):
+            volume_root = runpy.run_path(str(BIN / "droiddeck-battlenet"))["volume_root"]
+            self.assertEqual(volume_root("/mnt/card/Games/Battle.net"), "/mnt/card")
+            self.assertEqual(volume_root("/mnt/card"), "/mnt/card")
+            self.assertEqual(volume_root("/root/Games"), "/")
+            self.assertEqual(volume_root("/"), "/")
+
+    def test_a_library_on_the_root_volume_keeps_its_path_and_gets_no_drive(self):
+        library = self.tmp / "root/Games/Battle.net"
+        library.mkdir(parents=True)
+        self.assertEqual(BNET["install_path"](self.root, str(library) + "/"), "Z:" + str(library))
+        self.assertFalse(self.devices.exists())
+
+    def test_a_library_on_another_volume_gets_a_drive_at_the_volume_root(self):
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "D:\\Games\\Battle.net")
+        self.assertEqual(os.readlink(self.devices / "d:"), str(self.card))
+        self.assertEqual(BNET["install_path"](self.root, str(self.library / "World of Warcraft")), "D:\\Games\\Battle.net\\World of Warcraft")
+        self.assertEqual(BNET["install_path"](self.root, str(self.card)), "D:\\")
+        self.assertEqual(sorted(os.listdir(self.devices)), ["d:"])
+
+    def test_drives_in_use_and_the_ones_proton_owns_are_left_alone(self):
+        self.devices.mkdir(parents=True)
+        os.symlink("/somewhere/else", self.devices / "d:")
+        os.symlink(str(self.card), self.devices / "s:")
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "E:\\Games\\Battle.net")
+        self.assertEqual(os.readlink(self.devices / "d:"), "/somewhere/else")
+        for letter in BNET["DRIVES"]:
+            if not os.path.lexists(self.devices / (letter + ":")):
+                os.symlink("/somewhere/else", self.devices / (letter + ":"))
+        os.unlink(self.devices / "e:")
+        os.symlink("/somewhere/else", self.devices / "e:")
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "Z:" + str(self.library))
+        self.assertNotIn("s", BNET["DRIVES"])
+        self.assertNotIn("t", BNET["DRIVES"])
+
+    def test_a_running_prefix_gets_no_new_drive_but_uses_the_ones_it_started_with(self):
+        self.running = [(5, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"])]
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "Z:" + str(self.library))
+        self.assertFalse(self.devices.exists())
+        self.running = []
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "D:\\Games\\Battle.net")
+        self.running = [(5, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"])]
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "D:\\Games\\Battle.net")
+
+    def test_a_drive_mapped_inside_the_volume_is_reused(self):
+        self.devices.mkdir(parents=True)
+        os.symlink(str(self.card / "Games"), self.devices / "g:")
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "G:\\Battle.net")
+        self.assertEqual(sorted(os.listdir(self.devices)), ["g:"])
+
+    def test_the_config_stores_the_drive_path_once(self):
+        path = self.tmp / ("Steam/steamapps/compatdata/%s/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
+                           % BNET["APP_ID"])
+        BNET["write_config"](self.root)
+        self.assertEqual(BNET["write_config"](self.root, str(self.library)), "library")
+        self.assertEqual(json.loads(path.read_text())["Client"]["Install"]["DefaultInstallPath"], "D:\\Games\\Battle.net")
+        self.assertIsNone(BNET["write_config"](self.root, str(self.library)))
+
+    def test_registered_paths_resolve_through_their_drive(self):
+        BNET["install_path"](self.root, str(self.library))
+        self.assertEqual(BNET["windows_path"](self.root, "D:/Games/Battle.net/World of Warcraft"),
+                         str(self.library / "World of Warcraft"))
+        self.assertEqual(BNET["windows_path"](self.root, "Z:\\mnt\\card\\World of Warcraft"), "/mnt/card/World of Warcraft")
+        self.assertEqual(BNET["windows_path"](self.root, "C:/Program Files (x86)/World of Warcraft"),
+                         os.path.join(BNET["drive_c"](self.root), "Program Files (x86)/World of Warcraft"))
+        self.assertIsNone(BNET["windows_path"](self.root, "E:/Games/X"))
+        self.assertIsNone(BNET["windows_path"](self.root, "D:/../etc"))
+
+
 class GamepadTest(Temp):
     def registry(self, *entries):
         rows = ["WINE REGISTRY Version 2"]
@@ -772,7 +857,7 @@ class Harness(Temp):
             "stop": lambda processes, wait=0: self.calls.append(("stop", sorted(pid for pid, _ in processes))),
             "start": lambda exe, verb=None: self.calls.append(("start", os.path.basename(exe), verb)) or self.Proton(),
             "spawn": lambda program, verb, args=(): self.calls.append(("spawn", os.path.basename(program), verb, list(args))),
-            "acquire": lambda folder=None: self.lock,
+            "acquire": lambda folder=None: self.lock, "volume_root": lambda path: "/",
             "POLL": 0, "READY_SETTLE": 0, "GAME_GRACE": 0, "CLIENT_WAIT": 0,
         })
         patcher.start()
@@ -1229,6 +1314,21 @@ class AgentJobTest(Harness):
         self.assertEqual(cmd[cmd.index("--") + 2:-1], ["agent-serve", "install", "gryphon", "gryphon", "Z:" + folder, "enUS", "USA", "US"])
         self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
         self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
+
+    def test_an_install_on_another_volume_is_handed_over_by_its_drive_once_the_prefix_is_stopped(self):
+        self.install()
+        card = self.tmp / "card"
+        folder = str(card / "Games/Battle.net/Warcraft Rumble")
+        self.files = {".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
+                      ".game": json.dumps({"installed": True, "install_dir": "D:/Games/Battle.net/Warcraft Rumble", "local_version": "1",
+                                           "binaries": {"game": {"relative_path": "WarcraftRumble.exe"}}})}
+        self.states = [[(7, self.AGENT)], []]
+        with mock.patch.dict(BNET, {"volume_root": lambda path: str(card)}):
+            code = BNET["agent_job"](self.root, "install", "gryphon", "gryphon", folder, "enUS", "USA", "US", poll=0)
+        self.assertEqual(code, 0)
+        cmd = self.started[0]
+        self.assertEqual(cmd[cmd.index("--") + 6], "D:\\Games\\Battle.net\\Warcraft Rumble")
+        self.assertEqual(os.readlink(os.path.join(BNET["dosdevices"](self.root), "d:")), str(card))
 
     def test_an_agent_error_is_reported_with_its_code(self):
         self.install()

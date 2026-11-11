@@ -41,6 +41,7 @@ FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
+DRIVES = "defghijklmnopqruvwxy"
 CLOSE_GRACE = 15
 HANDOFF_WAIT = 120
 GAME_SETTLE = 20
@@ -226,8 +227,72 @@ def installed(root):
     return os.path.isfile(launcher(root))
 
 
-def install_path(library):
-    return "Z:" + library.rstrip("/")
+def dosdevices(root):
+    return os.path.join(prefix(root), "pfx", "dosdevices")
+
+
+def volume_root(path):
+    device = os.stat(path).st_dev
+    while path != "/":
+        parent = os.path.dirname(path)
+        if os.stat(parent).st_dev != device:
+            break
+        path = parent
+    return path
+
+
+def inside(path, folder):
+    return path == folder or path.startswith(folder.rstrip("/") + "/")
+
+
+def mapped_drive(root, path, volume):
+    folder = dosdevices(root)
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return None
+    for name in names:
+        link = os.path.join(folder, name)
+        if len(name) == 2 and name[0].lower() in DRIVES and name[1] == ":" and os.path.islink(link):
+            target = os.path.realpath(link)
+            if inside(target, volume) and inside(path, target):
+                return name[0].lower(), target
+    return None
+
+
+def map_drive(root, volume):
+    folder = dosdevices(root)
+    for letter in DRIVES:
+        link = os.path.join(folder, letter + ":")
+        if not os.path.lexists(link):
+            try:
+                os.makedirs(folder, exist_ok=True)
+                os.symlink(volume, link)
+            except OSError as error:
+                say("%s not mapped to a Wine drive: %s" % (volume, error))
+                return None
+            say("Wine drive %s: is %s" % (letter.upper(), volume))
+            return letter, volume
+    say("%s not mapped to a Wine drive: every letter is taken" % volume)
+    return None
+
+
+def install_path(root, library):
+    library = library.rstrip("/") or "/"
+    try:
+        path = os.path.realpath(library)
+        volume = volume_root(path)
+    except OSError:
+        return "Z:" + library
+    if volume == "/":
+        return "Z:" + library
+    drive = mapped_drive(root, path, volume)
+    if drive is None and not wine_processes(os.path.join(prefix(root), "pfx")):
+        drive = map_drive(root, volume)
+    if drive is None:
+        return "Z:" + library
+    letter, target = drive
+    return letter.upper() + ":\\" + path[len(target):].strip("/").replace("/", "\\")
 
 
 def write_config(root, library=None):
@@ -254,8 +319,8 @@ def write_config(root, library=None):
         client["HardwareAcceleration"] = "false"
         changes.append("acceleration")
     if library and isinstance(client.setdefault("Install", {}), dict) \
-            and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(library):
-        client["Install"]["DefaultInstallPath"] = install_path(library)
+            and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(root, library).rstrip("\\"):
+        client["Install"]["DefaultInstallPath"] = install_path(root, library)
         changes.append("library")
     games = config.setdefault("Games", {})
     for uid in CLIENT_32_BIT if isinstance(games, dict) else ():
@@ -417,13 +482,23 @@ def wallpaper(root):
 
 
 def windows_path(root, path):
-    found = re.match(r"(?i)^([cz]):[\\/](.*)$", path.strip())
+    found = re.match(r"(?i)^([a-z]):[\\/](.*)$", path.strip())
     if not found:
         return None
     parts = [part for part in re.split(r"[\\/]+", found.group(2)) if part]
     if not parts or ".." in parts:
         return None
-    return os.path.join(drive_c(root) if found.group(1).lower() == "c" else "/", *parts)
+    letter = found.group(1).lower()
+    link = os.path.join(dosdevices(root), letter + ":")
+    if letter == "c":
+        target = drive_c(root)
+    elif os.path.islink(link):
+        target = os.path.realpath(link)
+    elif letter == "z":
+        target = "/"
+    else:
+        return None
+    return os.path.join(target, *parts)
 
 
 def wow_folders(root):
@@ -1227,7 +1302,6 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             say("%s not made: %s" % (folder, error))
             emit("ERROR", "folder")
             return 2
-        windows = "Z:" + folder
     told = None
     while True:
         processes = wine_processes(pfx)
@@ -1244,6 +1318,8 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         time.sleep(POLL if poll is None else poll)
     with lock:
         stop_leftovers(pfx)
+        if action == "install":
+            windows = install_path(root, folder)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
         for suffix in (".json", ".game", ".form", ".error"):
