@@ -913,6 +913,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             ?.takeIf { it.toLongOrNull() != null }
                     if (gameId != lastRunGameId) {
                         lastRunGameId = gameId
+                        loadFrameGenFor(gameId?.toLongOrNull())
                         applyFrameGen()
                     }
                 } else {
