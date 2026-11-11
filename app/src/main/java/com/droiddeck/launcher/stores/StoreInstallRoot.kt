@@ -192,11 +192,16 @@ object StoreInstallRoot {
             }
         }
         for (folder in AddedGames.roots(context)) {
-            if (!folder.host.isDirectory || !folder.host.canRead()) continue
+            if (!folder.host.isDirectory || !folder.host.canRead() || shadowsInternal(folder.guest)) continue
             File(root, folder.guest.removePrefix("/")).mkdirs()
             out += folder.host.path + ":" + folder.guest
         }
         return out
+    }
+
+    private fun shadowsInternal(guest: String): Boolean {
+        val internal = "/$INTERNAL"
+        return guest == internal || internal.startsWith("$guest/")
     }
 
     internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =

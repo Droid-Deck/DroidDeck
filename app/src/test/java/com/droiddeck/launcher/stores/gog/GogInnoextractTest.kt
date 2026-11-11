@@ -75,6 +75,15 @@ class GogInnoextractTest {
         assertTrue(AddedGames.guestPath(app, folder)!!.startsWith("/root/Games/Stores/GOG/"))
     }
 
+    @Test fun anAddedFolderNamedStoresDoesNotHideTheInternalInstallRoot() {
+        val shadow = File(app.filesDir, "extra/Stores").apply { mkdirs() }
+        val normal = File(app.filesDir, "extra/Library").apply { mkdirs() }
+        SessionPrefs.setGameFolderBinds(app, listOf(shadow.path to "/root/Games/Stores", normal.path to "/root/Games/Library"))
+        val binds = StoreInstallRoot.guestBinds(app)
+        assertTrue(binds.none { it.endsWith(":/root/Games/Stores") })
+        assertTrue(binds.contains("${normal.path}:/root/Games/Library"))
+    }
+
     @Test fun aFailedExtractionReportsTheExtractorsOwnError() {
         val result = GogInnoextract.Result(2, GogInnoextract.reason(listOf(
             "Warning: Unexpected setup data version: Inno Setup Setup Data (6.4.0)",
