@@ -164,3 +164,20 @@ Verified on a physical Steam Controller (2015, BLE `28de:1106`) paired to Androi
 ## 7. Debugging & Tests
 - Verbose protocol logging is gated behind `SteamControllerDebug.enabled` (default `false`, no settings hook; flip it in a local build or debugger). Logs use tag `SteamControllerBle`: `adb logcat -s SteamControllerBle`.
 - Unit tests: `Sc2015PacketReassemblerTest` (framing, sequence resets, overflow), `Sc2015ReportParserTest` (chunk decoding, truncation guards, translation, feature replies, IMU extraction, battery), `SteamControllerBleTest` (Robolectric: lifecycle, slot ownership, fragmented 2015 notification routing). Run with `./gradlew -PskipRust=true :app:testDebugUnitTest`.
+
+## 8. Known Limitations & Troubleshooting
+
+### Trackpad-as-joystick: latched direction on release
+With a trackpad bound as an analog joystick in Steam Input ("Joystick Move"), some games (observed in The Binding of Isaac) can keep firing in the last direction after the finger is lifted, or fire in an unintended direction. This is intermittent and most noticeable near the pad edges.
+
+The BLE transport and decoding are **not** the cause: a raw-packet capture confirms the 2015 firmware sends a correct release (button chunk → 0, trackpad chunk → 0,0), `Sc2015ReportParser` applies it (`buttons=0x000000`, pad coordinates zeroed), and `toTritonReport`/`onState` publish a centered report with no latching. The behavior originates downstream, in Steam Input's analog joystick interpretation of the translated pad (deadzone / release handling), not in DroidDeck.
+
+Workarounds, in order of reliability:
+1. **Fire with the face buttons (A/B/X/Y)** where the game supports it — digital inputs do not latch.
+2. **Use a community Steam Input configuration** for the game (Controller settings → Browse configs); these are usually tuned for the trackpad and avoid the latch.
+3. **Raise or change the trackpad deadzone** in the game's Steam Input controller configuration.
+
+A native `/dev/hidraw22` presentation (so Steam Input sees the real 2015 identity instead of a translated Triton) is the likely long-term fix and is tracked as a follow-up; it requires regenerating the preloads (see §3).
+
+### Rumble / haptics
+Non-feature output reports are intentionally suppressed for the 2015 model to protect the voice-coil actuators (see §3). Games therefore receive no rumble over BLE. Amplitude-limited haptics are a possible follow-up.
