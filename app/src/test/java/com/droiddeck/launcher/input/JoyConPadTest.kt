@@ -151,9 +151,25 @@ class JoyConPadTest {
         for (lookups in 0..4) {
             val event = key(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH)
             PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = lookups
-            try { bridge.onKeyEvent(event) } finally { PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1 }
+            try {
+                val handled = bridge.onKeyEvent(event)
+                if (lookups == 0) assertFalse(handled)
+                if (lookups >= 2) assertTrue(handled)
+            } finally { PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1 }
         }
         assertTrue(press(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH))
+    }
+
+    @Test fun wiredMotionKeepsItsAxesWhenDeviceDisappears() {
+        val device = controller(0x20d6, 0x2063, MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        val event = motion(device, MotionEvent.AXIS_RX to 0.75f, MotionEvent.AXIS_RY to -0.5f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to 1f)
+        PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = 2
+        try { assertTrue(bridge.onMotionEvent(event)) } finally { PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = -1 }
+        assertEquals(0.75f, pad(0).rightX)
+        assertEquals(-0.5f, pad(0).rightY)
+        assertEquals(0f, pad(0).leftTrigger)
+        assertEquals(1f, pad(0).rightTrigger)
     }
 
     @Test fun joyConsHeldForVrAreLeftAlone() {

@@ -203,6 +203,12 @@ class PadBridgeRoutingTest {
     @Implements(MotionEvent::class)
     class RegisteredMotionEvent : ShadowMotionEvent() {
         @RealObject private lateinit var event: MotionEvent
-        @Implementation override fun getDevice(): InputDevice? = Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        @Implementation override fun getDevice(): InputDevice? {
+            if (lookupsLeft == 0) return null
+            if (lookupsLeft > 0) lookupsLeft--
+            return Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        }
+
+        companion object { @JvmField var lookupsLeft = -1 }
     }
 }

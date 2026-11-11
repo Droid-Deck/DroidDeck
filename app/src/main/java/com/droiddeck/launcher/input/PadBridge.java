@@ -520,7 +520,7 @@ public final class PadBridge {
         }
         float lx = event.getAxisValue(MotionEvent.AXIS_X);
         float ly = event.getAxisValue(MotionEvent.AXIS_Y);
-        boolean wired = wiredXboxLayout(event);
+        boolean wired = wiredXboxLayout(device, event.getSource());
         float rx = event.getAxisValue(wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
         float ry = event.getAxisValue(wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
         retainStick(slot, JoyCon.LEFT, lx, ly);
