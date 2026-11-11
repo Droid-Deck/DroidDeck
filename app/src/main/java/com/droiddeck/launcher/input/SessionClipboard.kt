@@ -26,6 +26,9 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
     private var watchedGuestFile: File? = null
     private val pendingGuestClaims = mutableMapOf<File, File>()
     private val deferredGuestCopies = mutableListOf<DeferredCopy>()
+    private val restoredBaselines = mutableMapOf<File, Baseline?>()
+    private var restoredBaselinesDir: File? = null
+    private var baseline: Baseline? = null
     private var active = false
     private var published = false
     private var shared: String? = null
@@ -41,7 +44,9 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         }
     }
 
-    private class DeferredCopy(val claimed: File, val text: String, val androidText: String?)
+    private class Baseline(val text: String?)
+
+    private class DeferredCopy(val claimed: File, val source: File, val text: String, val baseline: Baseline?)
 
     private fun androidText() = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
 
@@ -57,6 +62,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         if (!active || !hasFocus() || !current) return false
         shared = text
         published = true
+        baseline = Baseline(text)
         if (androidText() != text) {
             echo = text
             clipboard.setPrimaryClip(ClipData.newPlainText("DroidDeck", text))
@@ -70,7 +76,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         val now = androidText()
         var applied = false
         due.forEach { copy ->
-            val fresh = copy.androidText == now
+            val fresh = copy.baseline == null || copy.baseline.text == now
             if (fresh && receiveGuestText(copy.text, true)) applied = true
             synchronized(guestObserverLock) { pendingGuestClaims.remove(copy.claimed) }
             copy.claimed.delete()
@@ -141,12 +147,15 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
             synchronized(guestObserverLock) {
                 pendingGuestClaims.remove(claimed)
                 if (active && guestObserver === source) {
-                    val before = androidText()
-                    if (receiveGuestText(text, true)) {
+                    if (restoredBaselines.containsKey(file)) {
+                        pendingGuestClaims[claimed] = file
+                        deferredGuestCopies.add(DeferredCopy(claimed, file, text, restoredBaselines.remove(file)))
+                        refresh()
+                    } else if (receiveGuestText(text, true)) {
                         claimed.delete()
                     } else {
                         pendingGuestClaims[claimed] = file
-                        deferredGuestCopies.add(DeferredCopy(claimed, text, before))
+                        deferredGuestCopies.add(DeferredCopy(claimed, file, text, baseline))
                     }
                 } else {
                     claimed.renameTo(file)
@@ -188,8 +197,12 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         guestQueueExecutor?.shutdown()
         guestQueueExecutor = null
         watchedGuestFile = null
-        pendingGuestClaims.toMap().forEach { (claimed, file) -> claimed.renameTo(file) }
+        pendingGuestClaims.toMap().forEach { (claimed, file) ->
+            claimed.renameTo(file)
+            restoredBaselines[file] = baseline
+        }
         pendingGuestClaims.clear()
+        deferredGuestCopies.forEach { restoredBaselines[it.source] = it.baseline }
         deferredGuestCopies.clear()
     }
 
@@ -199,6 +212,8 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
             val target = desktopGuestFile(context)
             if (target == watchedGuestFile) return
             releaseGuestQueue()
+            if (target?.parentFile != restoredBaselinesDir) restoredBaselines.clear()
+            restoredBaselinesDir = target?.parentFile
             watchedGuestFile = target
             target?.let { watchGuestFile(it) }
         }
@@ -221,6 +236,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
     fun refresh(changed: Boolean = false) {
         if (!active || !hasFocus()) return
         if (replayDeferredCopies()) return
+        baseline = Baseline(androidText())
         val clip = clipboard.primaryClip
         if (clip != null && clip.itemCount == 0) return
         val text = clip?.getItemAt(0)?.text?.toString()

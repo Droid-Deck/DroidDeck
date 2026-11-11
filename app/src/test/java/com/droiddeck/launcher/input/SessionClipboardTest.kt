@@ -92,29 +92,43 @@ class SessionClipboardTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun runDeferredCopy(androidChangesWhileAway: Boolean): String? {
-        val sessionId = if (androidChangesWhileAway) "focus-newer" else "focus-same"
+    private class Away(val dir: File, val manager: ClipboardManager, val clipboard: SessionClipboard) {
+        var focus = true
+    }
+
+    private fun startAway(sessionId: String): Away {
         val dir = SessionClipboard.guestFile(context, sessionId).parentFile!!
         dir.mkdirs()
-        File(dir, "text.queue.1.1.ready").writeText("from desktop")
         SessionState.sessionId = sessionId
         SessionState.mode = SessionService.MODE_DESKTOP
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "phone"))
-        var focus = false
-        val clipboard = SessionClipboard(context) { focus }
-        clipboard.start()
+        lateinit var away: Away
+        away = Away(dir, manager, SessionClipboard(context) { away.focus })
+        away.clipboard.start()
+        shadowOf(Looper.getMainLooper()).idle()
+        away.clipboard.stop()
+        File(dir, "text.queue.1.1.ready").writeText("from desktop")
+        away.focus = false
+        away.clipboard.start()
+        awaitClaimed(dir)
+        assertTrue(dir.listFiles()!!.any { it.name.endsWith(".claimed") })
+        assertEquals("phone", manager.primaryClip?.getItemAt(0)?.text?.toString())
+        return away
+    }
+
+    private fun androidText(manager: ClipboardManager) = manager.primaryClip?.getItemAt(0)?.text?.toString()
+
+    private fun runDeferredCopy(androidChangesWhileAway: Boolean): String? {
+        val away = startAway(if (androidChangesWhileAway) "focus-newer" else "focus-same")
         try {
-            awaitClaimed(dir)
-            assertEquals("phone", manager.primaryClip?.getItemAt(0)?.text?.toString())
-            assertTrue(dir.listFiles()!!.any { it.name.endsWith(".claimed") })
-            if (androidChangesWhileAway) manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "newer"))
-            focus = true
-            clipboard.refresh()
-            assertTrue(dir.listFiles()!!.none { it.name.endsWith(".claimed") })
-            return manager.primaryClip?.getItemAt(0)?.text?.toString()
+            if (androidChangesWhileAway) away.manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "newer"))
+            away.focus = true
+            away.clipboard.refresh()
+            assertTrue(away.dir.listFiles()!!.none { it.name.endsWith(".claimed") })
+            return androidText(away.manager)
         } finally {
-            clipboard.stop()
+            away.clipboard.stop()
             SessionState.sessionId = null
         }
     }
@@ -125,6 +139,29 @@ class SessionClipboardTest {
 
     @Test fun copyArrivingWithoutFocusDoesNotOverwriteANewerAndroidCopy() {
         assertEquals("newer", runDeferredCopy(androidChangesWhileAway = true))
+    }
+
+    @Test fun pausedDesktopCopyDoesNotOverwriteANewerAndroidCopyOnResume() {
+        val away = startAway("paused")
+        val ready = File(away.dir, "text.queue.1.1.ready")
+        try {
+            away.clipboard.stop()
+            assertTrue(ready.exists())
+            away.manager.setPrimaryClip(android.content.ClipData.newPlainText("t", "newer"))
+            away.focus = true
+            away.clipboard.start()
+            val deadline = System.currentTimeMillis() + 5000
+            while (ready.exists() && System.currentTimeMillis() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(20)
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(away.dir.listFiles()!!.none { it.name.endsWith(".claimed") || it.name.endsWith(".ready") })
+            assertEquals("newer", androidText(away.manager))
+        } finally {
+            away.clipboard.stop()
+            SessionState.sessionId = null
+        }
     }
 
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
