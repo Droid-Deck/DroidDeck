@@ -302,7 +302,15 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
         }
         holdFocus = null
     }
-    Box(modifier.onFocusChanged { pageFocused = it.hasFocus }) {
+    Box(
+        modifier.onFocusChanged { pageFocused = it.hasFocus }
+            // A fresh press means the user is moving on, so the hold must not pull focus back to the folder.
+            .onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (holdFocus != null && k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) holdFocus = null
+                false
+            },
+    ) {
         Column(Modifier.fillMaxSize().imePadding()) {
             Box(Modifier.fillMaxWidth().padding(start = padH, end = padH, top = if (narrow) 8.dp else 12.dp)) {
                 ModeHeader(
