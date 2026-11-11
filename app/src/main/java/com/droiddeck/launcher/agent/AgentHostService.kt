@@ -22,7 +22,9 @@ class AgentHostService : Service() {
             AgentHost.stop(this)
             return START_NOT_STICKY
         }
+        awaiting = (awaiting - 1).coerceAtLeast(0)
         startForeground(NOTIFICATION_ID, build(this))
+        if (!started && awaiting == 0) stopSelf()
         return START_NOT_STICKY
     }
 
@@ -32,6 +34,11 @@ class AgentHostService : Service() {
         private const val ACTION_STOP = "com.droiddeck.launcher.agent.STOP"
         private var lastText: String? = null
         @Volatile private var started = false
+        /**
+         * startForegroundService calls not yet answered by onStartCommand. Stopping the service
+         * before it calls startForeground crashes the app, so it then stops itself instead.
+         */
+        private var awaiting = 0
         /** Setup steps that keep the app alive while they run, besides the agent's turn. */
         private var setupSteps = 0
 
@@ -39,12 +46,13 @@ class AgentHostService : Service() {
             lastText = null
             started = true
             runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
+                .onSuccess { awaiting++ }
         }
 
         fun stop(context: Context) {
             if (setupSteps > 0) return
             started = false
-            context.stopService(Intent(context, AgentHostService::class.java))
+            if (awaiting == 0) context.stopService(Intent(context, AgentHostService::class.java))
         }
 
         fun setupStarted(context: Context) {

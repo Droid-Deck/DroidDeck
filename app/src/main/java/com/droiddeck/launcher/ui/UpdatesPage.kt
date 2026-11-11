@@ -286,7 +286,9 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: B
             }
         }
         val context = androidx.compose.ui.platform.LocalContext.current
-        LabBuilds(sessionRunning, onRebuild = if (com.droiddeck.launcher.agent.AgentHost.installed) { info ->
+        val agentReady = com.droiddeck.launcher.agent.AgentHost.installed &&
+            (com.droiddeck.launcher.agent.AgentSetup.ready || com.droiddeck.launcher.agent.AgentSetup.completed(context))
+        LabBuilds(sessionRunning, onRebuild = if (agentReady) { info ->
             com.droiddeck.launcher.agent.AgentHost.send(context, context.getString(R.string.agent_rebuild_lab, info.label))
             context.startActivity(android.content.Intent(context, com.droiddeck.launcher.FrontEndActivity::class.java)
                 .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "agent")

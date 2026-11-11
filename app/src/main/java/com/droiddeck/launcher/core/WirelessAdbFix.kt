@@ -41,6 +41,7 @@ object WirelessAdbFix {
         writeAtomically(context, key, identity.second)
     }
 
+    @Synchronized
     private fun writeAtomically(context: Context, destination: File, contents: ByteArray) {
         val temporary = File(destination.parentFile, "${destination.name}.tmp")
         temporary.writeBytes(contents)
