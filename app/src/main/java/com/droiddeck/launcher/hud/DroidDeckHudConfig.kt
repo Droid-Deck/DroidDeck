@@ -52,7 +52,8 @@ internal object DroidDeckHudConfig {
         for ((key, on) in switches) if (key in DEFAULTS) {
             values[key] = flag(on)
         }
-        values["hudOrder"] = order.filter { it in ORDER }.joinToString("|")
+        val moved = order.filter { it in ORDER }
+        values["hudOrder"] = (moved + storedOrder(values).filter { it !in moved }).joinToString("|")
         SessionPrefs.setDroidDeckHudConfig(context, encode(values))
         return values
     }
@@ -69,9 +70,13 @@ internal object DroidDeckHudConfig {
     /** The stored row order with every metric the config knows appended in the default order. Rows the
      *  stored order names but this build does not draw are dropped; rows it does not name are appended. */
     fun order(values: Map<String, String>): List<String> {
-        val stored = values["hudOrder"].orEmpty().split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
+        val stored = storedOrder(values)
         return stored + ORDER.filter { it !in stored }
     }
+
+    /** Only the rows the user moved, in the order they left them. */
+    fun storedOrder(values: Map<String, String>): List<String> =
+        values["hudOrder"].orEmpty().split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
 
     fun move(context: Context, key: String, up: Boolean): Map<String, String> {
         val values = load(context)

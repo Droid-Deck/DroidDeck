@@ -136,19 +136,25 @@ class DroidDeckHudPanelTest {
         assertEquals(ramFirst.toString(), listOf("RAM", "FPS", "PWR"), ramFirst.map { it.take(3) })
     }
 
-    @Test fun thePillKeepsItsBigFpsWhateverTheOrder() {
-        val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
-        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
-        view.applyConfig(DroidDeckHudConfig.encode(
-            DroidDeckHudConfig.DEFAULTS + off + mapOf(
-                "hudSize" to DroidDeckHudSize.PILL.token,
-                "showFPS" to "1", "showRAM" to "1", "showPower" to "1",
-                "showFPSGraph" to "0", "showClock" to "0",
-                "hudOrder" to "showRAM|showPower|showFPS",
-            )))
-        view.showForTest(SNAPSHOT, "DXVK", 0L)
-        val lines = view.linesForTest()
-        assertTrue(lines.toString(), lines.any { it.trim() == "0.0fps" })
+    @Test fun thePillHeroIsWhicheverRowTheUserPutsFirst() {
+        fun pill(order: String): List<String> {
+            val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(
+                DroidDeckHudConfig.DEFAULTS + off + mapOf(
+                    "hudSize" to DroidDeckHudSize.PILL.token,
+                    "showFPS" to "1", "showRAM" to "1", "showPower" to "1",
+                    "showFPSGraph" to "0", "showClock" to "0",
+                    "hudOrder" to order,
+                )))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest()
+        }
+        val fpsFirst = pill("showFPS|showRAM|showPower")
+        assertTrue(fpsFirst.toString(), fpsFirst.any { it.trim() == "0.0fps" })
+        val fpsLast = pill("showRAM|showPower|showFPS")
+        assertTrue(fpsLast.toString(), fpsLast.any { it.trim().startsWith("FPS") })
+        assertFalse(fpsLast.toString(), fpsLast.any { it.trim() == "0.0fps" })
     }
 
     @Test fun stripIsOneLineAcrossTheParentWithTheClockOnTheRight() {

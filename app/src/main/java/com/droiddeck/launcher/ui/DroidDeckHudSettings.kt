@@ -78,8 +78,8 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
         }
         if (editing) HudReadingsDialog(
             visible = rows,
-            initialOrder = DroidDeckHudConfig.order(cfg),
-            initialOn = DroidDeckHudConfig.order(cfg).associateWith { on(it) },
+            initialOrder = rows,
+            initialOn = rows.associateWith { on(it) },
             onDismiss = { editing = false },
             onSave = { switches, order -> a.onHudOrder(switches, order) },
             onReset = a.onHudReset,

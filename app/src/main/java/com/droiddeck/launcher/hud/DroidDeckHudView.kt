@@ -101,7 +101,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var showAvg = true
     private var showDisplay = true
     private var showHdr = true
-    private var order: List<String> = DroidDeckHudConfig.ORDER
+    private var storedOrder: List<String> = emptyList()
     // Mega-only rows
     private var showPerCore = true
     private var showSwap = true
@@ -183,7 +183,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         fun moved(dx: Float, dy: Float) = Glyph(x + dx, baseline + dy, text, color, sizePx, glow)
     }
     private class Span(val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false)
-    private class HudRow(val label: Span, val vals: List<Span>, val inline: Boolean = false)
+    private class HudRow(val key: String, val label: Span, val vals: List<Span>, val inline: Boolean = false)
     private val glyphs = ArrayList<Glyph>()
     private val tileRects = ArrayList<RectF>()
     private var graphRect: RectF? = null
@@ -329,7 +329,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showLow01 = switchOn("showLow01")
         showDisplay = switchOn("showDisplay")
         showHdr = switchOn("showHdr")
-        order = DroidDeckHudConfig.order(mapOf("hudOrder" to cfg.get("hudOrder", "")))
+        storedOrder = DroidDeckHudConfig.storedOrder(mapOf("hudOrder" to cfg.get("hudOrder", "")))
         showPerCore = switchOn("showPerCore")
         showSwap = switchOn("showSwap")
         showNet = switchOn("showNet")
@@ -469,8 +469,6 @@ class DroidDeckHudView(context: Context) : View(context) {
         for (s in spans) w += measure(s.text, s.sizePx)
         return w
     }
-
-    private fun rank(key: String): Int = order.indexOf(key).let { if (it < 0) order.size else it }
 
     private fun showHdrLine(): Boolean = showHdr && hdrState != DroidDeckHudHdr.NONE
 
@@ -765,6 +763,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     }
 
     private fun reading(key: String, s: HudMetrics.Snapshot, labelPx: Float, valuePx: Float, unitPx: Float): HudRow {
+        if (key == "showFPSGraph") return HudRow(key, Span("", colDim, 0f), emptyList())
         val (label, color) = switchLabel(key)
         val values: List<Span> = when (key) {
             "showGpuModel" -> if (gpuNameText().isBlank()) numUnit(null, "", valuePx, unitPx)
@@ -798,7 +797,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             "showSession" -> listOf(Span(elapsedString(), colValue, valuePx))
             else -> listOf(Span("—", colDim, valuePx))
         }
-        return HudRow(Span(label, color, labelPx), values.ifEmpty { listOf(Span("—", colDim, valuePx)) })
+        return HudRow(key, Span(label, color, labelPx), values.ifEmpty { listOf(Span("—", colDim, valuePx)) })
     }
 
     private fun buildRows(s: HudMetrics.Snapshot) {
@@ -808,9 +807,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         val unitPx = sp(if (st.unit > 0f) st.unit else st.row * 0.62f)
         val basePx = sp(if (st.sub > 0f) st.sub else st.row)
 
-        val keys = order.filter { it in size.rows && switchOn(it) }
+        val keys = size.rowsIn(storedOrder).filter { switchOn(it) }
         if (keys.isEmpty()) { contentW = 0f; contentH = 0f; return }
-        val hero = (size == DroidDeckHudSize.PILL || size == DroidDeckHudSize.MINIMAL) && "showFPS" in keys
+        val hero = (size == DroidDeckHudSize.PILL || size == DroidDeckHudSize.MINIMAL) && keys.firstOrNull() == "showFPS"
         val tiles = size == DroidDeckHudSize.TILES
         val bigPx = sp(st.row); val bigUnitPx = sp(st.unit)
         val heroSpans = listOf(
@@ -838,6 +837,10 @@ class DroidDeckHudView(context: Context) : View(context) {
                 val x = pad + (i % cols) * (cellW + tileGap)
                 val y = pad + (i / cols) * (cellH + tileGap)
                 tileRects.add(RectF(x, y, x + cellW, y + cellH))
+                if (r.key == "showFPSGraph") {
+                    graphRect = RectF(x + innerPad, y + innerPad, x + cellW - innerPad, y + cellH - innerPad)
+                    continue
+                }
                 placeRun(x + innerPad, y + innerPad - ascent(r.label.sizePx), listOf(r.label))
                 placeRun(x + innerPad, y + innerPad + keyH + lineGap - ascent(sp(st.row)), r.vals)
             }
@@ -855,10 +858,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             var bodyH = 0f
             for (col in columns) {
                 var y = 0f
-                for (r in col) {
-                    val px = maxOf(r.label.sizePx, r.vals.maxOf { it.sizePx })
-                    y += lineH(px) + lineGap
-                }
+                for (r in col) y += rowHeight(r) + lineGap
                 if (col.isNotEmpty()) bodyH = max(bodyH, y - lineGap)
             }
             val heroW = if (hero) runWidth(heroSpans) else 0f
@@ -870,7 +870,13 @@ class DroidDeckHudView(context: Context) : View(context) {
                 if (columns[c].isEmpty()) continue
                 var y = top
                 for (r in columns[c]) {
-                    val px = maxOf(r.label.sizePx, r.vals.maxOf { it.sizePx })
+                    if (r.key == "showFPSGraph") {
+                        val left = x + labelW[c] + lvGap
+                        graphRect = RectF(left, y, max(x + colW[c], left + sp(160f)), y + sp(22f))
+                        y += sp(22f) + lineGap
+                        continue
+                    }
+                    val px = maxOf(r.label.sizePx, r.vals.maxOfOrNull { it.sizePx } ?: 0f)
                     val baseline = y - ascent(px)
                     placeRun(x, baseline, listOf(r.label))
                     placeRun(x + labelW[c] + lvGap, baseline, r.vals)
@@ -885,13 +891,11 @@ class DroidDeckHudView(context: Context) : View(context) {
             contentW = max(x0 + bodyW, pad + heroW) + pad
             contentH = pad + max(bodyH, heroH) + pad
         }
-
-        if (switchOn("showFPSGraph")) {
-            val gh = sp(22f)
-            graphRect = RectF(pad, contentH, max(contentW - pad, pad + sp(160f)), contentH + gh)
-            contentH += gh
-        }
     }
+
+    private fun rowHeight(r: HudRow): Float =
+        if (r.key == "showFPSGraph") sp(22f)
+        else lineH(maxOf(r.label.sizePx, r.vals.maxOfOrNull { it.sizePx } ?: 0f))
 
     private fun buildStrip(s: HudMetrics.Snapshot) {
         val rowPx = sp(11.5f); val unitPx = rowPx * 0.8f; val fpsPx = sp(15f)
@@ -915,27 +919,25 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
 
         val generating = differs(fpsNow)
-        if (switchOn("showFPS")) {
-            val fps = ArrayList<Span>()
-            if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
-            fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
-            fps += Span("fps", colDim, unitPx)
-            x = placeRun(x, baseline, fps) + groupGap
-        }
-
-        if (showGraph) {
-            val gw = sp(72f); val gh = h * 0.55f
-            if (x + gw <= right) {
+        for (key in size.rowsIn(storedOrder)) {
+            if (!switchOn(key)) continue
+            if (key == "showFPSGraph") {
+                val gw = sp(72f); val gh = h * 0.55f
+                if (x + gw > right) break
                 graphRect = RectF(x, mid - gh / 2f, x + gw, mid + gh / 2f)
                 x += gw + groupGap
+                continue
             }
-        }
-
-        for (key in order) {
-            if (key == "showFPS" || key == "showFPSGraph") continue
-            if (key !in size.rows || !switchOn(key)) continue
-            val row = reading(key, s, rowPx, rowPx, unitPx)
-            val spans = listOf(row.label, Span(" ", colDim, rowPx)) + row.vals
+            val spans = if (key == "showFPS") {
+                val fps = ArrayList<Span>()
+                if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
+                fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
+                fps += Span("fps", colDim, unitPx)
+                fps
+            } else {
+                val row = reading(key, s, rowPx, rowPx, unitPx)
+                listOf(row.label, Span(" ", colDim, rowPx)) + row.vals
+            }
             if (x + runWidth(spans) > right) break
             x = placeRun(x, baseline, spans) + groupGap
         }
