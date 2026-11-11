@@ -173,9 +173,10 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   threads and with `TSYNC` when the guest asks for it, that traces `rt_sigprocmask` with `SIG_BLOCK`
   or `SIG_SETMASK` and a set, and drops `SIGSYS` from those masks. The guest's call then runs as a
   chained syscall. The flag is committed only if the guest's call succeeds: a filter the kernel
-  rejects leaves no flag, so later masks are left alone (the guard filter itself cannot be
-  removed, but its stops then change nothing). Proot installs its own filter the same way at
-  startup, before acceleration is on; that call is skipped and never sets the flag. A call without a filter, such as the probes Firefox's `SandboxInfo` makes in every
+  rejects, or a `TSYNC` that cannot sync a thread (it returns that thread's ID), leaves no flag,
+  so later masks are left alone (the guard filter itself cannot be removed, but its stops then
+  change nothing). Proot installs its own filter before the first `execve`; installs before it
+  are skipped, so a guest install is tracked even when proot's own one failed. A call without a filter, such as the probes Firefox's `SandboxInfo` makes in every
   process, is left alone. Tasks without a filter of their own take no new stops; with one, a thread
   start takes four, and a headless Firefox screenshot takes 68 in all. Without proot's own filter
   the masks are filtered at the stops it already takes. A mask that already blocks `SIGSYS` when the

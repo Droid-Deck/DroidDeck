@@ -4,6 +4,18 @@ Date: Wed, 11 Nov 2026 14:34:44 +0800
 Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 
 ---
+--- a/src/execve/exit.c
++++ b/src/execve/exit.c
+@@ -400,6 +400,9 @@ void translate_execve_exit(Tracee *tracee)
+ 	word_t syscall_result;
+ 	int status;
+ 
++	if ((int) peek_reg(tracee, CURRENT, SYSARG_RESULT) >= 0)
++		tracee->guest_started = true;
++
+ 	if (tracee->skip_proot_loader) {
+ 		tracee->restore_original_regs = false;
+ 		return;
 --- a/src/syscall/chain.c
 +++ b/src/syscall/chain.c
 @@ -113,6 +113,10 @@ void chain_next_syscall(Tracee *tracee)
@@ -112,12 +124,16 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  	}
 --- a/src/syscall/seccomp.c
 +++ b/src/syscall/seccomp.c
-@@ -47,9 +47,15 @@
+@@ -47,9 +47,19 @@
  #include <linux/fs.h>
  #include <assert.h>        /* assert(3), */
  #include <sys/mman.h>      /* PROT_*, */
 +#include <signal.h>        /* SIG_UNBLOCK, */
 +#include <inttypes.h>      /* PRIu64, */
++
++#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
++#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
++#endif
  
  #include "syscall/seccomp.h"
 +#include "syscall/chain.h"
@@ -128,7 +144,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  #include "syscall/syscall.h"
  #include "syscall/sysnum.h"
  #include "extension/extension.h"
-@@ -236,6 +242,27 @@ static int add_trace_syscall_if_arg(struct sock_fprog *program, word_t syscall,
+@@ -236,6 +246,27 @@ static int add_trace_syscall_if_arg(struct sock_fprog *program, word_t syscall,
  	return add_statements(program, LENGTH_TRACE_SYSCALL_IF_ARG, statements);
  }
  
@@ -156,7 +172,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  static int add_trace_prlimit_stack(struct sock_fprog *program, word_t syscall, int flag)
  {
  	const size_t resource_offset = offsetof(struct seccomp_data, args[1]);
-@@ -311,7 +338,9 @@ static size_t trace_length_raw(Sysnum sysnum)
+@@ -311,7 +342,9 @@ static size_t trace_length_raw(Sysnum sysnum)
  {
  	switch (sysnum) {
  	case PR_prctl:
@@ -166,7 +182,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  		return LENGTH_TRACE_SYSCALL_IF_ARG;
  	case PR_prlimit64:
  		return LENGTH_TRACE_PRLIMIT_STACK;
-@@ -333,7 +362,10 @@ static int add_trace(struct sock_fprog *program, Sysnum sysnum, word_t syscall,
+@@ -333,7 +366,10 @@ static int add_trace(struct sock_fprog *program, Sysnum sysnum, word_t syscall,
  
  	switch (sysnum) {
  	case PR_prctl:
@@ -178,7 +194,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  	case PR_setrlimit:
  		return add_trace_syscall_if_arg(program, syscall, 0, RLIMIT_STACK, flag);
  	case PR_prlimit64:
-@@ -638,6 +670,7 @@ static FilteredSysnum proot_sysnums[] = {
+@@ -638,6 +674,7 @@ static FilteredSysnum proot_sysnums[] = {
  	{ PR_renameat,		FILTER_SYSEXIT },
  	{ PR_renameat2,		FILTER_SYSEXIT },
  	{ PR_rmdir,		0 },
@@ -186,7 +202,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  	{ PR_setrlimit,		FILTER_SYSEXIT },
  	{ PR_setxattr,		0 },
  	{ PR_socketcall,	FILTER_SYSEXIT },
-@@ -843,6 +876,89 @@ word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum)
+@@ -843,6 +880,93 @@ word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum)
  	return sysnum < PR_NB_SYSNUM ? flags[sysnum] : FILTER_SYSEXIT;
  }
  
@@ -233,21 +249,23 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +	    || guest.len == 0)
 +		return;
 +
-+	/* The flag itself is committed only if the guest's call succeeds,
-+	 * at the end of its chain (or its sysexit without acceleration).
-+	 * Proot installs its own filter the same way at startup, before
-+	 * acceleration is on; that call is not the guest's.  Without
-+	 * acceleration every install seen is the guest's, since proot
-+	 * installs none itself there.  */
++	/* Proot's own filter goes in before the guest program runs.  */
++	if (!tracee->guest_started)
++		return;
++
++	/* The flag is committed only if the guest's call succeeds, at its
++	 * sysexit (commit_guest_seccomp()).  */
++	tracee->guest_seccomp_tsync = thread_group;
++	tracee->guest_seccomp_listener = get_sysnum(tracee, CURRENT) == PR_seccomp
++		&& (peek_reg(tracee, CURRENT, SYSARG_2) & SECCOMP_FILTER_FLAG_NEW_LISTENER) != 0;
++
++	/* Without proot's own filter, a trace event would switch the
++	 * tracer to seccomp mode; the masks are then filtered at the
++	 * syscall stops it already takes.  */
 +	if (tracee->seccomp != ENABLED) {
-+		if (getenv("PROOT_NO_SECCOMP") == NULL)
-+			return;
 +		tracee->guest_seccomp_pending = true;
-+		tracee->guest_seccomp_tsync = thread_group;
 +		return;
 +	}
-+	tracee->guest_seccomp_pending = true;
-+	tracee->guest_seccomp_tsync = thread_group;
 +
 +	code_address = alloc_mem(tracee, sizeof(code));
 +	if (code_address == 0 || write_data(tracee, code_address, code, sizeof(code)) < 0)
@@ -266,7 +284,9 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +		poke_reg(tracee, SYSARG_2, thread_group ? SECCOMP_FILTER_FLAG_TSYNC : 0);
 +	poke_reg(tracee, SYSARG_3, program_address);
 +
-+	/* The guest's call runs once this one exits.  */
++	/* The guest's call runs once this one exits, and commits at the
++	 * end of the chain.  */
++	tracee->guest_seccomp_pending = true;
 +	tracee->restart_how = PTRACE_SYSCALL;
 +
 +	VERBOSE(tracee, 2, "vpid %" PRIu64 ": guarding SIGSYS ahead of the guest's seccomp filter",
@@ -276,13 +296,17 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  #else
  
  #include "tracee/tracee.h"
-@@ -853,4 +969,9 @@ int enable_syscall_filtering(const Tracee *tracee UNUSED)
+@@ -853,4 +977,13 @@ int enable_syscall_filtering(const Tracee *tracee UNUSED)
  	return 0;
  }
  
 +void guard_guest_seccomp(Tracee *tracee, bool thread_group)
 +{
-+	set_guest_seccomp(tracee, thread_group);
++	if (!tracee->guest_started)
++		return;
++	tracee->guest_seccomp_tsync = thread_group;
++	tracee->guest_seccomp_listener = false;
++	tracee->guest_seccomp_pending = true;
 +}
 +
  #endif /* defined(HAVE_SECCOMP_FILTER) */
@@ -297,17 +321,16 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  #endif /* SECCOMP_H */
 --- a/src/tracee/tracee.c
 +++ b/src/tracee/tracee.c
-@@ -628,6 +628,9 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
+@@ -628,6 +628,8 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
  	child->verbose = parent->verbose;
  	child->seccomp = parent->seccomp;
  	child->sysexit_pending = parent->sysexit_pending;
 +	child->guest_seccomp = parent->guest_seccomp;
-+	child->guest_seccomp_pending = parent->guest_seccomp_pending;
-+	child->guest_seccomp_tsync = parent->guest_seccomp_tsync;
++	child->guest_started = parent->guest_started;
  #ifdef HAS_POKEDATA_WORKAROUND
  	child->pokedata_workaround_stub_addr = parent->pokedata_workaround_stub_addr;
  #endif
-@@ -870,6 +873,36 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
+@@ -870,6 +872,40 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
  	return 0;
  }
  
@@ -330,14 +353,18 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +/* Record the guest's filter once its installation call succeeds.  A filter
 + * the kernel rejects leaves no flag, so later masks are left alone; the
 + * guard filter itself cannot be removed, but with the flag unset its stops
-+ * change nothing.  seccomp() and prctl() return 0 on success, and a
-+ * positive descriptor for SECCOMP_FILTER_FLAG_NEW_LISTENER.  */
++ * change nothing.  Success is 0, or the descriptor NEW_LISTENER returns: a
++ * TSYNC that cannot sync a thread returns that thread's ID, positive, and
++ * installs nothing.  */
 +void commit_guest_seccomp(Tracee *tracee)
 +{
++	long result;
++
 +	if (!tracee->guest_seccomp_pending)
 +		return;
 +	tracee->guest_seccomp_pending = false;
-+	if ((long) peek_reg(tracee, CURRENT, SYSARG_RESULT) >= 0)
++	result = (long) peek_reg(tracee, CURRENT, SYSARG_RESULT);
++	if (result == 0 || (result > 0 && tracee->guest_seccomp_listener))
 +		set_guest_seccomp(tracee, tracee->guest_seccomp_tsync);
 +}
 +
@@ -346,7 +373,7 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  {
 --- a/src/tracee/tracee.h
 +++ b/src/tracee/tracee.h
-@@ -252,6 +252,15 @@ typedef struct tracee {
+@@ -252,6 +252,20 @@ typedef struct tracee {
  
  	word_t robust_list;
  
@@ -358,11 +385,16 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
 +	 * own call succeeds.  */
 +	bool guest_seccomp_pending;
 +	bool guest_seccomp_tsync;
++	bool guest_seccomp_listener;
++
++	/* The first execve succeeded.  Proot's own seccomp filter goes in
++	 * before it, so only installs after it are the guest's.  */
++	bool guest_started;
 +
  	/**********************************************************************
  	 * Shared or private resources, depending on the CLONE_FS/VM flags.   *
  	 **********************************************************************/
-@@ -320,6 +329,8 @@ extern void terminate_tracee(Tracee *tracee);
+@@ -320,6 +334,8 @@ extern void terminate_tracee(Tracee *tracee);
  extern void free_terminated_tracees();
  extern int swap_config(Tracee *tracee1, Tracee *tracee2);
  extern void kill_all_tracees();
