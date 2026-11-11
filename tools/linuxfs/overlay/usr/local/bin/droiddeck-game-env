@@ -18,17 +18,37 @@ SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
-def game_id(env):
-    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
-    if not prefix:
-        return None
-    value = prefix.rsplit("/", 1)[-1]
-    if not re.fullmatch(r"-?[0-9]+", value):
+# Prefixes several games share; the game itself is the Steam app being launched.
+SHARED_PREFIXES = {"2929927072"}
+
+
+def app_number(value):
+    if not re.fullmatch(r"-?[0-9]+", value or ""):
         return None
     number = int(value)
     if not -(2**31) <= number < 2**32 or number == 0:
         return None
     return str(number % 2**32)
+
+
+def game_id(env):
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return None
+    found = app_number(prefix.rsplit("/", 1)[-1])
+    if found in SHARED_PREFIXES:
+        return app_number(env.get("SteamAppId", "")) or shortcut_number(env.get("SteamGameId", "")) or found
+    return found
+
+
+def shortcut_number(value):
+    """The shortcut appid inside Steam's 64-bit shortcut game id `(appid << 32) | 0x02000000`."""
+    if not re.fullmatch(r"[0-9]{1,20}", value or ""):
+        return None
+    number = int(value)
+    if number >= 2**64 or number & 0xFFFFFFFF != 0x02000000:
+        return None
+    return app_number(str(number >> 32))
 
 
 DOTNET_FEX = {
@@ -334,12 +354,12 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
-def win_components(compat, app_id):
+def win_components(compat, app_id, proton=None, env=None):
     if not compat:
         return ""
     try:
         module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
-        names, notes = module["apply"](compat.rstrip("/"), app_id)
+        names, notes = module["apply"](compat.rstrip("/"), app_id, proton=proton, env=env or os.environ)
         for note in notes:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         return module["overrides_value"](names)
@@ -862,6 +882,60 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
                  "/lib/wine/fakedlls", "/lib64/wine", "/lib64/wine/fakedlls", "/lib64/wine/x86_64-windows")
 
 
+FOREIGN_SUFFIX = ".foreign-arch"
+PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
+pe_machine = PE["pe_machine"]
+
+
+def repair_foreign_system_dlls(prefix, proton, env=None):
+    dist = Path(proton).parent / "files/lib/wine"
+    windows = Path(prefix) / "pfx/drive_c/windows"
+    machines_by_folder = PE["proton_pe_machines"](proton, env or {})
+    if machines_by_folder is None:
+        return []
+    repaired = []
+    for folder, (libdir, machines) in machines_by_folder.items():
+        builtins = dist / libdir
+        try:
+            builtin_names = {name.lower(): name for name in os.listdir(builtins)}
+        except OSError:
+            continue
+        try:
+            names = sorted(os.listdir(windows / folder))
+        except OSError:
+            continue
+        for name in names:
+            path = windows / folder / name
+            builtin_name = builtin_names.get(name.lower())
+            source = builtins / builtin_name if builtin_name else builtins / name
+            if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
+                continue
+            machine = pe_machine(path)
+            if machine is None or PE["machine_compatible"](path, machines, machine):
+                continue
+            link = windows / folder / (name + ".bl-new")
+            backup = windows / folder / (name + FOREIGN_SUFFIX)
+            serial = 1
+            while os.path.lexists(backup):
+                backup = windows / folder / (name + FOREIGN_SUFFIX + ".%d" % serial)
+                serial += 1
+            try:
+                os.symlink(os.path.relpath(source, path.parent), link)
+                os.replace(path, backup)
+                try:
+                    os.replace(link, path)
+                except OSError:
+                    if not os.path.lexists(path) and os.path.lexists(backup):
+                        os.replace(backup, path)
+                    raise
+            except OSError:
+                if link.is_symlink():
+                    link.unlink()
+                continue
+            repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
+    return repaired
+
+
 def is_wine_dll_link(path):
     try:
         return os.path.islink(path) and os.path.dirname(os.readlink(path)).endswith(WINE_DLL_DIRS)
@@ -1159,16 +1233,54 @@ def main():
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     debug_dir = env.get("BL_DEBUG_DIR", "")
+    prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    app_id = game_id(env)
+    components = ""
+    waiting = bool(app_id and len(command) > 1 and command[1] == "waitforexitandrun")
+    config = {}
+    launch_config = None
+    launch_config_valid = True
+    effective_env = env
+    if waiting:
+        path = Path.home() / ".config/droiddeck/game-environment.json"
+        try:
+            with path.open(encoding="utf-8") as source:
+                config = json.load(source)
+            launch_config = config
+        except FileNotFoundError:
+            launch_config = {"version": 1}
+        except (OSError, ValueError, TypeError, AttributeError):
+            launch_config_valid = False
+        if launch_config_valid:
+            try:
+                effective_env = apply_config(env, launch_config, app_id)
+            except (OSError, ValueError, TypeError, AttributeError):
+                launch_config_valid = False
+        if not launch_config_valid:
+            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if waiting:
+        components = win_components(prefix_path, app_id, command[0], effective_env)
+    if prefix_path and command:
+        try:
+            fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
+        except OSError as error:
+            fixed = []
+            print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        if fixed:
+            print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
+                  file=sys.stderr)
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
+    if scripts and not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        # libdbus would autolaunch a session bus under the evaluator's reaper, which then waits for it
+        # forever: Steam keeps seeing the app as running and cannot move or update it
+        env["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
     try:
         digest = scripts_digest(scripts) if scripts else None
     except OSError:
         digest = None
-    app_id = game_id(env)
-    waiting = bool(app_id and len(command) > 1 and command[1] == "waitforexitandrun")
     diagnostic_app_id = app_id if waiting and os.environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") == "1" else None
     dirt_prefix = None
     if app_id:
@@ -1186,7 +1298,6 @@ def main():
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
-            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
@@ -1194,22 +1305,21 @@ def main():
             if dirt_prefix:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = own + ";ws2_32=n,b" if own else "ws2_32=n,b"
-        path = Path.home() / ".config/droiddeck/game-environment.json"
-        config = {}
-        try:
-            with path.open(encoding="utf-8") as source:
-                config = json.load(source)
-            if waiting:
+        if waiting:
+            if launch_config_valid:
                 if "vblank_mode" in config.get("shared", {}):
                     fixes.pop("vblank_mode", None)
-                env = apply_config(env, config, app_id, fixes)
-            else:
+                env = apply_config(env, launch_config, app_id, fixes)
+        else:
+            path = Path.home() / ".config/droiddeck/game-environment.json"
+            try:
+                with path.open(encoding="utf-8") as source:
+                    config = json.load(source)
                 env = apply_config(env, sync_config(config, app_id), app_id)
-        except FileNotFoundError:
-            if waiting:
-                env = apply_config(env, {"version": 1}, app_id, fixes)
-        except (OSError, ValueError, TypeError, AttributeError):
-            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError, TypeError, AttributeError):
+                print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
         if waiting:
             before_debug = env
             env = apply_game_debug_logs(env, config, debug_dir)

@@ -31,15 +31,22 @@ install_packages() {
 if install_packages; then
   exit 0
 fi
-echo "::warning::Runner mirror failed or timed out; retrying with the official Ubuntu mirror."
 [ -f "$ubuntu_sources" ] || exit 1
 sources=$(mktemp --suffix=.sources)
 trap 'rm -f "$sources"' EXIT
-mirror=https://archive.ubuntu.com/ubuntu
+# The last mirror of each list is outside Canonical's network, so it still answers when runners cannot reach Canonical.
+mirrors=(https://archive.ubuntu.com/ubuntu https://mirrors.edge.kernel.org/ubuntu)
 case "$(dpkg --print-architecture)" in
-  arm64) mirror=https://ports.ubuntu.com/ubuntu-ports ;;
+  arm64) mirrors=(https://ports.ubuntu.com/ubuntu-ports https://mirrors.ocf.berkeley.edu/ubuntu-ports) ;;
 esac
-sed -E "s@^URIs:.*@URIs: $mirror@" "$ubuntu_sources" > "$sources"
-chmod 644 "$sources"
-options[1]="Dir::Etc::sourcelist=$sources"
-install_packages
+status=1
+for mirror in "${mirrors[@]}"; do
+  echo "::warning::Ubuntu mirror failed or timed out; retrying with $mirror."
+  sed -E "s@^URIs:.*@URIs: $mirror@" "$ubuntu_sources" > "$sources"
+  chmod 644 "$sources"
+  options[1]="Dir::Etc::sourcelist=$sources"
+  status=0
+  install_packages || status=$?
+  [ "$status" = 0 ] && exit 0
+done
+exit "$status"
