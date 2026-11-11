@@ -123,7 +123,7 @@ object AgentHost {
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
         plan = prefs(app).getBoolean(PLAN_KEY, false)
-        available = LinuxRuntime.isInstalled(app)
+        available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
         if (!installed) state = State.MISSING else if (state == State.MISSING) state = State.IDLE
         if (!loaded) {
@@ -424,6 +424,8 @@ object AgentHost {
         now = SystemClock.elapsedRealtime()
         appContext?.let { app ->
             claimLabRequest(app)
+            // proot comes from an add-on pack fetched after the app starts, so the runtime can become usable later.
+            if (!available && state != State.WORKING) available = LinuxRuntime.hasRootfs(app)
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
             AgentHostService.update(app)
         }
