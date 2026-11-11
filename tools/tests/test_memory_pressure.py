@@ -195,6 +195,18 @@ SECONDS=30; bl_session_pressure
     def test_disabled_idle_compression_does_not_compress_the_session(self):
         self.assertEqual(['send:1:client'], self.run_policy('BL_ZRAM_IDLE=0; bl_session_pressure'))
 
+    def test_disabled_idle_compression_signals_only_launcher_processes(self):
+        sender = function_source('bl_zram_send').replace('/tmp/.bl-zram', str(self.root / 'control'))
+        self.assertEqual(['kill:-URG 999 998', 'mode:1'], self.run_policy('''
+_bl_pids=(999 998)
+kill() { echo "kill:$*"; }
+bl_zram_wait() { _bl_pageout_complete=1; }
+bl_zram_scan() { :; }
+''' + sender + '''
+BL_ZRAM_IDLE=0; bl_session_pressure
+echo "mode:$(cat ''' + str(self.root / 'control') + ''')"
+'''))
+
     def test_disabled_idle_compression_reclaims_only_the_launcher_before_focus(self):
         self.memory(available=1700)
         self.assertEqual(['send:1:client'], self.run_policy('''
