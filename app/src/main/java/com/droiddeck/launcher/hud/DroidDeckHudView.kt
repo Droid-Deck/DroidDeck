@@ -99,8 +99,6 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var showClockTime = true   // subtle corner/footer clock, available in EVERY size
     private var showLatency = true
     private var showAvg = true
-    private var showLow1 = true
-    private var showLow01 = true
     private var showDisplay = true
     private var showHdr = true
     private var order: List<String> = DroidDeckHudConfig.ORDER
@@ -557,6 +555,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
+        if (size == DroidDeckHudSize.STRIP) { buildStrip(s); return }
         buildRows(s)
         if (contentW <= 0f || contentH <= 0f) return
         if (size == DroidDeckHudSize.PILL) addSubtleClock(sp(10f), leftAligned = true)
@@ -916,11 +915,13 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
 
         val generating = differs(fpsNow)
-        val fps = ArrayList<Span>()
-        if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
-        fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
-        fps += Span("fps", colDim, unitPx)
-        x = placeRun(x, baseline, fps) + groupGap
+        if (switchOn("showFPS")) {
+            val fps = ArrayList<Span>()
+            if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
+            fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
+            fps += Span("fps", colDim, unitPx)
+            x = placeRun(x, baseline, fps) + groupGap
+        }
 
         if (showGraph) {
             val gw = sp(72f); val gh = h * 0.55f
@@ -930,52 +931,13 @@ class DroidDeckHudView(context: Context) : View(context) {
             }
         }
 
-        val groups = ArrayList<List<Span>>()
-        run {
-            val l = ArrayList<Span>()
-            fun low(label: String, value: Float) {
-                if (l.isNotEmpty()) l += Span(" ", colDim, rowPx)
-                l += Span("$label ", colDim, rowPx)
-                l += Span(lowText(value) ?: "—", colFps, rowPx)
-            }
-            if (showLow1) low("1%", lows.low1Fps)
-            if (showLow01) low("0.1%", lows.low01Fps)
-            if (showLow001) low("0.01%", lows.low001Fps)
-            if (l.isNotEmpty()) groups += l
-        }
-        if (showGPU || showGpuTemp) {
-            val l = arrayListOf(Span("GPU", colGpu, rowPx))
-            if (showGPU) l += Span(" ${s.gpuPercent ?: "—"}%", colGpu, rowPx)
-            if (showGpuTemp && s.gpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx) }
-            groups += l
-        }
-        if (showCPU || showCpuTemp) {
-            val l = arrayListOf(Span("CPU", colCpu, rowPx))
-            if (showCPU) l += Span(" ${s.cpuPercent ?: "—"}%", colCpu, rowPx)
-            if (showCpuTemp && s.cpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx) }
-            groups += l
-        }
-        if (showVram) s.vramText()?.let { groups += listOf(Span("VRAM $it", colVram, rowPx)) }
-        if (showRAM) groups += listOf(Span("RAM ${s.ramPercent.roundToInt()}%", colRam, rowPx))
-        if (showBattery || showPower || showBatteryTemp) {
-            val l = ArrayList<Span>()
-            fun part(spans: List<Span>) {
-                l += if (l.isEmpty()) Span("BAT ", colBat, rowPx) else Span(" ", colDim, rowPx)
-                l += spans
-            }
-            if (showBattery && s.battery.percent != null) part(listOf(Span("${s.battery.percent}%", colBat, rowPx)))
-            if (showBatteryTemp && s.battery.tempC != null)
-                part(tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, rowPx, unitPx))
-            if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, rowPx)))
-            if (l.isNotEmpty()) groups += l
-        }
-        if (displayServer.isNotBlank()) groups += listOf(Span(displayServer, colDisp, rowPx))
-        if (hdrState != DroidDeckHudHdr.NONE) groups += hdrLine(rowPx)
-        if (showGpuModel && gpuNameText().isNotBlank()) groups += gpuModelSpans(rowPx, colDim, compact = true)
-
-        for (g in groups) {
-            if (x + runWidth(g) > right) break
-            x = placeRun(x, baseline, g) + groupGap
+        for (key in order) {
+            if (key == "showFPS" || key == "showFPSGraph") continue
+            if (key !in size.rows || !switchOn(key)) continue
+            val row = reading(key, s, rowPx, rowPx, unitPx)
+            val spans = listOf(row.label, Span(" ", colDim, rowPx)) + row.vals
+            if (x + runWidth(spans) > right) break
+            x = placeRun(x, baseline, spans) + groupGap
         }
 
         stripRect = RectF(0f, 0f, w, h)
@@ -1266,6 +1228,10 @@ class DroidDeckHudView(context: Context) : View(context) {
     internal val isDragging: Boolean get() = lockController.isDragging() || tabDragging
 
     private companion object {
+        const val TAB_NUM_SP = 15f
+        const val TAB_LABEL_SP = 7.25f
+        const val TAB_PAD_X_SP = 7f
+        const val TAB_PAD_Y_SP = 5.5f
         const val REFRESH_MS = 500L
         const val STRIP_GRAPH_REDRAW_MS = 66L
         private const val HUE_IDLE_MS = 500L

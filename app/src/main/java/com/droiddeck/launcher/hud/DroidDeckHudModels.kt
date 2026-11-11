@@ -87,6 +87,11 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
                 "showEngine", "showDisplay", "showHdr",
             ),
             MEGA to DroidDeckHudConfig.ORDER.filter { it !in EXTRAS },
+            STRIP to listOf(
+                "showFPS", "showLow1", "showLow01", "showLow001", "showGPULoad", "showGpuTemp",
+                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp",
+                "showPower", "showDisplay", "showHdr", "showGpuModel",
+            ),
         )
 
 
@@ -100,6 +105,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
                 sub = 11.5f, foot = 9.5f),
             MEGA to DroidDeckHudStyle(row = 11.5f, unit = 11.5f * 0.62f, pad = 10f, lineGap = 3.5f, labelGap = 7f,
                 band = 9.5f, gutter = 16f),
+            STRIP to DroidDeckHudStyle(row = 11.5f, unit = 11.5f * 0.8f, pad = 10f, lineGap = 0f, labelGap = 13f),
         )
 
         /** The rows a size draws, in their current order, for the settings screen to list. */
