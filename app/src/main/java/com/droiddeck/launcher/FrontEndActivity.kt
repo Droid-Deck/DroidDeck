@@ -780,6 +780,7 @@ class FrontEndActivity : ComponentActivity() {
     private var shortcutPicker by mutableStateOf(false)
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
+    private val soundtrackRemovals = HashMap<String, Int>()
     @Volatile private var lastComponentRestore = 0L
     @Volatile private var componentRestoreRetry = false
     private val componentRestoreLock = Any()
@@ -2649,17 +2650,20 @@ class FrontEndActivity : ComponentActivity() {
     private fun addSoundtrack(folder: java.io.File) {
         Thread({
             val added = com.droiddeck.launcher.frontend.AddedSoundtracks.add(this, folder)
-            com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(folder.path))
             val list = com.droiddeck.launcher.frontend.AddedSoundtracks.games(this)
             ui.post {
-                if (added) soundtracks = soundtracks.filter { it.library != Library.ADDED } + list
-                else android.widget.Toast.makeText(this, R.string.soundtracks_add_empty, android.widget.Toast.LENGTH_SHORT).show()
+                if (added) {
+                    soundtrackRemovals.remove(folder.path)
+                    com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(folder.path))
+                    soundtracks = soundtracks.filter { it.library != Library.ADDED } + list
+                } else android.widget.Toast.makeText(this, R.string.soundtracks_add_empty, android.widget.Toast.LENGTH_SHORT).show()
             }
         }, "soundtrack-add").start()
     }
 
     private fun removeSoundtrack(g: Library.SteamGame) {
         com.droiddeck.launcher.playback.SoundtrackController.stopIf(this, g.gameFiles)
+        g.gameFiles?.path?.let { soundtrackRemovals[it] = libraryScanGeneration }
         if (g.library == Library.ADDED) {
             soundtracks = soundtracks.filterNot { it.appId == g.appId && it.library == Library.ADDED }
             Thread({ com.droiddeck.launcher.frontend.AddedSoundtracks.remove(this, g.gameFiles?.path.orEmpty()) }, "soundtrack-remove").start()
@@ -2961,8 +2965,9 @@ class FrontEndActivity : ComponentActivity() {
             }.getOrDefault(emptyList())
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
-                    com.droiddeck.launcher.playback.SoundtrackController.allow(scannedSoundtracks.mapNotNull { it.gameFiles?.path })
-                    soundtracks = scannedSoundtracks
+                    val kept = scannedSoundtracks.filterNot { s -> s.gameFiles?.path?.let { p -> soundtrackRemovals[p]?.let { s.library == Library.ADDED || scanGeneration <= it } } == true }
+                    com.droiddeck.launcher.playback.SoundtrackController.allow(kept.mapNotNull { it.gameFiles?.path })
+                    soundtracks = kept
                     soundtracksLoaded = true
                 }
             }

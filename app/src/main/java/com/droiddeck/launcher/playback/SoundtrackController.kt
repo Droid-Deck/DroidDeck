@@ -43,7 +43,7 @@ object SoundtrackController {
         private set
 
     private var app: Context? = null
-    private val removed = HashSet<String>()
+    private val removed: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet())
     private var activeRoot: String? = null
     private var savedId: String? = null
     private var future: ListenableFuture<MediaController>? = null
