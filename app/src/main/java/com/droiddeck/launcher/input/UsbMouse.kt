@@ -38,7 +38,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
     private val permissionAction by lazy { context.packageName + ".USB_MOUSE_PERMISSION" }
     private val asked = mutableSetOf<String>()
     private var receiverRegistered = false
-    private var grab: Grab? = null
+    @Volatile private var grab: Grab? = null
 
     val active: Boolean get() = grab != null
 

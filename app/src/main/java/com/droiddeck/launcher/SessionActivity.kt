@@ -415,6 +415,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             usbMenuHold.reset()
             heldButtons.release(8)
             updatePointerCapture()
+            requestRelativeMouse()
         }
     })
     private var pointerCaptureRefused = false
