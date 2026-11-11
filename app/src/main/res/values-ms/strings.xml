@@ -2539,6 +2539,8 @@
     <string name="comp_this_device">Peranti ini</string>
     <string name="proton_remove_title">Alih keluar %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
+    <string name="setup_build_watermark">Tera air label binaan</string>
+    <string name="setup_build_watermark_hint">Paparkan label binaan ujian pada skrin. Dihidupkan secara lalai untuk binaan ujian.</string>
     <string name="setup_ready">Sedia untuk bermain</string>
     <string name="setup_not_ready">Belum sedia untuk bermain</string>
     <string name="setup_ready_runtime">masa jalan %1$s</string>

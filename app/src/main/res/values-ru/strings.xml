@@ -2700,6 +2700,8 @@
     <string name="comp_this_device">Это устройство</string>
     <string name="proton_remove_title">Удалить %1$s?</string>
     <string name="setup_tab_diagnostics">Диагностика</string>
+    <string name="setup_build_watermark">Водяной знак с меткой сборки</string>
+    <string name="setup_build_watermark_hint">Показывать на экране метку тестовой сборки. Для тестовых сборок включено по умолчанию.</string>
     <string name="setup_ready">Готово к игре</string>
     <string name="setup_not_ready">Пока не готово к игре</string>
     <string name="setup_ready_runtime">среда выполнения %1$s</string>

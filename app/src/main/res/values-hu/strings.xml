@@ -2566,6 +2566,8 @@
     <string name="comp_this_device">Ez a készülék</string>
     <string name="proton_remove_title">Eltávolítja a %1$s-t?</string>
     <string name="setup_tab_diagnostics">Diagnosztika</string>
+    <string name="setup_build_watermark">Buildcímke vízjelként</string>
+    <string name="setup_build_watermark_hint">A tesztbuild címkéjének megjelenítése a képernyőn. Tesztbuild esetén alapértelmezés szerint bekapcsolva.</string>
     <string name="setup_ready">Készen áll a játékra</string>
     <string name="setup_not_ready">Még nem áll készen a játékra</string>
     <string name="setup_ready_runtime">futtatókörnyezet: %1$s</string>
