@@ -579,6 +579,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onDisplayAdded(displayId: Int) {
             notifyActivityDisplayStateChanged(displayId)
             refreshSecondScreenDisplays()
+            updateBottomGame()
         }
         override fun onDisplayRemoved(displayId: Int) {
             if (refreshActivityDisplayId() && started) {
@@ -2944,7 +2945,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return false
         return try {
             val presentation = secondScreenPresentation ?: secondScreenPresentation(target).also {
-                selectedSecondScreenDisplay = target.displayId
                 secondScreenPresentation = it
             }
             if (!presentation.isShowing) presentation.show()
@@ -3300,7 +3300,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.secondScreenAutoOpened = false
             return
         }
-        if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
+        selectedSecondScreenDisplay = SecondScreenDisplays.selection(selectedSecondScreenDisplay, candidates.map { it.id }, gameOnBottom)
         if (selectedSecondScreenDisplay != oldSelectedDisplay) updateBottomGame()
         bottomSwapAvailable = bottomGame != null || bottomGameDisplay() != null
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) {
@@ -3324,6 +3324,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun openDualScreenControls() {
         if (SessionState.secondScreenAutoOpened || secondScreenMode != SecondScreenMode.NONE || pipUi) return
+        if (gameOnBottom && selectedSecondScreenDisplay >= 0 && secondScreenDisplays.none { it.id == selectedSecondScreenDisplay }) return
         if (!SessionPrefs.dualScreenSessionControls(this)) return
         val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
         if (secondScreenDisplays.none { it.id == target.displayId }) return
@@ -3383,6 +3384,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         if (selectedSecondScreenDisplay !in secondScreenDisplays.map { it.id }) {
+            if (gameOnBottom && selectedSecondScreenDisplay >= 0) {
+                panelMode(mode)
+                return
+            }
             selectedSecondScreenDisplay = secondScreenDisplays.first().id
         }
         showSecondScreen(mode)
@@ -3660,6 +3665,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!started) return null
         if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
             val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return null
+            if (gameOnBottom && selectedSecondScreenDisplay != target.displayId) return null
             if (drawerOpen || drawerPinned) drawerOpen = false
             typingReturnMode = secondScreenMode
             selectedSecondScreenDisplay = target.displayId

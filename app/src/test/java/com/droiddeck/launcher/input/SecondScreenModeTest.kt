@@ -4,6 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SecondScreenModeTest {
+    @Test fun selectedGameDisplayIsNotReplacedWhenItDisconnects() {
+        assertEquals(2, SecondScreenDisplays.selection(2, listOf(3), true))
+        assertEquals(2, SecondScreenDisplays.selection(2, emptyList(), true))
+        assertEquals(2, SecondScreenDisplays.selection(2, listOf(3, 2), true))
+        assertEquals(3, SecondScreenDisplays.selection(3, listOf(3), true))
+        assertEquals(3, SecondScreenDisplays.selection(2, listOf(3), false))
+        assertEquals(3, SecondScreenDisplays.selection(-1, listOf(3), true))
+        assertEquals(-1, SecondScreenDisplays.selection(-1, emptyList(), false))
+    }
+
     @Test fun withNothingRememberedDeckPadsGetControlsAndOthersTheDashboard() {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening(null, deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true))

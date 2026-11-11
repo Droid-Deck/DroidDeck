@@ -40,6 +40,9 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
 data class SecondScreenDisplay(val id: Int, val label: String)
 
 object SecondScreenDisplays {
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean): Int =
+        if (selected in available || gameRequested && selected >= 0) selected else available.firstOrNull() ?: -1
+
     fun available(displayManager: DisplayManager, primaryDisplayId: Int = Display.DEFAULT_DISPLAY): List<SecondScreenDisplay> =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .asSequence()
