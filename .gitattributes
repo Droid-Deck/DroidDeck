@@ -10,3 +10,5 @@ tools/mangoapp/mangoapp text eol=lf
 app/src/main/assets/desktop-removal/*.json text eol=lf
 app/src/main/assets/desktop-removal/*.txt text eol=lf
 *.pdf binary
+
+app/src/main/resources/ea/graphql/*.gql -text

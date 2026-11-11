@@ -51,6 +51,7 @@ def source_files(group, root=ROOT, commit=None, patterns=None):
     if not paths:
         raise ValueError('No preload inputs found')
     result = {}
+    listed = set(paths)
     pending = list(paths)
     while pending:
         path = pending.pop()
@@ -58,7 +59,13 @@ def source_files(group, root=ROOT, commit=None, patterns=None):
             continue
         if path.startswith('../') or path.startswith('/'):
             raise ValueError('Preload include escapes repository')
-        content = read(path).replace(b'\r\n', b'\n')
+        try:
+            content = read(path).replace(b'\r\n', b'\n')
+        except (OSError, subprocess.CalledProcessError):
+            # a header the build generates (gosys/gosys_blob.h, included behind __has_include)
+            if path in listed:
+                raise
+            continue
         result[path] = sha(content)
         for include in re.findall(rb'^\s*#\s*include\s*"([^"\n]+)"', content, re.M):
             pending.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), include.decode())))
@@ -126,13 +133,15 @@ def artifact_bytes(origin, cache):
         if len(names) != 1:
             raise ValueError('Expected one original APK')
         with ZipFile(io.BytesIO(archive.read(names[0]))) as apk:
-            return {name: apk.read('assets/linuxfs/' + name) for name in FILES}
+            present = set(apk.namelist())
+            return {name: apk.read('assets/linuxfs/' + name) for name in FILES if 'assets/linuxfs/' + name in present}
 
 
 def validate_lock(data):
     if data.get('version') != 1 or set(data['groups']) != set(INPUTS):
         raise ValueError('Unsupported preload snapshot')
-    if set(data['outputs']) != FILES:
+    # A lock made before a recipe gained an output lacks it; that group is rebuilt (restore)
+    if not set(data['outputs']) <= FILES:
         raise ValueError('Unexpected preload output set')
     for digest in [data['archive_sha256'], *data['outputs'].values()]:
         if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
@@ -160,7 +169,7 @@ def producer_sources(group, commit, root=ROOT):
 
 def prove_origin(data, cache, root=ROOT):
     content = artifact_bytes(data['origin'], cache)
-    if {name: sha(value) for name, value in content.items()} != data['outputs']:
+    if {name: sha(value) for name, value in content.items() if name in data['outputs']} != data['outputs']:
         raise ValueError('Snapshot binaries differ from the original main APK')
     commit = data['origin']['commit']
     run('git', 'fetch', '--no-tags', 'origin', commit, root=root)
@@ -183,7 +192,7 @@ def unpack(content, data):
     total = 0
     with tarfile.open(fileobj=io.BytesIO(content), mode='r:gz') as archive:
         for entry in archive:
-            if entry.name not in FILES or entry.name in result or not entry.isfile() or entry.size > 32 * 1024 * 1024:
+            if entry.name not in data['outputs'] or entry.name in result or not entry.isfile() or entry.size > 32 * 1024 * 1024:
                 raise ValueError('Unsafe or unexpected preload archive entry')
             total += entry.size
             if total > 64 * 1024 * 1024:
@@ -192,7 +201,7 @@ def unpack(content, data):
             if sha(value) != data['outputs'][entry.name]:
                 raise ValueError('Preload binary checksum mismatch')
             result[entry.name] = value
-    if set(result) != FILES:
+    if set(result) != set(data['outputs']):
         raise ValueError('Incomplete preload archive')
     return result
 
@@ -203,6 +212,8 @@ def restore(root=ROOT):
     matching = {group: source_files(group, root) == data['groups'][group] for group in INPUTS}
     matching['arm64'] &= recipe(root) == data['arm64_recipe']
     matching['x86'] &= x86_recipe(root) == data.get('x86_recipe')
+    for group in matching:
+        matching[group] &= all(name in data['outputs'] for name in OUTPUTS[group])
     if os.environ.get('FORCE_PRELOAD_REBUILD') == 'true':
         matching = dict.fromkeys(INPUTS, False)
     if any(matching.values()):
