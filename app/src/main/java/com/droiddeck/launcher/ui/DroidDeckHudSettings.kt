@@ -196,6 +196,5 @@ private val METRICS = listOf(
     HudMetric("showClock", R.string.hud_metric_clock),
 )
 
-/** Null for a switch this screen has no label for: the row then shows the key itself. */
 internal fun hudMetricLabel(key: String): Int? =
     METRICS.firstOrNull { it.key == key }?.label

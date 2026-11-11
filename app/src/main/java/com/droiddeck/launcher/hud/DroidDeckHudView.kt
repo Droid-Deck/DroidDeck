@@ -69,7 +69,6 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private val density = resources.displayMetrics.density
 
-    // ---- Config -----------------------------------------------------------
     private var cfg: KeyValueSet = KeyValueSet()
     private var size = DroidDeckHudSize.FULL
     private var scale = 1f
@@ -96,13 +95,12 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var showLow01 = true
     private var showLow001 = true
     private var fpsDecimal = true
-    private var showClockTime = true   // subtle corner/footer clock, available in EVERY size
+    private var showClockTime = true
     private var showLatency = true
     private var showAvg = true
     private var showDisplay = true
     private var showHdr = true
     private var storedOrder: List<String> = emptyList()
-    // Mega-only rows
     private var showPerCore = true
     private var showSwap = true
     private var showNet = true
@@ -834,7 +832,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             val innerPad = sp(st.innerPad); val tileGap = sp(st.tileGap)
             val keyH = lineH(sp(st.key)); val valH = lineH(sp(st.row))
             val cellW = listed.maxOf { max(measure(it.label.text, it.label.sizePx), runWidth(it.vals)) } + innerPad * 2f
-            val graphMin = if (listed.any { it.key == "showFPSGraph" }) sp(160f) else 0f
+            val graphMin = if (listed.any { it.key == "showFPSGraph" }) sp(GRAPH_MIN_WIDTH_SP) else 0f
             val cellMin = graphMin + innerPad * 2f
             val cellH = innerPad * 2f + keyH + lineGap + valH
             for ((i, r) in listed.withIndex()) {
@@ -856,7 +854,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             val labelW = columns.map { col -> col.maxOfOrNull { measure(it.label.text, it.label.sizePx) } ?: 0f }
             val colW = columns.mapIndexed { c, col ->
                 val body = if (col.isEmpty()) 0f else labelW[c] + lvGap + (col.maxOfOrNull { runWidth(it.vals) } ?: 0f)
-                val graph = if (col.any { it.key == "showFPSGraph" }) sp(160f) + labelW[c] + lvGap else 0f
+                val graph = if (col.any { it.key == "showFPSGraph" }) sp(GRAPH_MIN_WIDTH_SP) + labelW[c] + lvGap else 0f
                 max(body, graph)
             }
             val gaps = (0 until cols).count { columns[it].isNotEmpty() }.coerceAtLeast(1) - 1
@@ -878,8 +876,8 @@ class DroidDeckHudView(context: Context) : View(context) {
                 for (r in columns[c]) {
                     if (r.key == "showFPSGraph") {
                         val left = x + labelW[c] + lvGap
-                        graphRect = RectF(left, y, max(x + colW[c], left + sp(160f)), y + sp(22f))
-                        y += sp(22f) + lineGap
+                        graphRect = RectF(left, y, max(x + colW[c], left + sp(GRAPH_MIN_WIDTH_SP)), y + sp(GRAPH_HEIGHT_SP))
+                        y += sp(GRAPH_HEIGHT_SP) + lineGap
                         continue
                     }
                     val px = maxOf(r.label.sizePx, r.vals.maxOfOrNull { it.sizePx } ?: 0f)
@@ -900,7 +898,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     }
 
     private fun rowHeight(r: HudRow): Float =
-        if (r.key == "showFPSGraph") sp(22f)
+        if (r.key == "showFPSGraph") sp(GRAPH_HEIGHT_SP)
         else lineH(maxOf(r.label.sizePx, r.vals.maxOfOrNull { it.sizePx } ?: 0f))
 
     private fun perCoreRows(s: HudMetrics.Snapshot, labelPx: Float, valuePx: Float, unitPx: Float): List<HudRow> {
@@ -977,7 +975,6 @@ class DroidDeckHudView(context: Context) : View(context) {
         return inkRect.left.toFloat()
     }
 
-    // ---- Measure / draw ---------------------------------------------------
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         if (stripRect != null) { setMeasuredDimension(contentW.roundToInt(), resolveSize(contentH.roundToInt(), heightMeasureSpec)); return }
         setMeasuredDimension(
@@ -1258,6 +1255,8 @@ class DroidDeckHudView(context: Context) : View(context) {
         const val MIN_SCALE = 0.5f
         const val MAX_SCALE = 2f
         const val GRAPH_CLIP_MS = 49.9f
+        const val GRAPH_HEIGHT_SP = 22f
+        const val GRAPH_MIN_WIDTH_SP = 160f
 
         fun parseIntOr(s: String?, d: Int): Int = try { s?.trim()?.toInt() ?: d } catch (e: Exception) { d }
 
