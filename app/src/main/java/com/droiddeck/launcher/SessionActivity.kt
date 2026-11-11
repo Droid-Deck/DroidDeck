@@ -2485,8 +2485,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 SessionState.gameId?.takeIf { it.toLongOrNull() != null }
                     ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
             )?.toLongOrNull()
-            if (activeAppId == null) return FrameGen.Mode.OFF
-            return FrameGen.mode(this, activeAppId.toString())
+            return FrameGen.mode(this, activeAppId?.toString())
         }
 
         val cachedIds = LibraryCache.load(this)
