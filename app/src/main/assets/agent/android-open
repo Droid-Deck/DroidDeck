@@ -1,0 +1,27 @@
+#!/bin/sh
+# Opens a URL in Android's browser on the display the agent is being used on ($DD_BROWSER_DISPLAY).
+# DroidDeck opens what is left in $DD_AGENT_INBOX/open-url; adb is the fallback when it cannot.
+url=$1
+[ -n "$url" ] || exit 1
+inbox=${DD_AGENT_INBOX:-/data/user/0/com.droiddeck.launcher/files/agent}
+rm -f "$inbox/open-url.failed" 2>/dev/null
+if [ -d "$inbox" ] && printf '%s\n' "$url" > "$inbox/open-url.part" && mv -f "$inbox/open-url.part" "$inbox/open-url"; then
+  i=0
+  while [ $i -lt 30 ] && [ -e "$inbox/open-url" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  if [ -e "$inbox/open-url" ]; then
+    rm -f "$inbox/open-url"
+  elif [ -e "$inbox/open-url.failed" ]; then
+    rm -f "$inbox/open-url.failed"
+  else
+    sleep 0.3
+    [ -e "$inbox/open-url.failed" ] && rm -f "$inbox/open-url.failed" || exit 0
+  fi
+fi
+serial=${ADB_SERIAL:-127.0.0.1:5555}
+adb connect "$serial" >/dev/null 2>&1
+quoted=$(printf "%s" "$url" | sed "s/'/'\\\\''/g")
+adb -s "$serial" shell "am start --display ${DD_BROWSER_DISPLAY:-0} -a android.intent.action.VIEW -d '$quoted'" >/dev/null 2>&1 ||
+  echo "Open this on any device: $url" >&2

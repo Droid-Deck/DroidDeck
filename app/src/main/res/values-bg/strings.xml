@@ -2860,6 +2860,8 @@
     <string name="display_position_top">Горе</string>
     <string name="display_position_bottom">Долу</string>
     <string name="display_position_center">В средата (по подразбиране)</string>
+    <string name="display_position_left">Наляво</string>
+    <string name="display_position_right">Надясно</string>
     <string name="setup_tab_storage">Съхранение</string>
     <string name="storage_measuring">Измерване на съхранението…</string>
     <string name="storage_measuring_hint">Първият път отнема няколко секунди.</string>
@@ -3653,4 +3655,7 @@
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>
+
+    <string name="theme_white_red">Ален сняг</string>
+    
 </resources>

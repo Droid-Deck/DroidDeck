@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.InputDeviceBuilder
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
@@ -150,5 +151,48 @@ class MouseBackInputTest {
         input.onKeyEvent(key(KeyEvent.ACTION_DOWN), toGuest = false)
         assertFalse(input.onKeyEvent(key(KeyEvent.ACTION_UP), toGuest = true))
         assertTrue(presses.isEmpty())
+    }
+
+    private fun device(name: String, sources: Int, external: Boolean = true, virtual: Boolean = false) =
+        InputDeviceBuilder.newBuilder().setId(if (virtual) -1 else 11).setName(name).setDescriptor(name)
+            .setExternal(external).setSources(sources).build()
+
+    @Test fun anExternalMouseCounts() {
+        assertTrue(MouseBackInput.isExternalMouse(device("USB mouse", InputDevice.SOURCE_MOUSE)))
+        assertTrue(MouseBackInput.isExternalMouse(device("Bluetooth mouse", InputDevice.SOURCE_MOUSE_RELATIVE)))
+    }
+
+    @Test fun theLoggedControllerDeviceDoesNotCountAsAnExternalMouse() {
+        val odinController = device("Odin Controller", 0x1000511)
+        assertTrue(PadBridge.isFromController(odinController))
+        assertFalse(MouseBackInput.isExternalMouse(odinController))
+    }
+
+    @Test fun virtualTouchpadTouchscreenUinputAndNonMouseDevicesDoNotCount() {
+        assertFalse(MouseBackInput.isExternalMouse(device("virtual mouse", InputDevice.SOURCE_MOUSE, virtual = true)))
+        assertFalse(MouseBackInput.isExternalMouse(device("touchpad", InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHPAD)))
+        assertFalse(MouseBackInput.isExternalMouse(device("touchscreen", InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHSCREEN)))
+        assertFalse(MouseBackInput.isExternalMouse(device("uinput-mouse", InputDevice.SOURCE_MOUSE)))
+        assertFalse(MouseBackInput.isExternalMouse(device("gamepad", InputDevice.SOURCE_GAMEPAD)))
+        assertFalse(MouseBackInput.isExternalMouse(null))
+    }
+
+    @Test fun aMouseThatNamesItselfVirtualDoesNotCount() {
+        assertFalse(MouseBackInput.isExternalMouse(device("ODIN Station Virtual Mouse", 0x20004)))
+        assertFalse(MouseBackInput.isExternalMouse(device("VIRTUAL pointer", InputDevice.SOURCE_MOUSE)))
+        assertTrue(MouseBackInput.isExternalMouse(device("Virtuality Pro Mouse", InputDevice.SOURCE_MOUSE)))
+        assertTrue(MouseBackInput.isExternalMouse(device("Logitech MX Master 3", InputDevice.SOURCE_MOUSE)))
+    }
+
+    @Test fun injectedBackIsLeftAloneWithoutAnExternalMouse() {
+        val odinController = device("Odin Controller", 0x1000511)
+        val controllerOnly = MouseBackInput(presses::add) { MouseBackInput.isExternalMouse(odinController) }
+        assertFalse(controllerOnly.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true))
+        assertTrue(presses.isEmpty())
+        val external = MouseBackInput(presses::add) {
+            MouseBackInput.isExternalMouse(device("USB mouse", InputDevice.SOURCE_MOUSE))
+        }
+        assertTrue(external.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true))
+        assertEquals(listOf(true), presses)
     }
 }

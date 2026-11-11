@@ -2831,6 +2831,8 @@
     <string name="display_position_top">Atas</string>
     <string name="display_position_bottom">Bawah</string>
     <string name="display_position_center">Tengah (lalai)</string>
+    <string name="display_position_left">Kiri</string>
+    <string name="display_position_right">Kanan</string>
     <string name="setup_tab_storage">Storan</string>
     <string name="storage_measuring">Mengukur storan…</string>
     <string name="storage_measuring_hint">Mengambil beberapa saat pada kali pertama.</string>
@@ -3623,4 +3625,7 @@
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
     <string name="input_show_label">Tunjukkan label</string>
     <string name="input_layout_import_failed">Susun atur ini tidak dapat diimport</string>
+
+    <string name="theme_white_red">Salji Merah Skarlet</string>
+    
 </resources>

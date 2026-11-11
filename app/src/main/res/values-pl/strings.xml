@@ -2918,6 +2918,8 @@
     <string name="display_position_top">Góra</string>
     <string name="display_position_bottom">Dół</string>
     <string name="display_position_center">Środek (domyślnie)</string>
+    <string name="display_position_left">Lewo</string>
+    <string name="display_position_right">Prawo</string>
     <string name="setup_tab_storage">Pamięć</string>
     <string name="storage_measuring">Mierzenie pamięci…</string>
     <string name="storage_measuring_hint">Pierwszy raz trwa kilka sekund.</string>
@@ -3731,4 +3733,7 @@
     <string name="input_reset_positions">Resetuj położenie</string>
     <string name="input_show_label">Pokaż etykietę</string>
     <string name="input_layout_import_failed">Nie można zaimportować tego układu</string>
+
+    <string name="theme_white_red">Szkarłatny śnieg</string>
+    
 </resources>
