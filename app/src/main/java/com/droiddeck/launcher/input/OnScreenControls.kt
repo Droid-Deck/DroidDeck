@@ -80,13 +80,19 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         }
     }
 
-    private fun render() {
+    private fun requestedElements(): List<InputSurfaceElement> {
         val elements = placed()
-        surface.updateCustomLayout(when {
+        return when {
             isPinnedOnly -> elements.filter { it.alwaysShown }
             isQuickHidden -> elements.filter { it.id == "builtin:keyboard" || it.alwaysShown }
             else -> elements
-        })
+        }
+    }
+
+    fun shownElements() = (layout?.style ?: InputSurfaceStyle()).shown(requestedElements())
+
+    private fun render() {
+        surface.updateCustomLayout(requestedElements())
         val style = layout?.style ?: InputSurfaceStyle()
         surface.updateStyle(style)
         quickToggle.tint = style.tint

@@ -302,6 +302,18 @@ class TouchpadGesturesTest {
         assertEquals(listOf("left down", "left up"), events)
     }
 
+    @Test fun doubleTapDragIsNotStartedAfterTapClicksTurnOff() {
+        tap()
+        advance(TouchTiming.CLICK_MS + 10)
+        events.clear()
+        touchpad.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(TouchTiming.HOLD_MS - 50)
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
+        advance(TouchTiming.CLICK_MS + 100)
+        assertEquals(emptyList<String>(), events)
+    }
+
     private fun tap() {
         touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
         advance(80)

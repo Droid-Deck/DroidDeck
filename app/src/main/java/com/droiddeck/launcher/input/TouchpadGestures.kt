@@ -18,6 +18,10 @@ class TouchpadGestures(
     var sensitivity = 1.15f
     var desktop = false
     var tapClicks = true
+        set(value) {
+            field = value
+            if (!value) lastTapAt = 0L
+        }
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastX = 0f
@@ -110,7 +114,7 @@ class TouchpadGestures(
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
                 fingers = 1; pinching = false
                 anchorId = event.getPointerId(0); moverId = -1; holdDrag = false; scrollLocked = false
-                if (event.eventTime - lastTapAt < TouchTiming.DOUBLE_TAP_MS) {
+                if (tapClicks && event.eventTime - lastTapAt < TouchTiming.DOUBLE_TAP_MS) {
                     dragging = true
                     listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
                 } else {

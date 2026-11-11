@@ -4081,9 +4081,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onScreenMouseButtonShown(): Boolean {
-        val layout = primaryInputLayout ?: return false
-        return onScreenButtonsVisible && !steamTouchInUse && onScreenControls?.isButtonsOnly != true &&
-            inputProfile.hasMouseButton(InputRole.PRIMARY, layout.style.shown(layout.elements))
+        if (steamTouchInUse) return false
+        return listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls).any {
+            it.visibility == View.VISIBLE && !it.isButtonsOnly &&
+                inputProfile.hasMouseButton(InputRole.PRIMARY, it.shownElements())
+        }
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {
