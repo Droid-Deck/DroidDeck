@@ -139,15 +139,21 @@ object GogComet {
             !File(LinuxRuntime.rootDir(context), BIN.removePrefix("/")).isFile) return reply(false, "not-installed")
         val data = File(context.filesDir, "gog-achievements").apply { mkdirs() }
         val ready = CountDownLatch(1)
-        val command = LinuxRuntime.command(context, null, null, Environment.getExternalStorageDirectory(),
-            listOf("/usr/bin/env", "HOME=/root", "XDG_DATA_HOME=${data.path}/data", "XDG_CONFIG_HOME=${data.path}/config", "COMET_LOG=off", "COMET_ALLOWED_CLIENTS=${policy.path}", BIN, "--credentials-stdin"))
-        val pb = ProcessBuilder(command).redirectErrorStream(true)
-        pb.environment().apply {
-            remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+        val guest = listOf("/usr/bin/env", "HOME=/root", "XDG_DATA_HOME=${data.path}/data", "XDG_CONFIG_HOME=${data.path}/config", "COMET_LOG=off", "COMET_ALLOWED_CLIENTS=${policy.path}", BIN, "--credentials-stdin")
+        val pb = if (com.droiddeck.launcher.runtime.NativeGuest.forSession(context)) {
+            val root = LinuxRuntime.rootDir(context)
+            com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
+                LinuxRuntime.binds(context, null, null, Environment.getExternalStorageDirectory(), null), guest).redirectErrorStream(true)
+        } else {
+            ProcessBuilder(LinuxRuntime.command(context, null, null, Environment.getExternalStorageDirectory(), guest)).redirectErrorStream(true).also {
+                it.environment().apply {
+                    remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
+                    put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                    put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
+                    if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+                }
+            }
         }
         try {
             val child = pb.start()
