@@ -2677,7 +2677,18 @@ class FrontEndActivity : ComponentActivity() {
         path?.let { soundtrackRemovals[it] = marker }
         if (target == null) {
             soundtracks = soundtracks.filterNot { it.appId == g.appId && it.library == Library.ADDED }
-            soundtrackWork.execute { com.droiddeck.launcher.frontend.AddedSoundtracks.remove(this, path.orEmpty()) }
+            soundtrackWork.execute {
+                val removed = com.droiddeck.launcher.frontend.AddedSoundtracks.remove(this, path.orEmpty())
+                val list = if (removed) emptyList() else com.droiddeck.launcher.frontend.AddedSoundtracks.games(this)
+                if (!removed) ui.post {
+                    if (path != null && soundtrackRemovals[path] === marker) {
+                        soundtrackRemovals.remove(path)
+                        com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(path))
+                    }
+                    soundtracks = soundtracks.filter { it.library != Library.ADDED } + list
+                    android.widget.Toast.makeText(this, getString(R.string.gfiles_remove_failed, g.name), android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
             return
         }
         soundtrackWork.execute {
@@ -2686,9 +2697,12 @@ class FrontEndActivity : ComponentActivity() {
                 if (deleted) {
                     marker.scan = libraryScanGeneration
                     marker.settled = true
-                } else if (path != null && soundtrackRemovals[path] === marker) {
-                    soundtrackRemovals.remove(path)
-                    com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(path))
+                } else {
+                    if (path != null && soundtrackRemovals[path] === marker) {
+                        soundtrackRemovals.remove(path)
+                        com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(path))
+                    }
+                    android.widget.Toast.makeText(this, getString(R.string.gfiles_remove_failed, g.name), android.widget.Toast.LENGTH_SHORT).show()
                 }
                 refresh()
             }

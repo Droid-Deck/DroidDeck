@@ -50,9 +50,8 @@ object AddedSoundtracks {
         }
     }
 
-    fun remove(context: Context, path: String) {
+    fun remove(context: Context, path: String): Boolean =
         synchronized(this) { save(context, entries(context).filterNot { it.path == path }) }
-    }
 
     internal fun idOf(path: String): Int = path.hashCode() or Int.MIN_VALUE
 
