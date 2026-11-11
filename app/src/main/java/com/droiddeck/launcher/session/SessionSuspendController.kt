@@ -282,14 +282,20 @@ internal class SessionSuspendController(
         } catch (_: IOException) {
             return
         }
-        val targets = records.values.filter { record ->
+        val preloaded = records.values.filter { record ->
             try {
                 File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libblsession.so") } }
             } catch (_: IOException) {
                 false
             }
         }
-        if (targets.isEmpty()) return
+        if (preloaded.isEmpty()) return
+        val targets = withinSwapBudget(preloaded)
+        if (targets.isEmpty()) {
+            val swap = memoryKb(preloaded)
+            pagedOut(0, 0, swap.first, swap.second, swap.second, 0)
+            return
+        }
         pagedOutTargets = (pagedOutTargets + targets).distinct()
         val acks = targets.associateWith { File(control.parentFile, "${control.name}.ack.${it.pid}") }
         acks.values.forEach { it.delete() }
@@ -343,22 +349,35 @@ internal class SessionSuspendController(
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
     }
 
+    private fun withinSwapBudget(candidates: List<ProcessRecord>): List<ProcessRecord> {
+        val (total, free) = swapKb()
+        var budget = free - total * SWAP_RESERVE_PERCENT / 100
+        return candidates.sortedByDescending { memoryKb(listOf(it)).first }.filter { record ->
+            val resident = memoryKb(listOf(record)).first
+            (resident <= budget).also { if (it) budget -= resident }
+        }
+    }
+
     private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
         availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
             availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
 
-    private fun meminfoKb(): Pair<Long, Long> = try {
+    private fun meminfoKb(first: String, second: String): Pair<Long, Long> = try {
         val values = HashMap<String, Long>()
         File(procRoot, "meminfo").forEachLine { line ->
             val name = line.substringBefore(':')
-            if (name == "MemTotal" || name == "MemAvailable") {
+            if (name == first || name == second) {
                 line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
             }
         }
-        (values["MemTotal"] ?: 0L) to (values["MemAvailable"] ?: 0L)
+        (values[first] ?: 0L) to (values[second] ?: 0L)
     } catch (_: IOException) {
         0L to 0L
     }
+
+    private fun meminfoKb() = meminfoKb("MemTotal", "MemAvailable")
+
+    private fun swapKb() = meminfoKb("SwapTotal", "SwapFree")
 
     private fun isGone(record: ProcessRecord): Boolean =
         try { readProcess(record.pid)?.started != record.started } catch (_: Exception) { false }
@@ -457,6 +476,7 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val SWAP_RESERVE_PERCENT = 25L
         const val READ_BACK_POLL_MS = 100L
         const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L

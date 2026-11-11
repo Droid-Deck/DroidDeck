@@ -42,6 +42,30 @@ class SessionSuspendControllerTest {
         assertFalse(File(fixture.control.parentFile, ".bl-zram.ack.$GAME").exists())
     }
 
+    @Test fun pageOutSkipsSessionsThatWouldFillTheSwap() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 8_000_000L
+        fixture.swapFreeKb = 5_999_999L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertEquals(listOf(Triple(0, 4_000_000L, 0L)), fixture.pagedOut)
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+    }
+
+    @Test fun pageOutProceedsWhenTheSwapKeepsItsReserve() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 8_000_000L
+        fixture.swapFreeKb = 6_000_000L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertEquals(listOf(GAME), fixture.signals.filter { it.signal == URG }.map { it.pid })
+    }
+
     @Test fun unchangedSwapIsNotTakenForAFinishedPageOut() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -483,6 +507,8 @@ class SessionSuspendControllerTest {
         var availableKb = 8_000_000L
         var totalKb = 16_000_000L
         var readBackAllowed = true
+        var swapTotalKb = 16_000_000L
+        var swapFreeKb = 16_000_000L
         private var gameResidentKb = 4_000_000L
         private var gameSwapKb = 0L
         private var pagingOut = false
@@ -565,7 +591,7 @@ class SessionSuspendControllerTest {
         }
 
         fun sync() {
-            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n")
+            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\nSwapTotal:\t$swapTotalKb kB\nSwapFree:\t$swapFreeKb kB\n")
             for (group in groups) {
                 val dir = File(proc, group.pid.toString())
                 if (group == root && rootGone) { dir.deleteRecursively(); continue }
