@@ -1680,8 +1680,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (SessionState.mode != SessionService.MODE_RUN) return null
 
         return (
-            intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
-                ?: SessionState.gameId?.toLongOrNull()
+            SessionState.gameId?.toLongOrNull()
+                ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
         )
     }
 
@@ -4896,6 +4896,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
+        if (CompositorHost.isStarted) applyFrameGen(force = true)
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
@@ -5573,6 +5574,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        frameGenRequests.incrementAndGet()
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()

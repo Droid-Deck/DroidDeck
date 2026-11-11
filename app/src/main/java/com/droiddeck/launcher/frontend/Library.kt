@@ -126,6 +126,7 @@ object Library {
     fun steamGames(
         context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
         withShared: Boolean = true,
+        onlyAppIds: Set<Int>? = null,
     ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
@@ -138,7 +139,9 @@ object Library {
             if (strictRead && steamapps.isDirectory) check(manifests != null) { context.getString(R.string.game_sync_err_manifests) }
             manifests?.sortedBy { it.name }?.forEach { manifest ->
                     val appId = manifest.name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull() ?: return@forEach
-                    if (appId in NOT_GAMES || out.containsKey(appId)) return@forEach
+                    if (appId in NOT_GAMES || out.containsKey(appId) ||
+                        (onlyAppIds != null && appId !in onlyAppIds)
+                    ) return@forEach
                     val text = try { manifest.readText() } catch (e: Exception) { if (strictRead) throw e; return@forEach }
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -169,12 +172,18 @@ object Library {
             }
             if (shared.isNotEmpty()) {
                 val otherGames = try {
-                    steamGames(context, strictRead = strictRead, arch = other, withShared = false)
+                    steamGames(
+                        context,
+                        strictRead = strictRead,
+                        arch = other,
+                        withShared = false,
+                        onlyAppIds = shared,
+                    )
                 } catch (e: Exception) {
                     if (strictRead) throw e
                     emptyList()
                 }
-                otherGames.filter { it.appId in shared }.forEach { out[it.appId] = it }
+                otherGames.forEach { out[it.appId] = it }
             }
         }
         return out.values.toList()
