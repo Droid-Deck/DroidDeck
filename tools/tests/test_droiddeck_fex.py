@@ -486,6 +486,7 @@ class PrepareTest(FexTestCase):
         self.addCleanup(os.chmod, base / "share/ca", 0o700)
         self.quiet(FEX["prepare"])
         rootfs = self.home / ".local/share/droiddeck-fex/rootfs"
+        os.chmod(rootfs / "share/ca", 0o000)
         self.write(self.steam / "linux64/steamclient.so", elf(62))
         self.write(self.steam / "linux32/steamclient.so", elf(3))
         os.utime(self.steam / "steamapps/common/SteamLinuxRuntime_4/steamrt4_platform_4.0.20260928.262390/usr-mtree.txt.gz", ns=(1, 1))

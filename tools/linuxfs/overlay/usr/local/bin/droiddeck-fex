@@ -334,9 +334,10 @@ def remove_tree(path):
         with contextlib.suppress(FileNotFoundError):
             os.unlink(path)
         return
-    for top, _, _ in os.walk(path):
-        os.chmod(top, os.lstat(top).st_mode | stat.S_IRWXU)
-    shutil.rmtree(path, ignore_errors=True)
+    os.chmod(path, os.lstat(path).st_mode | stat.S_IRWXU)
+    for entry in os.listdir(path):
+        remove_tree(os.path.join(path, entry))
+    os.rmdir(path)
 
 
 def stays_in_libraries(root, target, link):
