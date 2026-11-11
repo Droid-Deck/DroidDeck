@@ -472,8 +472,9 @@ class PrepareTest(FexTestCase):
         for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
             for name in names:
                 library = root / "lib" / arch / name
-                self.assertEqual(library.resolve(), (provider / "files/lib" / arch / name).resolve())
-                self.assertEqual(library.read_bytes(), b"new ABI " + name.encode())
+                expected = sniper if name == "libwayland-cursor.so.0" else provider
+                self.assertEqual(library.resolve(), (expected / "files/lib" / arch / name).resolve())
+                self.assertEqual(library.read_bytes(), b"old ABI" if expected == sniper else b"new ABI " + name.encode())
             self.assertEqual((root / "lib" / arch / "libffi.so.7").read_bytes(), b"old ffi")
         self.assertEqual((sniper / "files/lib/x86_64-linux-gnu/libwayland-client.so.0").read_bytes(), b"old ABI")
 
@@ -649,6 +650,56 @@ class PrepareTest(FexTestCase):
                     self.assertEqual((root / "libwayland-client.so.0").read_bytes(), b"base client")
                     self.assertEqual((root / "libwayland-cursor.so.0").read_bytes(), b"base cursor")
                     self.assertEqual((root / "libffi.so.8").read_bytes(), b"provider ffi")
+
+    def test_restored_provider_clients_rebuild_the_rootfs_without_marker_changes(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            self.write(sniper / "files/lib" / arch / "libwayland-client.so.0", b"base")
+            self.write(provider / "files/lib" / arch / "libffi.so.8", b"ffi")
+            os.symlink("client-real.so", provider / "files/lib" / arch / "libwayland-client.so.0")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / "libwayland-client.so.0").read_bytes(), b"base")
+            self.write(provider / "files/lib" / arch / "client-real.so", b"restored")
+            fex, said = self.quiet(FEX["prepare"])
+            self.assertIn("built the x86 runtime", said)
+            self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / "libwayland-client.so.0").read_bytes(), b"restored")
+        self.assertNotIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        client = provider / "files/lib/i386-linux-gnu/client-real.so"
+        client.write_bytes(b"updated client")
+        fex, said = self.quiet(FEX["prepare"])
+        self.assertIn("built the x86 runtime", said)
+        self.assertEqual((Path(fex["rootfs"]) / "lib/i386-linux-gnu/libwayland-client.so.0").read_bytes(), b"updated client")
+
+    @unittest.skipUnless(shutil.which("cc"), "C compiler unavailable")
+    def test_base_cursor_works_with_guest_selected_old_client(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        base = sniper / "files/lib/x86_64-linux-gnu"
+        newer = provider / "files/lib/x86_64-linux-gnu"
+        source = self.tmp / "cursor.c"
+        self.write(newer / "libffi.so.8", b"ffi")
+        for folder, symbol in ((base, "wl_proxy_marshal"), (newer, "wl_proxy_marshal_flags")):
+            source.write_text("void %s(void) {}\n" % symbol)
+            subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-Wl,-soname,libwayland-client.so.0",
+                            "-o", str(folder / "libwayland-client.so.0"), str(source)], check=True, capture_output=True)
+            source.write_text("extern void %s(void); void probe(void) { %s(); }\n" % (symbol, symbol))
+            subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-o", str(folder / "libwayland-cursor.so.0"),
+                            str(source), "-L" + str(folder), "-l:libwayland-client.so.0"], check=True, capture_output=True)
+        fex, _ = self.quiet(FEX["prepare"])
+        cursor = Path(fex["rootfs"]) / "lib/x86_64-linux-gnu/libwayland-cursor.so.0"
+        command = [sys.executable, "-c", "import ctypes,sys; ctypes.CDLL(sys.argv[1], mode=ctypes.RTLD_GLOBAL); ctypes.CDLL(sys.argv[2]).probe()", str(base / "libwayland-client.so.0")]
+        env = {k: v for k, v in os.environ.items() if not k.startswith("LD_")}
+        broken = subprocess.run(command + [str(newer / "libwayland-cursor.so.0")], env=env, capture_output=True, text=True)
+        self.assertNotEqual(broken.returncode, 0)
+        self.assertIn("undefined symbol: wl_proxy_marshal_flags", broken.stderr)
+        fixed = subprocess.run(command + [str(cursor)], env=env, capture_output=True, text=True)
+        self.assertEqual(fixed.returncode, 0, fixed.stderr)
 
     def test_the_old_rootfs_layout_is_rebuilt(self):
         self.fex_tool()

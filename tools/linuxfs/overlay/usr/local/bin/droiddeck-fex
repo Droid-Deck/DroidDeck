@@ -37,7 +37,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 7
+ROOTFS_LAYOUT = 8
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -47,7 +47,7 @@ PROVIDED = frozenset((
     "libmemusage.so", "libpcprofile.so", "libc_malloc_debug.so.0", "gconv", "libstdc++.so.6", "libgcc_s.so.1",
     "libssl.so.3", "libcrypto.so.3",
     "libfreetype.so.6", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libbz2.so.1.0", "libz.so.1",
-    "libwayland-client.so.0", "libwayland-cursor.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
+    "libwayland-client.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
 ))
 GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
@@ -313,10 +313,9 @@ def provides_newer(base, provider):
 
 
 def mirror(source, provider, name, target):
-    wayland_needs_ffi = name in ("libwayland-client.so.0", "libwayland-server.so.0", "libwayland-cursor.so.0")
+    wayland_needs_ffi = name in ("libwayland-client.so.0", "libwayland-server.so.0")
     usable_provider = provider and os.path.exists(os.path.join(provider, name)) and (
-        not wayland_needs_ffi or os.path.exists(os.path.join(provider, "libffi.so.8"))) and (
-        name != "libwayland-cursor.so.0" or os.path.exists(os.path.join(provider, "libwayland-client.so.0")))
+        not wayland_needs_ffi or os.path.exists(os.path.join(provider, "libffi.so.8")))
     if name in PROVIDED and usable_provider:
         os.symlink(os.path.realpath(os.path.join(provider, name)), os.path.join(target, name))
         return
@@ -341,6 +340,16 @@ def build_rootfs(base, provider):
     rootfs = os.path.join(STATE, "rootfs")
     stamp = "%d\n%s\n%s%s\n%s" % (ROOTFS_LAYOUT, os.path.realpath(base), read_text(os.path.join(base_files, MARKER)) or "",
                                     os.path.realpath(provider), read_text(os.path.join(provider_files, MARKER)) or "")
+    for top in ("lib", "lib64"):
+        for arch in ARCH_DIRS:
+            for name in sorted(PROVIDED):
+                path = os.path.join(provider_files, top, arch, name)
+                try:
+                    info = os.stat(path)
+                    stamp += "\n%s %s %d %d %d %d" % (path, os.path.realpath(path), info.st_ino, info.st_size,
+                                                        info.st_mtime_ns, info.st_ctime_ns)
+                except OSError:
+                    stamp += "\n%s missing" % path
     if read_text(os.path.join(rootfs, MARKER)) == stamp:
         return False
     for entry in os.listdir(STATE):
