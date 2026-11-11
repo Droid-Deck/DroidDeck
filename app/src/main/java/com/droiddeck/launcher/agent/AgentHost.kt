@@ -325,7 +325,7 @@ object AgentHost {
         val env = listOf(
             "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
             "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}",
-            "DD_AGENT=1", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
+            "DD_AGENT=1", "DD_AGENT_INBOX=${File(app.filesDir, "agent").path}", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
         )
         val shell = listOf(
             "/bin/sh", "-c",
@@ -470,7 +470,10 @@ object AgentHost {
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(AgentAdb.browserDisplay).toBundle()
         runCatching { app.startActivity(intent, options) }
             .recoverCatching { app.startActivity(intent) }
-            .onFailure { Log.w(TAG, "could not open $url", it) }
+            .onFailure {
+                Log.w(TAG, "could not open a sign-in link: ${it.javaClass.simpleName}")
+                runCatching { File(app.filesDir, "$OPEN_URL.failed").writeText("") }
+            }
     }
 
     /**
