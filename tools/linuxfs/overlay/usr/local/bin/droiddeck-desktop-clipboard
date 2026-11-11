@@ -4,4 +4,17 @@
 child=$!
 trap 'kill "$child" 2>/dev/null' EXIT
 trap 'exit 0' TERM INT
+if [ -n "${BL_GUEST_CLIPBOARD:-}" ]; then
+  exec {signals}< <(exec dbus-monitor --session "type=signal,interface=org.kde.klipper.klipper,member=clipboardHistoryUpdated")
+  monitor=$!
+  trap 'kill "$child" "$monitor" 2>/dev/null' EXIT
+  while read -r -u "$signals" line; do
+    [[ $line == *member=clipboardHistoryUpdated* ]] || continue
+    text=$(qdbus6 org.kde.klipper /klipper org.kde.klipper.klipper.getClipboardContents; printf x)
+    text=${text%x}
+    text=${text%$'\n'}
+    [ -n "$text" ] && [ "${#text}" -le 262144 ] || continue
+    printf %s "$text" > "$BL_GUEST_CLIPBOARD.pending" && mv -f "$BL_GUEST_CLIPBOARD.pending" "$BL_GUEST_CLIPBOARD"
+  done
+fi
 wait "$child"

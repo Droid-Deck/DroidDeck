@@ -3,6 +3,7 @@ package com.droiddeck.launcher.input
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.FileObserver
 import android.os.Handler
 import android.os.Looper
 import android.system.Os
@@ -15,6 +16,8 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val handler = Handler(Looper.getMainLooper())
     private val hostFile = File(context.filesDir, "session/android-clipboard")
+    private val guestFile = guestFile(context)
+    private var guestObserver: FileObserver? = null
     private var active = false
     private var published = false
     private var shared: String? = null
@@ -25,24 +28,46 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh(changed = true) }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
-            handler.post {
-                val taken = capture?.takeIf { text != captureBefore }
-                if (taken != null && WaylandCompositor.isClipboardListener(this)) {
-                    capture = null
-                    handler.removeCallbacks(captureTimeout)
-                    WaylandCompositor.setClipboardText(shared)
-                    taken(text)
-                } else if (active && hasFocus() && WaylandCompositor.isClipboardListener(this)) {
-                    val current = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
-                    shared = text
-                    published = true
-                    if (current?.toString() != text) {
-                        echo = text
-                        clipboard.setPrimaryClip(ClipData.newPlainText("DroidDeck", text))
-                    }
-                }
+            handler.post { receiveGuestText(text, WaylandCompositor.isClipboardListener(this)) }
+        }
+    }
+
+    private fun receiveGuestText(text: String, current: Boolean) {
+        val taken = capture?.takeIf { text != captureBefore }
+        if (taken != null && current) {
+            capture = null
+            handler.removeCallbacks(captureTimeout)
+            WaylandCompositor.setClipboardText(shared)
+            taken(text)
+        } else if (active && hasFocus() && current) {
+            val clip = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
+            shared = text
+            published = true
+            if (clip?.toString() != text) {
+                echo = text
+                clipboard.setPrimaryClip(ClipData.newPlainText("DroidDeck", text))
             }
         }
+    }
+
+    private fun watchGuestFile() {
+        guestFile.parentFile?.mkdirs()
+        guestFile.delete()
+        @Suppress("DEPRECATION")
+        guestObserver = object : FileObserver(guestFile.parentFile!!.path, MOVED_TO or CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != guestFile.name) return
+                val text = try {
+                    guestFile.readText(Charsets.UTF_8)
+                } catch (e: IOException) {
+                    Log.w("SessionClipboard", "Could not read text copied in the desktop", e)
+                    return
+                } finally {
+                    guestFile.delete()
+                }
+                if (text.isNotEmpty()) handler.post { receiveGuestText(text, true) }
+            }
+        }.also { it.startWatching() }
     }
 
     private val captureTimeout = Runnable {
@@ -65,6 +90,7 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         active = true
         clipboard.addPrimaryClipChangedListener(androidListener)
         WaylandCompositor.setClipboardListener(guestListener)
+        watchGuestFile()
         refresh()
     }
 
@@ -75,6 +101,8 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         capture?.let { capture = null; it(null) }
         clipboard.removePrimaryClipChangedListener(androidListener)
         WaylandCompositor.clearClipboardListener(guestListener)
+        guestObserver?.stopWatching()
+        guestObserver = null
         handler.removeCallbacksAndMessages(null)
     }
 
@@ -108,5 +136,9 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         } finally {
             pending.delete()
         }
+    }
+
+    companion object {
+        fun guestFile(context: Context) = File(context.filesDir, "session/guest-clipboard/text")
     }
 }
