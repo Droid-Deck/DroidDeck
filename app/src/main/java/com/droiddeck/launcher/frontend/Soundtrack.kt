@@ -223,8 +223,10 @@ object Soundtrack {
     private fun embeddedCover(context: Context, root: File, files: List<File>): File? {
         cachedCover(context, root)?.let { return it }
         val miss = File(coverCache(context, root).path + ".none")
-        if (runCatching { miss.isFile && miss.readText().trim() == files.size.toString() }.getOrDefault(false)) return null
-        for (file in files.take(8)) {
+        val probed = files.take(8)
+        val signature = hashOf(probed.joinToString("\n") { "${it.path}|${it.length()}|${it.lastModified()}" }.toByteArray(Charsets.UTF_8))
+        if (runCatching { miss.isFile && miss.readText().trim() == signature }.getOrDefault(false)) return null
+        for (file in probed) {
             val bytes = embeddedBytes(file) ?: continue
             val out = coverCache(context, root)
             runCatching {
@@ -234,7 +236,7 @@ object Soundtrack {
         }
         runCatching {
             miss.parentFile?.mkdirs()
-            miss.writeText(files.size.toString())
+            miss.writeText(signature)
         }
         return null
     }
