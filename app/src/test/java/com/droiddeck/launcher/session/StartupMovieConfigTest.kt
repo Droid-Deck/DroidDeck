@@ -164,4 +164,15 @@ class StartupMovieConfigTest {
         BootMovie.syncShuffleFromSteam(app, x64)
         assertTrue(SessionPrefs.bootMovieShuffle(app))
     }
+
+    @Test fun aShuffleChangedInAnInactiveSteamHomeIsTakenOverBeforeTheActiveHome() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val inactive = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        val active = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        BootMovie.syncShuffleFromSteam(app, listOf(inactive, active))
+        SessionFiles.setStartupMovieShuffle(inactive, true)
+        BootMovie.syncShuffleFromSteam(app, listOf(inactive, active))
+        assertTrue(SessionPrefs.bootMovieShuffle(app))
+    }
 }
