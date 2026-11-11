@@ -5,7 +5,12 @@
 #              compile what changed. Setup runs it once; it takes the longest.
 #   --explain  logs why each task ran and Kotlin's build report, to find out what makes a build slow.
 set -euo pipefail
-pkg=com.droiddeck.launcher
+pkg=${DROIDDECK_PACKAGE:-}
+if [ -z "$pkg" ] && [[ ${DD_AGENT_INBOX:-} =~ ^/data/(user/[0-9]+|data)/([^/]+)/files/agent$ ]]; then
+  pkg=${BASH_REMATCH[2]}
+fi
+pkg=${pkg:-com.droiddeck.launcher}
+export DROIDDECK_PACKAGE=$pkg
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 mode=build
 explain=()
@@ -233,6 +238,6 @@ device cmd package compile -m verify -f $pkg >/dev/null
 progress restarting 1000 "$name"
 echo "Restarting DroidDeck on the Lab build; it shows a notification when it is back"
 # The app's own agent ends with the app, so it is told to carry on once the app is back.
-if [ -n "${DD_AGENT:-}" ]; then mkdir -p "/data/user/0/$pkg/files/agent" && : > "/data/user/0/$pkg/files/agent/resume"; fi
+if [ -n "${DD_AGENT:-}" ]; then mkdir -p "$agent" && : > "$agent/resume"; fi
 device "nohup sh -c 'sleep 3; monkey -p $pkg -c android.intent.category.LAUNCHER 1' >/dev/null 2>&1 &"
 for pid in $(device pidof $pkg); do kill "$pid" 2>/dev/null || true; done
