@@ -3,7 +3,6 @@ package com.droiddeck.launcher.session
 import java.io.File
 
 object SteamGameProcess {
-    // Compatibilidade com telas que precisam detectar qualquer jogo Steam.
     fun matches(cmdline: ByteArray): Boolean {
         val args = String(cmdline).split('\u0000')
         return args.indices.any { i ->
