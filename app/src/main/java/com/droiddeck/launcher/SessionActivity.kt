@@ -560,12 +560,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var frameGenActivityActive = true
     private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
     @Volatile private var frameGenInventoryRevision = -1L
     private val frameGenInventoryLock = Any()
     @Volatile private var frameGenInventoryLastAttemptAt = 0L
     private val frameGenInventoryRetryScheduled = java.util.concurrent.atomic.AtomicBoolean()
+    private val frameGenInventoryRefreshScheduled = java.util.concurrent.atomic.AtomicBoolean()
 
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     @Volatile private var appliedFrameGenHz: Float? = null
@@ -2545,8 +2547,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             published = true
                         }
                     }
-                    if (published && frameGenRequests.get() != request) {
-                        applyFrameGen()
+                    if (published) {
+                        if (frameGenInventoryRefreshScheduled.compareAndSet(false, true)) {
+                            uiHandler.postDelayed({
+                                if (frameGenActivityActive && !isFinishing && !isDestroyed) {
+                                    synchronized(frameGenInventoryLock) {
+                                        frameGenInventoryIds = null
+                                        frameGenInventoryLastAttemptAt = 0L
+                                    }
+                                    applyFrameGen()
+                                }
+                            }, 15_000L)
+                        }
+                        if (frameGenRequests.get() != request) {
+                            applyFrameGen()
+                        }
                     }
                 }
             }
@@ -2573,7 +2588,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                if (isFinishing || isDestroyed) return@Thread
+                if (!frameGenActivityActive || isFinishing || isDestroyed) return@Thread
                 val forcePending = frameGenForcePending.getAndSet(false)
                 val lastAppliedHz = appliedFrameGenHz
                 if (!forcePending && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
@@ -5579,7 +5594,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
-        frameGenRequests.incrementAndGet()
+        synchronized(frameGenRequests) {
+            frameGenActivityActive = false
+            frameGenRequests.incrementAndGet()
+        }
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
