@@ -18,11 +18,13 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
         val logo: File? = null,
+        val installedAt: Long = 0L,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
+        val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
         val profileKey: String get() = when {
             source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
             library == ADDED -> java.lang.Integer.toUnsignedString(appId)
@@ -30,6 +32,7 @@ object Library {
         }
     }
     const val ADDED = "added"
+    private const val PLAYED = "added_games_played"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
     const val BATTLENET_LAUNCHER = "battlenet-launcher"
@@ -220,6 +223,18 @@ object Library {
         return (steam + own.map { g -> addedGame(context, g, roots, played[g.appId] ?: 0L) }).distinctBy { it.gameId }
     }
 
+    fun recordPlayed(context: Context, game: SteamGame) {
+        if (game.library == ADDED) recordPlayed(context, game.gameIdString)
+    }
+
+    fun recordPlayed(context: Context, gameId: String) {
+        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).edit()
+            .putLong(gameId, System.currentTimeMillis() / 1000).apply()
+    }
+
+    internal fun recordedPlay(context: Context, gameId: Long): Long =
+        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).getLong(java.lang.Long.toUnsignedString(gameId), 0L)
+
     internal fun shortcutsLastPlayed(root: File): Map<Long, Long> = runCatching {
         val config = AddedGames.accountConfig(root) ?: return emptyMap()
         val bytes = File(config, "shortcuts.vdf").takeIf { it.isFile }?.readBytes() ?: return emptyMap()
@@ -248,12 +263,13 @@ object Library {
         AddedGameArt.resolve(context, g).let { art ->
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
-                hero = art.hero ?: art.header, lastPlayed = lastPlayed, gameFiles = g.folder,
+                hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
                 protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
                     else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
                 logo = art.logo,
+                installedAt = g.folder.lastModified(),
             )
         }
 

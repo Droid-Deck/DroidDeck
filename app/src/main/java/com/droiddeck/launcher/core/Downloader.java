@@ -58,7 +58,7 @@ public final class Downloader {
 
         private static void closeAsync(InputStream active) {
             CANCEL_EXECUTOR.execute(() -> {
-                try { active.close(); } catch (IOException ignored) { }
+                try { active.close(); } catch (IOException | IllegalStateException ignored) { }
             });
         }
 

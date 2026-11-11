@@ -141,6 +141,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var dDividerTop = -1f
     private var dFrame: Bitmap? = null
     private var dFrameKey = ""
+    private var sFrame: Bitmap? = null
+    private var sFrameKey = ""
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val colGpu = 0xFF5EE08A.toInt()
@@ -274,8 +276,16 @@ class DroidDeckHudView(context: Context) : View(context) {
             seenFpsUpdates = updates
             periodDone.trySend(Unit)
         }
-        if (graphRect != null) invalidate()
+        if (graphRect == null) return
+        if (stripRect != null) {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastGraphDrawMs < STRIP_GRAPH_REDRAW_MS) return
+            lastGraphDrawMs = now
+        }
+        invalidate()
     }
+
+    private var lastGraphDrawMs = 0L
 
     private fun cycleSize() {
         size = size.next()
@@ -1340,10 +1350,15 @@ class DroidDeckHudView(context: Context) : View(context) {
             canvas.drawText(g.text, g.x, g.baseline, paint)
             if (g.glow) paint.clearShadowLayer()
         }
-        headerMark?.let { DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
+        headerMark?.let {
+            if (stripRect != null && layerType != LAYER_TYPE_SOFTWARE) drawCachedMark(canvas, it)
+            else DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent)
+        }
         headerWordmark?.let { WordmarkArt.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
 
-        graphRect?.let { drawGraph(canvas, it) }
+        graphRect?.let {
+            if (stripRect != null && layerType != LAYER_TYPE_SOFTWARE) drawCachedGraph(canvas, it) else drawGraph(canvas, it)
+        }
 
         lockController.drawBadge(canvas)
     }
@@ -1368,18 +1383,66 @@ class DroidDeckHudView(context: Context) : View(context) {
         canvas.drawPath(graphPath, graphPaint)
     }
 
+    private var cachedGraphBitmap: Bitmap? = null
+    private var cachedGraphCanvas: Canvas? = null
+    private val cachedGraphRect = RectF()
+    private var cachedMarkBitmap: Bitmap? = null
+    private var cachedMarkKey = ""
+
+    private fun drawCachedGraph(canvas: Canvas, rect: RectF) {
+        val w = rect.width().roundToInt().coerceAtLeast(1)
+        val h = rect.height().roundToInt().coerceAtLeast(1)
+        var bitmap = cachedGraphBitmap
+        if (bitmap == null || bitmap.width != w || bitmap.height != h) {
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            cachedGraphBitmap = bitmap
+            cachedGraphCanvas = Canvas(bitmap)
+            cachedGraphRect.set(0f, 0f, w.toFloat(), h.toFloat())
+        }
+        bitmap.eraseColor(Color.TRANSPARENT)
+        drawGraph(cachedGraphCanvas!!, cachedGraphRect)
+        canvas.drawBitmap(bitmap, rect.left, rect.top, null)
+    }
+
+    private fun drawCachedMark(canvas: Canvas, rect: RectF) {
+        val w = rect.width().roundToInt().coerceAtLeast(1)
+        val h = rect.height().roundToInt().coerceAtLeast(1)
+        val key = "$w,$h,${blend(colValue)},$accent"
+        var bitmap = cachedMarkBitmap
+        if (bitmap == null || key != cachedMarkKey) {
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            DroidDeckMark.draw(Canvas(bitmap), 0f, 0f, h.toFloat(), blend(colValue), accent)
+            cachedMarkBitmap = bitmap
+            cachedMarkKey = key
+        }
+        canvas.drawBitmap(bitmap, rect.left, rect.top, null)
+    }
+
     private fun drawStrip(canvas: Canvas, rect: RectF) {
-        headerPaint.shader = null
-        headerPaint.color = panelColor()
-        canvas.drawRect(rect, headerPaint)
-        val stroke = outlineWidth()
-        if (stroke <= 0f) return
-        val line = max(stroke / 2f, density)
         val p = parent as? View
         val atBottom = p != null && p.height > 0 && y + height / 2f > p.height / 2f
-        headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
-        if (atBottom) canvas.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
-        else canvas.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
+        stripFrame(rect, atBottom)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+    }
+
+    private fun stripFrame(rect: RectF, atBottom: Boolean): Bitmap? {
+        val w = rect.width().roundToInt(); val h = rect.height().roundToInt()
+        if (w <= 0 || h <= 0) return null
+        val stroke = outlineWidth()
+        val key = "$w,$h,$stroke,$atBottom,$surfaceRgb,$bgOpacity,$outlineIntensity,${outlineColor()}"
+        if (key == sFrameKey) sFrame?.let { return it }
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        headerPaint.shader = null
+        headerPaint.color = panelColor()
+        c.drawRect(rect, headerPaint)
+        if (stroke > 0f) {
+            val line = max(stroke / 2f, density)
+            headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
+            if (atBottom) c.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
+            else c.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
+        }
+        sFrame = bmp; sFrameKey = key
+        return bmp
     }
 
     private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
@@ -1499,6 +1562,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         const val TAB_PAD_X_SP = 7f
         const val TAB_PAD_Y_SP = 5.5f
         const val REFRESH_MS = 500L
+        const val STRIP_GRAPH_REDRAW_MS = 66L
         private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
         const val MAX_SCALE = 2f

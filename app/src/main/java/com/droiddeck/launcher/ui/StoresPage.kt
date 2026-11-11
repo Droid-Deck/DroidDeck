@@ -1157,6 +1157,8 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
         Store.GAMEJOLT -> Color(0xFFCCFF00) to Color(0xFFA3CC00)
         Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
+        Store.UBISOFT -> Color(0xFF2E7DFF) to Color(0xFF1A5BD6)
+        Store.EA -> Color(0xFFFF4747) to Color(0xFFE03030)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1430,18 +1432,7 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
+internal fun launchStoreGame(store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
     val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
-    if (game != null) {
-        a.onSteamGame(game)
-        return
-    }
-    val app = ctx.applicationContext
-    Thread({
-        val installed = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
-        StoresState.post {
-            if (installed == null) android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
-            else a.onSteamGame(installed)
-        }
-    }, "store-play").start()
+    if (game != null) a.onSteamGame(game) else a.onStoreGame(store, id)
 }

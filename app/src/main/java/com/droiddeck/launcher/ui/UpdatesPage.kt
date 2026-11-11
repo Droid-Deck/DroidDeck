@@ -120,11 +120,11 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     StatusPanel(s, u, ua, me)
                     Box(Modifier.height(18.dp))
                     ChannelLabel()
-                    ChannelPicker(u, ua)
+                    ChannelPicker(u, ua, s.sessionRunning)
                 } else {
                     ChannelLabel()
                     Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
+                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua, s.sessionRunning) }
                         Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
                     }
                 }
@@ -262,7 +262,7 @@ private fun ChannelLabel() {
 }
 
 @Composable
-private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
+private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: Boolean) {
     val colors = MaterialTheme.colorScheme
     val catalog = u.catalog
     val tests = catalog?.tests.orEmpty()
@@ -285,6 +285,15 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
             }
         }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val agentReady = com.droiddeck.launcher.agent.AgentHost.installed &&
+            (com.droiddeck.launcher.agent.AgentSetup.ready || com.droiddeck.launcher.agent.AgentSetup.completed(context))
+        LabBuilds(sessionRunning, onRebuild = if (agentReady) { info ->
+            com.droiddeck.launcher.agent.AgentHost.send(context, context.getString(R.string.agent_rebuild_lab, info.label))
+            context.startActivity(android.content.Intent(context, com.droiddeck.launcher.FrontEndActivity::class.java)
+                .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "agent")
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        } else null)
     }
 }
 

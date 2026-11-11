@@ -23,6 +23,7 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val LOW_STORAGE_WARNING = "lowStorageWarning"
     private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
     private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
@@ -110,11 +111,15 @@ object SessionPrefs {
         prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", launcher).putString("dualScreenSessionMode", mode).apply()
     }
 
-    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
-
-    fun setSecondScreenPanel(context: Context, mode: String) {
-        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    fun secondScreenPanel(context: Context, desktop: Boolean): String? = prefs(context).let {
+        it.getString(secondScreenPanelKey(desktop), null) ?: if (desktop) null else it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
     }
+
+    fun setSecondScreenPanel(context: Context, desktop: Boolean, mode: String) {
+        prefs(context).edit().putString(secondScreenPanelKey(desktop), mode).apply()
+    }
+
+    private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
     fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
@@ -182,6 +187,12 @@ object SessionPrefs {
 
     fun setDualScreenSessionControls(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("dualScreenSessionControls", on).apply()
+    }
+
+    fun androidTextFieldKeyboard(context: Context): Boolean = prefs(context).getBoolean("androidTextFieldKeyboard", false)
+
+    fun setAndroidTextFieldKeyboard(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
     }
 
     fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
@@ -508,6 +519,17 @@ object SessionPrefs {
         prefs(context).edit().putString("gpuDriverMode", mode).apply()
     }
 
+    fun componentMode(context: Context, comp: String): String =
+        prefs(context).getString("componentMode.$comp", ComponentUpdates.AUTO)
+            ?.takeIf { it == ComponentUpdates.AUTO || it == ComponentUpdates.MANUAL } ?: ComponentUpdates.AUTO
+
+    fun componentModeChosen(context: Context, comp: String): Boolean = prefs(context).contains("componentMode.$comp")
+
+    fun setComponentMode(context: Context, comp: String, mode: String) {
+        require(mode == ComponentUpdates.AUTO || mode == ComponentUpdates.MANUAL)
+        prefs(context).edit().putString("componentMode.$comp", mode).commit()
+    }
+
     fun settleGpuDriverMode(context: Context) {
         val p = prefs(context)
         if (p.contains("gpuDriverMode")) return
@@ -536,11 +558,11 @@ object SessionPrefs {
 
     fun picturePosition(context: Context): String =
         prefs(context).getString("picturePosition", "center")
-            ?.takeIf { it in listOf("top", "bottom", "center") } ?: "center"
+            ?.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center"
 
     fun setPicturePosition(context: Context, position: String) {
         prefs(context).edit().putString("picturePosition",
-            position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
+            position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
@@ -728,6 +750,12 @@ object SessionPrefs {
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
+    }
+
+    fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", false)
+
+    fun setNativeUserland(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("nativeUserland", on).apply()
     }
 
     fun prootFastPath(context: Context): Boolean = prefs(context).getBoolean("prootFastPath", true)
@@ -1533,8 +1561,11 @@ object SessionPrefs {
         prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
             ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
 
-    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
-        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
+    fun deckPanel(context: Context): com.droiddeck.launcher.input.DeckPanel =
+        com.droiddeck.launcher.input.DeckPanel.from(prefs(context).getString("deckPanel", null))
+
+    fun setDeckPanel(context: Context, panel: com.droiddeck.launcher.input.DeckPanel) {
+        prefs(context).edit().putString("deckPanel", panel.id).apply()
     }
 
     fun suspendPolicy(context: Context, mode: String): String =
@@ -1563,6 +1594,12 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun lowStorageWarning(context: Context): Boolean = prefs(context).getBoolean(LOW_STORAGE_WARNING, true)
+
+    fun setLowStorageWarning(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(LOW_STORAGE_WARNING, on).apply()
     }
 
     fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)

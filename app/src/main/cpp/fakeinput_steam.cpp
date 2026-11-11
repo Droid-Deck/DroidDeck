@@ -30,6 +30,7 @@
 #include <linux/uinput.h>
 #include <poll.h>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -208,23 +209,33 @@ struct FakeConfig {
   bool uinput_enabled;
 };
 
+// The first allocation here can start the host program's own allocator, which may call a hooked
+// function (mimalloc probes NUMA nodes with access()) and land back in config(). A guarded static
+// would throw a recursive-init error there, so the fields are filled without allocating, and a
+// reentry on the initializing thread gets them while other threads wait for the fork handlers.
 static FakeConfig &config() {
-  static FakeConfig *cfg = [] {
-    auto *c = new FakeConfig();
-    const char *dir = getenv("FAKE_EVDEV_DIR");
-    c->hook_dir = dir ? dir : "/data/data/com.termux/files/home/fake-input";
-    c->udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
-    c->vibration_enabled =
-        getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
-    const char *identity = getenv("FAKE_EVDEV_IDENTITY");
-    c->xbox360_identity = identity && !strcmp(identity, "xbox360");
-    c->uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
-    pthread_atfork(controller_fork_prepare, controller_fork_parent,
-                   controller_fork_child);
-    Logger::init();
-    return c;
-  }();
-  return *cfg;
+  static FakeConfig cfg;
+  static std::atomic<int> state{0};
+  static __thread bool initializing __attribute__((tls_model("initial-exec")));
+  if (state.load(std::memory_order_acquire) == 2 || initializing) return cfg;
+  int expected = 0;
+  if (!state.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
+    while (state.load(std::memory_order_acquire) != 2) sched_yield();
+    return cfg;
+  }
+  initializing = true;
+  const char *dir = getenv("FAKE_EVDEV_DIR");
+  cfg.hook_dir = dir ? dir : "/data/data/com.termux/files/home/fake-input";
+  cfg.udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
+  cfg.vibration_enabled = getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
+  const char *identity = getenv("FAKE_EVDEV_IDENTITY");
+  cfg.xbox360_identity = identity && !strcmp(identity, "xbox360");
+  cfg.uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
+  pthread_atfork(controller_fork_prepare, controller_fork_parent, controller_fork_child);
+  Logger::init();
+  state.store(2, std::memory_order_release);
+  initializing = false;
+  return cfg;
 }
 
 static std::recursive_mutex &controller_mutex() {
@@ -2311,7 +2322,15 @@ __attribute__((visibility("hidden"))) static bool is_deck_sysfs_path(const char 
   if (!path) return false;
   if (!strncmp(path, "/sys/devices/droiddeck", 22) || !strncmp(path, "/sys/class/hidraw", 17)) return true;
   const char *listing = deck_listing_dir();
-  return listing && !strncmp(path, listing, strlen(listing));
+  if (!listing) return false;
+  if (!strncmp(path, listing, strlen(listing))) return true;
+  // Without proot, a descriptor's /proc/self/fd link names the stand-in where it really is (the
+  // listing's parent holds devices/ and class-hidraw/), not /sys
+  const char *slash = strrchr(listing, '/');
+  if (!slash || slash == listing) return false;
+  size_t root = static_cast<size_t>(slash - listing);
+  return !strncmp(path, listing, root) && path[root] == '/' &&
+         (!strncmp(path + root, "/devices", 8) || !strncmp(path + root, "/class-hidraw", 13));
 }
 
 __attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {
@@ -2953,15 +2972,19 @@ EXPORT DIR *opendir(const char *name) {
   return dir;
 }
 
+static bool open_has_mode(int flags) {
+  return (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
+}
+
 EXPORT int open(const char *pathname, int flags, ...) {
   va_list va;
-  mode_t mode;
+  mode_t mode = 0;
   int fd;
   bool hasMode;
 
   va_start(va, flags);
 
-  hasMode = flags & O_CREAT;
+  hasMode = open_has_mode(flags);
 
   if (hasMode) {
     mode = va_arg(va, mode_t);
@@ -3033,13 +3056,13 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
 EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   va_list va;
-  mode_t mode;
+  mode_t mode = 0;
   int fd;
   bool hasMode;
 
   va_start(va, flags);
 
-  hasMode = flags & O_CREAT;
+  hasMode = open_has_mode(flags);
 
   if (hasMode) {
     mode = va_arg(va, mode_t);
@@ -4251,7 +4274,7 @@ EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
 
 #ifdef __GLIBC__
 static mode_t open_mode(int flags, va_list va) {
-  return (flags & (O_CREAT | O_TMPFILE)) ? va_arg(va, mode_t) : 0;
+  return open_has_mode(flags) ? va_arg(va, mode_t) : 0;
 }
 
 EXPORT int open64(const char *pathname, int flags, ...) {

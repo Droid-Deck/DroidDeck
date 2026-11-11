@@ -84,7 +84,7 @@ import com.droiddeck.launcher.stores.download.StoreDownloadTier
 import com.droiddeck.launcher.R
 
 
-private enum class CheckState { OK, WARN, BUSY }
+internal enum class CheckState { OK, WARN, BUSY }
 
 private const val STORAGE_TAB = 3
 private const val LAUNCHER_TAB = 2
@@ -97,7 +97,7 @@ private const val GLASSES_TAB = 6
 private const val SYNC_TAB = 4
 
 @Composable
-private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
+internal fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val tint = when (state) {
@@ -245,7 +245,7 @@ internal fun SetupPanel(
             PageHeader(stringResource(R.string.setup_title)) {
                 Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
-            Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (tab == 1) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (tab == 1) 0.dp else 24.dp)) {
                 when (tab) {
                     0 -> {
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
@@ -413,9 +413,7 @@ internal fun SetupPanel(
                     }
                     1 -> {
                         val controller = s.controller
-                        if (controller != null && a.controller != null) SettingsGroup(stringResource(R.string.setup_controller)) {
-                            ControllerRows(host, s.oscMode, controller, a.controller)
-                        }
+                        if (controller != null && a.controller != null) InputSettingsPage(onBack = { pick(0) }, embedded = true)
                         if (s.controller == null || a.controller == null) Note(stringResource(R.string.setup_controller_unavailable))
                     }
                     2 -> {
@@ -452,6 +450,8 @@ internal fun SetupPanel(
                                 )
                                 ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
                                     s.animationsEnabled, onChange = a.onAnimationsEnabled)
+                                ToggleRow(host, "low-storage-warning", stringResource(R.string.setup_low_storage_warning), stringResource(R.string.setup_low_storage_warning_hint),
+                                    s.lowStorageWarning, onChange = a.onLowStorageWarning)
                                 val railContext = androidx.compose.ui.platform.LocalContext.current
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
@@ -474,6 +474,20 @@ internal fun SetupPanel(
                                     com.droiddeck.launcher.core.AppUiPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
                                     s.launcherOrientation, onPick = a.onLauncherOrientation,
                                 )
+                                s.tpUbwcMode?.let { ubwc ->
+                                    ChoiceRow(
+                                        host, "tp-ubwc", stringResource(R.string.gpu_ubwc_title), stringResource(R.string.gpu_ubwc_hint),
+                                        listOf(
+                                            SessionPrefs.TP_UBWC_AUTO to stringResource(R.string.common_auto),
+                                            SessionPrefs.TP_UBWC_ON to stringResource(R.string.widgets_on),
+                                            SessionPrefs.TP_UBWC_OFF to stringResource(R.string.widgets_off),
+                                        ), ubwc, onPick = a.onTpUbwcMode,
+                                    )
+                                    if (s.tpUbwcRestartRequired) {
+                                        if (s.canRestartApp) ActionRow(stringResource(R.string.gpu_ubwc_restart), null, stringResource(R.string.gpu_restart_now), a.onRestartApp)
+                                        else Note(stringResource(R.string.gpu_ubwc_restart))
+                                    }
+                                }
                                 ChoiceRow(
                                     host, "orientation", stringResource(R.string.setup_session_orientation), stringResource(R.string.setup_session_orientation_hint),
                                     SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
@@ -502,6 +516,8 @@ internal fun SetupPanel(
                                         ToggleRow(host, "dual-screen-controls", stringResource(R.string.setup_dual_screen_controls),
                                             stringResource(R.string.setup_dual_screen_controls_hint), s.dualScreenControls) { a.onDualScreenControls(it) }
                                     }
+                                    ToggleRow(host, "android-text-field-keyboard", stringResource(R.string.setup_android_text_field_keyboard),
+                                        null, s.androidTextFieldKeyboard) { a.onAndroidTextFieldKeyboard(it) }
                                 }
                             }
                         }
@@ -674,10 +690,12 @@ internal fun SetupPanel(
 }
 
 @Composable
-private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, checks: @Composable () -> Unit) {
+internal fun ReadinessCard(
+    passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, title: String? = null, ready: Boolean = passing == total,
+    checks: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val ready = passing == total
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -693,7 +711,7 @@ private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean,
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
+                    title ?: stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
                     fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                 )
                 if (line.isNotEmpty()) Text(line, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -835,6 +853,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     )
     val appSync = syncLabels[com.droiddeck.launcher.session.SessionPrefs.syncBackend(appContext)]
     val useDefault = stringResource(R.string.comp_game_use_general)
+    val generalFex = com.droiddeck.launcher.core.FexPreset.byId(com.droiddeck.launcher.session.SessionPrefs.fexPreset(appContext))
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
@@ -849,7 +868,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             MenuItem(
                 stringResource(R.string.fex_preset_title), checked = false, enabled = ready,
                 detail = when {
-                    fex == null -> useDefault
+                    fex == null -> "$useDefault · ${stringResource(generalFex.label)}"
                     chosen == null -> custom
                     else -> stringResource(chosen.label)
                 },
@@ -881,7 +900,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
         }
     }
     AnchoredMenu(host.open == fexKey, onDismiss = { if (host.open == fexKey) host.open = null }, title = stringResource(R.string.fex_preset_title)) { first ->
-        MenuItem(useDefault, checked = fex == null, enabled = ready, focusRequester = first) {
+        MenuItem(useDefault, checked = fex == null, enabled = ready, detail = stringResource(generalFex.label), focusRequester = first) {
             host.open = key
             save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameFexPreset(it, scope, null) }
         }

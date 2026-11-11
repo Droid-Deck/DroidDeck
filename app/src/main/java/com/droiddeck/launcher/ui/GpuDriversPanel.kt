@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -134,8 +133,6 @@ class GpuDriversState(
     val runtime: DriverSlot = DriverSlot(),
     val canRestart: Boolean = true,
     val checkedAt: Long = 0L,
-    val tpUbwcMode: String? = null,
-    val tpUbwcRestartRequired: Boolean = false,
 ) {
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
@@ -156,7 +153,6 @@ class GpuDriversActions(
     val onRestoreBundled: () -> Unit = {},
     val onMode: (String) -> Unit = {},
     val onRestart: () -> Unit = {},
-    val onTpUbwcMode: (String) -> Unit = {},
 )
 
 @Composable
@@ -250,44 +246,13 @@ internal fun GpuDriversBody(
             Triple(GPU_MODE_PAIR, R.string.gpu_mode_pair, R.string.gpu_mode_pair_detail),
             Triple(GPU_MODE_MIX, R.string.gpu_mode_mix, R.string.gpu_mode_mix_detail),
         )
-        val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
-            val (id, title, detail) = modes[i]
-            PanelRow(
-                stringResource(title), stringResource(detail), gpu.mode == id,
-                modifier = mod.then(if (gpu.mode == id) Modifier.focusRequester(first) else Modifier)
-                    .then(if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier),
-                onClick = { if (gpu.mode != id) actions.onMode(id) },
-            )
-        }
-        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
-        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+        ModeChoices(modes, gpu.mode, single, first, onPick = actions.onMode) { i ->
+            if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier
         }
         when (gpu.mode) {
             GPU_MODE_AUTO -> AutoBody(gpu, actions)
             GPU_MODE_PAIR -> PairBody(gpu, actions)
             else -> MixBody(single, actions, slotFocus, onOpenSlot)
-        }
-        gpu.tpUbwcMode?.let { selected ->
-            var advanced by rememberSaveable { mutableStateOf(false) }
-            SecondaryButton(stringResource(R.string.gpu_advanced) + if (advanced) " ▴" else " ▾", modifier = Modifier.fillMaxWidth()) { advanced = !advanced }
-            AnimatedVisibility(advanced) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ChoiceRow(
-                        rememberMenuHost(), "tp-ubwc", stringResource(R.string.gpu_ubwc_title),
-                        stringResource(R.string.gpu_ubwc_hint),
-                        listOf(
-                            SessionPrefs.TP_UBWC_AUTO to stringResource(R.string.common_auto),
-                            SessionPrefs.TP_UBWC_ON to stringResource(R.string.widgets_on),
-                            SessionPrefs.TP_UBWC_OFF to stringResource(R.string.widgets_off),
-                        ), selected, onPick = actions.onTpUbwcMode,
-                    )
-                    if (gpu.tpUbwcRestartRequired) {
-                        Text(stringResource(R.string.gpu_ubwc_restart), fontSize = 13.sp, color = AttentionAmber)
-                        if (gpu.canRestart) SecondaryButton(stringResource(R.string.gpu_restart_now), onClick = actions.onRestart)
-                    }
-                }
-            }
         }
     }
 }
@@ -439,12 +404,35 @@ internal const val SLOT_DISPLAY = "panel"
 internal const val SLOT_RUNTIME = "rt"
 
 @Composable
-private fun PanelHeading(text: String) {
+internal fun ModeChoices(
+    modes: List<Triple<String, Int, Int>>,
+    selected: String,
+    single: Boolean,
+    first: FocusRequester,
+    onPick: (String) -> Unit,
+    extra: (Int) -> Modifier = { Modifier },
+) {
+    val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
+        val (id, title, detail) = modes[i]
+        PanelRow(
+            stringResource(title), stringResource(detail), selected == id,
+            modifier = mod.then(if (selected == id) Modifier.focusRequester(first) else Modifier).then(extra(i)),
+            onClick = { if (selected != id) onPick(id) },
+        )
+    }
+    if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
+    else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+    }
+}
+
+@Composable
+internal fun PanelHeading(text: String) {
     Text(text.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
-private fun PanelTitle(title: String, hint: String) {
+internal fun PanelTitle(title: String, hint: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 4.dp)) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
         Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -461,7 +449,7 @@ private fun Pill(text: String, fill: Color, ink: Color) {
 }
 
 @Composable
-private fun PanelRow(
+internal fun PanelRow(
     title: String,
     detail: String,
     selected: Boolean,

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.files
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import java.io.File
 import java.util.concurrent.CancellationException
 import java.nio.file.Files
@@ -114,6 +115,7 @@ class FileOpsCopyTest {
     }
 
     @Test fun anOverwriteStillRefusesAReadOnlyDestination() {
+        assumeFilePermissionsEnforced()
         assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
         val src = tmp.newFile("source").apply { writeText("replacement") }
         val dst = tmp.newFile("dest").apply { writeText("original") }

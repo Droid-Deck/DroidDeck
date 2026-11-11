@@ -26,6 +26,12 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("deck-controls", deckPad = false, dashboard = true))
     }
 
+    @Test fun customControlsReopenWithEitherControllerType() {
+        for (deckPad in listOf(false, true)) {
+            assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.opening("custom-controls", deckPad))
+        }
+    }
+
     @Test fun anUnknownOrClosedChoiceFallsBackToTheDefault() {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("gone", deckPad = false, dashboard = true))
@@ -40,13 +46,31 @@ class SecondScreenModeTest {
     }
 
     @Test fun theDesktopOpensAgainOnlyWhileItCanRun() {
-        assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, desktop = true))
+        assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, bottomDesktop = true))
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("desktop", deckPad = false))
     }
 
     @Test fun withNothingRememberedTheDesktopIsNeverPicked() {
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true, desktop = true))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false, desktop = true))
+        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true, bottomDesktop = true))
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false, bottomDesktop = true))
+    }
+
+    @Test fun desktopSessionsOpenTheTrackpadUntilTheUserPicksAnotherPanel() {
+        for (deckPad in listOf(false, true)) for (dashboard in listOf(false, true)) {
+            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.opening("custom-controls", deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.TERMINAL, SecondScreenMode.opening("terminal", deckPad, dashboard, desktopSession = true))
+        }
+    }
+
+    @Test fun theEditorOpensOnTheChosenBottomScreenUnlessAnotherAppHoldsIt() {
+        val free = { _: Int -> false }
+        assertEquals(listOf(2, 3), SecondScreenDisplays.editorCandidates(2, listOf(2, 3), free))
+        assertEquals(listOf(3, 2), SecondScreenDisplays.editorCandidates(3, listOf(2, 3), free))
+        assertEquals(listOf(-1, 2), SecondScreenDisplays.editorCandidates(-1, listOf(2), free))
+        assertEquals(listOf(3), SecondScreenDisplays.editorCandidates(2, listOf(2, 3)) { it == 2 })
+        assertEquals(emptyList<Int>(), SecondScreenDisplays.editorCandidates(2, listOf(2)) { it == 2 })
     }
 }

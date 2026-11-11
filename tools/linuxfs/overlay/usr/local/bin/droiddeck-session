@@ -56,6 +56,16 @@ sync_timezone() {
 } 2>/dev/null
 sync_timezone
 
+ensure_machine_id() {
+  local id=
+  id=$(< /etc/machine-id)
+  [[ $id =~ ^[0-9a-f]{32}$ && $id != 00000000000000000000000000000000 ]] && return 0
+  id=$(dbus-uuidgen) || return 0
+  [[ $id =~ ^[0-9a-f]{32}$ ]] || return 0
+  printf '%s\n' "$id" > /etc/machine-id.droiddeck && mv -f /etc/machine-id.droiddeck /etc/machine-id
+} 2>/dev/null
+ensure_machine_id
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
@@ -642,13 +652,7 @@ case $mode in
     fi
     case ${target,,} in
       *.appimage)
-        export APPIMAGE_EXTRACT_AND_RUN=1
-        chmod +x "$target" 2>/dev/null
-        if [ ${#fex[@]} -eq 0 ] && [ -x /usr/local/lib/droiddeck/uruntime ]; then
-          export TARGET_APPIMAGE=$target
-          run_program /usr/local/lib/droiddeck/uruntime "$@"
-        fi
-        run_program "${fex[@]}" "$target" "$@"
+        run_program /usr/local/bin/droiddeck-appimage-exec "$target" "$@"
         ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
@@ -840,6 +844,9 @@ case $mode in
           _bl_headroom=$((_bl_mem_total / 5))
           [ "$_bl_headroom" -ge $((512 * 1024)) ] || _bl_headroom=$((512 * 1024))
           [ "$_bl_headroom" -le $((1536 * 1024)) ] || _bl_headroom=$((1536 * 1024))
+          _bl_tier_headroom=$((_bl_mem_total / 4))
+          [ "$_bl_tier_headroom" -ge $((768 * 1024)) ] || _bl_tier_headroom=$((768 * 1024))
+          [ "$_bl_tier_headroom" -le $((2560 * 1024)) ] || _bl_tier_headroom=$((2560 * 1024))
           _bl_swap_reserve=$((_bl_swap_total / 5))
           [ "$_bl_swap_reserve" -ge $((256 * 1024)) ] || _bl_swap_reserve=$((256 * 1024))
         }
@@ -884,6 +891,88 @@ case $mode in
             _bl_pressure_backoff=30
           fi
         }
+        bl_memory_critical() {
+          [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
+            { [ "$_bl_available" -lt "$_bl_tier_headroom" ] ||
+              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_bl_tier_headroom * 3 / 2)) ]; }; }
+        }
+        bl_low_ram() {
+          [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_mem_total" -le $((13 * 1024 * 1024)) ]
+        }
+        bl_session_pressure() {
+          bl_memory_read
+          [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
+          local _wait=$_bl_tier_backoff _before _pids _targets
+          [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
+          [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
+          if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
+            bl_tier_readback
+            if [ "$_bl_tier_back" -le $((_bl_tier_pushed / 2)) ]; then
+              _bl_tier_backoff=30
+            else
+              _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
+              _bl_tier_at=$SECONDS _bl_tier_pushed=-1
+              step "zRAM: the game read back most of its last page-out, next try in ${_bl_tier_backoff} s"
+              return 0
+            fi
+          fi
+          _bl_tier_at=$SECONDS _bl_tier_pushed=0
+          bl_zram_pick game
+          bl_zram_usage "${_pids[@]}" > /dev/null
+          [ "$_bl_rss" -ge $((256 * 1024)) ] || return 0
+          if [ "$_bl_swap_total" -le 0 ] || [ $((_bl_swap_free - _bl_rss)) -lt "$_bl_swap_reserve" ]; then
+            step "zRAM: low-memory page-out skipped, swap headroom too small ($((_bl_swap_free / 1024)) MB free)"
+            return 0
+          fi
+          _targets=("${_pids[@]}") _before=$_bl_swap
+          bl_zram_send 1 "low memory (available $((_bl_available / 1024)) MB), compressing idle game memory" game
+          bl_zram_usage "${_targets[@]}" > /dev/null
+          _bl_tier_pushed=$((_bl_swap - _before))
+          bl_tier_note "${_targets[@]}"
+          if [ "${_bl_pageout_complete:-0}" = 1 ] && [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
+            _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
+          fi
+        }
+        bl_proc_start() {
+          local _s=
+          _bl_start=
+          read -r _s 2>/dev/null < "/proc/$1/stat" || return 1
+          _s=${_s##*) }
+          set -- $_s
+          [ "$1" != Z ] && [ "$#" -ge 20 ] || return 1
+          _bl_start=${20}
+        }
+        bl_tier_note() {
+          local _p
+          _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
+          for _p in "$@"; do
+            bl_proc_start "$_p" || continue
+            bl_zram_usage "$_p" > /dev/null
+            _bl_tier_targets+=("$_p") _bl_tier_swaps+=("$_bl_swap") _bl_tier_starts+=("$_bl_start")
+          done
+        }
+        bl_tier_readback() {
+          local _i _back=0
+          for _i in "${!_bl_tier_targets[@]}"; do
+            bl_proc_start "${_bl_tier_targets[$_i]}" && [ "$_bl_start" = "${_bl_tier_starts[$_i]}" ] || continue
+            bl_zram_usage "${_bl_tier_targets[$_i]}" > /dev/null
+            [ "${_bl_tier_swaps[$_i]}" -le "$_bl_swap" ] || _back=$((_back + _bl_tier_swaps[_i] - _bl_swap))
+          done
+          _bl_tier_back=$_back
+        }
+        bl_watch_nap() {
+          local _i
+          if [ "$_bl_game" = 1 ] && bl_low_ram && [ "$_bl_available" -ge 0 ] && [ "$_bl_available" -lt $((_bl_tier_headroom * 2)) ]; then
+            for _i in 1 2 3 4 5; do
+              nap 1
+              bl_memory_read
+              bl_memory_critical && return 0
+            done
+          else
+            nap 5
+          fi
+          return 0
+        }
         bl_session_others() {
           local _p
           _bl_session=()
@@ -892,7 +981,11 @@ case $mode in
           done
         }
         bl_zram_pick() {
-          if [ "$1" = session ]; then
+          if [ "$1" = game ]; then
+            bl_session_others
+            _pids=("${_bl_session[@]}")
+            [ "${BL_ZRAM_CLIENT:-1}" != 1 ] || _pids+=("${_bl_pids[@]}")
+          elif [ "$1" = session ]; then
             bl_session_others
             _pids=("${_bl_session[@]}")
           else
@@ -954,7 +1047,7 @@ case $mode in
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
-        _bl_pressure_at=-1 _bl_pressure_backoff=30
+        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
           bl_memory_read
@@ -981,6 +1074,7 @@ case $mode in
               _bl_backoff=30
             fi
           fi
+          bl_session_pressure
           bl_client_pressure
           if [ "$_bl_game" = 1 ] && bl_game_focused; then
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
@@ -995,7 +1089,7 @@ case $mode in
             if [ "$_bl_packed" -ge 0 ]; then
               _bl_unpack=1
             fi
-            _bl_since=-1 _bl_packed=-1
+            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
           else
             _bl_since=-1
           fi
@@ -1003,7 +1097,7 @@ case $mode in
             bl_zram_send 0 "memory recovered, reading the client back" client
             _bl_unpack=0
           fi
-          nap 5
+          bl_watch_nap
         done
       ) &
     fi
@@ -1150,7 +1244,14 @@ case $mode in
         sleep 1
       done
       [ "${#game}" -gt 10 ] && shortcut=1
-      [ -n "$shortcut" ] || sleep 4
+      _bl_ready_end=$((SECONDS + 30))
+      while [ "$waited" -lt 30 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
+        timeout "$((_bl_ready_end - SECONDS))" /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 && break
+        [ "$((_bl_ready_end - SECONDS))" -gt 1 ] || break
+        sleep 1
+        waited=$((waited + 1))
+      done
+      waited=0
       echo "== steam: interface up; launching the requested game $game"
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
@@ -1170,7 +1271,9 @@ case $mode in
       elif _bl_starting; then
         echo "== steam: the requested game started while waiting; not launching again"
       elif [ "$(_bl_focused)" = 769 ]; then
-        echo "== steam: launching the requested game again $game (overview status $status)"
+        echo "== steam: clearing the pending launch interstitial for $game (overview status $status)"
+        /usr/local/bin/droiddeck-agent --steam-clear-pending-interstitial "$(((game >> 32) & 0xffffffff))" >/dev/null 2>&1 && return 0
+        echo "== steam: launching the requested game again $game"
         _bl_hand_off
       else
         echo "== steam: the game took focus while waiting; not launching again"
@@ -1243,6 +1346,23 @@ case $mode in
     else
       echo "== network: no dbus-daemon or netmanager in this runtime; the client will show no connection"
       exit 69
+    fi
+    # Without a session bus libdbus autolaunches one under the game; it never exits and Steam's
+    # reaper waits on it, so the launch or exit never finishes.
+    if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+      _bl_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
+      rm -f "$_bl_bus"
+      dbus-daemon --session --address="unix:path=$_bl_bus" --nofork --nopidfile &
+      for _ in $(seq 1 50); do
+        [ -S "$_bl_bus" ] && break
+        nap 0.1
+      done
+      if [ -S "$_bl_bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$_bl_bus"
+        echo "== session bus up at $_bl_bus"
+      else
+        echo "== session bus did not come up; programs may start their own"
+      fi
     fi
 
     _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)

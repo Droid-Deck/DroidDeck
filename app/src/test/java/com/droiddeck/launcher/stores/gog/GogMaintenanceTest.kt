@@ -26,6 +26,45 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GogMaintenanceTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun ownedDlcDepotIsSelected() {
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"gameIDs\":[\"2\"]}]"), emptyList(), "unused") { setOf("2") }
+        assertEquals(setOf("1", "2"), allowed)
+    }
+
+    @Test fun unownedDlcDepotIsSkipped() {
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"productId\":\"2\"}]"), emptyList(), "unused") { emptySet() }
+        assertEquals(setOf("1"), allowed)
+    }
+
+    @Test fun ownershipFetchFailureFallsBackToBaseOnly() {
+        val allowed = GogContent.installProducts("1", JSONArray("[{\"productId\":\"2\"}]"), emptyList(), "unused") { null }
+        assertEquals(setOf("1"), allowed)
+    }
+
+    @Test fun installManifestCredentialsAndTempExecutableAreExtractedBeforeSanitizing() {
+        val manifest = JSONObject("""{"clientId":"client","clientSecret":"secret","products":[{"temp_executable":"bin/game.exe"}]}""")
+        assertEquals("client" to "secret", GogContent.clientCredentials(manifest))
+        assertEquals("bin/game.exe", GogContent.tempExecutable(GogContent.sanitize(manifest)))
+        assertFalse(GogContent.sanitize(manifest).toString().contains("secret"))
+    }
+
+    @Test fun emptyProductIdDepotUsesBaseAndDlcFilesKeepTheirProduct() {
+        val build = GogBuild("1", "", 2, "", "https://example.invalid/build")
+        val snapshot = GogContent.snapshot(GogInstallRecord("1", "depot"), build, "unused", ownership = { setOf("2") }, metadata = { url, _ ->
+            when (url) {
+                build.link -> JSONObject("{\"depots\":[{\"gameIDs\":[\"1\"],\"manifest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"gameIDs\":[\"2\"],\"manifest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"productId\":\"\",\"manifest\":\"cccccccccccccccccccccccccccccccc\"}]}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/aa/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"base.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/bb/bb/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"dlc.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                "https://gog-cdn-fastly.gog.com/content-system/v2/meta/cc/cc/cccccccccccccccccccccccccccccccc" -> JSONObject("{\"depot\":{\"items\":[{\"path\":\"empty.bin\",\"chunks\":[{\"size\":1}]}]}}")
+                else -> error("Unexpected metadata: $url")
+            }
+        })
+        assertEquals(setOf("1", "2"), snapshot.products.toSet())
+        assertEquals("1", snapshot.files.getJSONObject(0).getString("product"))
+        assertEquals("2", snapshot.files.getJSONObject(1).getString("product"))
+        assertEquals("1", snapshot.files.getJSONObject(2).getString("product"))
+    }
+
     @Test fun selectsPublicBranchAndTreatsBuildIdsAsOpaque() {
         val builds = JSONObject("""{"items":[
           {"os":"windows","branch":"beta","build_id":"99","generation":2,"link":"https://example.invalid/beta"},
@@ -213,7 +252,7 @@ class GogMaintenanceTest {
         fun fixture(name: String) = JSONObject(javaClass.classLoader!!.getResource("gog/$name")!!.readText())
         val build = GogBuild("3301", "", 1, "", "https://example.invalid/repository.json")
         val requested = ArrayList<String>()
-        val snapshot = GogContent.snapshot(GogInstallRecord("1207658940", "depot"), build, "unused") { url, _ ->
+        val snapshot = GogContent.snapshot(GogInstallRecord("1207658940", "depot"), build, "unused", metadata = { url, _ ->
             requested.add(url)
             when {
                 url == build.link -> fixture("rayman-gen1-repository.json")
@@ -221,7 +260,7 @@ class GogMaintenanceTest {
                 url.endsWith("ec88140c-2589-41a0-bbf3-8fc1f215fe5a.json") -> fixture("rayman-gen1-english-excerpt.json")
                 else -> error("Unexpected metadata: $url")
             }
-        }
+        })
         assertEquals("3301", snapshot.build)
         assertEquals(1, snapshot.generation)
         assertEquals(4, snapshot.files.length())
@@ -267,6 +306,17 @@ class GogMaintenanceTest {
         try { Files.createSymbolicLink(File(folder, "link").toPath(), outside.toPath()) }
         catch (_: java.nio.file.FileSystemException) { return }
         assertThrows(IllegalArgumentException::class.java) { GogFiles.inside(folder, "link/game.exe") }
+    }
+
+    @Test fun resumedInstallSpaceCountsOnlyFilesStillMissing() {
+        val folder = temporary.newFolder()
+        val done = File(folder, "done.bin").apply { writeText("verified") }
+        val files = JSONArray()
+            .put(JSONObject().put("path", done.name).put("size", done.length()).put("md5", GogFiles.hash(done)))
+            .put(JSONObject().put("path", "missing.bin").put("size", 12L).put("md5", "0".repeat(32)))
+        val missingOnly = GogInstallRecord("1", "depot", files = JSONArray().put(files.getJSONObject(1)))
+        fun required(target: GogInstallRecord) = GogEstimate.calculate(folder, GogInstallRecord("1", "depot"), target, JSONArray(), reuseChunks = false).required
+        assertEquals(required(missingOnly), required(GogInstallRecord("1", "depot", files = files)))
     }
 
     @Test fun sameSizeCorruptionFailsVerificationAndLanguageVariantsRemainDistinct() {
