@@ -34,6 +34,7 @@ class ScrollTouchGestures(
     private var movedAt = 0L
     private var scrolling = false
     private var vertical = true
+    var tapClicks = true
     private var held = false
     private var dragging = false
     private var stoppedFling = false
@@ -129,7 +130,7 @@ class ScrollTouchGestures(
     private fun sample(x: Float, y: Float, t: Long) {
         if (!scrolling && !dragging && hypot(x - startX, y - startY) > slopPx) {
             handler.removeCallbacks(longPress)
-            if (held) {
+            if (held && tapClicks) {
                 dragging = true
                 listener.onButton(PointerGestures.BTN_LEFT, true)
             } else {
@@ -152,6 +153,7 @@ class ScrollTouchGestures(
     }
 
     private fun click(button: Int) {
+        if (!tapClicks) return
         releaseClick()
         listener.onButton(button, true)
         clicked = button

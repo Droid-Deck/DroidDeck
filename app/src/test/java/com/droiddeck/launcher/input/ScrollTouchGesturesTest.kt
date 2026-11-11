@@ -48,6 +48,31 @@ class ScrollTouchGesturesTest {
         assertEquals(listOf("move 400,300", "left down", "left up"), events)
     }
 
+    @Test fun tapsAndHoldsPressNothingWhileTapClicksAreOff() {
+        gestures.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        advance(100)
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(700)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        advance(100)
+        assertEquals(listOf("move 400,300", "move 400,300", "long press"), events)
+    }
+
+    @Test fun holdThenMoveScrollsInsteadOfDraggingWhileTapClicksAreOff() {
+        gestures.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN, 400f, 800f)
+        advance(700)
+        touch(MotionEvent.ACTION_MOVE, 403f, 600f)
+        advance(100)
+        touch(MotionEvent.ACTION_UP, 403f, 600f)
+        advance(100)
+        assertEquals(listOf("move 400,800", "long press"), events)
+        assertTrue(scrolledY > 0f)
+    }
+
     @Test fun draggingScrollsWithTheFingerAndNeverClicks() {
         touch(MotionEvent.ACTION_DOWN, 400f, 800f)
         advance(200)

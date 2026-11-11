@@ -13,10 +13,17 @@ class InputProfileMouseButtonTest {
         assertFalse(InputProfile.defaults(InputProfile.GAME).hasMouseButton(InputRole.PRIMARY, listOf(a, trigger, trackpad)))
     }
 
-    @Test fun desktopDefaultsBindMouseButtonsToButtonsAndTriggers() {
+    @Test fun stockDesktopBindingsDoNotCount() {
         val desktop = InputProfile.defaults(InputProfile.DESKTOP)
-        assertTrue(desktop.hasMouseButton(InputRole.PRIMARY, listOf(a)))
-        assertTrue(desktop.hasMouseButton(InputRole.PRIMARY, listOf(trigger)))
+        assertFalse(desktop.hasMouseButton(InputRole.PRIMARY, listOf(a, trigger)))
+    }
+
+    @Test fun reboundDesktopButtonAndGameBaseMouseBindingsCount() {
+        val desktop = InputProfile.defaults(InputProfile.DESKTOP)
+        assertTrue(desktop.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274)).hasMouseButton(InputRole.PRIMARY, listOf(a)))
+        assertFalse(desktop.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.Keys(listOf(28))).hasMouseButton(InputRole.PRIMARY, listOf(a)))
+        assertTrue(InputProfile.defaults(InputProfile.GAME).withBinding(InputRole.PRIMARY, InputControl.RT, InputAction.MouseButton(272))
+            .hasMouseButton(InputRole.PRIMARY, listOf(trigger)))
     }
 
     @Test fun trackpadsAndKeyBindingsDoNotCount() {

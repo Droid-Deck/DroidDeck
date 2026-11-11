@@ -4046,7 +4046,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) gesturePointerReady = false
                 touchscreenGestures.onTouch(event)
             }
-            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> scrollTouch.onTouch(event)
+            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) scrollTouch.tapClicks = !onScreenMouseButtonShown()
+                scrollTouch.onTouch(event)
+            }
             else -> {
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active && event.actionMasked != MotionEvent.ACTION_DOWN
@@ -4104,6 +4107,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showCursor(cx, cy)
     }
 
+    private var directTouchMovesOnly = false
+
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
@@ -4114,6 +4119,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
             }
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
+            return true
+        }
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            directTouchMovesOnly = !programLocksPointer() && onScreenMouseButtonShown()
+            if (directTouchMovesOnly) {
+                directTouchHold.cancel()
+                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            }
+        }
+        if (directTouchMovesOnly) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchMovesOnly = false
+            else movePointer(event.x, event.y)
             return true
         }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true

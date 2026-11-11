@@ -70,7 +70,7 @@ class SessionTouchRoutingTest {
 
     @Test fun pinnedMouseButtonSuppressesTapsAfterSteamTouchIsHiddenForTheKeyboard() {
         val controls = shownControls(button.copy(alwaysShown = true))
-        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        field("inputProfile", userMouseButtonProfile)
         ReflectionHelpers.getField<MutableState<Boolean>>(activity, "steamTouchInUse\$delegate").value = true
         ReflectionHelpers.getField<MutableState<Boolean>>(activity, "pcKeyboardOpen\$delegate").value = true
         invoke("updateOnScreenControls")
@@ -81,7 +81,7 @@ class SessionTouchRoutingTest {
 
     @Test fun visibleSteamTouchKeepsTapClicksAndGameBindingsHaveNoMouseButton() {
         shownControls(button)
-        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        field("inputProfile", userMouseButtonProfile)
         assertFalse(mouseButtonShown())
         steam.visibility = View.GONE
         assertTrue(mouseButtonShown())
@@ -91,7 +91,7 @@ class SessionTouchRoutingTest {
 
     @Test fun mouseButtonOnTheDeckSurfaceSuppressesTapsOnlyWhileItIsShown() {
         steam.visibility = View.GONE
-        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        field("inputProfile", userMouseButtonProfile)
         val deck = InputSurfaceView(activity, null, listOf(button), InputRole.PRIMARY)
         field("unfoldedDeckSurface", deck)
         assertTrue(mouseButtonShown())
@@ -100,6 +100,18 @@ class SessionTouchRoutingTest {
         deck.visibility = View.VISIBLE
         field("inputProfile", InputProfile.defaults(InputProfile.GAME))
         assertFalse(mouseButtonShown())
+    }
+
+    private val userMouseButtonProfile = InputProfile.defaults(InputProfile.DESKTOP)
+        .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))
+
+    @Test fun stockDesktopOverlayKeepsTapClicks() {
+        steam.visibility = View.GONE
+        shownControls(button)
+        field("inputProfile", InputProfile.defaults(InputProfile.DESKTOP))
+        assertFalse(mouseButtonShown())
+        field("inputProfile", userMouseButtonProfile)
+        assertTrue(mouseButtonShown())
     }
 
     private val button = InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)

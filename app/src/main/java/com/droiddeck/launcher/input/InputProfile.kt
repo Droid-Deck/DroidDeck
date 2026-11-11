@@ -50,8 +50,13 @@ data class InputProfile(
     fun elementAction(role: InputRole, id: String, control: InputControl): InputAction =
         elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
 
-    fun hasMouseButton(role: InputRole, elements: List<InputSurfaceElement>) = elements.any {
-        (it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER) && elementAction(role, it.id, it.control) is InputAction.MouseButton
+    fun hasMouseButton(role: InputRole, elements: List<InputSurfaceElement>): Boolean {
+        val stock = defaults(id)
+        return elements.any {
+            val action = elementAction(role, it.id, it.control)
+            (it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER) && action is InputAction.MouseButton &&
+                action != stock.elementAction(role, it.id, it.control)
+        }
     }
 
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
