@@ -840,6 +840,9 @@ jobs:
         env:
           XBOX_SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Install Python test dependencies
         timeout-minutes: 7
         run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
