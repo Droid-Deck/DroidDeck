@@ -54,6 +54,10 @@ internal object DroidDeckHudConfig {
         }
         val size = DroidDeckHudSize.from(values["hudSize"])
         val groups = sizeOrders(values).toMutableMap()
+        if (groups.isEmpty()) {
+            val legacy = legacyOrder(values)
+            if (legacy.isNotEmpty()) for (each in DroidDeckHudSize.values()) groups[each] = legacy.filter { it in each.rows }
+        }
         groups[size] = order.filter { it in ORDER }
         values["hudOrder"] = encodeOrders(groups)
         SessionPrefs.setDroidDeckHudConfig(context, encode(values))

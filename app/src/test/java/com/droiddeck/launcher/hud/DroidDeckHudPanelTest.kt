@@ -136,6 +136,14 @@ class DroidDeckHudPanelTest {
         assertEquals(ramFirst.toString(), listOf("RAM", "FPS", "PWR"), ramFirst.map { it.take(3) })
     }
 
+    @Test fun aSaveKeepsTheLegacyOrderForTheOtherSizes() {
+        val app = RuntimeEnvironment.getApplication()
+        SessionPrefs.setDroidDeckHudConfig(app, "hudSize=strip,hudOrder=showRAM|showFPS")
+        val saved = DroidDeckHudConfig.choose(app, emptyMap(), listOf("showFPS", "showRAM"))
+        assertEquals(listOf("showRAM", "showFPS"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.FULL))
+        assertEquals(listOf("showFPS", "showRAM"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.STRIP))
+    }
+
     @Test fun thePillHeroIsWhicheverRowTheUserPutsFirst() {
         fun pill(order: String): List<String> {
             val off = DroidDeckHudConfig.ORDER.associateWith { "0" }

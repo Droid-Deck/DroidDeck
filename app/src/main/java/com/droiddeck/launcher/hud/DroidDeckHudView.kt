@@ -293,8 +293,13 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private fun cycleSize() {
         size = size.next()
+        refreshOrder()
         onSizeCycledListener?.accept(size.token)
         rebuildAndInvalidate()
+    }
+
+    private fun refreshOrder() {
+        storedOrder = DroidDeckHudConfig.storedOrder(mapOf("hudOrder" to cfg.get("hudOrder", "")), size)
     }
 
     private fun switchOn(key: String): Boolean =
@@ -327,7 +332,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showLow01 = switchOn("showLow01")
         showDisplay = switchOn("showDisplay")
         showHdr = switchOn("showHdr")
-        storedOrder = DroidDeckHudConfig.storedOrder(mapOf("hudOrder" to cfg.get("hudOrder", "")), size)
+        refreshOrder()
         showPerCore = switchOn("showPerCore")
         showSwap = switchOn("showSwap")
         showNet = switchOn("showNet")
