@@ -15,6 +15,7 @@ object AgentAttachments {
     /** Guest paths waiting to go with the next message. */
     val pending = mutableStateListOf<String>()
 
+    private const val NEW = "new"
     private const val GUEST_DIR = "/root/.cache/droiddeck/attachments"
     private val IMAGE = setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")
 
@@ -27,7 +28,7 @@ object AgentAttachments {
     /** Copies [uris] for [chat] (or a new conversation) on the calling thread; returns their guest paths. */
     fun copy(context: Context, chat: String?, uris: List<Uri>): List<String> {
         val app = context.applicationContext
-        val folder = chat ?: "new"
+        val folder = chat ?: NEW
         val dir = File(hostDir(app), folder).apply { mkdirs() }
         return uris.mapNotNull { uri ->
             runCatching {
@@ -40,6 +41,17 @@ object AgentAttachments {
             }.getOrNull()
         }
     }
+
+    /** Moves files attached before [chat] existed into its folder, so deleting the chat removes them; returns their new guest paths. */
+    fun adopt(context: Context, chat: String, files: List<String>): List<String> = files.map { path ->
+        if (!path.startsWith("$GUEST_DIR/$NEW/")) return@map path
+        val dir = File(hostDir(context), chat).apply { mkdirs() }
+        val moved = File(dir, path.substringAfterLast('/'))
+        if (host(context, path).renameTo(moved)) "$GUEST_DIR/$chat/${moved.name}" else path
+    }
+
+    /** Deletes copies that will not be sent. */
+    fun discard(context: Context, files: List<String>) = files.forEach { host(context, it).delete() }
 
     /** The message the CLI gets: the user's text, then where the attached files are. */
     fun prompt(text: String, files: List<String>): String {

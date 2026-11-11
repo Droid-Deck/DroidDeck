@@ -128,7 +128,7 @@ private fun AgentHeader(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, onSetu
         }
         HeaderAction(Icons.Outlined.History, stringResource(R.string.agent_history), selected = panel == AgentPanel.HISTORY, tag = "agent-history") { onPanel(AgentPanel.HISTORY) }
         HeaderAction(Icons.Outlined.Memory, stringResource(R.string.agent_processes), selected = panel == AgentPanel.PROCESSES, tag = "agent-processes") { onPanel(AgentPanel.PROCESSES) }
-        HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = AgentHost.entries.isNotEmpty(), tag = "agent-new") {
+        HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty(), tag = "agent-new") {
             AgentHost.forget(context)
             if (panel != AgentPanel.NONE) onPanel(panel)
         }
@@ -368,7 +368,9 @@ private fun AttachButton() {
         val chat = AgentHost.chat
         Thread({
             val paths = AgentAttachments.copy(context, chat, uris)
-            android.os.Handler(android.os.Looper.getMainLooper()).post { AgentAttachments.pending.addAll(paths) }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (AgentHost.chat == chat) AgentAttachments.pending.addAll(paths) else AgentAttachments.discard(context, paths)
+            }
         }, "agent-attach").start()
     }
     RoundButton(Icons.Outlined.AttachFile, stringResource(R.string.agent_attach), pal.surfaceVariant, pal.onBackground, "agent-attach") {

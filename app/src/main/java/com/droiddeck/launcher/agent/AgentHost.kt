@@ -105,6 +105,7 @@ object AgentHost {
     private var labProcess: Process? = null
     /** The turn now running resends a message that got no reply, so it is not resent again. */
     private var retrying = false
+    private var resend: Runnable? = null
     /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
     private var labFromTurn = false
     private var conversation: String? = null
@@ -141,6 +142,7 @@ object AgentHost {
         val file = AgentChats.file(app, id)
         if (!file.isFile) return
         val loaded = AgentChats.read(file)
+        if (chat != id) AgentAttachments.pending.clear()
         chat = id
         conversation = loaded.conversation
         entries.clear()
@@ -223,6 +225,7 @@ object AgentHost {
         val app = context.applicationContext
         val message = text.trim()
         if (message.isEmpty() && files.isEmpty()) return
+        cancelResend()
         if (state == State.WORKING) {
             queue += Queued(message, files)
             return
@@ -234,7 +237,8 @@ object AgentHost {
             conversation = null
             prefs(app).edit().putString(CHAT_KEY, id).apply()
         }
-        record(app, Entry.Asked(message, files))
+        val attached = AgentAttachments.adopt(app, id, files)
+        record(app, Entry.Asked(message, attached))
         state = State.WORKING
         val gen = ++generation
         live = ""
@@ -242,7 +246,7 @@ object AgentHost {
         turnStarted = SystemClock.elapsedRealtime()
         AgentHostService.start(app)
         val current = harness
-        val prompt = AgentAttachments.prompt(message, files)
+        val prompt = AgentAttachments.prompt(message, attached)
         val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
         val workdir = workspace(app)
         Thread({
@@ -303,6 +307,7 @@ object AgentHost {
     fun forget(context: Context) {
         stop(context)
         entries.clear()
+        if (chat != null) AgentAttachments.pending.clear()
         chat = null
         conversation = null
         this.context = 0
@@ -382,7 +387,11 @@ object AgentHost {
         val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
         if (!stopped && error == null && asked != null && answerless(entries) && !retrying) {
             retrying = true
-            main.postDelayed({ if (state == State.IDLE) send(app, asked.text, asked.files) }, RETRY_MS)
+            val retryChat = chat
+            resend = Runnable {
+                resend = null
+                if (state == State.IDLE && chat == retryChat) send(app, asked.text, asked.files) else retrying = false
+            }.also { main.postDelayed(it, RETRY_MS) }
             return
         }
         retrying = false
@@ -390,6 +399,14 @@ object AgentHost {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)
         }
+    }
+
+    /** A message typed or retried by the user replaces the automatic resend. */
+    private fun cancelResend() {
+        val pending = resend ?: return
+        main.removeCallbacks(pending)
+        resend = null
+        retrying = false
     }
 
     private fun record(app: Context, entry: Entry) {
@@ -437,10 +454,6 @@ object AgentHost {
     }
 
     /**
-     * dd-lab-build run by the agent hands its build to the app: the turn's processes end with the
-     * turn, and a build must outlive a turn that ends early or is stopped.
-     */
-    /**
      * android-open, the userland's $BROWSER, leaves a URL here for the app to open, so sign-ins
      * work without Wireless debugging.
      */
@@ -460,6 +473,10 @@ object AgentHost {
             .onFailure { Log.w(TAG, "could not open $url", it) }
     }
 
+    /**
+     * dd-lab-build run by the agent hands its build to the app: the turn's processes end with the
+     * turn, and a build must outlive a turn that ends early or is stopped.
+     */
     private fun claimLabRequest(app: Context) {
         val request = File(app.filesDir, LAB_REQUEST)
         if (!request.isFile) return

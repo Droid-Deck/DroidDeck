@@ -71,6 +71,7 @@ class AgentHostTest {
         assertEquals("abc", next[next.indexOf("--resume") + 1])
         assertEquals("opus", next[next.indexOf("--model") + 1])
         assertEquals("plan", next[next.indexOf("--permission-mode") + 1])
+        assertEquals(listOf("--", "- fix the crash"), ClaudeCode.turn("- fix the crash", null, AgentHarness.Options()).takeLast(2))
     }
 
     @Test fun claudeShowsWholeEditsAndTodos() {
@@ -97,10 +98,32 @@ class AgentHostTest {
     }
 
     @Test fun codexTurnsSkipItsSandboxResumeAndTakeAModel() {
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "hi"),
+        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "--", "hi"),
             Codex.turn("hi", null, AgentHarness.Options()))
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "resume", "t1", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-m", "gpt", "hi"),
+        assertEquals(listOf("/root/.local/bin/codex", "exec", "resume", "t1", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-m", "gpt", "--", "hi"),
             Codex.turn("hi", "t1", AgentHarness.Options(model = "gpt")))
+    }
+
+    @Test fun aToolIdUsedAgainInALaterTurnIsANewCall() {
+        val entries = mutableListOf<Entry>(Entry.Asked("one"), Entry.Used("item_0", "Shell", "ls", "ls", "a"), Entry.Finished(null), Entry.Asked("two"))
+        assertFalse(AgentChats.merge(entries, Entry.Result("item_0", "late", false)))
+        assertTrue(AgentChats.merge(entries, Entry.Used("item_0", "Shell", "pwd", "pwd")))
+        assertTrue(AgentChats.merge(entries, Entry.Result("item_0", "/root", false)))
+        assertEquals(Entry.Used("item_0", "Shell", "ls", "ls", "a"), entries[1])
+        assertEquals(Entry.Used("item_0", "Shell", "pwd", "pwd", "/root"), entries.last())
+    }
+
+    @Test fun filesAttachedBeforeTheFirstMessageMoveIntoTheChat() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val dir = AgentAttachments.hostDir(context)
+        File(dir, "new").mkdirs()
+        File(dir, "new/a.png").writeText("x")
+        val moved = AgentAttachments.adopt(context, "42", listOf("/root/.cache/droiddeck/attachments/new/a.png", "/root/.cache/droiddeck/attachments/7/b.txt"))
+        assertEquals(listOf("/root/.cache/droiddeck/attachments/42/a.png", "/root/.cache/droiddeck/attachments/7/b.txt"), moved)
+        assertTrue(File(dir, "42/a.png").isFile)
+        assertFalse(File(dir, "new/a.png").exists())
+        AgentChats.delete(context, "42")
+        assertFalse(File(dir, "42").exists())
     }
 
     @Test fun codexShellWrappersAreUnwrapped() {

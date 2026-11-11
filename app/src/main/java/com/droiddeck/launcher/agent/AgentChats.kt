@@ -110,11 +110,15 @@ object AgentChats {
         else -> null
     }
 
-    /** A tool's result is shown on the call it answers, and a call seen again (an updated todo list) replaces it. */
+    /**
+     * A tool's result is shown on the call it answers, and a call seen again (an updated todo list)
+     * replaces it. Only the current turn is searched: Codex numbers its items again in each process.
+     */
     fun merge(entries: MutableList<Entry>, entry: Entry): Boolean {
+        val turn = entries.indexOfLast { it is Entry.Asked }
         if (entry is Entry.Used && entry.id.isNotEmpty()) {
             val same = entries.indexOfLast { it is Entry.Used && it.id == entry.id }
-            if (same >= 0) {
+            if (same > turn) {
                 entries[same] = entry
                 return true
             }
@@ -124,7 +128,7 @@ object AgentChats {
             return true
         }
         val index = entries.indexOfLast { it is Entry.Used && it.id == entry.id && entry.id.isNotEmpty() }
-        if (index < 0) return false
+        if (index <= turn) return false
         entries[index] = (entries[index] as Entry.Used).copy(output = clip(entry.output), failed = entry.failed)
         return true
     }
