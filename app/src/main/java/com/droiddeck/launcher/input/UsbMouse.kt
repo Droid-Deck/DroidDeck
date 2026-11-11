@@ -37,6 +37,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
     private val main = Handler(Looper.getMainLooper())
     private val permissionAction by lazy { context.packageName + ".USB_MOUSE_PERMISSION" }
     private val asked = mutableSetOf<String>()
+    private val failed = mutableSetOf<String>()
     private var receiverRegistered = false
     @Volatile private var grab: Grab? = null
 
@@ -50,10 +51,14 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         }
     }
 
-    /** Returns whether the mouse is now read here; asks for access once per plugged-in mouse. */
+    /**
+     * Returns whether the mouse is now read here, setting it up on the reader thread; asks for access once per
+     * plugged-in mouse. A mouse that fails setup isn't tried again until it is replugged.
+     */
     fun grab(): Boolean {
         if (grab != null) return true
         val (device, mouse) = findMouse() ?: return false
+        if (device.deviceName in failed) return false
         if (!usb.hasPermission(device)) {
             if (asked.add(device.deviceName)) askPermission(device)
             return false
@@ -61,25 +66,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         val endpoint = (0 until mouse.endpointCount).map(mouse::getEndpoint).firstOrNull {
             it.direction == UsbConstants.USB_DIR_IN && it.type == UsbConstants.USB_ENDPOINT_XFER_INT
         } ?: return false
-        val connection = usb.openDevice(device) ?: return false
-        if (!connection.claimInterface(mouse, true)) {
-            connection.close()
-            return false
-        }
-        val descriptor = ByteArray(1024)
-        val length = connection.controlTransfer(0x81, GET_DESCRIPTOR, HID_REPORT_DESCRIPTOR shl 8, mouse.id,
-            descriptor, descriptor.size, CONTROL_TIMEOUT_MS)
-        val parsed = if (length > 0) HidMouseReport.parse(descriptor.copyOf(length)) else null
-        val boot = parsed == null && connection.controlTransfer(0x21, SET_PROTOCOL, 0, mouse.id, null, 0, CONTROL_TIMEOUT_MS) >= 0
-        val format = parsed ?: HidMouseReport.BOOT.takeIf { boot }
-        if (format == null) {
-            connection.releaseInterface(mouse)
-            connection.close()
-            return false
-        }
-        Log.i(TAG, String.format(java.util.Locale.ROOT, "reading USB mouse %04x:%04x \"%s\" directly (%s)",
-            device.vendorId, device.productId, device.productName, if (boot) "boot protocol" else "report ${format.reportId}"))
-        grab = Grab(connection, mouse, endpoint, format, boot).also { it.thread.start() }
+        grab = Grab(device, mouse, endpoint).also { it.thread.start() }
         return true
     }
 
@@ -114,46 +101,89 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         }
         val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
         val intent = PendingIntent.getBroadcast(context, 0, Intent(permissionAction).setPackage(context.packageName), flags)
-        runCatching { usb.requestPermission(device, intent) }.onFailure { Log.w(TAG, "requestPermission", it) }
+        runCatching { usb.requestPermission(device, intent) }.onFailure {
+            asked.remove(device.deviceName)
+            Log.w(TAG, "requestPermission", it)
+        }
     }
 
     private inner class Grab(
-        private val connection: UsbDeviceConnection,
+        private val device: UsbDevice,
         private val mouse: UsbInterface,
         private val endpoint: UsbEndpoint,
-        private val format: HidMouseReport,
-        private val boot: Boolean,
     ) {
         @Volatile var running = true
-        val thread = Thread(::read, "usb-mouse")
+        val thread = Thread(::run, "usb-mouse")
 
         // The reader owns the connection: closing it while a transfer is pending would free it under the transfer.
-        private fun read() {
+        private fun run() {
+            val connection = usb.openDevice(device)
+            if (connection == null) {
+                main.post { failed() }
+                return
+            }
+            var claimed = false
+            var boot = false
+            try {
+                claimed = connection.claimInterface(mouse, true)
+                val format = if (claimed) setUp(connection)?.also { boot = it === HidMouseReport.BOOT } else null
+                if (format == null) {
+                    main.post { failed() }
+                    return
+                }
+                Log.i(TAG, String.format(java.util.Locale.ROOT, "reading USB mouse %04x:%04x \"%s\" directly (%s)",
+                    device.vendorId, device.productId, device.productName, if (boot) "boot protocol" else "report ${format.reportId}"))
+                read(connection, format)
+            } finally {
+                if (claimed) {
+                    if (boot) connection.controlTransfer(0x21, SET_PROTOCOL, HID_REPORT_PROTOCOL, mouse.id, null, 0, CONTROL_TIMEOUT_MS)
+                    connection.releaseInterface(mouse)
+                }
+                connection.close()
+            }
+        }
+
+        /** HID 1.11 7.2.6: a host must not assume the protocol a device is in, so it is set either way. */
+        private fun setUp(connection: UsbDeviceConnection): HidMouseReport? {
+            val descriptor = ByteArray(1024)
+            val length = connection.controlTransfer(0x81, GET_DESCRIPTOR, HID_REPORT_DESCRIPTOR shl 8, mouse.id,
+                descriptor, descriptor.size, CONTROL_TIMEOUT_MS)
+            val parsed = if (length > 0) HidMouseReport.parse(descriptor.copyOf(length)) else null
+            if (parsed != null) {
+                connection.controlTransfer(0x21, SET_PROTOCOL, HID_REPORT_PROTOCOL, mouse.id, null, 0, CONTROL_TIMEOUT_MS)
+                return parsed
+            }
+            val boot = connection.controlTransfer(0x21, SET_PROTOCOL, HID_BOOT_PROTOCOL, mouse.id, null, 0, CONTROL_TIMEOUT_MS) >= 0
+            return HidMouseReport.BOOT.takeIf { boot }
+        }
+
+        private fun read(connection: UsbDeviceConnection, format: HidMouseReport) {
             val report = ByteArray(maxOf(endpoint.maxPacketSize, 8))
             var buttons = 0
             var failures = 0
-            try {
-                while (running) {
-                    val started = SystemClock.uptimeMillis()
-                    val length = connection.bulkTransfer(endpoint, report, report.size, READ_TIMEOUT_MS)
-                    if (length <= 0) {
-                        if (SystemClock.uptimeMillis() - started < READ_TIMEOUT_MS / 2 && ++failures >= MAX_FAILURES) {
-                            main.post { lost() }
-                            return
-                        }
-                        continue
+            while (running) {
+                val started = SystemClock.uptimeMillis()
+                val length = connection.bulkTransfer(endpoint, report, report.size, READ_TIMEOUT_MS)
+                if (length <= 0) {
+                    if (SystemClock.uptimeMillis() - started < READ_TIMEOUT_MS / 2 && ++failures >= MAX_FAILURES) {
+                        main.post { lost() }
+                        return
                     }
-                    failures = 0
-                    val state = format.decode(report, length) ?: continue
-                    val changed = buttons xor state.buttons
-                    buttons = state.buttons
-                    main.post { deliver(state, changed) }
+                    continue
                 }
-            } finally {
-                if (boot) connection.controlTransfer(0x21, SET_PROTOCOL, 1, mouse.id, null, 0, CONTROL_TIMEOUT_MS)
-                connection.releaseInterface(mouse)
-                connection.close()
+                failures = 0
+                val state = format.decode(report, length) ?: continue
+                val changed = buttons xor state.buttons
+                buttons = state.buttons
+                main.post { deliver(state, changed) }
             }
+        }
+
+        private fun failed() {
+            failed += device.deviceName
+            if (grab !== this) return
+            Log.i(TAG, "USB mouse \"${device.productName}\" could not be set up")
+            grab = null
         }
 
         private fun deliver(state: HidMouseReport.State, changed: Int) {
@@ -164,6 +194,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         }
 
         private fun lost() {
+            failed += device.deviceName
             if (grab !== this) return
             Log.i(TAG, "USB mouse stopped responding")
             grab = null
@@ -175,6 +206,8 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         private const val TAG = "UsbMouse"
         private const val GET_DESCRIPTOR = 0x06
         private const val SET_PROTOCOL = 0x0b
+        private const val HID_BOOT_PROTOCOL = 0
+        private const val HID_REPORT_PROTOCOL = 1
         private const val HID_REPORT_DESCRIPTOR = 0x22
         private const val SUBCLASS_BOOT = 1
         private const val PROTOCOL_MOUSE = 2
