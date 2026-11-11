@@ -1868,9 +1868,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun currentScreenEffectsProfileId(): String? {
         if (SessionState.running) return SessionPrefs.activeScreenEffectsProfileId(this)
         val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+        val gameId = intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+                ?.let { Regex("""(?:run|rungameid|launch)/(\d+)""", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+
         return SessionPrefs.screenEffectsProfileId(
             mode,
-            intent.getStringExtra(SessionService.EXTRA_GAME_ID),
+            gameId,
             intent.getStringExtra(SessionService.EXTRA_PROGRAM),
         )
     }
