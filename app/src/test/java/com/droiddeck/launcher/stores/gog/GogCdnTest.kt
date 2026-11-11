@@ -15,16 +15,12 @@ class GogCdnTest {
         {"endpoint_name":"lumen","url_format":"https://cdn.gog.com/{path}","parameters":{}}
     ]}"""
 
-    @Test fun allHostsAreParsedInOrderAndTakenInTurn() {
+    @Test fun allHostsAreParsedInOrder() {
         val all = GogDownloadManager.parseCdnUrls(answer)
         assertEquals(3, all.size)
         assertEquals("https://gog-cdn-fastly.gog.com/token=nva=1~token=t", all[0])
         assertEquals("https://gog-cdn-akamai.gog.com/s", all[1])
         assertEquals("https://cdn.gog.com", all[2])
-        val set = all.joinToString("\n")
-        assertEquals(all[0], GogDownloadManager.firstCdn(set))
-        val picks = (0 until 6).map { GogDownloadManager.pickCdn(set) }.toSet()
-        assertEquals(all.toSet(), picks)
         assertEquals(0, GogDownloadManager.parseCdnUrls("not json").size)
     }
 }

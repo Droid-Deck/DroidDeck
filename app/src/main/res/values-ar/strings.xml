@@ -2976,6 +2976,8 @@
     <string name="display_position_top">أعلى</string>
     <string name="display_position_bottom">أسفل</string>
     <string name="display_position_center">الوسط (افتراضي)</string>
+    <string name="display_position_left">يسار</string>
+    <string name="display_position_right">يمين</string>
     <string name="setup_tab_storage">التخزين</string>
     <string name="storage_measuring">جارٍ قياس التخزين…</string>
     <string name="storage_measuring_hint">يستغرق القياس الأول بضع ثوانٍ.</string>
@@ -3809,4 +3811,7 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+
+    <string name="theme_white_red">ثلج قرمزي</string>
+    
 </resources>

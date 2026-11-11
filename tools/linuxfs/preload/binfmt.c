@@ -18,6 +18,8 @@
 
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
+__attribute__((visibility("hidden")))
+char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
@@ -141,21 +143,26 @@ __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char
 }
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
+  char resolved[PATH_MAX];
+  const char *path = lookup(file, resolved, sizeof resolved) ? resolved : file;
+  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execvpe");
-  bl_binfmt_before_search(file, argv, envp);
-  real(file, argv, envp);
-  return bl_binfmt_after_search(file, argv, envp, errno);
+  bl_binfmt_before_search(file, (char *const *)adjusted, envp);
+  real(file, (char *const *)adjusted, envp);
+  return bl_binfmt_after_search(file, (char *const *)adjusted, envp, errno);
 }
 
 int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr,
                  char *const argv[], char *const envp[]) {
+  char path[PATH_MAX];
+  int found = lookup(file, path, sizeof path);
+  char *const *adjusted = bl_webhelper_argv(found ? path : file, argv, envp);
   static spawn_fn real, spawn;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
   if (!spawn) spawn = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
-  char path[PATH_MAX];
-  if (!handing_off() || !lookup(file, path, sizeof path)) return real(pid, file, fa, attr, argv, envp);
-  return bl_binfmt_spawn(pid, path, fa, attr, argv, envp, spawn);
+  if (!handing_off() || !found) return real(pid, file, fa, attr, (char *const *)adjusted, envp);
+  return bl_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, spawn);
 }
 
 #else
