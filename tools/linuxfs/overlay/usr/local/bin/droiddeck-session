@@ -1396,6 +1396,8 @@ case $mode in
           decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
           trap decky_stop TERM INT HUP
           decky_exits=0
+          # The guest has no "deck" user, which Decky otherwise requires at startup.
+          export UNPRIVILEGED_USER=root
           while :; do
             if [ "$decky_arch" = x86_64 ]; then /usr/local/bin/droiddeck-fex run --mode on -- "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &

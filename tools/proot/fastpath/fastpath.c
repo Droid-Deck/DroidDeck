@@ -41,7 +41,7 @@ typedef long (*stub_fn)(long nr, long a, long b, long c, long d, long e, long f)
 static stub_fn fp_sys;
 static int fp_on;
 
-struct bind { char *host; size_t hlen; char *guest; size_t glen; int canon; int dropped; };
+struct bind { char *host; size_t hlen; char *guest; size_t glen; int canon; int dropped; int fuse; };
 static struct bind binds[MAX_BINDS];
 static int nbinds;
 static char root[PATH_MAX];
@@ -133,7 +133,8 @@ static long tracer;
 static pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t bind_lock;
 static pthread_mutex_t long_lock;
-static void after_fork(void) { pthread_mutex_init(&cache_lock, NULL); pthread_mutex_init(&bind_lock, NULL); pthread_mutex_init(&long_lock, NULL); }
+static pthread_mutex_t dir_lock = PTHREAD_MUTEX_INITIALIZER;
+static void after_fork(void) { pthread_mutex_init(&cache_lock, NULL); pthread_mutex_init(&bind_lock, NULL); pthread_mutex_init(&long_lock, NULL); pthread_mutex_init(&dir_lock, NULL); }
 
 static int traced_by_match(const char *key) {
   static char buf[32768];
@@ -414,6 +415,212 @@ static int host_bind(const char *h) {
   return -1;
 }
 
+static unsigned hash_of(const char *s);
+static long long now_ns(void);
+#define DIRS 64
+#define DIR_FD_FLOOR 1000
+struct dirslot { unsigned hash, epoch; int fd, refs; dev_t dev; ino_t ino; long tag; long long stamp; char path[PATH_MAX]; char seen[PATH_MAX]; };
+static struct dirslot dirs[DIRS];
+static unsigned dir_epoch;
+struct near { long fd; int slot, own; const char *name; };
+
+static int fuse_bind(const char *h) {
+  int i = host_bind(h);
+  if (i < 0) return -1;
+  int f = __atomic_load_n(&binds[i].fuse, __ATOMIC_ACQUIRE);
+  if (!f) {
+    struct statfs fs;
+    f = sc(SYS_statfs, (long)binds[i].host, (long)&fs, 0, 0, 0) == 0 && fs.f_type == 0x65735546 ? 1 : 2;
+    __atomic_store_n(&binds[i].fuse, f, __ATOMIC_RELEASE);
+  }
+  return f == 1 ? i : -1;
+}
+
+static long fd_path(long fd, char *out) {
+  char link[40];
+  snprintf(link, sizeof link, "/proc/self/fd/%ld", fd);
+  long n = sc(SYS_readlinkat, AT_FDCWD, (long)link, (long)out, PATH_MAX - 1, 0);
+  if (n <= 0 || n >= PATH_MAX - 1) return -1;
+  out[n] = 0;
+  return 0;
+}
+
+static int fd_id(long fd, dev_t *dev, ino_t *ino) {
+  struct stat st;
+  if (sc(SYS_newfstatat, fd, (long)"", (long)&st, AT_EMPTY_PATH, 0) != 0) return -1;
+  *dev = st.st_dev;
+  *ino = st.st_ino;
+  return 0;
+}
+
+static long dir_tag(void) {
+  static uint64_t state;
+  uint64_t z = __atomic_add_fetch(&state, 0x9e3779b97f4a7c15ULL, __ATOMIC_RELAXED), seed = 0;
+  const void *random = (const void *)getauxval(AT_RANDOM);
+  if (random) memcpy(&seed, random, sizeof seed);
+  z += seed;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return (long)((z ^ (z >> 31)) & 0xffffffffffULL) + 1;
+}
+
+static int dir_owned(const struct dirslot *e) {
+  dev_t dev;
+  ino_t ino;
+  return e->fd > 0 && sc(SYS_lseek, e->fd, 0, SEEK_CUR, 0, 0) == e->tag
+         && fd_id(e->fd, &dev, &ino) == 0 && dev == e->dev && ino == e->ino;
+}
+
+static int dir_fresh(struct dirslot *e, const char *dir) {
+  long long t = now_ns();
+  if (t - __atomic_load_n(&e->stamp, __ATOMIC_RELAXED) < ttl_ns) return 1;
+  struct stat st;
+  if (sc(SYS_newfstatat, AT_FDCWD, (long)dir, (long)&st, 0, 0) != 0 || st.st_dev != e->dev || st.st_ino != e->ino) {
+    __atomic_add_fetch(&dir_epoch, 1, __ATOMIC_RELEASE);
+    return 0;
+  }
+  __atomic_store_n(&e->stamp, t, __ATOMIC_RELAXED);
+  return 1;
+}
+
+static void dirs_drop(const char *host) {
+  size_t len = strlen(host);
+  if (pthread_mutex_trylock(&dir_lock) != 0) {
+    __atomic_add_fetch(&dir_epoch, 1, __ATOMIC_RELEASE);
+    return;
+  }
+  for (int i = 0; i < DIRS; i++)
+    if (dirs[i].path[0] && under(dirs[i].path, host, len)) dirs[i].path[0] = 0;
+  pthread_mutex_unlock(&dir_lock);
+}
+
+static void near_put(struct near *n) {
+  if (n->own) sc(SYS_close, n->fd, 0, 0, 0, 0);
+  else if (n->slot >= 0) __atomic_sub_fetch(&dirs[n->slot].refs, 1, __ATOMIC_RELEASE);
+  n->fd = AT_FDCWD;
+  n->slot = -1;
+  n->own = 0;
+}
+
+static int dir_cached(const char *dir, struct near *n) {
+  unsigned h = hash_of(dir);
+  struct dirslot *e = &dirs[h % DIRS];
+  if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
+  int hit = e->fd >= 0 && e->hash == h && e->path[0] && strcmp(e->path, dir) == 0
+            && e->epoch == __atomic_load_n(&dir_epoch, __ATOMIC_ACQUIRE);
+  if (hit) __atomic_add_fetch(&e->refs, 1, __ATOMIC_ACQUIRE);
+  pthread_mutex_unlock(&dir_lock);
+  if (!hit) return 0;
+  char now[PATH_MAX];
+  if (fd_path(e->fd, now) == 0 && strcmp(now, e->seen) == 0 && dir_fresh(e, dir)) {
+    n->fd = e->fd;
+    n->slot = (int)(e - dirs);
+    n->own = 0;
+    return 1;
+  }
+  __atomic_sub_fetch(&e->refs, 1, __ATOMIC_RELEASE);
+  if (pthread_mutex_trylock(&dir_lock) == 0) {
+    if (e->hash == h && strcmp(e->path, dir) == 0) e->path[0] = 0;
+    pthread_mutex_unlock(&dir_lock);
+  }
+  return 0;
+}
+
+static int dir_keep(const char *dir, long fd, struct near *n) {
+  long high = sc(SYS_fcntl, fd, F_DUPFD_CLOEXEC, DIR_FD_FLOOR, 0, 0);
+  sc(SYS_close, fd, 0, 0, 0, 0);
+  if (high < 0) return -1;
+  n->fd = high;
+  n->slot = -1;
+  n->own = 1;
+  char seen[PATH_MAX];
+  dev_t dev;
+  ino_t ino;
+  long tag = dir_tag();
+  struct stat st;
+  if (fd_id(high, &dev, &ino) < 0 || strlen(dir) >= PATH_MAX
+      || sc(SYS_newfstatat, AT_FDCWD, (long)dir, (long)&st, 0, 0) != 0 || st.st_dev != dev || st.st_ino != ino) {
+    near_put(n);
+    return -1;
+  }
+  if (fd_path(high, seen) < 0 || sc(SYS_lseek, high, tag, SEEK_SET, 0, 0) != tag) return 0;
+  unsigned h = hash_of(dir);
+  struct dirslot *e = &dirs[h % DIRS];
+  if (pthread_mutex_trylock(&dir_lock) != 0) return 0;
+  if (__atomic_load_n(&e->refs, __ATOMIC_ACQUIRE) == 0) {
+    if (dir_owned(e)) sc(SYS_close, e->fd, 0, 0, 0, 0);
+    e->hash = h;
+    e->epoch = __atomic_load_n(&dir_epoch, __ATOMIC_ACQUIRE);
+    e->tag = tag;
+    e->stamp = now_ns();
+    e->fd = (int)high;
+    e->dev = dev;
+    e->ino = ino;
+    e->refs = 1;
+    strcpy(e->path, dir);
+    strcpy(e->seen, seen);
+    n->slot = (int)(e - dirs);
+    n->own = 0;
+  }
+  pthread_mutex_unlock(&dir_lock);
+  return 0;
+}
+
+static int dir_get(char *dir, size_t floor, struct near *n) {
+  size_t len = strlen(dir), at = len;
+  while (!dir_cached(dir, n)) {
+    if (at <= floor) {
+      long fd = sc(SYS_openat, AT_FDCWD, (long)dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0, 0);
+      if (fd < 0 || dir_keep(dir, fd, n) < 0) return -1;
+      break;
+    }
+    char *slash = strrchr(dir, '/');
+    if (!slash || (size_t)(slash - dir) < floor) return -1;
+    *slash = 0;
+    at = slash - dir;
+  }
+  while (at < len) {
+    dir[at] = '/';
+    const char *name = dir + at + 1;
+    size_t next = at + 1 + strlen(name);
+    long fd = sc(SYS_openat, n->fd, (long)name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0, 0);
+    near_put(n);
+    if (fd < 0 || dir_keep(dir, fd, n) < 0) return -1;
+    at = next;
+  }
+  return 0;
+}
+
+static long near_get(const char *host, struct near *n) {
+  n->fd = AT_FDCWD;
+  n->slot = -1;
+  n->own = 0;
+  n->name = host;
+  if (ttl_ns <= 0 || host[0] != '/') return n->fd;
+  int i = fuse_bind(host);
+  if (i < 0) return n->fd;
+  const char *slash = strrchr(host, '/');
+  size_t plen = slash - host;
+  if (plen < binds[i].hlen || !slash[1] || plen >= PATH_MAX) return n->fd;
+  char dir[PATH_MAX];
+  memcpy(dir, host, plen);
+  dir[plen] = 0;
+  if (dir_get(dir, binds[i].hlen, n) < 0) {
+    near_put(n);
+    return n->fd;
+  }
+  n->name = slash + 1;
+  return n->fd;
+}
+
+static long hsc(long nr, const char *host, long a, long b, long c) {
+  struct near n;
+  long fd = near_get(host, &n);
+  long rs = sc(nr, fd, (long)n.name, a, b, c);
+  near_put(&n);
+  return rs;
+}
+
 static int guest_text(const char *h, char *g) {
   if (h[0] == '/' && under(h, root, rootlen)) return to_guest(h, g, PATH_MAX);
   int i = h[0] == '/' ? host_bind(h) : -1;
@@ -556,7 +763,7 @@ static long proc_readlink(const struct res *r, char *text, size_t size, int *cha
     return name[0] == 'e' ? own_exe(text) : own_cwd(text);
   }
   char h[PATH_MAX];
-  long t = sc(SYS_readlinkat, AT_FDCWD, (long)r->host, (long)h, sizeof h - 1, 0);
+  long t = hsc(SYS_readlinkat, r->host, (long)h, sizeof h - 1, 0);
   if (t < 0) return t;
   if (t >= (long)sizeof h - 1) return FP_SLOW;
   if (size && (size_t)t > size) t = size;
@@ -579,7 +786,7 @@ static long proc_link(struct res *r, char *text, int final) {
   if (!under(r->host, "/proc", 5)) return FP_SLOW;
   r->moving = 1;
   if (!strcmp(r->guest, "/proc/self") || !strcmp(r->guest, "/proc/thread-self")) {
-    long t = sc(SYS_readlinkat, AT_FDCWD, (long)r->host, (long)text, PATH_MAX - 1, 0);
+    long t = hsc(SYS_readlinkat, r->host, (long)text, PATH_MAX - 1, 0);
     if (t <= 0 || t >= PATH_MAX - 1) return FP_SLOW;
     text[t] = 0;
     return t;
@@ -628,7 +835,7 @@ static long walk(struct res *r, const char *text, int follow, int last) {
     if (reserved(r->guest)) return FP_SLOW;
     struct bind *through;
     if (to_host(r->guest, r->host, &through) < 0) return FP_SLOW;
-    long s = sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
+    long s = hsc(SYS_newfstatat, r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
     if (s < 0) {
       int glue = glue_above_binding(r->guest, glen + n);
       if (glue < 0) return FP_SLOW;
@@ -648,13 +855,13 @@ static long walk(struct res *r, const char *text, int follow, int last) {
         t = proc_link(r, target, final && last);
         if (t == FP_SLOW) return FP_SLOW;
         if (t == 0) {
-          if (sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, 0, 0) < 0) return FP_SLOW;
+          if (hsc(SYS_newfstatat, r->host, (long)&r->st, 0, 0) < 0) return FP_SLOW;
           r->magic = 1;
           r->exists = 1;
           return 0;
         }
       } else {
-        t = sc(SYS_readlinkat, AT_FDCWD, (long)r->host, (long)target, sizeof target - 1, 0);
+        t = hsc(SYS_readlinkat, r->host, (long)target, sizeof target - 1, 0);
         if (t <= 0 || t >= (long)sizeof target - 1) return FP_SLOW;
         target[t] = 0;
         if (detranslated(target, r->host) == FP_SLOW) return FP_SLOW;
@@ -676,7 +883,7 @@ static long walk(struct res *r, const char *text, int follow, int last) {
   }
   if (!stated) {
     if (to_host(r->guest, r->host, NULL) < 0) return FP_SLOW;
-    long s = sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
+    long s = hsc(SYS_newfstatat, r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
     if (s < 0 && strcmp(r->guest, "/") != 0 && glue_above_binding(r->guest, strlen(r->guest))) return FP_SLOW;
     if (s < 0) return s == -ENOENT ? FP_SLOW : s;
   }
@@ -699,7 +906,7 @@ static long bound_literal(const char *literal, struct res *r) {
   struct bind *bd;
   if (reserved(literal) || bind_of(literal, &bd) < 0 || !bd || bd->glen != strlen(literal) || bd->glen < 2) return FP_SLOW;
   if (snprintf(r->host, PATH_MAX, "%s", bd->host) >= PATH_MAX) return FP_SLOW;
-  if (sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0) < 0 || S_ISLNK(r->st.st_mode)) return FP_SLOW;
+  if (hsc(SYS_newfstatat, r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0) < 0 || S_ISLNK(r->st.st_mode)) return FP_SLOW;
   snprintf(r->guest, PATH_MAX, "%s", literal);
   r->exists = 1;
   r->moving = 0;
@@ -822,8 +1029,8 @@ static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
   long rs = resolve(dirfd, path, follow | MAY_BE_UNSEEN, &r);
   if (rs < 0) return rs;
   if (rs == 1 && !(flags & O_CREAT)) return -ENOENT;
-  if (rs == UNSEEN) return sc(SYS_openat, AT_FDCWD, (long)r.host, flags, (flags & O_CREAT) ? mode : 0, 0);
-  return sc(SYS_openat, AT_FDCWD, (long)r.host, flags | (follow && !r.magic ? O_NOFOLLOW : 0), (flags & O_CREAT) ? mode : 0, 0);
+  if (rs == UNSEEN) return hsc(SYS_openat, r.host, flags, (flags & O_CREAT) ? mode : 0, 0);
+  return hsc(SYS_openat, r.host, flags | (follow && !r.magic ? O_NOFOLLOW : 0), (flags & O_CREAT) ? mode : 0, 0);
 }
 
 static int do_openat(int dirfd, const char *path, int flags, mode_t mode, int (*real)(int, const char *, int, ...)) {
@@ -864,7 +1071,7 @@ static long fp_stat(int dirfd, const char *path, int flags, struct stat *st) {
   long rs = resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs < 0) return rs;
   if (rs == 1) return -ENOENT;
-  if (rs == UNSEEN) return sc(SYS_newfstatat, AT_FDCWD, (long)r.host, (long)st, flags, 0);
+  if (rs == UNSEEN) return hsc(SYS_newfstatat, r.host, (long)st, flags, 0);
   *st = r.st;
   return 0;
 }
@@ -1007,7 +1214,7 @@ static long fp_access(int dirfd, const char *path, int mode, int flags) {
             ? resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r) : FP_SLOW;
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 && S_ISLNK(r.st.st_mode)) rs = FP_SLOW;
-  if (rs == 0 || rs == UNSEEN) rs = sc(SYS_faccessat, AT_FDCWD, (long)r.host, mode, 0, 0);
+  if (rs == 0 || rs == UNSEEN) rs = hsc(SYS_faccessat, r.host, mode, 0, 0);
   return rs;
 }
 
@@ -1030,7 +1237,7 @@ static long link_text(const struct res *r, char *text, size_t size, int *changed
   *changed = 0;
   if (in_proc != under(r->host, "/proc", 5)) return FP_SLOW;
   if (in_proc) return proc_readlink(r, text, size, changed);
-  long t = sc(SYS_readlinkat, AT_FDCWD, (long)r->host, (long)text, PATH_MAX - 1, 0);
+  long t = hsc(SYS_readlinkat, r->host, (long)text, PATH_MAX - 1, 0);
   if (t < 0) return t;
   if (t >= PATH_MAX - 1) return FP_SLOW;
   if (size && (size_t)t > size) t = size;
@@ -1135,7 +1342,7 @@ char *__getcwd_chk(char *buf, size_t size, size_t room) {
 static long fp_mkdir(int dirfd, const char *path, mode_t mode) {
   struct res r;
   long rs = resolve(dirfd, path, MAY_BE_UNSEEN, &r);
-  if (rs == 0 || rs == 1 || rs == UNSEEN) rs = sc(SYS_mkdirat, AT_FDCWD, (long)r.host, mode, 0, 0);
+  if (rs == 0 || rs == 1 || rs == UNSEEN) rs = hsc(SYS_mkdirat, r.host, mode, 0, 0);
   return rs;
 }
 int mkdirat(int dirfd, const char *path, mode_t mode) {
@@ -1172,7 +1379,7 @@ static long fp_unlink(int dirfd, const char *path, int flags) {
   if (rs == 0 && (flags & AT_REMOVEDIR) && strcmp(r.guest, "/") == 0) rs = FP_SLOW;
   if (rs == 0 || rs == UNSEEN) {
     int changes_paths = (flags & AT_REMOVEDIR) || rs == UNSEEN || S_ISLNK(r.st.st_mode);
-    rs = sc(SYS_unlinkat, AT_FDCWD, (long)r.host, flags, 0, 0);
+    rs = hsc(SYS_unlinkat, r.host, flags, 0, 0);
     if (rs == 0 && changes_paths) forget();
   }
   return rs;
@@ -1196,9 +1403,14 @@ static long fp_rename(int olddirfd, const char *old, int newdirfd, const char *n
     if (rt < 0) rs = rt;
     else if (rt == 0 && S_ISDIR(to.st.st_mode)) rs = FP_SLOW;
     else {
-      rs = flags ? sc(SYS_renameat2, AT_FDCWD, (long)from.host, AT_FDCWD, (long)to.host, flags)
-                 : sc(SYS_renameat, AT_FDCWD, (long)from.host, AT_FDCWD, (long)to.host, 0);
-      if (rs == 0) forget();
+      struct near a, b;
+      near_get(from.host, &a);
+      near_get(to.host, &b);
+      rs = flags ? sc(SYS_renameat2, a.fd, (long)a.name, b.fd, (long)b.name, flags)
+                 : sc(SYS_renameat, a.fd, (long)a.name, b.fd, (long)b.name, 0);
+      near_put(&a);
+      near_put(&b);
+      if (rs == 0 && (S_ISLNK(from.st.st_mode) || (rt == 0 && S_ISLNK(to.st.st_mode)))) forget();
     }
   }
   return rs;
@@ -1236,7 +1448,10 @@ static long fp_chmod(int dirfd, const char *path, mode_t mode, int flags) {
   struct res r;
   long rs = flags ? FP_SLOW : resolve(dirfd, path, 1 | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
-  if (rs == 0 || rs == UNSEEN) rs = sc(SYS_fchmodat, AT_FDCWD, (long)r.host, mode, 0, 0);
+  if (rs == 0 || rs == UNSEEN) {
+    rs = hsc(SYS_fchmodat, r.host, mode, 0, 0);
+    if (rs == 0) dirs_drop(r.host);
+  }
   return rs;
 }
 int fchmodat(int dirfd, const char *path, mode_t mode, int flags) {
@@ -1249,7 +1464,10 @@ static long fp_chown(int dirfd, const char *path, uid_t uid, gid_t gid, int flag
   struct res r;
   long rs = flags & ~AT_SYMLINK_NOFOLLOW ? FP_SLOW : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
-  if (rs == 0 || rs == UNSEEN) rs = sc(SYS_fchownat, AT_FDCWD, (long)r.host, (long)uid, (long)gid, flags);
+  if (rs == 0 || rs == UNSEEN) {
+    rs = hsc(SYS_fchownat, r.host, (long)uid, (long)gid, flags);
+    if (rs == 0) dirs_drop(r.host);
+  }
   return rs;
 }
 int fchownat(int dirfd, const char *path, uid_t uid, gid_t gid, int flags) {
@@ -1267,7 +1485,7 @@ static long fp_utimens(int dirfd, const char *path, const struct timespec times[
   } else {
     rs = flags & ~AT_SYMLINK_NOFOLLOW ? FP_SLOW : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
     if (rs == 1) rs = -ENOENT;
-    if (rs == 0 || rs == UNSEEN) rs = sc(SYS_utimensat, AT_FDCWD, (long)r.host, (long)times, flags, 0);
+    if (rs == 0 || rs == UNSEEN) rs = hsc(SYS_utimensat, r.host, (long)times, flags, 0);
   }
   return rs;
 }
@@ -1509,7 +1727,7 @@ static long socket_address(const struct sockaddr *addr, socklen_t len, int follo
     char *slash = strrchr(r.host, '/');
     if (!slash || slash == r.host) return FP_SLOW;
     *slash = 0;
-    *dir = sc(SYS_openat, AT_FDCWD, (long)r.host, O_PATH | O_DIRECTORY | O_CLOEXEC, 0, 0);
+    *dir = hsc(SYS_openat, r.host, O_PATH | O_DIRECTORY | O_CLOEXEC, 0, 0);
     if (*dir < 0) return FP_SLOW;
     hlen = snprintf(out->sun_path, room, "/proc/self/fd/%ld/%s", *dir, slash + 1);
     if (hlen >= room) { sc(SYS_close, *dir, 0, 0, 0, 0); *dir = -1; return FP_SLOW; }
