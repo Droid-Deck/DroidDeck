@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreNet
-import com.droiddeck.launcher.stores.StoreShelves
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.mergeItems
 import org.json.JSONArray
@@ -199,8 +199,7 @@ object EaLibrary {
         StoresState.post {
             if (gen != generation.get()) return@post
             StoresState.library[store] = mergeItems(StoresState.library[store], items)
-            val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
-            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
+            StoresState.shelves[store]?.let { StoresState.shelves[store] = StoreFront.markOwned(it, items, EaStore::sameGame) }
         }
     }
 

@@ -11,6 +11,7 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.LoginFlows
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
@@ -40,6 +41,7 @@ object EaBackend : StoreBackend {
         val app = context.applicationContext
         EaAuth.signOut(app)
         EaLibrary.reset(app)
+        StoresState.post { StoresState.shelves.remove(store) }
         EaUpdates.available.clear()
         runCatching { WebCookies.expire(EaLogin.SIGN_IN_URLS, ".ea.com", listOf("/")) {} }
     }
@@ -50,7 +52,17 @@ object EaBackend : StoreBackend {
         Thread({ EaLibrary.sync(app, force) }, "ea-sync").start()
     }
 
-    override fun loadShelves(context: Context, force: Boolean) {}
+    override fun loadShelves(context: Context, force: Boolean) {
+        val app = context.applicationContext
+        EaStore.cached(app)?.let { s -> StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(s, StoresState.library[store], EaStore::sameGame) } }
+        Thread({
+            val shelves = EaStore.featured(app, force) ?: return@Thread
+            StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(shelves, StoresState.library[store], EaStore::sameGame) }
+        }, "ea-shelves").start()
+    }
+
+    override fun search(context: Context, query: String): List<CatalogItem> =
+        StoreFront.markOwned(EaStore.search(context.applicationContext, query), StoresState.library[store], EaStore::sameGame)
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
         val app = context.applicationContext

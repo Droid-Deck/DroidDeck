@@ -10,6 +10,7 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.LoginFlows
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
@@ -44,7 +45,17 @@ object UbisoftBackend : StoreBackend {
         Thread({ UbisoftLibrary.sync(app, force) }, "ubisoft-sync").start()
     }
 
-    override fun loadShelves(context: Context, force: Boolean) {}
+    override fun loadShelves(context: Context, force: Boolean) {
+        val app = context.applicationContext
+        UbisoftStore.cached(app)?.let { s -> StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(s, StoresState.library[store], UbisoftStore::sameGame) } }
+        Thread({
+            val shelves = UbisoftStore.featured(app, force) ?: return@Thread
+            StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(shelves, StoresState.library[store], UbisoftStore::sameGame) }
+        }, "ubisoft-shelves").start()
+    }
+
+    override fun search(context: Context, query: String): List<CatalogItem> =
+        StoreFront.markOwned(UbisoftStore.search(query), StoresState.library[store], UbisoftStore::sameGame)
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
         val app = context.applicationContext
@@ -224,8 +235,7 @@ object UbisoftLibrary {
                 StoresState.status.remove(Store.UBISOFT)
                 StoresState.problems.remove(Store.UBISOFT)
                 StoresState.library[Store.UBISOFT] = games
-                StoresState.shelves[Store.UBISOFT] = com.droiddeck.launcher.stores.StoreShelves(
-                    trending = games.sortedByDescending { it.extra.containsKey("productId") }, art = games.mapNotNull { it.imageUrl })
+                StoresState.shelves[Store.UBISOFT]?.let { StoresState.shelves[Store.UBISOFT] = StoreFront.markOwned(it, games, UbisoftStore::sameGame) }
             }
             StoresState.logLine("Ubisoft: ${games.size} owned games")
         } catch (e: Exception) {
