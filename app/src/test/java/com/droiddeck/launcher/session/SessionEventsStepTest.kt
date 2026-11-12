@@ -56,4 +56,26 @@ class SessionEventsStepTest {
             other.deleteRecursively()
         }
     }
+
+    @Test fun stepPropagatesTheOriginalExceptionUnchanged() {
+        val failure = IllegalStateException("boom")
+        val thrown = runCatching { SessionEvents.step("probe") { throw failure } }.exceptionOrNull()
+        assertTrue(thrown === failure)
+    }
+
+    @Test fun stepsOfDifferentLaunchesAreRecordedIndependentlyInOrder() {
+        SessionEvents.step("controller-environment") { }
+        SessionEvents.step("guest-launch") { }
+        assertEquals(
+            listOf("controller-environment", "controller-environment", "guest-launch", "guest-launch"),
+            events().map { it.getString("step") },
+        )
+    }
+
+    @Test fun stepRecordsNothingElseAndLeavesSessionStateUntouched() {
+        SessionState.running = false
+        SessionEvents.step("probe") { }
+        assertEquals(false, SessionState.running)
+        assertEquals(2, events().size)
+    }
 }

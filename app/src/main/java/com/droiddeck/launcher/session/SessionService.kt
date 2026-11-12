@@ -533,7 +533,7 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            GameEnvironmentStore.publish(this)
+            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
             stopSession(-1, gen)
@@ -545,22 +545,22 @@ class SessionService : Service() {
         runCatching { sessionLog.appendText(prootLine + "\n") }
             .onFailure { Log.w(TAG, "could not write the proot line to ${sessionLog.path}", it) }
 
-        Log.i(TAG, GpuClockPin.start(this))
-        Log.i(TAG, GameThreadHints.start(this))
+        Log.i(TAG, SessionEvents.step("gpu-clock-pin") { GpuClockPin.start(this) })
+        Log.i(TAG, SessionEvents.step("thread-hints") { GameThreadHints.start(this) })
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
-        runCatching { ComponentsManager.republish(this) }
+        runCatching { SessionEvents.step("components-republish") { ComponentsManager.republish(this) } }
             .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
             .onFailure { Log.w(TAG, "component selections", it) }
         if (steamHere) {
-            runCatching { ComponentsManager.ensureForcedPackages(this) }
+            runCatching { SessionEvents.step("components-forced") { ComponentsManager.ensureForcedPackages(this) } }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(guest, steamHere, agentEnvironment)
+            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment) }
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -570,8 +570,8 @@ class SessionService : Service() {
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
-        val pulse = startAudio(guest, sessionDir, directAudioPack)
-        startVkBridge(guest, sessionDir)
+        val pulse = SessionEvents.step("audio") { startAudio(guest, sessionDir, directAudioPack) }
+        SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
         if (VenusComponent.wanted(this)) {
             components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
         }
@@ -609,8 +609,8 @@ class SessionService : Service() {
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
-            addControllerEnvironment(guest, fakeInputDir, sessionDir)
-            SessionState.padBridge?.syncConnectedControllers()
+            SessionEvents.step("controller-environment") { addControllerEnvironment(guest, fakeInputDir, sessionDir) }
+            SessionEvents.step("controller-sync") { SessionState.padBridge?.syncConnectedControllers() }
         }
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("BL_PIN_CORES=0")
