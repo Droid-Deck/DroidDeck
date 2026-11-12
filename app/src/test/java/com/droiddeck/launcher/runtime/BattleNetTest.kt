@@ -374,6 +374,20 @@ class BattleNetTest {
 
     }
 
+    @Test fun aScannedGamesShortcutReusesTheKeptRankingInsteadOfWalkingItsFolder() {
+        val added = com.droiddeck.launcher.frontend.AddedGames
+        val folder = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Kept Game").apply { mkdirs() }
+        File(folder, "Game.exe").writeBytes(byteArrayOf(0x4d, 0x5a))
+        val kept = File(folder, "Other.exe").apply { writeBytes(byteArrayOf(0x4d, 0x5a)) }
+        com.droiddeck.launcher.frontend.AddedGamesCache(File(context.filesDir, com.droiddeck.launcher.frontend.AddedGamesCache.FILE)).apply {
+            keepRank(folder, com.droiddeck.launcher.frontend.GameExePicker.Ranking(listOf(kept), listOf(10), false))
+            save()
+        }
+        added.scan(context)
+        assertEquals(kept, BattleNet.shortcut(context, BattleNet.Game("fenris", "Kept Game", "Fen", folder))!!.exe)
+        assertEquals("Game.exe", added.candidates(folder).first().name)
+    }
+
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {
         val folder = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Diablo IV").apply { mkdirs() }
         File(folder, "Diablo IV Launcher.exe").writeBytes(byteArrayOf(0x4d, 0x5a))
