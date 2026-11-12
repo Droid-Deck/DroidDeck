@@ -117,6 +117,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -1965,11 +1966,16 @@ private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit)
 private fun DrawerPet(modifier: Modifier, switching: Boolean, onHold: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     HoldForPetMode(source, onHold)
+    val pressed by source.collectIsPressedAsState()
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        if (switching) PetPreview(stringResource(R.string.agent_pet_switching), Modifier.padding(12.dp)) { }
-        DeeDee(petStateNow(), Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 320.dp)
-            .testTag("drawer-deedee")
-            .clickable(interactionSource = source, indication = null, onClick = {}))
+        Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+            if (pressed || switching) Text(stringResource(R.string.agent_pet_switching),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        }
+        Icon(Icons.Outlined.Pets, contentDescription = stringResource(R.string.agent_pet_name),
+            tint = Color(0xFF1A9FFF), modifier = Modifier.size(112.dp).padding(12.dp)
+                .testTag("drawer-deedee")
+                .clickable(interactionSource = source, indication = null, onClick = {}))
         Text(stringResource(R.string.agent_pet_name), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.agent_pet_hold_hint), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
