@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -44,11 +45,19 @@ import org.robolectric.shadows.ShadowDisplayManager
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], qualifiers = "w640dp-h480dp-land", application = android.app.Application::class)
 class PresentationWindowTest {
+    private companion object { const val FRAMES = 5 }
+
     @get:Rule val compose = createRobolectricComposeRule()
 
+    private fun showOutsideTapPopup(content: @Composable () -> Unit) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { CompositionLocalProvider(LocalPresentationWindow provides true, content = content) }
+        repeat(FRAMES) { compose.mainClock.advanceTimeByFrame() }
+    }
+
     private fun tapOutsidePopup() {
-        val popup = compose.onNode(isPopup())
-        popup.performTouchInput { click(percentOffset(.99f, .99f)) }
+        compose.onNode(isPopup()).performTouchInput { click(percentOffset(.99f, .99f)) }
+        repeat(FRAMES) { compose.mainClock.advanceTimeByFrame() }
     }
 
     @Test fun alertInsidePresentationRendersDismissesAndTracksItsWindow() {
@@ -93,24 +102,18 @@ class PresentationWindowTest {
 
     @Test fun dialogInsidePresentationDismissesOnOutsideTapByDefault() {
         var shown by mutableStateOf(true)
-        compose.setContent {
-            CompositionLocalProvider(LocalPresentationWindow provides true) {
-                if (shown) GlideDialog(onDismissRequest = { shown = false }) { Text("Panel") }
-            }
-        }
+        showOutsideTapPopup { if (shown) GlideDialog(onDismissRequest = { shown = false }) { Text("Panel") } }
         tapOutsidePopup()
         compose.onNodeWithText("Panel").assertDoesNotExist()
     }
 
     @Test fun dialogInsidePresentationHonorsDisabledOutsideDismissal() {
         var dismissals = 0
-        compose.setContent {
-            CompositionLocalProvider(LocalPresentationWindow provides true) {
-                GlideDialog(
-                    onDismissRequest = { dismissals++ },
-                    properties = DialogProperties(dismissOnClickOutside = false),
-                ) { Text("Panel") }
-            }
+        showOutsideTapPopup {
+            GlideDialog(
+                onDismissRequest = { dismissals++ },
+                properties = DialogProperties(dismissOnClickOutside = false),
+            ) { Text("Panel") }
         }
         tapOutsidePopup()
         compose.onNodeWithText("Panel").assertIsDisplayed()
