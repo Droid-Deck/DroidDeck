@@ -459,6 +459,13 @@ internal fun SetupPanel(
                                     ToggleRow(host, "agent-tab", stringResource(R.string.setup_agent_tab), null, com.droiddeck.launcher.agent.AgentTab.shown) {
                                         com.droiddeck.launcher.agent.AgentTab.set(railContext, it)
                                     }
+                                    ToggleRow(host, "agent-pet", stringResource(R.string.setup_agent_pet), stringResource(R.string.setup_agent_pet_hint), AgentPet.enabled) {
+                                        AgentPet.set(railContext, it)
+                                    }
+                                    if (AgentPet.enabled && !AgentPet.allowed) ActionRow(
+                                        stringResource(R.string.setup_agent_pet_float), stringResource(R.string.setup_agent_pet_float_hint),
+                                        stringResource(R.string.setup_agent_pet_allow), onClick = { AgentPet.requestFloating(railContext) },
+                                    )
                                 }
                                 LanguageRow(host, s.language, a.onLanguage)
                                 ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)

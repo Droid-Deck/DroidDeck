@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Pets
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.CircularProgressIndicator
@@ -127,7 +128,7 @@ private const val COMPOSER_SLIDE_MS = 350L
  */
 @Composable
 internal fun AgentPage(
-    modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true,
+    modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true, hidesPet: Boolean = true,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -143,6 +144,11 @@ internal fun AgentPage(
     }
     remember { AgentHost.refresh(context) }
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
+    DisposableEffect(visible, hidesPet) {
+        val counts = visible && hidesPet
+        if (counts) AgentPet.agentOnScreen++
+        onDispose { if (counts) AgentPet.agentOnScreen-- }
+    }
     remember { AgentSetup.check(context) }
     var setup by rememberSaveable { mutableStateOf(false) }
     val draft = rememberSaveable { mutableStateOf("") }
@@ -630,6 +636,9 @@ private fun AgentEditor(
                 HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty(), size = 32.dp, tag = "agent-new") {
                     menu = false
                     AgentHost.forget(context)
+                }
+                HeaderAction(Icons.Outlined.Pets, stringResource(R.string.setup_agent_pet), selected = AgentPet.enabled, size = 32.dp, tag = "agent-pet-toggle") {
+                    AgentPet.set(context, !AgentPet.enabled)
                 }
                 HeaderAction(Icons.Outlined.Settings, stringResource(R.string.agent_setup_title), enabled = !working, size = 32.dp, tag = "agent-settings") {
                     menu = false

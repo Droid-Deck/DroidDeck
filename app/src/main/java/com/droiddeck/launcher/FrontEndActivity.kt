@@ -84,7 +84,7 @@ import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
-class FrontEndActivity : ComponentActivity() {
+class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -1774,6 +1774,12 @@ class FrontEndActivity : ComponentActivity() {
             SessionArtifacts.scrubOlder(this)
             SessionArtifacts.prune(this)
         }, "finish-abandoned").start()
+    }
+
+    override val petBlocked: Boolean get() = false
+
+    override fun openAgent() {
+        navRequest = "agent"
     }
 
     override fun onNewIntent(intent: Intent) {
