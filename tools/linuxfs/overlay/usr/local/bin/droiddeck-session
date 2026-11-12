@@ -1462,7 +1462,7 @@ case $mode in
       elif [ "${_bl_cef[0]}" = -cef-force-gpu ]; then
         # With Steam's own web helper layout the Deck UI's footer and overlays flicker on the bridge
         # (Mali-G78 MP14). ANGLE on Vulkan without Chromium's Vulkan compositing draws them steadily.
-        : "${BL_VKBRIDGE_CEF_ANGLE:=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN:=0}"
+        : "${BL_VKBRIDGE_CEF_ANGLE=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN=0}"
         _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle="${BL_VKBRIDGE_CEF_ANGLE:-vulkan}")
       fi
       [ "${BL_VKBRIDGE_CEF_LOG:-0}" = 1 ] && _bl_cef+=(-cef-enable-logging=stderr -cef-v=1)

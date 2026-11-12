@@ -47,13 +47,13 @@ class WebhelperLayoutTest(unittest.TestCase):
         text = SESSION.read_text()
         gpu = text.index('elif [ "${_bl_cef[0]}" = -cef-force-gpu ]; then')
         software = text.rindex('_bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)', 0, gpu)
-        defaults = text.index(': "${BL_VKBRIDGE_CEF_ANGLE:=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN:=0}"', gpu)
+        defaults = text.index(': "${BL_VKBRIDGE_CEF_ANGLE=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN=0}"', gpu)
         self.assertLess(software, gpu)
         self.assertLess(defaults, text.index("BL_WEBHELPER_ARGS=$(bl_webhelper_layout)", gpu))
         self.assertLess(defaults, text.index("\n      fi\n", gpu))
 
     def test_the_defaults_give_way_to_settings(self):
-        script = ': "${BL_VKBRIDGE_CEF_ANGLE:=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN:=0}"\n' + layout_function() + "bl_webhelper_layout\n"
+        script = ': "${BL_VKBRIDGE_CEF_ANGLE=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN=0}"\n' + layout_function() + "bl_webhelper_layout\n"
         env = {k: v for k, v in os.environ.items() if k not in KEYS}
         run = lambda **s: subprocess.run(["bash", "-c", "set -u\n" + script], env={**env, **s},
                                          capture_output=True, text=True, check=True).stdout.strip()
@@ -61,6 +61,15 @@ class WebhelperLayoutTest(unittest.TestCase):
         self.assertEqual(run(BL_VKBRIDGE_CEF_VULKAN="1"),
                          "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
         self.assertEqual(run(BL_VKBRIDGE_CEF_ANGLE="gl"), "--use-gl=angle --use-angle=gl")
+
+    def test_empty_settings_are_kept_as_set(self):
+        script = ': "${BL_VKBRIDGE_CEF_ANGLE=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN=0}"\n' + layout_function() + "bl_webhelper_layout\n"
+        env = {k: v for k, v in os.environ.items() if k not in KEYS}
+        run = lambda **s: subprocess.run(["bash", "-c", "set -u\n" + script], env={**env, **s},
+                                         capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(run(BL_VKBRIDGE_CEF_ANGLE=""), "stock")
+        self.assertEqual(run(BL_VKBRIDGE_CEF_VULKAN=""),
+                         "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
 
 
 if __name__ == "__main__":
