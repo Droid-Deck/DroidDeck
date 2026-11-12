@@ -394,10 +394,13 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     }
     val dragOver = {
         val c = dragCenter()
-        val over = if (c == null) null else grid.layoutInfo.visibleItemsInfo.firstOrNull {
-            it.key != dragKey && c.x >= it.offset.x && c.x < it.offset.x + it.size.width && c.y >= it.offset.y && c.y < it.offset.y + it.size.height
+        // The tile nearest the held one's center takes it, so its slot stays under the finger even between columns.
+        val over = if (c == null) null else grid.layoutInfo.visibleItemsInfo.filter { it.index >= leadItems }.minByOrNull {
+            val dx = it.offset.x + it.size.width / 2f - c.x
+            val dy = it.offset.y + it.size.height / 2f - c.y
+            dx * dx + dy * dy
         }
-        val to = entriesNow.value.indexOfFirst { it.key == over?.key }
+        val to = if (over == null || over.key == dragKey) -1 else entriesNow.value.indexOfFirst { it.key == over.key }
         if (to >= 0) moveTo(dragKey, to)
     }
     val appMove = AppMove(
@@ -490,7 +493,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(start = padH, end = if (scroller) padH + 22.dp else padH, top = 12.dp, bottom = 16.dp),
+                    contentPadding = PaddingValues(start = padH, end = if (scroller) padH + 22.dp else padH, top = 12.dp, bottom = if (arranging) 72.dp else 16.dp),
                     modifier = Modifier.fillMaxSize().then(if (!arranging) Modifier else Modifier.onPreviewKeyEvent { event ->
                         val k = event.nativeKeyEvent
                         if (k.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
