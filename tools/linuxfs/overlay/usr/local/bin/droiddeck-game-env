@@ -12,6 +12,7 @@ from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
+D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -396,7 +397,9 @@ def vram_cap(env):
     if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
         return env
     result = env.copy()
-    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    cap = "dxgi.maxDeviceMemory = {0}".format(int(value))
+    if int(value) < D3D9_DEFAULT_MEMORY_MB:
+        cap += "; d3d9.maxAvailableMemory = {0}".format(int(value))
     own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
     result["DXVK_CONFIG"] = cap + "; " + own if own else cap
     result["DROIDDECK_VRAM_CAP"] = "1"
