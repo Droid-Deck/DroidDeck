@@ -52,7 +52,7 @@ SYSTEM_PROPERTIES = {
 }
 
 NATIVE_ARCHITECTURE = {"intel": "x86", "x64": "AMD64", "amd64": "AMD64", "arm64": "ARM64"}
-ARCHITECTURE_VALUE = ("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "PROCESSOR_ARCHITECTURE")
+ARCHITECTURE_VALUE = ("system\\currentcontrolset\\control\\session manager\\environment", "processor_architecture")
 REG_LOCATOR_RAW = 2
 REG_ROOT_LOCAL_MACHINE = 2
 
@@ -424,7 +424,7 @@ class Installer:
                 continue
             if to_int(locator.get("Root")) != REG_ROOT_LOCAL_MACHINE or to_int(locator.get("Type")) & 0xF != REG_LOCATOR_RAW:
                 continue
-            if (locator.get("Key", "").rstrip("\\"), locator.get("Name", "")) == ARCHITECTURE_VALUE:
+            if (locator.get("Key", "").rstrip("\\").casefold(), locator.get("Name", "").casefold()) == ARCHITECTURE_VALUE:
                 self.props[row["Property"]] = architecture
 
     def run_set_actions(self):
