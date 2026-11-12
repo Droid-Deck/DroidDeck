@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">LSFG konnte aus dieser Lossless.dll nicht vorbereitet werden</string>
     <string name="lsfg_problem_missing">LSFG benötigt Lossless Scaling aus Steam oder eine importierte Lossless.dll</string>
     <string name="lsfg_problem_failed">LSFG konnte seine Shader nicht aus Lossless.dll vorbereiten</string>
+    <string name="lsfg_flow_scale">Flow-Skalierung %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Höher zeigt weniger Artefakte und nutzt mehr GPU</string>
     <string name="hud_fg_unsupported">%1$s: nicht unterstützt</string>
     <string name="hud_fg_failed">%1$s: Engine-Fehler</string>
     <string name="hud_fg_needs_lossless">%1$s: benötigt Lossless Scaling</string>

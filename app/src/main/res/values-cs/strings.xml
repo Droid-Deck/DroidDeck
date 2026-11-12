@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Z tohoto souboru Lossless.dll se nepodařilo připravit LSFG</string>
     <string name="lsfg_problem_missing">LSFG vyžaduje Lossless Scaling ze Steamu nebo importovaný Lossless.dll</string>
     <string name="lsfg_problem_failed">LSFG se nepodařilo připravit shadery z Lossless.dll</string>
+    <string name="lsfg_flow_scale">Měřítko toku %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Vyšší hodnota znamená méně artefaktů a vyšší zátěž GPU</string>
     <string name="hud_fg_unsupported">%1$s: nepodporováno</string>
     <string name="hud_fg_failed">%1$s: chyba enginu</string>
     <string name="hud_fg_needs_lossless">%1$s: vyžaduje Lossless Scaling</string>

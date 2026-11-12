@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">이 Lossless.dll에서 LSFG를 준비할 수 없습니다</string>
     <string name="lsfg_problem_missing">LSFG에는 Steam의 Lossless Scaling 또는 가져온 Lossless.dll 파일이 필요합니다</string>
     <string name="lsfg_problem_failed">LSFG가 이 Lossless.dll에서 셰이더를 준비할 수 없습니다</string>
+    <string name="lsfg_flow_scale">플로우 스케일 %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">높을수록 아티팩트가 줄고 GPU 사용량이 늘어납니다</string>
     <string name="hud_fg_unsupported">%1$s: 지원되지 않음</string>
     <string name="hud_fg_failed">%1$s: 엔진 실패</string>
     <string name="hud_fg_needs_lossless">%1$s: Lossless Scaling 필요</string>

@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">このLossless.dllからLSFGを準備できませんでした</string>
     <string name="lsfg_problem_missing">LSFGにはSteam版のLossless Scaling、またはインポートされたLossless.dllファイルが必要です</string>
     <string name="lsfg_problem_failed">LSFGはこのLossless.dllからシェーダーを準備できませんでした</string>
+    <string name="lsfg_flow_scale">フロースケール %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">高いほどアーティファクトが減り、GPU 負荷が増えます</string>
     <string name="hud_fg_unsupported">%1$s：サポート外</string>
     <string name="hud_fg_failed">%1$s：エンジンエラー</string>
     <string name="hud_fg_needs_lossless">%1$s：Lossless Scalingが必要です</string>

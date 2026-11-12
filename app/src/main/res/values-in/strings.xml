@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Tidak dapat menyiapkan LSFG dari Lossless.dll ini</string>
     <string name="lsfg_problem_missing">LSFG memerlukan Lossless Scaling dari Steam atau Lossless.dll yang diimpor</string>
     <string name="lsfg_problem_failed">LSFG tidak dapat menyiapkan shader-nya dari Lossless.dll</string>
+    <string name="lsfg_flow_scale">Skala aliran %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Nilai lebih tinggi menampilkan lebih sedikit artefak dan memakai lebih banyak GPU</string>
     <string name="hud_fg_unsupported">%1$s: tidak didukung</string>
     <string name="hud_fg_failed">%1$s: mesin gagal</string>
     <string name="hud_fg_needs_lossless">%1$s: memerlukan Lossless Scaling</string>

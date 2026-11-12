@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">ไม่สามารถเตรียม LSFG จาก Lossless.dll นี้ได้</string>
     <string name="lsfg_problem_missing">LSFG ต้องใช้ Lossless Scaling จาก Steam หรือ Lossless.dll ที่นำเข้ามา</string>
     <string name="lsfg_problem_failed">LSFG ไม่สามารถเตรียมเชดเดอร์จาก Lossless.dll ได้</string>
+    <string name="lsfg_flow_scale">สเกลโฟลว์ %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">ค่าที่สูงขึ้นแสดงสิ่งแปลกปลอมน้อยลงและใช้ GPU มากขึ้น</string>
     <string name="hud_fg_unsupported">%1$s: ไม่รองรับ</string>
     <string name="hud_fg_failed">%1$s: เอนจินล้มเหลว</string>
     <string name="hud_fg_needs_lossless">%1$s: ต้องใช้ Lossless Scaling</string>
