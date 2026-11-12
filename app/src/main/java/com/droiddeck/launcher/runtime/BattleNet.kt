@@ -26,7 +26,6 @@ object BattleNet {
         Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC", product = "wow_anniversary", flavor = "_anniversary_"),
         Title("wow_forever", "World of Warcraft: Forever", "WoWF", shop = "world-of-warcraft-forever", product = "wowf", flavor = "_forever_"),
         Title("diablo3", "Diablo III", "D3", shop = "diablo-iii", product = "d3"),
-        Title("d3cn", "Diablo III", "D3CN", shop = "diablo-iii"),
         Title("s2", "StarCraft II", "S2", shop = "starcraft-ii", product = "s2"),
         Title("s1", "StarCraft", "S1", shop = "starcraft-remastered", product = "s1"),
         Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone", product = "hsb"),
@@ -59,13 +58,28 @@ object BattleNet {
         Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed", product = "aqua"),
     )
 
-    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" && it.code != "WoWF" }
+    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.code != "WoWC" && it.code != "WoWF" }
 
-    // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
-    private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
+    /**
+     * Blizzard's China client installs some products under a CN uid; they are the same games and keep their store
+     * identity. Only the launch code and the product served by the China repository can differ.
+     */
+    private class Cnv(val uid: String, val code: String? = null, val product: String? = null)
+
+    private val CN_UIDS = mapOf(
+        "s2_cn" to Cnv("s2", product = "s2c"),
+        "osic" to Cnv("osi", product = "osic"),
+        "anbs_cn" to Cnv("anbs"),
+        "d3cn" to Cnv("diablo3", "D3CN", "d3cn"),
+    )
+
+    private fun cn(alias: Cnv): Title? = TITLES.firstOrNull { it.uid == alias.uid }?.let { title ->
+        if (alias.code == null && alias.product == null) title
+        else Title(title.uid, title.name, alias.code ?: title.code, title.steam, title.shop, alias.product ?: title.product, title.flavor)
+    }
 
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
-        installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
+        installedIds.mapNotNull { id -> id?.let(::title)?.uid }.none { it == title.uid }
 
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
@@ -78,7 +92,7 @@ object BattleNet {
 
     private val coverLock = Any()
 
-    fun fetchCovers(context: Context, titles: List<Title> = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }): Boolean = synchronized(coverLock) {
+    fun fetchCovers(context: Context, titles: List<Title> = TITLES.distinctBy { it.code }): Boolean = synchronized(coverLock) {
         val art = com.droiddeck.launcher.frontend.AddedGameArt
         val key = com.droiddeck.launcher.frontend.SteamGridDb.key(context)
         var got = false
@@ -167,10 +181,10 @@ object BattleNet {
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
-        CN_UIDS[id]?.let { alias -> TITLES.firstOrNull { it.uid == alias }?.let { return it } }
+        CN_UIDS[id]?.let { return cn(it) }
         val base = id.substringBeforeLast('_', "")
         if (base.isEmpty() || id.substringAfterLast('_') !in LOCALES) return null
-        return TITLES.firstOrNull { it.uid == base } ?: CN_UIDS[base]?.let { alias -> TITLES.firstOrNull { it.uid == alias } }
+        return TITLES.firstOrNull { it.uid == base } ?: CN_UIDS[base]?.let { cn(it) }
     }
 
     internal fun titleForProduct(product: String): Title? {
@@ -205,6 +219,22 @@ object BattleNet {
             if (saved[code] != folder.path) com.droiddeck.launcher.session.SessionPrefs.setBattleNetFolder(context, code, folder.path)
             Game(found.first.uid, found.first.name, code, folder, found.second)
         }
+    }
+
+    internal fun registrationsAt(context: Context, id: String, folder: File): List<String>? {
+        val pfx = File(prefix(context), "pfx")
+        val agentFile = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
+        val registryFile = File(pfx, "system.reg")
+        val agent = if (!agentFile.exists()) emptyList()
+        else runCatching { productDbInstalls(agentFile.readBytes()) }.getOrNull() ?: return null
+        val registry = if (!registryFile.exists()) emptyList()
+        else runCatching { registryFile.useLines { uninstallEntries(it) } }.getOrNull() ?: return null
+        val products = agent.filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
+        return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
+            if (hostFolder(context, path)?.absolutePath != folder.absolutePath) return@mapNotNull null
+            val title = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct)
+            if (title?.uid == id) uid else null
+        }.distinct()
     }
 
     internal fun ownFolders(games: Map<String, Pair<Title, File>>, saved: Map<String, String?>): Map<String, File> {

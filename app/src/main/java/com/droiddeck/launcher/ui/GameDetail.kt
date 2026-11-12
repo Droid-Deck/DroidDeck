@@ -156,7 +156,7 @@ internal fun GameDetail(
     SideEffect { if (store != null && id != null) known[0] = store to id }
     val game = found ?: if (store != null && id != null) s.steamGames.firstOrNull { it.source == store.id && it.storeId == id } else null
     val item = if (store != null && id != null) StoresState.detailItem(store, id) else null
-    val installed = if (store != null && id != null) StoresState.installedGame(store, id) else null
+    val installed = if (store != null && id != null) StoresState.installedGame(store, id, game?.gameFiles) else null
     val rawDownload = if (store != null && id != null) StoresState.download("${store.id}:$id") else null
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
@@ -442,12 +442,13 @@ internal fun GameActions(
                 }
                 if (store == Store.BATTLENET) {
                     if (installed != null && id != null) {
-                        LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
+                        val updateKey = BattleNetInstall.updateKey(id, installed.folder)
+                        LaunchedEffect(updateKey) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
                             ActionChip(downloadLabel(download), ok = false)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
-                        } else if (BattleNetInstall.updates[id] == true) {
+                        } else if (BattleNetInstall.updates[updateKey] == true) {
                             SecondaryButton(stringResource(R.string.bnet_update)) { BattleNetInstall.update(ctx, installed) }
                         }
                     }

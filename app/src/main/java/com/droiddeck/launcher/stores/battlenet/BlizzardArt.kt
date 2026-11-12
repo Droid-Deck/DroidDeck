@@ -24,7 +24,6 @@ internal object BlizzardArt {
         "WoWC" to "${KEY_ART_ASSETS}blt6a80c8e7260f84f2/690d2219b415dd246153245b/BCC.png",
         "WoWF" to "${KEY_ART_ASSETS}blt1d58537e928b17c5/6ae2c99668c747dd1b4f558b/WoW_Forever_AnimatedTrailerSupportAssets_BnetShop_1920x1080.png",
         "D3" to "${KEY_ART_CATALOG}/f96/8d92f4d8bd316d3787f02d8a86935d6a-Store_Product_960x540_D3.jpg",
-        "D3CN" to "${KEY_ART_CATALOG}/f96/8d92f4d8bd316d3787f02d8a86935d6a-Store_Product_960x540_D3.jpg",
         "S2" to "${KEY_ART_ASSETS}blt4b6d6857f147a6de/61254804841f180993fedb61/6885-32192.png",
         "S1" to "${KEY_ART_ASSETS}blt03d69a4563a6ae63/6a34b50f799ece2cb2da248c/9458-28298.jpg",
         "WTCG" to "${KEY_ART_ASSETS}blt5a3d84e1d0b2bbcf/662aea9f842cecfd4fd95327/HS_Key_Art_SG2.png",
