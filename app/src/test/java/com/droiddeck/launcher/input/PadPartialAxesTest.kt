@@ -83,6 +83,117 @@ class PadPartialAxesTest {
         assertEquals(-0.6f, pad().rightY)
     }
 
+    @Test fun onlyRxRyAxesProvideTheRightStick() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun rxRyStickWithoutZRzKeepsTriggersReleased() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+    }
+
+    @Test fun rxRyStickReadsDedicatedTriggerAxes() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_LTRIGGER to 0.4f, MotionEvent.AXIS_RTRIGGER to 0f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(0.4f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+    }
+
+    @Test fun leftTriggerFallsBackToBrakeWhenDedicatedAxisIsZero() {
+        val device = device(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)
+        motion(device, MotionEvent.AXIS_LTRIGGER to 0f, MotionEvent.AXIS_BRAKE to 0.7f)
+        assertEquals(0.7f, pad().leftTrigger)
+    }
+
+    @Test fun rightTriggerFallsBackToGasWhenDedicatedAxisIsZero() {
+        val device = device(MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)
+        motion(device, MotionEvent.AXIS_RTRIGGER to 0f, MotionEvent.AXIS_GAS to 0.8f)
+        assertEquals(0.8f, pad().rightTrigger)
+    }
+
+    @Test fun onlyZRzAxesProvideTheRightStick() {
+        val device = device(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_Z to 0.6f, MotionEvent.AXIS_RZ to -0.6f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun bothPairsUseThePairAtRestNearCentreAsTheStick() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to -1f, MotionEvent.AXIS_RY to -1f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to 0f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        motion(device, MotionEvent.AXIS_RX to 0.2f, MotionEvent.AXIS_RY to -0.3f,
+            MotionEvent.AXIS_Z to 0.7f, MotionEvent.AXIS_RZ to -0.8f)
+        assertEquals(0.7f, pad().rightX)
+        assertEquals(-0.8f, pad().rightY)
+    }
+
+    @Test fun bothPairsUseRxRyAsStickWhenZRzRestAtMinimum() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to 1f, MotionEvent.AXIS_RZ to 1f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+        assertEquals(1f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+    }
+
+    @Test fun nonWiredZeroToOneSignedZTriggersNormalizeFromTheirRange() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            zeroToOneAxes = setOf(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ))
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to 0f)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0f, pad().rightTrigger)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to 1f, MotionEvent.AXIS_RZ to 1f)
+        assertEquals(1f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+    }
+
+    @Test fun movingFirstEventDoesNotLockTheWrongStickPair() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to 1f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to 0f)
+        assertEquals(0f, pad().rightX)
+        assertEquals(0f, pad().rightY)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
+    @Test fun dedicatedRightTriggerWinsOverSignedRightTrigger() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z,
+            MotionEvent.AXIS_RZ, MotionEvent.AXIS_RTRIGGER)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_RX to 0.6f, MotionEvent.AXIS_RY to -0.6f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f,
+            MotionEvent.AXIS_RTRIGGER to 0.7f)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(0.7f, pad().rightTrigger)
+        assertEquals(0.6f, pad().rightX)
+        assertEquals(-0.6f, pad().rightY)
+    }
+
     @Test fun sticksWithoutTriggerOrHatAxesPreserveAllDigitalControls() {
         val device = device()
         key(device, KeyEvent.KEYCODE_BUTTON_L2)
@@ -173,14 +284,15 @@ class PadPartialAxesTest {
         try { assertTrue(bridge.onMotionEvent(event)) } finally { event.recycle() }
     }
 
-    private fun device(vararg axes: Int, wired: Boolean = false): InputDevice {
+    private fun device(vararg axes: Int, wired: Boolean = false, zeroToOneAxes: Set<Int> = emptySet()): InputDevice {
         val builder = InputDeviceBuilder.newBuilder().setId(60).setName("partial pad")
             .setDescriptor("partial-pad").setExternal(true)
             .setSources(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK)
             .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
             .setVendorId(if (wired) 0x20d6 else 0).setProductId(if (wired) 0x2063 else 0)
         for (axis in axes.toList() + MotionEvent.AXIS_X) {
-            builder.addMotionRange(axis, InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            val min = if (axis in zeroToOneAxes) 0f else -1f
+            builder.addMotionRange(axis, InputDevice.SOURCE_JOYSTICK, min, 1f, 0f, 0f, 0f)
         }
         return builder.build().also {
             shadowOf(RuntimeEnvironment.getApplication().getSystemService(InputManager::class.java)).addInputDevice(it)
