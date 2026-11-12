@@ -73,6 +73,8 @@ object AgentSetup {
         Thread({ for ((step, command) in probes) probe(app, harness, step, command) }, "agent-checks").start()
     }
 
+    fun runsAsRoot(step: Step) = step == Step.INSTALL
+
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
     fun run(context: Context, step: Step) {
         val app = context.applicationContext
@@ -97,7 +99,7 @@ object AgentSetup {
             val result = runCatching {
                 installHelpers(app)
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
-                val child = AgentHost.guest(app, command).start()
+                val child = AgentHost.guest(app, command, fakeRoot = runsAsRoot(step)).start()
                 val pid = AgentProcesses.pidOf(child)
                 OrphanReaper.keep(pid)
                 try {
