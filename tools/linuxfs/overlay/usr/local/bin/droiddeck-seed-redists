@@ -101,7 +101,8 @@ while IFS=$'\t' read -r key dir; do
     found=$(printf '%s\n' "${legacy%.}" | dir="$dir" awk 'index($0, ENVIRON["dir"] "/") == 1')
   else
     found=$(find "$dir" -mindepth 1 -maxdepth 4 -iname 'installscript*.vdf' \
-      -not -path '*/Steamworks Shared/*' 2>/dev/null | sort -u)
+      -not -path '*/Steamworks Shared/*' 2>/dev/null) || continue
+    found=$(printf '%s\n' "$found" | sort -u)
   fi
   fresh+=("$key" "$found")
 done <<<"$games"

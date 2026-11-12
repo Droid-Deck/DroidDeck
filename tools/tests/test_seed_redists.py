@@ -481,6 +481,21 @@ class SeedRedistsTest(unittest.TestCase):
         time.sleep(0.5)
         self.assertEqual(before, self.reg.read_text())
 
+    def test_a_game_whose_search_failed_is_searched_again(self):
+        self.game()
+        broken = self.tmp / "broken"
+        broken.touch()
+        shim = self.tmp / "bin"
+        shim.mkdir()
+        (shim / "find").write_text('#!/bin/sh\n%s "$@"\n[ ! -e "%s" ]\n' % (shutil.which("find"), broken))
+        (shim / "find").chmod(0o755)
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", PATH="%s:%s" % (shim, os.environ["PATH"]))
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, check=True)
+        self.assertNotIn("VCRedist2022", self.reg.read_text())
+        broken.unlink()
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, check=True)
+        self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
+
     def test_a_later_run_leaves_the_registry_alone_while_a_wine_server_runs(self):
         self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
         shim = self.tmp / "bin"
