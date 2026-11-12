@@ -48,7 +48,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** The model and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
+/** The model, reasoning effort and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
 @Composable
 internal fun AgentModelPicker() {
     val context = LocalContext.current
@@ -61,6 +61,16 @@ internal fun AgentModelPicker() {
                 val id = choice.id.ifEmpty { null }
                 if (id == AgentHost.model) PrimaryButton(choice.label, compact = true) {}
                 else SecondaryButton(choice.label, compact = true) { AgentHost.chooseModel(context, id) }
+            }
+        }
+        if (AgentHost.harness.efforts.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.agent_effort), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 2.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                for (level in listOf<String?>(null) + AgentHost.harness.efforts) {
+                    val label = level ?: stringResource(R.string.agent_model_default)
+                    if (level == AgentHost.effort) PrimaryButton(label, compact = true) {}
+                    else SecondaryButton(label, compact = true) { AgentHost.chooseEffort(context, level) }
+                }
             }
         }
         if (AgentHost.harness.plans) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {

@@ -121,7 +121,7 @@ private fun AgentHeader(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, onSetu
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clip(Shape12).clickable { onPanel(AgentPanel.MODEL) }.padding(vertical = 2.dp).testTag("agent-model"),
             ) {
-                val parts = listOfNotNull(AgentHost.harness.name, model, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
+                val parts = listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
                 Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant)
                 Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
             }

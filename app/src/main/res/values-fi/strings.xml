@@ -2566,6 +2566,8 @@
     <string name="comp_this_device">Tämä laite</string>
     <string name="proton_remove_title">Poistetaanko %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostiikka</string>
+    <string name="setup_build_watermark">Koontiversion vesileima</string>
+    <string name="setup_build_watermark_hint">Näytä testi- tai Lab-version tunniste näytöllä. Käytössä oletusarvoisesti.</string>
     <string name="setup_ready">Valmis pelattavaksi</string>
     <string name="setup_not_ready">Ei vielä valmis pelattavaksi</string>
     <string name="setup_ready_runtime">ajoympäristö %1$s</string>

@@ -77,6 +77,7 @@ object SessionArtifacts {
             copySteamLogs(context, dir, record, steamArch)
             VacDiagnostics.collect(context, dir)
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+            SessionLogCapture.dumpMemoryPressure(File(dir, "memory-pressure.log"))
             val scrubbed = markScrubbed(scrubTree(record))
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
             if (scrubbed) File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
@@ -593,6 +594,10 @@ object SessionArtifacts {
                 val crashLog = File(dir, "crash.log")
                 if (!crashLog.exists()) {
                     SessionLogCapture.dumpCrashBuffer(crashLog)
+                }
+                val memoryLog = File(dir, "memory-pressure.log")
+                if (newest && !memoryLog.exists()) {
+                    SessionLogCapture.dumpMemoryPressure(memoryLog)
                 }
                 if (stopWhenSessionStarts && SessionState.running) {
                     record.failed = true

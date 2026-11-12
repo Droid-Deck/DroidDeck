@@ -846,9 +846,17 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
   }
 
 ONE_PATH(mkdir, ADDED, IN_CREATE, next_mkdir(path, mode), mode_t mode)
-ONE_PATH(rmdir, REMOVED, IN_DELETE, next_rmdir(path))
-ONE_PATH(unlink, REMOVED, IN_DELETE, next_unlink(path))
-ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
+int bl_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int bl_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
+    __attribute__((visibility("hidden")));
+
+static int moved(const char *from, const char *to) { return bl_descriptor_rename(from, to, next_rename); }
+
+ONE_PATH(rmdir, REMOVED, IN_DELETE, bl_descriptor_rmdir(path, next_rmdir))
+ONE_PATH(unlink, REMOVED, IN_DELETE, bl_descriptor_unlink(path, next_unlink))
+ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
 
 #define TWO_PATHS(name, gone, event, call) \
   int name(const char *from, const char *to) { \
@@ -881,7 +889,7 @@ ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
 int bl_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
 static int link_or_lock(const char *from, const char *to) { return bl_link_lock(from, to, next_link(from, to)); }
 
-TWO_PATHS(rename, 1, IN_MOVED_TO, next_rename)
+TWO_PATHS(rename, 1, IN_MOVED_TO, moved)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
 TWO_PATHS(symlink, 0, IN_CREATE, next_symlink)
 

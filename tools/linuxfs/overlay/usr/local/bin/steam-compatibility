@@ -1540,7 +1540,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             auto = followers(state, current)
             known = {app for app in state.get("owned", ()) if isinstance(app, str)} if isinstance(state.get("owned"), list) else set()
             pinned = {app: current[app] for app in set(owned) - known
-                      if current.get(app) in {TOOL, previous} | gone and app not in auto}
+                      if app in current and current.get(app) in {TOOL, previous} | gone and app not in auto}
             if pinned and isinstance(auto, dict):
                 state["auto"] = dict(auto, **pinned)
             state["owned"] = sorted(set(owned), key=app_order)

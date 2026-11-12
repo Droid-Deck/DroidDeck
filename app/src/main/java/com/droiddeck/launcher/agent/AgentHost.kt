@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.nio.file.Files
@@ -50,7 +51,12 @@ object AgentHost {
     @VisibleForTesting
     internal const val BRIEF = "You run inside DroidDeck on the user's handheld, in its Linux userland (Ubuntu under proot, aarch64), " +
         "and the user talks to you from DroidDeck's Agent tab, often on a small screen, so keep replies short. " +
-        "droiddeckctl (in the /root/DroidDeck checkout, tools/droiddeckctl) inspects and drives the app over loopback adb (\$ADB_SERIAL). " +
+        "droiddeckctl inspects and drives the app over loopback adb (\$ADB_SERIAL); its guide is ${AgentSetup.CTL}/agent-control.md. " +
+        "Steam, the desktop and games run in DroidDeck's session, a separate guest from yours: a program you start here is not in it and has no screen. " +
+        "Reach the session through droiddeckctl: state, start steam, stop, launch, quit, focus, screenshot, logs, and guest to run a command inside it. " +
+        "Starting, stopping or restarting a session leaves you running. " +
+        "Never kill by a command-line pattern (pkill -f, pgrep -f piped to kill): your own command line holds the user's message, so the pattern matches you. " +
+        "End a game with droiddeckctl quit, the session with droiddeckctl stop, anything else by its pid. " +
         "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md). DroidDeck runs the build in a " +
         "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
@@ -71,6 +77,9 @@ object AgentHost {
         private set
     /** The chosen model for [harness]; null is the CLI's default. */
     var model by mutableStateOf<String?>(null)
+        private set
+    /** The chosen reasoning effort for [harness]; null is the CLI's default. */
+    var effort by mutableStateOf<String?>(null)
         private set
     var plan by mutableStateOf(false)
         private set
@@ -125,6 +134,7 @@ object AgentHost {
         File(app.filesDir, "agent").mkdirs()
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
+        effort = prefs(app).getString(effortKey(harness), null)?.takeIf { it in harness.efforts }
         plan = prefs(app).getBoolean(PLAN_KEY, false)
         available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
@@ -214,6 +224,11 @@ object AgentHost {
         prefs(context).edit().putString(modelKey(harness), id).apply()
     }
 
+    fun chooseEffort(context: Context, level: String?) {
+        effort = level
+        prefs(context).edit().putString(effortKey(harness), level).apply()
+    }
+
     fun choosePlan(context: Context, on: Boolean) {
         plan = on
         prefs(context).edit().putBoolean(PLAN_KEY, on).apply()
@@ -248,10 +263,11 @@ object AgentHost {
         AgentHostService.start(app)
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
-        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
+        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF, effort))
         val workdir = workspace(app)
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
+            runCatching { AgentSetup.installHelpers(app) }
             val child = try {
                 guest(app, command, workdir).start()
             } catch (e: Exception) {
@@ -260,6 +276,7 @@ object AgentHost {
                 return@Thread
             }
             val started = Turn(child, AgentProcesses.pidOf(child))
+            OrphanReaper.keep(started.pid)
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
@@ -278,6 +295,7 @@ object AgentHost {
             }
             runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
+            OrphanReaper.release(started.pid)
             main.post {
                 if (turn === started) {
                     turn = null
@@ -500,9 +518,15 @@ object AgentHost {
                 val child = guest(app, listOf("sh", "-c",
                     "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
                 main.post { labProcess = child }
-                child.outputStream.close()
-                child.inputStream.readBytes()
-                child.waitFor()
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    child.inputStream.readBytes()
+                    child.waitFor()
+                } finally {
+                    OrphanReaper.release(pid)
+                }
             }.onFailure { Log.w(TAG, "could not run a Lab build", it) }
             main.post {
                 labProcess = null
@@ -531,6 +555,7 @@ object AgentHost {
     private const val RETRY_MS = 3_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
+    private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
 }
