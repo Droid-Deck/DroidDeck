@@ -74,6 +74,8 @@ internal interface AgentPetHost {
  * chat, growing out of it.
  */
 internal object AgentPet {
+    var mode by mutableStateOf(false)
+        private set
     var enabled by mutableStateOf(false)
         private set
     /** May draw over other apps. */
@@ -113,7 +115,17 @@ internal object AgentPet {
     private const val SIDE = "pet_side"
     private const val HEIGHT = "pet_y"
 
+    fun setMode(context: Context, on: Boolean) {
+        mode = on
+        AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", on).apply()
+        set(context, on)
+    }
+
     fun set(context: Context, on: Boolean) {
+        if (on) {
+            mode = true
+            AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", true).apply()
+        }
         enabled = on
         AgentHost.prefs(context).edit().putBoolean(KEY, on).apply()
     }
@@ -133,6 +145,7 @@ internal object AgentPet {
 
     fun install(app: Application) {
         enabled = AgentHost.prefs(app).getBoolean(KEY, false)
+        mode = AgentHost.prefs(app).getBoolean("drawer_pet_mode", enabled) || enabled
         allowed = PetWindows.allowed(app)
         val scope = MainScope()
         scope.launch {

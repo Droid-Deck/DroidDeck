@@ -637,8 +637,8 @@ private fun AgentEditor(
                     menu = false
                     AgentHost.forget(context)
                 }
-                HeaderAction(Icons.Outlined.Pets, stringResource(R.string.setup_agent_pet), selected = AgentPet.enabled, size = 32.dp, tag = "agent-pet-toggle") {
-                    AgentPet.set(context, !AgentPet.enabled)
+                HeaderAction(Icons.Outlined.Pets, stringResource(R.string.setup_agent_pet), selected = AgentPet.mode, size = 32.dp, tag = "agent-pet-toggle") {
+                    AgentPet.setMode(context, !AgentPet.mode)
                 }
                 HeaderAction(Icons.Outlined.Settings, stringResource(R.string.agent_setup_title), enabled = !working, size = 32.dp, tag = "agent-settings") {
                     menu = false

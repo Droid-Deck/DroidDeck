@@ -368,22 +368,19 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
     val agentPageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val context = LocalContext.current
-    var petMode by rememberSaveable { mutableStateOf(com.droiddeck.launcher.agent.AgentHost.prefs(context).getBoolean("drawer_pet_mode", false)) }
+    val petMode = AgentPet.mode
     var petCountdown by remember { mutableStateOf(0) }
     val modeFocus = LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val togglePetMode = {
         onPageChange(SessionDrawerPage.AGENT)
         if (petMode) {
-            petMode = false
-            com.droiddeck.launcher.agent.AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", false).apply()
+            AgentPet.setMode(context, false)
         }
         else {
             modeFocus.clearFocus(force = true)
             keyboard?.hide()
-            AgentPet.set(context, true)
-            petMode = true
-            com.droiddeck.launcher.agent.AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", true).apply()
+            AgentPet.setMode(context, true)
         }
     }
     val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
@@ -1985,7 +1982,7 @@ private fun DrawerPet(modifier: Modifier, countdown: Int, onCountdown: (Int) -> 
                 .testTag("drawer-deedee")
                 .semantics { stateDescription = if (enabled) "On" else "Off" }
                 .clickable(interactionSource = source, indication = null) { if (!held) AgentPet.set(context, !AgentPet.enabled) })
-        Text(stringResource(R.string.agent_pet_name), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.agent_pet_mode_title), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(if (enabled) R.string.agent_pet_close_hint else R.string.agent_pet_open_hint), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
     }
