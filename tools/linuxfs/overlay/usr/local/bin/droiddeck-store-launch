@@ -1113,14 +1113,21 @@ def ea_touchup(folder, sidecar, compat_data, proton, timeout=900):
     except OSError:
         pass
     args = touchup_args(str(extra.get("touchupArgs") or ""), str(extra.get("locale") or "en_US"), windows_path(str(folder)).rstrip("\\"))
+    output = b""
     try:
         run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+        output = run.stdout or b""
         result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as expired:
+        output = expired.output or b""
         result = "timeout"
     except OSError:
         return "failed"
+    for line in output.decode("utf-8", "replace").splitlines()[-200:]:
+        log("touchup: " + line)
+    if result != "ok":
+        return result
     try:
         marker.write_text(stamp)
     except OSError:

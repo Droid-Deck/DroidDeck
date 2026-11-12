@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -123,6 +124,47 @@ class EaHook(unittest.TestCase):
             whole = dict(partial, osInstallDate='20261108')
             (pfx / store.EA_HARDWARE).write_text(json.dumps(whole))
             self.assertEqual(store.ea_hardware(tmp, ''), (whole, 'cached'))
+
+    def touchup_setup(self, tmp):
+        folder = Path(tmp) / 'game'
+        (folder / 'Touchup').mkdir(parents=True)
+        (folder / 'Touchup/touchup.exe').write_text('')
+        compat = Path(tmp) / 'compat'
+        (compat / 'pfx').mkdir(parents=True)
+        proton = Path(tmp) / 'proton'
+        proton.write_text('')
+        sidecar = {'id': 'Origin.OFR.1', 'installVersion': '1', 'installedAt': 'now', 'extra': {'touchup': 'Touchup/touchup.exe'}}
+        return folder, sidecar, str(compat), str(proton)
+
+    def test_a_failed_touchup_is_retried_and_a_successful_one_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            codes = iter([3, 124, 0])
+            calls = []
+
+            def fake_run(cmd, **kwargs):
+                calls.append(cmd)
+                return subprocess.CompletedProcess(cmd, next(codes), stdout=b'PhysX failed\n')
+
+            logged = []
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'exit-3')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'exit-124')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(len(calls), 3)
+            self.assertIn('touchup: PhysX failed', logged)
+
+    def test_a_timed_out_touchup_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+
+            def fake_run(cmd, **kwargs):
+                raise subprocess.TimeoutExpired(cmd, 1, output=b'still running\n')
+
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', lambda line: None):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'timeout')
+            self.assertEqual(list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*')), [])
 
 
 if __name__ == '__main__':
