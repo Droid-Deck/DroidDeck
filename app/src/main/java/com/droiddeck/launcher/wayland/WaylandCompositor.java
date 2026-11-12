@@ -325,6 +325,9 @@ public final class WaylandCompositor {
 
     public static native void nativeSendSceneInput(int type, int a, int b);
 
+    public static final int SCENE_BUTTON = 3, SCENE_WHEEL = 4, SCENE_POINTER_DELTA = 6, SCENE_AXIS = 11, SCENE_AXIS_FINGER = 12;
+    public static final int WHEEL_STEP_UNITS = 120, POINTER_DELTA_SCALE = 256;
+
     public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1;
 
     public static native void nativeSetFrameGenEngine(int kind);
@@ -352,19 +355,19 @@ public final class WaylandCompositor {
 
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
-        nativeSendSceneInput(6, dx * 256, dy * 256);
+        nativeSendSceneInput(SCENE_POINTER_DELTA, dx * POINTER_DELTA_SCALE, dy * POINTER_DELTA_SCALE);
     }
 
     private static float pendingDeltaX, pendingDeltaY;
 
     public static void sendPointerDelta(float dx, float dy) {
-        pendingDeltaX += dx * 256f;
-        pendingDeltaY += dy * 256f;
+        pendingDeltaX += dx * POINTER_DELTA_SCALE;
+        pendingDeltaY += dy * POINTER_DELTA_SCALE;
         int x = (int) Math.floor(pendingDeltaX);
         int y = (int) Math.floor(pendingDeltaY);
         if (x == 0 && y == 0) return;
         pendingDeltaX -= x;
         pendingDeltaY -= y;
-        nativeSendSceneInput(6, x, y);
+        nativeSendSceneInput(SCENE_POINTER_DELTA, x, y);
     }
 }

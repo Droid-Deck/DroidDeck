@@ -3137,7 +3137,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (h == 0 && v == 0) return
             scrollRestX -= h
             scrollRestY -= v
-            WaylandCompositor.nativeSendSceneInput(11, ScrollTouchGestures.wheelUnits(v, out.second), ScrollTouchGestures.wheelUnits(h, out.first))
+            WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_AXIS, ScrollTouchGestures.wheelUnits(v, out.second), ScrollTouchGestures.wheelUnits(h, out.first))
         }
         override fun onLongPress() = pointerListener.onLongPress()
     }
@@ -3192,13 +3192,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (h == 0 && v == 0) return
         scrollRestX -= h
         scrollRestY -= v
-        WaylandCompositor.nativeSendSceneInput(12, v, h)
+        WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_AXIS_FINGER, v, h)
     }
 
     private fun fingerScrollEnd() {
         scrollRestX = 0f
         scrollRestY = 0f
-        WaylandCompositor.nativeSendSceneInput(12, 0, 0)
+        WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_AXIS_FINGER, 0, 0)
     }
 
     private fun placeTouchpadAtGuest(rect: android.graphics.RectF) {
@@ -3924,14 +3924,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else guestButtonsDown.remove(code) ?: evdevMouseActive
         val writer = if (raw) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
-        else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
+        else WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_BUTTON, code, if (down) 1 else 0)
     }
 
     private fun sendSceneWheel(steps: Int, horizontal: Boolean = false): Unit = synchronized(heldButtons) {
         val writer = if (evdevMouseActive) mouseWriter else null
-        if (writer != null) writer.writeMouseWheel(if (horizontal) 0 else -steps, if (horizontal) steps else 0, 120)
-        else if (horizontal) WaylandCompositor.nativeSendSceneInput(11, 0, steps * 120)
-        else WaylandCompositor.nativeSendSceneInput(4, steps, 0)
+        if (writer != null) writer.writeMouseWheel(if (horizontal) 0 else -steps, if (horizontal) steps else 0, WaylandCompositor.WHEEL_STEP_UNITS)
+        else if (horizontal) WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_AXIS, 0, steps * WaylandCompositor.WHEEL_STEP_UNITS)
+        else WaylandCompositor.nativeSendSceneInput(WaylandCompositor.SCENE_WHEEL, steps, 0)
     }
 
     private fun sendMouseDelta(x: Float, y: Float) {
