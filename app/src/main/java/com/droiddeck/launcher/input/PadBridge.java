@@ -56,6 +56,7 @@ public final class PadBridge {
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
     private final float[][] rawSticks = new float[SLOTS][4];
+    private final boolean[][] keyTriggers = new boolean[SLOTS][2];
     private final int[] retainedSticks = new int[SLOTS];
     private final PadState effectiveState = new PadState();
     private final PadState homeGuideReport = new PadState();
@@ -407,11 +408,11 @@ public final class PadBridge {
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2:
                 pad.leftTrigger = keyTrigger(pad.leftTrigger, pressed, event.getRepeatCount(),
-                        analogTrigger(event.getDevice(), MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE));
+                        analogTrigger(event.getDevice(), MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE), keyTriggers[slot], 0);
                 break;
             case KeyEvent.KEYCODE_BUTTON_R2:
                 pad.rightTrigger = keyTrigger(pad.rightTrigger, pressed, event.getRepeatCount(),
-                        analogTrigger(event.getDevice(), MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS));
+                        analogTrigger(event.getDevice(), MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS), keyTriggers[slot], 1);
                 break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
             case KeyEvent.KEYCODE_DPAD_RIGHT: pad.right = pressed; break;
@@ -471,6 +472,7 @@ public final class PadBridge {
         stateFor(slot).clear();
         retainedSticks[slot] = 0;
         Arrays.fill(rawSticks[slot], 0f);
+        Arrays.fill(keyTriggers[slot], false);
     }
 
     private void mutateState(java.util.function.Consumer<PadState> mutation) {
@@ -525,11 +527,11 @@ public final class PadBridge {
         float lt = 0f;
         float rt = 0f;
         if (wired || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)) {
-            lt = leftTrigger(event, wired);
+            lt = axisTrigger(leftTrigger(event, wired), keyTriggers[slot], 0);
             pad.leftTrigger = lt;
         }
         if (wired || hasAxis(device, source, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)) {
-            rt = rightTrigger(event, wired);
+            rt = axisTrigger(rightTrigger(event, wired), keyTriggers[slot], 1);
             pad.rightTrigger = rt;
         }
         if (hasAxis(device, source, MotionEvent.AXIS_HAT_X)) {
@@ -553,9 +555,27 @@ public final class PadBridge {
         return true;
     }
 
-    static float keyTrigger(float current, boolean pressed, int repeatCount, boolean analog) {
-        if (analog || repeatCount > 0) return current;
-        return pressed ? 1f : 0f;
+    static float keyTrigger(float current, boolean pressed, int repeatCount, boolean analog, boolean[] held, int side) {
+        if (repeatCount > 0) return current;
+        if (!analog) {
+            held[side] = pressed;
+            return pressed ? 1f : 0f;
+        }
+        if (pressed) {
+            if (current != 0f) return current;
+            held[side] = true;
+            return 1f;
+        }
+        if (!held[side]) return current;
+        held[side] = false;
+        return 0f;
+    }
+
+    static float axisTrigger(float value, boolean[] held, int side) {
+        if (!held[side]) return value;
+        if (value == 0f) return 1f;
+        held[side] = false;
+        return value;
     }
 
     static boolean analogTrigger(InputDevice device, int... axes) {
