@@ -2633,7 +2633,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val pip = pipUi && mirrorRefreshLimit() <= 0
         Thread({
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
-            // Check whether work is needed before potentially expensive Lossless.sync().
             val needsApply = synchronized(frameGenGlobalLock) {
                 if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@Thread
                 if (request != frameGenRequests.get()) return@Thread
