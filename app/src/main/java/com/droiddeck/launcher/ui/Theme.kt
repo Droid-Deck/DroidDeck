@@ -59,7 +59,11 @@ object Themes {
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
     const val WHITE_RED = "white_red"
-    const val AMOLED = "amoled"
+    const val TRUE_BLACK = "true_black"
+    const val DEFAULT_HIGHLIGHT = 0xFF1A9FFF.toInt()
+
+    var trueBlackHighlight by mutableStateOf(DEFAULT_HIGHLIGHT)
+        private set
 
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
@@ -82,6 +86,12 @@ object Themes {
     fun loadGradient(context: Context) {
         gradientColors = SessionPrefs.gradientColors(context)
         rgbSpeed = SessionPrefs.rgbSpeed(context)
+        trueBlackHighlight = SessionPrefs.trueBlackHighlight(context)
+    }
+
+    fun setTrueBlackHighlight(context: Context, highlight: Int) {
+        SessionPrefs.setTrueBlackHighlight(context, highlight)
+        trueBlackHighlight = highlight
     }
 
     fun innerGamer(hue: Float): Palette = ThemeColors.palette(
@@ -96,7 +106,7 @@ object Themes {
 
     fun current(context: Context): Palette {
         val id = SessionPrefs.theme(context)
-        if (id == GRADIENT || id == INNER_GAMER) loadGradient(context)
+        if (id == GRADIENT || id == INNER_GAMER || id == TRUE_BLACK) loadGradient(context)
         return byId(id)
     }
 
@@ -129,14 +139,7 @@ object Themes {
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
         ),
-        // Page and panels are pure black so an OLED panel leaves those pixels off; only raised cards and rules are lit.
-        Palette(
-            AMOLED, R.string.theme_amoled, R.string.theme_amoled_detail,
-            background = Color(0xFF000000), surface = Color(0xFF000000), surfaceVariant = Color(0xFF0C0C0D), line = Color(0xFF1C1D20), line2 = Color(0xFF2A2C30),
-            onBackground = Color(0xFFF2F4F7), onSurfaceVariant = Color(0xFF8E9196),
-            primary = Color(0xFF1A9FFF), primary2 = Color(0xFF1487DB), onPrimary = Color(0xFF03111F), signal = Color(0xFF1A9FFF),
-            good = Color(0xFF4CD37F),
-        ),
+        ThemeColors.trueBlack(DEFAULT_HIGHLIGHT),
         Palette(
             WHITE_RED, R.string.theme_white_red, R.string.theme_white_red_detail,
             background = Color(0xFFF8F8F8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF0F0F0), line = Color(0xFFDDDDDD), line2 = Color(0xFFC8C8C8),
@@ -150,6 +153,7 @@ object Themes {
 
     fun byId(id: String): Palette {
         if (id == INNER_GAMER) return innerGamer(rgbHue)
+        if (id == TRUE_BLACK) return ThemeColors.trueBlack(trueBlackHighlight)
         if (id == GRADIENT) return ThemeColors.palette(gradientColors.first, gradientColors.second, R.string.theme_gradient, R.string.theme_gradient_detail)
         return all.firstOrNull { it.id == id } ?: all[0]
     }

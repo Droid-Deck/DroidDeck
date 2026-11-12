@@ -1322,6 +1322,13 @@ object SessionPrefs {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
     }
 
+    fun trueBlackHighlight(context: Context): Int =
+        prefs(context).getInt("trueBlackHighlight", com.droiddeck.launcher.ui.Themes.DEFAULT_HIGHLIGHT)
+
+    fun setTrueBlackHighlight(context: Context, highlight: Int) {
+        prefs(context).edit().putInt("trueBlackHighlight", highlight).apply()
+    }
+
     private fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
         parseResolution(prefs(context).getString("customRes.$mode", null))
 
