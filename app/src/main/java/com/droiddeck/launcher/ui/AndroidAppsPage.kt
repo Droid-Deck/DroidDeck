@@ -789,7 +789,7 @@ private fun FolderSheet(
                         AdbTextField(
                             value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.apps_folder_name),
                             keyboardType = KeyboardType.Text, imeAction = ImeAction.Done, compact = true, showLabel = false,
-                            placeholder = folder.name, focusOnShow = true, onDone = { commit() }, onBack = { toTitle = true; commit() },
+                            placeholder = folder.name, focusOnShow = true, onDone = { commit() }, onBack = { if (renaming) { toTitle = true; commit() } },
                         )
                     } else {
                         val src = remember { MutableInteractionSource() }

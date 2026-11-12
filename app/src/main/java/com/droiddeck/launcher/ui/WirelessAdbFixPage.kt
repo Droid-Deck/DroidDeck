@@ -395,7 +395,8 @@ internal fun AdbTextField(
                 editText.setSelection(next.selection.start.coerceIn(0, next.text.length), next.selection.end.coerceIn(0, next.text.length))
             },
             { action -> editText.onEditorAction(imeActionFlag(action)) },
-            { editText.post { editText.clearFocus() } },
+            // Closing the bottom-screen keyboard is this field's B: a field with its own way out leaves through it.
+            { editText.post { onBackLatest.value?.invoke() ?: editText.clearFocus() } },
         )
         typingRequest[0] = request
         DualScreenPanel.startTyping(request)
