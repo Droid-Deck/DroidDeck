@@ -21,6 +21,8 @@ interface AgentHarness {
     val signIn: List<String>
     /** Whether [Options.plan] means anything to this CLI. */
     val plans: Boolean
+    /** Reasoning effort levels the CLI accepts, lowest first; empty when it has none. */
+    val efforts: List<String>
     /** Models to offer besides the CLI's default; [rootfs] is where the CLI's own files can be read. */
     fun models(rootfs: File): List<Model>
     /** The guest command for one turn; [conversation] is null for the first one. */
@@ -32,7 +34,7 @@ interface AgentHarness {
 
     data class Model(val id: String, val label: String)
 
-    data class Options(val model: String? = null, val plan: Boolean = false, val brief: String? = null)
+    data class Options(val model: String? = null, val plan: Boolean = false, val brief: String? = null, val effort: String? = null)
 
     companion object {
         val all: List<AgentHarness> = listOf(ClaudeCode, Codex)
@@ -60,6 +62,7 @@ object ClaudeCode : AgentHarness {
     override val signedIn = listOf("sh", "-c", "$binary auth status | grep -q '\"loggedIn\": true'")
     override val signIn = listOf(binary, "auth", "login", "--claudeai")
     override val plans = true
+    override val efforts = listOf("low", "medium", "high", "xhigh", "max")
 
     /**
      * Commits and pull requests the agent makes carry no Claude Code credit or co-author line by
@@ -92,6 +95,7 @@ object ClaudeCode : AgentHarness {
         addAll(listOf(binary, "-p", message, "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
         addAll(listOf("--permission-mode", if (options.plan) "plan" else "bypassPermissions"))
         options.model?.let { addAll(listOf("--model", it)) }
+        options.effort?.let { addAll(listOf("--effort", it)) }
         options.brief?.let { addAll(listOf("--append-system-prompt", it)) }
         if (conversation != null) addAll(listOf("--resume", conversation))
     }
@@ -212,6 +216,7 @@ object Codex : AgentHarness {
     override val signedIn = listOf(binary, "login", "status")
     override val signIn = listOf(binary, "login")
     override val plans = false
+    override val efforts = listOf("low", "medium", "high")
 
     /** Codex keeps the models its account can use in `~/.codex/models_cache.json` once it has run. */
     override fun models(rootfs: File): List<AgentHarness.Model> = runCatching {
@@ -231,6 +236,7 @@ object Codex : AgentHarness {
         if (conversation != null) addAll(listOf("resume", conversation))
         addAll(listOf("--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"))
         options.model?.let { addAll(listOf("-m", it)) }
+        options.effort?.let { addAll(listOf("-c", "model_reasoning_effort=\"$it\"")) }
         // codex exec has no system prompt option, so a new conversation starts with the brief.
         add(if (conversation == null && options.brief != null) "${options.brief}\n\n$message" else message)
     }

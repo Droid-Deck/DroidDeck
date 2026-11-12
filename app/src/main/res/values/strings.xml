@@ -1188,6 +1188,7 @@
     <string name="agent_attach">Attach</string>
     <string name="agent_remove_attachment">Remove</string>
     <string name="agent_model_default">Default</string>
+    <string name="agent_effort">Reasoning effort</string>
     <string name="agent_plan">Plan first</string>
     <string name="agent_plan_short">Plan</string>
     <string name="agent_plan_hint">Proposes a plan without changing anything</string>

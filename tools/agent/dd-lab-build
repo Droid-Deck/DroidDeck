@@ -102,7 +102,7 @@ export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on $installed_la
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   progress sdk
-  yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+  { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 

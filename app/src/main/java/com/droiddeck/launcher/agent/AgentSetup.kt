@@ -95,7 +95,7 @@ object AgentSetup {
             val result = runCatching {
                 installHelpers(app)
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
-                val child = AgentHost.guest(app, command).start()
+                val child = AgentHost.spawn(AgentHost.guest(app, command))
                 child.outputStream.close()
                 logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
                     child.inputStream.bufferedReader().forEachLine { line ->
@@ -140,7 +140,7 @@ object AgentSetup {
     private fun probe(app: Context, harness: AgentHarness, step: Step, command: List<String>) {
         var output = ""
         val ok = runCatching {
-            val child = AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION).start()
+            val child = AgentHost.spawn(AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION))
             child.outputStream.close()
             val reader = Thread({ output = child.inputStream.bufferedReader().readText() }, "agent-check-output").apply { isDaemon = true; start() }
             val exited = child.waitFor(PROBE_TIMEOUT_S, TimeUnit.SECONDS)

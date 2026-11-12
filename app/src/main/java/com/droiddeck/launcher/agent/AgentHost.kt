@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
@@ -72,6 +73,9 @@ object AgentHost {
     /** The chosen model for [harness]; null is the CLI's default. */
     var model by mutableStateOf<String?>(null)
         private set
+    /** The chosen reasoning effort for [harness]; null is the CLI's default. */
+    var effort by mutableStateOf<String?>(null)
+        private set
     var plan by mutableStateOf(false)
         private set
     var chat by mutableStateOf<String?>(null)
@@ -125,6 +129,7 @@ object AgentHost {
         File(app.filesDir, "agent").mkdirs()
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
+        effort = prefs(app).getString(effortKey(harness), null)?.takeIf { it in harness.efforts }
         plan = prefs(app).getBoolean(PLAN_KEY, false)
         available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
@@ -214,6 +219,11 @@ object AgentHost {
         prefs(context).edit().putString(modelKey(harness), id).apply()
     }
 
+    fun chooseEffort(context: Context, level: String?) {
+        effort = level
+        prefs(context).edit().putString(effortKey(harness), level).apply()
+    }
+
     fun choosePlan(context: Context, on: Boolean) {
         plan = on
         prefs(context).edit().putBoolean(PLAN_KEY, on).apply()
@@ -248,12 +258,12 @@ object AgentHost {
         AgentHostService.start(app)
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
-        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
+        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF, effort))
         val workdir = workspace(app)
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
             val child = try {
-                guest(app, command, workdir).start()
+                spawn(guest(app, command, workdir))
             } catch (e: Exception) {
                 Log.w(TAG, "could not start ${current.name}", e)
                 main.post { if (generation == gen) finish(app, e.message ?: "could not start") }
@@ -345,6 +355,15 @@ object AgentHost {
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
         }
+    }
+
+    /** Starts a guest command that a Steam session starting or stopping must not sweep away with its own leftovers. */
+    fun spawn(builder: ProcessBuilder): Process {
+        val process = builder.start()
+        val pid = AgentProcesses.pidOf(process)
+        OrphanReaper.keep(pid)
+        Thread({ runCatching { process.waitFor() }; OrphanReaper.release(pid) }, "agent-keep").apply { isDaemon = true }.start()
+        return process
     }
 
     fun guestFileExists(context: Context, path: String): Boolean {
@@ -497,8 +516,8 @@ object AgentHost {
         AgentHostService.setupStarted(app)
         Thread({
             runCatching {
-                val child = guest(app, listOf("sh", "-c",
-                    "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
+                val child = spawn(guest(app, listOf("sh", "-c",
+                    "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd))
                 main.post { labProcess = child }
                 child.outputStream.close()
                 child.inputStream.readBytes()
@@ -531,6 +550,7 @@ object AgentHost {
     private const val RETRY_MS = 3_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
+    private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
 }

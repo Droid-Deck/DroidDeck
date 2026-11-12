@@ -11,6 +11,8 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
+    fun spared(): Set<Int> = descendants(kept)
+
     fun hasOtherProcesses(): Boolean = hasOtherProcesses(
         File("/proc").list()?.mapNotNull { it.toIntOrNull() }, android.os.Process.myPid(),
     ) { pid ->
