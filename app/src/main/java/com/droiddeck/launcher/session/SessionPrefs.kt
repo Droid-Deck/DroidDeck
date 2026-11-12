@@ -253,6 +253,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
+    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
+
+    fun setAgentTab(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("agentTab", show).apply()
+    }
+
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
 
     fun setLibraryShowUninstalled(context: Context, show: Boolean) {
