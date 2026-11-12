@@ -28,6 +28,8 @@
     <string name="suspend_now">지금 일시 중지</string>
     <string name="stop_session">세션 종료</string>
     <string name="frame_gen_title">프레임 생성</string>
+    <string name="frame_gen_scope_game">이 게임의 설정</string>
+    <string name="frame_gen_scope_global">기본 설정</string>
     <string name="frame_gen_hint">사용할 프레임 생성 모드를 선택하세요</string>
     <string name="frame_gen_off">끔</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

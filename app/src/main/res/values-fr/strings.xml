@@ -28,6 +28,8 @@
     <string name="suspend_now">Mettre en pause maintenant</string>
     <string name="stop_session">Terminer cette session</string>
     <string name="frame_gen_title">Génération d\'images</string>
+    <string name="frame_gen_scope_game">Paramètres pour ce jeu</string>
+    <string name="frame_gen_scope_global">Paramètres par défaut</string>
     <string name="frame_gen_hint">Sélectionnez le mode de génération d\'images à utiliser</string>
     <string name="frame_gen_off">Désactivé</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

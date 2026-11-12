@@ -28,12 +28,41 @@ object FrameGen {
 
     fun engine(context: Context): String = mode(context).engine
 
-    fun mode(context: Context): Mode {
+    fun mode(context: Context): Mode = mode(context, null)
+
+    fun mode(context: Context, appId: String?): Mode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val engine = prefs.getString("engine", ENGINE_OFF).let { if (it == LEGACY_ENGINE_WINFG) ENGINE_DDFG else it ?: ENGINE_OFF }
-        val target = prefs.getInt("target", 0)
+        val gamePrefix = appId?.takeIf { it.isNotBlank() }?.let { "game.$it." }
+            ?.takeIf { prefs.contains(it + "engine") } ?: ""
+        val engine = prefs.getString(gamePrefix + "engine", ENGINE_OFF)
+            .let { if (it == LEGACY_ENGINE_WINFG) ENGINE_DDFG else it ?: ENGINE_OFF }
+        val target = prefs.getInt(gamePrefix + "target", 0)
         if (engine == ENGINE_LSFG && target in ADAPTIVE_TARGETS) return Mode(engine, target = target)
-        return Mode(engine, prefs.getInt("multiplier", 2).coerceIn(2, 4))
+        return Mode(engine, prefs.getInt(gamePrefix + "multiplier", 2).coerceIn(2, 4))
+    }
+
+    fun targetGame(selected: Long?, chosenManually: Boolean, active: () -> Long?): Long? =
+        selected ?: if (chosenManually) null else active()
+
+    fun hasGameOverride(context: Context, appId: String): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains("game.$appId.engine")
+
+    fun setForGame(context: Context, appId: String, mode: Mode) {
+        val prefix = "game.$appId."
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(prefix + "engine", mode.engine)
+            .putInt(prefix + "multiplier", mode.multiplier)
+            .putInt(prefix + "target", mode.target)
+            .apply()
+    }
+
+    fun clearGame(context: Context, appId: String) {
+        val prefix = "game.$appId."
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(prefix + "engine")
+            .remove(prefix + "multiplier")
+            .remove(prefix + "target")
+            .apply()
     }
 
     fun set(context: Context, mode: Mode) {

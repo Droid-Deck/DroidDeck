@@ -26,6 +26,7 @@ static float g_flow = 0.8f, g_refresh_hz;
 static char *g_cache_path;
 static _Atomic int   g_cache_gen;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+static _Atomic float g_thermal = -1.0f;
 
 static VkDevice g_dev;
 static VkInstance g_inst;
@@ -151,13 +152,11 @@ int vkp_framegen_problem(void) {
 const char *vkp_framegen_caps_reason(void) { return fge_caps_reason(); }
 
 void vkp_framegen_stats(float out[6]) {
-    float accepted = 0.0f, src = 0.0f, thermal = -1.0f;
-    if (g_engine_ok) fge_telemetry(&accepted, &src, &thermal);
     out[0] = (float)g_planned;
     out[1] = (float)g_planned;
     out[2] = g_source_rate;
     out[3] = g_presented_rate;
-    out[4] = thermal;
+    out[4] = atomic_load(&g_thermal);
     out[5] = -1.0f;
 }
 
@@ -253,13 +252,18 @@ int vkp_framegen_format_ok(VkFormat fmt) {
     return fge_format_ok(fmt);
 }
 
+static void stop_engine(void) {
+    fge_stop();
+    g_engine_ok = 0; g_engine_kind = -1;
+    atomic_store(&g_thermal, -1.0f);
+}
+
 static void refuse_format(VkFormat fmt, int kind, int w, int h, const char *what) {
     if (g_refused_n < (int)(sizeof(g_refused_fmt) / sizeof(g_refused_fmt[0]))) g_refused_fmt[g_refused_n++] = fmt;
     FGLOG("%s could not %s in format %d (the HDR picture's FP16) at %dx%d: it restarts, and HDR frames go through "
           "it in 8 bits from the next frame", fge_engine_name(kind), what, (int)fmt, w, h);
     destroy_ring();
-    fge_stop();
-    g_engine_ok = 0; g_engine_kind = -1;
+    stop_engine();
 }
 
 int vkp_framegen_active(void) {
@@ -277,7 +281,7 @@ static int ensure_engine(int kind) {
     if (g_engine_ok && g_engine_kind == kind && (kind != VKP_FG_ENGINE_LSFG || g_engine_cache_gen == cache_gen))
         return 1;
     if (start_failed_for(kind)) return 0;
-    if (g_engine_ok) { destroy_ring(); fge_stop(); g_engine_ok = 0; g_engine_kind = -1; }
+    if (g_engine_ok) { destroy_ring(); stop_engine(); }
     char *path = NULL;
     pthread_mutex_lock(&g_lock);
     if (g_cache_path) path = strdup(g_cache_path);
@@ -384,6 +388,9 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
     uint32_t n_gen = fge_plan(g_ring_n, game_frames ? game_frames : g_source_frames, g_presented_rate);
     if (n_gen > g_ring_n) n_gen = g_ring_n;
     g_planned = n_gen;
+    float accepted, src, thermal;
+    fge_telemetry(&accepted, &src, &thermal);
+    atomic_store(&g_thermal, thermal);
 
     VkImageMemoryBarrier bars[1 + VKP_FG_MAX_GENERATIONS];
     uint32_t nb = 0;

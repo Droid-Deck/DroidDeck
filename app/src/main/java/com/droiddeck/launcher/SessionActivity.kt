@@ -556,8 +556,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
+    private var frameGenHasGameOverride by mutableStateOf(false)
+    private var frameGenGameId by mutableStateOf<Long?>(null)
+    private var frameGenScopeFromRunningGame = false
+    private val frameGenScopeRequests = java.util.concurrent.atomic.AtomicInteger()
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
+    @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
+    @Volatile private var appliedFrameGenHz: Float? = null
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
@@ -859,7 +866,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
-            if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
+            CompositorHost.rearmFrameGen { applyFrameGen(force = true) }
         }
         if (SessionState.running && SessionState.firstFrameSeen) {
             loading.visible = false
@@ -892,8 +899,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } }
         glassesScope.launch { com.droiddeck.launcher.handtracking.HandTracking.settings.collect { updateHandCamera() } }
         glassesScope.launch {
+            var lastRunGameId: String? = null
             while (true) {
                 updateTrackingRecovery()
+                if (SessionState.mode == SessionService.MODE_RUN) {
+                    val gameId = SessionState.gameId
+                        ?.takeIf { it.toLongOrNull() != null }
+                        ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+                            ?.takeIf { it.toLongOrNull() != null }
+                    if (gameId != lastRunGameId) {
+                        lastRunGameId = gameId
+                        applyFrameGen()
+                    }
+                } else {
+                    lastRunGameId = null
+                }
                 kotlinx.coroutines.delay(100)
             }
         }
@@ -956,7 +976,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
                 if (pipUi != frameGenPip) {
                     frameGenPip = pipUi
-                    if (FrameGen.engine(this@SessionActivity) != FrameGen.ENGINE_OFF && ::surfaceView.isInitialized) applyFrameGen()
+                    if (::surfaceView.isInitialized) applyFrameGen()
                 }
             }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
@@ -1033,6 +1053,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
+                    if (SessionState.mode == SessionService.MODE_STEAM && CompositorHost.isStarted) {
+                        applyFrameGen()
+                    }
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1234,6 +1257,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
+            hasGameOverride = frameGenHasGameOverride,
+            frameGenGameId = frameGenGameId,
             lossless = lossless,
             oscMode = oscMode, suspendPolicy = suspendPolicy,
             steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
@@ -1293,9 +1318,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                FrameGen.set(this@SessionActivity, mode)
+                val appId = frameGenGameId
+                if (appId == null) FrameGen.set(this@SessionActivity, mode)
+                else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
                 readPrefs()
-                applyFrameGen()
+                applyFrameGen(force = true)
+            },
+            onFrameGenReset = {
+                frameGenGameId?.let { FrameGen.clearGame(this@SessionActivity, it.toString()) }
+                readPrefs()
+                applyFrameGen(force = true)
             },
             onImportLossless = {
                 pickLossless.launch(InAppFilePicker.buildIntent(
@@ -1631,6 +1663,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun selectDrawerGameProfile(appId: Long?) {
         drawerGameProfileFollowState.selectManually()
         drawerGameProfileId = appId
+        loadFrameGenFor(appId)
         drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
         readDrawerTextureFiltering(appId)
         refreshDrawerGameProfile()
@@ -1640,6 +1673,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val choice = appId?.let { SessionPrefs.gameTextureFiltering(this, it.toString()) }
         drawerTextureAnisotropy = choice?.anisotropy
         drawerTextureLodBias = choice?.lodBias
+    }
+
+    private fun loadFrameGenFor(appId: Long?) {
+        val request = frameGenScopeRequests.incrementAndGet()
+        val chosenManually = !drawerGameProfileFollowState.followsSteam
+        if (appId != null || chosenManually) {
+            showFrameGenScope(appId, fromRunningGame = false)
+            return
+        }
+        showFrameGenScope(frameGenGameId.takeIf { frameGenScopeFromRunningGame }, frameGenScopeFromRunningGame)
+        Thread({
+            val running = FrameGen.targetGame(null, chosenManually = false, ::activeFrameGenAppId)
+            runOnUiThread {
+                if (request == frameGenScopeRequests.get()) showFrameGenScope(running, running != null)
+            }
+        }, "frame-gen-scope").start()
+    }
+
+    private fun showFrameGenScope(appId: Long?, fromRunningGame: Boolean) {
+        frameGen = FrameGen.mode(this, appId?.toString())
+        frameGenGameId = appId
+        frameGenScopeFromRunningGame = fromRunningGame && appId != null
+        frameGenHasGameOverride = appId?.let { FrameGen.hasGameOverride(this, it.toString()) } == true
     }
 
     private fun refreshDrawerGameProfile() {
@@ -1703,6 +1759,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (refresh.followsSteam) {
             if (drawerGameProfileFollowState.followsSteam) {
                 drawerGameProfileId = result.selectedAppId
+                loadFrameGenFor(result.selectedAppId)
                 readDrawerTextureFiltering(result.selectedAppId)
             }
         }
@@ -1970,7 +2027,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
         routedTouchMode = nextRoutedTouchMode
         requestRelativeMouse()
-        frameGen = FrameGen.mode(this)
+        loadFrameGenFor(drawerGameProfileId)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
@@ -2257,7 +2314,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resized) {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
-            CompositorHost.resize(holder.surface) { applyFrameGen() }
+            CompositorHost.resize(holder.surface) { applyFrameGen(force = true) }
             resizeOutputForWindow(width, height)
         }
     }
@@ -2398,14 +2455,48 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun applyFrameGen() {
+    private fun activeFrameGenAppId(): Long? {
+        if (SessionState.mode == SessionService.MODE_RUN) {
+            return (SessionState.gameId?.takeIf { it.toLongOrNull() != null }
+                ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID))?.toLongOrNull()
+        }
+        val ids = runCatching { Library.launchableGames(this) }
+            .getOrDefault(emptyList())
+            .mapNotNull { it.profileKey.toLongOrNull() }
+            .toSet()
+            .ifEmpty {
+                LibraryCache.load(this).mapNotNull { it.profileKey.toLongOrNull() }.toSet()
+            }
+        return AgentGuest.activeSteamAppId(this, ids)
+    }
+
+    private fun frameGenModeForActiveGame(): FrameGen.Mode =
+        FrameGen.mode(this, activeFrameGenAppId()?.toString())
+
+    private fun applyFrameGen(force: Boolean = false) {
+        if (force) frameGenForcePending.set(true)
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
         val request = frameGenRequests.incrementAndGet()
         Thread({
+            val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                if (pip) FrameGen.apply(this, FrameGen.Mode.OFF, hz) else FrameGen.apply(this, hz)
+                val forcePending = frameGenForcePending.getAndSet(false)
+                if (!forcePending && appliedFrameGenMode == mode &&
+                    appliedFrameGenHz?.let { kotlin.math.abs(it - hz) <= 0.1f } == true) {
+                    null
+                } else {
+                    FrameGen.apply(this, mode, hz).also { result ->
+                        if (result == null) {
+                            appliedFrameGenMode = mode
+                            appliedFrameGenHz = hz
+                        } else {
+                            appliedFrameGenMode = null
+                            appliedFrameGenHz = null
+                        }
+                    }
+                }
             }
             val state = Lossless.state(this)
             runOnUiThread {
@@ -2425,12 +2516,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun importLossless(dll: File) {
         Thread({
-            val message = Lossless.message(this, Lossless.import(this, dll))
+            val result = Lossless.import(this, dll)
+            val message = Lossless.message(this, result)
             val state = Lossless.state(this)
             runOnUiThread {
                 lossless = state
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                if (FrameGen.engine(this) == FrameGen.ENGINE_LSFG) applyFrameGen()
+                applyFrameGen(force = result == Lossless.ImportResult.UPDATED)
             }
         }, "lossless-import").start()
     }
