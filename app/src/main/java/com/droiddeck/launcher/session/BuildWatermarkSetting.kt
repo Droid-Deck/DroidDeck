@@ -18,14 +18,13 @@ internal object BuildWatermarkSetting {
         }
     }
 
-    fun enabled(context: Context): Boolean = locked(context) {
-        // SharedPreferences caches are process-local; read the shared file on every refresh.
-        val value = try {
-            file(context).readFully().decodeToString()
-        } catch (_: java.io.FileNotFoundException) {
-            return@locked context.getSharedPreferences("session", Context.MODE_PRIVATE).getBoolean("buildWatermark", true)
+    fun enabled(context: Context): Boolean = try {
+        locked(context) {
+            // SharedPreferences caches are process-local; read the shared file on every refresh.
+            file(context).readFully().decodeToString() != "off"
         }
-        value != "off"
+    } catch (_: java.io.IOException) {
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).getBoolean("buildWatermark", true)
     }
 
     fun setEnabled(context: Context, on: Boolean) {

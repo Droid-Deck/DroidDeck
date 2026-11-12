@@ -27,15 +27,25 @@ import java.io.File
 @Config(sdk = [34], manifest = Config.NONE, application = Application::class)
 class BuildWatermarkSettingTest {
     private val context get() = RuntimeEnvironment.getApplication()
+    private val originalLineProvider = BuildWatermark.lineProvider
 
     @Before fun clear() {
+        BuildWatermark.lineProvider = {
+            BuildWatermark.lines(pr = 1234, ci = true, commit = "abcdef0123", title = "Test build", branch = "")
+        }
         listOf("build-watermark", "build-watermark.new", "build-watermark.bak", "build-watermark.lock").forEach {
             File(context.filesDir, it).delete()
         }
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @After fun cleanUp() = clear()
+    @After fun cleanUp() {
+        try {
+            clear()
+        } finally {
+            BuildWatermark.lineProvider = originalLineProvider
+        }
+    }
 
     @Test fun defaultsOnAndPreservesLegacyChoice() {
         assertTrue(SessionPrefs.buildWatermarkEnabled(context))
@@ -50,6 +60,21 @@ class BuildWatermarkSettingTest {
         val change = shadowOf(context).broadcastIntents.last { it.action == BuildWatermarkSetting.CHANGED }
         assertEquals(context.packageName, change.`package`)
         File(context.filesDir, "build-watermark").writeText("off")
+        assertFalse(SessionPrefs.buildWatermarkEnabled(context))
+    }
+
+    @Test fun lockOpenFailureFallsBackToPreferences() {
+        val lock = File(context.filesDir, "build-watermark.lock")
+        assertTrue(lock.mkdir())
+        assertTrue(SessionPrefs.buildWatermarkEnabled(context))
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putBoolean("buildWatermark", false).commit()
+        assertFalse(SessionPrefs.buildWatermarkEnabled(context))
+        assertThrows(java.io.IOException::class.java) { SessionPrefs.setBuildWatermarkEnabled(context, true) }
+    }
+
+    @Test fun settingReadFailureFallsBackToPreferences() {
+        assertTrue(File(context.filesDir, "build-watermark").mkdir())
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putBoolean("buildWatermark", false).commit()
         assertFalse(SessionPrefs.buildWatermarkEnabled(context))
     }
 

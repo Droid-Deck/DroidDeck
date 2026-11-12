@@ -26,6 +26,7 @@ import com.droiddeck.launcher.QuestXrActivity
 object BuildWatermark {
     private const val TITLE_LIMIT = 80
     private val activities = WeakHashMap<Activity, Unit>()
+    internal var lineProvider: () -> List<String>? = { lines() }
 
     fun lines(
         pr: Int = BuildConfig.PR_NUMBER,
@@ -51,6 +52,8 @@ object BuildWatermark {
                 override fun onReceive(context: Context, intent: Intent) { refresh(context) }
             },
             IntentFilter(BuildWatermarkSetting.CHANGED),
+            "${app.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null,
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
@@ -80,7 +83,7 @@ object BuildWatermark {
         decor.findViewWithTag<View>(TAG)?.let(decor::removeView)
         if (!com.droiddeck.launcher.session.SessionPrefs.buildWatermarkEnabled(activity)) return
         val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
-        val build = lines().orEmpty()
+        val build = lineProvider().orEmpty()
         val content = (listOfNotNull(lab) + build).ifEmpty { return }
         val margin = (8 * activity.resources.displayMetrics.density).toInt()
         decor.addView(
