@@ -1,0 +1,137 @@
+package com.droiddeck.launcher.stores.rockstar
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], application = android.app.Application::class)
+class RockstarTest {
+    private val apps = """<?xml version="1.0" encoding="utf-8"?>
+<Response xmlns="GetAppsAndPackages"><Status>1</Status><Result><Apps>
+  <App Id="2" Name="launcher" TitleId="21" IsReleased="true"><Branches>
+    <Branch Id="4" Name="default" BuildId="1311" IsDefault="true" AppId="2"><AccessToken>BRANCHACCESS token="L"</AccessToken></Branch>
+  </Branches></App>
+  <App Id="3" Name="gta5" TitleId="11" IsReleased="true"><Branches /></App>
+  <App Id="10" Name="rdr2" TitleId="13" IsReleased="true"><Branches /></App>
+  <App Id="15" Name="rdr2_sp_steam" TitleId="13" IsReleased="false"><Branches>
+    <Branch Id="23" Name="default" BuildId="-1" IsDefault="true" AppId="15"><AccessToken>BRANCHACCESS token="S"</AccessToken></Branch>
+  </Branches></App>
+  <App Id="11" Name="gta4" TitleId="1" IsReleased="true"><Branches>
+    <Branch Id="30" Name="beta" BuildId="7" IsDefault="false" AppId="11"><AccessToken>BRANCHACCESS token="B"</AccessToken></Branch>
+    <Branch Id="31" Name="default" BuildId="8" IsDefault="true" AppId="11"><AccessToken>BRANCHACCESS token="D"</AccessToken></Branch>
+  </Branches></App>
+  <App Id="20" Name="gtatrilogy" TitleId="18" IsReleased="true"><Branches /></App>
+</Apps><RglUiPackages>
+  <Package><PackageJson>{"title":"gta4","isFeatured":false,"packageType":"title"}</PackageJson></Package>
+  <Package><PackageJson>{"title":"rdr2","isFeatured":false,"packageType":"title"}</PackageJson></Package>
+  <Package><PackageJson>{"title":"gtatrilogy","isFeatured":true,"packageType":"bundle"}</PackageJson></Package>
+  <Package><PackageJson>{"title":"gta5","isFeatured":false,"packageType":"title"}</PackageJson></Package>
+</RglUiPackages></Result></Response>"""
+
+    private fun account(xml: String = apps) = RockstarRos.parse(xml).let { RockstarAccountApps(RockstarApps.parse(it), RockstarApps.packages(it)) }
+
+    private val manifest = """<?xml version="1.0" encoding="utf-8"?>
+<Response xmlns="GetBuildManifestFull"><Status>1</Status>
+  <Result BuildId="1311" VersionNumber="1.0.110.3150"><FileManifest>
+    <FileDetails FileEntryId="973" FileEntryVersionId="25837" FileSize="30">
+      <RelativePath>Launcher.exe</RelativePath>
+      <FileChunks><Chunk FileChunkId="46859" SHA256Hash="AB" StartByteOffset="0" Size="20" /><Chunk FileChunkId="46860" SHA256Hash="cd" StartByteOffset="20" Size="10" /></FileChunks>
+      <SHA256Hash>FF</SHA256Hash>
+    </FileDetails>
+    <FileDetails FileEntryId="981" FileEntryVersionId="2" FileSize="4">
+      <RelativePath>ThirdParty\Steam\steam_api64.dll</RelativePath>
+      <FileChunks><Chunk FileChunkId="1" SHA256Hash="ee" StartByteOffset="0" Size="4" /></FileChunks>
+      <SHA256Hash>ee</SHA256Hash>
+    </FileDetails>
+  </FileManifest><IsPreload>false</IsPreload></Result></Response>"""
+
+    @Test fun branchesNeedARealBuild() {
+        val parsed = account().apps
+        val gta4 = parsed.first { it.name == "gta4" }
+        assertEquals("31", RockstarApps.branch(gta4)!!.id)
+        assertNull(RockstarApps.branch(parsed.first { it.name == "rdr2_sp_steam" }))
+        assertNull(RockstarApps.branch(parsed.first { it.name == "gta5" }))
+    }
+
+    @Test fun ownedTitlesAreTheAccountsOwnPackagesNotTheFeaturedOnes() {
+        assertEquals(listOf("gta4", "rdr2", "gta5"), RockstarLibrary.owned(account()).map { it.id })
+    }
+
+    @Test fun libraryListsOnlyOwnedTitlesRockstarDelivers() {
+        val games = RockstarLibrary.games(account())
+        assertEquals(listOf("gta4"), games.map { it.id })
+        assertEquals("gta4", games[0].extra["app"])
+        assertTrue(games.all { it.owned })
+    }
+
+    @Test fun anOwnedTrilogyBundleIsAllThreeDefinitiveEditions() {
+        val owned = RockstarLibrary.owned(account(apps.replace("\"isFeatured\":true,\"packageType\":\"bundle\"", "\"isFeatured\":false,\"packageType\":\"bundle\"")))
+        assertTrue(owned.map { it.id }.containsAll(listOf("gta3unreal", "gtavcunreal", "gtasaunreal")))
+    }
+
+    @Test fun manifestFilesCarryTheirChunksAndWindowsPathsBecomeRelative() {
+        val build = RockstarManifest.parse(RockstarRos.parse(manifest))
+        assertEquals("1311", build.buildId)
+        assertFalse(build.preload)
+        assertEquals(34L, build.bytes)
+        val exe = build.files[0]
+        assertEquals(listOf("46859", "46860"), exe.chunks.map { it.chunkId })
+        assertEquals("ab", exe.chunks[0].sha256)
+        assertEquals("ff", exe.sha256)
+        assertEquals("ThirdParty/Steam/steam_api64.dll", build.files[1].path)
+    }
+
+    @Test fun pathsThatLeaveTheInstallAreRefused() {
+        assertNull(RockstarManifest.safePath("..\\..\\Windows\\x.dll"))
+        assertNull(RockstarManifest.safePath("C:\\x.dll"))
+        assertEquals("a/b.rpf", RockstarManifest.safePath("\\a\\.\\b.rpf"))
+    }
+
+    @Test fun urlBatchesStayWithinTheirByteAndCountLimits() {
+        val chunks = (1..5).map { RockstarChunk("1", "$it", "", 0, if (it == 3) 100 else 10) }
+        val batches = RockstarManifest.batches(chunks, maxBytes = 30, maxCount = 2)
+        assertEquals(listOf(listOf("1", "2"), listOf("3"), listOf("4", "5")), batches.map { b -> b.map { it.chunkId } })
+    }
+
+    @Test fun rosErrorsNameTheirCode() {
+        val root = RockstarRos.parse("<Response><Status>0</Status><Error Code=\"AuthenticationFailed\" CodeEx=\"Ticket\"/></Response>")
+        assertEquals("AuthenticationFailed", RockstarRos.first(root, "Error")!!.getAttribute("Code"))
+    }
+
+    @Test fun ticketAnswerGivesTheAccountAndExpiry() {
+        val root = RockstarRos.parse("""<Response xmlns="CreateTicketResponse"><Status>1</Status><Ticket>T</Ticket><SessionKey>K</SessionKey>
+            <SessionTicket>S</SessionTicket><SecsUntilExpiration>86399</SecsUntilExpiration>
+            <RockstarAccount><RockstarId>42</RockstarId><Nickname>player</Nickname></RockstarAccount></Response>""")
+        val t = RockstarAuth.parseTicket(root, now = 1000L)!!
+        assertEquals("T", t.ticket)
+        assertEquals("42", t.rockstarId)
+        assertEquals("player", t.nickname)
+        assertEquals(1000L + 86_399_000L, t.expiresAt)
+    }
+
+    @Test fun gatewayStateIsWrittenAsThePageWritesIt() {
+        val fp = RockstarAuth.fingerprintOf("DROIDDECK-DUO", "0a0b0c0d", "0011223344556677")
+        assertEquals("{\"fp\": {\"device_name\":\"DROIDDECK-DUO\",\"machine_name\":\"DROIDDECK-DUO\",\"os_version\":\"10.0.19045\",\"volume_serial\":\"0a0b0c0d\",\"cpu_info\":\"0011223344556677\"}}",
+            RockstarAuth.state(fp))
+    }
+
+    @Test fun bridgeAnswersTheLauncherQueriesAndHandsBackTheCode() {
+        val js = RockstarAuth.bridgeScript(RockstarAuth.fingerprintOf("D", "1", "2"), "launcher")
+        for (m in listOf("GetWindowConfig", "GetDeviceId", "GetVersionInfo", "GetProfileList", "OnStartAuth", "CallAuthResult", "rgscQueryCancel", "/signin/user-form?cid=launcher"))
+            assertTrue(m, m in js)
+        assertTrue(RockstarAuth.isCodeUrl(RockstarAuth.CODE_URL + "?code=abc"))
+        assertEquals("a+b/c", RockstarAuth.codeFrom(RockstarAuth.CODE_URL + "?code=a%2Bb%2Fc"))
+    }
+
+    @Test fun subAppsResolveToTheirGame() {
+        assertEquals("rdr2", RockstarTitles.byId("rdr2_sp_rgl")!!.id)
+        assertEquals("gtasaunreal", RockstarTitles.byId("gtatrilogy")!!.id)
+        assertNull(RockstarTitles.byId("launcher"))
+    }
+}

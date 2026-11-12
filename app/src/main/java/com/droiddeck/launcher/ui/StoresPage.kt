@@ -1159,6 +1159,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         Store.UBISOFT -> Color(0xFF2E7DFF) to Color(0xFF1A5BD6)
         Store.EA -> Color(0xFFFF4747) to Color(0xFFE03030)
+        Store.ROCKSTAR -> Color(0xFFFCAF17) to Color(0xFFD98E00)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
