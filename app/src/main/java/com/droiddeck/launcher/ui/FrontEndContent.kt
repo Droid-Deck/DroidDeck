@@ -275,7 +275,7 @@ private fun Content(
         return
     }
     if (selected == "android-apps" && s.isHomeApp) {
-        AndroidAppsPage(s, modifier, onAndroidAppClick)
+        AndroidAppsPage(s, a, modifier, onAndroidAppClick)
         return
     }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
