@@ -243,7 +243,21 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
     }
 
     // Already inside The native userland rootfs
-    if (get_rootfs_subpath(path) != NULL) {
+    const char *sub = get_rootfs_subpath(path);
+    if (sub != NULL) {
+        if (sub[0] == '/' && t_bind_link_depth < 8) {
+            for (int i = 0; i < g_nbinds; i++) {
+                const struct ddnatv_bind *b = &g_binds[i];
+                if (b->identity || sub[1] != b->dst[1] || !is_path_prefix(sub, b->dst, b->dst_len)) continue;
+                char guest[PATH_MAX];
+                ddnatv_copy_cstr(guest, sizeof(guest), sub);
+                t_bind_link_depth++;
+                const char *mapped = rewrite_path_in_root(guest, buffer, bufsize);
+                if (mapped != buffer) ddnatv_copy_cstr(buffer, bufsize, mapped);
+                t_bind_link_depth--;
+                return buffer;
+            }
+        }
         return resolve_drive_links(path, buffer, bufsize);
     }
 
