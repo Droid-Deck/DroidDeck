@@ -12,6 +12,29 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun launcherAdoptionDoesNotFollowSymbolicLinks() {
+        val folder = java.nio.file.Files.createTempDirectory("rockstar-launch-link").toFile()
+        val outside = java.io.File.createTempFile("rockstar-keep", ".txt").apply { writeText("keep") }
+        val link = java.io.File(folder, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
+        try {
+            try {
+                java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
+            } catch (e: java.nio.file.FileSystemException) {
+                org.junit.Assume.assumeNoException(e)
+            }
+            java.io.File(folder, "gta3.exe").writeText("game")
+            val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "gta3", "GTA III", "gta3.exe", launcher = com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
+            assertNull(com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, game).launcher)
+            assertNull(com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(folder, game).launcher)
+            assertEquals("keep", outside.readText())
+            assertTrue(java.nio.file.Files.isSymbolicLink(link.toPath()))
+        } finally {
+            java.nio.file.Files.deleteIfExists(link.toPath())
+            folder.deleteRecursively()
+            outside.delete()
+        }
+    }
+
     @Test fun resumeHashingStopsWhenCancelled() {
         val file = java.io.File.createTempFile("rockstar-hash", ".bin")
         try {
