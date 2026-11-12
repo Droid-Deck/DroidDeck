@@ -2674,6 +2674,8 @@
     <string name="comp_this_device">هذا الجهاز</string>
     <string name="proton_remove_title">إزالة %1$s؟</string>
     <string name="setup_tab_diagnostics">التشخيص</string>
+    <string name="setup_build_watermark">علامة مائية لاسم الإصدار</string>
+    <string name="setup_build_watermark_hint">عرض اسم إصدار الاختبار أو Lab على الشاشة. مفعّل افتراضيًا.</string>
     <string name="setup_ready">جاهز للّعب</string>
     <string name="setup_not_ready">غير جاهز للّعب بعد</string>
     <string name="setup_ready_runtime">بيئة التشغيل %1$s</string>
