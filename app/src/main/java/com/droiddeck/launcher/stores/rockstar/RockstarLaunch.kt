@@ -13,6 +13,12 @@ object RockstarLaunch {
 
     fun supports(id: String?) = id != null && id in pipes
 
+    fun applyDefaults(app: Context, id: String, appId: Long) {
+        if (id in setOf("gta3", "gtasa")) {
+            com.droiddeck.launcher.session.GameEnvironmentStore.setDefault(app, (appId and 0xffffffffL).toString(), "FEX_X87REDUCEDPRECISION", "0")
+        }
+    }
+
     fun prepare(app: Context, id: String): JSONObject {
         val pipe = pipes[id] ?: return failure("unsupported-title")
         val title = RockstarTitles.byId(id) ?: return failure("unknown-title")

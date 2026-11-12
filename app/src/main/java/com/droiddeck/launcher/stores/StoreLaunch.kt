@@ -60,7 +60,6 @@ object StoreLaunch {
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
         } else if (sidecar.store == Store.ROCKSTAR) {
-            if (sidecar.id == "gta3" && "FEX_X87REDUCEDPRECISION" !in sidecar.env) lines += "set \"FEX_X87REDUCEDPRECISION=0\""
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
             lines += "exit /b %errorlevel%"
         } else if (sidecar.store == Store.UBISOFT) {

@@ -72,7 +72,7 @@ class RockstarTest {
         }
     }
 
-    @Test fun existingGta3LaunchScriptsReceiveThePrecisionDefault() {
+    @Test fun existingRockstarLaunchScriptsAreRefreshed() {
         val folder = java.nio.file.Files.createTempDirectory("rockstar-launch").toFile()
         try {
             java.io.File(folder, "gta3.exe").writeBytes(byteArrayOf(1))
@@ -80,21 +80,28 @@ class RockstarTest {
             val script = java.io.File(folder, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
             script.writeText("old launch script")
             com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, game)
-            assertTrue(script.readText().contains("FEX_X87REDUCEDPRECISION=0"))
+            assertTrue(script.readText().contains("Rockstar Games\\Launcher\\Launcher.exe"))
+            assertFalse(script.readText().contains("old launch script"))
         } finally {
             folder.deleteRecursively()
         }
     }
 
-    @Test fun gta3DefaultsToFullPrecisionAndKeepsExplicitOverrides() {
-        val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "gta3", "GTA III", "gta3.exe")
-        val default = com.droiddeck.launcher.stores.StoreLaunch.launcherText(game)
-        assertTrue(default.contains("set \"FEX_X87REDUCEDPRECISION=0\""))
-        val explicit = com.droiddeck.launcher.stores.StoreLaunch.launcherText(game.copy(env = mapOf("FEX_X87REDUCEDPRECISION" to "1")))
-        assertTrue(explicit.contains("set \"FEX_X87REDUCEDPRECISION=1\""))
-        assertFalse(explicit.contains("FEX_X87REDUCEDPRECISION=0"))
-        val viceCity = com.droiddeck.launcher.stores.StoreGameSidecar(game.store, "gtavc", "Vice City", "gta-vc.exe")
-        assertFalse(com.droiddeck.launcher.stores.StoreLaunch.launcherText(viceCity).contains("FEX_X87REDUCEDPRECISION"))
+    @Test
+    @Config(sdk = [28])
+    fun classicPrecisionDefaultsAreSetBeforeWineAndKeepExplicitSettings() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val explicit = com.droiddeck.launcher.core.GameEnvironment.Config(games = mapOf("100" to mapOf("FEX_X87REDUCEDPRECISION" to "1")))
+        com.droiddeck.launcher.session.GameEnvironmentStore.save(app, explicit)
+        RockstarLaunch.applyDefaults(app, "gta3", 100)
+        RockstarLaunch.applyDefaults(app, "gta3", 101)
+        RockstarLaunch.applyDefaults(app, "gtasa", 102)
+        RockstarLaunch.applyDefaults(app, "gtavc", 103)
+        val config = com.droiddeck.launcher.session.GameEnvironmentStore.read(app)
+        assertEquals("1", config.games["100"]?.get("FEX_X87REDUCEDPRECISION"))
+        assertEquals("0", config.games["101"]?.get("FEX_X87REDUCEDPRECISION"))
+        assertEquals("0", config.games["102"]?.get("FEX_X87REDUCEDPRECISION"))
+        assertFalse(config.games.containsKey("103"))
     }
 
     @Test fun classicTitlesUseTheirObservedPipeNames() {
