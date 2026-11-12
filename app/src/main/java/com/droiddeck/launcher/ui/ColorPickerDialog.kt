@@ -10,6 +10,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -31,12 +32,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import kotlin.math.atan2
@@ -77,29 +80,47 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         hue = h.coerceIn(0f, 360f); sat = s.coerceIn(0f, 1f); value = v.coerceIn(0f, 1f)
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))
     }
-    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = 460.dp, scrollState = scroll) {
+    // A screen wider than tall has no room for one tall column: the wheel goes beside the sliders, and nothing has to scroll.
+    val beside = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
+    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = if (beside) 680.dp else 460.dp, scrollState = scroll) {
         DialogTitleRow(title, close)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            ColorWheel(hue, sat, value) { h, s -> picked(h = h, s = s) }
+        val wheel: @Composable () -> Unit = { ColorWheel(hue, sat, value, if (beside) 152.dp else 168.dp) { h, s -> picked(h = h, s = s) } }
+        val swatches: @Composable () -> Unit = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Swatch(Color(initial))
                 Swatch(Color(current))
             }
         }
-        ValueSlider(hue.toInt(), 0..360, step = 5, enabled = true, label = stringResource(R.string.theme_color_hue), format = { "$it°" },
-            modifier = Modifier.focusRequester(first)) { picked(h = it.toFloat()) }
-        ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" }) { picked(s = it / 100f) }
-        ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" }) { picked(v = it / 100f) }
-        AdbTextField(
-            value = hexText,
-            onValueChange = { text ->
-                hexText = text
-                ThemeColors.parseHex(text)?.let { argb -> ThemeColors.toHsv(argb).let { hsv -> hue = hsv.h; sat = hsv.s; value = hsv.v } }
-            },
-            label = "", keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done, placeholder = stringResource(R.string.theme_color_hex),
-            onFocusChange = { typingHex = it },
-            onDone = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() } },
-        )
+        val controls: @Composable () -> Unit = {
+            ValueSlider(hue.toInt(), 0..360, step = 5, enabled = true, label = stringResource(R.string.theme_color_hue), format = { "$it°" },
+                modifier = Modifier.focusRequester(first)) { picked(h = it.toFloat()) }
+            ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" }) { picked(s = it / 100f) }
+            ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" }) { picked(v = it / 100f) }
+            AdbTextField(
+                value = hexText,
+                onValueChange = { text ->
+                    hexText = text
+                    ThemeColors.parseHex(text)?.let { argb -> ThemeColors.toHsv(argb).let { hsv -> hue = hsv.h; sat = hsv.s; value = hsv.v } }
+                },
+                label = "", keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done, placeholder = stringResource(R.string.theme_color_hex),
+                showLabel = false, compact = beside,
+                onFocusChange = { typingHex = it },
+                onDone = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() } },
+            )
+        }
+        if (beside) Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                wheel()
+                swatches()
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) { controls() }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                wheel()
+                swatches()
+            }
+            controls()
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
             PrimaryButton(stringResource(R.string.common_ok), enabled = ThemeColors.parseHex(hexText) != null, modifier = Modifier.weight(1f)) {
@@ -116,9 +137,8 @@ private fun Swatch(color: Color) {
 }
 
 @Composable
-private fun ColorWheel(hue: Float, sat: Float, value: Float, onPick: (hue: Float, sat: Float) -> Unit) {
+private fun ColorWheel(hue: Float, sat: Float, value: Float, size: Dp, onPick: (hue: Float, sat: Float) -> Unit) {
     val rim = MaterialTheme.colorScheme.onBackground
-    val size = 168.dp
     fun at(offset: Offset, side: Float) {
         val center = side / 2f
         val dx = offset.x - center
