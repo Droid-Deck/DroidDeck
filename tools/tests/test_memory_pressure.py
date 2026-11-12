@@ -239,6 +239,17 @@ bl_session_pressure
     def test_game_reclaim_requires_focus(self):
         self.assertEqual([], self.run_policy('focused=0; bl_session_pressure'))
 
+    def test_game_reclaim_runs_when_focus_is_unknown(self):
+        launch = self.root / 'launch'
+        (launch / 'agent').mkdir(parents=True)
+        body = function_source('bl_game_focused') + f'\nBL_LAUNCH_DIR={launch} _bl_apps=7\n'
+        self.assertEqual(['send:1:session'], self.run_policy(body + 'bl_session_pressure'))
+        (launch / 'agent' / 'focus.json').write_text('{"focusedApp": 9}')
+        self.assertEqual([], self.run_policy(body + 'bl_session_pressure'))
+        self.assertEqual(['unfocused'], self.run_policy(body + 'bl_game_focused || echo unfocused'))
+        (launch / 'agent' / 'focus.json').unlink()
+        self.assertEqual(['unfocused'], self.run_policy(body + 'bl_game_focused || echo unfocused'))
+
     def test_launcher_pressure_remains_available_on_larger_devices(self):
         self.memory(total=15360, available=1400)
         self.assertEqual(['send:1:client'], self.run_policy('BL_ZRAM_IDLE=0; bl_client_pressure; bl_session_pressure'))
