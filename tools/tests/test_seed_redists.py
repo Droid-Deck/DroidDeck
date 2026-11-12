@@ -465,7 +465,7 @@ class SeedRedistsTest(unittest.TestCase):
         shim = self.tmp / "bin"
         shim.mkdir()
         go = self.tmp / "go"
-        (shim / "find").write_text('#!/bin/sh\ncase "$*" in *"installscript*"*) while [ ! -e "%s" ]; do sleep 0.1; done;; esac\nexec %s "$@"\n' % (go, shutil.which("find")))
+        (shim / "find").write_text('#!/bin/sh\ncase "$*" in *"installscript*"*) n=0; while [ ! -e "%s" ] && [ $n -lt 600 ]; do sleep 0.1; n=$((n + 1)); done;; esac\nexec %s "$@"\n' % (go, shutil.which("find")))
         (shim / "find").chmod(0o755)
         env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_LATER="1", PATH="%s:%s" % (shim, os.environ["PATH"]))
         marker = '"PhysX Version"=dword:00000001'
