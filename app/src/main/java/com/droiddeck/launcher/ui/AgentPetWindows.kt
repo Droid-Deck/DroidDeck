@@ -113,6 +113,11 @@ internal class PetMotion(private val context: Context) {
     private val spring = FlingSpring { sx, sy -> x = sx; y = sy }
 
     val dockX get() = width - size - margin
+
+    private companion object {
+        /** The share of the pet that hangs past the edge it rests against. */
+        const val TUCK = 0.2f
+    }
     val dockY get() = inset
     val target get() = Pair(width / 2, height - 72 * density)
     val overTarget get() = dragging && hypot(x + size / 2 - target.first, y + size / 2 - target.second) < size
@@ -139,7 +144,8 @@ internal class PetMotion(private val context: Context) {
     private var home = 0f
     private fun travel() = (height - size - inset * 2).coerceAtLeast(0f)
     private fun fractionOf(at: Float) = if (travel() > 0) ((at - inset) / travel()).coerceIn(0f, 1f) else 0f
-    private fun edge(side: Boolean) = if (side) width - size - margin else margin
+    /** At rest the pet tucks part of itself past the screen edge, as a chat head does. */
+    private fun edge(side: Boolean) = if (side) width - size * (1f - TUCK) else -size * TUCK
 
     /** Hops up to the top corner for the chat. */
     fun dock() {
@@ -308,7 +314,8 @@ internal class PetWindows(private val context: Context) {
             size, size, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             (if (focusable) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) or
                 (if (touchable) 0 else WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                (if (full) 0 else WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS),
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
