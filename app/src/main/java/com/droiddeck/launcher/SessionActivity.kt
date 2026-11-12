@@ -988,9 +988,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val activeEffectsProfileId = currentScreenEffectsProfileId()
             val effectsEditorProfileId = if (drawerOpen) activeEffectsProfileId else null
             androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
-                if (effectsEditorProfileId != null &&
-                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
-                    effects = SessionPrefs.screenEffects(this@SessionActivity, effectsEditorProfileId)
+                if (effectsEditorProfileId != null) {
+                    val activeProfileId =
+                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                    observedScreenEffectsProfileId = activeProfileId
+                    val activeEffects =
+                        SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                    effects = activeEffects
+                    activeEffects.push(upscaler)
                 }
             }
             val uiPointer = appUiOwnsPointer()
@@ -1360,10 +1365,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             onEffects = { e ->
                 if ((drawerOpen || (docked && drawerPinned)) &&
-                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
-                    SessionPrefs.setScreenEffects(this@SessionActivity, effectsEditorProfileId, e)
-                    effects = e
-                    e.push(upscaler)
+                    effectsEditorProfileId != null) {
+                    val activeProfileId =
+                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+
+                    if (activeProfileId != null) {
+                        if (activeProfileId != effectsEditorProfileId) {
+                            Log.w(
+                                TAG,
+                                "Screen effects profile changed while editing; saving to active profile",
+                            )
+                        }
+
+                        SessionPrefs.setScreenEffects(
+                            this@SessionActivity,
+                            activeProfileId,
+                            e,
+                        )
+                        observedScreenEffectsProfileId = activeProfileId
+                        effects = e
+                        e.push(upscaler)
+                    }
                 }
             },
             onTextureAnisotropy = { value ->
@@ -3781,9 +3803,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 val effectsEditorProfileId =
                     if (drawerOpen || drawerPinned) activeEffectsProfileId else null
                 androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
-                    if (effectsEditorProfileId != null &&
-                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId) {
-                        effects = SessionPrefs.screenEffects(this@SessionActivity, effectsEditorProfileId)
+                    if (effectsEditorProfileId != null) {
+                        val activeProfileId =
+                            SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                        observedScreenEffectsProfileId = activeProfileId
+                        val activeEffects =
+                            SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                        effects = activeEffects
+                        activeEffects.push(upscaler)
                     }
                 }
                 SessionMenu(docked = true, effectsEditorProfileId = effectsEditorProfileId)
