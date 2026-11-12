@@ -511,6 +511,72 @@ class PrepareTest(FexTestCase):
         fixed = subprocess.run(command, env=env, capture_output=True, text=True)
         self.assertEqual(fixed.returncode, 0, fixed.stderr)
 
+    def test_gbm_and_its_dependencies_use_the_newer_runtime_on_both_architectures(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        names = ("libgbm.so.1", "libdrm.so.2", "libexpat.so.1")
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            for name in names:
+                self.write(sniper / "files/lib" / arch / name, b"old ABI")
+                self.write(provider / "files/lib" / arch / name, b"new ABI " + name.encode())
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            for name in names:
+                self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / name).read_bytes(), b"new ABI " + name.encode())
+
+    def test_gbm_requires_usable_provider_dependencies_on_both_architectures(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            for name in ("libgbm.so.1", "libdrm.so.2"):
+                self.write(sniper / "files/lib" / arch / name, b"base")
+                self.write(provider / "files/lib" / arch / name, b"provider")
+            os.symlink("missing-expat.so", provider / "files/lib" / arch / "libexpat.so.1")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            root = Path(fex["rootfs"]) / "lib" / arch
+            self.assertEqual((root / "libgbm.so.1").read_bytes(), b"base")
+            self.assertEqual((root / "libdrm.so.2").read_bytes(), b"provider")
+
+    @unittest.skipUnless(shutil.which("cc"), "C compiler unavailable")
+    def test_bundled_library_resolves_the_new_gbm_symbol(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        base = sniper / "files/lib/x86_64-linux-gnu"
+        newer = provider / "files/lib/x86_64-linux-gnu"
+        source = self.tmp / "gbm.c"
+        self.write(newer / "libdrm.so.2", b"drm")
+        self.write(newer / "libexpat.so.1", b"expat")
+        for folder, symbol in ((base, "gbm_bo_create_with_modifiers"), (newer, "gbm_bo_create_with_modifiers2")):
+            source.write_text("void *%s(void) { return 0; }\n" % symbol)
+            subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-Wl,-soname,libgbm.so.1",
+                            "-o", str(folder / "libgbm.so.1"), str(source)], check=True, capture_output=True)
+        fex, _ = self.quiet(FEX["prepare"])
+        root = Path(fex["rootfs"]) / "lib/x86_64-linux-gnu"
+        source.write_text("extern void *gbm_bo_create_with_modifiers2(void);\n"
+                          "void *probe(void) { return gbm_bo_create_with_modifiers2(); }\n")
+        probe = self.tmp / "libgbmprobe.so"
+        subprocess.run(["cc", "-shared", "-fPIC", "-nostdlib", "-o", str(probe), str(source),
+                        "-L" + str(newer), "-l:libgbm.so.1", "-Wl,-rpath," + str(root)],
+                       check=True, capture_output=True)
+        command = [sys.executable, "-c",
+                   "import ctypes,sys; "
+                   "ctypes.CDLL(sys.argv[2], mode=ctypes.RTLD_GLOBAL) if len(sys.argv) > 2 else None; "
+                   "ctypes.CDLL(sys.argv[1]).probe()",
+                   str(probe)]
+        env = {k: v for k, v in os.environ.items() if not k.startswith("LD_")}
+        broken = subprocess.run(command + [str(base / "libgbm.so.1")], env=env, capture_output=True, text=True)
+        self.assertNotEqual(broken.returncode, 0)
+        self.assertIn("undefined symbol: gbm_bo_create_with_modifiers2", broken.stderr)
+        fixed = subprocess.run(command, env=env, capture_output=True, text=True)
+        self.assertEqual(fixed.returncode, 0, fixed.stderr)
+
     def test_freetype_and_dependencies_use_the_newer_runtime_on_both_architectures(self):
         self.fex_tool()
         sniper = self.runtime()
