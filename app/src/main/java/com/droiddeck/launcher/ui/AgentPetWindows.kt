@@ -482,8 +482,6 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
         val h = constraints.maxHeight.toFloat()
         val margin = with(density) { 8.dp.toPx() }
         val gap = with(density) { 6.dp.toPx() }
-        val headX = motion.dockX + motion.size / 2
-        val headY = motion.dockY + motion.size / 2
         val wide = w > h
         val panel = if (wide) {
             val right = motion.dockX - gap
@@ -491,10 +489,6 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
         } else {
             Rect(margin, motion.dockY + motion.size + gap, w - margin, h - margin)
         }
-        val origin = androidx.compose.ui.graphics.TransformOrigin(
-            ((headX - panel.left) / panel.width.coerceAtLeast(1f)).coerceIn(0f, 1f),
-            ((headY - panel.top) / panel.height.coerceAtLeast(1f)).coerceIn(0f, 1f),
-        )
         val grow = remember { Animatable(0f) }
         val fade = remember { Animatable(0f) }
         LaunchedEffect(open) {
@@ -517,7 +511,11 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
             Modifier.offset { IntOffset(panel.left.roundToInt(), panel.top.roundToInt()) }
                 .size(with(density) { panel.width.toDp() }, with(density) { panel.height.toDp() })
                 .graphicsLayer {
-                    transformOrigin = origin
+                    // Grows from where the pet is right now, so the two travel together while the pet hops to its corner.
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(
+                        ((motion.x + motion.size / 2 - panel.left) / panel.width.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                        ((motion.y + motion.size / 2 - panel.top) / panel.height.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                    )
                     val s = 0.12f + 0.88f * grow.value
                     scaleX = s
                     scaleY = s
