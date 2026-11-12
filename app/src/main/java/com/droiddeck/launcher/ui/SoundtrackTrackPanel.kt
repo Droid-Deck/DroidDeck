@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -142,6 +143,8 @@ internal fun TrackPanel(
             if (now == shown.map { it.id }) working = null else onReorder?.invoke(now)
         }
     }
+    val rowsNow by rememberUpdatedState(rows)
+    val finishNow by rememberUpdatedState(finishDrag)
     val current = if (target.belongs) SoundtrackController.currentId else null
     val state = rememberLazyListState()
     LaunchedEffect(album, current) {
@@ -230,7 +233,7 @@ internal fun TrackPanel(
                                     onDragStart = {
                                         dragId = id
                                         dragOffset = 0f
-                                        if (working == null) working = rows
+                                        if (working == null) working = rowsNow
                                     },
                                     onDrag = { change, amount ->
                                         change.consume()
@@ -259,8 +262,8 @@ internal fun TrackPanel(
                                         }
                                         if (step != 0f) scope.launch { dragOffset += state.scrollBy(step) }
                                     },
-                                    onDragEnd = { finishDrag() },
-                                    onDragCancel = { finishDrag() },
+                                    onDragEnd = { finishNow() },
+                                    onDragCancel = { finishNow() },
                                 )
                             }
                         TrackRow(

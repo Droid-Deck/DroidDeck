@@ -118,9 +118,12 @@ class SoundtrackService : MediaSessionService() {
             .build(),
     )
 
+    private fun hasPinnedArt(item: MediaItem): Boolean =
+        item.mediaMetadata.artworkUri?.path.orEmpty().let { it.contains("/steam-art/") || it.contains("/soundtrack-art/") }
+
     private fun refreshTrackCover(item: MediaItem?) {
         val current = item ?: return
-        if (current.mediaMetadata.artworkUri?.path.orEmpty().let { it.contains("/steam-art/") || it.contains("/soundtrack-art/") }) return
+        if (hasPinnedArt(current)) return
         val file = File(current.mediaId)
         covers.execute {
             val art = Soundtrack.trackCover(this, file) ?: return@execute
@@ -128,7 +131,7 @@ class SoundtrackService : MediaSessionService() {
                 val player = exo ?: return@post
                 val live = player.currentMediaItem ?: return@post
                 val uri = Uri.fromFile(art)
-                if (live.mediaId != current.mediaId || live.mediaMetadata.artworkUri == uri) return@post
+                if (live.mediaId != current.mediaId || live.mediaMetadata.artworkUri == uri || hasPinnedArt(live)) return@post
                 player.replaceMediaItem(
                     player.currentMediaItemIndex,
                     live.buildUpon().setMediaMetadata(live.mediaMetadata.buildUpon().setArtworkUri(uri).build()).build(),
