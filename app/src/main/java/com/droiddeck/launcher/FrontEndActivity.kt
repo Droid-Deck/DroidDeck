@@ -1531,6 +1531,7 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.playback.SoundtrackController.setIngame(this, on)
                         },
                         onSoundtrackAdded = { folder -> addSoundtrack(folder) },
+                        onSoundtracksChanged = { refreshAddedSoundtracks() },
                         onSoundtrackRemoved = { g -> removeSoundtrack(g) },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onLauncherIcon = { style -> switchLauncherIcon(style) },
@@ -2686,6 +2687,18 @@ class FrontEndActivity : ComponentActivity() {
                     val visible = list.filterNot { s -> s.gameFiles?.path?.let { soundtrackRemovals[it] }?.let { it.op > op } == true }
                     soundtracks = soundtracks.filter { it.library != Library.ADDED } + visible
                 } else android.widget.Toast.makeText(this, R.string.soundtracks_add_empty, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun refreshAddedSoundtracks() {
+        val op = soundtrackOp
+        soundtrackWork.execute {
+            val list = com.droiddeck.launcher.frontend.AddedSoundtracks.games(this)
+            ui.post {
+                if (op != soundtrackOp) return@post
+                val visible = list.filterNot { s -> s.gameFiles?.path?.let { soundtrackRemovals[it] } != null }
+                soundtracks = soundtracks.filter { it.library != Library.ADDED } + visible
             }
         }
     }

@@ -29,7 +29,7 @@ object Soundtrack {
     val EXTENSIONS = setOf("mp3", "flac", "ogg", "oga", "opus", "wav", "m4a", "aac")
     private val LOSSLESS = setOf("flac", "wav")
     private val COVERS = listOf("AlbumArtwork", "albumartwork", "cover", "Cover", "folder", "Folder", "front", "Front", "artwork", "Artwork")
-    private val COVER_EXT = listOf("png", "jpg", "jpeg", "webp")
+    internal val COVER_EXT = listOf("png", "jpg", "jpeg", "webp")
     private val LEADING = Regex("^\\s*\\d+\\s*[.\\-_)]*\\s+")
     private val DIGITS = Regex("^\\s*(\\d+)")
 

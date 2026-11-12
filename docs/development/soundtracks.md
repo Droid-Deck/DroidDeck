@@ -72,7 +72,7 @@ Custom (added) soundtracks, collections and Favorites can be reordered: select t
 - The Music tab has a Collections chip. Favorites is the first entry under it. The bookmark in the Music header opens the same Saved panel to open or create a collection.
 - Long-press a track to select. The selection bar has Select all, Deselect all, Add to collection, Add to favorites and, on a collection page, Remove from collection.
 - A collection page has a Manage button to rename, add tracks, remove tracks or delete. Favorites cannot be renamed or deleted.
-- Collection pages have Manage, Playback options, Shortcut and Edit art. Edit art changes the collection cover only, from a track cover in the collection or an image of your own, and is stored in `soundtrack-art/<id>`.
+- Collection pages have Manage, Playback options, Shortcut and Edit art. Edit art changes the cover only, from a track cover or an image of your own, and is stored in `soundtrack-art/<id>`. Added soundtracks have the same Edit art, with the images in their folder and the first track cover as the choices; Steam soundtracks keep the Steam art editor.
 - Collections are stored in `soundtrack-collections.json` in the app files directory as snapshots of path, title, artist, album, length and cover. Tracks whose files are gone are skipped when a collection is played.
 - Collection and Favorites playback does not overwrite the saved resume position of an album.
 

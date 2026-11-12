@@ -368,9 +368,14 @@ private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: Fron
         }
     }
     var collectionArt by remember(game.appId) { mutableStateOf(false) }
-    if (collectionId != null) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { collectionArt = true }
-    else if (game.library != Library.ADDED) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { GamesDialogState.steamArt = game }
-    if (collectionArt && collectionId != null) CollectionArtEditor(collectionId, game.name, onClose = { collectionArt = false }, onChanged = { SoundtrackCollections.refresh() })
+    val ownArt = game.library == Library.ADDED
+    if (ownArt) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { collectionArt = true }
+    else SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { GamesDialogState.steamArt = game }
+    if (collectionArt && ownArt) CollectionArtEditor(
+        game.appId, game.name, game.gameFiles,
+        onClose = { collectionArt = false },
+        onChanged = { if (collectionId != null) SoundtrackCollections.refresh() else a.onSoundtracksChanged() },
+    )
     if (collectionId != null) return
     var asking by remember(game.appId) { mutableStateOf(false) }
     val added = game.library == Library.ADDED

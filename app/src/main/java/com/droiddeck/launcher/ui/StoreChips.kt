@@ -25,6 +25,8 @@ internal const val FLATHUB = "flathub"
 
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
+internal val FavoritesColours = SourceColours(Color(0xFF3D1A26), Color(0xFFFFB3C8), Color(0xFFFF5C8A))
+
 internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.GOG.id -> SourceColours(Color(0xFF3A1A3C), Color(0xFFE6A3EA), Color(0xFFC25BC8))
     Store.EPIC.id -> SourceColours(Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFBDBDBD))
@@ -58,8 +60,8 @@ internal fun sourceLabel(source: String): String = when (source) {
 }
 
 @Composable
-internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier, label: String? = null) {
-    val c = sourceColours(source)
+internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier, label: String? = null, colours: SourceColours? = null) {
+    val c = colours ?: sourceColours(source)
     Text(
         label ?: sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
         color = c.ink, maxLines = 1,

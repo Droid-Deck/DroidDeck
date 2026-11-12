@@ -62,7 +62,7 @@ object AddedSoundtracks {
 
     private fun game(context: Context, e: Entry, dir: File, id: Int): Library.SteamGame {
         return Library.SteamGame(
-            appId = id, name = e.name, art = Soundtrack.firstCover(context, dir), library = Library.ADDED, gameId = id.toLong() and 0xFFFFFFFFL,
+            appId = id, name = e.name, art = SoundtrackCollectionArt.chosen(context, id) ?: Soundtrack.firstCover(context, dir), library = Library.ADDED, gameId = id.toLong() and 0xFFFFFFFFL,
             gameFiles = dir, source = Library.ADDED, soundtrack = true,
         )
     }

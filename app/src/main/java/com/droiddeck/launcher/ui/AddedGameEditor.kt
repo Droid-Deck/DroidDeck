@@ -180,10 +180,10 @@ internal class ArtTarget(
             { c, value -> AddedGameEdits.setLogoPosition(c, game.folder.path, value) },
         )
 
-        fun ofCollection(id: Int, name: String) = ArtTarget(
+        fun ofCollection(id: Int, name: String, root: java.io.File? = null) = ArtTarget(
             name,
             { c, _ -> SoundtrackCollectionArt.source(c, id) },
-            { _, _ -> AddedGameArt.Choices(SoundtrackCollectionArt.options(id), SteamGridDb.Status.OK) },
+            { c, _ -> AddedGameArt.Choices(SoundtrackCollectionArt.options(c, id, root), SteamGridDb.Status.OK) },
             { c, _, option -> SoundtrackCollectionArt.choose(c, id, option) },
             { c, _ -> SoundtrackCollectionArt.reset(c, id) },
             { _ -> null },
@@ -211,9 +211,9 @@ internal fun SteamGameArtEditor(
 }
 
 @Composable
-internal fun CollectionArtEditor(id: Int, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
-    val target = remember(id) { ArtTarget.ofCollection(id, name) }
-    ArtOnlyEditor(name, target, id, { SoundtrackCollectionArt.describe(it, id) }, onClose, onChanged, listOf(AddedGameArt.Slot.COVER))
+internal fun CollectionArtEditor(id: Int, name: String, root: java.io.File? = null, onClose: () -> Unit, onChanged: () -> Unit) {
+    val target = remember(id, root) { ArtTarget.ofCollection(id, name, root) }
+    ArtOnlyEditor(name, target, id, { SoundtrackCollectionArt.describe(it, id, root) }, onClose, onChanged, listOf(AddedGameArt.Slot.COVER))
 }
 
 @Composable

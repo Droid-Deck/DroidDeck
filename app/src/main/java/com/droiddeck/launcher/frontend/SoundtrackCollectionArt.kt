@@ -13,9 +13,13 @@ object SoundtrackCollectionArt {
     fun source(context: Context, id: Int): String =
         sourceFile(context, id).takeIf { it.isFile }?.readText()?.trim().orEmpty().substringAfter('|', "")
 
-    fun options(id: Int): List<AddedGameArt.Option> =
-        SoundtrackCollections.tracksOf(id).map { it.cover }.filter { it.isNotEmpty() && File(it).isFile }.distinct()
-            .map { AddedGameArt.Option(AddedGameArt.FOLDER, it, it) }
+    fun options(context: Context, id: Int, root: File?): List<AddedGameArt.Option> {
+        val paths = if (root != null) {
+            val images = root.listFiles()?.filter { it.isFile && it.extension.lowercase() in Soundtrack.COVER_EXT }?.sortedBy { it.name.lowercase() }.orEmpty()
+            (images + listOfNotNull(Soundtrack.firstCover(context, root))).map { it.path }
+        } else SoundtrackCollections.tracksOf(id).map { it.cover }
+        return paths.filter { it.isNotEmpty() && File(it).isFile }.distinct().map { AddedGameArt.Option(AddedGameArt.FOLDER, it, it) }
+    }
 
     fun choose(context: Context, id: Int, option: AddedGameArt.Option): Boolean {
         val folder = dir(context, id)
@@ -30,11 +34,11 @@ object SoundtrackCollectionArt {
         sourceFile(context, id).delete()
     }
 
-    fun describe(context: Context, id: Int): List<AddedGameArt.SlotState> {
+    fun describe(context: Context, id: Int, root: File? = null): List<AddedGameArt.SlotState> {
         val own = chosen(context, id)
         val state = if (own != null) AddedGameArt.SlotState(AddedGameArt.Slot.COVER, own, AddedGameArt.FILE, true)
         else {
-            val auto = SoundtrackCollections.autoCover(id)
+            val auto = if (root != null) Soundtrack.firstCover(context, root) else SoundtrackCollections.autoCover(id)
             AddedGameArt.SlotState(AddedGameArt.Slot.COVER, auto, if (auto != null) AddedGameArt.FOLDER else AddedGameArt.AUTO, false)
         }
         return listOf(state)

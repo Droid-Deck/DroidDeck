@@ -288,6 +288,7 @@ class FrontEndActions(
     val onSoundtracksEnabled: (Boolean) -> Unit = {},
     val onSoundtracksIngame: (Boolean) -> Unit = {},
     val onSoundtrackAdded: (java.io.File) -> Unit = {},
+    val onSoundtracksChanged: () -> Unit = {},
     val onSoundtrackRemoved: (Library.SteamGame) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
