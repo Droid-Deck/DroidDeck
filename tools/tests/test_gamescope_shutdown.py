@@ -174,6 +174,21 @@ class GamescopeShutdownTest(unittest.TestCase):
         self.assertIn("g_output.pScreenshotTextures = {}", cleanup)
         self.assertIn("g_output.pCaptureTextures = {}", cleanup)
 
+    def test_patch_only_adds_exit_path_code(self):
+        patch = PATCH.read_text()
+        files = [line.split(" b/", 1)[1] for line in patch.splitlines()
+                 if line.startswith("diff --git ")]
+        self.assertEqual(files, ["src/rendervulkan.cpp", "src/rendervulkan.hpp",
+                                 "src/reshade_effect_manager.cpp",
+                                 "src/reshade_effect_manager.hpp",
+                                 "src/steamcompmgr.cpp"])
+        removed = [line for line in patch.splitlines()
+                   if line.startswith("-") and not line.startswith("---")]
+        self.assertEqual(removed, [])
+        self.assertEqual(added_source().count("vulkan_shutdown();"), 1)
+        self.assertNotIn("setenv", added_source())
+        self.assertNotIn("getenv", added_source())
+
 
 if __name__ == "__main__":
     unittest.main()
