@@ -12,6 +12,71 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun classicTitlesUseTheirObservedPipeNames() {
+        assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe"), RockstarLaunch.pipes)
+    }
+
+    @Test fun signingOutClearsOwnedShelfCards() {
+        val store = com.droiddeck.launcher.stores.Store.ROCKSTAR
+        com.droiddeck.launcher.stores.StoresState.library[store] = emptyList()
+        com.droiddeck.launcher.stores.StoresState.shelves[store] = com.droiddeck.launcher.stores.StoreShelves()
+        RockstarLibrary.reset()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertFalse(com.droiddeck.launcher.stores.StoresState.library.containsKey(store))
+        assertFalse(com.droiddeck.launcher.stores.StoresState.shelves.containsKey(store))
+    }
+
+    @Test fun resumedChunksMustStillMatchTheirFiles() {
+        val folder = java.nio.file.Files.createTempDirectory("rockstar-resume").toFile()
+        try {
+            val file = java.io.File(folder, "game.bin")
+            val bytes = "verified chunk".toByteArray()
+            val hash = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            val chunk = RockstarChunk("1", "2", hash, 2, bytes.size.toLong())
+            assertFalse(RockstarManifest.verified(file, chunk))
+            file.writeBytes(byteArrayOf(0, 0) + bytes)
+            assertTrue(RockstarManifest.verified(file, chunk))
+            java.io.RandomAccessFile(file, "rw").use { it.setLength(4) }
+            assertFalse(RockstarManifest.verified(file, chunk))
+            file.writeBytes(ByteArray(bytes.size + 2))
+            assertFalse(RockstarManifest.verified(file, chunk))
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test fun manifestWritesRejectSymbolicLinks() {
+        val folder = java.nio.file.Files.createTempDirectory("rockstar-path").toFile()
+        val outside = java.nio.file.Files.createTempDirectory("rockstar-outside").toFile()
+        try {
+            val link = java.io.File(folder, "linked")
+            try {
+                java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
+            } catch (e: java.nio.file.FileSystemException) {
+                org.junit.Assume.assumeNoException(e)
+            }
+            assertTrue(runCatching { RockstarManifest.inside(folder, "linked/game.bin") }.isFailure)
+            assertEquals(java.io.File(folder.canonicalFile, "normal/game.bin"), RockstarManifest.inside(folder, "normal/game.bin"))
+            java.nio.file.Files.deleteIfExists(link.toPath())
+        } finally {
+            folder.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun classicGamesStartTheirParentLauncherWithoutEmbeddingCredentials() {
+        val sidecar = com.droiddeck.launcher.stores.StoreGameSidecar(
+            com.droiddeck.launcher.stores.Store.ROCKSTAR, "gtavc", "Vice City", "gta-vc.exe",
+        )
+        val text = com.droiddeck.launcher.stores.StoreLaunch.launcherText(sidecar)
+        assertTrue(text.contains("\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""))
+        assertTrue(text.contains("exit /b %errorlevel%"))
+        assertFalse(text.contains("gta-vc.exe"))
+        assertFalse(text.contains("ticket", true))
+        assertFalse(text.contains("rem ", true))
+    }
+
     private val apps = """<?xml version="1.0" encoding="utf-8"?>
 <Response xmlns="GetAppsAndPackages"><Status>1</Status><Result><Apps>
   <App Id="2" Name="launcher" TitleId="21" IsReleased="true"><Branches>

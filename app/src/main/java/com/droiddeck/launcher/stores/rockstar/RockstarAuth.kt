@@ -12,20 +12,14 @@ import java.net.URL
 import java.net.URLEncoder
 import java.security.SecureRandom
 
-/**
- * Rockstar sign-in the way the Rockstar Games Launcher does it: Rockstar's own sign-in form in launcher mode,
- * whose auth code the launcher gateway trades for an ScAuthToken, which mints ROS tickets.
- */
 object RockstarAuth {
     private const val TAG = "RockstarAuth"
     const val SIGN_IN_HOST = "https://signin.rockstargames.com"
     private const val LAUNCHER_SITE = "https://rgl.rockstargames.com"
     private const val GATEWAY = "$LAUNCHER_SITE/api/connect/gateway"
 
-    /** A plain page on the sign-in origin: the bridge has to exist before the form's scripts run. */
     const val START_URL = "$SIGN_IN_HOST/robots.txt"
 
-    /** Never loaded: the bridge sends the auth code here and the sign-in screen catches it. */
     const val CODE_URL = "$SIGN_IN_HOST/droiddeck/auth-code"
     val SIGN_IN_URLS = listOf(SIGN_IN_HOST, LAUNCHER_SITE, "https://www.rockstargames.com", "https://socialclub.rockstargames.com")
     const val COOKIE_DOMAIN = ".rockstargames.com"
@@ -37,7 +31,6 @@ object RockstarAuth {
 
     class Ticket(val ticket: String, val sessionKey: String, val sessionTicket: String, val rockstarId: String, val nickname: String, val expiresAt: Long)
 
-    /** The five machine values the launcher reports, kept per install so Rockstar sees one device. */
     internal fun fingerprint(context: Context): JSONObject {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         fun stable(key: String, bytes: Int): String = p.getString(key, null) ?: ByteArray(bytes).also { SecureRandom().nextBytes(it) }
@@ -53,13 +46,8 @@ object RockstarAuth {
         .put("volume_serial", volume)
         .put("cpu_info", cpu)
 
-    /** The state the page and the gateway agree on, written as the page writes it. */
     internal fun state(fingerprint: JSONObject) = "{\"fp\": $fingerprint}"
 
-    /**
-     * Stands in for the launcher's native bridge, then loads the sign-in form into this page. The page asks
-     * through `rgscQuery` and `rgscAddSubscription`; an answer it does not need is an empty object.
-     */
     internal fun bridgeScript(fingerprint: JSONObject, title: String, codeUrl: String = CODE_URL): String = """
 (function(){
   if (window.__droiddeckRgsc) return 'again';
@@ -115,7 +103,6 @@ object RockstarAuth {
 
     internal fun codeFrom(url: String): String? = android.net.Uri.parse(url).getQueryParameter("code")?.takeIf { it.isNotBlank() }
 
-    /** Trades the page's auth code for the account's tokens and saves them; null on success, else a reason. */
     fun completeSignIn(context: Context, url: String): String? {
         val code = codeFrom(url) ?: return "no auth code"
         val fp = fingerprint(context)
@@ -157,13 +144,16 @@ object RockstarAuth {
         return null
     }
 
-    /**
-     * A ROS ticket, reused while it lasts: each new ticket ends the account's previous ROS session, a running
-     * game's included, so one is minted only when the last is about to expire.
-     */
     fun ticket(context: Context, fresh: Boolean = false): Ticket? = synchronized(lock) {
         val o = StoreAccounts.read(context.applicationContext, Store.ROCKSTAR) ?: return null
-        if (!fresh) stored(o)?.takeIf { it.expiresAt - System.currentTimeMillis() > TICKET_MARGIN_MS }?.let { return it }
+        if (!fresh) {
+            val current = stored(o)
+            if (com.droiddeck.launcher.session.SessionState.running &&
+                com.droiddeck.launcher.stores.StoreLaunchRequests.lastLaunched?.first == Store.ROCKSTAR) {
+                return current?.takeIf { it.expiresAt > System.currentTimeMillis() }
+            }
+            current?.takeIf { it.expiresAt - System.currentTimeMillis() > TICKET_MARGIN_MS }?.let { return it }
+        }
         runCatching { mint(context) }.onFailure { Log.w(TAG, "ticket: ${it.message}") }.getOrNull()
     }
 

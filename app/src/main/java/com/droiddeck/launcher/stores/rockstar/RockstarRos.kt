@@ -8,7 +8,6 @@ import java.net.URLEncoder
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
-/** Rockstar Online Services as the launcher calls them: plain forms on its services host, XML answers. */
 internal object RockstarRos {
     const val HOST = "https://rgl-prod.ros.rockstargames.com"
     const val PUBLIC_HOST = "https://prod.ros.rockstargames.com"
@@ -53,25 +52,28 @@ internal object RockstarRos {
         }
     }
 
-    /** The answer's root once ROS said `<Status>1</Status>`; otherwise the error it named. */
     fun result(method: String, fields: List<Pair<String, String>>, host: String = HOST, headers: Map<String, String> = emptyMap()): Element {
         val reply = call(method, fields, host, headers)
+        if (reply.status !in 200..299) throw RosException("$method: HTTP ${reply.status}", status = reply.status)
         val root = runCatching { parse(reply.body) }.getOrNull()
-            ?: throw RosException("$method: HTTP ${reply.status} ${reply.body.take(160).replace('\n', ' ')}", status = reply.status)
+            ?: throw RosException("$method: HTTP ${reply.status} invalid response", status = reply.status)
         if (text(root, "Status") != "1") {
             val error = first(root, "Error")
             val code = listOfNotNull(error?.getAttribute("Code")?.takeIf { it.isNotEmpty() }, error?.getAttribute("CodeEx")?.takeIf { it.isNotEmpty() }).joinToString("/")
-            throw RosException("$method: ${code.ifEmpty { "HTTP ${reply.status}" }} ${error?.getAttribute("Msg").orEmpty()}".trim(), code, reply.status)
+            throw RosException("$method: ${code.ifEmpty { "HTTP ${reply.status}" }}", code, reply.status)
         }
         return root
     }
 
     fun parse(xml: String): Element {
+        require(!xml.contains("<!DOCTYPE", ignoreCase = true)) { "XML document types are not supported" }
         val f = DocumentBuilderFactory.newInstance()
         f.isNamespaceAware = false
         runCatching { f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true) }
         runCatching { f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
         runCatching { f.setFeature("http://xml.org/sax/features/external-general-entities", false) }
+        runCatching { f.setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        runCatching { f.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
         f.isExpandEntityReferences = false
         return f.newDocumentBuilder().parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8))).documentElement
     }
@@ -82,7 +84,6 @@ internal object RockstarRos {
 
     fun text(root: Element, tag: String): String? = first(root, tag)?.textContent?.trim()
 
-    /** Direct children with this tag, so a branch's chunks are never mistaken for another file's. */
     fun children(parent: Element, tag: String): List<Element> {
         val out = ArrayList<Element>()
         var n = parent.firstChild

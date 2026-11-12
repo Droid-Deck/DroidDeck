@@ -89,15 +89,12 @@ internal class RockstarLogin(override val userAgent: String) : StoreLoginActivit
     }
 }
 
-/** The launcher's apps for an account, each with the branches it may download. */
 internal data class RockstarApp(val id: String, val name: String, val titleId: String, val branches: List<RockstarBranch>, val parent: String = "")
 
 internal data class RockstarBranch(val id: String, val name: String, val buildId: String, val isDefault: Boolean, val accessToken: String) {
-    /** A branch Rockstar builds; Steam and Epic copies get a placeholder branch with build -1. */
     val hasBuild: Boolean get() = (buildId.toLongOrNull() ?: 0L) > 0 && accessToken.isNotEmpty()
 }
 
-/** A launcher UI package: the account's own titles, and the titles Rockstar features to it. */
 internal data class RockstarPackage(val title: String, val featured: Boolean)
 
 internal class RockstarAccountApps(val apps: List<RockstarApp>, val packages: List<RockstarPackage>)
@@ -125,10 +122,8 @@ internal object RockstarApps {
         return out
     }
 
-    /** The branch to install: the default one with a build, else any with a build. */
     fun branch(app: RockstarApp): RockstarBranch? = app.branches.firstOrNull { it.isDefault && it.hasBuild } ?: app.branches.firstOrNull { it.hasBuild }
 
-    /** The app that delivers a title, ignoring the Steam and Epic stand-ins. */
     fun deliverer(apps: List<RockstarApp>, title: RockstarTitle): RockstarApp? = apps
         .filter { RockstarTitles.byId(it.name) == title && !it.name.endsWith("_steam") && !it.name.endsWith("_epic") }
         .sortedBy { if (it.name == title.id) 0 else 1 }
@@ -141,16 +136,17 @@ object RockstarLibrary {
 
     fun reset() {
         generation.incrementAndGet()
-        StoresState.post { StoresState.library.remove(Store.ROCKSTAR) }
+        StoresState.post {
+            StoresState.library.remove(Store.ROCKSTAR)
+            StoresState.shelves.remove(Store.ROCKSTAR)
+        }
     }
 
     private fun post(gen: Int, block: () -> Unit) = StoresState.post { if (generation.get() == gen) block() }
 
-    /** Titles the account owns: its own packages, as opposed to the ones Rockstar features to it. */
     internal fun owned(account: RockstarAccountApps): List<RockstarTitle> =
         account.packages.filter { !it.featured }.flatMap { RockstarTitles.forName(it.title) }.distinct()
 
-    /** Owned titles Rockstar itself delivers; copies owned through Steam or Epic install from there. */
     internal fun games(account: RockstarAccountApps): List<CatalogItem> = owned(account).mapNotNull { t ->
         RockstarApps.deliverer(account.apps, t)?.let { RockstarTitles.item(t, owned = true, extra = mapOf("app" to it.name, "appId" to it.id)) }
     }.sortedBy { it.title.lowercase() }
@@ -186,7 +182,6 @@ object RockstarLibrary {
     }
 }
 
-/** Rockstar's PC catalog: its own titles, newest first. */
 internal object RockstarCatalog {
     fun all(): List<CatalogItem> = RockstarTitles.all.map { RockstarTitles.item(it) }
 

@@ -14,6 +14,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -31,7 +32,35 @@ internal data class RockstarBuild(val buildId: String, val version: String, val 
 }
 
 internal object RockstarManifest {
-    /** A manifest path as a safe relative path, or null for one that leaves the install folder. */
+    fun inside(root: File, relative: String): File {
+        require(safePath(relative) == relative) { "Unsafe Rockstar install path" }
+        val base = root.canonicalFile
+        var target = base
+        for (part in relative.split('/')) {
+            target = File(target, part)
+            require(!Files.isSymbolicLink(target.toPath())) { "Rockstar install path is a symbolic link" }
+        }
+        require(target.canonicalFile.toPath().startsWith(base.toPath())) { "Rockstar install path leaves its folder" }
+        return target
+    }
+
+    fun verified(target: File, chunk: RockstarChunk): Boolean {
+        if (!target.isFile || chunk.offset < 0 || chunk.size < 0 || chunk.offset > target.length() || chunk.size > target.length() - chunk.offset) return false
+        return RandomAccessFile(target, "r").use { input ->
+            input.seek(chunk.offset)
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(256 * 1024)
+            var remaining = chunk.size
+            while (remaining > 0) {
+                val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                if (count <= 0) return false
+                digest.update(buffer, 0, count)
+                remaining -= count
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }.equals(chunk.sha256, true)
+        }
+    }
+
     fun safePath(raw: String): String? {
         val parts = raw.replace('\\', '/').split('/').filter { it.isNotEmpty() && it != "." }
         if (parts.isEmpty() || parts.any { it == ".." || it.contains(':') }) return null
@@ -54,7 +83,6 @@ internal object RockstarManifest {
             RockstarRos.text(result, "IsPreload").equals("true", true), files)
     }
 
-    /** Chunk URL requests grouped so each URL is fetched well inside its two-minute life. */
     fun batches(chunks: List<RockstarChunk>, maxBytes: Long = 48L * 1024 * 1024, maxCount: Int = 16): List<List<RockstarChunk>> {
         val out = ArrayList<List<RockstarChunk>>()
         var cur = ArrayList<RockstarChunk>()
@@ -96,15 +124,17 @@ internal class RockstarInstaller(
         StoreInstalls.begin(folder, Store.ROCKSTAR, item.id, item.title, cover, item.imageUrl)
         if (cancelled.get()) return null
 
-        val ledger = File(folder, LEDGER)
+        val ledger = RockstarManifest.inside(folder, LEDGER)
         val done = HashSet<String>().apply { if (ledger.isFile) ledger.readLines().filterTo(this) { it.isNotBlank() } }
         val pending = ArrayList<Pair<RockstarFile, RockstarChunk>>()
         var have = 0L
         for (f in build.files) {
-            val target = File(folder, f.path)
+            val target = RockstarManifest.inside(folder, f.path)
             target.parentFile?.mkdirs()
+            for (c in f.chunks) {
+                if (RockstarManifest.key(f, c) in done && RockstarManifest.verified(target, c)) have += c.size else pending += f to c
+            }
             RandomAccessFile(target, "rw").use { if (it.length() != f.size) it.setLength(f.size) }
-            for (c in f.chunks) if (RockstarManifest.key(f, c) in done) have += c.size else pending += f to c
         }
         val fileOf = pending.associate { (f, c) -> "${c.fileEntryId}:${c.chunkId}" to f }
         val total = build.bytes
@@ -125,7 +155,7 @@ internal class RockstarInstaller(
                         for (c in batch) {
                             if (cancelled.get()) break
                             val f = fileOf.getValue("${c.fileEntryId}:${c.chunkId}")
-                            fetch({ retry -> (if (retry) null else urls[c.chunkId]) ?: chunkUrls(ticket, branch.accessToken, listOf(c)).getValue(c.chunkId) }, File(folder, f.path), c, progress) {
+                            fetch({ retry -> (if (retry) null else urls[c.chunkId]) ?: chunkUrls(ticket, branch.accessToken, listOf(c)).getValue(c.chunkId) }, RockstarManifest.inside(folder, f.path), c, progress) {
                                 handle.progress(progress.get(), total, "Downloading (${build.files.size} files)")
                             }
                             synchronized(ledgerLock) { ledger.appendText(RockstarManifest.key(f, c) + "\n") }
@@ -141,6 +171,7 @@ internal class RockstarInstaller(
         if (cancelled.get()) return null
         failure.get()?.let { throw it }
 
+        handle.interruptible(false)
         handle.stage(DownloadStage.INSTALL, app.getString(R.string.stores_registering))
         val exe = resolve(folder, title.exe) ?: StoreExe.pick(folder, null, item.title).ifEmpty { title.exe.replace('\\', '/') }
         handle.log("rockstar: exe=$exe")
@@ -216,7 +247,6 @@ internal class RockstarInstaller(
         const val LEDGER = ".droiddeck-rockstar-chunks"
         private const val WORKERS = 4
 
-        /** The title's exe the way Windows finds it, in any letter case. */
         fun resolve(folder: File, configured: String): String? {
             var at = folder
             for (part in configured.replace('\\', '/').split('/').filter { it.isNotEmpty() }) {

@@ -3,10 +3,6 @@ package com.droiddeck.launcher.stores.rockstar
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 
-/**
- * Rockstar's PC titles, from the launcher's public `title_metadata.json`, plus GTA V Enhanced and Red Dead
- * Redemption, which that file leaves out. `steamAppId` only picks artwork.
- */
 internal data class RockstarTitle(
     val id: String,
     val rosTitleId: Int,
@@ -65,13 +61,11 @@ internal object RockstarTitles {
 
     private val byId = all.associateBy { it.id }
 
-    /** Sub-apps the launcher lists under a game, such as RDR2's story and online parts. */
     private val PARENTS = mapOf(
         "rdr2_sp" to "rdr2", "rdr2_rdo" to "rdr2", "rdr2_sp_rgl" to "rdr2", "rdr2_sp_steam" to "rdr2", "rdr2_sp_epic" to "rdr2",
         "gtatrilogy" to "gtasaunreal",
     )
 
-    /** Titles a package or app name stands for: the trilogy bundle is all three Definitive Editions. */
     fun forName(name: String): List<RockstarTitle> =
         if (name.equals("gtatrilogy", true)) listOf("gta3unreal", "gtavcunreal", "gtasaunreal").mapNotNull { byId[it] } else listOfNotNull(byId(name))
 
