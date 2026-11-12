@@ -63,6 +63,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +86,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
 import com.droiddeck.launcher.agent.AgentHost
@@ -116,19 +123,36 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
-    val scrollHeader = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && panel == AgentPanel.NONE
-    val header: @Composable () -> Unit = {
-        AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
+    val collapseHeader = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && panel == AgentPanel.NONE
+    var headerHeight by remember { mutableStateOf(0) }
+    var headerOffset by remember(collapseHeader) { mutableStateOf(0f) }
+    val headerScroll = remember(collapseHeader) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (!collapseHeader || source != NestedScrollSource.Drag) return Offset.Zero
+                val previous = headerOffset
+                headerOffset = (headerOffset + available.y).coerceIn(-headerHeight.toFloat(), 0f)
+                return Offset(0f, headerOffset - previous)
+            }
+        }
     }
-    Column(modifier.fillMaxSize().imePadding()) {
-        if (!scrollHeader) header()
+    Column(modifier.fillMaxSize().imePadding().nestedScroll(headerScroll)) {
+        Box(Modifier.clipToBounds().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val offset = if (collapseHeader) headerOffset.roundToInt().coerceIn(-placeable.height, 0) else 0
+            layout(placeable.width, placeable.height + offset) { placeable.placeRelative(0, offset) }
+        }) {
+            Box(Modifier.onSizeChanged { headerHeight = it.height }) {
+                AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
+            }
+        }
         when (panel) {
             AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
             AgentPanel.PROCESSES -> AgentProcessList(Modifier.weight(1f))
             else -> {
                 Column(Modifier.weight(1f).clipToBounds()) {
                     if (panel == AgentPanel.MODEL) AgentModelPicker()
-                    AgentConversation(Modifier.weight(1f), header = header.takeIf { scrollHeader })
+                    AgentConversation(Modifier.weight(1f))
                     AgentStatus()
                 }
                 AgentComposer(draft, inputModifier, compact = panel == AgentPanel.MODEL) { panel = it }
@@ -185,19 +209,18 @@ internal fun HeaderAction(icon: ImageVector, label: String, enabled: Boolean = t
 }
 
 @Composable
-private fun AgentConversation(modifier: Modifier, header: (@Composable () -> Unit)? = null) {
+private fun AgentConversation(modifier: Modifier) {
     val pal = LocalPalette.current
     val list = rememberLazyListState()
     val working = AgentHost.state == AgentHost.State.WORKING
     val atBottom by remember { derivedStateOf { !list.canScrollForward } }
-    val items = AgentHost.entries.size + (if (working) 1 else 0) + (if (header != null) 1 else 0)
+    val items = AgentHost.entries.size + (if (working) 1 else 0)
     LaunchedEffect(items) { if (items > 0) list.animateScrollToItem(items - 1) }
     LaunchedEffect(AgentHost.live.length / 80, AgentHost.liveThinking.length / 80) {
         if (atBottom && items > 0) list.scrollToItem(items - 1, Int.MAX_VALUE / 2)
     }
     if (AgentHost.entries.isEmpty() && !working) {
         Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            header?.invoke()
             Icon(Icons.Outlined.AutoAwesome, null, tint = pal.primary, modifier = Modifier.size(40.dp))
             Text(stringResource(R.string.agent_empty), fontSize = 15.sp, color = pal.onSurfaceVariant,
                 textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 460.dp).padding(top = 12.dp))
@@ -206,7 +229,6 @@ private fun AgentConversation(modifier: Modifier, header: (@Composable () -> Uni
     }
     val start = AgentHost.entries.indexOfLast { it is Entry.Asked }
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (header != null) item { header() }
         items(AgentHost.entries.size) { i ->
             val entry = AgentHost.entries[i]
             AgentEntry(entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex)
