@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Pets
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
@@ -365,6 +366,31 @@ class DrawerActions(
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
+    val agentPageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    val context = LocalContext.current
+    var petMode by rememberSaveable { mutableStateOf(com.droiddeck.launcher.agent.AgentHost.prefs(context).getBoolean("drawer_pet_mode", false)) }
+    var switchingToAgent by remember { mutableStateOf(false) }
+    val modeFocus = LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val togglePetMode = {
+        onPageChange(SessionDrawerPage.AGENT)
+        if (petMode) switchingToAgent = true
+        else {
+            modeFocus.clearFocus(force = true)
+            keyboard?.hide()
+            AgentPet.set(context, true)
+            petMode = true
+            com.droiddeck.launcher.agent.AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", true).apply()
+        }
+    }
+    LaunchedEffect(switchingToAgent) {
+        if (switchingToAgent) {
+            delay(1_200)
+            petMode = false
+            switchingToAgent = false
+            com.droiddeck.launcher.agent.AgentHost.prefs(context).edit().putBoolean("drawer_pet_mode", false).apply()
+        }
+    }
     val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
@@ -548,7 +574,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
                         host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f), petMode = petMode, onAgentHold = togglePetMode) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
@@ -558,12 +584,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
                 ) { selectedGlassesTab = it }
                 // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
+                if (page == SessionDrawerPage.AGENT && petMode) {
+                    DrawerPet(Modifier.weight(1f).fillMaxWidth(), switchingToAgent, togglePetMode)
+                } else if (page == SessionDrawerPage.AGENT) agentPageState.SaveableStateProvider("agent") { AgentPage(
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
                     inputModifier = focus.track(page, "agent-input"),
                     visible = open,
                     startTyping = false,
-                ) else Column(
+                ) } else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
@@ -988,7 +1016,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
 }
 
 @Composable
-private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, onSelect: (SessionDrawerPage) -> Unit) {
+private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, petMode: Boolean = false, onAgentHold: () -> Unit = {}, onSelect: (SessionDrawerPage) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val count = pages.size
@@ -1013,11 +1041,12 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
             androidx.compose.runtime.key(item) {
                 val selected = item == page
                 val source = remember { MutableInteractionSource() }
+                if (item == SessionDrawerPage.AGENT) HoldForPetMode(source, onAgentHold)
                 val focused = source.collectIsFocusedAsState().value
                 val scale by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
                 val alpha by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
                 val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
-                val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title))
+                val pageDescription = stringResource(R.string.drawer_page_desc, if (item == SessionDrawerPage.AGENT && petMode) stringResource(R.string.agent_pet_name) else stringResource(item.title))
                 val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
                 val select = { onSelect(item) }
                 Box(
@@ -1039,7 +1068,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                         .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, interactionSource = source, indication = LocalIndication.current, onClick = select)
                         .controllerConfirm(onClick = select),
                 ) {
-                    Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
+                    Icon(if (item == SessionDrawerPage.AGENT && petMode) Icons.Outlined.Pets else item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
                 }
             }
         }
@@ -1910,5 +1939,39 @@ private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modi
             .padding(horizontal = 16.dp),
     ) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (danger) colors.error else colors.onBackground)
+    }
+}
+
+@Composable
+private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit) {
+    val action by androidx.compose.runtime.rememberUpdatedState(onHold)
+    LaunchedEffect(source) {
+        var hold: kotlinx.coroutines.Job? = null
+        try {
+            source.interactions.collect { interaction ->
+                when (interaction) {
+                    is PressInteraction.Press -> {
+                        hold?.cancel()
+                        hold = launch { delay(3_000); action() }
+                    }
+                    is PressInteraction.Release, is PressInteraction.Cancel -> hold?.cancel()
+                }
+            }
+        } finally { hold?.cancel() }
+    }
+}
+
+@Composable
+private fun DrawerPet(modifier: Modifier, switching: Boolean, onHold: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    HoldForPetMode(source, onHold)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        if (switching) PetPreview(stringResource(R.string.agent_pet_switching), Modifier.padding(12.dp)) { }
+        DeeDee(petStateNow(), Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 320.dp)
+            .testTag("drawer-deedee")
+            .clickable(interactionSource = source, indication = null, onClick = {}))
+        Text(stringResource(R.string.agent_pet_name), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.agent_pet_hold_hint), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
     }
 }
