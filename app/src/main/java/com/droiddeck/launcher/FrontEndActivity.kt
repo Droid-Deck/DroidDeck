@@ -1877,7 +1877,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (com.droiddeck.launcher.ui.AgentPet.handleBack(event)) return true
+        if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         if (compatLaunch != null) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
                 if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch()

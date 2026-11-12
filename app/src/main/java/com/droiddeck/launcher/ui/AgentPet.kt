@@ -89,22 +89,22 @@ internal object AgentPet {
     /** The floating windows could not be made, so the pet stays in DroidDeck's own windows instead. */
     private var floatFailed by mutableStateOf(false)
     val floating get() = enabled && allowed && !floatFailed
-    /** Closes the chat open inside a DroidDeck window; null while none is. */
-    private var closeInWindow: (() -> Unit)? = null
+    /** How to close the chat open inside each DroidDeck window that has one. */
+    private val closeInWindow = java.util.WeakHashMap<AgentPetHost, () -> Unit>()
 
     /**
-     * B and Back close a chat open inside a DroidDeck window before the window acts on them, since
-     * the window's own keys (leaving a session, going back a page) would otherwise run under it.
+     * B and Back close a chat open inside [host] before the window acts on them, since the window's
+     * own keys (leaving a session, going back a page) would otherwise run under it.
      */
-    fun handleBack(event: android.view.KeyEvent): Boolean {
-        val close = closeInWindow ?: return false
+    fun handleBack(host: AgentPetHost, event: android.view.KeyEvent): Boolean {
+        val close = closeInWindow[host] ?: return false
         if (event.keyCode != android.view.KeyEvent.KEYCODE_BACK && event.keyCode != android.view.KeyEvent.KEYCODE_BUTTON_B) return false
         if (event.action == android.view.KeyEvent.ACTION_UP) close()
         return true
     }
 
-    internal fun chatOpenInWindow(close: (() -> Unit)?) {
-        closeInWindow = close
+    internal fun chatOpenInWindow(host: AgentPetHost, close: (() -> Unit)?) {
+        if (close == null) closeInWindow.remove(host) else closeInWindow[host] = close
     }
     private var windows: PetWindows? = null
     private val main = Handler(Looper.getMainLooper())
@@ -258,9 +258,9 @@ private fun PetLayer(host: AgentPetHost) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         motion.fit(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         if (chatShown) PetChat(chatOpen, motion, closeChat) { chatShown = false }
-        androidx.compose.runtime.DisposableEffect(chatOpen) {
-            AgentPet.chatOpenInWindow(if (chatOpen) closeChat else null)
-            onDispose { AgentPet.chatOpenInWindow(null) }
+        androidx.compose.runtime.DisposableEffect(host, chatOpen) {
+            AgentPet.chatOpenInWindow(host, if (chatOpen) closeChat else null)
+            onDispose { AgentPet.chatOpenInWindow(host, null) }
         }
         var bubble by remember { mutableStateOf<String?>(null) }
         val news = petBubbleText()
