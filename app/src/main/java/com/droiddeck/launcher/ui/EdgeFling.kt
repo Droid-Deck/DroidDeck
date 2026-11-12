@@ -12,7 +12,7 @@ import kotlin.math.sqrt
  */
 internal object EdgeFling {
     /** How far a throw coasts, in seconds of its release velocity. */
-    private const val COAST_S = 0.18f
+    const val COAST_S = 0.18f
     /** A sideways speed past this many dp per second picks its side outright. */
     private const val FLICK_DP_S = 600f
 

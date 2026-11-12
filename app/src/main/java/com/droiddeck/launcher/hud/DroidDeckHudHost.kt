@@ -107,7 +107,7 @@ class DroidDeckHudHost(context: Context) {
             val vy = flingY
             flingX = 0f
             flingY = 0f
-            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            dockEdgeFor(hud, vx, vy)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             stopMotion(hud)
             fadeDockPreview(hud)
             if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
@@ -247,23 +247,26 @@ class DroidDeckHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
-    private fun dockEdgeFor(v: View): DroidDeckHudDock? {
-        val over = overhang(v) ?: return null
+    /** The edge the HUD tucks into: one it hangs far enough over, or would once a throw at [vx], [vy] coasts out. */
+    private fun dockEdgeFor(v: View, vx: Float = 0f, vy: Float = 0f): DroidDeckHudDock? {
+        val over = overhang(v, vx * com.droiddeck.launcher.ui.EdgeFling.COAST_S, vy * com.droiddeck.launcher.ui.EdgeFling.COAST_S) ?: return null
         return over.key.takeIf { over.value >= DOCK_OVERHANG }
     }
 
-    private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
+    private fun overhang(v: View, dx: Float = 0f, dy: Float = 0f): Map.Entry<DroidDeckHudDock, Float>? {
         val p = v.parent as? View ?: return null
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
         val strip = (v as? DroidDeckHudView)?.isStrip == true
         val density = v.resources.displayMetrics.density
         val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
         val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
+        val x = v.x + dx
+        val y = v.y + dy
         return mapOf(
-            DroidDeckHudDock.LEFT to -v.x / w,
-            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / w,
-            DroidDeckHudDock.TOP to -v.y / h,
-            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / h,
+            DroidDeckHudDock.LEFT to -x / w,
+            DroidDeckHudDock.RIGHT to (x + v.width - p.width) / w,
+            DroidDeckHudDock.TOP to -y / h,
+            DroidDeckHudDock.BOTTOM to (y + v.height - p.height) / h,
         ).maxByOrNull { it.value }
     }
 
@@ -500,8 +503,8 @@ class DroidDeckHudHost(context: Context) {
     companion object {
         private const val DOCK_OVERHANG = 0.4f
         private const val PREVIEW_FROM = 0.55f
-        private const val STRIP_PULL_ACROSS_DP = 600f
-        private const val STRIP_PULL_OFF_DP = 150f
+        private const val STRIP_PULL_ACROSS_DP = 360f
+        private const val STRIP_PULL_OFF_DP = 100f
         private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
