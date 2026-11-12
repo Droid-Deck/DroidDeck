@@ -2590,6 +2590,8 @@
     <string name="comp_this_device">Cet appareil</string>
     <string name="proton_remove_title">Supprimer %1$s ?</string>
     <string name="setup_tab_diagnostics">Diagnostic</string>
+    <string name="setup_build_watermark">Filigrane de version</string>
+    <string name="setup_build_watermark_hint">Afficher le libellé de la version de test ou Lab à l’écran. Activé par défaut.</string>
     <string name="setup_ready">Prêt à jouer</string>
     <string name="setup_not_ready">Pas encore prêt à jouer</string>
     <string name="setup_ready_runtime">environnement d\'exécution %1$s</string>

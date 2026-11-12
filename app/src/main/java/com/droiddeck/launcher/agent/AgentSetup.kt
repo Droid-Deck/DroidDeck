@@ -1,0 +1,195 @@
+package com.droiddeck.launcher.agent
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+/**
+ * First-run setup for the agent, as steps with a check and an action each. The first three are
+ * needed to talk to the agent; GitHub and the build tools are only needed to open pull requests
+ * and to make Lab builds on the device.
+ */
+object AgentSetup {
+    enum class Step(val required: Boolean) { CONNECTION(true), INSTALL(true), SIGN_IN(true), GITHUB(false), BUILD_TOOLS(false), PREPARE(false) }
+    enum class Status { UNKNOWN, DONE, TODO, WORKING, FAILED }
+
+    val status = mutableStateMapOf<Step, Status>()
+    /** The last line of output from the step that is running or just failed. */
+    val detail = mutableStateMapOf<Step, String>()
+    var runtimeInstalled by mutableStateOf(true)
+        private set
+
+    val ready: Boolean get() = Step.entries.filter { it.required }.all { status[it] == Status.DONE }
+
+    /** A step's action is running; its result belongs to the harness it started for. */
+    val busy: Boolean get() = status.values.any { it == Status.WORKING }
+
+    /** Set once the required steps have all passed, so the chat opens without waiting for the checks. */
+    fun completed(context: Context) = AgentHost.prefs(context).getBoolean(completedKey(AgentHost.harness), false)
+
+    private fun completedKey(harness: AgentHarness) = "setup_completed_${harness.id}"
+
+    private val main = Handler(Looper.getMainLooper())
+    private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
+    private const val CHECKOUT = "/root/DroidDeck"
+    private val HELPERS = listOf("android-open", "dd-gh-login", "droiddeckctl")
+    internal const val CTL = "/root/.local/share/droiddeck/ctl"
+    private const val PROBE_TIMEOUT_S = 60L
+
+    fun check(context: Context) {
+        val app = context.applicationContext
+        runtimeInstalled = LinuxRuntime.isInstalled(app)
+        if (!runtimeInstalled) return
+        AgentHost.refresh(app)
+        val harness = AgentHost.harness
+        val probes = mutableListOf<Pair<Step, List<String>>>()
+        for (step in Step.entries) if (status[step] != Status.WORKING) {
+            when (step) {
+                Step.INSTALL -> set(step, if (harness.files.all { AgentHost.guestFileExists(app, it) }) Status.DONE else Status.TODO)
+                Step.BUILD_TOOLS -> set(step, if (buildToolsInstalled(app)) Status.DONE else Status.TODO)
+                Step.PREPARE -> set(step, if (prepared(app)) Status.DONE else Status.TODO)
+                // The install brings the userland's adb; until then the app's own pairing is all there is to check.
+                Step.CONNECTION -> if (!AgentHost.guestFileExists(app, "/usr/bin/adb")) {
+                    detail.remove(step)
+                    Thread({
+                        val live = com.droiddeck.launcher.core.WirelessAdbFix.liveConnectAddress(app) != null
+                        set(step, if (live) Status.DONE else Status.TODO)
+                    }, "agent-connection").start()
+                } else probes += step to listOf("sh", "-c",
+                    "for i in 1 2 3; do adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " +
+                        "state=\$(adb -s \"\$ADB_SERIAL\" get-state 2>&1); echo \"\$state\"; [ \"\$state\" = device ] && exit 0; sleep 1; done; exit 1")
+                Step.SIGN_IN -> if (AgentHost.guestFileExists(app, harness.binary)) probes += step to harness.signedIn else set(step, Status.TODO)
+                Step.GITHUB -> probes += step to listOf("gh", "auth", "status")
+            }
+        }
+        Thread({ for ((step, command) in probes) probe(app, harness, step, command) }, "agent-checks").start()
+    }
+
+    /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
+    fun run(context: Context, step: Step) {
+        val app = context.applicationContext
+        val harness = AgentHost.harness
+        val command = when (step) {
+            Step.CONNECTION -> return
+            Step.INSTALL -> {
+                listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
+                    "dpkg --configure -a; apt-get update; apt-get -f install -y; " +
+                    "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+            }
+            Step.SIGN_IN -> harness.signIn
+            Step.GITHUB -> listOf("dd-gh-login")
+            Step.BUILD_TOOLS -> listOf("sh", "-c", "set -e; [ -d $CHECKOUT/.git ] || git clone --filter=blob:none $REPO $CHECKOUT; " +
+                "cd $CHECKOUT; [ -x tools/agent/setup ] || { echo 'This DroidDeck version has no tools/agent/setup yet'; exit 1; }; tools/agent/setup")
+            Step.PREPARE -> listOf("sh", "-c", "cd $CHECKOUT && DD_LAB_DETACHED=1 dd-lab-build --prepare")
+        }
+        set(step, Status.WORKING)
+        detail.remove(step)
+        AgentHostService.setupStarted(app)
+        Thread({
+            val result = runCatching {
+                installHelpers(app)
+                runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
+                val child = AgentHost.guest(app, command).start()
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
+                        child.inputStream.bufferedReader().forEachLine { line ->
+                            log.appendLine(line)
+                            val text = line.trim()
+                            if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                        }
+                        child.waitFor().also { log.appendLine("exit $it") }
+                    }
+                } finally {
+                    OrphanReaper.release(pid)
+                }
+            }
+            main.post {
+                AgentHostService.setupEnded(app)
+                if (result.getOrNull() == 0) {
+                    detail.remove(step)
+                    status[step] = Status.UNKNOWN
+                    check(app)
+                } else {
+                    status[step] = Status.FAILED
+                    if (result.isFailure) detail[step] = result.exceptionOrNull()?.message ?: "failed"
+                }
+            }
+        }, "agent-setup-${step.name.lowercase()}").start()
+    }
+
+    /** The whole output of a step's last run; the card shows only its last line. */
+    fun logFile(app: Context, step: Step) = File(app.filesDir, "agent/setup-${step.name.lowercase()}.log")
+
+    fun buildToolsInstalled(app: Context) = AgentHost.guestFileExists(app, "/root/aapt2/aapt2") && AgentHost.guestFileExists(app, "$CHECKOUT/.git")
+
+    /** dd-lab-build compiled this install's commit, so a Lab build compiles only what changed. */
+    private fun prepared(app: Context) = runCatching {
+        File(LinuxRuntime.rootDir(app), "root/.cache/dd-lab-build-base").readText().trim()
+            .startsWith(com.droiddeck.launcher.lab.LabOverlay.apkCommit.take(7))
+    }.getOrDefault(false)
+
+    /** Drops what the checks found, which belonged to the previous harness. */
+    fun forget() {
+        status.clear()
+        detail.clear()
+    }
+
+    private fun probe(app: Context, harness: AgentHarness, step: Step, command: List<String>) {
+        var output = ""
+        val ok = runCatching {
+            val child = AgentHost.guest(app, command, connectAdb = step == Step.CONNECTION).start()
+            child.outputStream.close()
+            val reader = Thread({ output = child.inputStream.bufferedReader().readText() }, "agent-check-output").apply { isDaemon = true; start() }
+            val exited = child.waitFor(PROBE_TIMEOUT_S, TimeUnit.SECONDS)
+            if (!exited) {
+                AgentProcesses.killTree(AgentProcesses.pidOf(child))
+                child.destroyForcibly()
+            }
+            reader.join(2_000)
+            exited && child.exitValue() == 0
+        }.onFailure { output = it.message.orEmpty() }.getOrDefault(false)
+        main.post {
+            if (AgentHost.harness != harness) return@post
+            if (status[step] != Status.WORKING) status[step] = if (ok) Status.DONE else Status.TODO
+            val last = output.lines().lastOrNull { it.isNotBlank() && !noise(it.trim()) }?.trim()?.take(160)
+            when {
+                ok -> detail.remove(step)
+                step == Step.CONNECTION -> detail[step] = app.getString(com.droiddeck.launcher.R.string.agent_connection_off)
+                step.required && last != null -> detail[step] = last
+            }
+            if (ready) AgentHost.prefs(app).edit().putBoolean(completedKey(harness), true).apply()
+        }
+    }
+
+    /** proot warns about its bindings on every start; that says nothing about the step. */
+    private fun noise(line: String) = line.startsWith("proot warning")
+
+    private fun set(step: Step, value: Status) {
+        if (Looper.myLooper() == Looper.getMainLooper()) status[step] = value else main.post { status[step] = value }
+    }
+
+    /** Written before every step, so the helpers a step relies on are there and match this DroidDeck version. */
+    internal fun installHelpers(app: Context) {
+        val root = LinuxRuntime.rootDir(app)
+        val bin = File(root, "root/.local/bin").apply { mkdirs() }
+        for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
+        val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
+        for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+    }
+
+    private fun copyAsset(app: Context, asset: String, target: File) {
+        app.assets.open(asset).use { input -> target.outputStream().use { input.copyTo(it) } }
+        target.setExecutable(true, false)
+    }
+}

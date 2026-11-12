@@ -449,7 +449,11 @@ mkdir -p "$srt_libs"
 for d in "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/lib/x86_64-linux-gnu \
          "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/usr/lib/x86_64-linux-gnu; do
   [ -d "$d" ] || continue
-  for f in "$d"/*.so*; do [ -e "$srt_libs/$(basename "$f")" ] || ln -s "$f" "$srt_libs/"; done
+  for f in "$d"/*.so*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    s="$srt_libs/$(basename "$f")"
+    { [ -e "$s" ] || [ -L "$s" ]; } || ln -s "$f" "$srt_libs/"
+  done
 done
 FEX_ROOTFS=$ROOTFS /usr/local/bin/FEX "$ROOTFS/usr/sbin/ldconfig.real" -n "$srt_libs" >>"$LOG" 2>&1 || step "ldconfig on $srt_libs failed"
 sniper_compat=$X64_HOME/sniper-compat
@@ -458,6 +462,7 @@ mkdir -p "$sniper_compat"
 hb=$(ls "$srt_libs"/libharfbuzz.so.0.* 2>/dev/null | head -n 1)
 if [ -n "$hb" ]; then ln -s "$hb" "$sniper_compat/libharfbuzz.so.0"; else step "warning: no HarfBuzz in Valve's runtime for the newer-runtime titles"; fi
 for f in "$srt_libs"/*; do
+  [ -e "$f" ] || [ -L "$f" ] || continue
   n=$(basename "$f")
   if [ -e "$ROOTFS/usr/lib/x86_64-linux-gnu/$n" ] || [ -e "$ROOTFS/lib/x86_64-linux-gnu/$n" ]; then rm -f "$f"; fi
 done

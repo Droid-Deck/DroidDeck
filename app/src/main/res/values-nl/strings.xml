@@ -2566,6 +2566,8 @@
     <string name="comp_this_device">Dit apparaat</string>
     <string name="proton_remove_title">%1$s verwijderen?</string>
     <string name="setup_tab_diagnostics">Diagnostiek</string>
+    <string name="setup_build_watermark">Buildlabel als watermerk</string>
+    <string name="setup_build_watermark_hint">Toon het label van de testbuild of Lab-build op het scherm. Standaard ingeschakeld.</string>
     <string name="setup_ready">Klaar om te spelen</string>
     <string name="setup_not_ready">Nog niet klaar om te spelen</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

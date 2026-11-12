@@ -36,6 +36,7 @@
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
+#include "clock_domain.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -727,9 +728,7 @@ static void on_pending_buffer_destroyed(struct wl_listener *l, void *data) {
 static void fire_frames(struct wl_list *frames) {
     struct wl_resource *cb, *tmp;
     uint32_t t;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    t = (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    t = droiddeck_clock_domain_now_ms();
     wl_resource_for_each_safe(cb, tmp, frames) {
         wl_callback_send_done(cb, t);
         wl_resource_destroy(cb);
@@ -1061,6 +1060,7 @@ static int64_t presented_ns(int64_t render_ns) {
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {
     struct wl_resource *fb, *tmp;
+    t = droiddeck_clock_domain_adjust_ns(t);
     uint64_t sec = (uint64_t)(t / 1000000000LL);
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
@@ -2493,8 +2493,7 @@ static void on_vsync(int64_t frame_time_ns) {
 
 
 static uint32_t now_ms(void) {
-    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    return droiddeck_clock_domain_now_ms();
 }
 
 static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint32_t serial,
@@ -3114,12 +3113,10 @@ static void relative_pointers_pointer_gone(struct wl_resource *pointer) {
 
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     struct relative_pointer *rp;
-    struct timespec ts;
     uint64_t ut;
     int sent = 0;
     if (dx == 0 && dy == 0) return 0;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ut = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000;
+    ut = (uint64_t)(droiddeck_clock_domain_now_ns() / 1000);
     wl_list_for_each(rp, &g_relative_pointers, link) {
         if (!rp->pointer || wl_resource_get_client(rp->pointer) != client) continue;
         zwp_relative_pointer_v1_send_relative_motion(rp->resource, (uint32_t)(ut >> 32), (uint32_t)ut,
