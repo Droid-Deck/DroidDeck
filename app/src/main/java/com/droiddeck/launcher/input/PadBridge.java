@@ -290,7 +290,10 @@ public final class PadBridge {
     }
 
     public static boolean isControllerKeyEvent(KeyEvent event) {
-        InputDevice device = event.getDevice();
+        return isControllerKeyEvent(event, event.getDevice());
+    }
+
+    static boolean isControllerKeyEvent(KeyEvent event, InputDevice device) {
         if (device == null || device.isVirtual() || isSystemVirtualInputName(device.getName())) return false;
         if (KeyEvent.isGamepadButton(event.getKeyCode())) {
             return device.supportsSource(InputDevice.SOURCE_GAMEPAD)
@@ -315,7 +318,10 @@ public final class PadBridge {
     }
 
     public static boolean isControllerMotionEvent(MotionEvent event) {
-        InputDevice device = event.getDevice();
+        return isControllerMotionEvent(event, event.getDevice());
+    }
+
+    static boolean isControllerMotionEvent(MotionEvent event, InputDevice device) {
         return event.isFromSource(InputDevice.SOURCE_JOYSTICK) && device != null && !device.isVirtual()
                 && !isSystemVirtualInputName(device.getName())
                 && (device.supportsSource(InputDevice.SOURCE_GAMEPAD)
@@ -376,9 +382,8 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
         InputDevice device = event.getDevice();
-        if (device == null) return false;
+        if (!isControllerKeyEvent(event, device) || excluded.test(event.getDeviceId())) return false;
         int slot = slotFor(device);
         if (slot < 0) return false;
         int side = JoyCon.side(device);
@@ -493,10 +498,9 @@ public final class PadBridge {
     }
 
     public synchronized boolean onMotionEvent(MotionEvent event) {
-        if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
-        if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         InputDevice device = event.getDevice();
-        if (device == null) return false;
+        if (!isControllerMotionEvent(event, device) || excluded.test(event.getDeviceId())) return false;
+        if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(device);
         if (slot < 0) return false;
         long timing = InputTiming.begin();
