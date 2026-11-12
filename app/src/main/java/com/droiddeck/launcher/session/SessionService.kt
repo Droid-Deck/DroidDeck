@@ -1633,8 +1633,13 @@ class SessionService : Service() {
             if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
                 SessionState.stopRequested || SessionState.mode != MODE_STEAM ||
                 !SessionPrefs.returnAfterGame(this) || SessionState.gameId != gameId ||
-                pendingSteamGameId != null || SteamGameProcess.running()) {
-                Log.i(TAG, "keeping Steam open after $gameId: another game is running or queued")
+                pendingSteamGameId != null) {
+                return@postDelayed
+            }
+
+            if (SteamGameProcess.running()) {
+                Log.i(TAG, "another Steam game is still running after $gameId; checking again")
+                returnAfterGame(gameId, gen, token)
                 return@postDelayed
             }
 

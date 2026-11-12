@@ -18,18 +18,39 @@ object SteamGameProcess {
                 runCatching { File(p, "cmdline").readBytes() }
                     .getOrNull()?.let(::matches) == true
         } == true
+    private fun steamAppIdForGameId(gameId: String): String? {
+        if (gameId.isEmpty() || !gameId.all(Char::isDigit)) return null
+
+        val numericId = gameId.toULongOrNull() ?: return null
+        val appId = if (numericId > UInt.MAX_VALUE.toULong()) {
+            numericId shr 32
+        } else {
+            numericId
+        }
+
+        return appId.takeIf { it != 0uL }?.toString()
+    }
+
     fun matches(cmdline: ByteArray, gameId: String): Boolean {
-        if (gameId.isEmpty() || !gameId.all(Char::isDigit)) return false
+        val expectedAppId = steamAppIdForGameId(gameId) ?: return false
         val args = String(cmdline).split('\u0000')
+
         for (i in args.indices) {
             if (args[i] == "SteamLaunch") {
                 val appId = args.getOrNull(i + 1)
                     ?.takeIf { it.startsWith("AppId=") }
                     ?.removePrefix("AppId=")
-                if (appId == gameId) return true
+
+                if (appId == expectedAppId) return true
             }
-            if (args[i] == "-applaunch" && args.getOrNull(i + 1) == gameId) return true
+
+            if (args[i] == "-applaunch" &&
+                args.getOrNull(i + 1) == expectedAppId
+            ) {
+                return true
+            }
         }
+
         return false
     }
 

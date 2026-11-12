@@ -30,6 +30,31 @@ class SteamGameProcessTest {
         assertFalse(SteamGameProcess.matches(cmdline("python3", "/proton", "waitforexitandrun", "game.exe"), "976310"))
     }
 
+    @Test fun shortcutCGameIdsMatchTheir32BitSteamAppId() {
+        val cgameId = ((976310L shl 32) or 0x02000000L).toString()
+
+        assertTrue(
+            SteamGameProcess.matches(
+                cmdline("reaper", "SteamLaunch", "AppId=976310", "--", "proton", "waitforexitandrun", "game.exe"),
+                cgameId,
+            )
+        )
+
+        assertTrue(
+            SteamGameProcess.matches(
+                cmdline("steam", "-applaunch", "976310"),
+                cgameId,
+            )
+        )
+
+        assertFalse(
+            SteamGameProcess.matches(
+                cmdline("reaper", "SteamLaunch", "AppId=123", "--", "proton", "waitforexitandrun", "game.exe"),
+                cgameId,
+            )
+        )
+    }
+
     @Test fun runningLooksAtEveryProcess() {
         val proc = tmp.newFolder("proc")
         fun process(pid: String, vararg args: String) = File(proc, pid).apply { mkdirs() }.resolve("cmdline").writeBytes(cmdline(*args))
