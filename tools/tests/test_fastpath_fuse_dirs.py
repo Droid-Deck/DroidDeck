@@ -17,7 +17,10 @@ static const char *race_from, *race_to;
 static dev_t race_dev;
 static ino_t race_ino;
 
+static long trapped_nr = -1, unsupported_nr = -1;
+
 static long host_sys(long nr, long a, long b, long c, long d, long e, long f) {
+  if (nr == trapped_nr || (nr == unsupported_nr && a != -1)) return -ENOSYS;
   long r = syscall(nr, a, b, c, d, e, f);
   struct stat fs;
   if (r >= 0 && nr == SYS_fcntl && b == F_DUPFD_CLOEXEC && c == DIR_FD_FLOOR && race_from
@@ -72,8 +75,24 @@ int main(int argc, char **argv) {
     } else if (!strcmp(op, "stat")) {
       struct stat st;
       show(fp_stat(AT_FDCWD, argv[++i], AT_SYMLINK_NOFOLLOW, &st));
+    } else if (!strcmp(op, "symlink")) {
+      long r = fp_symlink("target", AT_FDCWD, argv[++i]);
+      if (refused()) puts("REFUSED");
+      else show(r);
+    } else if (!strcmp(op, "trap-symlink")) {
+      trapped_nr = SYS_symlinkat;
+    } else if (!strcmp(op, "no-symlinks")) {
+      unsupported_nr = SYS_symlinkat;
+    } else if (!strcmp(op, "on")) {
+      printf("%d\n", fp_ready());
+    } else if (!strcmp(op, "no-folders")) {
+      unsupported_nr = SYS_mkdirat;
+    } else if (!strcmp(op, "busy-cache")) {
+      pthread_mutex_lock(&dir_lock);
     } else if (!strcmp(op, "mkdir")) {
-      show(fp_mkdir(AT_FDCWD, argv[++i], 0755));
+      long r = fp_mkdir(AT_FDCWD, argv[++i], 0755);
+      if (refused()) puts("REFUSED");
+      else show(r);
     } else if (!strcmp(op, "mv")) {
       show(fp_rename(AT_FDCWD, argv[i + 1], AT_FDCWD, argv[i + 2], 0));
       i += 2;
@@ -260,6 +279,30 @@ class FastPathFuseDirsTest(unittest.TestCase):
                        "stat", "/mnt/card/Games/steamapps/common/Game/Data/under", wrap=("unshare", "-Urm"))
         self.assertEqual(["ok", "ok", "ok", "E2"], out)
         self.assertEqual(["under"], [p.name for p in data.iterdir()])
+
+    def test_a_call_the_filesystem_does_not_implement_leaves_the_fast_path_on(self):
+        data = "/mnt/card/Games/steamapps/common/Game/Data"
+        out = self.ask("fuse", "no-symlinks", "touch", f"{data}/a", "symlink", f"{data}/link", "on",
+                       "stat", f"{data}/a", "symlink", f"{data}/link", "on", "touch", f"{data}/b")
+        self.assertEqual(["ok", "REFUSED", "1", "ok", "REFUSED", "1", "ok"], out)
+        self.assertEqual(["a", "b"], sorted(p.name for p in (self.card / "Games/steamapps/common/Game/Data").iterdir()))
+
+    def test_repeated_unsupported_calls_close_the_folders_they_opened(self):
+        data = "/mnt/card/Games/steamapps/common/Game/Data"
+        ops = [op for n in range(40) for op in ("mkdir", f"{data}/new{n}")]
+        out = self.ask("fuse", "no-folders", "busy-cache", *ops, "on", "fds")
+        self.assertEqual(["REFUSED"] * 40 + ["1", "0"], out)
+
+    def test_a_trapped_call_still_stops_the_fast_path_for_the_process(self):
+        data = "/mnt/card/Games/steamapps/common/Game/Data"
+        out = self.ask("fuse", "trap-symlink", "symlink", f"{data}/link", "on")
+        self.assertEqual(["REFUSED", "0"], out)
+
+    def test_a_symlink_is_made_where_the_filesystem_allows_it(self):
+        data = "/mnt/card/Games/steamapps/common/Game/Data"
+        out = self.ask("fuse", "symlink", f"{data}/link", "on")
+        self.assertEqual(["ok", "1"], out)
+        self.assertEqual("target", os.readlink(self.card / "Games/steamapps/common/Game/Data/link"))
 
     def test_other_filesystems_keep_absolute_paths_and_open_no_folders(self):
         data = "/mnt/card/Games/steamapps/common/Game/Data"
