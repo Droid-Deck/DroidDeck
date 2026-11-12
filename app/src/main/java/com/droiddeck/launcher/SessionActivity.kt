@@ -562,6 +562,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    private val frameGenActivityGeneration = synchronized(frameGenGlobalLock) {
+        frameGenGlobalGeneration.incrementAndGet()
+    }
     @Volatile private var frameGenActivityActive = true
     private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
     @Volatile private var frameGenInventoryIds: Set<Long>? = null
@@ -1707,6 +1710,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenTargetGameId(): Long? {
+        if (!drawerGameProfileFollowState.followsSteam) {
+            return drawerGameProfileId
+        }
         if (SessionState.mode == SessionService.MODE_RUN) {
             return (
                 SessionState.gameId?.toLongOrNull()
@@ -2618,7 +2624,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val pip = pipUi && mirrorRefreshLimit() <= 0
         Thread({
             val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
-            val problem = synchronized(frameGenRequests) {
+            val problem = synchronized(frameGenGlobalLock) {
+                if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@Thread
                 if (request != frameGenRequests.get()) return@Thread
                 if (!frameGenActivityActive || isFinishing || isDestroyed) return@Thread
                 val forcePending = frameGenForcePending.getAndSet(false)
@@ -2641,6 +2648,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             val state = Lossless.state(this)
             runOnUiThread {
+                if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@runOnUiThread
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
             }
@@ -5744,6 +5752,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"
+        private val frameGenGlobalLock = Any()
+        private val frameGenGlobalGeneration = java.util.concurrent.atomic.AtomicLong(0L)
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
