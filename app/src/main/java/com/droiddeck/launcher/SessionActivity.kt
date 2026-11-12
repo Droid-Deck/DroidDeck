@@ -1294,9 +1294,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
             frameGenTargetGameId = frameGenTargetGameId()?.toString(),
-            frameGenTargetGameName = when (SessionState.mode) {
-                SessionService.MODE_STEAM -> frameGenActiveGameName
-                SessionService.MODE_RUN ->
+            frameGenTargetGameName = when {
+                !drawerGameProfileFollowState.followsSteam ->
+                    drawerGameProfileRefresh.data?.profiles
+                        ?.firstOrNull { it.first == frameGenTargetGameId() }?.second
+                SessionState.mode == SessionService.MODE_STEAM -> frameGenActiveGameName
+                SessionState.mode == SessionService.MODE_RUN ->
                     com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program)
                 else -> drawerGameProfileRefresh.data?.profiles
                     ?.firstOrNull { it.first == frameGenTargetGameId() }?.second
@@ -5634,7 +5637,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
-        synchronized(frameGenRequests) {
+        synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
             frameGenRequests.incrementAndGet()
         }
