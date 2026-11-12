@@ -1364,28 +1364,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
             },
             onEffects = { e ->
-                if ((drawerOpen || (docked && drawerPinned)) &&
-                    effectsEditorProfileId != null) {
+                if (drawerOpen || (docked && drawerPinned)) {
                     val activeProfileId =
                         SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
 
-                    if (activeProfileId != null) {
-                        if (activeProfileId != effectsEditorProfileId) {
-                            Log.w(
-                                TAG,
-                                "Screen effects profile changed while editing; saving to active profile",
-                            )
-                        }
-
-                        SessionPrefs.setScreenEffects(
-                            this@SessionActivity,
-                            activeProfileId,
-                            e,
+                    if (activeProfileId != effectsEditorProfileId) {
+                        Log.w(
+                            TAG,
+                            "Screen effects profile changed while editing; saving to active profile",
                         )
-                        observedScreenEffectsProfileId = activeProfileId
-                        effects = e
-                        e.push(upscaler)
                     }
+
+                    SessionPrefs.setScreenEffects(
+                        this@SessionActivity,
+                        activeProfileId,
+                        e,
+                    )
+                    observedScreenEffectsProfileId = activeProfileId
+                    effects = e
+                    e.push(upscaler)
                 }
             },
             onTextureAnisotropy = { value ->
