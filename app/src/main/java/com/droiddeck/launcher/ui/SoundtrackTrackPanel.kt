@@ -121,7 +121,7 @@ internal fun TrackPanel(
     var working by remember(rows) { mutableStateOf<List<SoundRow>?>(null) }
     val display = working ?: rows
     val shown = rows.filterIsInstance<SoundRow.Item>().map { it.track }
-    val canReorder = onReorder != null && sort == SoundtrackTracks.Sort.DEFAULT && query.isBlank() && !selecting
+    val canReorder = onReorder != null && sort == SoundtrackTracks.Sort.DEFAULT && query.isBlank() && selecting
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
@@ -225,7 +225,8 @@ internal fun TrackPanel(
                         val id = row.track.id
                         val flip = { picked = if (id in picked) picked - id else picked + id }
                         val dragging = dragId == id
-                        val dragModifier = if (!canReorder) Modifier else Modifier
+                        val draggable = canReorder && id in picked
+                        val dragModifier = if (!draggable) Modifier else Modifier
                             .zIndex(if (dragging) 1f else 0f)
                             .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
                             .pointerInput(id) {
@@ -273,7 +274,7 @@ internal fun TrackPanel(
                                 else if (id == current) SoundtrackController.toggle(ctx, album, title, target.root, target.collection)
                                 else SoundtrackController.play(ctx, album, title, id, root = target.root, collection = target.collection)
                             },
-                            onLongClick = if (canReorder) null else ({
+                            onLongClick = if (draggable) null else ({
                                 if (selecting) flip()
                                 else {
                                     selecting = true

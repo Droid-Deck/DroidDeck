@@ -24,6 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material3.AlertDialog
@@ -196,27 +199,17 @@ internal fun ManageDialog(id: Int, games: List<Library.SteamGame>, onRemoveMode:
     var renaming by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.soundtracks_manage)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (!favorites) TextButton(onClick = { renaming = true }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape).testTag("manage-rename")) {
-                    Text(stringResource(R.string.soundtracks_rename))
-                }
-                TextButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape).testTag("manage-add")) {
-                    Text(stringResource(R.string.soundtracks_add_tracks))
-                }
-                TextButton(onClick = { onDismiss(); onRemoveMode() }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape).testTag("manage-remove")) {
-                    Text(stringResource(R.string.soundtracks_remove_tracks))
-                }
-                if (!favorites) TextButton(onClick = { deleting = true }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape).testTag("manage-delete")) {
-                    Text(stringResource(R.string.soundtracks_delete_collection), color = MaterialTheme.colorScheme.error)
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_close)) } },
-    )
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    AppDialog(shown, close, "soundtrackManage", wide = false, maxWidth = 420.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            DialogTitleRow(stringResource(R.string.soundtracks_manage), onClose = close)
+            if (!favorites) PickerRow(Icons.Filled.Edit, stringResource(R.string.soundtracks_rename), null) { renaming = true }
+            PickerRow(Icons.Filled.Add, stringResource(R.string.soundtracks_add_tracks), null) { adding = true }
+            PickerRow(Icons.Filled.Remove, stringResource(R.string.soundtracks_remove_tracks), null) { onDismiss(); onRemoveMode() }
+            if (!favorites) PickerRow(Icons.Filled.Delete, stringResource(R.string.soundtracks_delete_collection), null) { deleting = true }
+        }
+    }
     if (renaming) NameDialog(
         stringResource(R.string.soundtracks_rename), name, stringResource(R.string.soundtracks_rename),
         onConfirm = { SoundtrackCollections.rename(ctx, id, it) }, onDismiss = { renaming = false },

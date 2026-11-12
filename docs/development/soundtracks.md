@@ -64,7 +64,7 @@ Setup › Launcher has an Enable ingame toggle, shown while soundtracks are on. 
 
 Inside a soundtrack, a search field above the track list filters by title, artist and album, and a sort button orders the list by album order, title or length. Track numbers always count from 1 by position in the list shown.
 
-Custom (added) soundtracks, collections and Favorites can be reordered: with Album order selected and no search text, long-press a track and drag it. The order of an added soundtrack is stored in `soundtrack-order.json` and applied by `Soundtrack.load` within each disc; a collection stores its order in `soundtrack-collections.json`. Steam soundtracks cannot be reordered. While reordering is available, long-press drags, so tracks are selected with the select button in the header instead. The Music tab search also looks up tracks: soundtracks and collections whose names match come first, followed by a Tracks section.
+Custom (added) soundtracks, collections and Favorites can be reordered: select tracks first (long-press one, or use the select button), then with Album order selected and no search text, long-press a selected track and drag it. The order of an added soundtrack is stored in `soundtrack-order.json` and applied by `Soundtrack.load` within each disc; a collection stores its order in `soundtrack-collections.json`. Steam soundtracks cannot be reordered. The Music tab search also looks up tracks: soundtracks and collections whose names match come first, followed by a Tracks section.
 
 ## Favorites and collections
 
