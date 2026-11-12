@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -39,7 +40,8 @@ object AgentSetup {
     private val main = Handler(Looper.getMainLooper())
     private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
     private const val CHECKOUT = "/root/DroidDeck"
-    private val HELPERS = listOf("android-open", "dd-gh-login")
+    private val HELPERS = listOf("android-open", "dd-gh-login", "droiddeckctl")
+    internal const val CTL = "/root/.local/share/droiddeck/ctl"
     private const val PROBE_TIMEOUT_S = 60L
 
     fun check(context: Context) {
@@ -96,14 +98,20 @@ object AgentSetup {
                 installHelpers(app)
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
                 val child = AgentHost.guest(app, command).start()
-                child.outputStream.close()
-                logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
-                    child.inputStream.bufferedReader().forEachLine { line ->
-                        log.appendLine(line)
-                        val text = line.trim()
-                        if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    logFile(app, step).apply { parentFile?.mkdirs() }.bufferedWriter().use { log ->
+                        child.inputStream.bufferedReader().forEachLine { line ->
+                            log.appendLine(line)
+                            val text = line.trim()
+                            if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                        }
+                        child.waitFor().also { log.appendLine("exit $it") }
                     }
-                    child.waitFor().also { log.appendLine("exit $it") }
+                } finally {
+                    OrphanReaper.release(pid)
                 }
             }
             main.post {
@@ -172,12 +180,16 @@ object AgentSetup {
     }
 
     /** Written before every step, so the helpers a step relies on are there and match this DroidDeck version. */
-    private fun installHelpers(app: Context) {
-        val bin = File(LinuxRuntime.rootDir(app), "root/.local/bin").apply { mkdirs() }
-        for (name in HELPERS) {
-            val target = File(bin, name)
-            app.assets.open("agent/$name").use { input -> target.outputStream().use { input.copyTo(it) } }
-            target.setExecutable(true, false)
-        }
+    internal fun installHelpers(app: Context) {
+        val root = LinuxRuntime.rootDir(app)
+        val bin = File(root, "root/.local/bin").apply { mkdirs() }
+        for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
+        val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
+        for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+    }
+
+    private fun copyAsset(app: Context, asset: String, target: File) {
+        app.assets.open(asset).use { input -> target.outputStream().use { input.copyTo(it) } }
+        target.setExecutable(true, false)
     }
 }
