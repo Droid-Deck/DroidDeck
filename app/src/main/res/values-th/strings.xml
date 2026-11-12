@@ -28,6 +28,8 @@
     <string name="suspend_now">หยุดชั่วคราวตอนนี้</string>
     <string name="stop_session">หยุดเซสชัน</string>
     <string name="frame_gen_title">การสร้างเฟรม</string>
+    <string name="frame_gen_scope_game">การตั้งค่าสำหรับเกมนี้</string>
+    <string name="frame_gen_scope_global">การตั้งค่าเริ่มต้น</string>
     <string name="frame_gen_hint">เลือกโหมดการสร้างเฟรม</string>
     <string name="frame_gen_off">ปิด</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

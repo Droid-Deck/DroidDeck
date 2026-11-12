@@ -28,6 +28,8 @@
     <string name="suspend_now">Şimdi askıya al</string>
     <string name="stop_session">Oturumu durdur</string>
     <string name="frame_gen_title">Kare oluşturma</string>
+    <string name="frame_gen_scope_game">Bu oyunun ayarları</string>
+    <string name="frame_gen_scope_global">Varsayılan ayarlar</string>
     <string name="frame_gen_hint">Kare oluşturma modunu seçin</string>
     <string name="frame_gen_off">Kapalı</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
