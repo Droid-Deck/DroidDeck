@@ -185,6 +185,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
+    private var nativeUserland by mutableStateOf(false)
     private var cursorComposite by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
@@ -592,6 +593,7 @@ class FrontEndActivity : ComponentActivity() {
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
     private var graphicsLogs by mutableStateOf(false)
+    private var buildWatermark by mutableStateOf(true)
     private var steamGpuDrawing by mutableStateOf(false)
     private var bridgeFellBack by mutableStateOf(false)
     private var bridgeFellBackMemory by mutableStateOf(false)
@@ -1104,6 +1106,8 @@ class FrontEndActivity : ComponentActivity() {
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
+        // A Lab build is usually the agent's work, so the app comes back where the agent is.
+        if (savedInstanceState == null && navRequest == null && com.droiddeck.launcher.lab.LabOverlay.promoted && com.droiddeck.launcher.agent.AgentTab.visible) navRequest = "agent"
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
@@ -1175,6 +1179,7 @@ class FrontEndActivity : ComponentActivity() {
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
+                        buildWatermark = buildWatermark,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !runtimeChangesBlocked(),
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
@@ -1412,6 +1417,11 @@ class FrontEndActivity : ComponentActivity() {
                         onGraphicsLogs = {
                             SessionPrefs.setDetailedGraphicsLogs(this, !SessionPrefs.detailedGraphicsLogs(this))
                             graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
+                        },
+                        onBuildWatermark = {
+                            SessionPrefs.setBuildWatermarkEnabled(this, !SessionPrefs.buildWatermarkEnabled(this))
+                            buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
+                            com.droiddeck.launcher.ui.BuildWatermark.refresh(this)
                         },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
@@ -2557,7 +2567,7 @@ class FrontEndActivity : ComponentActivity() {
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
             ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
-            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
@@ -2575,6 +2585,7 @@ class FrontEndActivity : ComponentActivity() {
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
+            onNativeUserland = { on -> SessionPrefs.setNativeUserland(this, on); nativeUserland = on },
             onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
@@ -2797,6 +2808,7 @@ class FrontEndActivity : ComponentActivity() {
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
+        nativeUserland = SessionPrefs.nativeUserland(this)
         cursorComposite = SessionPrefs.cursorComposite(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()
@@ -2862,6 +2874,7 @@ class FrontEndActivity : ComponentActivity() {
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
+        buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
         steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
         bridgeFellBack = SessionPrefs.bridgeFellBack(this)
         bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
@@ -3041,6 +3054,7 @@ class FrontEndActivity : ComponentActivity() {
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
+                com.droiddeck.launcher.agent.AgentTab.load(this)
                 if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }
         }, "reset-settings").start()
@@ -3076,6 +3090,7 @@ class FrontEndActivity : ComponentActivity() {
                     android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show()
                 }
                 refresh()
+                com.droiddeck.launcher.agent.AgentHost.refresh(this)
                 if (ok == true && LinuxRuntime.isInstalled(this)) protons.checkUpdates()
             }
         }, "runtime-operation").start()

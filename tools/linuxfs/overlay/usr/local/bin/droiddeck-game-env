@@ -12,22 +12,43 @@ from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
+D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
+
+
+# Prefixes several games share; the game itself is the Steam app being launched.
+SHARED_PREFIXES = {"2929927072"}
+
+
+def app_number(value):
+    if not re.fullmatch(r"-?[0-9]+", value or ""):
+        return None
+    number = int(value)
+    if not -(2**31) <= number < 2**32 or number == 0:
+        return None
+    return str(number % 2**32)
 
 
 def game_id(env):
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     if not prefix:
         return None
-    value = prefix.rsplit("/", 1)[-1]
-    if not re.fullmatch(r"-?[0-9]+", value):
+    found = app_number(prefix.rsplit("/", 1)[-1])
+    if found in SHARED_PREFIXES:
+        return app_number(env.get("SteamAppId", "")) or shortcut_number(env.get("SteamGameId", "")) or found
+    return found
+
+
+def shortcut_number(value):
+    """The shortcut appid inside Steam's 64-bit shortcut game id `(appid << 32) | 0x02000000`."""
+    if not re.fullmatch(r"[0-9]{1,20}", value or ""):
         return None
     number = int(value)
-    if not -(2**31) <= number < 2**32 or number == 0:
+    if number >= 2**64 or number & 0xFFFFFFFF != 0x02000000:
         return None
-    return str(number % 2**32)
+    return app_number(str(number >> 32))
 
 
 DOTNET_FEX = {
@@ -122,6 +143,12 @@ def supergiant_dotnet_reporter(game):
 def deep_rock_gdk_raytracing(game):
     if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
         return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
+def ff7_rebirth_feature_level(game):
+    if game.stem in ("ff7rebirth", "ff7rebirth_"):
+        return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Final Fantasy VII Rebirth: D3D12 feature level 12_2 (the device-reported level fails its DX12 check)"
 
 
 @fix
@@ -376,7 +403,9 @@ def vram_cap(env):
     if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
         return env
     result = env.copy()
-    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    cap = "dxgi.maxDeviceMemory = {0}".format(int(value))
+    if int(value) < D3D9_DEFAULT_MEMORY_MB:
+        cap += "; d3d9.maxAvailableMemory = {0}".format(int(value))
     own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
     result["DXVK_CONFIG"] = cap + "; " + own if own else cap
     result["DROIDDECK_VRAM_CAP"] = "1"
@@ -1250,6 +1279,10 @@ def main():
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
+    if scripts and not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        # libdbus would autolaunch a session bus under the evaluator's reaper, which then waits for it
+        # forever: Steam keeps seeing the app as running and cannot move or update it
+        env["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
     try:
         digest = scripts_digest(scripts) if scripts else None
     except OSError:

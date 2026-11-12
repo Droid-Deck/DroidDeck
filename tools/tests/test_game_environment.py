@@ -993,8 +993,10 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
         cap = MODULE["vram_cap"]
         self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192")
+        self.assertEqual(cap({"BL_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; d3d9.maxAvailableMemory = 4095")
         self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+                         "dxgi.maxDeviceMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
         for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
             self.assertNotIn("DXVK_CONFIG", cap(off))
             self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
@@ -1123,6 +1125,23 @@ class GameEnvironmentTest(unittest.TestCase):
                     subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
                     scope = MODULE["game_id"](env)
                     expected = "untouched" if scope is None else scope if scope in {"42", "4294967295", "2147483648"} else "*"
+                    self.assertEqual(target.read_text(), expected)
+            for app, expected in (("42", "42"), ("4294967295", "4294967295"), ("43", "*"), ("", "*"), ("x", "*")):
+                with self.subTest(shared=app):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId=app)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), app if app in {"42", "4294967295", "43"} else "2929927072")
+                    self.assertEqual(target.read_text(), expected)
+            for game, expected in (
+                (str(42 << 32 | 0x02000000), "42"), (str(4294967295 << 32 | 0x02000000), "4294967295"),
+                (str(42 << 32 | 0x02000001), "*"), (str(42 << 32 | 0x02000000 | 1 << 64), "*"), ("33554432", "*"), ("x", "*"),
+            ):
+                with self.subTest(direct=game):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId="0", SteamGameId=game)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), expected if expected != "*" else "2929927072")
                     self.assertEqual(target.read_text(), expected)
 
     def test_engine_fixes_follow_the_games_files(self):
@@ -1503,6 +1522,19 @@ class GameEnvironmentTest(unittest.TestCase):
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
@@ -1628,6 +1660,10 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIsNone(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": prefix}))
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42/"}), "42")
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/-1"}), "4294967295")
+        shared = {"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072", "SteamAppId": "2424921676"}
+        self.assertEqual(MODULE["game_id"](shared), "2424921676")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072"}), "2929927072")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42", "SteamAppId": "7"}), "42")
 
     def test_launch_reads_updates_preserves_argv_and_does_not_execute_values(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2716,6 +2752,17 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
+
+    def test_x64_visual_cpp_runtime_in_arm64_system32_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            for name in ("msvcp140.dll", "VCRUNTIME140.dll", "msvcp_win.dll"):
+                (builtins / name.lower()).write_bytes(pe_image(0xAA64))
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertFalse((windows / "system32/msvcp140.dll").is_symlink())
+            self.assertFalse((windows / "system32/VCRUNTIME140.dll").is_symlink())
 
     def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
         with tempfile.TemporaryDirectory() as tmp:

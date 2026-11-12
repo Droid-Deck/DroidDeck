@@ -232,11 +232,24 @@ object BattleNet {
     }
 
     internal fun hostFolder(context: Context, path: String): File? {
-        val drive = Regex("""^([CcZz]):[\\/](.*)$""").matchEntire(path.trim()) ?: return null
+        val drive = Regex("""^([A-Za-z]):[\\/](.*)$""").matchEntire(path.trim()) ?: return null
         val relative = drive.groupValues[2].replace('\\', '/').trim('/')
         if (relative.isEmpty() || relative.split('/').any { it == ".." }) return null
-        return if (drive.groupValues[1].equals("c", ignoreCase = true)) File(prefix(context), "pfx/drive_c/$relative")
-        else com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "/$relative")
+        val letter = drive.groupValues[1].lowercase()
+        if (letter == "c") return File(prefix(context), "pfx/drive_c/$relative")
+        val link = File(prefix(context), "pfx/dosdevices/$letter:").toPath()
+        val mapped = runCatching { java.nio.file.Files.readSymbolicLink(link).toString() }.getOrNull()
+        val target = when {
+            mapped == null -> if (letter == "z") "/" else return null
+            mapped.startsWith("/") -> mapped
+            else -> {
+                val rootfs = LinuxRuntime.rootDir(context).toPath().toAbsolutePath().normalize()
+                val resolved = link.toAbsolutePath().parent.resolve(mapped).normalize()
+                if (!resolved.startsWith(rootfs)) return null
+                "/" + rootfs.relativize(resolved).joinToString("/")
+            }
+        }.trimEnd('/')
+        return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
 
     private val KEY = Regex("""^\[(.+)\](?:\s+\d+)?\s*$""")
