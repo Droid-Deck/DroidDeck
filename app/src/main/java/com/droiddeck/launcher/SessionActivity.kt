@@ -5098,6 +5098,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
@@ -5108,7 +5109,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
-        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
     }
 
     override fun onPause() {
