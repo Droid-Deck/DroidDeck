@@ -365,8 +365,11 @@ internal fun AdbTextField(
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
     showLabel: Boolean = true,
+    /** B on a controller leaves the field through this, after the keyboard is put away. Without it B only hides the keyboard. */
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val onBackLatest = rememberUpdatedState(onBack)
     val focusAsked = remember { booleanArrayOf(false) }
     val palette = LocalPalette.current
     val onValueChangeLatest = rememberUpdatedState(onValueChange)
@@ -455,6 +458,7 @@ internal fun AdbTextField(
                         }
                         showSoftInputOnFocus = !bottomTyping
                         // B on a controller puts the keyboard away first; with no keyboard up it goes back as usual.
+                        // A field with its own way out takes every B: the keyboard goes and the field is left.
                         var hidingKeyboard = false
                         setOnKeyListener { view, keyCode, event ->
                             if (keyCode != android.view.KeyEvent.KEYCODE_BUTTON_B) return@setOnKeyListener false
@@ -463,6 +467,7 @@ internal fun AdbTextField(
                                     ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
                                 if (hidingKeyboard) (view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                     ?.hideSoftInputFromWindow(view.windowToken, 0)
+                                onBackLatest.value?.let { hidingKeyboard = true; it() }
                             }
                             hidingKeyboard
                         }
