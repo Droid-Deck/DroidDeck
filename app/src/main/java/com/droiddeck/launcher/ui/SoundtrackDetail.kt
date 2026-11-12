@@ -114,7 +114,7 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
         refs[t.id] ?: SoundtrackCollections.TrackRef(t.id, t.title, t.artist.ifBlank { album?.artist.orEmpty() }, game.name, t.durationMs, coverPath)
     }
     var selectRequest by remember { mutableIntStateOf(0) }
-    GameBackdrop(art, art, hueOf(game.name), fadeTop = inset.top < 8.dp) {
+    GameBackdrop(art, art, hueOf(game.name), fadeTop = inset.top < 8.dp, artBlur = 24.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top)) {
             Rise(0) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
