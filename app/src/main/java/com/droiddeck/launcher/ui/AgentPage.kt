@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -92,7 +93,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
-    Column(modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize().imePadding()) {
         AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
         when (panel) {
             AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
