@@ -78,14 +78,23 @@ done <<<"$libraries")
 legacy=
 [ -s "$cache" ] && ! grep -q $'\t' "$cache" && legacy=$(tail -n +2 "$cache"; echo .)
 declare -A scanned=() current=()
-while IFS=$'\t' read -r key _; do
-  [ -n "$key" ] && scanned[$key]=1
-done < <(grep $'\t' "$cache" 2>/dev/null)
+read_scanned() {
+  scanned=()
+  while IFS=$'\t' read -r key _; do
+    [ -n "$key" ] && scanned[$key]=1
+  done < <(grep $'\t' "$cache" 2>/dev/null)
+}
+read_scanned
+later=
+fresh=()
 while IFS=$'\t' read -r key dir; do
   [ -n "$key" ] || continue
   current[$key]=1
   [ -z "${scanned[$key]:-}" ] || continue
-  [ -n "$legacy" ] || [ -z "${DROIDDECK_SEED_SCRIPTS:-}" ] || continue
+  if [ -z "$legacy" ] && [ -n "${DROIDDECK_SEED_SCRIPTS:-}${DROIDDECK_SEED_LATER:-}" ]; then
+    [ -z "${DROIDDECK_SEED_LATER:-}" ] || later=1
+    continue
+  fi
   scanned[$key]=1
   if [ -n "$legacy" ]; then
     found=$(printf '%s\n' "${legacy%.}" | dir="$dir" awk 'index($0, ENVIRON["dir"] "/") == 1')
@@ -93,8 +102,19 @@ while IFS=$'\t' read -r key dir; do
     found=$(find "$dir" -mindepth 1 -maxdepth 4 -iname 'installscript*.vdf' \
       -not -path '*/Steamworks Shared/*' 2>/dev/null | sort -u)
   fi
-  printf '%s\n' "$found" | key="$key" awk '{ print ENVIRON["key"] "\t" $0 }' >>"$cache"
+  fresh+=("$key" "$found")
 done <<<"$games"
+exec 9>"$cache.lock" && command -v flock >/dev/null 2>&1 && flock 9
+if [ ${#fresh[@]} -gt 0 ]; then
+  read_scanned
+  for ((i = 0; i < ${#fresh[@]}; i += 2)); do
+    [ -z "${scanned[${fresh[i]}]:-}" ] || continue
+    printf '%s\n' "${fresh[i + 1]}" | key="${fresh[i]}" awk '{ print ENVIRON["key"] "\t" $0 }' >>"$cache"
+  done
+fi
+if [ -n "$later" ]; then
+  (DROIDDECK_SEED_LATER= DROIDDECK_SEED_SCRIPTS= setsid "$0" "$steam_root" >/dev/null 2>&1 9>&- &)
+fi
 if [ -e "$cache" ]; then
   keys=$(printf '%s\n' "${!current[@]}") awk -F'\t' '
     BEGIN { n = split(ENVIRON["keys"], key, "\n"); for (i = 1; i <= n; i++) want[key[i]] = 1 }

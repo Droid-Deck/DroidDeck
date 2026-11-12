@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -458,6 +459,25 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertEqual(self.reg.read_text().count('"Vulkan111080"'), 2)
 
+
+    def test_a_session_start_leaves_the_library_search_to_a_later_run(self):
+        self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
+        shim = self.tmp / "bin"
+        shim.mkdir()
+        (shim / "find").write_text('#!/bin/sh\nsleep 2\nexec %s "$@"\n' % shutil.which("find"))
+        (shim / "find").chmod(0o755)
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_LATER="1", PATH="%s:%s" % (shim, os.environ["PATH"]))
+        marker = '"PhysX Version"=dword:00000001'
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        self.assertNotIn(marker, self.reg.read_text())
+        deadline = time.monotonic() + 30
+        while marker not in self.reg.read_text() and time.monotonic() < deadline:
+            time.sleep(0.2)
+        self.assertIn(marker, self.reg.read_text())
+        before = self.reg.read_text()
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        time.sleep(0.5)
+        self.assertEqual(before, self.reg.read_text())
 
     def evaluator(self, appid, install_script):
         script = self.tmp / ("legacycompat/evaluatorscript_%s.vdf" % appid)
