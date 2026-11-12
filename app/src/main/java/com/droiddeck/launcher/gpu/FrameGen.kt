@@ -87,7 +87,6 @@ object FrameGen {
         internal val lsfgCachePath: String? = null,
     )
 
-    // Do potentially slow Lossless synchronization before taking the session's global apply lock.
     fun prepareApply(context: Context, mode: Mode): PreparedApply {
         if (mode.engine != ENGINE_LSFG) return PreparedApply(mode)
         val status = Lossless.sync(context)
@@ -101,7 +100,6 @@ object FrameGen {
     fun apply(context: Context, mode: Mode, refreshHz: Float): String? =
         applyPrepared(context, prepareApply(context, mode), refreshHz)
 
-    // Applies only the prepared configuration; this method does not synchronize Lossless.
     fun applyPrepared(context: Context, prepared: PreparedApply, refreshHz: Float): String? {
         val mode = prepared.mode
         when (mode.engine) {
