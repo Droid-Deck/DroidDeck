@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.ui
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,6 +48,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
@@ -61,6 +65,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -86,6 +92,17 @@ private val CLI_COMMANDS = listOf("/compact", "/cost", "/review", "/init")
 @Composable
 internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true) {
     val context = LocalContext.current
+    val view = LocalView.current
+    DisposableEffect(view, visible) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+            ?: generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }
+                .filterIsInstance<Activity>().firstOrNull()?.window
+        val previousMode = window?.attributes?.softInputMode
+        if (visible) window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            if (visible && previousMode != null) window?.setSoftInputMode(previousMode)
+        }
+    }
     remember { AgentHost.refresh(context) }
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
     remember { AgentSetup.check(context) }
