@@ -1,0 +1,33 @@
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index d932df4..df352b0 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -3343,6 +3343,14 @@ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool
+ 	bump_input_counter();
+ }
+ 
++static bool touch_click_press( bool *pHeld, int nMode, uint32_t uButton )
++{
++	if ( uButton == 0 || nMode < 0 || nMode >= WLSERVER_BUTTON_COUNT || pHeld[ nMode ] )
++		return false;
++	pHeld[ nMode ] = true;
++	return true;
++}
++
+ void wlserver_touchdown( double x, double y, int touch_id, uint32_t time, gamescope::IBackendConnector* connector )
+ {
+ 	assert( wlserver_is_lock_held() );
+@@ -3389,12 +3397,10 @@ void wlserver_touchdown( double x, double y, int touch_id, uint32_t time, gamesc
+ 
+ 			uint32_t button = TouchClickModeToLinuxButton( eMode );
+ 
+-			if ( button != 0 && eMode < WLSERVER_BUTTON_COUNT )
++			if ( touch_click_press( wlserver.button_held, eMode, button ) )
+ 			{
+ 				wlr_seat_pointer_notify_button( wlserver.wlr.seat, time, button, WL_POINTER_BUTTON_STATE_PRESSED );
+ 				wlr_seat_pointer_notify_frame( wlserver.wlr.seat );
+-
+-				wlserver.button_held[ eMode ] = true;
+ 			}
+ 		}
+ 	}
