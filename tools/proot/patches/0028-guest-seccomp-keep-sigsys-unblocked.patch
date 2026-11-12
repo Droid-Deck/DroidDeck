@@ -355,19 +355,15 @@ Subject: [PATCH] seccomp: keep SIGSYS unblocked in tasks with their own filter
  #ifdef HAS_POKEDATA_WORKAROUND
  	child->pokedata_workaround_stub_addr = parent->pokedata_workaround_stub_addr;
  #endif
-@@ -782,8 +784,10 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
+@@ -782,6 +784,7 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
  			child->as_ptracee.event4.proot.value   = 0;
  		}
  
--		if (!keep_stopped)
-+		if (!keep_stopped) {
-+			unblock_sigsys_in_new_thread(child);
++		unblock_sigsys_in_new_thread(child);
+ 		if (!keep_stopped)
  			(void) restart_tracee(child, 0);
-+		}
  	}
- 
- 	VERBOSE(child, 1, "vpid %" PRIu64 ": pid %d", child->vpid, child->pid);
-@@ -870,6 +874,70 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
+@@ -870,6 +873,70 @@ int swap_config(Tracee *tracee1, Tracee *tracee2)
  	return 0;
  }
  

@@ -173,8 +173,9 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
     thread's mask (`PTRACE_GETSIGMASK`/`PTRACE_SETSIGMASK`), and glibc then restores the mask the
     thread is meant to have. Firefox sets its handler before its filter, so a thread started in
     between, or started before either, still reset it, and Firefox stopped at its own check that
-    the handler is still set (`SIGSYS not already set to a siginfo handler?`, signal 11). Forked
-    processes are left alone, since no restore follows. This adds two `ptrace` calls per thread and
+    the handler is still set (`SIGSYS not already set to a siginfo handler?`, signal 11). A thread a
+    debugger in the guest holds at that stop is unblocked too. Forked processes are left alone,
+    since no restore follows. This adds two `ptrace` calls per thread and
     no stop; 2000 thread starts measured the same before and after (62.5 us each, median of 9).
   - When the guest installs a filter (`seccomp(SECCOMP_SET_MODE_FILTER)` or `prctl(PR_SET_SECCOMP)`,
     the only cases the filter now traces), PRoot first installs one through the same call, on the
@@ -197,9 +198,9 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   installs a filter of its own, such as a test harness trapping `set_robust_list`, is guarded too,
   which hides the races on a host unless the harness sits outside the guard.
   `bench/guest-trap.c` starts a thread between two trapped opens under a filter shaped like
-  Firefox's. `bench/guest-trap-race.c` runs Firefox's order (handler, a wait, a check that the
-  handler is still set, a `TSYNC` filter, trapped opens) in 20 processes while workers keep
-  starting threads. `bench/guest-trap-tsync.c`, `bench/guest-trap-exec.c` and
+  Firefox's. `bench/guest-trap-race.c` runs Firefox's order (handler, a wait until workers have started
+  threads, a check that the handler is still set, a `TSYNC` filter, trapped opens) in 20
+  processes; under the guest's own `strace -f` it covers a debugger holding new threads. `bench/guest-trap-tsync.c`, `bench/guest-trap-exec.c` and
   `bench/guest-seccomp-install.c` cover a `TSYNC` install with threads already running, survival
   across `execve`, empty-filter probes, rejected filters and a `TSYNC` that cannot sync. On an
   x86_64 host build with a `set_robust_list` trap outside the guard, `guest-trap-race.c` passes

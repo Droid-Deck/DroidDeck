@@ -1,6 +1,6 @@
 // Run inside a session: the order Firefox's content sandbox uses, while other threads keep
-// starting threads. Each child process sets a SIGSYS handler, waits as the policy compile does,
-// checks the handler is still set (Firefox crashes there if it is not), installs a TSYNC filter
+// starting threads. Each child process sets a SIGSYS handler, waits until the workers have
+// started threads, as they do during Firefox's policy compile, checks the handler is still set (Firefox crashes there if it is not), installs a TSYNC filter
 // that traps openat, and has every worker make trapped opens. A thread that starts with SIGSYS
 // blocked and calls set_robust_list, which Android's policy traps, resets the handler. On a host
 // the policy stand-in has to sit outside proot's guard, or the guard hides the race.
@@ -23,7 +23,8 @@
 #define CHILDREN 20
 #define WORKERS 8
 #define OPENS 30
-static volatile int installed;
+#define STARTS_BEFORE_CHECK (WORKERS * 4)
+static volatile int installed, starts;
 
 static void on_sigsys(int sig, siginfo_t *info, void *context) {
   (void)sig;
@@ -43,7 +44,10 @@ static void *worker(void *arg) {
   int opens = 0;
   while (opens < OPENS) {
     pthread_t thread;
-    if (pthread_create(&thread, NULL, idle, NULL) || pthread_join(thread, NULL))
+    if (pthread_create(&thread, NULL, idle, NULL))
+      return (void *)1;
+    __atomic_add_fetch(&starts, 1, __ATOMIC_RELAXED);
+    if (pthread_join(thread, NULL))
       return (void *)1;
     if (__atomic_load_n(&installed, __ATOMIC_ACQUIRE)) {
       if (open("/etc/hostname", O_RDONLY) != ANSWER)
@@ -73,7 +77,12 @@ static int child(void) {
   sa.sa_sigaction = on_sigsys;
   sa.sa_flags = SA_SIGINFO | SA_NODEFER;
   sigaction(SIGSYS, &sa, NULL);
-  usleep(3000);
+  int base = __atomic_load_n(&starts, __ATOMIC_RELAXED);
+  for (int i = 0; __atomic_load_n(&starts, __ATOMIC_RELAXED) - base < STARTS_BEFORE_CHECK; i++) {
+    if (i == 5000)
+      return 4;
+    usleep(1000);
+  }
   sigaction(SIGSYS, NULL, &old);
   if (!(old.sa_flags & SA_SIGINFO) || old.sa_sigaction != on_sigsys)
     return 3;
@@ -91,7 +100,7 @@ static int child(void) {
 }
 
 int main(void) {
-  int ok = 0, reset_early = 0, killed = 0, other = 0;
+  int ok = 0, reset_early = 0, killed = 0, stalled = 0, other = 0;
   for (int i = 0; i < CHILDREN; i++) {
     pid_t pid = fork();
     if (pid < 0) {
@@ -111,10 +120,12 @@ int main(void) {
       reset_early++;
     else if (WIFSIGNALED(status) && WTERMSIG(status) == SIGSYS)
       killed++;
+    else if (WIFEXITED(status) && WEXITSTATUS(status) == 4)
+      stalled++;
     else
       other++;
   }
-  printf("ok=%d/%d handler_reset_before_filter=%d killed_by_sigsys=%d other=%d\n", ok, CHILDREN,
-         reset_early, killed, other);
+  printf("ok=%d/%d handler_reset_before_filter=%d killed_by_sigsys=%d no_thread_starts=%d other=%d\n",
+         ok, CHILDREN, reset_early, killed, stalled, other);
   return ok == CHILDREN ? 0 : 1;
 }
