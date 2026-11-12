@@ -259,6 +259,29 @@ class BattleNetTest {
             BattleNet.hostFolder(context, "Z:/root/Games/Stores/Battle.net/Hearthstone/"))
     }
 
+    @Test fun aMappedWineDriveResolvesThroughItsLink() {
+        val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        java.nio.file.Files.createSymbolicLink(File(devices, "e:").toPath(), java.nio.file.Paths.get("../drive_c"))
+        assertEquals(File(LinuxRuntime.rootDir(context), "root/Games/Card/Battle.net/Hearthstone"),
+            BattleNet.hostFolder(context, "D:\\Battle.net\\Hearthstone"))
+        assertEquals(File(BattleNet.prefix(context), "pfx/drive_c/Games/X"), BattleNet.hostFolder(context, "E:\\Games\\X"))
+        assertNull(BattleNet.hostFolder(context, "F:\\Games\\X"))
+        assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
+    }
+
+    @Test fun aDriveLinkTheNativeUserlandMadeRelativeStillResolvesInTheGuest() {
+        val root = LinuxRuntime.rootDir(context)
+        val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        java.nio.file.Files.createSymbolicLink(File(devices, "g:").toPath(), java.nio.file.Paths.get("../../../../../../../../../../.."))
+        NativeGuest.relinkAbsoluteSymlinks(context, root)
+        assertFalse(java.nio.file.Files.readSymbolicLink(File(devices, "d:").toPath()).isAbsolute)
+        assertEquals(File(root, "root/Games/Card/Battle.net/Hearthstone"),
+            BattleNet.hostFolder(context, "D:\\Battle.net\\Hearthstone"))
+        assertNull(BattleNet.hostFolder(context, "G:\\etc\\passwd"))
+    }
+
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }

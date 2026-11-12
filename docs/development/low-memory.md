@@ -9,8 +9,10 @@ Every five seconds the monitor reads `MemAvailable`, swap headroom and memory PS
 headroom means less than one fifth of total RAM (bounded to 512–1536 MiB), or at least 1%
 `some avg10` memory stall with less than one third of RAM available. Pressure requests target
 only the launcher processes already recognized by the monitor, never the game. They require
-at least 128 MiB launcher RSS and enough free swap to cover its entire RSS while leaving
-one fifth of swap (at least 256 MiB) free. The regular automatic client request uses the
+at least 128 MiB launcher RSS and enough free swap to cover its anonymous RSS while leaving
+one fifth of swap (at least 256 MiB) free. File-backed resident pages do not consume this
+budget: the page-out helper targets private anonymous mappings. If `RssAnon` is absent from a
+process's status, its full RSS is used instead. The regular automatic client request uses the
 same swap guard. An explicit session RAM cap retains its existing behavior.
 
 Pressure requests are at least 30 seconds apart. Reclaiming less than 16 MiB doubles the
@@ -41,27 +43,32 @@ reduced aggregate launcher RSS only from 263 to 255 MiB and backed off. Thus lau
 does not resolve this load failure, and this run did not exhaust swap. The unevictable/shmem
 growth needs allocation attribution before treating it as a driver or GPU-memory diagnosis.
 
-## Low-RAM devices: compressing idle game memory
+## Pressure reclaim: compressing idle game memory
 
-On devices with at most 13 GiB `MemTotal` (every 12 GB phone and handheld and below), the
-monitor also compresses the game session itself when memory runs out. The trigger is absolute
-headroom, not a percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
+The monitor also compresses the game session itself when observed pressure approaches the
+system kill boundary. There is no RAM-size gate. The trigger is absolute real headroom, not a
+percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
 490 MiB still available, so a 95% used threshold (about 400 MiB left on 8 GB) is already past the
 kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
 2.6 seconds, so the request has to leave room for both.
 
-The session request runs when available memory falls below a quarter of RAM (bounded to
-768–2560 MiB, 1.85 GiB on an 8 GB device), or below one and a half times that with at least 1%
-`some avg10` memory stall. One request pages out every session process that loaded
-`libblsession.so`: the game, Wine and its services, plus the launcher processes unless their
-compression is turned off, under a single wait. It runs before the launcher-only check, which
-can wait up to 12 seconds for acknowledgements. While a game runs and available memory is under
-twice that level, memory is read every second instead of every five. Requests are at least 30 seconds apart and need the same swap reserve as launcher
-requests. When the session has read back more than half of what the previous request compressed,
-that memory is in use: the request is skipped and the wait doubles, up to five minutes. A
-request whose memory stayed compressed resets it to 30 seconds. Below half the headroom the
-wait is ignored and only the 30-second spacing applies. The state resets when the game exits. Devices above 13 GiB keep the
-launcher-only behaviour.
+The session request runs when real headroom falls below a quarter of RAM (bounded to
+768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
+memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
+`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
+may first request page-out of idle Steam and hidden launchers, subject to the Performance
+setting and client reclaim limits. When both qualify, both requests are sent before waiting
+for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
+request finishes, its anonymous RSS remains reserved from the session's swap budget. Completion
+and backoff are measured against the processes that received each request, even if a later scan
+finds different processes. The session request targets processes that loaded
+`libblsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
+Requests are at least 30 seconds apart and need the same
+swap reserve as launcher requests. When the session has read back more than half of what the
+previous request compressed, that memory is in use: the request is skipped and the wait doubles,
+up to five minutes. A request whose memory stayed compressed resets it to 30 seconds. Below half
+the headroom the wait is ignored and only the 30-second spacing applies. The state resets when
+the game exits.
 
 Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
 entering the world in World of Warcraft: Forever, one run each:
@@ -91,7 +98,8 @@ A second run on that build showed the trigger arriving too late: character selec
 there. During the load, available memory crossed the headroom 9 seconds after Enter World, but the
 launcher check ran first and waited 12 seconds for acknowledgements; the game request started at
 21 seconds, moved about 200 MiB, and `lmkd` ended the session at 30 seconds. The quarter-of-RAM
-level and the game-first single request address both.
+level starts reclaim earlier. Sending both requests before waiting removes the launcher
+acknowledgement delay; it does not guarantee that reclaim can keep up with every loading peak.
 
 Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by `system`),
 `process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,

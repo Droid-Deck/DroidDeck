@@ -455,6 +455,11 @@ internal fun SetupPanel(
                                 val railContext = androidx.compose.ui.platform.LocalContext.current
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
+                                if (com.droiddeck.launcher.agent.AgentHost.available) {
+                                    ToggleRow(host, "agent-tab", stringResource(R.string.setup_agent_tab), null, com.droiddeck.launcher.agent.AgentTab.shown) {
+                                        com.droiddeck.launcher.agent.AgentTab.set(railContext, it)
+                                    }
+                                }
                                 LanguageRow(host, s.language, a.onLanguage)
                                 ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
                             }

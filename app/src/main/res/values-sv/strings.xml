@@ -2586,6 +2586,8 @@
     <string name="comp_this_device">Den här enheten</string>
     <string name="proton_remove_title">Ta bort %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
+    <string name="setup_build_watermark">Vattenstämpel med byggetikett</string>
+    <string name="setup_build_watermark_hint">Visa testbyggets eller Lab-byggets etikett på skärmen. Aktiverad som standard.</string>
     <string name="setup_ready">Redo att spela</string>
     <string name="setup_not_ready">Inte redo att spela än</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

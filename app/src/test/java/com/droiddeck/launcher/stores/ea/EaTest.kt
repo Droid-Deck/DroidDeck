@@ -40,6 +40,43 @@ class EaTest {
         assertNull(EaCrypto.challengeSeed("9", answer))
     }
 
+    @Test fun onlyTokenRejectionsAreRetried() {
+        val rejected = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>".toByteArray(), emptyMap())
+        val notEntitled = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>".toByteArray(), emptyMap())
+        var authCalls = 0
+        val success = EaReply(200, ByteArray(0), emptyMap())
+        val result = EaOoa.retryTokenRejected {
+            authCalls++
+            if (authCalls == 1) rejected else success
+        }
+        assertEquals(2, authCalls)
+        assertEquals(200, result.status)
+
+        var entitlementCalls = 0
+        val refused = EaOoa.retryTokenRejected {
+            entitlementCalls++
+            notEntitled
+        }
+        assertEquals(1, entitlementCalls)
+        assertEquals(409, refused.status)
+
+        val otherAuthFailure = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"machineHash\"/></error>".toByteArray(), emptyMap())
+        var otherAuthCalls = 0
+        val otherRefused = EaOoa.retryTokenRejected {
+            otherAuthCalls++
+            otherAuthFailure
+        }
+        assertEquals(1, otherAuthCalls)
+        assertEquals(409, otherRefused.status)
+
+        var failedCalls = 0
+        EaOoa.retryTokenRejected {
+            failedCalls++
+            rejected
+        }
+        assertEquals(4, failedCalls)
+    }
+
     @Test fun licenceRoundTripsThroughTheFileFormat() {
         val xml = "<?xml version=\"1.0\"?><License xmlns=\"http://ea.com/license\"><CipherKey>k</CipherKey><MachineHash>h</MachineHash>" +
             "<ContentId>1234</ContentId><UserId>9</UserId><GameToken>tok</GameToken><GrantTime>g</GrantTime><StartTime>s</StartTime><Nonce>n</Nonce></License>"

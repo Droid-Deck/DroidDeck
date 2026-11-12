@@ -993,8 +993,10 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
         cap = MODULE["vram_cap"]
         self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192")
+        self.assertEqual(cap({"BL_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; d3d9.maxAvailableMemory = 4095")
         self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+                         "dxgi.maxDeviceMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
         for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
             self.assertNotIn("DXVK_CONFIG", cap(off))
             self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
@@ -1519,6 +1521,19 @@ class GameEnvironmentTest(unittest.TestCase):
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
+
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

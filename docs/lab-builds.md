@@ -5,6 +5,10 @@ or by hand, and loaded over the installed APK at the next start. Nothing is rein
 re-signed, so a tester on a release build keeps their games, sign-ins and settings while trying a
 change.
 
+While a Lab build is active, add-on packs reuse the newest complete copy already installed on the
+device, even when the checkout pins another version. This keeps helpers such as proot available
+after restarting. If no complete copy exists, the pack uses the checkout's pin.
+
 ## How it works
 
 - `tools/agent/dd-lab-build` builds the checkout with Gradle on the device (`processReleaseResources`
@@ -24,6 +28,11 @@ change.
 - A build that is replaced, turned off or refused is kept in `files/lab/builds` (the newest 12).
   Updates lists them under Lab builds: the one in use can be turned off, one built for this
   install can be used again, and any can be deleted.
+
+The build targets the package owning `DD_AGENT_INBOX` when run from the Agent tab.
+For a manual build of another package, set `DROIDDECK_PACKAGE`, for example
+`DROIDDECK_PACKAGE=com.tencent.ig dd-lab-build`. This also selects the control provider,
+Lab storage, and package to restart.
 
 ## What a Lab build cannot change
 

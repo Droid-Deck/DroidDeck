@@ -2559,6 +2559,8 @@
     <string name="comp_this_device">Thiết bị này</string>
     <string name="proton_remove_title">Xóa %1$s?</string>
     <string name="setup_tab_diagnostics">Chẩn đoán</string>
+    <string name="setup_build_watermark">Hình mờ nhãn bản dựng</string>
+    <string name="setup_build_watermark_hint">Hiển thị nhãn bản dựng thử nghiệm hoặc Lab trên màn hình. Được bật theo mặc định.</string>
     <string name="setup_ready">Sẵn sàng để chơi</string>
     <string name="setup_not_ready">Chưa sẵn sàng để chơi</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

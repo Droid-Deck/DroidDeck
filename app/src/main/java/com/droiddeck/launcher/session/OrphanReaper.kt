@@ -11,6 +11,9 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
+    /** Kept processes and everything they started, which session cleanups must leave running. */
+    fun spared(): Set<Int> = descendants(kept)
+
     fun hasOtherProcesses(): Boolean = hasOtherProcesses(
         File("/proc").list()?.mapNotNull { it.toIntOrNull() }, android.os.Process.myPid(),
     ) { pid ->
@@ -30,7 +33,7 @@ object OrphanReaper {
     fun reap(reason: String, matching: (String) -> Boolean = { true }): Int {
         val me = android.os.Process.myPid()
         val uid = android.os.Process.myUid()
-        val spared = descendants(kept)
+        val spared = spared()
         var killed = 0
         File("/proc").listFiles()?.forEach { entry ->
             val pid = entry.name.toIntOrNull() ?: return@forEach

@@ -2559,6 +2559,8 @@
     <string name="comp_this_device">此裝置</string>
     <string name="proton_remove_title">要移除 %1$s 嗎？</string>
     <string name="setup_tab_diagnostics">診斷</string>
+    <string name="setup_build_watermark">組建標籤浮水印</string>
+    <string name="setup_build_watermark_hint">在畫面上顯示測試版或 Lab 組建標籤。預設啟用。</string>
     <string name="setup_ready">已可開始遊戲</string>
     <string name="setup_not_ready">尚未準備好開始遊戲</string>
     <string name="setup_ready_runtime">執行環境 %1$s</string>

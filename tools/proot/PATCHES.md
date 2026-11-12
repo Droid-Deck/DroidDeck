@@ -162,6 +162,11 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   `ENOSYS`, because its arguments are host paths; the fast path then stops for that process and
   repeats the call through a plain `svc`, which the guest's filter traps with the guest path.
   `bench/guest-trap.c` installs a tagged `openat` trap and checks its handler answers the call.
+  The kernel and filesystems also return `ENOSYS` themselves: Android's FUSE daemon has no
+  `symlink`, so `symlinkat` on a storage card fails with it. The fast path therefore asks again
+  with the same call number and invalid arguments. A trap answers `ENOSYS` again and the fast path
+  stops for the process; any other error means the call reached the kernel, so only that one call
+  is repeated through a plain `svc` and the fast path stays on.
 
 Old kernel fixes:
 
