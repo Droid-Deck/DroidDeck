@@ -125,7 +125,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
                     AgentConversation(Modifier.weight(1f))
                     AgentStatus()
                 }
-                AgentComposer(draft, inputModifier) { panel = it }
+                AgentComposer(draft, inputModifier, compact = panel == AgentPanel.MODEL) { panel = it }
             }
         }
     }
@@ -309,7 +309,7 @@ private fun labStage(lab: com.droiddeck.launcher.agent.LabProgress) = when (lab.
 }
 
 @Composable
-private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modifier, onPanel: (AgentPanel) -> Unit) {
+private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modifier, compact: Boolean, onPanel: (AgentPanel) -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -371,7 +371,7 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 minLines = 1,
-                maxLines = 8,
+                maxLines = if (compact) 1 else 8,
             )
         }
         if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
