@@ -3022,7 +3022,7 @@ class FrontEndActivity : ComponentActivity() {
             }.getOrDefault(emptyList())
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
-                    val scanned = if (scanGeneration <= soundtrackAddScan) scannedSoundtracks.filter { it.library != Library.ADDED } + soundtracks.filter { it.library == Library.ADDED } else scannedSoundtracks
+                    val scanned = if (scanGeneration <= soundtrackAddScan) scannedSoundtracks + soundtracks.filter { cur -> cur.library == Library.ADDED && scannedSoundtracks.none { it.library == Library.ADDED && it.appId == cur.appId } } else scannedSoundtracks
                     val kept = scanned.filterNot { s -> s.gameFiles?.path?.let { p -> soundtrackRemovals[p]?.let { m -> !m.settled || s.library == Library.ADDED || scanGeneration <= m.scan } } == true }
                     com.droiddeck.launcher.playback.SoundtrackController.allow(kept.mapNotNull { it.gameFiles?.path })
                     soundtracks = kept

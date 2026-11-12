@@ -294,11 +294,12 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             SoundtrackIndex.build(ctx, s.soundtracks)
                 .filter { (source == LIBRARY_ALL || it.game.source == source) && SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
+                .distinctBy { it.ref.path }
                 .sortedWith(compareBy({ SoundtrackTracks.rank(q, it.ref.title) }, { it.ref.title.lowercase() }))
                 .take(100)
         }
     }
-    val shownHits = trackHits
+    val shownHits = trackHits.filter { source == LIBRARY_ALL || it.game.source == source }
     val hitScope = rememberCoroutineScope()
     val playHit: (SoundtrackIndex.Hit) -> Unit = { hit ->
         val dir = hit.game.gameFiles

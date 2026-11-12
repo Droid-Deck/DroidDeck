@@ -22,7 +22,7 @@ object SoundtrackIndex {
             album.tracks.map { t ->
                 Hit(SoundtrackCollections.TrackRef(t.file.path, t.title, t.artist.ifBlank { album.artist }, g.name, t.durationMs, cover), g)
             }
-        }.distinctBy { it.ref.path }
+        }
         synchronized(this) {
             cacheKey = key
             cache = hits

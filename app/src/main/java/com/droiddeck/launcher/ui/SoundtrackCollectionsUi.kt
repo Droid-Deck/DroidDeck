@@ -239,7 +239,7 @@ internal fun TrackPickerDialog(id: Int, games: List<Library.SteamGame>, onDismis
     var query by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf(setOf<String>()) }
     val have = SoundtrackCollections.tracksOf(id).mapTo(HashSet()) { it.path }
-    val list = hits?.filter { it.ref.path !in have && SoundtrackTracks.matches(query, it.ref.title, it.ref.artist, it.ref.album) }
+    val list = hits?.distinctBy { it.ref.path }?.filter { it.ref.path !in have && SoundtrackTracks.matches(query, it.ref.title, it.ref.artist, it.ref.album) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.soundtracks_add_tracks)) },
