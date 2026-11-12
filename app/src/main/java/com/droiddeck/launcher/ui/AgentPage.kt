@@ -116,15 +116,19 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
-    Column(modifier.fillMaxSize().imePadding()) {
+    val scrollHeader = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && panel == AgentPanel.NONE
+    val header: @Composable () -> Unit = {
         AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
+    }
+    Column(modifier.fillMaxSize().imePadding()) {
+        if (!scrollHeader) header()
         when (panel) {
             AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
             AgentPanel.PROCESSES -> AgentProcessList(Modifier.weight(1f))
             else -> {
                 Column(Modifier.weight(1f).clipToBounds()) {
                     if (panel == AgentPanel.MODEL) AgentModelPicker()
-                    AgentConversation(Modifier.weight(1f))
+                    AgentConversation(Modifier.weight(1f), header = header.takeIf { scrollHeader })
                     AgentStatus()
                 }
                 AgentComposer(draft, inputModifier, compact = panel == AgentPanel.MODEL) { panel = it }
@@ -181,18 +185,19 @@ internal fun HeaderAction(icon: ImageVector, label: String, enabled: Boolean = t
 }
 
 @Composable
-private fun AgentConversation(modifier: Modifier) {
+private fun AgentConversation(modifier: Modifier, header: (@Composable () -> Unit)? = null) {
     val pal = LocalPalette.current
     val list = rememberLazyListState()
     val working = AgentHost.state == AgentHost.State.WORKING
     val atBottom by remember { derivedStateOf { !list.canScrollForward } }
-    val items = AgentHost.entries.size + (if (working) 1 else 0)
+    val items = AgentHost.entries.size + (if (working) 1 else 0) + (if (header != null) 1 else 0)
     LaunchedEffect(items) { if (items > 0) list.animateScrollToItem(items - 1) }
     LaunchedEffect(AgentHost.live.length / 80, AgentHost.liveThinking.length / 80) {
         if (atBottom && items > 0) list.scrollToItem(items - 1, Int.MAX_VALUE / 2)
     }
     if (AgentHost.entries.isEmpty() && !working) {
         Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            header?.invoke()
             Icon(Icons.Outlined.AutoAwesome, null, tint = pal.primary, modifier = Modifier.size(40.dp))
             Text(stringResource(R.string.agent_empty), fontSize = 15.sp, color = pal.onSurfaceVariant,
                 textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 460.dp).padding(top = 12.dp))
@@ -201,6 +206,7 @@ private fun AgentConversation(modifier: Modifier) {
     }
     val start = AgentHost.entries.indexOfLast { it is Entry.Asked }
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (header != null) item { header() }
         items(AgentHost.entries.size) { i ->
             val entry = AgentHost.entries[i]
             AgentEntry(entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex)
