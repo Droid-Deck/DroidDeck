@@ -1049,10 +1049,10 @@ object SessionPrefs {
     }
 
     fun buildWatermarkEnabled(context: Context): Boolean =
-        prefs(context).getBoolean("buildWatermark", true)
+        BuildWatermarkSetting.enabled(context)
 
     fun setBuildWatermarkEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("buildWatermark", on).apply()
+        BuildWatermarkSetting.setEnabled(context, on)
     }
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)

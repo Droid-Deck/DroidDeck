@@ -2,7 +2,12 @@ package com.droiddeck.launcher.ui
 
 import android.app.Activity
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.Context
+import androidx.core.content.ContextCompat
+import com.droiddeck.launcher.session.BuildWatermarkSetting
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -40,6 +45,14 @@ object BuildWatermark {
         if (text.length <= TITLE_LIMIT) text else text.take(TITLE_LIMIT - 1).trimEnd() + "…"
 
     fun install(app: Application) {
+        ContextCompat.registerReceiver(
+            app,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) { refresh(context) }
+            },
+            IntentFilter(BuildWatermarkSetting.CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (activity is QuestXrActivity) return
