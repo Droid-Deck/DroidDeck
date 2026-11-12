@@ -144,7 +144,8 @@ class EaHook(unittest.TestCase):
 
             def fake_run(cmd, **kwargs):
                 calls.append(cmd)
-                return subprocess.CompletedProcess(cmd, next(codes), stdout=b'PhysX failed\n')
+                kwargs['stdout'].write(b'PhysX failed\n')
+                return subprocess.CompletedProcess(cmd, next(codes))
 
             logged = []
             with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
@@ -158,13 +159,38 @@ class EaHook(unittest.TestCase):
     def test_a_timed_out_touchup_is_retried(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            calls = []
 
             def fake_run(cmd, **kwargs):
-                raise subprocess.TimeoutExpired(cmd, 1, output=b'still running\n')
+                calls.append(cmd)
+                kwargs['stdout'].write(b'still running\n')
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(cmd, 1)
+                return subprocess.CompletedProcess(cmd, 0)
 
-            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', lambda line: None):
+            logged = []
+            marker = list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*'))
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
                 self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'timeout')
-            self.assertEqual(list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*')), [])
+                self.assertIn('touchup: still running', logged)
+                self.assertEqual(list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*')), marker)
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(len(calls), 2)
+
+    def test_only_the_tail_of_a_long_touchup_output_is_logged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+
+            def fake_run(cmd, **kwargs):
+                kwargs['stdout'].write(b''.join(b'line %d\n' % i for i in range(100000)))
+                return subprocess.CompletedProcess(cmd, 0)
+
+            logged = []
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+            self.assertEqual(len(logged), 200)
+            self.assertEqual(logged[-1], 'touchup: line 99999')
 
 
 if __name__ == '__main__':
