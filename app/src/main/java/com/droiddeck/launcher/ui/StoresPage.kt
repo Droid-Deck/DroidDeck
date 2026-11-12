@@ -1093,7 +1093,7 @@ internal fun ModeHeader(
                 Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                     AdbTextField(
                         value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        placeholder = placeholder, compact = true, showLabel = false, focusOnShow = focusOnOpen,
                         clearFocus = clearSearchFocus || !searching,
                         onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                     )
