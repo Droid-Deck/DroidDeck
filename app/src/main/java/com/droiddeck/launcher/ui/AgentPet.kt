@@ -61,14 +61,13 @@ import kotlin.math.roundToInt
 internal interface AgentPetHost {
     /** Something already covers the pet's place, such as the session drawer. */
     val petBlocked: Boolean
-    fun openAgent()
 }
 
 /**
  * DeeDee, the agent's pet: shows what the agent is doing and opens a chat with it. With the
  * "display over other apps" permission it floats over every app in windows of its own
- * ([PetWindows]) and opens a floating chat; without it, it lives in DroidDeck's own windows and
- * opens the Agent page there.
+ * ([PetWindows]); without it, it lives in DroidDeck's own windows. Either way it opens the same
+ * chat, growing out of it.
  */
 internal object AgentPet {
     var enabled by mutableStateOf(false)
@@ -152,7 +151,7 @@ internal object AgentPet {
             tag = TAG
             isFocusable = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            setContent { PetLayer(host) }
+            setContent { DroidDeckTheme(appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(activity)) { PetLayer(host) } }
         }
         decor.addView(layer, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
@@ -213,13 +212,25 @@ internal fun PetPreview(text: String, modifier: Modifier, onTap: () -> Unit) {
 /** The pet inside one DroidDeck window, for when it may not float over other apps. */
 @Composable
 private fun PetLayer(host: AgentPetHost) {
-    val shown = AgentPet.enabled && !AgentPet.floating && AgentHost.installed && AgentPet.agentOnScreen == 0 && !host.petBlocked
+    var chatOpen by remember { mutableStateOf(false) }
+    var chatShown by remember { mutableStateOf(false) }
+    val shown = AgentPet.enabled && !AgentPet.floating && AgentHost.installed && (chatShown || AgentPet.agentOnScreen == 0) && !host.petBlocked
     if (!shown) return
     val context = LocalContext.current
     val motion = remember { PetMotion(context) }
     val density = LocalDensity.current
+    val openChat = {
+        motion.dock()
+        chatShown = true
+        chatOpen = true
+    }
+    val closeChat = {
+        chatOpen = false
+        motion.undock()
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         motion.fit(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        if (chatShown) PetChat(chatOpen, motion, closeChat) { chatShown = false }
         var bubble by remember { mutableStateOf<String?>(null) }
         val news = petBubbleText()
         LaunchedEffect(news) {
@@ -242,19 +253,19 @@ private fun PetLayer(host: AgentPetHost) {
                 IntOffset(x.roundToInt(), (motion.y + motion.size / 2 - size.height / 2).roundToInt())
             }) {
                 bubble = null
-                host.openAgent()
+                openChat()
             }
         }
         PetFigure(
             petStateNow(),
             Modifier.offset { IntOffset(motion.x.roundToInt(), motion.y.roundToInt()) }
                 .size(with(density) { motion.size.toDp() })
-                .pointerInput(Unit) { detectTapGestures { bubble = null; host.openAgent() } }
+                .pointerInput(Unit) { detectTapGestures { bubble = null; if (chatOpen) closeChat() else openChat() } }
                 .pointerInput(Unit) {
                     // The pet moves under the finger, so its velocity is measured where it is on the screen.
                     val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                     detectDragGestures(
-                        onDragStart = { bubble = null; tracker.resetTracking(); motion.start() },
+                        onDragStart = { bubble = null; if (chatOpen) closeChat(); tracker.resetTracking(); motion.start() },
                         onDrag = { change, amount ->
                             change.consume()
                             motion.move(amount.x, amount.y)

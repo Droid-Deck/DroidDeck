@@ -466,7 +466,7 @@ internal class PetWindows(private val context: Context) {
  * under it. Its contents are built while it is closed, so opening only animates.
  */
 @Composable
-private fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onClosed: () -> Unit) {
+internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onClosed: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val density = androidx.compose.ui.platform.LocalDensity.current

@@ -106,7 +106,9 @@ class DroidDeckHudHost(context: Context) {
             val vy = flingY
             flingX = 0f
             flingY = 0f
-            dockEdgeFor(hud, vx, vy)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            // A throw only carries the strip into its tab; a floating HUD flung across goes to the other side.
+            val coast = hud.isStrip
+            dockEdgeFor(hud, if (coast) vx else 0f, if (coast) vy else 0f)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             stopMotion(hud)
             fadeDockPreview(hud)
             if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }

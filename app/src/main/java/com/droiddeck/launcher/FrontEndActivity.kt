@@ -1784,10 +1784,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override val petBlocked: Boolean get() = false
 
-    override fun openAgent() {
-        navRequest = "agent"
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

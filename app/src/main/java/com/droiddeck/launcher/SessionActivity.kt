@@ -161,12 +161,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var pipUi by mutableStateOf(false)
 
     override val petBlocked: Boolean get() = drawerOpenState || pipUi
-
-    override fun openAgent() {
-        if (!com.droiddeck.launcher.agent.AgentHost.installed) return
-        drawerPage = SessionDrawerPage.AGENT
-        drawerOpen = true
-    }
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
