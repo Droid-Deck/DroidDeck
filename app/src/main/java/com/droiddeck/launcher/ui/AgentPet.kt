@@ -118,7 +118,7 @@ internal object AgentPet {
         }
         scope.launch {
             snapshotFlow { floating && AgentHost.installed }.collect { show ->
-                if (show && windows == null) windows = runCatching { PetWindows(app) }.getOrNull()
+                if (show && windows == null) windows = runCatching { PetWindows(app) }.onFailure { android.util.Log.w("AgentPet", "could not float the pet", it) }.getOrNull()
                 if (!show) windows?.close()?.also { windows = null }
             }
         }
@@ -251,10 +251,19 @@ private fun PetLayer(host: AgentPetHost) {
                 .size(with(density) { motion.size.toDp() })
                 .pointerInput(Unit) { detectTapGestures { bubble = null; host.openAgent() } }
                 .pointerInput(Unit) {
+                    // The pet moves under the finger, so its velocity is measured where it is on the screen.
+                    val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                     detectDragGestures(
-                        onDragStart = { bubble = null; motion.start() },
-                        onDrag = { change, amount -> change.consume(); motion.move(amount.x, amount.y) },
-                        onDragEnd = { if (motion.end()) AgentPet.set(context, false) },
+                        onDragStart = { bubble = null; tracker.resetTracking(); motion.start() },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            motion.move(amount.x, amount.y)
+                            tracker.addPosition(change.uptimeMillis, androidx.compose.ui.geometry.Offset(motion.x + change.position.x, motion.y + change.position.y))
+                        },
+                        onDragEnd = {
+                            val v = tracker.calculateVelocity()
+                            if (motion.end(v.x, v.y)) AgentPet.set(context, false)
+                        },
                         onDragCancel = { motion.end() },
                     )
                 },
