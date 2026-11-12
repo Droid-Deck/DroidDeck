@@ -41,8 +41,8 @@ object EaStore {
     fun sameGame(shelf: CatalogItem, owned: CatalogItem): Boolean {
         val slug = shelf.extra["slug"].orEmpty()
         if (slug.isNotEmpty() && slug == owned.extra["slug"]) return true
-        val key = StoreFront.titleKey(owned.title)
-        return key.isNotEmpty() && key == StoreFront.titleKey(shelf.title)
+        val shelfKey = StoreFront.titleKey(shelf.title).ifEmpty { return false }
+        return listOf(owned.title, owned.extra["productName"].orEmpty()).any { StoreFront.titleKey(it) == shelfKey }
     }
 
     /**

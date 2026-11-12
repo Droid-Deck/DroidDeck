@@ -269,6 +269,9 @@ class EaTest {
         val marked = com.droiddeck.launcher.stores.StoreFront.markOwned(shelves, listOf(owned), EaStore::sameGame)
         assertEquals("Origin.OFR.1", marked.deals.single().id)
         assertEquals("https://img/ultima-7-wide", marked.deals.single().imageUrl)
+        val bf = CatalogItem(Store.EA, "Origin.OFR.50.0005511", "Battlefield™", null, owned = true, extra = mapOf("slug" to "glacier", "productName" to "Battlefield™ 6"))
+        assertTrue(EaStore.sameGame(CatalogItem(Store.EA, "ea-store:battlefield-6", "Battlefield™ 6", null, extra = mapOf("slug" to "battlefield-6")), bf))
+        assertFalse(EaStore.sameGame(CatalogItem(Store.EA, "ea-store:bf-2042", "Battlefield™ 2042", null), bf))
     }
 
     @Test fun titlesMatchAcrossMarksAndAccentsButNeverWhenEmpty() {

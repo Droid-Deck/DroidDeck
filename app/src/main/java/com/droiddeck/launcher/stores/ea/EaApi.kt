@@ -22,6 +22,7 @@ object EaApi {
         val downloadable: Boolean,
         val trial: Boolean,
         val ownership: List<String>,
+        val productName: String = "",
     )
 
     class Offer(
@@ -109,6 +110,7 @@ object EaApi {
                 downloadable = product.optBoolean("downloadable", true),
                 trial = product.optJSONObject("trialDetails")?.optString("trialType").orEmpty().let { it.isNotEmpty() && it != "null" },
                 ownership = (0 until (methods?.length() ?: 0)).map { methods!!.optString(it) },
+                productName = product.optString("name").replace("\n", " ").trim(),
             )
         }
         val next = owned.optString("next").takeIf { it.isNotBlank() && it != "null" }
