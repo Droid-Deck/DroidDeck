@@ -71,7 +71,11 @@ def store_game(game):
 
 def manifest_ids(steamapps, name):
     matches = []
-    for manifest in Path(steamapps).glob("appmanifest_*.acf"):
+    try:
+        manifests = list(Path(steamapps).glob("appmanifest_*.acf"))
+    except OSError:
+        return matches
+    for manifest in manifests:
         try:
             install = re.search(r'"installdir"\s*"([^"\\]*)"', manifest.read_text(), re.I)
             if install and install[1] == name:
@@ -81,13 +85,21 @@ def manifest_ids(steamapps, name):
     return matches
 
 
-def identify(game):
+def manifest_identity(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
     for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
         matches = [appid for appid in manifest_ids(library, folder.name) if appid != SPACEWAR]
         if matches:
-            return matches[0] if len(matches) == 1 else None
+            return (matches[0], library) if len(matches) == 1 else None
+    return False
+
+
+def identify(game):
+    folder = Path(game["folder"])
+    found = manifest_identity(game)
+    if found is not False:
+        return found[0] if found is not None else None
     ids = set()
     for parent in {folder, Path(game["exe"]).parent}:
         try:
@@ -508,6 +520,57 @@ def release(steam_root, game, stale, reason):
         print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
+PREFIX_LINKS = ".droiddeck-prefix-links.json"
+
+
+def steam_prefix(steam_root, game):
+    identity = manifest_identity(game)
+    if not identity or not identity[0]:
+        return None, None
+    appid, steamapps = identity
+    installed = steamapps == Path(game["folder"]).parent.parent
+    for library in [steamapps.parent] if installed else dict.fromkeys([steamapps.parent] + libraries(steam_root)):
+        prefix = library / "steamapps/compatdata" / str(appid)
+        if (prefix / "pfx/drive_c").is_dir():
+            return appid, str(prefix)
+    return appid, None
+
+
+def share_prefix(steam_root, game):
+    shortcut = Path(steam_root) / "steamapps/compatdata" / str(game["appid"] & 0xFFFFFFFF)
+    record = Path(steam_root) / "steamapps" / PREFIX_LINKS
+    links = read_json(record, {})
+    if not isinstance(links, dict):
+        links = {}
+    before = dict(links)
+    key = str(shortcut)
+    name = game.get("name", "game")
+    appid, target = steam_prefix(steam_root, game)
+    try:
+        current = os.readlink(shortcut) if os.path.islink(shortcut) else None
+        if current is not None and links.get(key) == current and current != target:
+            if target is not None or (not os.path.exists(shortcut) and Path(current).parent.parent.is_dir()):
+                shortcut.unlink()
+                current = None
+        if current is None:
+            links.pop(key, None)
+        if current is None and os.path.lexists(shortcut):
+            if target is not None:
+                print(f"droiddeck-steam-games: {name} keeps its own prefix; Steam app {appid} saves are in {target}")
+        elif current is None and target is not None:
+            shortcut.parent.mkdir(parents=True, exist_ok=True)
+            shortcut.symlink_to(target)
+            links[key] = target
+            print(f"droiddeck-steam-games: {name} shares the saves prefix of Steam app {appid}")
+    except OSError as error:
+        print(f"droiddeck-steam-games: {name} keeps its own prefix ({error})")
+    if links != before:
+        try:
+            save_json(record, links)
+        except OSError as error:
+            print(f"droiddeck-steam-games: prefix links not recorded ({error})")
+
+
 def route(steam_root, acct, games):
     snapshot = read_json(Path(acct) / "config" / STATE, {})
     if not isinstance(snapshot, dict):
@@ -557,6 +620,7 @@ def route(steam_root, acct, games):
         elif named and seeded(steamapps, game, appid):
             routes[str(game["appid"])] = appid
             continue
+        share_prefix(steam_root, game)
         shortcuts.append(game)
     try:
         park(steamapps)
