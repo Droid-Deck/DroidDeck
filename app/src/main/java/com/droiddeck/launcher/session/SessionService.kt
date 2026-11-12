@@ -1637,12 +1637,19 @@ class SessionService : Service() {
                 return@postDelayed
             }
 
+            if (steamGameRunning(gameId)) {
+                Log.i(TAG, "game $gameId is running again; restarting its exit watcher")
+                watchGameExit(gameId, gen, token)
+                return@postDelayed
+            }
+
             if (SteamGameProcess.running()) {
-                clearActiveScreenEffectsProfile(gameId, gen, token)
                 Log.i(TAG, "another Steam game is still running after $gameId; checking again")
                 returnAfterGame(gameId, gen, token)
                 return@postDelayed
             }
+
+            clearActiveScreenEffectsProfile(gameId, gen, token)
 
             val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
                 .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess
