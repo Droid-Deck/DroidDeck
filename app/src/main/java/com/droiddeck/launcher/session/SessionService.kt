@@ -1638,6 +1638,7 @@ class SessionService : Service() {
             }
 
             if (SteamGameProcess.running()) {
+                clearActiveScreenEffectsProfile(gameId, gen, token)
                 Log.i(TAG, "another Steam game is still running after $gameId; checking again")
                 returnAfterGame(gameId, gen, token)
                 return@postDelayed
