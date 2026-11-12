@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores.ubisoft
 
+import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
@@ -20,18 +21,25 @@ class UbisoftTest {
     private val steamConfig = "version: 2.0\r\nroot:\r\n  name: Assassin's Creed Syndicate\r\n  start_game:\r\n    steam:\r\n      steam_app_id: 368500\r\n" +
         "  third_party_platform:\r\n    name: Steam\r\n    override_uplayid: 1875\r\n"
 
-    @Test fun aProductUbisoftDeliversThroughSteamNamesItsSteamApp() {
-        assertEquals("368500", UbisoftLibrary.steamApp(steamConfig))
-        assertNull(UbisoftLibrary.steamApp("root:\n  start_game:\n    online:\n      executables:\n        - path:\n            relative: bin/game.exe\n"))
+    private fun listed(space: String, name: String) = CatalogItem(Store.UBISOFT, space, name, null, owned = true, extra = mapOf("spaceId" to space))
+
+    private val owned = JSONObject().put("games", JSONArray()
+        .put(JSONObject().put("productId", 1957).put("spaceId", "space-s").put("productType", 0).put("owned", true).put("configuration", steamConfig))
+        .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", "root: {}"))
+        .put(JSONObject().put("productId", 1961).put("spaceId", "space-addon").put("productType", 1).put("owned", true).put("manifest", "CD").put("configuration", steamConfig))
+        .put(JSONObject().put("productId", 720).put("spaceId", "space-plus").put("productType", 0).put("owned", false).put("manifest", "EF").put("configuration", "root: {}")))
+
+    @Test fun onlyGamesConnectDeliversAreInTheLibrary() {
+        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-s", "Syndicate"), listed("space-plus", "Ubisoft+ Game"), listed("space-gone", "Free Weekend"))
+        val games = UbisoftLibrary.assemble(profile, owned)
+        assertEquals(listOf("space-sc"), games.map { it.id })
+        assertEquals("109", games.single().extra["productId"])
     }
 
-    @Test fun steamOwnedGamesAreKeyedByTheirSpace() {
-        val owned = JSONObject().put("games", JSONArray()
-            .put(JSONObject().put("productId", 1957).put("spaceId", "space-s").put("productType", 0).put("owned", true).put("configuration", steamConfig))
-            .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", "root: {}"))
-            .put(JSONObject().put("productId", 1961).put("spaceId", "space-addon").put("productType", 1).put("owned", true).put("configuration", steamConfig)))
-        assertEquals(mapOf("space-s" to "368500"), UbisoftLibrary.steamBySpace(owned))
-        assertEquals(setOf("space-sc"), UbisoftLibrary.ownedBySpace(owned).keys)
+    @Test fun withoutAnOwnershipAnswerTheProfileListStays() {
+        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-gone", "Free Weekend"))
+        assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, JSONObject().put("error", "demux closed")).map { it.id })
+        assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, null).map { it.id })
     }
 
     @Test fun theEntitlementNamesTheGamesApplication() {
