@@ -277,6 +277,11 @@ int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) {
 }
 
 __attribute__((visibility("hidden")))
+int bl_descriptor_remove(const char *path, int (*real)(const char *)) {
+  return bl_descriptor_rmdir(path, real);
+}
+
+__attribute__((visibility("hidden")))
 int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *)) {
   char old[PATH_MAX], new[PATH_MAX];
   int known = tracked(from, old, sizeof(old)), result = real(from, to);

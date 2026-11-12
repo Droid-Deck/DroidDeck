@@ -848,6 +848,7 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
 ONE_PATH(mkdir, ADDED, IN_CREATE, next_mkdir(path, mode), mode_t mode)
 int bl_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
 int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int bl_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
 int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
     __attribute__((visibility("hidden")));
 
@@ -855,7 +856,7 @@ static int moved(const char *from, const char *to) { return bl_descriptor_rename
 
 ONE_PATH(rmdir, REMOVED, IN_DELETE, bl_descriptor_rmdir(path, next_rmdir))
 ONE_PATH(unlink, REMOVED, IN_DELETE, bl_descriptor_unlink(path, next_unlink))
-ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
+ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
 
 #define TWO_PATHS(name, gone, event, call) \
   int name(const char *from, const char *to) { \

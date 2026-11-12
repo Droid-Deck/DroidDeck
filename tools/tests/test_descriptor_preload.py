@@ -70,6 +70,10 @@ int main(int argc, char **argv) {
       printf("%s\n", (op[0] == 'u' ? unlink(path) : rmdir(path)) == 0 ? "ok" : "failed");
       continue;
     }
+    if (!strcmp(op, "remove-path")) {
+      printf("%s\n", remove(argv[++i]) == 0 ? "ok" : "failed");
+      continue;
+    }
     if (!strcmp(op, "rename")) {
       const char *from = argv[++i], *to = argv[++i];
       printf("%s\n", rename(from, to) == 0 ? "ok" : "failed");
@@ -196,6 +200,14 @@ class DescriptorPreloadTest(unittest.TestCase):
         self.assertEqual(["none", "ok", "ok"], self.server("get", file, "unlink", file, "rmdir", folder))
         Path(folder).mkdir()
         self.assertEqual(["none"], self.server("get", folder))
+
+    def test_a_removed_file_or_folder_loses_its_descriptor(self):
+        file, folder = self.path("card", "game", "file"), self.path("card", "game")
+        self.assertEqual(["ok", "ok", "ok", "ok"],
+                         self.server("set", file, "one", "set", folder, "two", "remove-path", file, "remove-path", folder))
+        Path(folder).mkdir()
+        Path(file).write_text("x")
+        self.assertEqual(["none", "none"], self.server("get", folder, "get", file))
 
     def test_a_file_deleted_through_a_link_loses_its_descriptor(self):
         file = self.path("card", "game", "file")
