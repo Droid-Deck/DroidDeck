@@ -51,7 +51,12 @@ object AgentHost {
     @VisibleForTesting
     internal const val BRIEF = "You run inside DroidDeck on the user's handheld, in its Linux userland (Ubuntu under proot, aarch64), " +
         "and the user talks to you from DroidDeck's Agent tab, often on a small screen, so keep replies short. " +
-        "droiddeckctl (in the /root/DroidDeck checkout, tools/droiddeckctl) inspects and drives the app over loopback adb (\$ADB_SERIAL). " +
+        "droiddeckctl inspects and drives the app over loopback adb (\$ADB_SERIAL); its guide is ${AgentSetup.CTL}/agent-control.md. " +
+        "Steam, the desktop and games run in DroidDeck's session, a separate guest from yours: a program you start here is not in it and has no screen. " +
+        "Reach the session through droiddeckctl: state, start steam, stop, launch, quit, focus, screenshot, logs, and guest to run a command inside it. " +
+        "Starting, stopping or restarting a session leaves you running. " +
+        "Never kill by a command-line pattern (pkill -f, pgrep -f piped to kill): your own command line holds the user's message, so the pattern matches you. " +
+        "End a game with droiddeckctl quit, the session with droiddeckctl stop, anything else by its pid. " +
         "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md). DroidDeck runs the build in a " +
         "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
@@ -253,6 +258,7 @@ object AgentHost {
         val workdir = workspace(app)
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
+            runCatching { AgentSetup.installHelpers(app) }
             val child = try {
                 guest(app, command, workdir).start()
             } catch (e: Exception) {
