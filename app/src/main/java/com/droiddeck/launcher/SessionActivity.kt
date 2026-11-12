@@ -557,6 +557,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
+    private var frameGenActiveGameId by mutableStateOf<Long?>(null)
+    private var frameGenActiveGameName by mutableStateOf<String?>(null)
     private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
@@ -1072,6 +1074,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             }
                         }
                     }
+                    if (SessionState.mode == SessionService.MODE_STEAM) {
+                        val target = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val games = LibraryCache.load(this@SessionActivity)
+                            val cachedIds = games.mapNotNull { it.profileKey.toLongOrNull() }.toSet()
+                            val inventoryIds = synchronized(frameGenInventoryLock) {
+                                frameGenInventoryIds
+                            }.orEmpty()
+                            val id = AgentGuest.activeSteamAppId(
+                                this@SessionActivity, cachedIds + inventoryIds
+                            )
+                            val name = id?.let { activeId ->
+                                games.firstOrNull { it.profileKey == activeId.toString() }?.name
+                            }
+                            id to name
+                        }
+                        if (target.first != frameGenActiveGameId) {
+                            frameGenActiveGameId = target.first
+                            loadFrameGenFor(target.first)
+                        }
+                        frameGenActiveGameName = target.second
+                    }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
@@ -1268,6 +1291,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
             frameGenTargetGameId = frameGenTargetGameId()?.toString(),
+            frameGenTargetGameName = when (SessionState.mode) {
+                SessionService.MODE_STEAM -> frameGenActiveGameName
+                SessionService.MODE_RUN ->
+                    com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program)
+                else -> drawerGameProfileRefresh.data?.profiles
+                    ?.firstOrNull { it.first == frameGenTargetGameId() }?.second
+            },
             hasGameOverride = frameGenHasGameOverride,
             lossless = lossless,
             oscMode = oscMode, suspendPolicy = suspendPolicy,
@@ -1328,11 +1358,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
-                    frameGenTargetGameId()
-                } else {
-                    drawerGameProfileId
-                }
+                val appId = frameGenTargetGameId()
 
                 if (appId == null) FrameGen.set(this@SessionActivity, mode)
                 else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
@@ -1341,11 +1367,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyFrameGen(force = true)
             },
             onFrameGenReset = {
-                val appId = if (SessionState.mode == SessionService.MODE_RUN) {
-                    frameGenTargetGameId()
-                } else {
-                    drawerGameProfileId
-                }
+                val appId = frameGenTargetGameId()
 
                 if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
                 else FrameGen.clearGame(this@SessionActivity, appId.toString())
@@ -1685,15 +1707,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenTargetGameId(): Long? {
-        
         if (SessionState.mode == SessionService.MODE_RUN) {
             return (
                 SessionState.gameId?.toLongOrNull()
                     ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
             )
         }
-
-        if (drawerGameProfileSelectionMade) return drawerGameProfileId
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            return frameGenActiveGameId
+        }
         return drawerGameProfileId
     }
 
@@ -1709,7 +1731,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         drawerGameProfileFollowState.selectManually()
         drawerGameProfileSelectionMade = true
         drawerGameProfileId = appId
-        loadFrameGenFor(appId)
+        loadFrameGenFor(frameGenTargetGameId())
         drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
         readDrawerTextureFiltering(appId)
         refreshDrawerGameProfile()
@@ -1807,6 +1829,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             gameProtonId = ProtonDefault.gameSelectedId(this, game.profileKey, protons),
             gameComponents = ComponentsManager.gameComponents(this, game.profileKey),
             gameWindowsComponents = WinComponents.picks(this, game.profileKey),
+            frameGenMode = FrameGen.mode(this, game.profileKey),
+            frameGenInherited = !FrameGen.hasGameOverride(this, game.profileKey),
         )
     }
 
@@ -2556,6 +2580,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (published) {
                         if (frameGenInventoryRefreshScheduled.compareAndSet(false, true)) {
                             uiHandler.postDelayed({
+                                frameGenInventoryRefreshScheduled.set(false)
                                 if (frameGenActivityActive && !isFinishing && !isDestroyed) {
                                     synchronized(frameGenInventoryLock) {
                                         frameGenInventoryIds = null

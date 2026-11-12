@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.gpu.FrameGen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -116,6 +117,17 @@ class SelectedGameProfileTest {
         assertEquals(ProfileValue("PERFORMANCE_TSO", true), resolve(environment = inherited)!!.fexPreset)
     }
 
+    @Test fun frameGenOverrideMakesProfileCustom() {
+        val profile = resolve(
+            frameGenMode = FrameGen.Mode.OFF,
+            frameGenInherited = false,
+        )
+
+        assertEquals(FrameGen.Mode.OFF, profile!!.frameGen)
+        assertFalse(profile.frameGenInherited)
+        assertTrue(profile.hasOverrides)
+    }
+
     private fun resolve(
         selectedAppId: Long = 3180310,
         games: List<Library.SteamGame> = listOf(game),
@@ -123,6 +135,8 @@ class SelectedGameProfileTest {
         gameChoice: ProtonDefault.GameChoice? = null,
         gameComponents: Map<String, String> = emptyMap(),
         gameWindowsComponents: List<String> = emptyList(),
+        frameGenMode: FrameGen.Mode = FrameGen.Mode.OFF,
+        frameGenInherited: Boolean = true,
     ) = SelectedGameProfile.resolve(
         selectedAppId = selectedAppId,
         games = games,
@@ -134,6 +148,8 @@ class SelectedGameProfileTest {
         gameProtonId = "p1",
         gameComponents = gameComponents,
         gameWindowsComponents = gameWindowsComponents,
+        frameGenMode = frameGenMode,
+        frameGenInherited = frameGenInherited,
     )
 
     private fun component(label: String) =

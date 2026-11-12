@@ -218,6 +218,7 @@ class DrawerActions(
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
     val frameGenTargetGameId: String? = null,
+    val frameGenTargetGameName: String? = null,
     val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -566,7 +567,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 SettingsRow(
                                     stringResource(R.string.frame_gen_title),
                                     if (a.frameGenTargetGameId != null)
-                                        "${stringResource(R.string.frame_gen_scope_game)} · ID ${a.frameGenTargetGameId}"
+                                        "${stringResource(R.string.frame_gen_scope_game)} · ${a.frameGenTargetGameName ?: "ID ${a.frameGenTargetGameId}"}"
                                     else stringResource(R.string.frame_gen_scope_global),
                                     highlighted = fgOpen
                                 ) {
@@ -1355,6 +1356,12 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             )
             if (!profile.fexPreset.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_game_fex), fexProfileLabel(profile.fexPreset))
+            }
+            if (!profile.frameGenInherited) {
+                ProfileSummaryRow(
+                    stringResource(R.string.frame_gen_title),
+                    FrameGen.label(LocalContext.current, profile.frameGen),
+                )
             }
             if (!profile.proton.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_proton), profileValueLabel(profile.proton))
