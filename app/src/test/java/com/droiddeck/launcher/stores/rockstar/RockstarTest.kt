@@ -12,6 +12,31 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun existingGta3LaunchScriptsReceiveThePrecisionDefault() {
+        val folder = java.nio.file.Files.createTempDirectory("rockstar-launch").toFile()
+        try {
+            java.io.File(folder, "gta3.exe").writeBytes(byteArrayOf(1))
+            val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "gta3", "GTA III", "gta3.exe", launcher = com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
+            val script = java.io.File(folder, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
+            script.writeText("old launch script")
+            com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, game)
+            assertTrue(script.readText().contains("FEX_X87REDUCEDPRECISION=0"))
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test fun gta3DefaultsToFullPrecisionAndKeepsExplicitOverrides() {
+        val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "gta3", "GTA III", "gta3.exe")
+        val default = com.droiddeck.launcher.stores.StoreLaunch.launcherText(game)
+        assertTrue(default.contains("set \"FEX_X87REDUCEDPRECISION=0\""))
+        val explicit = com.droiddeck.launcher.stores.StoreLaunch.launcherText(game.copy(env = mapOf("FEX_X87REDUCEDPRECISION" to "1")))
+        assertTrue(explicit.contains("set \"FEX_X87REDUCEDPRECISION=1\""))
+        assertFalse(explicit.contains("FEX_X87REDUCEDPRECISION=0"))
+        val viceCity = com.droiddeck.launcher.stores.StoreGameSidecar(game.store, "gtavc", "Vice City", "gta-vc.exe")
+        assertFalse(com.droiddeck.launcher.stores.StoreLaunch.launcherText(viceCity).contains("FEX_X87REDUCEDPRECISION"))
+    }
+
     @Test fun classicTitlesUseTheirObservedPipeNames() {
         assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe"), RockstarLaunch.pipes)
     }

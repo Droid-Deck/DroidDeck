@@ -4,6 +4,8 @@
 
 The handoff is deleted before starting the game. It expires after 90 seconds. The pipe accepts the child process's greeting and returns the server-issued launch material. No game files are patched.
 
+GTA III's generated launch script defaults to full x87 precision for FEX. Reduced precision crashed new-game initialization on the test device. An explicit game environment override takes precedence.
+
 `build.sh` builds 32-bit and 64-bit executables with the GNU Windows targets and stages them as APK resources. `legacy-cipher.bin` contains the fixed client protocol tables, not account credentials or APK signing keys.
 
 Run the protocol tests with:

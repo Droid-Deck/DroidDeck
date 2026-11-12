@@ -55,6 +55,7 @@ object StoreLaunch {
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
         } else if (sidecar.store == Store.ROCKSTAR) {
+            if (sidecar.id == "gta3" && "FEX_X87REDUCEDPRECISION" !in sidecar.env) lines += "set \"FEX_X87REDUCEDPRECISION=0\""
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
             lines += "exit /b %errorlevel%"
         } else if (sidecar.store == Store.UBISOFT) {
@@ -99,7 +100,7 @@ object StoreLaunch {
     fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         if (sidecar.store !in listOf(Store.UBISOFT, Store.ROCKSTAR) || !sidecar.isInstalled) return sidecar
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
-        if (sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
+        if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
         val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
         if (exe == sidecar.exe && sidecar.launcher == LAUNCHER &&
             runCatching { File(folder, LAUNCHER).readText() }.getOrNull() == launcherText(sidecar)) return sidecar
