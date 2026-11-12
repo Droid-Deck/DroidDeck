@@ -128,6 +128,67 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed(str(sd))
         self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
 
+    def manifest(self, name, build):
+        path = self.steam / "steamapps/appmanifest_77.acf"
+        path.write_text('"AppState"\n{\n\t"installdir"\t\t"%s"\n\t"buildid"\t\t"%s"\n}\n' % (name, build))
+        return path
+
+    def test_a_game_is_searched_again_only_when_its_build_changes(self):
+        late = self.steam / "steamapps/common/Late Game/installscript.vdf"
+        late.parent.mkdir(parents=True)
+        manifest = self.manifest("Late Game", "1")
+        self.run_seed()
+        late.write_text(GAME_SCRIPT)
+        manifest.write_text(manifest.read_text() + "\n")
+        self.run_seed()
+        self.assertNotIn("VCRedist2022", self.reg.read_text())
+        self.manifest("Late Game", "2")
+        self.run_seed()
+        self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
+
+    def test_one_changed_game_leaves_the_other_games_unsearched(self):
+        other = self.game("Other Game").parent / "installscript_extra.vdf"
+        self.manifest("Late Game", "1")
+        self.run_seed()
+        other.write_text(GAME_SCRIPT.replace("VCRedist2022", "Unsearched"))
+        self.manifest("Late Game", "2")
+        self.run_seed()
+        self.assertNotIn("Unsearched", self.reg.read_text())
+
+    def test_a_call_that_names_its_scripts_does_not_search_the_libraries(self):
+        script = self.game()
+        named = self.tmp / "legacycompat/evaluatorscript_1.vdf"
+        named.parent.mkdir(parents=True)
+        named.write_text(GAME_SCRIPT.replace("VCRedist2022", "Named"))
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_SCRIPTS=str(named))
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+        reg = self.reg.read_text()
+        self.assertIn('"Named"=dword:00000001', reg)
+        self.assertNotIn("VCRedist2022", reg)
+        self.run_seed()
+        self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
+        self.assertIn(str(script), (self.steam / ".droiddeck-game-scripts").read_text())
+
+    def test_a_removed_game_leaves_the_list(self):
+        script = self.game()
+        self.run_seed()
+        cache = self.steam / ".droiddeck-game-scripts"
+        self.assertIn(str(script), cache.read_text())
+        for manifest in (self.steam / "steamapps").glob("appmanifest_*.acf"):
+            manifest.unlink()
+        self.run_seed()
+        self.assertEqual("", cache.read_text())
+
+    def test_a_list_from_an_earlier_version_is_taken_over_without_a_search(self):
+        script = self.steam / "steamapps/common/Old Game/a/b/c/d/e/installscript.vdf"
+        script.parent.mkdir(parents=True)
+        script.write_text(GAME_SCRIPT)
+        self.manifest("Old Game", "1")
+        (self.steam / ".droiddeck-game-scripts").write_text("123 456\n%s\n" % script)
+        self.run_seed()
+        self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
+        self.assertIn("\t%s\n" % script, (self.steam / ".droiddeck-game-scripts").read_text())
+
     def test_current_user_and_machine_markers_go_to_their_own_registries(self):
         self.game(script=GAME_SCRIPT + GAME_SCRIPT.replace("HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER").replace("VCRedist2022", "UserRedist"))
         with self.reg.open("a") as out:

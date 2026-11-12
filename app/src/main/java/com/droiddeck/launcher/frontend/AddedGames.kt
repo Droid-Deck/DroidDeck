@@ -97,7 +97,7 @@ object AddedGames {
         return File(LinuxRuntime.rootDir(context), guest.removePrefix("/"))
     }
 
-    fun candidates(folder: File): List<File> = rank(folder).exes
+    fun candidates(folder: File, reuse: Boolean = false): List<File> = rank(folder, reuse).exes
 
     fun rank(folder: File, reuse: Boolean = false): GameExePicker.Ranking {
         val key = "${folder.path}|${folder.lastModified()}"
