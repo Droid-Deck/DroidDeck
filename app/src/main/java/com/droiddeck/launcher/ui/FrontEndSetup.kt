@@ -737,6 +737,17 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val context = androidx.compose.ui.platform.LocalContext.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     val wincompKey = game?.takeIf { it.library == com.droiddeck.launcher.frontend.Library.ADDED || it.appId > 0 }?.profileKey
+    val frameGenProfileKey = game?.profileKey?.takeIf { it.isNotBlank() }
+    var gameFrameGenMode by remember(frameGenProfileKey) {
+        mutableStateOf(frameGenProfileKey?.let {
+            com.droiddeck.launcher.gpu.FrameGen.mode(context, it)
+        } ?: s.frameGen)
+    }
+    var gameFrameGenOverride by remember(frameGenProfileKey) {
+        mutableStateOf(frameGenProfileKey?.let {
+            com.droiddeck.launcher.gpu.FrameGen.hasGameOverride(context, it)
+        } ?: false)
+    }
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val steamScope = game?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
@@ -755,10 +766,42 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         }
         add { m ->
             Box(m) {
-                SettingCard(stringResource(R.string.frame_gen_title), s.frameGenLabel, "card:fg", Modifier.fillMaxSize()) {
+                SettingCard(
+                    stringResource(R.string.frame_gen_title),
+                    if (frameGenProfileKey != null)
+                        com.droiddeck.launcher.gpu.FrameGen.label(context, gameFrameGenMode)
+                    else s.frameGenLabel,
+                    "card:fg", Modifier.fillMaxSize()
+                ) {
                     host.open = if (host.open == "fg") null else "fg"
                 }
-                FrameGenMenu(s, a, host)
+                FrameGenMenu(
+                    host = host,
+                    mode = if (frameGenProfileKey != null) gameFrameGenMode else s.frameGen,
+                    lossless = s.lossless,
+                    onPick = { mode ->
+                        val key = frameGenProfileKey
+                        if (key == null) {
+                            a.onFrameGenPick(mode)
+                        } else {
+                            com.droiddeck.launcher.gpu.FrameGen.setForGame(context, key, mode)
+                            gameFrameGenMode = mode
+                            gameFrameGenOverride = true
+                        }
+                    },
+                    onImportLossless = a.onImportLossless,
+                    gameProfileId = frameGenProfileKey,
+                    hasGameOverride = gameFrameGenOverride,
+                    onResetGame = {
+                        val key = frameGenProfileKey
+                        if (key != null) {
+                            com.droiddeck.launcher.gpu.FrameGen.clearGame(context, key)
+                            gameFrameGenMode =
+                                com.droiddeck.launcher.gpu.FrameGen.mode(context)
+                            gameFrameGenOverride = false
+                        }
+                    }
+                )
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
