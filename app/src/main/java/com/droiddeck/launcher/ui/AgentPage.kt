@@ -139,8 +139,9 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         }
     }
     BoxWithConstraints(modifier.fillMaxSize().imePadding().nestedScroll(headerScroll)) {
+        val headerMaxHeight = maxHeight / 2
         Column(Modifier.fillMaxSize()) {
-            Box(Modifier.heightIn(max = maxHeight / 2).clipToBounds().layout { measurable, constraints ->
+            Box(Modifier.heightIn(max = headerMaxHeight).clipToBounds().layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 val offset = if (collapseHeader) headerOffset.roundToInt().coerceIn(-placeable.height, 0) else 0
                 layout(placeable.width, placeable.height + offset) { placeable.placeRelative(0, offset) }
