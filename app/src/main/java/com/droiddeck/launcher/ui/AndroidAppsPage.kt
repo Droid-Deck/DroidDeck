@@ -577,7 +577,8 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                                 val at = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == entry.key }?.offset ?: return@graphicsLayer
                                 translationX = dragFrom.x + dragBy.x - at.x
                                 translationY = dragFrom.y + dragBy.y - at.y
-                            } else Modifier.animateItemPlacement(),
+                            // Only while rearranging: the D-pad lays out tiles past the edge to find the next one, and those would glide in from the wrong place.
+                            } else if (arranging) Modifier.animateItemPlacement() else Modifier,
                         ) {
                         when (entry) {
                             is AppEntry.App -> AppTile(
