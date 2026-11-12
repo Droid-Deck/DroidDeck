@@ -476,6 +476,7 @@
     <string name="game_no_steam_on">เปิด</string>
     <string name="game_steam_with">เริ่มพร้อม Steam</string>
     <string name="game_steam_without">เริ่มโดยไม่ใช้ Steam</string>
+    <string name="game_res_title">ความละเอียดของเกม</string>
     <string name="game_settings_card">การตั้งค่า</string>
     <string name="game_settings_menu_title">การตั้งค่า %1$s</string>
     <string name="game_settings_default">ค่าเริ่มต้น</string>

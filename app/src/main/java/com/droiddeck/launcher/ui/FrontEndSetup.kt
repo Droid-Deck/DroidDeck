@@ -862,12 +862,37 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
+    val resKey = "game-settings-res"
+    val resolution = current?.let { com.droiddeck.launcher.core.GameEnvironment.gameResolution(it, scope) }
+    val screen = remember { com.droiddeck.launcher.session.SessionDisplay.screenSize(com.droiddeck.launcher.session.SessionDisplay.panelSize(appContext)) }
+    val matchScreen = stringResource(R.string.display_match_screen, screen.first, screen.second)
+    val scaledLabels = com.droiddeck.launcher.core.GameResolution.scales.associateWith {
+        stringResource(R.string.display_follow_screen_scaled, com.droiddeck.launcher.core.GameResolution.formatScale(it))
+    }
+    fun sizeLabel(size: Pair<Int, Int>) = "${size.first}×${size.second} · ${com.droiddeck.launcher.core.GameResolution.aspectLabel(size.first, size.second)}"
+    fun resolutionLabel(choice: com.droiddeck.launcher.core.GameResolution.Choice?): String = when (choice) {
+        null -> matchScreen
+        is com.droiddeck.launcher.core.GameResolution.Scaled -> (scaledLabels[choice.scale]
+            ?: "÷" + com.droiddeck.launcher.core.GameResolution.formatScale(choice.scale)) +
+            " · " + sizeLabel(com.droiddeck.launcher.core.GameResolution.resolve(choice, screen))
+        is com.droiddeck.launcher.core.GameResolution.Fixed -> sizeLabel(choice.width to choice.height)
+    }
+    fun pickResolution(choice: com.droiddeck.launcher.core.GameResolution.Choice?) {
+        host.open = key
+        save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameResolution(it, scope, choice) }
+    }
+    var editResolution by remember(scope) { mutableStateOf(false) }
     AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = stringResource(R.string.game_settings_menu_title, game.name)) { first ->
         MenuItem(stringResource(R.string.game_no_steam_title), checked = noSteam, enabled = ready,
             detail = stringResource(R.string.game_no_steam_detail), focusRequester = first) {
             val on = !noSteam
             save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameNoSteam(it, scope, on) }
         }
+        if (noSteam) MenuItem(
+            stringResource(R.string.game_res_title), checked = false, enabled = ready,
+            detail = resolutionLabel(resolution),
+            trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+        ) { host.open = resKey }
         if (!launcher) {
             val chosen = com.droiddeck.launcher.core.FexPreset.all.firstOrNull { it.id == fex }
             MenuItem(
@@ -904,6 +929,45 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             }
         }
     }
+    AnchoredMenu(host.open == resKey, onDismiss = { if (host.open == resKey) host.open = null }, title = stringResource(R.string.game_res_title)) { first ->
+        MenuItem(matchScreen, checked = resolution == null, enabled = ready, focusRequester = first) { pickResolution(null) }
+        com.droiddeck.launcher.core.GameResolution.scales.forEach { scale ->
+            val choice = com.droiddeck.launcher.core.GameResolution.Scaled(scale)
+            MenuItem(scaledLabels.getValue(scale), checked = resolution == choice, enabled = ready,
+                detail = sizeLabel(com.droiddeck.launcher.core.GameResolution.resolve(choice, screen))) { pickResolution(choice) }
+        }
+        com.droiddeck.launcher.core.GameResolution.aspects.forEach { aspect ->
+            val sizes = com.droiddeck.launcher.core.GameResolution.sizesFor(aspect, screen)
+            MenuItem(aspect.label, checked = resolution in aspect.sizes, enabled = ready,
+                detail = sizes.joinToString(" · ") { "${it.width}×${it.height}" },
+                trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+            ) { host.open = "$resKey-${aspect.label}" }
+        }
+        val fixed = resolution as? com.droiddeck.launcher.core.GameResolution.Fixed
+        val customValue = fixed?.takeIf { f -> com.droiddeck.launcher.core.GameResolution.aspects.none { f in it.sizes } }
+        MenuItem(
+            if (customValue == null) stringResource(R.string.mode_res_custom) else stringResource(R.string.mode_res_custom_value, customValue.width, customValue.height),
+            checked = customValue != null, enabled = ready,
+            detail = customValue?.let { com.droiddeck.launcher.core.GameResolution.aspectLabel(it.width, it.height) },
+        ) { editResolution = true }
+    }
+    com.droiddeck.launcher.core.GameResolution.aspects.forEach { aspect ->
+        val aspectKey = "$resKey-${aspect.label}"
+        AnchoredMenu(host.open == aspectKey, onDismiss = { if (host.open == aspectKey) host.open = null }, title = aspect.label) { first ->
+            com.droiddeck.launcher.core.GameResolution.sizesFor(aspect, screen).forEachIndexed { index, size ->
+                MenuItem("${size.width}×${size.height}", checked = resolution == size, enabled = ready,
+                    focusRequester = if (index == 0) first else null) { pickResolution(size) }
+            }
+        }
+    }
+    if (editResolution) CustomResolutionDialog(
+        (resolution as? com.droiddeck.launcher.core.GameResolution.Fixed)?.let { it.width to it.height },
+        onSave = { value ->
+            editResolution = false
+            pickResolution(com.droiddeck.launcher.core.GameResolution.Fixed(value.first, value.second))
+        },
+        onDismiss = { editResolution = false },
+    )
     AnchoredMenu(host.open == fexKey, onDismiss = { if (host.open == fexKey) host.open = null }, title = stringResource(R.string.fex_preset_title)) { first ->
         MenuItem(useDefault, checked = fex == null, enabled = ready, detail = stringResource(generalFex.label), focusRequester = first) {
             host.open = key

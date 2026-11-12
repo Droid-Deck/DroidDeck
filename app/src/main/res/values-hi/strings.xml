@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">चालू</string>
     <string name="game_steam_with">Steam के साथ शुरू होता है</string>
     <string name="game_steam_without">Steam के बिना शुरू होता है</string>
+    <string name="game_res_title">गेम रिज़ॉल्यूशन</string>
     <string name="game_settings_card">सेटिंग</string>
     <string name="game_settings_menu_title">%1$s सेटिंग</string>
     <string name="game_settings_default">डिफ़ॉल्ट</string>

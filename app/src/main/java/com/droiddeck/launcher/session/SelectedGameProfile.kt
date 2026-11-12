@@ -53,7 +53,7 @@ data class SelectedGameProfile(
                 )
             }
             val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys -
-                GameEnvironment.NO_STEAM
+                GameEnvironment.NO_STEAM - GameEnvironment.GAME_RESOLUTION
             return SelectedGameProfile(
                 appId = selectedAppId,
                 name = game.name,

@@ -476,6 +476,7 @@
     <string name="game_no_steam_on">开</string>
     <string name="game_steam_with">随 Steam 启动</string>
     <string name="game_steam_without">不通过 Steam 启动</string>
+    <string name="game_res_title">游戏分辨率</string>
     <string name="game_settings_card">设置</string>
     <string name="game_settings_menu_title">%1$s 设置</string>
     <string name="game_settings_default">默认</string>

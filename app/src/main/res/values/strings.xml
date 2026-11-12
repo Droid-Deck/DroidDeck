@@ -526,6 +526,7 @@
     <string name="game_no_steam_on">On</string>
     <string name="game_steam_with">Starts with Steam</string>
     <string name="game_steam_without">Starts without Steam</string>
+    <string name="game_res_title">Game resolution</string>
     <string name="game_settings_card">Settings</string>
     <string name="game_settings_menu_title">%1$s Settings</string>
     <string name="game_settings_default">Default</string>

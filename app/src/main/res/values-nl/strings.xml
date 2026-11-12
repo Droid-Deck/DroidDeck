@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">Aan</string>
     <string name="game_steam_with">Start met Steam</string>
     <string name="game_steam_without">Start zonder Steam</string>
+    <string name="game_res_title">Spelresolutie</string>
     <string name="game_settings_card">Instellingen</string>
     <string name="game_settings_menu_title">Instellingen voor %1$s</string>
     <string name="game_settings_default">Standaard</string>

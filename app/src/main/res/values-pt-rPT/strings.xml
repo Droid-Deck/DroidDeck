@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Ativado</string>
     <string name="game_steam_with">Inicia com o Steam</string>
     <string name="game_steam_without">Inicia sem o Steam</string>
+    <string name="game_res_title">Resolução do jogo</string>
     <string name="game_settings_card">Definições</string>
     <string name="game_settings_menu_title">Definições de %1$s</string>
     <string name="game_settings_default">Predefinição</string>

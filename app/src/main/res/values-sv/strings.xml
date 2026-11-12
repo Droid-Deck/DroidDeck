@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">På</string>
     <string name="game_steam_with">Startar med Steam</string>
     <string name="game_steam_without">Startar utan Steam</string>
+    <string name="game_res_title">Spelupplösning</string>
     <string name="game_settings_card">Inställningar</string>
     <string name="game_settings_menu_title">Inställningar för %1$s</string>
     <string name="game_settings_default">Standard</string>

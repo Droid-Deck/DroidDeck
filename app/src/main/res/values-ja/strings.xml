@@ -476,6 +476,7 @@
     <string name="game_no_steam_on">オン</string>
     <string name="game_steam_with">Steam と一緒に起動</string>
     <string name="game_steam_without">Steam なしで起動</string>
+    <string name="game_res_title">ゲームの解像度</string>
     <string name="game_settings_card">設定</string>
     <string name="game_settings_menu_title">%1$s の設定</string>
     <string name="game_settings_default">デフォルト</string>

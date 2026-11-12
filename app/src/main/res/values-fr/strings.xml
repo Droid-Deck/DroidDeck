@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Activé</string>
     <string name="game_steam_with">Démarre avec Steam</string>
     <string name="game_steam_without">Démarre sans Steam</string>
+    <string name="game_res_title">Résolution du jeu</string>
     <string name="game_settings_card">Paramètres</string>
     <string name="game_settings_menu_title">Paramètres de %1$s</string>
     <string name="game_settings_default">Par défaut</string>

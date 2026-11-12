@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">An</string>
     <string name="game_steam_with">Startet mit Steam</string>
     <string name="game_steam_without">Startet ohne Steam</string>
+    <string name="game_res_title">Spielauflösung</string>
     <string name="game_settings_card">Einstellungen</string>
     <string name="game_settings_menu_title">Einstellungen für %1$s</string>
     <string name="game_settings_default">Standard</string>

@@ -49,6 +49,16 @@ object GameEnvironment {
         return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
     }
 
+    const val GAME_RESOLUTION = "DROIDDECK_GAME_RESOLUTION"
+
+    fun gameResolution(config: Config, scope: String): GameResolution.Choice? =
+        if (scope.isEmpty()) null else GameResolution.parse(config.games[scope]?.get(GAME_RESOLUTION))
+
+    fun withGameResolution(config: Config, scope: String, choice: GameResolution.Choice?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        return withScopeValue(config, scope, GAME_RESOLUTION, choice?.let(GameResolution::format))
+    }
+
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
 
