@@ -2621,8 +2621,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun applyFrameGen(force: Boolean = false) {
-        if (force) frameGenForcePending.set(true)
-        val request = frameGenRequests.incrementAndGet()
+        val request = synchronized(frameGenGlobalLock) {
+            if (force) frameGenForcePending.set(true)
+            frameGenRequests.incrementAndGet()
+        }
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
         Thread({
@@ -2642,7 +2644,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@Thread
                 if (request != frameGenRequests.get()) return@Thread
                 if (!frameGenActivityActive || isFinishing || isDestroyed) return@Thread
-                val forcePending = frameGenForcePending.getAndSet(false)
+                val forcePending = frameGenForcePending.get()
                 val lastAppliedHz = appliedFrameGenHz
                 if (!forcePending && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
                     lastAppliedHz != null && kotlin.math.abs(lastAppliedHz - hz) <= 0.1f
@@ -2650,6 +2652,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     null
                 } else {
                     val ready = prepared ?: return@Thread
+                    frameGenForcePending.set(false)
                     FrameGen.applyPrepared(this, ready, hz).also { problem ->
                         if (problem == null) {
                             appliedFrameGenMode = mode
