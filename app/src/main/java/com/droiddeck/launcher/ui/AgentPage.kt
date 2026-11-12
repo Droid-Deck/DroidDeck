@@ -407,7 +407,7 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 minLines = 1,
-                maxLines = if (compact) 1 else if (landscape) 3 else 8,
+                maxLines = if (compact) 1 else if (landscape) 2 else 8,
             )
         }
         if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
