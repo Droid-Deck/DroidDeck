@@ -62,7 +62,7 @@ static long sc(long nr, long a, long b, long c, long d, long e) {
   if (fp_refused) return -ENOSYS;
   long r = fp_sys(nr, a, b, c, d, e, 0);
   if (r == -ENOSYS && !optional_syscall(nr)) {
-    __atomic_store_n(&fp_on, 0, __ATOMIC_RELAXED);
+    if (fp_sys(nr, -1, -1, -1, -1, -1, 0) == -ENOSYS) __atomic_store_n(&fp_on, 0, __ATOMIC_RELAXED);
     fp_refused = 1;
   }
   return r;
