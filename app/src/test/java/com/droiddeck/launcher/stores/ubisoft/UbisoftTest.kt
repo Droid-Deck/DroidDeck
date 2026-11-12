@@ -45,6 +45,36 @@ class UbisoftTest {
         assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, null).map { it.id })
     }
 
+    @Test fun theStoreSearchNamesEachGameWithItsPrice() {
+        fun hit(id: String, title: String, price: Double, base: Double, off: String, date: String, free: String = "") = JSONObject()
+            .put("objectID", id).put("title", title).put("price", JSONObject().put("USD", price)).put("default_price", JSONObject().put("USD", base))
+            .put("promotion_percentage", off).put("release_date", date).put("Free_offer", free).put("link", "https://store.ubisoft.com/us/$id.html")
+            .put("image_link", "https://img/$id.jpg?sw=300").put("productLauncherIDString", id.takeLast(3)).put("Rating", "esrb-m")
+        val answer = JSONObject().put("hits", JSONArray()
+            .put(hit("p-109", "Far Cry® 6", 15.0, 60.0, "75", "2021-10-07T00:00:00.000Z"))
+            .put(hit("p-110", "Far Cry® 6 - Gold Edition", 30.0, 100.0, "70", "2021-10-07T00:00:00.000Z"))
+            .put(hit("p-111", "Some Demo", 0.0, 0.0, "", "2021-10-07T00:00:00.000Z", free = "demo"))
+            .put(hit("p-112", "Next Year", 70.0, 70.0, "", "2030-01-01T00:00:00.000Z")))
+        val items = UbisoftStore.parse(answer, "USD", java.time.Instant.parse("2026-11-12T00:00:00Z"))
+        assertEquals(listOf("Far Cry® 6"), items.map { it.title })
+        val game = items.single()
+        assertEquals("$15.00", game.finalPrice)
+        assertEquals("$60.00", game.originalPrice)
+        assertEquals(75, game.discountPercent)
+        assertEquals("https://img/p-109.jpg", game.imageUrl)
+        assertTrue(game.mature)
+        val owned = CatalogItem(Store.UBISOFT, "space-fc6", "Far Cry 6", null, owned = true, extra = mapOf("productId" to "5266"))
+        val ezio = CatalogItem(Store.UBISOFT, "ubisoft-store:x", "Assassin's Creed® The Ezio Collection", null)
+        assertTrue(UbisoftStore.sameGame(game, owned))
+        assertTrue(!UbisoftStore.sameGame(ezio, CatalogItem(Store.UBISOFT, "space-ac", "Assassin's Creed™", null, owned = true)))
+    }
+
+    @Test fun theBaseEditionStandsForItsGameWhicheverComesFirst() {
+        fun hit(id: String, title: String) = JSONObject().put("objectID", id).put("title", title).put("price", JSONObject().put("USD", 10.0))
+        val answer = JSONObject().put("hits", JSONArray().put(hit("gold", "Far Cry® 6 - Gold Edition")).put(hit("base", "Far Cry® 6")))
+        assertEquals(listOf("ubisoft-store:base"), UbisoftStore.parse(answer, "USD").map { it.id })
+    }
+
     @Test fun theEntitlementNamesTheGamesApplication() {
         val body = JSONObject().put("items", JSONArray()
             .put(JSONObject().put("productId", 82).put("applicationId", "app-82"))

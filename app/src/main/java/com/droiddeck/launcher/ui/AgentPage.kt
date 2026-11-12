@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.view.KeyEvent
+import android.view.WindowManager
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +59,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
@@ -71,6 +75,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -88,6 +93,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -99,6 +105,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogWindowProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
 import com.droiddeck.launcher.agent.AgentHost
@@ -116,14 +123,24 @@ private const val COMPOSER_SLIDE_MS = 350L
 /**
  * The chat with the composer at the bottom. The composer is the full editor only while it is
  * being typed in; reading shrinks it to one line, and scrolling back through older messages
- * hides it behind a small pill. [startTyping] opens an empty conversation ready to type. A window that pans
- * for the keyboard instead of resizing passes false for [resizesForKeyboard], or the editor moves up twice.
+ * hides it behind a small pill. [startTyping] opens an empty conversation ready to type.
  */
 @Composable
 internal fun AgentPage(
-    modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true, resizesForKeyboard: Boolean = true,
+    modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true,
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    DisposableEffect(view, visible) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+            ?: generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }
+                .filterIsInstance<Activity>().firstOrNull()?.window
+        val previousMode = window?.attributes?.softInputMode
+        if (visible) window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            if (visible && previousMode != null) window?.setSoftInputMode(previousMode)
+        }
+    }
     remember { AgentHost.refresh(context) }
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
     remember { AgentSetup.check(context) }
@@ -141,7 +158,7 @@ internal fun AgentPage(
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(keyboardOpen) { if (keyboardOpen && (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE)) panel = AgentPanel.NONE }
     Column(
-        modifier.fillMaxSize().then(if (resizesForKeyboard) Modifier.imePadding() else Modifier).onPreviewKeyEvent { e ->
+        modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
             val k = e.nativeKeyEvent
             if (k.keyCode != KeyEvent.KEYCODE_BUTTON_Y || composer.typing) return@onPreviewKeyEvent false
             if (k.action == KeyEvent.ACTION_UP) composer.open()
@@ -186,7 +203,7 @@ internal fun AgentPage(
                         list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2)
                     }
                 }
-                Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(dragBack)) {
+                Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack)) {
                     AgentConversation(
                         Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture {

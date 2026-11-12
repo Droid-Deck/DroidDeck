@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">Keskeytynyt</string>
     <string name="stores_install_size">Asenna · %1$s</string>
     <string name="stores_get_free">Hanki ilmaiseksi</string>
+    <string name="stores_claiming">Lisätään kirjastoon…</string>
     <string name="stores_view_on">Näytä %1$s:ssä</string>
     <string name="stores_buy_price">Osta · %1$s</string>
     <string name="stores_installed_chip">Asennettu</string>

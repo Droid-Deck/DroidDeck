@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">中断</string>
     <string name="stores_install_size">インストール · %1$s</string>
     <string name="stores_get_free">無料で入手</string>
+    <string name="stores_claiming">ライブラリに追加中…</string>
     <string name="stores_view_on">%1$sで見る</string>
     <string name="stores_buy_price">購入 · %1$s</string>
     <string name="stores_installed_chip">インストール済み</string>

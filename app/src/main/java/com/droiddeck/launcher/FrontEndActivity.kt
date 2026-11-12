@@ -196,6 +196,7 @@ class FrontEndActivity : ComponentActivity() {
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
+    private var homePage by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
@@ -829,6 +830,10 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
+        if (navRequest == com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS) {
+            homeAppSelected = HomeApp.isHomeScreenEnabled(this) && HomeApp.isDefault(this)
+            if (!homeAppSelected) navRequest = null
+        }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
             steamGames = emptyList()
@@ -1099,7 +1104,6 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
@@ -1123,6 +1127,7 @@ class FrontEndActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
+        homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
@@ -1219,6 +1224,7 @@ class FrontEndActivity : ComponentActivity() {
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
                         launcherOrientation = launcherOrientation,
+                        homePage = homePage,
                         launcherFullscreen = launcherFullscreen,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
@@ -1515,6 +1521,10 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.core.AppUiPrefs.setOrientation(this, value)
                             launcherOrientation = value
                             requestedOrientation = value
+                        },
+                        onHomePage = { value ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setHomePage(this, value)
+                            homePage = value
                         },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
@@ -1908,6 +1918,7 @@ class FrontEndActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
+        homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)

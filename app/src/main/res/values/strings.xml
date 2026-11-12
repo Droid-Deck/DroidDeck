@@ -982,6 +982,8 @@
     <string name="setup_home">Use as Home screen</string>
     <string name="setup_home_on">DroidDeck can be the Home app</string>
     <string name="setup_home_off">DroidDeck is never offered as a Home app</string>
+    <string name="setup_home_page">Home button opens</string>
+    <string name="setup_home_page_hint">The page shown when DroidDeck is the Home app and you press Home</string>
     <string name="setup_home_game_space_first">In Add Games, set DroidDeck to Include</string>
     <string name="setup_orientation">Orientation</string>
     <string name="setup_launcher_orientation">Launcher orientation</string>
@@ -2607,6 +2609,7 @@
     <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>
     <string name="stores_get_free">Get for free</string>
+    <string name="stores_claiming">Adding to library…</string>
     <string name="stores_view_on">View on %1$s</string>
     <string name="stores_buy_price">Buy · %1$s</string>
     <string name="stores_installed_chip">Installed</string>

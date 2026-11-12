@@ -2227,6 +2227,7 @@
     <string name="stores_dl_interrupted">Unterbrochen</string>
     <string name="stores_install_size">Installieren · %1$s</string>
     <string name="stores_get_free">Kostenlos erhalten</string>
+    <string name="stores_claiming">Wird zur Bibliothek hinzugefügt…</string>
     <string name="stores_view_on">Auf %1$s ansehen</string>
     <string name="stores_buy_price">Kaufen · %1$s</string>
     <string name="stores_installed_chip">Installiert</string>

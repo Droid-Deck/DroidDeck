@@ -2285,6 +2285,7 @@
     <string name="stores_dl_interrupted">Přerušeno</string>
     <string name="stores_install_size">Instalace · %1$s</string>
     <string name="stores_get_free">Získat zdarma</string>
+    <string name="stores_claiming">Přidávání do knihovny…</string>
     <string name="stores_view_on">Zobrazit na %1$s</string>
     <string name="stores_buy_price">Koupit · %1$s</string>
     <string name="stores_installed_chip">Nainstalováno</string>

@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">बाधित</string>
     <string name="stores_install_size">इंस्टॉल · %1$s</string>
     <string name="stores_get_free">मुफ़्त में पाएं</string>
+    <string name="stores_claiming">लाइब्रेरी में जोड़ा जा रहा है…</string>
     <string name="stores_view_on">%1$s पर देखें</string>
     <string name="stores_buy_price">खरीदें · %1$s</string>
     <string name="stores_installed_chip">इंस्टॉल है</string>

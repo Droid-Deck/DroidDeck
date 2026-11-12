@@ -2285,6 +2285,7 @@
     <string name="stores_dl_interrupted">Перервано</string>
     <string name="stores_install_size">Встановити · %1$s</string>
     <string name="stores_get_free">Отримати безкоштовно</string>
+    <string name="stores_claiming">Додавання до бібліотеки…</string>
     <string name="stores_view_on">Переглянути на %1$s</string>
     <string name="stores_buy_price">Купити · %1$s</string>
     <string name="stores_installed_chip">Встановлено</string>

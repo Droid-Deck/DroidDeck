@@ -55,8 +55,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Widgets
@@ -779,19 +777,30 @@ private fun FolderSheet(
                     .focusGroup()
                     .padding(16.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                    if (renaming) Box(Modifier.weight(1f)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                    if (renaming) {
                         AdbTextField(
                             value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.apps_folder_name),
                             keyboardType = KeyboardType.Text, imeAction = ImeAction.Done, compact = true, showLabel = false,
                             placeholder = folder.name, focusOnShow = true, onDone = { commit() },
                         )
                     } else {
-                        Text(folder.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        SmallIconButton(Icons.Filled.Edit, stringResource(R.string.apps_folder_rename), tint = colors.onSurfaceVariant) { renaming = true }
-                        Spacer(Modifier.weight(1f))
+                        val src = remember { MutableInteractionSource() }
+                        val hot = rememberHot(src)
+                        val rename = { renaming = true }
+                        Text(
+                            folder.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                            // A faint chip at rest shows the name can be selected, now that the pencil is gone.
+                            modifier = Modifier.clip(Shape12)
+                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.onBackground.copy(alpha = 0.07f))
+                                .glideBorder(hot, Shape12, pal.signal)
+                                .hoverable(src)
+                                .clickable(interactionSource = src, indication = LocalIndication.current, onClickLabel = stringResource(R.string.apps_folder_rename), role = Role.Button, onClick = rename)
+                                .controllerConfirm(onClick = rename)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                        )
                     }
-                    SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant) { close() }
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(92.dp),
