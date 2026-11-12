@@ -13,12 +13,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
@@ -136,26 +138,28 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
             }
         }
     }
-    Column(modifier.fillMaxSize().imePadding().nestedScroll(headerScroll)) {
-        Box(Modifier.clipToBounds().layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints)
-            val offset = if (collapseHeader) headerOffset.roundToInt().coerceIn(-placeable.height, 0) else 0
-            layout(placeable.width, placeable.height + offset) { placeable.placeRelative(0, offset) }
-        }) {
-            Box(Modifier.onSizeChanged { headerHeight = it.height }) {
-                AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
-            }
-        }
-        when (panel) {
-            AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
-            AgentPanel.PROCESSES -> AgentProcessList(Modifier.weight(1f))
-            else -> {
-                Column(Modifier.weight(1f).clipToBounds()) {
+    BoxWithConstraints(modifier.fillMaxSize().imePadding().nestedScroll(headerScroll)) {
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.heightIn(max = maxHeight / 2).clipToBounds().layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val offset = if (collapseHeader) headerOffset.roundToInt().coerceIn(-placeable.height, 0) else 0
+                layout(placeable.width, placeable.height + offset) { placeable.placeRelative(0, offset) }
+            }) {
+                Column(Modifier.onSizeChanged { headerHeight = it.height }) {
+                    AgentHeader(panel, { panel = if (panel == it) AgentPanel.NONE else it }, onSetup = { setup = true })
                     if (panel == AgentPanel.MODEL) AgentModelPicker()
-                    AgentConversation(Modifier.weight(1f))
-                    AgentStatus()
                 }
-                AgentComposer(draft, inputModifier, compact = panel == AgentPanel.MODEL) { panel = it }
+            }
+            when (panel) {
+                AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
+                AgentPanel.PROCESSES -> AgentProcessList(Modifier.weight(1f))
+                else -> {
+                    Column(Modifier.weight(1f).clipToBounds()) {
+                        AgentConversation(Modifier.weight(1f))
+                        AgentStatus()
+                    }
+                    AgentComposer(draft, inputModifier, compact = panel == AgentPanel.MODEL) { panel = it }
+                }
             }
         }
     }
