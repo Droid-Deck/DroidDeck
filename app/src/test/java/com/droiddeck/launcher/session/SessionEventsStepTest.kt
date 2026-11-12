@@ -42,4 +42,18 @@ class SessionEventsStepTest {
         runCatching { SessionEvents.step("probe") { error("boom") } }
         assertEquals(listOf("begin", "end"), events().map { it.getString("state") })
     }
+
+    @Test fun stepKeepsBothEventsInTheSessionWhereItStarted() {
+        val other = File.createTempFile("session", "").apply { delete(); mkdirs() }
+        try {
+            SessionEvents.step("probe") {
+                SessionState.logDirectory = other
+                SessionState.eventsFile = File(other, "events.jsonl")
+            }
+            assertEquals(listOf("begin", "end"), events().map { it.getString("state") })
+            assertTrue(!File(other, "events.jsonl").exists())
+        } finally {
+            other.deleteRecursively()
+        }
+    }
 }

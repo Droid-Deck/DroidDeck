@@ -76,12 +76,13 @@ object SessionEvents {
     }
 
     inline fun <T> step(name: String, block: () -> T): T {
-        record("start.step", mapOf("step" to name, "state" to "begin"))
+        val dir = SessionState.logDirectory ?: SessionPaths.current()
+        record("start.step", mapOf("step" to name, "state" to "begin"), dir)
         val began = android.os.SystemClock.elapsedRealtime()
         try {
             return block()
         } finally {
-            record("start.step", mapOf("step" to name, "state" to "end", "ms" to android.os.SystemClock.elapsedRealtime() - began))
+            record("start.step", mapOf("step" to name, "state" to "end", "ms" to android.os.SystemClock.elapsedRealtime() - began), dir)
         }
     }
 
