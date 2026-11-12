@@ -85,8 +85,14 @@ int main(int argc, char **argv) {
       unsupported_nr = SYS_symlinkat;
     } else if (!strcmp(op, "on")) {
       printf("%d\n", fp_ready());
+    } else if (!strcmp(op, "no-folders")) {
+      unsupported_nr = SYS_mkdirat;
+    } else if (!strcmp(op, "busy-cache")) {
+      pthread_mutex_lock(&dir_lock);
     } else if (!strcmp(op, "mkdir")) {
-      show(fp_mkdir(AT_FDCWD, argv[++i], 0755));
+      long r = fp_mkdir(AT_FDCWD, argv[++i], 0755);
+      if (refused()) puts("REFUSED");
+      else show(r);
     } else if (!strcmp(op, "mv")) {
       show(fp_rename(AT_FDCWD, argv[i + 1], AT_FDCWD, argv[i + 2], 0));
       i += 2;
@@ -280,6 +286,12 @@ class FastPathFuseDirsTest(unittest.TestCase):
                        "stat", f"{data}/a", "symlink", f"{data}/link", "on", "touch", f"{data}/b")
         self.assertEqual(["ok", "REFUSED", "1", "ok", "REFUSED", "1", "ok"], out)
         self.assertEqual(["a", "b"], sorted(p.name for p in (self.card / "Games/steamapps/common/Game/Data").iterdir()))
+
+    def test_repeated_unsupported_calls_close_the_folders_they_opened(self):
+        data = "/mnt/card/Games/steamapps/common/Game/Data"
+        ops = [op for n in range(40) for op in ("mkdir", f"{data}/new{n}")]
+        out = self.ask("fuse", "no-folders", "busy-cache", *ops, "on", "fds")
+        self.assertEqual(["REFUSED"] * 40 + ["1", "0"], out)
 
     def test_a_trapped_call_still_stops_the_fast_path_for_the_process(self):
         data = "/mnt/card/Games/steamapps/common/Game/Data"
