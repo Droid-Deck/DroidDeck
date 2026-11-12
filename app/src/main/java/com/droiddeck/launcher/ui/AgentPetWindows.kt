@@ -479,6 +479,7 @@ internal class PetWindows(private val context: Context) {
  */
 @Composable
 internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onClosed: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -541,7 +542,7 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
                 Text(stringResource(R.string.agent_pet_name), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                     modifier = Modifier.padding(start = 4.dp))
                 Spacer(Modifier.weight(1f))
-                HeaderAction(Icons.Outlined.Close, stringResource(R.string.agent_close), size = 34.dp, tag = "agent-pet-close", onClick = onClose)
+                HeaderAction(Icons.Outlined.Close, stringResource(R.string.agent_close), size = 34.dp, tag = "agent-pet-close", onClick = { onClose(); AgentPet.set(context, false) })
             }
             AgentPage(Modifier.weight(1f).fillMaxWidth(), visible = open, startTyping = AgentHost.entries.isEmpty(), hidesPet = false)
         }

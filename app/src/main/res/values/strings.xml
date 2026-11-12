@@ -3999,5 +3999,6 @@
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="agent_pet_switching">Returning to agent… %1$d</string>
-    <string name="agent_pet_hold_hint">Hold to return to agent</string>
+    <string name="agent_pet_open_hint">Press to open DeeDee\nHold to return to agent</string>
+    <string name="agent_pet_close_hint">Press to close DeeDee\nHold to return to agent</string>
 </resources>

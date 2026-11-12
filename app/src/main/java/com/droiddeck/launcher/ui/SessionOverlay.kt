@@ -1938,7 +1938,8 @@ private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modi
 }
 
 @Composable
-private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit, onCountdown: (Int) -> Unit) {
+private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit, onCountdown: (Int) -> Unit): androidx.compose.runtime.State<Boolean> {
+    val handled = remember { mutableStateOf(false) }
     val action by androidx.compose.runtime.rememberUpdatedState(onHold)
     val countdown by androidx.compose.runtime.rememberUpdatedState(onCountdown)
     LaunchedEffect(source) {
@@ -1947,6 +1948,7 @@ private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit,
             source.interactions.collect { interaction ->
                 when (interaction) {
                     is PressInteraction.Press -> {
+                        handled.value = false
                         hold?.cancel()
                         hold = launch {
                             try {
@@ -1954,6 +1956,7 @@ private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit,
                                     countdown(step)
                                     delay(if (step == 1) 666L else 667L)
                                 }
+                                handled.value = true
                                 action()
                             } finally { countdown(0) }
                         }
@@ -1963,23 +1966,27 @@ private fun HoldForPetMode(source: MutableInteractionSource, onHold: () -> Unit,
             }
         } finally { hold?.cancel() }
     }
+    return handled
 }
 
 @Composable
 private fun DrawerPet(modifier: Modifier, countdown: Int, onCountdown: (Int) -> Unit, onHold: () -> Unit) {
     val source = remember { MutableInteractionSource() }
-    HoldForPetMode(source, onHold, onCountdown)
+    val held by HoldForPetMode(source, onHold, onCountdown)
+    val context = LocalContext.current
+    val enabled = AgentPet.enabled
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
             if (countdown > 0) Text(stringResource(R.string.agent_pet_switching, countdown),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
         Icon(Icons.Outlined.Pets, contentDescription = stringResource(R.string.agent_pet_name),
-            tint = Color(0xFF1A9FFF), modifier = Modifier.size(112.dp).padding(12.dp)
+            tint = if (enabled) Color(0xFF1A9FFF) else Color.White, modifier = Modifier.size(112.dp).padding(12.dp)
                 .testTag("drawer-deedee")
-                .clickable(interactionSource = source, indication = null, onClick = {}))
+                .semantics { stateDescription = if (enabled) "On" else "Off" }
+                .clickable(interactionSource = source, indication = null) { if (!held) AgentPet.set(context, !AgentPet.enabled) })
         Text(stringResource(R.string.agent_pet_name), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.agent_pet_hold_hint), style = MaterialTheme.typography.bodySmall,
+        Text(stringResource(if (enabled) R.string.agent_pet_close_hint else R.string.agent_pet_open_hint), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
     }
 }

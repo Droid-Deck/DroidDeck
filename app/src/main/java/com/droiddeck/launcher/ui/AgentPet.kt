@@ -240,6 +240,9 @@ internal fun PetPreview(text: String, modifier: Modifier, onTap: () -> Unit) {
 private fun PetLayer(host: AgentPetHost) {
     var chatOpen by remember { mutableStateOf(false) }
     var chatShown by remember { mutableStateOf(false) }
+    LaunchedEffect(AgentPet.enabled) {
+        if (!AgentPet.enabled) { chatOpen = false; chatShown = false }
+    }
     val shown = AgentPet.enabled && !AgentPet.floating && AgentHost.installed && (chatShown || AgentPet.agentOnScreen == 0) && !host.petBlocked
     if (!shown) return
     val context = LocalContext.current
