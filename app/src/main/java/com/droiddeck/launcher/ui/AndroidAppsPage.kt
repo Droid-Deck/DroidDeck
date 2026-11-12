@@ -737,6 +737,15 @@ private fun FolderSheet(
     val title = remember { FocusRequester() }
     // Backing out of the name field lands on the title, not on the first app.
     var toTitle by remember { mutableStateOf(false) }
+    val sheetView = androidx.compose.ui.platform.LocalView.current
+    val leaveName = {
+        if (renaming) {
+            (ctx.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(sheetView.windowToken, 0)
+            toTitle = true
+            commit()
+        }
+    }
     val inputMode = LocalInputModeManager.current.inputMode
     val ff = LocalFrontFocus.current
     val grid = rememberLazyGridState()
@@ -774,6 +783,13 @@ private fun FolderSheet(
                     .clip(Shape16).background(pal.surfaceVariant.copy(alpha = 0.97f))
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
+                    // In the name field B leaves the field; the sheet must not take that press as its own B and close.
+                    .onPreviewKeyEvent { event ->
+                        val k = event.nativeKeyEvent
+                        if (!renaming || k.keyCode != KeyEvent.KEYCODE_BUTTON_B) return@onPreviewKeyEvent false
+                        if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) leaveName()
+                        true
+                    }
                     .controllerBack(close)
                     .focusProperties {
                         exit = { dir ->
@@ -789,7 +805,7 @@ private fun FolderSheet(
                         AdbTextField(
                             value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.apps_folder_name),
                             keyboardType = KeyboardType.Text, imeAction = ImeAction.Done, compact = true, showLabel = false,
-                            placeholder = folder.name, focusOnShow = true, onDone = { commit() }, onBack = { if (renaming) { toTitle = true; commit() } },
+                            placeholder = folder.name, focusOnShow = true, onDone = { commit() }, onBack = leaveName,
                         )
                     } else {
                         val src = remember { MutableInteractionSource() }
