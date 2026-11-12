@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">중단됨</string>
     <string name="stores_install_size">설치 · %1$s</string>
     <string name="stores_get_free">무료로 받기</string>
+    <string name="stores_claiming">라이브러리에 추가하는 중…</string>
     <string name="stores_view_on">%1$s에서 보기</string>
     <string name="stores_buy_price">구매 · %1$s</string>
     <string name="stores_installed_chip">설치됨</string>

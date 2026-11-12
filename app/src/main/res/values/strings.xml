@@ -2585,6 +2585,7 @@
     <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>
     <string name="stores_get_free">Get for free</string>
+    <string name="stores_claiming">Adding to library…</string>
     <string name="stores_view_on">View on %1$s</string>
     <string name="stores_buy_price">Buy · %1$s</string>
     <string name="stores_installed_chip">Installed</string>

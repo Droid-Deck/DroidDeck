@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">Terganggu</string>
     <string name="stores_install_size">Pasang · %1$s</string>
     <string name="stores_get_free">Dapatkan percuma</string>
+    <string name="stores_claiming">Menambah ke pustaka…</string>
     <string name="stores_view_on">Lihat pada %1$s</string>
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Dipasang</string>

@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">ถูกขัดจังหวะ</string>
     <string name="stores_install_size">ติดตั้ง · %1$s</string>
     <string name="stores_get_free">รับไปเลยฟรี</string>
+    <string name="stores_claiming">กำลังเพิ่มลงในคลัง…</string>
     <string name="stores_view_on">ดูบน %1$s</string>
     <string name="stores_buy_price">ซื้อ · %1$s</string>
     <string name="stores_installed_chip">ติดตั้งแล้ว</string>

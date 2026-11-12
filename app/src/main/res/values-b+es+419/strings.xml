@@ -2304,6 +2304,7 @@
     <string name="stores_dl_interrupted">Interrumpida</string>
     <string name="stores_install_size">Instalar · %1$s</string>
     <string name="stores_get_free">Obtener gratis</string>
+    <string name="stores_claiming">Agregando a la biblioteca…</string>
     <string name="stores_view_on">Ver en %1$s</string>
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>

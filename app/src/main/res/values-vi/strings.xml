@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">Bị gián đoạn</string>
     <string name="stores_install_size">Cài · %1$s</string>
     <string name="stores_get_free">Lấy miễn phí</string>
+    <string name="stores_claiming">Đang thêm vào thư viện…</string>
     <string name="stores_view_on">Xem trên %1$s</string>
     <string name="stores_buy_price">Mua · %1$s</string>
     <string name="stores_installed_chip">Đã cài</string>

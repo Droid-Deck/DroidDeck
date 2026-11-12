@@ -2335,6 +2335,7 @@
     <string name="stores_dl_interrupted">منقطع</string>
     <string name="stores_install_size">تثبيت · %1$s</string>
     <string name="stores_get_free">احصل عليها مجانًا</string>
+    <string name="stores_claiming">جارٍ الإضافة إلى المكتبة…</string>
     <string name="stores_view_on">عرض على %1$s</string>
     <string name="stores_buy_price">شراء · %1$s</string>
     <string name="stores_installed_chip">مثبَّتة</string>

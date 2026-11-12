@@ -2291,6 +2291,7 @@
     <string name="stores_dl_interrupted">已中断</string>
     <string name="stores_install_size">安装 · %1$s</string>
     <string name="stores_get_free">免费领取</string>
+    <string name="stores_claiming">正在添加到游戏库…</string>
     <string name="stores_view_on">在 %1$s 上查看</string>
     <string name="stores_buy_price">购买 · %1$s</string>
     <string name="stores_installed_chip">已安装</string>

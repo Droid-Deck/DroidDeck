@@ -505,7 +505,12 @@ internal fun GameActions(
                 InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
                 SecondaryButton(stringResource(R.string.stores_view_on, item.store.shortLabel)) { openStoreUrl(ctx, item) }
             }
-            item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
+            item != null && item.isFree -> {
+                val adding = StoresState.claiming[item.key] == true
+                PrimaryButton(stringResource(if (adding) R.string.stores_claiming else R.string.stores_get_free), enabled = !adding, main = true, modifier = leadOn) {
+                    if (StoresState.canClaim(item)) StoresState.claim(ctx, item) { openStoreUrl(ctx, item) } else openStoreUrl(ctx, item)
+                }
+            }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
         if (cloud && (download != null || failed != null)) {
