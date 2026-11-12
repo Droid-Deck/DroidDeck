@@ -751,7 +751,7 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
     }
     ArtCard(
         e.title, wide, tall, download, hot, capsule, chip,
-        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) else null,
+        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp), label = favoritesBadge(e)) }) else null,
     ) { LibrarySize(e) }
 }
 
@@ -888,7 +888,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SourceChip(e.source, small = true)
+                SourceChip(e.source, small = true, label = favoritesBadge(e))
                 Text(meta.joinToString("  ·  "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -1106,3 +1106,7 @@ private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
         "view",
     ) { a.onStoresView(next) }
 }
+
+@Composable
+private fun favoritesBadge(e: LibraryEntry): String? =
+    if (e.game?.appId == SoundtrackCollections.FAVORITES_ID && e.source == Library.SOURCE_COLLECTION) stringResource(R.string.soundtracks_favorites) else null

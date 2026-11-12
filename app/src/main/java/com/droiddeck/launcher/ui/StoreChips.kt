@@ -58,10 +58,10 @@ internal fun sourceLabel(source: String): String = when (source) {
 }
 
 @Composable
-internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier) {
+internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier, label: String? = null) {
     val c = sourceColours(source)
     Text(
-        sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
+        label ?: sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
         color = c.ink, maxLines = 1,
         modifier = modifier.clip(RoundedCornerShape(6.dp)).background(c.fill)
             .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),
