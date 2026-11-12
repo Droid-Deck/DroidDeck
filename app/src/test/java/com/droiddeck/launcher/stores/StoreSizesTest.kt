@@ -6,6 +6,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoreSizesTest {
@@ -84,5 +85,12 @@ class StoreSizesTest {
         pending.complete(3L)
         assertEquals(1, starts)
         callers.forEach { assertEquals(3L, it.get()) }
+    }
+
+    @Test fun synchronousStartFailureCompletesAndAllowsRetry() {
+        val requests = ConcurrentHashMap<String, CompletableFuture<Long?>>()
+        val failed = StoreSizes.shared(requests, ea.key) { throw IllegalStateException("boom") }
+        assertTrue(failed.isCompletedExceptionally)
+        assertEquals(4L, StoreSizes.shared(requests, ea.key) { CompletableFuture.completedFuture(4L) }.get())
     }
 }
