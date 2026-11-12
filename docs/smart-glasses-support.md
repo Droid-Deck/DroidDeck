@@ -22,9 +22,9 @@ This describes the integrations implemented in DroidDeck as of 2026-10-24. A rec
 | **VITURE Luma Ultra** | SDK-dependent Carina transport | Yes | **Experimental, opt-in** | **Experimental, opt-in** |
 | Recognized RayNeo / TCL Air-series devices | Integrated RayNeo USB transport | Yes, with orientation calibration controls | No | No |
 | RayNeo GT-series devices matching the supported USB identity, including GT Max identification | Integrated GT USB/IMU path | Yes, with orientation calibration controls | No | No |
-| **XREAL 1S** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection | Yes, when that connection is ready | No | No |
+| **XREAL 1S, One, One Pro, One Pro+, Aura** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection. Head tracking and 2D/3D switching are tested on the Aura | Yes, when that connection is ready | No | No |
 | Rokid Max / Max 2; Rokid Air under the Max USB identity | Integrated Rokid USB transport (vendor control requests and HID IMU reports) | Yes | No | No |
-| Other XREAL models; unrecognized glasses; display adapters and docks | Display-only where Android exposes a usable display; automatic glasses routing also requires display recognition | No supported app tracking connection | No | No |
+| Other XREAL models (Air family and others); unrecognized glasses; display adapters and docks | Display-only where Android exposes a usable display; automatic glasses routing also requires display recognition | No supported app tracking connection | No | No |
 
 RayNeo's Air-series recognition uses its known USB identity or a RayNeo/TCL Air name under the accepted vendor IDs; it is not a per-model certification list. The GT vendor path requires the specific supported product ID. Rokid recognition requires USB 04d2:162f (Max/Air) or 04d2:2002 (Max 2), plus a Rokid product name, since that vendor ID is shared with unrelated devices. Max 2 reports the USB product name "Rokid Max2". Hardware checks cover the Max and Max 2; the Air follows the same published protocol untested. XREAL support currently targets **1S only**: One, One Pro, Air-family devices, and recovery-mode products are not enabled by the 1S transport. VITURE Pro 2 is identified through SDK validation rather than a guessed product ID. A dock does not supply the connected glasses' sensors by itself.
 
@@ -43,6 +43,7 @@ All display modes depend on the phone's video output, the cable/adapter, and And
 | VITURE Pro 2 | 1080p per eye; 2D and SBS | Brightness and volume; no electrochromic-film control |
 | RayNeo Air/GT | 2D/SBS switching; resolution and refresh follow available Android modes | Orientation calibration; no app brightness, volume, or dimming commands |
 | XREAL 1S | Supported 1S display-mode commands, including native 1200p/60 Hz and SBS | Brightness and dimming toggle; no app volume command |
+| XREAL One, One Pro, One Pro+, Aura | 2D and SBS only, switched with the glasses' 3D input command; the display-mode set command is never sent (an unexpected index reboots the Aura) | No app brightness, dimming or volume commands |
 | Rokid Max / Max 2 | 1080p at 60 or 120 Hz in 2D; SBS at 1080p/60, 1200p/60, or 1200p/90 | Brightness; volume follows Android's USB audio volume; no dimming film |
 | Rokid Air | 1080p/60 in 2D and SBS | Brightness; volume follows Android's USB audio volume |
 
@@ -56,7 +57,7 @@ The pointer is left out of the picture when it cannot be drawn where the game is
 
 ## Setup and app-wide behavior
 
-1. Connect the glasses through a compatible video/data connection. Accept USB access when requested. For XREAL 1S, Android must also expose the glasses' USB-Ethernet network; the app leaves Steam's Internet connection on its normal network.
+1. Connect the glasses through a compatible video/data connection. Accept USB access when requested. For XREAL 1S, One, One Pro, One Pro+ and Aura, Android must also expose the glasses' USB-Ethernet network; the app leaves Steam's Internet connection on its normal network.
 2. Open **Setup → Smart glasses**. Enable glasses output and **3DoF virtual screen**. This selects the tracked screen and saves the setting without forcing SBS or changing brightness.
 3. Adjust screen width and distance, then recenter while looking where the screen should sit. The same settings apply when navigating DroidDeck, opening a non-Steam launcher, or entering a game/desktop session.
 4. On an SDK-enabled Luma Ultra, optionally enable positional tracking and set the floor from the current eye height. Use the tracking setup and recovery controls for calibration or recentering. SteamVR startup defers Luma positional initialization until two seconds after SteamVR reports running.
@@ -85,4 +86,4 @@ If only a flat picture is available, check video output first, then the control 
 - [Agent diagnostics and capture commands](agent-control.md)
 - [RayNeo attribution and protocol references](third-party/rayneo/README.md)
 
-The capability definitions are maintained in [VITURE models](../app/src/main/java/com/droiddeck/launcher/glasses/VitureProtocol.kt), [RayNeo models](../app/src/main/java/com/droiddeck/launcher/glasses/RayNeoModel.kt), [XREAL 1S](../app/src/main/java/com/droiddeck/launcher/glasses/XrealModel.kt), [Rokid](../app/src/main/java/com/droiddeck/launcher/glasses/RokidModel.kt), and [connection capability routing](../app/src/main/java/com/droiddeck/launcher/glasses/Glasses.kt). Update this matrix when those integrations change.
+The capability definitions are maintained in [VITURE models](../app/src/main/java/com/droiddeck/launcher/glasses/VitureProtocol.kt), [RayNeo models](../app/src/main/java/com/droiddeck/launcher/glasses/RayNeoModel.kt), [XREAL](../app/src/main/java/com/droiddeck/launcher/glasses/XrealModel.kt), [Rokid](../app/src/main/java/com/droiddeck/launcher/glasses/RokidModel.kt), and [connection capability routing](../app/src/main/java/com/droiddeck/launcher/glasses/Glasses.kt). Update this matrix when those integrations change.
