@@ -11,6 +11,7 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.LoginFlows
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
@@ -40,6 +41,8 @@ object EaBackend : StoreBackend {
         val app = context.applicationContext
         EaAuth.signOut(app)
         EaLibrary.reset(app)
+        signOuts.incrementAndGet()
+        StoresState.post { StoresState.shelves.remove(store) }
         EaUpdates.available.clear()
         runCatching { WebCookies.expire(EaLogin.SIGN_IN_URLS, ".ea.com", listOf("/")) {} }
     }
@@ -50,7 +53,32 @@ object EaBackend : StoreBackend {
         Thread({ EaLibrary.sync(app, force) }, "ea-sync").start()
     }
 
-    override fun loadShelves(context: Context, force: Boolean) {}
+    override fun loadShelves(context: Context, force: Boolean) {
+        val app = context.applicationContext
+        val account = signOuts.get()
+        EaStore.cached(app)?.let { s -> StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(s, StoresState.library[store], EaStore::sameGame) } }
+        Thread({
+            val shelves = EaStore.featured(app, force) ?: return@Thread
+            StoresState.post { if (signOuts.get() == account) StoresState.shelves[store] = StoreFront.markOwned(shelves, StoresState.library[store], EaStore::sameGame) }
+        }, "ea-shelves").start()
+    }
+
+    private val signOuts = java.util.concurrent.atomic.AtomicInteger()
+
+    override fun canClaim(item: CatalogItem): Boolean = item.isFree && !item.extra["slug"].isNullOrEmpty()
+
+    override fun claim(context: Context, item: CatalogItem): Boolean {
+        val app = context.applicationContext
+        val token = EaAuth.accessToken(app) ?: return false
+        val slug = item.extra["slug"] ?: return false
+        val offer = EaApi.freeOffer(token, slug) ?: run { StoresState.logLine("ea: no free offer for $slug"); return false }
+        val answer = EaApi.grantEntitlement(token, offer)
+        StoresState.logLine("ea: grant $offer for $slug: $answer")
+        return answer.optBoolean("success") || answer.optJSONArray("entitledOfferIds")?.let { ids -> (0 until ids.length()).any { ids.optString(it) == offer } } == true
+    }
+
+    override fun search(context: Context, query: String): List<CatalogItem> =
+        StoreFront.markOwned(EaStore.search(context.applicationContext, query), StoresState.library[store], EaStore::sameGame)
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
         val app = context.applicationContext

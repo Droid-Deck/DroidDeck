@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -189,4 +191,72 @@ internal fun AgentProcessList(modifier: Modifier) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         }
     }
+}
+
+/** How full the conversation's context is, how much of the plan's limits is used, and what this conversation cost. */
+@Composable
+internal fun AgentUsage() {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column(
+        Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (AgentHost.window > 0) UsageRow(
+            stringResource(R.string.agent_usage_context),
+            stringResource(R.string.agent_usage_of, tokens(AgentHost.context), tokens(AgentHost.window)),
+            (AgentHost.context.toFloat() / AgentHost.window).coerceIn(0f, 1f),
+        )
+        for (limit in AgentHost.limits) {
+            val used = liveUsed(limit)
+            val label = when {
+                limit.minutes in 9_000..11_000 -> stringResource(R.string.agent_limit_week)
+                limit.minutes >= 60 -> stringResource(R.string.agent_limit_hours, limit.minutes / 60)
+                else -> stringResource(R.string.agent_limit_minutes, limit.minutes)
+            }
+            val value = if (limit.resetsAt * 1000 > System.currentTimeMillis()) stringResource(R.string.agent_limit_resets, used, resetTime(context, limit.resetsAt)) else "$used%"
+            UsageRow(label, value, used / 100f)
+        }
+        val turns = AgentHost.entries.filterIsInstance<AgentHost.Entry.Finished>().mapNotNull { it.usage }
+        val cost = turns.sumOf { it.costUsd }
+        val ms = turns.sumOf { it.durationMs }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val facts = buildList {
+                if (ms > 0) add(clock(ms / 1000))
+                if (cost >= 0.005) add("$" + String.format(java.util.Locale.US, "%.2f", cost))
+            }
+            Text(
+                if (facts.isEmpty()) stringResource(R.string.agent_usage_unknown) else stringResource(R.string.agent_usage_conversation, facts.joinToString(" · ")),
+                fontSize = 12.5.sp, color = pal.onSurfaceVariant, modifier = Modifier.weight(1f),
+            )
+            if (AgentHost.harness.plans && AgentHost.entries.isNotEmpty() && AgentHost.state == AgentHost.State.IDLE) {
+                SecondaryButton("/compact", compact = true) { AgentHost.send(context, "/compact") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageRow(label: String, value: String, fraction: Float) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, fontSize = 14.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
+            Text(value, fontSize = 12.5.sp, color = pal.onSurfaceVariant)
+        }
+        LinearProgressIndicator(
+            progress = { fraction }, color = if (fraction >= 0.8f) AttentionAmber else pal.primary, trackColor = pal.surfaceVariant,
+            modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+        )
+    }
+}
+
+/** A reset later today shows its time; one further off shows the day too. */
+private fun resetTime(context: android.content.Context, epochSeconds: Long): String {
+    val ms = epochSeconds * 1000
+    val flags = if (ms - System.currentTimeMillis() < 20 * 3_600_000L) DateUtils.FORMAT_SHOW_TIME
+    else DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY or DateUtils.FORMAT_SHOW_TIME
+    return DateUtils.formatDateTime(context, ms, flags)
 }

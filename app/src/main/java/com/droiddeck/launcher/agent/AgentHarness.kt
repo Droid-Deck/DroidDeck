@@ -31,6 +31,8 @@ interface AgentHarness {
     fun parse(line: String): AgentEvent?
     /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
     fun prepare(rootfs: File) {}
+    /** Context and plan limits the CLI keeps on disk rather than printing, read once a turn of [conversation] is done. */
+    fun usage(rootfs: File, conversation: String?): AgentEvent? = null
 
     data class Model(val id: String, val label: String)
 
@@ -50,6 +52,9 @@ data class AgentEvent(
     val thinking: String? = null,
     /** Tokens the conversation's context holds after this step. */
     val context: Long? = null,
+    /** Tokens the model's context can hold. */
+    val window: Long? = null,
+    val limits: List<AgentHost.Limit>? = null,
     val usage: AgentHost.Usage? = null,
 )
 
@@ -139,10 +144,12 @@ object ClaudeCode : AgentHarness {
                 }
                 AgentEvent(conversation, results)
             }
+            "rate_limit_event" -> AgentEvent(conversation, limits = limits(o.optJSONObject("rate_limit_info")))
             // A resumed session first answers background tasks the last run left behind; that result is not the turn's.
             "result" -> if (o.optJSONObject("origin")?.optString("kind") == "task-notification") conversation?.let { AgentEvent(it) } else AgentEvent(
                 conversation,
                 listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
+                window = window(o.optJSONObject("modelUsage")),
                 usage = AgentHost.Usage(
                     o.optLong("duration_ms"), o.optDouble("total_cost_usd", 0.0),
                     o.optJSONObject("usage")?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") } ?: 0,
@@ -151,6 +158,24 @@ object ClaudeCode : AgentHarness {
             )
             else -> conversation?.let { AgentEvent(it) }
         }
+    }
+
+    private val WINDOW_MINUTES = mapOf("five_hour" to 300, "seven_day" to 10_080)
+
+    @VisibleForTesting
+    internal fun limits(info: JSONObject?): List<AgentHost.Limit>? {
+        val windows = info?.optJSONObject("unifiedWindows") ?: return null
+        return WINDOW_MINUTES.mapNotNull { (key, minutes) ->
+            val w = windows.optJSONObject(key) ?: return@mapNotNull null
+            AgentHost.Limit(minutes, (w.optDouble("utilization", 0.0) * 100).toInt(), w.optLong("resetsAt"))
+        }.takeIf { it.isNotEmpty() }
+    }
+
+    /** The context window of the model that did most of the turn; subagents may run a smaller one. */
+    private fun window(models: JSONObject?): Long? {
+        models ?: return null
+        return models.keys().asSequence().mapNotNull { models.optJSONObject(it) }
+            .maxByOrNull { it.optDouble("costUSD", 0.0) }?.optLong("contextWindow")?.takeIf { it > 0 }
     }
 
     private fun resultText(content: Any?): String = when (content) {
@@ -180,8 +205,8 @@ object ClaudeCode : AgentHarness {
         input ?: return ""
         return when {
             tool == "Bash" -> input.optString("command")
-            tool == "Edit" -> "${input.optString("file_path")}\n\n- ${input.optString("old_string").replace("\n", "\n- ")}\n\n+ ${input.optString("new_string").replace("\n", "\n+ ")}"
-            tool == "Write" -> "${input.optString("file_path")}\n\n${input.optString("content")}"
+            tool == "Edit" -> input.optString("file_path") + "\n" + lineDiff(input.optString("old_string"), input.optString("new_string"))
+            tool == "Write" -> input.optString("file_path") + "\n" + lineDiff("", input.optString("content"))
             tool == "TodoWrite" -> todos(input.optJSONArray("todos"))
             else -> input.toString(2)
         }
@@ -287,6 +312,33 @@ object Codex : AgentHarness {
         return if (entries.isEmpty()) null else AgentEvent(entries = entries)
     }
 
+    private const val TOKEN_COUNT = "\"payload\":{\"type\":\"token_count\""
+
+    /** Codex prints no limits with --json; its session log, named after the thread, has a token_count event each step. */
+    override fun usage(rootfs: File, conversation: String?): AgentEvent? {
+        conversation ?: return null
+        val log = File(rootfs, "root/.codex/sessions").walkBottomUp().filter { it.isFile && it.name.endsWith("-$conversation.jsonl") }
+            .maxByOrNull { it.lastModified() } ?: return null
+        val last = runCatching { log.readLines().lastOrNull { it.contains(TOKEN_COUNT) } }.getOrNull() ?: return null
+        return tokenCount(last)
+    }
+
+    @VisibleForTesting
+    internal fun tokenCount(line: String): AgentEvent? {
+        val payload = runCatching { JSONObject(line).optJSONObject("payload") }.getOrNull()?.takeIf { it.optString("type") == "token_count" } ?: return null
+        val info = payload.optJSONObject("info")
+        val rates = payload.optJSONObject("rate_limits")
+        val limits = listOf("primary", "secondary").mapNotNull { key ->
+            val w = rates?.optJSONObject(key) ?: return@mapNotNull null
+            AgentHost.Limit(w.optInt("window_minutes"), w.optDouble("used_percent", 0.0).toInt(), w.optLong("resets_at"))
+        }
+        return AgentEvent(
+            context = info?.optJSONObject("last_token_usage")?.optLong("total_tokens")?.takeIf { it > 0 },
+            window = info?.optLong("model_context_window")?.takeIf { it > 0 },
+            limits = limits.takeIf { it.isNotEmpty() },
+        )
+    }
+
     private fun todoEntry(id: String, item: JSONObject): AgentHost.Entry.Used {
         val items = item.optJSONArray("items") ?: JSONArray()
         val text = (0 until items.length()).mapNotNull { i ->
@@ -304,6 +356,28 @@ object Codex : AgentHarness {
 
 @VisibleForTesting
 internal fun firstLine(text: String) = text.lineSequence().first().take(160)
+
+private const val DIFF_CONTEXT = 2
+
+/**
+ * [old] against [new], one line per changed or nearby line, each led by ' ', '-' or '+'. Edits
+ * replace a short span, so the lines both share at the start and end are cut to [DIFF_CONTEXT].
+ */
+@VisibleForTesting
+internal fun lineDiff(old: String, new: String): String {
+    val a = if (old.isEmpty()) emptyList() else old.removeSuffix("\n").lines()
+    val b = if (new.isEmpty()) emptyList() else new.removeSuffix("\n").lines()
+    var head = 0
+    while (head < a.size && head < b.size && a[head] == b[head]) head++
+    var tail = 0
+    while (tail < a.size - head && tail < b.size - head && a[a.size - 1 - tail] == b[b.size - 1 - tail]) tail++
+    return buildList {
+        a.subList(maxOf(0, head - DIFF_CONTEXT), head).forEach { add(" $it") }
+        a.subList(head, a.size - tail).forEach { add("-$it") }
+        b.subList(head, b.size - tail).forEach { add("+$it") }
+        a.subList(a.size - tail, minOf(a.size, a.size - tail + DIFF_CONTEXT)).forEach { add(" $it") }
+    }.joinToString("\n")
+}
 
 private val SHELL_WRAPPER = Regex("^/bin/(?:ba)?sh -l?c '(.*)'$", RegexOption.DOT_MATCHES_ALL)
 
