@@ -13,8 +13,18 @@ PROGRAM = r"""
 #include "FASTPATH"
 #include <sys/mount.h>
 
+static const char *race_from, *race_to;
+static dev_t race_dev;
+static ino_t race_ino;
+
 static long host_sys(long nr, long a, long b, long c, long d, long e, long f) {
   long r = syscall(nr, a, b, c, d, e, f);
+  struct stat fs;
+  if (r >= 0 && nr == SYS_fcntl && b == F_DUPFD_CLOEXEC && c == DIR_FD_FLOOR && race_from
+      && syscall(SYS_fstat, a, &fs) == 0 && fs.st_dev == race_dev && fs.st_ino == race_ino) {
+    syscall(SYS_renameat, AT_FDCWD, race_from, AT_FDCWD, race_to);
+    race_from = NULL;
+  }
   return r < 0 ? -errno : r;
 }
 
@@ -72,6 +82,14 @@ int main(int argc, char **argv) {
     } else if (!strcmp(op, "host-mv")) {
       show(host_sys(SYS_renameat, AT_FDCWD, (long)argv[i + 1], AT_FDCWD, (long)argv[i + 2], 0, 0));
       i += 2;
+    } else if (!strcmp(op, "race-mv")) {
+      struct stat rs;
+      race_from = argv[i + 1];
+      race_to = argv[i + 2];
+      i += 2;
+      show(host_sys(SYS_newfstatat, AT_FDCWD, (long)race_from, (long)&rs, 0, 0, 0));
+      race_dev = rs.st_dev;
+      race_ino = rs.st_ino;
     } else if (!strcmp(op, "host-rmdir")) {
       show(host_sys(SYS_unlinkat, AT_FDCWD, (long)argv[++i], AT_REMOVEDIR, 0, 0, 0));
     } else if (!strcmp(op, "host-mkdir")) {
@@ -168,6 +186,16 @@ class FastPathFuseDirsTest(unittest.TestCase):
                        "stat", "/mnt/card/Games/steamapps/common/Game/Data/keep",
                        "stat", "/mnt/card/Games/steamapps/common/Moved/Data/keep")
         self.assertEqual(["ok", "ok", "E2", "ok"], out)
+
+    def test_a_folder_renamed_while_it_is_opened_is_not_used_under_its_old_name(self):
+        game = self.card / "Games/steamapps/common/Game"
+        (game / "Data/keep").write_text("x")
+        out = self.ask("fuse", "race-mv", str(game / "Data"), str(game / "Moved"),
+                       "stat", "/mnt/card/Games/steamapps/common/Game/Data/keep",
+                       "touch", "/mnt/card/Games/steamapps/common/Game/Data/new", "fds")
+        self.assertEqual(["ok", "E2", "E2"], out[:3])
+        self.assertEqual(["keep"], [p.name for p in (game / "Moved").iterdir()])
+        self.assertLessEqual(int(out[-1]), 64)
 
     def test_a_folder_deleted_and_made_again_is_looked_up_fresh(self):
         data = self.card / "Games/steamapps/common/Game/Data"
