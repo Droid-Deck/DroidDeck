@@ -192,6 +192,38 @@ class EaHook(unittest.TestCase):
             self.assertEqual(len(logged), 200)
             self.assertEqual(logged[-1], 'touchup: line 99999')
 
+    def test_touchup_runs_and_is_marked_when_its_output_cannot_be_captured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            seen = []
+
+            def fake_run(cmd, **kwargs):
+                seen.append(kwargs['stdout'])
+                return subprocess.CompletedProcess(cmd, 0)
+
+            def no_space(*a, **k):
+                raise OSError('no space')
+
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store.tempfile, 'TemporaryFile', no_space):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(seen, [subprocess.DEVNULL])
+
+    def test_touchup_result_survives_an_unreadable_output_tail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+
+            class Broken:
+                def seek(self, *a):
+                    raise OSError('io')
+
+                def close(self):
+                    pass
+
+            with patch.object(store.subprocess, 'run', lambda cmd, **k: subprocess.CompletedProcess(cmd, 0)), \
+                    patch.object(store.tempfile, 'TemporaryFile', Broken):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+
 
 if __name__ == '__main__':
     unittest.main()

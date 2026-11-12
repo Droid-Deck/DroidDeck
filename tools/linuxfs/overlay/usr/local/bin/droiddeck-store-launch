@@ -1113,18 +1113,28 @@ def ea_touchup(folder, sidecar, compat_data, proton, timeout=900):
     except OSError:
         pass
     args = touchup_args(str(extra.get("touchupArgs") or ""), str(extra.get("locale") or "en_US"), windows_path(str(folder)).rstrip("\\"))
-    with tempfile.TemporaryFile() as sink:
-        try:
-            run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
-                                 stdout=sink, stderr=subprocess.STDOUT, timeout=timeout)
-            result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
-        except subprocess.TimeoutExpired:
-            result = "timeout"
-        except OSError:
-            return "failed"
-        sink.seek(0, os.SEEK_END)
-        sink.seek(max(0, sink.tell() - 65536))
-        output = sink.read()
+    try:
+        sink = tempfile.TemporaryFile()
+    except OSError:
+        sink = None
+    try:
+        run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
+                             stdout=sink or subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=timeout)
+        result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
+    except subprocess.TimeoutExpired:
+        result = "timeout"
+    except OSError:
+        return "failed"
+    finally:
+        output = b""
+        if sink is not None:
+            try:
+                sink.seek(0, os.SEEK_END)
+                sink.seek(max(0, sink.tell() - 65536))
+                output = sink.read()
+            except OSError:
+                pass
+            sink.close()
     for line in output.decode("utf-8", "replace").splitlines()[-200:]:
         log("touchup: " + line)
     if result != "ok":
