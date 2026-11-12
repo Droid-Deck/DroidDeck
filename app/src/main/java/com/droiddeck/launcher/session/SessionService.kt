@@ -377,7 +377,10 @@ class SessionService : Service() {
             ?.takeIf { it.startsWith(GAME_URL_PREFIX) }
             ?.removePrefix(GAME_URL_PREFIX)
             ?.takeIf(GameLaunchLink::validId)
-        val resolvedGameId = intent?.getStringExtra(EXTRA_GAME_ID) ?: steamUrlGameId
+        val resolvedGameId = intent?.getStringExtra(EXTRA_GAME_ID)
+            ?.trim()
+            ?.takeIf(GameLaunchLink::validId)
+            ?: steamUrlGameId
         SessionState.gameId = resolvedGameId
         SessionPrefs.setActiveScreenEffectsProfile(
             this,
