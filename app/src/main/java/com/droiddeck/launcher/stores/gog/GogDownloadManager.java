@@ -125,211 +125,22 @@ public final class GogDownloadManager {
     private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled, String language) {
         Gen2Outcome out = new Gen2Outcome();
         try {
-            cb.onProgress("Fetching manifest…", 5);
-            Gen2Manifest gm = resolveGen2Manifest(buildsJson, token, cb);
-            if (gm == null) { out.error = "gen2 manifest unavailable"; return out; }
-            JSONObject manifest = gm.manifest;
-            JSONArray depots = manifest.optJSONArray("depots");
-            if (depots == null) { out.error = "no depots in manifest"; return out; }
-            JSONArray products = manifest.optJSONArray("products");
-            String tempExe = null;
-            if (products != null && products.length() > 0) {
-                tempExe = products.getJSONObject(0).optString("temp_executable", null);
-                if (tempExe != null && tempExe.isEmpty()) tempExe = null;
-            }
-            String baseProductId = manifest.optString("baseProductId", null);
-            if ((baseProductId == null || baseProductId.isEmpty()) && products != null && products.length() > 0)
-                baseProductId = products.getJSONObject(0).optString("productId", null);
-            if (baseProductId == null || baseProductId.isEmpty()) baseProductId = game.gameId;
-            JSONArray deps = manifest.optJSONArray("dependencies");
-            List<String> dependencies = new ArrayList<>();
-            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) dependencies.add(d); }
-            if (!dependencies.isEmpty()) cb.onLog("gog: build lists dependencies " + deps);
-
-            cb.onProgress("Reading depot manifests…", 10);
-            List<DepotFile> files = new ArrayList<>();
-            List<String> depotJsons = new ArrayList<>();
-            JSONArray owned = new JSONArray();
-            List<JSONObject> ownedDepots = new ArrayList<>();
-            for (int i = 0; i < depots.length(); i++) {
-                JSONObject depot = depots.getJSONObject(i);
-                String depotPid = depot.optString("productId", "");
-                if (!depotPid.isEmpty() && !depotPid.equals(baseProductId)) continue;
-                owned.put(depot);
-                ownedDepots.add(depot);
-            }
-            String resolved = StoreLanguage.pick(StoreLanguage.codesFromDepots(owned), language);
-            cb.onLog("gog: language " + resolved);
-            for (int i = 0; i < ownedDepots.size(); i++) {
-                if (cancelled.get()) return out;
-                JSONObject depot = ownedDepots.get(i);
-                if (!depotSelected(depot, resolved)) continue;
-                String manifestHash = depot.optString("manifest");
-                if (manifestHash == null || manifestHash.isEmpty()) continue;
-                byte[] dmRaw = fetchBytes("https://gog-cdn-fastly.gog.com/content-system/v2/meta/" + buildCdnPath(manifestHash), null);
-                if (dmRaw == null) { cb.onLog("gog: depot " + i + " meta fetch failed"); continue; }
-                String dmStr = decompressBytes(dmRaw);
-                if (dmStr == null) { cb.onLog("gog: depot " + i + " decompress failed"); continue; }
-                parseDepotManifest(dmStr, files);
-                depotJsons.add(dmStr);
-            }
-            if (files.isEmpty()) { out.error = "no depot files collected"; return out; }
-
-            cb.onProgress("Fetching CDN link…", 15);
-            String secureLinkUrl = "https://content-system.gog.com/products/" + baseProductId + "/secure_link?_version=2&generation=2&path=/";
-            String cdnBase = parseCdnUrl(httpGet(secureLinkUrl, token));
-            if (cdnBase == null) { out.error = "secure link refused"; return out; }
-
-            installPath.mkdirs();
-            long plannedBytes = 0;
-            for (DepotFile df : files) plannedBytes += df.totalSize;
-            long remainingBytes = remainingInstallBytes(files, installPath);
-            if (remainingBytes > 0) {
-                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
-                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable)) {
-                    out.hardStop = true;
-                    out.error = "Not enough free space: need " + formatBytes(remainingBytes) + ", only " + formatBytes(usable) + " free";
-                    return out;
-                }
-            }
-            Collections.sort(files, (a, b) -> Long.compare(b.totalSize, a.totalSize));
-
-            final int total = files.size();
-            final long planned = plannedBytes;
-            final AtomicInteger doneCount = new AtomicInteger(0);
-            final AtomicLong totalBytes = new AtomicLong(0);
-            final AtomicLong lastSpeedMs = new AtomicLong(System.currentTimeMillis());
-            final AtomicLong lastSpeedB = new AtomicLong(0);
-            final AtomicLong speedBps = new AtomicLong(0);
-            final AtomicBoolean anyFailed = new AtomicBoolean(false);
-            final AtomicReference<String> cdnBaseRef = new AtomicReference<>(cdnBase);
-            final AtomicInteger cdnRefreshCount = new AtomicInteger(0);
-            final int MAX_CDN_REFRESH = 5;
-            cb.onSizes(planned, planned);
-            cb.onBytes(0, planned, 0);
-            cb.onLog("gog: " + total + " files, " + formatBytes(planned) + ", base=" + baseProductId);
-
-            int threads = downloadThreads();
-            if (GogNative.isAvailable()) {
-                runNativeEngine(ctx, GogNative.KIND_GEN2_CHUNKS, "Verified…", depotJsons, installPath, cdnBaseRef, secureLinkUrl, token,
-                        cdnRefreshCount, MAX_CDN_REFRESH, threads, threads, true, "gog base=" + baseProductId,
-                        cancelled, anyFailed, doneCount, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
-            } else {
-                cb.onLog("gog: engine=built-in (" + threads + " threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(threads, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("gog-dl"));
-                List<Future<Void>> futures = new ArrayList<>();
-                for (DepotFile df : files) {
-                    futures.add(pool.submit((Callable<Void>) () -> {
-                        if (cancelled.get() || anyFailed.get()) return null;
-                        File outFile = new File(installPath, df.relativePath);
-                        outFile.getParentFile().mkdirs();
-                        if (fileVerified(outFile, df.totalSize, df.md5)) {
-                            int done = doneCount.incrementAndGet();
-                            long tb = totalBytes.addAndGet(df.totalSize);
-                            cb.onProgress("Verified…", 15 + (int) ((done / (float) total) * 80));
-                            cb.onBytes(tb, planned, speedBps.get());
-                            return null;
-                        }
-                        boolean ok = assembleDepotFile(df, outFile, cdnBaseRef, secureLinkUrl, token, cdnRefreshCount, MAX_CDN_REFRESH, cancelled, cb);
-                        if (cancelled.get()) return null;
-                        if (!ok) { cb.onLog("FAIL file=" + df.relativePath); anyFailed.set(true); return null; }
-                        int done = doneCount.incrementAndGet();
-                        long tb = totalBytes.addAndGet(df.totalSize);
-                        sampleSpeed(tb, lastSpeedMs, lastSpeedB, speedBps);
-                        cb.onProgress("Downloading: " + baseName(df.relativePath) + speedSuffix(speedBps.get()), 15 + (int) ((done / (float) total) * 80));
-                        cb.onBytes(tb, planned, speedBps.get());
-                        return null;
-                    }));
-                }
-                pool.shutdown();
-                try {
-                    for (Future<Void> f : futures) f.get();
-                } catch (Exception e) {
-                    pool.shutdownNow();
-                    out.error = "download pool error: " + e.getClass().getSimpleName();
-                    return out;
-                }
-            }
-            if (cancelled.get()) return out;
-            if (anyFailed.get()) { out.error = "one or more chunks failed to download"; return out; }
-
-            cb.onProgress("Finishing…", 96);
-            try {
-                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), resolved);
-            } catch (Exception e) {
-                cb.onLog("gog: maintenance inventory not recorded: " + e.getMessage());
-            }
-            writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"buildId\":\"" + gm.buildId + "\"}").getBytes("UTF-8"));
-            deleteCounted(new File(installPath, ".gog_chunks"), cb);
-            String clientId = manifest.optString("clientId", null);
-            if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
-            String clientSecret = manifest.optString("clientSecret", null);
-            if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
-            GameTask task = pickTask(installPath, game.gameId, tempExe, game.title);
-            out.result = new Result(task == null ? "" : task.path, gm.buildId, planned);
-            if (task != null) out.result.workDir = task.workDir;
-            out.result.dependencies = dependencies;
-            out.result.dependenciesRead = true;
-            out.result.language = resolved;
-            return out;
+            out.result = GogMaintenance.installContent(ctx, game, installPath, new JSONObject(buildsJson), language, cb, cancelled);
+            if (out.result == null && !cancelled.get()) out.error = "no usable public Windows build";
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
             return out;
         }
-    }
-
-    private static final class Gen2Manifest {
-        final JSONObject manifest; final String buildId;
-        Gen2Manifest(JSONObject manifest, String buildId) { this.manifest = manifest; this.buildId = buildId; }
-    }
-
-    private static Gen2Manifest resolveGen2Manifest(String buildsJson, String token, Callback cb) {
-        try {
-            JSONArray items = new JSONObject(buildsJson).optJSONArray("items");
-            if (items == null || items.length() == 0) { cb.onLog("gog: no gen2 builds"); return null; }
-            String buildId = null, manifestUrl = null;
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject item = items.getJSONObject(i);
-                if ("windows".equals(item.optString("os")) && (item.isNull("branch") || item.optString("branch").isEmpty())) {
-                    buildId = item.optString("build_id");
-                    manifestUrl = item.optString("link");
-                    if (manifestUrl == null || manifestUrl.isEmpty()) manifestUrl = item.optString("meta_url");
-                    break;
-                }
-            }
-            if (buildId == null || manifestUrl == null || manifestUrl.isEmpty()) { cb.onLog("gog: no windows build"); return null; }
-            byte[] raw = fetchBytes(manifestUrl, token);
-            if (raw == null) { cb.onLog("gog: manifest fetch failed"); return null; }
-            String str = decompressBytes(raw);
-            if (str == null) { cb.onLog("gog: manifest decompress failed"); return null; }
-            return new Gen2Manifest(new JSONObject(str), buildId);
-        } catch (Exception e) {
-            cb.onLog("gog: manifest " + e.getClass().getSimpleName());
-            return null;
-        }
-    }
-
-    private static boolean depotSelected(JSONObject depot, String resolved) {
-        JSONArray languages = depot.optJSONArray("languages");
-        if (languages == null || languages.length() == 0) return true;
-        String[] listed = new String[languages.length()];
-        for (int i = 0; i < languages.length(); i++) listed[i] = languages.optString(i, "");
-        return StoreLanguage.depotMatchesResolved(listed, resolved);
+        return out;
     }
 
     public static List<String> listLanguages(Context ctx, String gameId) {
         try {
             String token = GogAuth.validToken(ctx);
-            String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";
-            String buildsJson = httpGet(buildsUrl, null);
-            if (buildsJson == null) buildsJson = httpGet(buildsUrl, token);
-            if (buildsJson == null) return Collections.emptyList();
-            Callback silent = new Callback() {
-                @Override public void onProgress(String message, int pct) {}
-            };
-            Gen2Manifest gm = resolveGen2Manifest(buildsJson, token, silent);
-            if (gm == null) return Collections.emptyList();
-            return StoreLanguage.codesFromDepots(gm.manifest.optJSONArray("depots"));
+            JSONObject builds = GogContent.builds(gameId, token);
+            GogBuild build = GogBuild.Companion.select(builds, "", "");
+            if (build == null || build.getGeneration() != 2) return Collections.emptyList();
+            return StoreLanguage.codesFromDepots(GogContent.json(build.getLink(), token).optJSONArray("depots"));
         } catch (Exception e) {
             return Collections.emptyList();
         }
@@ -398,7 +209,7 @@ public final class GogDownloadManager {
             int threads = downloadThreads();
             if (GogNative.isAvailable()) {
                 runNativeEngine(ctx, GogNative.KIND_GEN1_RANGES, "Resuming…", Collections.singletonList(manifestStr), installPath,
-                        new AtomicReference<>(""), null, null, new AtomicInteger(0), 0, threads, threads, false, "gog gen1=" + game.gameId,
+                        threads, threads, false, "gog gen1=" + game.gameId,
                         cancelled, anyFailed, done, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
             } else {
                 ExecutorService pool = Executors.newFixedThreadPool(threads, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("gog-dl"));
@@ -659,8 +470,7 @@ public final class GogDownloadManager {
 
 
     private static void runNativeEngine(Context ctx, int kind, String verifiedMsg, List<String> depotJsons, File installPath,
-                                        AtomicReference<String> cdnBaseRef, String secureLinkUrl, String token,
-                                        AtomicInteger cdnRefreshCount, int maxCdnRefresh, int maxWorkers, int processWorkers,
+                                        int maxWorkers, int processWorkers,
                                         boolean sortLargestFirst, String label, AtomicBoolean cancelled, AtomicBoolean anyFailed,
                                         AtomicInteger doneCount, int total, long planned, AtomicLong totalBytes,
                                         AtomicLong lastSpeedMs, AtomicLong lastSpeedB, AtomicLong speedBps, Callback cb) {
@@ -673,10 +483,8 @@ public final class GogDownloadManager {
         int run = 0;
         while (!cancelled.get()) {
             run++;
-            final String base = cdnBaseRef.get();
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean okRef = new AtomicBoolean(false);
-            final AtomicBoolean linkExpiryRef = new AtomicBoolean(false);
             final AtomicReference<String> errRef = new AtomicReference<>("");
             final long runStart = totalBytes.get();
             final AtomicLong verifiedInRun = new AtomicLong(0);
@@ -702,12 +510,10 @@ public final class GogDownloadManager {
                 @Override public void onLog(String line) { cb.onLog(line); }
                 @Override public void onMaintenance(long networkBytes, long reusedBytes, long appliedBytes) {}
                 @Override public void onComplete(boolean success, boolean wasCancelled, boolean linkExpiry, String error, long bytesWritten, int filesDone) {
-                    okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
+                    okRef.set(success); errRef.set(error == null ? "" : error); latch.countDown();
                 }
             };
-            String[] bases = (base == null || base.isEmpty()) ? new String[0] : base.split("\n");
-            if (run == 1) cb.onLog("gog: " + bases.length + " CDN host(s) offered");
-            long handle = GogNative.start(kind, manifests, bases, installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
+            long handle = GogNative.start(kind, manifests, new String[0], installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
                     workers, process, sortLargestFirst, label + " run=" + run, listener);
             if (handle == 0L) { cb.onLog("gog: native start failed"); anyFailed.set(true); return; }
             boolean interrupted = false;
@@ -721,84 +527,12 @@ public final class GogDownloadManager {
             }
             if (interrupted) { Thread.currentThread().interrupt(); anyFailed.set(true); return; }
             if (cancelled.get() || okRef.get()) return;
-            String err = errRef.get();
-            if (linkExpiryRef.get() && tryRefreshCdn(cdnBaseRef, base, secureLinkUrl, token, cdnRefreshCount, maxCdnRefresh, cb)) {
-                cb.onLog("gog: secure link expired (" + err + "); refreshed, running again for the remaining files");
-                continue;
-            }
-            cb.onLog("gog: engine failed: " + err);
+            cb.onLog("gog: engine failed: " + errRef.get());
             anyFailed.set(true);
             return;
         }
     }
 
-
-    private static void parseDepotManifest(String json, List<DepotFile> out) {
-        try {
-            JSONObject depotObj = new JSONObject(json).optJSONObject("depot");
-            if (depotObj == null) return;
-            JSONArray depot = depotObj.optJSONArray("items");
-            if (depot == null) return;
-            for (int i = 0; i < depot.length(); i++) {
-                JSONObject entry = depot.getJSONObject(i);
-                String path = entry.optString("path", "").replace("\\", "/");
-                if (path.startsWith("/")) path = path.substring(1);
-                JSONArray chunks = entry.optJSONArray("chunks");
-                if (path.isEmpty() || chunks == null || chunks.length() == 0) continue;
-                DepotFile df = new DepotFile(path);
-                String fileMd5 = entry.optString("md5", null);
-                if (fileMd5 != null && !fileMd5.isEmpty()) df.md5 = fileMd5;
-                long fileTotal = 0;
-                for (int c = 0; c < chunks.length(); c++) {
-                    JSONObject chunk = chunks.getJSONObject(c);
-                    String compressedMd5 = chunk.optString("compressedMd5"), decMd5 = chunk.optString("md5");
-                    String hash = (compressedMd5 != null && !compressedMd5.isEmpty()) ? compressedMd5 : decMd5;
-                    if (hash == null || hash.isEmpty()) continue;
-                    long decSize = chunk.optLong("size", 0);
-                    df.chunks.add(new DepotFile.ChunkRef(hash, compressedMd5, decMd5, chunk.optLong("compressedSize", 0), decSize));
-                    fileTotal += decSize;
-                }
-                df.totalSize = fileTotal;
-                if (!df.chunks.isEmpty()) out.add(df);
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "depot manifest parse: " + e.getClass().getSimpleName());
-        }
-    }
-
-    static String buildCdnPath(String hash) { return hash.substring(0, 2) + "/" + hash.substring(2, 4) + "/" + hash; }
-
-    private static boolean assembleDepotFile(DepotFile df, File outFile, AtomicReference<String> cdnBaseRef, String secureLinkUrl, String token,
-                                             AtomicInteger cdnRefreshCount, int maxCdnRefresh, AtomicBoolean cancelled, Callback cb) {
-        File tmpFile = new File(outFile.getAbsolutePath() + ".bhtmp");
-        File parent = outFile.getParentFile();
-        if (parent != null) parent.mkdirs();
-        tmpFile.delete();
-        boolean ok = true;
-        try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
-            for (DepotFile.ChunkRef chunk : df.chunks) {
-                if (cancelled.get()) { ok = false; break; }
-                byte[] inflated = fetchChunkVerified(cdnBaseRef, buildCdnPath(chunk.hash), chunk, secureLinkUrl, token, cdnRefreshCount, maxCdnRefresh, cancelled, cb);
-                if (inflated == null) { ok = false; break; }
-                fos.write(inflated);
-            }
-        } catch (Exception e) {
-            ok = false;
-        }
-        if (!ok || cancelled.get()) { tmpFile.delete(); return false; }
-        if (df.totalSize > 0 && tmpFile.length() != df.totalSize) { cb.onLog("size mismatch file=" + df.relativePath); tmpFile.delete(); return false; }
-        if (df.md5 != null && !df.md5.isEmpty()) {
-            String actual = md5HexFile(tmpFile);
-            if (actual == null || !actual.equalsIgnoreCase(df.md5)) { cb.onLog("md5 mismatch file=" + df.relativePath); tmpFile.delete(); return false; }
-        }
-        if (outFile.exists()) outFile.delete();
-        return tmpFile.renameTo(outFile);
-    }
-
-    private static String parseCdnUrl(String json) {
-        java.util.List<String> all = parseCdnUrls(json);
-        return all.isEmpty() ? null : String.join("\n", all);
-    }
 
     static java.util.List<String> parseCdnUrls(String json) {
         java.util.List<String> out = new ArrayList<>();
@@ -822,18 +556,6 @@ public final class GogDownloadManager {
         } catch (Exception ignored) {
         }
         return out;
-    }
-
-    private static final AtomicInteger CDN_TURN = new AtomicInteger();
-
-    static String pickCdn(String set) {
-        String[] all = set.split("\n");
-        return all[Math.floorMod(CDN_TURN.getAndIncrement(), all.length)];
-    }
-
-    static String firstCdn(String set) {
-        int nl = set.indexOf('\n');
-        return nl < 0 ? set : set.substring(0, nl);
     }
 
     private static boolean downloadRange(String url, long offset, long size, File out) {
@@ -951,15 +673,6 @@ public final class GogDownloadManager {
         }
     }
 
-    private static String buildChunkUrl(String base, String chunkPath) {
-        int q = base.indexOf('?');
-        return q >= 0 ? base.substring(0, q) + "/" + chunkPath + base.substring(q) : base + "/" + chunkPath;
-    }
-
-    private static String md5Hex(byte[] data) {
-        try { return toHex(java.security.MessageDigest.getInstance("MD5").digest(data)); } catch (Exception e) { return null; }
-    }
-
     private static String md5HexFile(File f) {
         try (FileInputStream fis = new FileInputStream(f)) {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
@@ -986,58 +699,6 @@ public final class GogDownloadManager {
             return actual != null && actual.equalsIgnoreCase(expectedMd5);
         }
         return true;
-    }
-
-    private static void sleepBackoff(int attempt) {
-        try { Thread.sleep(Math.min(1000L << Math.max(0, attempt - 1), 8000L)); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-    }
-
-    private static boolean tryRefreshCdn(AtomicReference<String> cdnBaseRef, String staleBase, String secureLinkUrl, String token,
-                                         AtomicInteger refreshCount, int cap, Callback cb) {
-        if (secureLinkUrl == null) return false;
-        synchronized (cdnBaseRef) {
-            String current = cdnBaseRef.get();
-            if (staleBase == null || !staleBase.equals(current)) return true;
-            if (refreshCount.get() >= cap) { cb.onLog("gog: CDN refresh cap reached (" + cap + ")"); return false; }
-            String neu = parseCdnUrl(httpGet(secureLinkUrl, token));
-            if (neu == null || neu.isEmpty()) { cb.onLog("gog: CDN refresh failed"); return false; }
-            cdnBaseRef.set(neu);
-            cb.onLog("gog: secure link refreshed #" + refreshCount.incrementAndGet());
-            return true;
-        }
-    }
-
-    private static byte[] fetchChunkVerified(AtomicReference<String> cdnBaseRef, String chunkPath, DepotFile.ChunkRef chunk, String secureLinkUrl, String token,
-                                             AtomicInteger cdnRefreshCount, int maxCdnRefresh, AtomicBoolean cancelled, Callback cb) {
-        int hardFail = 0, guard = 0;
-        while (guard++ < 8) {
-            if (cancelled.get()) return null;
-            String base = cdnBaseRef.get();
-            HttpResult res = fetchBytesEx(buildChunkUrl(pickCdn(base), chunkPath), null);
-            if (res.body == null) {
-                int code = res.status;
-                if ((code == 401 || code == 403 || code == 404 || code == 500) && tryRefreshCdn(cdnBaseRef, base, secureLinkUrl, token, cdnRefreshCount, maxCdnRefresh, cb)) continue;
-                cb.onLog("chunk http fail code=" + code);
-                if (++hardFail >= 3) return null;
-                sleepBackoff(hardFail);
-                continue;
-            }
-            byte[] raw = res.body;
-            if (chunk.compressedSize > 0 && raw.length != chunk.compressedSize) { if (++hardFail >= 3) return null; sleepBackoff(hardFail); continue; }
-            if (chunk.compressedMd5 != null && !chunk.compressedMd5.isEmpty()) {
-                String actual = md5Hex(raw);
-                if (actual == null || !actual.equalsIgnoreCase(chunk.compressedMd5)) { if (++hardFail >= 3) return null; sleepBackoff(hardFail); continue; }
-            }
-            byte[] inflated = inflateZlib(raw);
-            if (inflated == null) inflated = raw;
-            if (chunk.size > 0 && inflated.length != chunk.size) { if (++hardFail >= 3) return null; sleepBackoff(hardFail); continue; }
-            if (chunk.md5 != null && !chunk.md5.isEmpty()) {
-                String actual = md5Hex(inflated);
-                if (actual == null || !actual.equalsIgnoreCase(chunk.md5)) { if (++hardFail >= 3) return null; sleepBackoff(hardFail); continue; }
-            }
-            return inflated;
-        }
-        return null;
     }
 
     private static void sampleSpeed(long totalBytes, AtomicLong lastSpeedMs, AtomicLong lastSpeedB, AtomicLong speedBps) {
@@ -1289,30 +950,6 @@ public final class GogDownloadManager {
         for (File f : files) if (f.isDirectory()) collectExeRecursive(f, out);
     }
 
-    static long remainingInstallBytes(List<DepotFile> files, File installPath) {
-        long remaining = 0;
-        for (DepotFile file : files) {
-            File output = new File(installPath, file.relativePath);
-            if (!fileVerified(output, file.totalSize, file.md5)) remaining += file.totalSize;
-        }
-        return remaining;
-    }
-
-    static final class DepotFile {
-        final String relativePath;
-        final List<ChunkRef> chunks = new ArrayList<>();
-        String md5;
-        long totalSize;
-        DepotFile(String relativePath) { this.relativePath = relativePath; }
-        static final class ChunkRef {
-            final String hash, compressedMd5, md5;
-            final long compressedSize, size;
-            ChunkRef(String hash, String compressedMd5, String md5, long compressedSize, long size) {
-                this.hash = hash; this.compressedMd5 = compressedMd5; this.md5 = md5; this.compressedSize = compressedSize; this.size = size;
-            }
-        }
-    }
-
     private static final class Gen1File {
         final String path, url; final long offset, size;
         Gen1File(String path, String url, long offset, long size) { this.path = path; this.url = url; this.offset = offset; this.size = size; }
@@ -1382,7 +1019,11 @@ public final class GogDownloadManager {
             String resolved = StoreLanguage.pick(StoreLanguage.codesFromDepots(depots), StoreLanguage.preferredCode());
             for (int i = 0; i < depots.length(); i++) {
                 JSONObject depot = depots.getJSONObject(i);
-                if (depotSelected(depot, resolved)) total += depot.optLong("size", 0);
+                JSONArray languages = depot.optJSONArray("languages");
+                String[] listed = new String[languages == null ? 0 : languages.length()];
+                for (int j = 0; j < listed.length; j++) listed[j] = languages.optString(j, "");
+                if (listed.length == 0 || StoreLanguage.depotMatchesResolved(listed, resolved))
+                    total += depot.optLong("size", 0);
             }
             return total > 0 ? total : -1;
         } catch (Exception e) {

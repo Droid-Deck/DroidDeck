@@ -26,7 +26,7 @@ class GameUsage(
 }
 
 enum class ToolState { IN_USE, REQUIRED, UNUSED }
-enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM, CUSTOM_UNKNOWN, X64_CLIENT }
+enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, ANTICHEAT_RUNTIME, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM, CUSTOM_UNKNOWN, X64_CLIENT }
 
 class ToolUsage(
     val key: String, val name: String, val bytes: Long, val state: ToolState, val reason: ToolReason,
@@ -153,6 +153,7 @@ object StorageScan {
                             SteamStorage.ARM_RUNTIME -> ToolReason.ARM_RUNTIME
                             SteamStorage.REDISTRIBUTABLES -> ToolReason.REDISTRIBUTABLES
                             SteamStorage.FEX -> ToolReason.FEX
+                            SteamStorage.EAC_RUNTIME, SteamStorage.BATTLEYE_RUNTIME -> ToolReason.ANTICHEAT_RUNTIME
                             else -> ToolReason.STEAM_TOOL
                         }
                     }

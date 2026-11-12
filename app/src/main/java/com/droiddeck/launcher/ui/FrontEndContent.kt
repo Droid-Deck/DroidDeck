@@ -270,8 +270,12 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
+    if (selected == "agent") {
+        AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "android-apps" && s.isHomeApp) {
-        AndroidAppsPage(s, modifier, onAndroidAppClick)
+        AndroidAppsPage(s, a, modifier, onAndroidAppClick)
         return
     }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {

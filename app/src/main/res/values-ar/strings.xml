@@ -28,6 +28,8 @@
     <string name="suspend_now">تعليق الآن</string>
     <string name="stop_session">إيقاف الجلسة</string>
     <string name="frame_gen_title">توليد الإطارات</string>
+    <string name="frame_gen_scope_game">إعدادات هذه اللعبة</string>
+    <string name="frame_gen_scope_global">الإعدادات الافتراضية</string>
     <string name="frame_gen_hint">اختر وضع توليد الإطارات</string>
     <string name="frame_gen_off">إيقاف</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1875,13 +1877,6 @@
     <string name="bottom_downloads_shader">جارٍ تنزيل ذاكرة المظلِّلات المؤقتة</string>
     <string name="bottom_downloads_paused">متوقف مؤقتًا</string>
     <string name="bottom_downloads_queued">بانتظار البدء</string>
-    <string name="bottom_page_notifications">الإشعارات</string>
-    <string name="bottom_notifications_listener">الشاشة السفلية لـ DroidDeck</string>
-    <string name="bottom_notifications_why">اعرض الرسائل والإشعارات الأخرى هنا أثناء اللعب. تبقى على هذه الشاشة فقط ولا تُحفظ. يطلب Android الإذن مرة واحدة: تُفتح صفحة الوصول إلى الإشعارات على هذه الشاشة؛ فعِّل DroidDeck هناك وستعود هذه الصفحة تلقائيًا.</string>
-    <string name="bottom_notifications_allow">السماح بالوصول إلى الإشعارات</string>
-    <string name="bottom_notifications_none">لا توجد إشعارات.</string>
-    <string name="bottom_notifications_count">الإشعارات: %1$d</string>
-    <string name="bottom_notifications_clear">مسح</string>
     <string name="bottom_page_screenshots">لقطات الشاشة</string>
     <string name="stats_fps_needs_hud">يتطلب FPS تشغيل واجهة الأداء</string>
     <string name="stats_speed">السرعة</string>
@@ -2344,6 +2339,7 @@
     <string name="stores_dl_interrupted">منقطع</string>
     <string name="stores_install_size">تثبيت · %1$s</string>
     <string name="stores_get_free">احصل عليها مجانًا</string>
+    <string name="stores_claiming">جارٍ الإضافة إلى المكتبة…</string>
     <string name="stores_view_on">عرض على %1$s</string>
     <string name="stores_buy_price">شراء · %1$s</string>
     <string name="stores_installed_chip">مثبَّتة</string>
@@ -2683,6 +2679,8 @@
     <string name="comp_this_device">هذا الجهاز</string>
     <string name="proton_remove_title">إزالة %1$s؟</string>
     <string name="setup_tab_diagnostics">التشخيص</string>
+    <string name="setup_build_watermark">علامة مائية لاسم الإصدار</string>
+    <string name="setup_build_watermark_hint">عرض اسم إصدار الاختبار أو Lab على الشاشة. مفعّل افتراضيًا.</string>
     <string name="setup_ready">جاهز للّعب</string>
     <string name="setup_not_ready">غير جاهز للّعب بعد</string>
     <string name="setup_ready_runtime">بيئة التشغيل %1$s</string>
@@ -2985,6 +2983,8 @@
     <string name="display_position_top">أعلى</string>
     <string name="display_position_bottom">أسفل</string>
     <string name="display_position_center">الوسط (افتراضي)</string>
+    <string name="display_position_left">يسار</string>
+    <string name="display_position_right">يمين</string>
     <string name="setup_tab_storage">التخزين</string>
     <string name="storage_measuring">جارٍ قياس التخزين…</string>
     <string name="storage_measuring_hint">يستغرق القياس الأول بضع ثوانٍ.</string>
@@ -3701,6 +3701,25 @@
     <string name="apps_widget_move_later">نقل إلى الخلف</string>
     <string name="apps_widget_configure">إعدادات الأداة</string>
     <string name="apps_widget_remove">إزالة الأداة</string>
+    <string name="apps_appearance">المظهر</string>
+    <string name="apps_icon_pack">حزمة الرموز</string>
+    <string name="apps_icon_pack_system">الافتراضي للنظام</string>
+    <string name="apps_icon_app_colors">خلفية بلون التطبيق</string>
+    <string name="apps_icon_size">حجم الرموز</string>
+    <string name="apps_icon_small">صغير</string>
+    <string name="apps_icon_medium">متوسط</string>
+    <string name="apps_icon_large">كبير</string>
+    <string name="apps_hide_names">إخفاء أسماء التطبيقات</string>
+    <string name="apps_spacing">التباعد</string>
+    <string name="apps_spacing_tight">ضيق</string>
+    <string name="apps_spacing_normal">عادي</string>
+    <string name="apps_spacing_roomy">واسع</string>
+    <string name="apps_change_icon">تغيير الرمز</string>
+    <string name="apps_reset_icon">إعادة ضبط الرمز</string>
+    <string name="apps_icons_search">البحث في الرموز</string>
+    <string name="apps_icons_loading">جارٍ تحميل الرموز…</string>
+    <string name="apps_icons_none">لم يتم العثور على رموز.</string>
+    <string name="apps_icons_custom">رموز مخصّصة</string>
     <string name="apps_add_to_folder">إضافة إلى مجلد</string>
     <string name="apps_new_folder">مجلد جديد</string>
     <string name="apps_remove_from_folder">إزالة من المجلد</string>
@@ -3818,4 +3837,7 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+
+    <string name="theme_white_red">ثلج قرمزي</string>
+    
 </resources>

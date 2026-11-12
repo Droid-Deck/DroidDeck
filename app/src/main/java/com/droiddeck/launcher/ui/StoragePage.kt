@@ -714,6 +714,7 @@ private fun toolDetail(t: ToolUsage): String = when (t.reason) {
     ToolReason.ARM_RUNTIME -> stringResource(R.string.storage_tool_arm_runtime)
     ToolReason.REDISTRIBUTABLES -> stringResource(R.string.storage_tool_redist)
     ToolReason.FEX -> stringResource(R.string.storage_tool_fex)
+    ToolReason.ANTICHEAT_RUNTIME -> stringResource(R.string.storage_tool_anticheat)
     ToolReason.STEAM_TOOL -> stringResource(R.string.storage_tool_steam)
     ToolReason.OLD_RUNTIME -> stringResource(R.string.storage_tool_old_runtime)
     ToolReason.X86_PROTON -> stringResource(R.string.storage_tool_x86_proton)

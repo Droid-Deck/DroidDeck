@@ -28,6 +28,8 @@
     <string name="suspend_now">Приостановить сейчас</string>
     <string name="stop_session">Остановить сессию</string>
     <string name="frame_gen_title">Генерация кадров</string>
+    <string name="frame_gen_scope_game">Настройки этой игры</string>
+    <string name="frame_gen_scope_global">Настройки по умолчанию</string>
     <string name="frame_gen_hint">Выберите режим генерации кадров</string>
     <string name="frame_gen_off">Выкл.</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1890,13 +1892,6 @@
     <string name="bottom_downloads_shader">Загрузка кэша шейдеров</string>
     <string name="bottom_downloads_paused">Приостановлено</string>
     <string name="bottom_downloads_queued">Ожидает начала</string>
-    <string name="bottom_page_notifications">Уведомления</string>
-    <string name="bottom_notifications_listener">Нижний экран DroidDeck</string>
-    <string name="bottom_notifications_why">Показывает сообщения и другие уведомления здесь, пока вы играете. Они отображаются только на этом экране и не сохраняются. Android спросит один раз: на этом экране откроется страница доступа к уведомлениям; включите там DroidDeck, и эта страница вернется сама.</string>
-    <string name="bottom_notifications_allow">Разрешить доступ к уведомлениям</string>
-    <string name="bottom_notifications_none">Нет уведомлений.</string>
-    <string name="bottom_notifications_count">Уведомлений: %1$d</string>
-    <string name="bottom_notifications_clear">Очистить</string>
     <string name="bottom_page_screenshots">Скриншоты</string>
     <string name="stats_fps_needs_hud">Для FPS нужно включить HUD</string>
     <string name="stats_speed">Скорость</string>
@@ -2377,6 +2372,7 @@
     <string name="stores_dl_interrupted">Прервано</string>
     <string name="stores_install_size">Установить · %1$s</string>
     <string name="stores_get_free">Получить бесплатно</string>
+    <string name="stores_claiming">Добавление в библиотеку…</string>
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>
@@ -2709,6 +2705,8 @@
     <string name="comp_this_device">Это устройство</string>
     <string name="proton_remove_title">Удалить %1$s?</string>
     <string name="setup_tab_diagnostics">Диагностика</string>
+    <string name="setup_build_watermark">Водяной знак с меткой сборки</string>
+    <string name="setup_build_watermark_hint">Показывать на экране метку тестовой сборки или сборки Lab. Включено по умолчанию.</string>
     <string name="setup_ready">Готово к игре</string>
     <string name="setup_not_ready">Пока не готово к игре</string>
     <string name="setup_ready_runtime">среда выполнения %1$s</string>
@@ -3010,6 +3008,8 @@
     <string name="display_position_top">Сверху</string>
     <string name="display_position_bottom">Снизу</string>
     <string name="display_position_center">По центру (по умолчанию)</string>
+    <string name="display_position_left">Слева</string>
+    <string name="display_position_right">Справа</string>
     <string name="setup_tab_storage">Хранилище</string>
     <string name="storage_measuring">Измерение хранилища…</string>
     <string name="storage_measuring_hint">В первый раз занимает несколько секунд.</string>
@@ -3708,6 +3708,25 @@
     <string name="apps_widget_move_later">Переместить позже</string>
     <string name="apps_widget_configure">Настройки виджета</string>
     <string name="apps_widget_remove">Удалить виджет</string>
+    <string name="apps_appearance">Внешний вид</string>
+    <string name="apps_icon_pack">Набор иконок</string>
+    <string name="apps_icon_pack_system">Как в системе</string>
+    <string name="apps_icon_app_colors">Фон цвета приложения</string>
+    <string name="apps_icon_size">Размер иконок</string>
+    <string name="apps_icon_small">Мелкие</string>
+    <string name="apps_icon_medium">Средние</string>
+    <string name="apps_icon_large">Крупные</string>
+    <string name="apps_hide_names">Скрыть названия приложений</string>
+    <string name="apps_spacing">Отступы</string>
+    <string name="apps_spacing_tight">Узко</string>
+    <string name="apps_spacing_normal">Средне</string>
+    <string name="apps_spacing_roomy">Широко</string>
+    <string name="apps_change_icon">Сменить иконку</string>
+    <string name="apps_reset_icon">Сбросить иконку</string>
+    <string name="apps_icons_search">Поиск иконок</string>
+    <string name="apps_icons_loading">Загрузка иконок…</string>
+    <string name="apps_icons_none">Иконки не найдены.</string>
+    <string name="apps_icons_custom">Свои иконки</string>
     <string name="apps_add_to_folder">Добавить в папку</string>
     <string name="apps_new_folder">Новая папка</string>
     <string name="apps_remove_from_folder">Убрать из папки</string>
@@ -3823,4 +3842,7 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+
+    <string name="theme_white_red">Алый снег</string>
+    
 </resources>

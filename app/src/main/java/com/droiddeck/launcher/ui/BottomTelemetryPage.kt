@@ -304,7 +304,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                     val now = System.nanoTime()
                     val live = frames.live
                     val stats = frames.stats
-                    val graph = FloatArray(FrameStats.GRAPH_FRAMES).also { if (live) stats.graph(it) }
+                    val graph = FloatArray(FrameStats.GRAPH_FRAMES)
+                    val graphEnd = if (live) stats.graph(graph) else 0L
                     val hz = (frames.refreshMilliHz + 499) / 1000
                     val data = HudData(
                         fps = fpsNow, avgFps = if (live) stats.averageFps() else null, lows = if (live) stats.lows(now) else FrameStats.Lows.EMPTY,
@@ -317,6 +318,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                         title = title, cover = cover, played = playedSeconds?.let(::playedText), clock = clock,
                         fpsHistory = fpsHistory.snapshot(), cpuHistory = cpuHistory.snapshot(), gpuHistory = gpuHistory.snapshot(),
                         historySeconds = maxOf(fpsHistory.spanSeconds(), cpuHistory.spanSeconds(), gpuHistory.spanSeconds()),
+                        graphEnd = graphEnd,
                         coreGroups = coreGroups, gameCores = gameCores, fahrenheit = tempDisplay.fahrenheit,
                         tempColor = { sensor, c ->
                             thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)

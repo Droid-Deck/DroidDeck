@@ -28,6 +28,8 @@
     <string name="suspend_now">Sett på pause nå</string>
     <string name="stop_session">Avslutt sesjon</string>
     <string name="frame_gen_title">Bildegenerering</string>
+    <string name="frame_gen_scope_game">Innstillinger for dette spillet</string>
+    <string name="frame_gen_scope_global">Standardinnstillinger</string>
     <string name="frame_gen_hint">Velg modus for bildegenerering</string>
     <string name="frame_gen_off">Av</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1779,13 +1781,6 @@
     <string name="bottom_downloads_shader">Laster ned shaderbuffer</string>
     <string name="bottom_downloads_paused">Pauset</string>
     <string name="bottom_downloads_queued">Venter på å starte</string>
-    <string name="bottom_page_notifications">Varslinger</string>
-    <string name="bottom_notifications_listener">DroidDeck nedre skjerm</string>
-    <string name="bottom_notifications_why">Vis meldinger og andre varslinger her mens du spiller. De vises bare på denne skjermen og lagres ikke. Android spør én gang: siden for varseltilgang åpnes på denne skjermen; slå på DroidDeck der, så kommer denne siden tilbake av seg selv.</string>
-    <string name="bottom_notifications_allow">Tillat varseltilgang</string>
-    <string name="bottom_notifications_none">Ingen varslinger.</string>
-    <string name="bottom_notifications_count">%1$d varslinger</string>
-    <string name="bottom_notifications_clear">Fjern</string>
     <string name="bottom_page_screenshots">Skjermbilder</string>
     <string name="stats_fps_needs_hud">FPS krever at HUD-en er på</string>
     <string name="stats_speed">Fart</string>
@@ -2244,6 +2239,7 @@
     <string name="stores_dl_interrupted">Avbrutt</string>
     <string name="stores_install_size">Installer · %1$s</string>
     <string name="stores_get_free">Hent gratis</string>
+    <string name="stores_claiming">Legger til i biblioteket …</string>
     <string name="stores_view_on">Vis på %1$s</string>
     <string name="stores_buy_price">Kjøp · %1$s</string>
     <string name="stores_installed_chip">Installert</string>
@@ -2575,6 +2571,8 @@
     <string name="comp_this_device">Denne enheten</string>
     <string name="proton_remove_title">Fjerne %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostikk</string>
+    <string name="setup_build_watermark">Vannmerke for byggetikett</string>
+    <string name="setup_build_watermark_hint">Vis etiketten for test- eller Lab-bygget på skjermen. På som standard.</string>
     <string name="setup_ready">Klar til å spille</string>
     <string name="setup_not_ready">Ikke klar til å spille ennå</string>
     <string name="setup_ready_runtime">kjøretid %1$s</string>
@@ -2869,6 +2867,8 @@
     <string name="display_position_top">Øverst</string>
     <string name="display_position_bottom">Nederst</string>
     <string name="display_position_center">Midten (standard)</string>
+    <string name="display_position_left">Venstre</string>
+    <string name="display_position_right">Høyre</string>
     <string name="setup_tab_storage">Lagring</string>
     <string name="storage_measuring">Måler lagring…</string>
     <string name="storage_measuring_hint">Første gang tar noen sekunder.</string>
@@ -3549,6 +3549,25 @@
     <string name="apps_widget_move_later">Flytt senere</string>
     <string name="apps_widget_configure">Modulinnstillinger</string>
     <string name="apps_widget_remove">Fjern modul</string>
+    <string name="apps_appearance">Utseende</string>
+    <string name="apps_icon_pack">Ikonpakke</string>
+    <string name="apps_icon_pack_system">Systemstandard</string>
+    <string name="apps_icon_app_colors">Bakgrunn i appens farge</string>
+    <string name="apps_icon_size">Ikonstørrelse</string>
+    <string name="apps_icon_small">Liten</string>
+    <string name="apps_icon_medium">Middels</string>
+    <string name="apps_icon_large">Stor</string>
+    <string name="apps_hide_names">Skjul appnavn</string>
+    <string name="apps_spacing">Avstand</string>
+    <string name="apps_spacing_tight">Tett</string>
+    <string name="apps_spacing_normal">Normal</string>
+    <string name="apps_spacing_roomy">Luftig</string>
+    <string name="apps_change_icon">Endre ikon</string>
+    <string name="apps_reset_icon">Tilbakestill ikon</string>
+    <string name="apps_icons_search">Søk etter ikoner</string>
+    <string name="apps_icons_loading">Laster inn ikoner…</string>
+    <string name="apps_icons_none">Fant ingen ikoner.</string>
+    <string name="apps_icons_custom">Egendefinerte ikoner</string>
     <string name="apps_add_to_folder">Legg til i mappe</string>
     <string name="apps_new_folder">Ny mappe</string>
     <string name="apps_remove_from_folder">Fjern fra mappe</string>
@@ -3662,4 +3681,7 @@
     <string name="input_reset_positions">Tilbakestill plasseringer</string>
     <string name="input_show_label">Vis etikett</string>
     <string name="input_layout_import_failed">Kunne ikke importere dette oppsettet</string>
+
+    <string name="theme_white_red">Skarlagenssnø</string>
+    
 </resources>

@@ -8,8 +8,12 @@ import unittest
 from pathlib import Path
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
-KEYS = ("TU_DEBUG", "DROIDDECK_GAME_TU_DEBUG")
+KEYS = ("TU_DEBUG", "DROIDDECK_GAME_TU_DEBUG", "MESA_LOADER_DRIVER_OVERRIDE", "GALLIUM_DRIVER",
+        "LIBGL_KOPPER_DRI2", "VK_ICD_FILENAMES", "VK_DRIVER_FILES")
 SESSION = {"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""}
+GPU_SESSION = {"MESA_LOADER_DRIVER_OVERRIDE": "zink", "GALLIUM_DRIVER": "zink",
+               "LIBGL_KOPPER_DRI2": "true", "VK_ICD_FILENAMES": "/runtime/turnip.json",
+               "VK_DRIVER_FILES": "/runtime/turnip.json"}
 
 
 class GameGpuLaunchersTest(unittest.TestCase):
@@ -50,11 +54,16 @@ class GameGpuLaunchersTest(unittest.TestCase):
         return self.run_env(["bash", str(BIN / "droiddeck-flatpak-run"), "--command=app", "org.example.App"], session)
 
     def test_the_wrapper_gives_a_program_the_game_setting(self):
-        self.assertEqual({"TU_DEBUG": "unset", "DROIDDECK_GAME_TU_DEBUG": "unset"}, self.wrapper())
+        self.assertEqual({key: "unset" for key in KEYS}, self.wrapper())
         self.assertEqual("gmem", self.wrapper(session={"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "gmem"})["TU_DEBUG"])
 
+    def test_non_flatpak_programs_keep_the_session_gpu_path(self):
+        values = self.wrapper(session=GPU_SESSION)
+        self.assertEqual(GPU_SESSION, {key: values[key] for key in GPU_SESSION})
+
     def test_the_wrapper_keeps_the_session_setting_for_chromium(self):
-        self.assertEqual({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "unset"}, self.wrapper("--chromium"))
+        values = self.wrapper("--chromium")
+        self.assertEqual(("sysmem", "unset"), (values["TU_DEBUG"], values["DROIDDECK_GAME_TU_DEBUG"]))
         self.assertEqual("unset", self.wrapper("--for", str(self.app / "files"))["TU_DEBUG"])
         self.chromium()
         self.assertEqual("sysmem", self.wrapper("--for", str(self.app / "files"))["TU_DEBUG"])
@@ -71,12 +80,13 @@ class GameGpuLaunchersTest(unittest.TestCase):
                                            timeout=30).returncode)
 
     def test_a_flatpak_app_gets_the_game_setting(self):
-        self.assertEqual({"TU_DEBUG": "unset", "DROIDDECK_GAME_TU_DEBUG": "unset"}, self.flatpak())
+        self.assertEqual({key: "unset" for key in KEYS}, self.flatpak(session=dict(SESSION, **GPU_SESSION)))
         self.assertEqual("nolrz", self.flatpak({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})["TU_DEBUG"])
 
     def test_a_chromium_flatpak_keeps_the_session_setting(self):
         self.chromium()
-        self.assertEqual({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "unset"}, self.flatpak())
+        values = self.flatpak()
+        self.assertEqual(("sysmem", "unset"), (values["TU_DEBUG"], values["DROIDDECK_GAME_TU_DEBUG"]))
 
     def test_a_flatpak_without_the_game_setting_is_unchanged(self):
         self.assertEqual("sysmem", self.flatpak({"TU_DEBUG": "sysmem"})["TU_DEBUG"])

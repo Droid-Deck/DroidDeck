@@ -28,6 +28,8 @@
     <string name="suspend_now">Felfüggesztés most</string>
     <string name="stop_session">Munkamenet leállítása</string>
     <string name="frame_gen_title">Képkocka-generálás</string>
+    <string name="frame_gen_scope_game">A játék beállításai</string>
+    <string name="frame_gen_scope_global">Alapértelmezett beállítások</string>
     <string name="frame_gen_hint">Válassza ki a képkocka-generálás módját</string>
     <string name="frame_gen_off">Ki</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1779,13 +1781,6 @@
     <string name="bottom_downloads_shader">Shader-gyorsítótár letöltése</string>
     <string name="bottom_downloads_paused">Szüneteltetve</string>
     <string name="bottom_downloads_queued">Indításra vár</string>
-    <string name="bottom_page_notifications">Értesítések</string>
-    <string name="bottom_notifications_listener">DroidDeck alsó képernyő</string>
-    <string name="bottom_notifications_why">Itt jelenítheti meg az üzeneteket és más értesítéseket játék közben. Csak ezen a képernyőn láthatók, és nem kerülnek mentésre. Az Android egyszer kérdez rá: az értesítési hozzáférés oldala ezen a képernyőn nyílik meg; kapcsolja be ott a DroidDecket, és ez az oldal magától visszatér.</string>
-    <string name="bottom_notifications_allow">Értesítési hozzáférés engedélyezése</string>
-    <string name="bottom_notifications_none">Nincsenek értesítések.</string>
-    <string name="bottom_notifications_count">%1$d értesítés</string>
-    <string name="bottom_notifications_clear">Törlés</string>
     <string name="bottom_page_screenshots">Képernyőképek</string>
     <string name="stats_fps_needs_hud">Az FPS-hez be kell kapcsolni a HUD-ot</string>
     <string name="stats_speed">Sebesség</string>
@@ -2244,6 +2239,7 @@
     <string name="stores_dl_interrupted">Megszakítva</string>
     <string name="stores_install_size">Telepítés · %1$s</string>
     <string name="stores_get_free">Ingyenes beszerzés</string>
+    <string name="stores_claiming">Hozzáadás a könyvtárhoz…</string>
     <string name="stores_view_on">Megtekintés itt: %1$s</string>
     <string name="stores_buy_price">Megvétel · %1$s</string>
     <string name="stores_installed_chip">Telepítve</string>
@@ -2575,6 +2571,8 @@
     <string name="comp_this_device">Ez a készülék</string>
     <string name="proton_remove_title">Eltávolítja a %1$s-t?</string>
     <string name="setup_tab_diagnostics">Diagnosztika</string>
+    <string name="setup_build_watermark">Buildcímke vízjelként</string>
+    <string name="setup_build_watermark_hint">A tesztbuild vagy Lab-build címkéjének megjelenítése a képernyőn. Alapértelmezés szerint bekapcsolva.</string>
     <string name="setup_ready">Készen áll a játékra</string>
     <string name="setup_not_ready">Még nem áll készen a játékra</string>
     <string name="setup_ready_runtime">futtatókörnyezet: %1$s</string>
@@ -2869,6 +2867,8 @@
     <string name="display_position_top">Fent</string>
     <string name="display_position_bottom">Lent</string>
     <string name="display_position_center">Középen (alapértelmezett)</string>
+    <string name="display_position_left">Bal</string>
+    <string name="display_position_right">Jobb</string>
     <string name="setup_tab_storage">Tárhely</string>
     <string name="storage_measuring">Tárhely mérése…</string>
     <string name="storage_measuring_hint">Első alkalommal pár másodpercig tart.</string>
@@ -3549,6 +3549,25 @@
     <string name="apps_widget_move_later">Hátrébb</string>
     <string name="apps_widget_configure">Modulbeállítások</string>
     <string name="apps_widget_remove">Modul eltávolítása</string>
+    <string name="apps_appearance">Megjelenés</string>
+    <string name="apps_icon_pack">Ikoncsomag</string>
+    <string name="apps_icon_pack_system">Rendszer alapértelmezett</string>
+    <string name="apps_icon_app_colors">Háttér az alkalmazás színével</string>
+    <string name="apps_icon_size">Ikonméret</string>
+    <string name="apps_icon_small">Kicsi</string>
+    <string name="apps_icon_medium">Közepes</string>
+    <string name="apps_icon_large">Nagy</string>
+    <string name="apps_hide_names">Alkalmazásnevek elrejtése</string>
+    <string name="apps_spacing">Térköz</string>
+    <string name="apps_spacing_tight">Szűk</string>
+    <string name="apps_spacing_normal">Normál</string>
+    <string name="apps_spacing_roomy">Tág</string>
+    <string name="apps_change_icon">Ikon módosítása</string>
+    <string name="apps_reset_icon">Ikon visszaállítása</string>
+    <string name="apps_icons_search">Ikonok keresése</string>
+    <string name="apps_icons_loading">Ikonok betöltése…</string>
+    <string name="apps_icons_none">Nem található ikon.</string>
+    <string name="apps_icons_custom">Egyéni ikonok</string>
     <string name="apps_add_to_folder">Hozzáadás mappához</string>
     <string name="apps_new_folder">Új mappa</string>
     <string name="apps_remove_from_folder">Eltávolítás a mappából</string>
@@ -3662,4 +3681,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+
+    <string name="theme_white_red">Skarlátvörös hó</string>
+    
 </resources>

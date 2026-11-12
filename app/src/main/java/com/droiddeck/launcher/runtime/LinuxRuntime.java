@@ -155,6 +155,11 @@ public final class LinuxRuntime {
 
     private static volatile List<String> lastBinds;
 
+    /** The mounts of a session started without proot, which sandboxes and root helpers see too. */
+    public static void rememberSessionBinds(List<String> binds) {
+        lastBinds = binds;
+    }
+
     public static List<String> lastBinds(Context context) {
         List<String> binds = lastBinds;
         if (binds != null) return binds;
@@ -306,7 +311,17 @@ public final class LinuxRuntime {
 
     private static boolean unreadablePciDevice() {
         File[] devices = new File("/sys/bus/pci/devices").listFiles();
-        if (devices == null) return false;
+        if (devices == null) {
+            // The directory is there but the app may not list it (Android 13 on the AYN Thor): libpci then
+            // aborts the whole program with "Cannot open /sys/bus/pci/devices", which Chromium's GPU
+            // initialisation runs into. Not there at all (no PCI bus) is fine as it is.
+            try {
+                android.system.Os.stat("/sys/bus/pci/devices");
+                return true;
+            } catch (android.system.ErrnoException e) {
+                return e.errno == android.system.OsConstants.EACCES;
+            }
+        }
         for (File device : devices) {
             if (!new File(device, "vendor").canRead()) return true;
         }

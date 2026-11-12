@@ -65,13 +65,19 @@ internal object GogFiles {
     fun dir(folder: File): File = inside(folder, ".droiddeck-gog").apply { mkdirs() }
     fun journal(folder: File): File = File(dir(folder), "operation.json")
 
-    fun inside(root: File, raw: String): File {
+    private fun parts(raw: String): List<String> {
         val path = raw.replace('\\', '/')
+        val parts = path.split('/')
         require(path.isNotBlank() && !path.startsWith('/') && ':' !in path && '\u0000' !in path &&
-            path.split('/').none { it.isEmpty() || it == "." || it == ".." }) { "Invalid GOG path: $raw" }
+            parts.none { it.isEmpty() || it == "." || it == ".." }) { "Invalid GOG path: $raw" }
+        return parts
+    }
+
+    fun inside(root: File, raw: String): File {
+        val parts = parts(raw)
         val base = root.canonicalFile
         var out = base
-        for (part in path.split('/')) {
+        for (part in parts) {
             out = File(out, part)
             require(!Files.isSymbolicLink(out.toPath())) { "GOG path is a symbolic link: $raw" }
         }
@@ -122,21 +128,28 @@ internal object GogFiles {
     }
 
     fun validate(files: JSONArray, folder: File) {
+        val base = folder.canonicalFile
         val paths = HashSet<String>()
         val components = HashMap<String, String>()
+        val listings = HashMap<File, Map<String, List<String>>>()
         for (file in files.objects()) {
             val path = file.getString("path").replace('\\', '/')
-            inside(folder, path)
+            val parts = parts(path)
             require(!path.startsWith(".droiddeck-", true) && path != StoreGameSidecar.FILE_NAME) { "GOG content overlaps launcher metadata" }
             require(paths.add(path.lowercase(Locale.ROOT))) { "GOG paths differ only by case: $path" }
-            var parent = folder
+            var parent = base
             var relative = ""
-            for (part in path.split('/')) {
+            for (part in parts) {
                 relative = if (relative.isEmpty()) part else "$relative/$part"
+                val child = File(parent, part)
                 val previous = components.putIfAbsent(relative.lowercase(Locale.ROOT), relative)
                 require(previous == null || previous == relative) { "GOG directory paths differ only by case: $path" }
-                require(parent.list()?.none { it != part && it.equals(part, true) } != false) { "An existing path differs only by case: $path" }
-                parent = File(parent, part)
+                if (previous == null) {
+                    require(!Files.isSymbolicLink(child.toPath())) { "GOG path is a symbolic link: $path" }
+                    val existing = listings.getOrPut(parent) { parent.list().orEmpty().groupBy { it.lowercase(Locale.ROOT) } }
+                    require(existing[part.lowercase(Locale.ROOT)].orEmpty().all { it == part }) { "An existing path differs only by case: $path" }
+                }
+                parent = child
             }
         }
     }

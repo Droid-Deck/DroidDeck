@@ -28,6 +28,8 @@
     <string name="suspend_now">立即暫停</string>
     <string name="stop_session">結束此工作階段</string>
     <string name="frame_gen_title">影格生成</string>
+    <string name="frame_gen_scope_game">此遊戲的設定</string>
+    <string name="frame_gen_scope_global">預設設定</string>
     <string name="frame_gen_hint">請選擇你要使用的影格生成模式</string>
     <string name="frame_gen_off">關閉</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1755,13 +1757,6 @@
     <string name="bottom_downloads_shader">正在下載著色器快取</string>
     <string name="bottom_downloads_paused">已暫停</string>
     <string name="bottom_downloads_queued">等待開始</string>
-    <string name="bottom_page_notifications">通知</string>
-    <string name="bottom_notifications_listener">DroidDeck 底部螢幕</string>
-    <string name="bottom_notifications_why">在遊玩時於此處顯示訊息和其他通知。通知只會顯示在這個螢幕上，不會儲存。Android 只會詢問一次：通知存取權頁面會在這個螢幕上開啟，在那裡開啟 DroidDeck 後，就會自動回到此頁面。</string>
-    <string name="bottom_notifications_allow">允許通知存取權</string>
-    <string name="bottom_notifications_none">沒有通知。</string>
-    <string name="bottom_notifications_count">%1$d 則通知</string>
-    <string name="bottom_notifications_clear">清除</string>
     <string name="bottom_page_screenshots">螢幕擷取畫面</string>
     <string name="stats_fps_needs_hud">顯示 FPS 需要開啟 HUD</string>
     <string name="stats_speed">速度</string>
@@ -2219,6 +2214,7 @@
     <string name="stores_dl_interrupted">已中斷</string>
     <string name="stores_install_size">安裝 · %1$s</string>
     <string name="stores_get_free">免費取得</string>
+    <string name="stores_claiming">正在加入收藏庫…</string>
     <string name="stores_view_on">在 %1$s 檢視</string>
     <string name="stores_buy_price">購買 · %1$s</string>
     <string name="stores_installed_chip">已安裝</string>
@@ -2548,6 +2544,8 @@
     <string name="comp_this_device">此裝置</string>
     <string name="proton_remove_title">要移除 %1$s 嗎？</string>
     <string name="setup_tab_diagnostics">診斷</string>
+    <string name="setup_build_watermark">組建標籤浮水印</string>
+    <string name="setup_build_watermark_hint">在畫面上顯示測試版或 Lab 組建標籤。預設啟用。</string>
     <string name="setup_ready">已可開始遊戲</string>
     <string name="setup_not_ready">尚未準備好開始遊戲</string>
     <string name="setup_ready_runtime">執行環境 %1$s</string>
@@ -2840,6 +2838,8 @@
     <string name="display_position_top">置頂</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">置中（預設）</string>
+    <string name="display_position_left">左側</string>
+    <string name="display_position_right">右側</string>
     <string name="setup_tab_storage">儲存空間</string>
     <string name="storage_measuring">正在統計儲存空間…</string>
     <string name="storage_measuring_hint">首次統計需要幾秒鐘。</string>
@@ -3520,6 +3520,25 @@
     <string name="apps_widget_move_later">往後移</string>
     <string name="apps_widget_configure">小工具設定</string>
     <string name="apps_widget_remove">移除小工具</string>
+    <string name="apps_appearance">外觀</string>
+    <string name="apps_icon_pack">圖示套件</string>
+    <string name="apps_icon_pack_system">系統預設</string>
+    <string name="apps_icon_app_colors">使用應用程式顏色作為背景</string>
+    <string name="apps_icon_size">圖示大小</string>
+    <string name="apps_icon_small">小</string>
+    <string name="apps_icon_medium">中</string>
+    <string name="apps_icon_large">大</string>
+    <string name="apps_hide_names">隱藏應用程式名稱</string>
+    <string name="apps_spacing">間距</string>
+    <string name="apps_spacing_tight">緊密</string>
+    <string name="apps_spacing_normal">正常</string>
+    <string name="apps_spacing_roomy">寬鬆</string>
+    <string name="apps_change_icon">變更圖示</string>
+    <string name="apps_reset_icon">重設圖示</string>
+    <string name="apps_icons_search">搜尋圖示</string>
+    <string name="apps_icons_loading">正在載入圖示…</string>
+    <string name="apps_icons_none">找不到圖示。</string>
+    <string name="apps_icons_custom">自訂圖示</string>
     <string name="apps_add_to_folder">新增至資料夾</string>
     <string name="apps_new_folder">新資料夾</string>
     <string name="apps_remove_from_folder">從資料夾移除</string>
@@ -3635,4 +3654,7 @@
     <string name="input_reset_positions">重設位置</string>
     <string name="input_show_label">顯示標籤</string>
     <string name="input_layout_import_failed">無法匯入此版面配置</string>
+
+    <string name="theme_white_red">緋紅之雪</string>
+    
 </resources>

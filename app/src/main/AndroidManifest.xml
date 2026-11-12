@@ -18,6 +18,12 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.SECONDARY_HOME" />
         </intent>
+        <intent>
+            <action android:name="org.adw.launcher.THEMES" />
+        </intent>
+        <intent>
+            <action android:name="com.novalauncher.THEME" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.REORDER_TASKS" />
@@ -90,14 +96,6 @@
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
-        </service>
-        <service android:name=".session.BottomNotificationListener"
-            android:label="@string/bottom_notifications_listener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
         </service>
         <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
             android:process=":shortcuts_sync">
@@ -266,6 +264,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity="${applicationId}.agent"
             android:permission="android.permission.DUMP"
             android:theme="@style/SessionTheme" />
 
@@ -310,6 +309,7 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
             android:theme="@style/SessionTheme" />
 
+        <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
             android:exported="false"

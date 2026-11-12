@@ -28,6 +28,8 @@
     <string name="suspend_now">Pozastavit teď</string>
     <string name="stop_session">Ukončit relaci</string>
     <string name="frame_gen_title">Generování snímků</string>
+    <string name="frame_gen_scope_game">Nastavení pro tuto hru</string>
+    <string name="frame_gen_scope_global">Výchozí nastavení</string>
     <string name="frame_gen_hint">Vyberte režim generování snímků</string>
     <string name="frame_gen_off">Vypnuto</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -1827,13 +1829,6 @@
     <string name="bottom_downloads_shader">Stahování mezipaměti shaderů</string>
     <string name="bottom_downloads_paused">Pozastaveno</string>
     <string name="bottom_downloads_queued">Čeká na spuštění</string>
-    <string name="bottom_page_notifications">Oznámení</string>
-    <string name="bottom_notifications_listener">Spodní obrazovka DroidDeck</string>
-    <string name="bottom_notifications_why">Zobrazujte zde zprávy a další oznámení během hraní. Zůstávají jen na této obrazovce a neukládají se. Android se zeptá jednou: na této obrazovce se otevře jeho stránka přístupu k oznámením; zapněte tam DroidDeck a tato stránka se sama vrátí.</string>
-    <string name="bottom_notifications_allow">Povolit přístup k oznámením</string>
-    <string name="bottom_notifications_none">Žádná oznámení.</string>
-    <string name="bottom_notifications_count">Oznámení: %1$d</string>
-    <string name="bottom_notifications_clear">Vymazat</string>
     <string name="bottom_page_screenshots">Snímky obrazovky</string>
     <string name="stats_fps_needs_hud">FPS vyžaduje zapnutý HUD</string>
     <string name="stats_speed">Rychlost</string>
@@ -2294,6 +2289,7 @@
     <string name="stores_dl_interrupted">Přerušeno</string>
     <string name="stores_install_size">Instalace · %1$s</string>
     <string name="stores_get_free">Získat zdarma</string>
+    <string name="stores_claiming">Přidávání do knihovny…</string>
     <string name="stores_view_on">Zobrazit na %1$s</string>
     <string name="stores_buy_price">Koupit · %1$s</string>
     <string name="stores_installed_chip">Nainstalováno</string>
@@ -2629,6 +2625,8 @@
     <string name="comp_this_device">Toto zařízení</string>
     <string name="proton_remove_title">Odstranit %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostika</string>
+    <string name="setup_build_watermark">Vodoznak s označením sestavení</string>
+    <string name="setup_build_watermark_hint">Zobrazit na obrazovce označení testovacího sestavení nebo sestavení Lab. Ve výchozím nastavení zapnuté.</string>
     <string name="setup_ready">Připraveno ke hraní</string>
     <string name="setup_not_ready">Ještě není připraveno ke hraní</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
@@ -2927,6 +2925,8 @@
     <string name="display_position_top">Nahoře</string>
     <string name="display_position_bottom">Dole</string>
     <string name="display_position_center">Uprostřed (výchozí)</string>
+    <string name="display_position_left">Vlevo</string>
+    <string name="display_position_right">Vpravo</string>
     <string name="setup_tab_storage">Úložiště</string>
     <string name="storage_measuring">Měření úložiště…</string>
     <string name="storage_measuring_hint">Poprvé to trvá pár sekund.</string>
@@ -3625,6 +3625,25 @@
     <string name="apps_widget_move_later">Posunout později</string>
     <string name="apps_widget_configure">Nastavení widgetu</string>
     <string name="apps_widget_remove">Odebrat widget</string>
+    <string name="apps_appearance">Vzhled</string>
+    <string name="apps_icon_pack">Balíček ikon</string>
+    <string name="apps_icon_pack_system">Výchozí systémový</string>
+    <string name="apps_icon_app_colors">Pozadí v barvě aplikace</string>
+    <string name="apps_icon_size">Velikost ikon</string>
+    <string name="apps_icon_small">Malé</string>
+    <string name="apps_icon_medium">Střední</string>
+    <string name="apps_icon_large">Velké</string>
+    <string name="apps_hide_names">Skrýt názvy aplikací</string>
+    <string name="apps_spacing">Rozestupy</string>
+    <string name="apps_spacing_tight">Těsné</string>
+    <string name="apps_spacing_normal">Běžné</string>
+    <string name="apps_spacing_roomy">Volné</string>
+    <string name="apps_change_icon">Změnit ikonu</string>
+    <string name="apps_reset_icon">Obnovit ikonu</string>
+    <string name="apps_icons_search">Hledat ikony</string>
+    <string name="apps_icons_loading">Načítání ikon…</string>
+    <string name="apps_icons_none">Nebyly nalezeny žádné ikony.</string>
+    <string name="apps_icons_custom">Vlastní ikony</string>
     <string name="apps_add_to_folder">Přidat do složky</string>
     <string name="apps_new_folder">Nová složka</string>
     <string name="apps_remove_from_folder">Odebrat ze složky</string>
@@ -3740,4 +3759,7 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
+
+    <string name="theme_white_red">Šarlatový sníh</string>
+    
 </resources>
