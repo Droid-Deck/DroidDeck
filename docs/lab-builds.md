@@ -5,6 +5,10 @@ or by hand, and loaded over the installed APK at the next start. Nothing is rein
 re-signed, so a tester on a release build keeps their games, sign-ins and settings while trying a
 change.
 
+While a Lab build is active, add-on packs reuse the newest complete copy already installed on the
+device, even when the checkout pins another version. This keeps helpers such as proot available
+after restarting. If no complete copy exists, the pack uses the checkout's pin.
+
 ## How it works
 
 - `tools/agent/dd-lab-build` builds the checkout with Gradle on the device (`processReleaseResources`
