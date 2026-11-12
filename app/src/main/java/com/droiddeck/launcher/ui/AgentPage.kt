@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -119,9 +120,11 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
             AgentPanel.HISTORY -> AgentHistory(Modifier.weight(1f)) { panel = AgentPanel.NONE }
             AgentPanel.PROCESSES -> AgentProcessList(Modifier.weight(1f))
             else -> {
-                if (panel == AgentPanel.MODEL) AgentModelPicker()
-                AgentConversation(Modifier.weight(1f))
-                AgentStatus()
+                Column(Modifier.weight(1f).clipToBounds()) {
+                    if (panel == AgentPanel.MODEL) AgentModelPicker()
+                    AgentConversation(Modifier.weight(1f))
+                    AgentStatus()
+                }
                 AgentComposer(draft, inputModifier) { panel = it }
             }
         }
