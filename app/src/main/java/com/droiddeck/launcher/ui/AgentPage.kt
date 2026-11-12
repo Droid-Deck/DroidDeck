@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import android.app.Activity
 import android.content.ContextWrapper
+import android.content.res.Configuration
 import android.view.WindowManager
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -65,6 +66,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
@@ -352,6 +354,7 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
     }
     var focused by remember { mutableStateOf(false) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Row(
         verticalAlignment = Alignment.Bottom,
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = if (keyboardOpen) 4.dp else 16.dp).clip(Shape16).background(colors.surface)
@@ -371,7 +374,7 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 minLines = 1,
-                maxLines = if (compact) 1 else 8,
+                maxLines = if (compact) 1 else if (landscape) 3 else 8,
             )
         }
         if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
