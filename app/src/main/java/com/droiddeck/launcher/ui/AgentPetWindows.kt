@@ -174,6 +174,16 @@ internal class PetMotion(private val context: Context) {
         y += dy
     }
 
+    /** A drag the system took away: the pet goes back to an edge, never to the close target. */
+    fun cancel() {
+        if (!dragging) return
+        dragging = false
+        right = x + size / 2 > width / 2
+        val toY = y.coerceIn(inset, (height - size - inset).coerceAtLeast(inset))
+        home = fractionOf(toY)
+        spring.start(x, y, 0f, 0f, edge(right), toY)
+    }
+
     /** Ends a drag let go at [vx], [vy] pixels per second; true when the pet was dropped on the close target. */
     fun end(vx: Float = 0f, vy: Float = 0f): Boolean {
         val dismissed = overTarget
@@ -261,6 +271,8 @@ internal class PetWindows(private val context: Context) {
 
     init {
         head.view.setOnTouchListener(DragTouch())
+        head.view.contentDescription = context.getString(R.string.agent_pet_open)
+        head.view.setOnClickListener { if (chatOpen) closeChat() else openChat() }
         scope.launch { snapshotFlow { Triple(motion.x, motion.y, motion.right) }.collectLatest { place() } }
         scope.launch { snapshotFlow { bubbleWidth to bubbleHeight }.collectLatest { place() } }
         scope.launch { snapshotFlow { AgentPet.agentOnScreen == 0 }.collectLatest { setVisible(head, it) } }
@@ -442,11 +454,11 @@ internal class PetWindows(private val context: Context) {
                     val (vx, vy) = release()
                     if (moved) {
                         if (motion.end(vx, vy)) AgentPet.set(context, false)
-                    } else if (chatOpen) closeChat() else openChat()
+                    } else v.performClick()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     release()
-                    if (moved) motion.end()
+                    if (moved) motion.cancel()
                 }
             }
             return true

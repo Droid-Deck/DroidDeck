@@ -2693,6 +2693,7 @@
     <string name="setup_agent_pet_float_hint">Let DeeDee float over every app and open its chat there</string>
     <string name="setup_agent_pet_allow">Allow</string>
     <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">Chat with DeeDee</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
     <string name="library_display_smaller">Smaller cards</string>

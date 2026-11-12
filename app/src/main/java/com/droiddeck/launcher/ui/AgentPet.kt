@@ -46,6 +46,10 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -82,7 +86,9 @@ internal object AgentPet {
     /** When the agent last changed what it was doing. */
     var since by mutableLongStateOf(SystemClock.elapsedRealtime())
         private set
-    val floating get() = enabled && allowed
+    /** The floating windows could not be made, so the pet stays in DroidDeck's own windows instead. */
+    private var floatFailed by mutableStateOf(false)
+    val floating get() = enabled && allowed && !floatFailed
     private var windows: PetWindows? = null
     private val main = Handler(Looper.getMainLooper())
     private const val TAG = "agent-pet"
@@ -117,7 +123,10 @@ internal object AgentPet {
         }
         scope.launch {
             snapshotFlow { floating && AgentHost.installed }.collect { show ->
-                if (show && windows == null) windows = runCatching { PetWindows(app) }.onFailure { android.util.Log.w("AgentPet", "could not float the pet", it) }.getOrNull()
+                if (show && windows == null) windows = runCatching { PetWindows(app) }.onFailure {
+                    android.util.Log.w("AgentPet", "could not float the pet", it)
+                    floatFailed = true
+                }.getOrNull()
                 if (!show) windows?.close()?.also { windows = null }
             }
         }
@@ -219,6 +228,7 @@ private fun PetLayer(host: AgentPetHost) {
     val context = LocalContext.current
     val motion = remember { PetMotion(context) }
     val density = LocalDensity.current
+    val openLabel = androidx.compose.ui.res.stringResource(com.droiddeck.launcher.R.string.agent_pet_open)
     val openChat = {
         motion.dock()
         chatShown = true
@@ -260,6 +270,11 @@ private fun PetLayer(host: AgentPetHost) {
             petStateNow(),
             Modifier.offset { IntOffset(motion.x.roundToInt(), motion.y.roundToInt()) }
                 .size(with(density) { motion.size.toDp() })
+                .semantics {
+                    contentDescription = openLabel
+                    role = androidx.compose.ui.semantics.Role.Button
+                    onClick { if (chatOpen) closeChat() else openChat(); true }
+                }
                 .pointerInput(Unit) { detectTapGestures { bubble = null; if (chatOpen) closeChat() else openChat() } }
                 .pointerInput(Unit) {
                     // The pet moves under the finger, so its velocity is measured where it is on the screen.
@@ -275,7 +290,7 @@ private fun PetLayer(host: AgentPetHost) {
                             val v = tracker.calculateVelocity()
                             if (motion.end(v.x, v.y)) AgentPet.set(context, false)
                         },
-                        onDragCancel = { motion.end() },
+                        onDragCancel = { motion.cancel() },
                     )
                 },
         )
