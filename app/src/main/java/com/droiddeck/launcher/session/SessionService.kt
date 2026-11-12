@@ -1632,8 +1632,7 @@ class SessionService : Service() {
         mainHandler.postDelayed({
             if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
                 SessionState.stopRequested || SessionState.mode != MODE_STEAM ||
-                !SessionPrefs.returnAfterGame(this) || SessionState.gameId != gameId ||
-                pendingSteamGameId != null) {
+                SessionState.gameId != gameId || pendingSteamGameId != null) {
                 return@postDelayed
             }
 
@@ -1650,6 +1649,11 @@ class SessionService : Service() {
             }
 
             clearActiveScreenEffectsProfile(gameId, gen, token)
+
+            if (!SessionPrefs.returnAfterGame(this)) {
+                Log.i(TAG, "return after game disabled; keeping the Steam session open")
+                return@postDelayed
+            }
 
             val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
                 .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess

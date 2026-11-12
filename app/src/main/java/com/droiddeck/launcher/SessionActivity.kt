@@ -548,10 +548,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
     private val screenEffectsProfilePrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == SessionPrefs.SCREEN_EFFECTS_ACTIVE_PROFILE_KEY) uiHandler.post {
-            val profileId = SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
-            observedScreenEffectsProfileId = profileId
-            effects = SessionPrefs.screenEffects(this@SessionActivity, profileId)
-            effects.push(upscaler)
+            syncActiveScreenEffectsProfile()
         }
     }
     private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -989,13 +986,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val effectsEditorProfileId = if (drawerOpen) activeEffectsProfileId else null
             androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
                 if (effectsEditorProfileId != null) {
-                    val activeProfileId =
-                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
-                    observedScreenEffectsProfileId = activeProfileId
-                    val activeEffects =
-                        SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
-                    effects = activeEffects
-                    activeEffects.push(upscaler)
+                    syncActiveScreenEffectsProfile()
                 }
             }
             val uiPointer = appUiOwnsPointer()
@@ -2010,6 +2001,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 refreshDrawerGameProfile()
             }
         }, "drawer-game-no-steam").start()
+    }
+
+    private fun syncActiveScreenEffectsProfile() {
+        val profileId = SessionPrefs.activeScreenEffectsProfileId(this)
+        observedScreenEffectsProfileId = profileId
+        effects = SessionPrefs.screenEffects(this, profileId)
+        effects.push(upscaler)
     }
 
     private fun currentScreenEffectsProfileId(): String? {
@@ -3807,13 +3805,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     if (drawerOpen || drawerPinned) activeEffectsProfileId else null
                 androidx.compose.runtime.LaunchedEffect(effectsEditorProfileId) {
                     if (effectsEditorProfileId != null) {
-                        val activeProfileId =
-                            SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
-                        observedScreenEffectsProfileId = activeProfileId
-                        val activeEffects =
-                            SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
-                        effects = activeEffects
-                        activeEffects.push(upscaler)
+                        syncActiveScreenEffectsProfile()
                     }
                 }
                 SessionMenu(docked = true, effectsEditorProfileId = effectsEditorProfileId)
