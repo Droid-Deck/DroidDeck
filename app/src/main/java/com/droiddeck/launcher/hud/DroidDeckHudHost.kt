@@ -14,7 +14,6 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -183,9 +182,8 @@ class DroidDeckHudHost(context: Context) {
     private fun applyShown() {
         if (!running) return
         val show = !hidden && !backgrounded
-        val visible = show && SessionState.mode != SessionService.MODE_DESKTOP
-        view?.visibility = if (visible) View.VISIBLE else View.GONE
-        showing = visible
+        view?.visibility = if (show) View.VISIBLE else View.GONE
+        showing = show
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
