@@ -292,7 +292,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var relativeMouseMode by mutableIntStateOf(0)
     @Volatile private var appliedRelativeMouseMode: Int? = null
     private val agentReadyListener: () -> Unit = { relativeMouseRetries = 0; requestRelativeMouse() }
-    private val appTextFocus get() = wowChat.request != null
+    private val appTextFocus get() = wowChat.request != null || com.droiddeck.launcher.ui.AgentPet.isChatOpenInWindow(this)
     private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
     private var wowChatBottom: SecondScreenPresentation? = null
     private var wowChatOnTop by mutableStateOf(false)

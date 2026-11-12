@@ -92,7 +92,7 @@ internal object AgentPet {
     private var floatFailed by mutableStateOf(false)
     val floating get() = enabled && allowed && !floatFailed
     /** How to close the chat open inside each DroidDeck window that has one. */
-    private val closeInWindow = java.util.WeakHashMap<AgentPetHost, () -> Unit>()
+    private val closeInWindow = androidx.compose.runtime.mutableStateMapOf<AgentPetHost, () -> Unit>()
 
     /**
      * B and Back close a chat open inside [host] before the window acts on them, since the window's
@@ -104,6 +104,8 @@ internal object AgentPet {
         if (event.action == android.view.KeyEvent.ACTION_UP) close()
         return true
     }
+
+    fun isChatOpenInWindow(host: AgentPetHost): Boolean = closeInWindow.containsKey(host)
 
     internal fun chatOpenInWindow(host: AgentPetHost, close: (() -> Unit)?) {
         if (close == null) closeInWindow.remove(host) else closeInWindow[host] = close
