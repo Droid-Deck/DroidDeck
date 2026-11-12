@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -689,9 +691,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             onRailSelect(key)
         }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
+        val agentKeyboardOpen = railSelection == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
+                .then(if (railSelection == "agent") Modifier.imePadding() else Modifier)
                 .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
                     val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
                     if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
@@ -705,7 +709,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     true
                 } else Modifier),
             navigation = {
-                if (s.dualScreen) Unit
+                if (s.dualScreen || (bottomNavigation && agentKeyboardOpen)) Unit
                 else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             },

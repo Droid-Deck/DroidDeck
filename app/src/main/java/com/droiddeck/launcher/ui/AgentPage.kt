@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -58,6 +60,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -328,9 +331,10 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
         for (path in AgentAttachments.pending.toList()) AttachmentChip(path) { AgentAttachments.pending.remove(path) }
     }
     var focused by remember { mutableStateOf(false) }
+    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Row(
         verticalAlignment = Alignment.Bottom,
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp).clip(Shape16).background(colors.surface)
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = if (keyboardOpen) 4.dp else 16.dp).clip(Shape16).background(colors.surface)
             .border(1.dp, if (focused) pal.primary else pal.line, Shape16).padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
     ) {
         if (LocalActivityResultRegistryOwner.current != null) AttachButton()
@@ -346,7 +350,8 @@ private fun AgentComposer(draftState: MutableState<String>, inputModifier: Modif
                 cursorBrush = SolidColor(pal.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
-                maxLines = 6,
+                minLines = 1,
+                maxLines = 8,
             )
         }
         if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
