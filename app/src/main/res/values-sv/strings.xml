@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">Avbruten</string>
     <string name="stores_install_size">Installation · %1$s</string>
     <string name="stores_get_free">Hämta gratis</string>
+    <string name="stores_claiming">Lägger till i biblioteket …</string>
     <string name="stores_view_on">Visa på %1$s</string>
     <string name="stores_buy_price">Köp · %1$s</string>
     <string name="stores_installed_chip">Installerat</string>

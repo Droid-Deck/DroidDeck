@@ -2227,6 +2227,7 @@
     <string name="stores_dl_interrupted">Kesintiye uğradı</string>
     <string name="stores_install_size">Yükle · %1$s</string>
     <string name="stores_get_free">Ücretsiz al</string>
+    <string name="stores_claiming">Kitaplığa ekleniyor…</string>
     <string name="stores_view_on">%1$s\'te görüntüle</string>
     <string name="stores_buy_price">Satın al · %1$s</string>
     <string name="stores_installed_chip">Yüklü</string>

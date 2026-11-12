@@ -106,6 +106,7 @@ fun detailCatalogItem(
     library.firstOrNull { it.store == store && it.id == id }
         ?: found.firstOrNull { it.store == store && it.id == id }
         ?: shelves?.all?.firstOrNull { it.store == store && it.id == id }
+        ?: shelves?.all?.firstOrNull { it.store == store && it.extra[StoreFront.STORE_CARD] == id }
 
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new

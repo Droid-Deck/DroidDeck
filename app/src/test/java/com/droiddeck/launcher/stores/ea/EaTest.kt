@@ -251,7 +251,8 @@ class EaTest {
             game("ultima-7", "Ultima VII", "2026-11-05T18:00:00.000Z", "$4.99", "$2.49", 50, false) + "," +
             game("redsec", "REDSEC", "2025-10-28T15:00:00.000Z", "$0.00", "$0.00", 0, true) + "," +
             game("future", "Future", "2027-03-01T00:00:00.000Z", "$69.99", "$69.99", 0, false) + "]}}}</script></html>"
-        val (items, total) = EaStore.parsePage(html)
+        val (items, total) = EaStore.parsePage(html, "USD")
+        assertEquals("", EaStore.parsePage(html, "EUR").first.first().finalPrice)
         assertEquals(40, total)
         val ultima = items.first()
         assertEquals("Ultima VII", ultima.title)
@@ -268,6 +269,13 @@ class EaTest {
         val marked = com.droiddeck.launcher.stores.StoreFront.markOwned(shelves, listOf(owned), EaStore::sameGame)
         assertEquals("Origin.OFR.1", marked.deals.single().id)
         assertEquals("https://img/ultima-7-wide", marked.deals.single().imageUrl)
+    }
+
+    @Test fun titlesMatchAcrossMarksAndAccentsButNeverWhenEmpty() {
+        assertEquals("pokemon", com.droiddeck.launcher.stores.StoreFront.titleKey("Pokémon™"))
+        assertEquals("ファイナル 7", com.droiddeck.launcher.stores.StoreFront.titleKey("ファイナル® 7"))
+        val shelf = CatalogItem(Store.EA, "ea-store:a", "™", null)
+        assertFalse(EaStore.sameGame(shelf, CatalogItem(Store.EA, "Origin.OFR.2", "®", null, owned = true)))
     }
 
     @Test fun ownedPageParses() {

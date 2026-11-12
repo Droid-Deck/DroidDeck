@@ -47,10 +47,11 @@ object UbisoftBackend : StoreBackend {
 
     override fun loadShelves(context: Context, force: Boolean) {
         val app = context.applicationContext
+        val account = UbisoftLibrary.account()
         UbisoftStore.cached(app)?.let { s -> StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(s, StoresState.library[store], UbisoftStore::sameGame) } }
         Thread({
             val shelves = UbisoftStore.featured(app, force) ?: return@Thread
-            StoresState.post { StoresState.shelves[store] = StoreFront.markOwned(shelves, StoresState.library[store], UbisoftStore::sameGame) }
+            StoresState.post { if (UbisoftLibrary.account() == account) StoresState.shelves[store] = StoreFront.markOwned(shelves, StoresState.library[store], UbisoftStore::sameGame) }
         }, "ubisoft-shelves").start()
     }
 
@@ -107,6 +108,9 @@ object UbisoftLibrary {
         generation.incrementAndGet()
         StoresState.post { StoresState.shelves.remove(Store.UBISOFT) }
     }
+
+    /** Changes on every sign-out, so work begun for the old account can tell. */
+    fun account(): Int = generation.get()
 
     private fun post(gen: Int, block: () -> Unit) = StoresState.post { if (generation.get() == gen) block() }
 

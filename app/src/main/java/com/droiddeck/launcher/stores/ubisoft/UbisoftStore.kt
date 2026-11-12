@@ -32,12 +32,17 @@ object UbisoftStore {
 
     private fun site() = SITES[Locale.getDefault().country.uppercase(Locale.ROOT)] ?: SITES.getValue("US")
 
-    private fun index(order: String) = site().let { (s, l, _) -> "production__${s}_ubisoft__products__${l}__$order" }
+    private fun index(site: Triple<String, String, String>, order: String) = "production__${site.first}_ubisoft__products__${site.second}__$order"
 
-    private var front: StoreFront? = null
+    private val fronts = HashMap<Triple<String, String, String>, StoreFront>()
 
-    private fun front(context: Context): StoreFront = synchronized(this) {
-        front ?: StoreFront(Store.UBISOFT, { context.applicationContext.getSharedPreferences("stores.ubisoft", Context.MODE_PRIVATE) }, ::fetch).also { front = it }
+    /** Each store site keeps its own shelves, so a region change never shows another region's prices. */
+    private fun front(context: Context): StoreFront = synchronized(fronts) {
+        val site = site()
+        fronts.getOrPut(site) {
+            StoreFront(Store.UBISOFT, { context.applicationContext.getSharedPreferences("stores.ubisoft", Context.MODE_PRIVATE) },
+                { fetch(site) }, key = "store_front_${site.first}_${site.third}")
+        }
     }
 
     fun cached(context: Context): StoreShelves? = front(context).cached()
@@ -47,7 +52,7 @@ object UbisoftStore {
     fun search(query: String): List<CatalogItem> {
         val term = query.trim()
         if (term.length < 2) return emptyList()
-        return query("best_sellers", 40, query = term)
+        return query(site(), "best_sellers", 40, query = term).orEmpty()
     }
 
     /** Whether a store card and a library entry are the same game. */
@@ -61,22 +66,23 @@ object UbisoftStore {
     /** A product title without its edition, so "Far Cry® 6 - Gold Edition" is "far cry 6". */
     internal fun baseTitle(title: String): String = StoreFront.titleKey(title.substringBefore(" - "))
 
-    private fun query(order: String, hits: Int, query: String = "", filters: String = "", facets: List<String> = emptyList()): List<CatalogItem> {
+    /** One page of the index, or null when Ubisoft did not answer. */
+    private fun query(site: Triple<String, String, String>, order: String, hits: Int, query: String = "", filters: String = "", facets: List<String> = emptyList()): List<CatalogItem>? {
         val facetFilters = JSONArray().put("product_type:Games").put("Platform:PC (Digital)").apply { facets.forEach { put(it) } }
-        val url = Uri.parse("https://$APP-dsn.algolia.net/1/indexes/${index(order)}").buildUpon()
+        val url = Uri.parse("https://$APP-dsn.algolia.net/1/indexes/${index(site, order)}").buildUpon()
             .appendQueryParameter("query", query)
             .appendQueryParameter("hitsPerPage", (hits * 2).toString())
             .appendQueryParameter("facetFilters", facetFilters.toString())
             .apply { if (filters.isNotEmpty()) appendQueryParameter("filters", filters) }
             .build().toString()
-        val body = StoreNet.get(url, headers = mapOf("X-Algolia-Application-Id" to APP, "X-Algolia-API-Key" to KEY)) ?: return emptyList()
-        return parse(JSONObject(body), site().third).take(hits)
+        val body = StoreNet.get(url, headers = mapOf("X-Algolia-Application-Id" to APP, "X-Algolia-API-Key" to KEY)) ?: return null
+        return parse(JSONObject(body), site.third).take(hits)
     }
 
     internal fun parse(answer: JSONObject, currency: String, now: Instant = Instant.now()): List<CatalogItem> {
         val hits = answer.optJSONArray("hits") ?: return emptyList()
-        return (0 until hits.length()).mapNotNull { hits.optJSONObject(it) }.mapNotNull { item(it, currency, now) }
-            .distinctBy { baseTitle(it.title) }
+        val items = (0 until hits.length()).mapNotNull { hits.optJSONObject(it) }.mapNotNull { item(it, currency, now) }
+        return items.groupBy { baseTitle(it.title) }.values.map { editions -> editions.firstOrNull { " - " !in it.title } ?: editions.first() }
     }
 
     private fun money(amount: Double, currency: String): String = NumberFormat.getCurrencyInstance(Locale.US).apply {
@@ -110,11 +116,14 @@ object UbisoftStore {
         )
     }
 
-    private fun fetch(): StoreShelves {
-        val trending = query("best_sellers", SHELF)
-        val newest = query("release_date", SHELF)
-        val deals = query("best_sellers", SHELF, filters = "promotion_percentage > 0")
-        val free = query("best_sellers", SHELF, facets = listOf("Free_offer:freeplay"))
-        return StoreShelves(whatsNew = newest, deals = deals, free = free, trending = trending, art = trending.mapNotNull { it.imageUrl })
+    /** All four rows, or a failure when any of them failed, so a partial refresh never replaces a good one. */
+    private fun fetch(site: Triple<String, String, String>): StoreFront.Catalog {
+        fun row(order: String, filters: String = "", facets: List<String> = emptyList()) =
+            query(site, order, SHELF, filters = filters, facets = facets) ?: throw java.io.IOException("Ubisoft store $order $filters$facets failed")
+        val trending = row("best_sellers")
+        val newest = row("release_date")
+        val deals = row("best_sellers", filters = "promotion_percentage > 0")
+        val free = row("best_sellers", facets = listOf("Free_offer:freeplay"))
+        return StoreFront.Catalog(StoreShelves(whatsNew = newest, deals = deals, free = free, trending = trending, art = trending.mapNotNull { it.imageUrl }))
     }
 }

@@ -69,6 +69,12 @@ class UbisoftTest {
         assertTrue(!UbisoftStore.sameGame(ezio, CatalogItem(Store.UBISOFT, "space-ac", "Assassin's Creed™", null, owned = true)))
     }
 
+    @Test fun theBaseEditionStandsForItsGameWhicheverComesFirst() {
+        fun hit(id: String, title: String) = JSONObject().put("objectID", id).put("title", title).put("price", JSONObject().put("USD", 10.0))
+        val answer = JSONObject().put("hits", JSONArray().put(hit("gold", "Far Cry® 6 - Gold Edition")).put(hit("base", "Far Cry® 6")))
+        assertEquals(listOf("ubisoft-store:base"), UbisoftStore.parse(answer, "USD").map { it.id })
+    }
+
     @Test fun theEntitlementNamesTheGamesApplication() {
         val body = JSONObject().put("items", JSONArray()
             .put(JSONObject().put("productId", 82).put("applicationId", "app-82"))

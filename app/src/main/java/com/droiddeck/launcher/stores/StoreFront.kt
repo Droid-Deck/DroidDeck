@@ -10,40 +10,54 @@ import java.util.Locale
 internal class StoreFront(
     private val store: Store,
     private val prefs: () -> SharedPreferences,
-    private val fetch: () -> StoreShelves?,
+    private val fetch: () -> Catalog,
+    private val key: String = "store_front",
     private val ttlMs: Long = 3 * 60 * 60 * 1000L,
 ) {
-    @Volatile private var memory: StoreShelves? = null
+    /** One refresh: the shelves and every game the store lists, for search. */
+    class Catalog(val shelves: StoreShelves, val all: List<CatalogItem> = shelves.all)
+
+    @Volatile private var memory: Catalog? = null
     @Volatile private var memoryAt = 0L
 
-    fun cached(): StoreShelves? = memory ?: decode(prefs().getString(KEY, null))?.also { memory = it }
+    fun cached(): StoreShelves? = cachedCatalog()?.shelves
 
+    fun everything(): List<CatalogItem> = cachedCatalog()?.all.orEmpty()
+
+    private fun cachedCatalog(): Catalog? = memory ?: decode(prefs().getString(key, null))?.also { memory = it }
+
+    /** The shelves, refreshed when stale; a refresh that fails keeps the last good set. */
     fun shelves(force: Boolean): StoreShelves? {
         val now = System.currentTimeMillis()
         if (!force) {
-            memory?.takeIf { now - memoryAt in 0 until ttlMs }?.let { return it }
-            val at = prefs().getLong(KEY_AT, 0L)
-            if (now - at in 0 until ttlMs) decode(prefs().getString(KEY, null))?.let { memory = it; memoryAt = at; return it }
+            memory?.takeIf { now - memoryAt in 0 until ttlMs }?.let { return it.shelves }
+            val at = prefs().getLong("${key}_at", 0L)
+            if (now - at in 0 until ttlMs) decode(prefs().getString(key, null))?.let { memory = it; memoryAt = at; return it.shelves }
         }
         val fresh = runCatching(fetch).onFailure { StoresState.logLine("${store.label}: store shelves failed: ${it.javaClass.simpleName} ${it.message.orEmpty().take(160)}") }
-            .getOrNull()?.takeUnless { it.isEmpty }
+            .getOrNull()?.takeUnless { it.shelves.isEmpty }
             ?: return cached()
-        prefs().edit().putString(KEY, encode(fresh)).putLong(KEY_AT, now).apply()
+        prefs().edit().putString(key, encode(fresh)).putLong("${key}_at", now).apply()
         memory = fresh
         memoryAt = now
-        return fresh
+        return fresh.shelves
     }
 
-    private fun encode(s: StoreShelves): String = JSONObject().apply {
-        listOf(s.whatsNew, s.deals, s.free, s.trending).zip(SHELVES).forEach { (items, key) -> put(key, JSONArray().apply { items.forEach { put(itemJson(it)) } }) }
+    private fun encode(c: Catalog): String = JSONObject().apply {
+        val s = c.shelves
+        listOf(s.whatsNew, s.deals, s.free, s.trending).zip(SHELVES).forEach { (items, k) -> put(k, JSONArray(items.map { it.id })) }
         put("art", JSONArray(s.art))
+        put("items", JSONArray().apply { (c.all + s.all).distinctBy { it.id }.forEach { put(itemJson(it)) } })
     }.toString()
 
-    private fun decode(text: String?): StoreShelves? {
+    private fun decode(text: String?): Catalog? {
         val o = text?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return null
-        fun shelf(key: String) = o.optJSONArray(key)?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(::itemFrom) } }.orEmpty()
+        val items = o.optJSONArray("items")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(::itemFrom) } }.orEmpty()
+        val byId = items.associateBy { it.id }
+        fun shelf(k: String) = o.optJSONArray(k)?.let { a -> (0 until a.length()).mapNotNull { byId[a.optString(it)] } }.orEmpty()
         val art = o.optJSONArray("art")?.let { a -> List(a.length()) { a.optString(it) }.filter { it.isNotEmpty() } }.orEmpty()
-        return StoreShelves(shelf("new"), shelf("deals"), shelf("free"), shelf("trending"), art).takeUnless { it.isEmpty }
+        val shelves = StoreShelves(shelf("new"), shelf("deals"), shelf("free"), shelf("trending"), art).takeUnless { it.isEmpty } ?: return null
+        return Catalog(shelves, items)
     }
 
     private fun itemJson(i: CatalogItem) = JSONObject()
@@ -66,15 +80,17 @@ internal class StoreFront(
     }
 
     companion object {
-        private const val KEY = "store_front"
-        private const val KEY_AT = "store_front_at"
+        /** On an owned game standing in for a store card: the card's id, so a page opened on the card still finds it. */
+        const val STORE_CARD = "storeCard"
         private val SHELVES = listOf("new", "deals", "free", "trending")
         private val MARKS = Regex("[\\u2122\\u00AE\\u00A9]")
-        private val NOT_WORD = Regex("[^a-z0-9]+")
+        private val COMBINING = Regex("\\p{M}+")
+        private val NOT_WORD = Regex("[^\\p{L}\\p{N}]+")
 
-        /** A title reduced to letters and digits, so "Far Cry® 6" and "Far Cry 6" meet. */
+        /** A title reduced to letters and digits, so "Far Cry® 6" and "Far Cry 6" meet, and "Pokémon" meets "Pokemon". */
         fun titleKey(title: String): String =
-            Normalizer.normalize(title.replace(MARKS, ""), Normalizer.Form.NFD).lowercase(Locale.ROOT).replace(NOT_WORD, " ").trim()
+            Normalizer.normalize(title.replace(MARKS, ""), Normalizer.Form.NFD).replace(COMBINING, "")
+                .lowercase(Locale.ROOT).replace(NOT_WORD, " ").trim()
 
         /**
          * Shelf cards the account owns become its library entry, which carries what installing needs,
@@ -95,6 +111,7 @@ internal class StoreFront(
                     tags = owned.tags.ifBlank { shelf.tags }, description = owned.description.ifBlank { shelf.description },
                     releaseDate = owned.releaseDate.ifBlank { shelf.releaseDate }, storeUrl = shelf.storeUrl.ifBlank { owned.storeUrl },
                     developer = owned.developer.ifBlank { shelf.developer }, mature = shelf.mature,
+                    extra = owned.extra + (STORE_CARD to shelf.id),
                 )
             }.distinctBy { it.id }
         }

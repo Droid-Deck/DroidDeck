@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">Terhenti</string>
     <string name="stores_install_size">Instal · %1$s</string>
     <string name="stores_get_free">Dapatkan gratis</string>
+    <string name="stores_claiming">Menambahkan ke pustaka…</string>
     <string name="stores_view_on">Lihat di %1$s</string>
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Terinstal</string>

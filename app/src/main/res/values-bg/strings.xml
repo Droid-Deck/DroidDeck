@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">Прекъснато</string>
     <string name="stores_install_size">Инсталация · %1$s</string>
     <string name="stores_get_free">Вземи безплатно</string>
+    <string name="stores_claiming">Добавяне в библиотеката…</string>
     <string name="stores_view_on">Виж в %1$s</string>
     <string name="stores_buy_price">Купи · %1$s</string>
     <string name="stores_installed_chip">Инсталирана</string>

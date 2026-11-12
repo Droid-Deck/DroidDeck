@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">已中斷</string>
     <string name="stores_install_size">安裝 · %1$s</string>
     <string name="stores_get_free">免費取得</string>
+    <string name="stores_claiming">正在加入收藏庫…</string>
     <string name="stores_view_on">在 %1$s 檢視</string>
     <string name="stores_buy_price">購買 · %1$s</string>
     <string name="stores_installed_chip">已安裝</string>

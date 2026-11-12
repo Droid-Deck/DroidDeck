@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">Onderbroken</string>
     <string name="stores_install_size">Installeren · %1$s</string>
     <string name="stores_get_free">Gratis verkrijgen</string>
+    <string name="stores_claiming">Toevoegen aan bibliotheek…</string>
     <string name="stores_view_on">Bekijken op %1$s</string>
     <string name="stores_buy_price">Kopen · %1$s</string>
     <string name="stores_installed_chip">Geïnstalleerd</string>

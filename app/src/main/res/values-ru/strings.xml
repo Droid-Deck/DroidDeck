@@ -2368,6 +2368,7 @@
     <string name="stores_dl_interrupted">Прервано</string>
     <string name="stores_install_size">Установить · %1$s</string>
     <string name="stores_get_free">Получить бесплатно</string>
+    <string name="stores_claiming">Добавление в библиотеку…</string>
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>

@@ -2260,6 +2260,7 @@
     <string name="stores_dl_interrupted">Întreruptă</string>
     <string name="stores_install_size">Instalare · %1$s</string>
     <string name="stores_get_free">Obține gratuit</string>
+    <string name="stores_claiming">Se adaugă în bibliotecă…</string>
     <string name="stores_view_on">Vezi pe %1$s</string>
     <string name="stores_buy_price">Cumpără · %1$s</string>
     <string name="stores_installed_chip">Instalat</string>
