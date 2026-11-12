@@ -27,13 +27,16 @@ class UbisoftTest {
         .put(JSONObject().put("productId", 1957).put("spaceId", "space-s").put("productType", 0).put("owned", true).put("configuration", steamConfig))
         .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", "root: {}"))
         .put(JSONObject().put("productId", 1961).put("spaceId", "space-addon").put("productType", 1).put("owned", true).put("manifest", "CD").put("configuration", steamConfig))
-        .put(JSONObject().put("productId", 720).put("spaceId", "space-plus").put("productType", 0).put("owned", false).put("manifest", "EF").put("configuration", "root: {}")))
+        .put(JSONObject().put("productId", 720).put("spaceId", "space-plus").put("productType", 0).put("owned", false).put("manifest", "EF").put("configuration", "root: {}"))
+        .put(JSONObject().put("productId", 3539).put("spaceId", "space-o").put("productType", 0).put("owned", true).put("configuration", "root: {}")))
 
     @Test fun onlyGamesConnectDeliversAreInTheLibrary() {
-        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-s", "Syndicate"), listed("space-plus", "Ubisoft+ Game"), listed("space-gone", "Free Weekend"))
+        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-s", "Syndicate"), listed("space-plus", "Ubisoft+ Game"), listed("space-gone", "Free Weekend"), listed("space-o", "Origins"))
         val games = UbisoftLibrary.assemble(profile, owned)
-        assertEquals(listOf("space-sc"), games.map { it.id })
-        assertEquals("109", games.single().extra["productId"])
+        assertEquals(listOf("space-o", "space-sc"), games.map { it.id })
+        assertEquals(listOf("3539", "109"), games.map { it.extra["productId"] })
+        assertEquals(null, games.first().extra["manifest"])
+        assertEquals("Steam", UbisoftLibrary.thirdParty(steamConfig))
     }
 
     @Test fun withoutAnOwnershipAnswerTheProfileListStays() {

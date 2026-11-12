@@ -242,8 +242,9 @@ object EaLibrary {
             val listed = withToken(app, token) { EaApi.owned(it) }
             val rows = try {
                 withToken(app, token) { EaApi.legacyEntitlements(it) }
-            } catch (e: EaApiException) {
-                if (e.status == 401) throw e
+            } catch (e: Exception) {
+                if (e is EaApiException && e.status == 401) throw e
+                if (e !is EaApiException && e !is java.io.IOException) throw e
                 StoresState.logLine("ea: entitlements unavailable, keeping every owned product: ${e.message}")
                 emptyList()
             }
@@ -256,7 +257,10 @@ object EaLibrary {
             StoresState.logLine("ea: ${owned.size} owned products, ${picked.size} games")
             for ((o, offer) in picked) StoresState.logLine(
                 "ea: owned ${o.offerId} content=${offer.contentId} master=${offer.masterTitleId} mp=${offer.multiplayerId} via=${o.ownership.joinToString("+")} type=${o.gameType}")
-            if (picked.isEmpty()) return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
+            if (picked.isEmpty()) {
+                if (owned.size < listed.size && storeCache(app, emptyList(), gen)) publish(app, emptyList(), gen)
+                return problem(app.getString(R.string.stores_sync_no_games, store.label).takeIf { cache.isEmpty() || owned.size < listed.size })
+            }
             if (gen != generation.get()) return
             status(R.string.stores_sync_cover_art)
             val images = art(app, token, picked.map { it.first.slug }, gen)

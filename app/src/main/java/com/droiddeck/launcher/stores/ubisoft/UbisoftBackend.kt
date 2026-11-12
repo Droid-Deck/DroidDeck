@@ -116,11 +116,20 @@ object UbisoftLibrary {
         return items to games.optInt("totalCount", items.size)
     }
 
-    /** Base games with a manifest, by UbiServices space; add-ons and bundles share spaces with their game. */
+    private val THIRD_PARTY = Regex("""^\s*third_party_platform:\s*\r?\n\s+name:\s*['"]?([^'"\r\n]+?)['"]?\s*$""", RegexOption.MULTILINE)
+
+    /** The store a product's configuration says delivers it, such as Steam, when not Ubisoft itself. */
+    internal fun thirdParty(configuration: String): String? = THIRD_PARTY.find(configuration)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Owned base games Ubisoft delivers itself, by UbiServices space; add-ons and bundles share spaces with their
+     * game. A game whose manifest Ubisoft did not send stays: the manifest only names the build to download.
+     */
     internal fun ownedBySpace(owned: JSONObject?): Map<String, JSONObject> {
         val list = owned?.optJSONArray("games") ?: return emptyMap()
         val games = (0 until list.length()).mapNotNull { list.optJSONObject(it) }
-            .filter { it.optString("manifest").isNotEmpty() && it.optInt("productType") == 0 && it.optBoolean("owned", true) }
+            .filter { it.optInt("productType") == 0 && it.optBoolean("owned", true) && thirdParty(it.optString("configuration")) == null }
+            .sortedByDescending { it.optString("manifest").isNotEmpty() }
         val out = LinkedHashMap<String, JSONObject>()
         for (key in listOf("spaceId")) for (g in games) {
             val space = g.optString(key).takeIf { it.isNotEmpty() } ?: continue
@@ -137,9 +146,8 @@ object UbisoftLibrary {
     )
 
     /**
-     * Games Connect owns and can download. The profile's game list also names games only played through
-     * Ubisoft+, free weekends or another store, which Connect will not deliver; without an ownership answer
-     * that list is all there is.
+     * Games Connect owns and delivers itself. The profile's game list also names games only played through
+     * Ubisoft+, free weekends or another store; without an ownership answer that list is all there is.
      */
     internal fun assemble(listed: List<CatalogItem>, owned: JSONObject?): List<CatalogItem> {
         val known = owned?.optJSONArray("games") != null && owned.optString("error").isEmpty()
@@ -204,7 +212,10 @@ object UbisoftLibrary {
             }
             val listed = all.distinctBy { it.id }
             val games = assemble(listed, owned)
-            StoresState.logLine("Ubisoft: ${ownedBySpace(owned).size} downloadable products; " +
+            ownedBySpace(owned).values.filter { it.optString("manifest").isEmpty() }.takeIf { it.isNotEmpty() }?.let { bare ->
+                StoresState.logLine("Ubisoft: owned without a manifest: " + bare.joinToString(", ") { (title(it.optString("configuration")) ?: "?") + "=" + it.optLong("productId") })
+            }
+            StoresState.logLine("Ubisoft: ${ownedBySpace(owned).size} owned products; " +
                 games.filter { it.extra.containsKey("productId") }.joinToString(", ") { "${it.title}=${it.extra["productId"]}" })
             listed.filter { g -> games.none { it.id == g.id } }.takeIf { it.isNotEmpty() }?.let { left ->
                 StoresState.logLine("Ubisoft: left out ${left.size} games Connect does not deliver to this account: " + left.joinToString(", ") { it.title })
