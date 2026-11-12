@@ -157,9 +157,7 @@ class LinuxNetworkLinkComponent(
         synchronized(lock) {
             try {
                 file.parentFile?.mkdirs()
-                val staged = File(file.path + ".staged")
-                staged.writeText(describe(properties, capabilities))
-                if (!staged.renameTo(file)) throw IOException("Could not replace $file")
+                replace(file, describe(properties, capabilities))
             } catch (e: IOException) {
                 Log.w(TAG, "Could not publish the network link", e)
             }
@@ -241,9 +239,7 @@ class LinuxNetworkLinkComponent(
         }
         try {
             val file = File(rootDir, "etc/droiddeck-network.json")
-            val staged = File(file.path + ".staged")
-            staged.writeText(state.toString())
-            if (!staged.renameTo(file)) throw IOException("Could not replace network state")
+            replace(file, state.toString())
         } catch (e: IOException) {
             Log.w(TAG, "Could not publish the network state", e)
         }
@@ -272,6 +268,19 @@ class LinuxNetworkLinkComponent(
         return Pair(servers.sortedWith(order), gateways.sortedWith(order))
     }
 
+    /**
+     * Writes [text] to [file] through a staged copy. The copy is synced before the rename, or a
+     * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
+     */
+    private fun replace(file: File, text: String) {
+        val staged = File(file.path + ".staged")
+        java.io.FileOutputStream(staged).use { out ->
+            out.write(text.toByteArray())
+            out.fd.sync()
+        }
+        if (!staged.renameTo(file)) throw IOException("Could not replace $file")
+    }
+
     private fun writeResolver(properties: LinkProperties?) {
         val own = properties?.dnsServers.orEmpty()
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
@@ -286,9 +295,7 @@ class LinuxNetworkLinkComponent(
         }
         try {
             val etc = File(rootDir, "etc")
-            val staged = File(etc, "resolv.conf.staged")
-            staged.writeText(text)
-            if (!staged.renameTo(File(etc, "resolv.conf"))) throw IOException("Could not replace resolv.conf")
+            replace(File(etc, "resolv.conf"), text)
             val hosts = File(etc, "hosts")
             if (!hosts.isFile || !hosts.readText().contains("localhost")) {
                 hosts.writeText("127.0.0.1 localhost\n::1 localhost\n")

@@ -18,12 +18,12 @@ object SettingsReset {
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition", "railLabels", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
+        "stretch16x9", "picturePosition", "railLabels", "agentTab", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
-        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics",
+        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
         "bootMovieApplyNext", "bootMovieSteamSeen",
@@ -43,6 +43,7 @@ object SettingsReset {
         var ok = true
         val session = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         session.edit().apply { session.all.keys.filter { isSessionSetting(it) }.forEach { remove(it) } }.commit()
+        BuildWatermarkSetting.setEnabled(context, true)
         ControllerPrefs.resetAll(context)
         InputProfiles.resetAll(context)
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().clear().commit()

@@ -43,7 +43,7 @@ object StoreSizes {
         if (available != null) return CompletableFuture.completedFuture(available)
         val app = context.applicationContext
         val version = item.extra["version"].orEmpty()
-        return sizeRequests.computeIfAbsent(item.key) {
+        return shared(sizeRequests, item.key) {
             CompletableFuture.supplyAsync({
                 val cached = cache(app, item.store).get(item.id, version)
                 val bytes = cached ?: runCatching { fetch(app, item) }
@@ -66,6 +66,25 @@ object StoreSizes {
         }
     }
 
+    internal fun shared(
+        requests: ConcurrentHashMap<String, CompletableFuture<Long?>>,
+        key: String,
+        start: () -> CompletableFuture<Long?>,
+    ): CompletableFuture<Long?> {
+        var created: CompletableFuture<Long?>? = null
+        val shared = requests.computeIfAbsent(key) { CompletableFuture<Long?>().also { created = it } }
+        if (created === shared) {
+            val source = runCatching(start).getOrElse { failure ->
+                CompletableFuture<Long?>().apply { completeExceptionally(failure) }
+            }
+            source.whenComplete { bytes, error ->
+                if (bytes == null) requests.remove(key, shared)
+                if (error != null) shared.completeExceptionally(error) else shared.complete(bytes)
+            }
+        }
+        return shared
+    }
+
     val onDisk = mutableStateMapOf<String, Long>()
 
     fun requestDisk(context: Context, key: String, game: InstalledStoreGame) {
@@ -78,7 +97,7 @@ object StoreSizes {
         onDisk[key]?.let { return CompletableFuture.completedFuture(it) }
         val app = context.applicationContext
         val version = "disk:${game.sidecar.installedAt}:${game.sidecar.installVersion}"
-        return diskRequests.computeIfAbsent(key) {
+        return shared(diskRequests, key) {
             CompletableFuture.supplyAsync({
                 val c = cache(app, game.sidecar.store)
                 c.get("disk:${game.sidecar.id}", version)

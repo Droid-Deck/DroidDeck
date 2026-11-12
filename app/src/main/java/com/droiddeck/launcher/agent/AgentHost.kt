@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.nio.file.Files
@@ -31,10 +32,18 @@ object AgentHost {
         /** A tool call; [output] stays null until its result arrives. */
         data class Used(val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
-        data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null) : Entry
+        /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
+        data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null, val planned: Boolean = false) : Entry
     }
 
-    data class Usage(val durationMs: Long, val costUsd: Double, val inputTokens: Long, val outputTokens: Long)
+    /** [context] of [window] tokens is what the conversation held when the turn ended. */
+    data class Usage(
+        val durationMs: Long, val costUsd: Double, val inputTokens: Long, val outputTokens: Long,
+        val context: Long = 0, val window: Long = 0,
+    )
+
+    /** A plan usage limit over a rolling window of [minutes]; [resetsAt] is in epoch seconds. */
+    data class Limit(val minutes: Int, val usedPercent: Int, val resetsAt: Long)
 
     /** A message typed while the agent was working, sent when the turn ends. */
     data class Queued(val text: String, val files: List<String>)
@@ -50,7 +59,12 @@ object AgentHost {
     @VisibleForTesting
     internal const val BRIEF = "You run inside DroidDeck on the user's handheld, in its Linux userland (Ubuntu under proot, aarch64), " +
         "and the user talks to you from DroidDeck's Agent tab, often on a small screen, so keep replies short. " +
-        "droiddeckctl (in the /root/DroidDeck checkout, tools/droiddeckctl) inspects and drives the app over loopback adb (\$ADB_SERIAL). " +
+        "droiddeckctl inspects and drives the app over loopback adb (\$ADB_SERIAL); its guide is ${AgentSetup.CTL}/agent-control.md. " +
+        "Steam, the desktop and games run in DroidDeck's session, a separate guest from yours: a program you start here is not in it and has no screen. " +
+        "Reach the session through droiddeckctl: state, start steam, stop, launch, quit, focus, screenshot, logs, and guest to run a command inside it. " +
+        "Starting, stopping or restarting a session leaves you running. " +
+        "Never kill by a command-line pattern (pkill -f, pgrep -f piped to kill): your own command line holds the user's message, so the pattern matches you. " +
+        "End a game with droiddeckctl quit, the session with droiddeckctl stop, anything else by its pid. " +
         "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md). DroidDeck runs the build in a " +
         "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
@@ -71,6 +85,9 @@ object AgentHost {
         private set
     /** The chosen model for [harness]; null is the CLI's default. */
     var model by mutableStateOf<String?>(null)
+        private set
+    /** The chosen reasoning effort for [harness]; null is the CLI's default. */
+    var effort by mutableStateOf<String?>(null)
         private set
     var plan by mutableStateOf(false)
         private set
@@ -94,6 +111,12 @@ object AgentHost {
     /** Tokens in the conversation's context after its last step. */
     var context by mutableLongStateOf(0L)
         private set
+    /** Tokens the model's context can hold; 0 until a turn has told. */
+    var window by mutableLongStateOf(0L)
+        private set
+    /** The account's plan limits as [harness] last reported them. */
+    var limits by mutableStateOf<List<Limit>>(emptyList())
+        private set
     var lab by mutableStateOf<LabProgress?>(null)
         private set
 
@@ -110,6 +133,7 @@ object AgentHost {
     /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
     private var labFromTurn = false
     private var conversation: String? = null
+    private var turnPlanned = false
     private var loaded = false
     private var appContext: Context? = null
 
@@ -125,7 +149,9 @@ object AgentHost {
         File(app.filesDir, "agent").mkdirs()
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
+        effort = prefs(app).getString(effortKey(harness), null)?.takeIf { it in harness.efforts }
         plan = prefs(app).getBoolean(PLAN_KEY, false)
+        limits = decodeLimits(prefs(app).getString(limitsKey(harness), null))
         available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
         if (!installed) state = State.MISSING else if (state == State.MISSING) state = State.IDLE
@@ -148,7 +174,9 @@ object AgentHost {
         conversation = loaded.conversation
         entries.clear()
         entries.addAll(loaded.entries)
-        context = 0
+        val last = loaded.entries.lastOrNull { it is Entry.Finished && (it.usage?.context ?: 0) > 0 } as? Entry.Finished
+        context = last?.usage?.context ?: 0
+        window = last?.usage?.window ?: 0
     }
 
     /** Opens a kept conversation, switching to the CLI it belongs to. */
@@ -214,6 +242,11 @@ object AgentHost {
         prefs(context).edit().putString(modelKey(harness), id).apply()
     }
 
+    fun chooseEffort(context: Context, level: String?) {
+        effort = level
+        prefs(context).edit().putString(effortKey(harness), level).apply()
+    }
+
     fun choosePlan(context: Context, on: Boolean) {
         plan = on
         prefs(context).edit().putBoolean(PLAN_KEY, on).apply()
@@ -248,10 +281,15 @@ object AgentHost {
         AgentHostService.start(app)
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
-        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
+        turnPlanned = plan && current.plans
+        val command = current.turn(prompt, conversation, AgentHarness.Options(model, turnPlanned, BRIEF, effort))
         val workdir = workspace(app)
+        var threadConversation = conversation
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
+            runCatching { AgentSetup.installHelpers(app) }
+            // Without a session nothing else keeps the userland's resolver current.
+            runCatching { com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent(app, LinuxRuntime.rootDir(app)).publish() }
             val child = try {
                 guest(app, command, workdir).start()
             } catch (e: Exception) {
@@ -260,6 +298,7 @@ object AgentHost {
                 return@Thread
             }
             val started = Turn(child, AgentProcesses.pidOf(child))
+            OrphanReaper.keep(started.pid)
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
@@ -271,13 +310,18 @@ object AgentHost {
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { line ->
                     runCatching { raw?.apply { write(line); newLine(); flush() } }
-                    val event = current.parse(line) ?: return@forEachLine
-                    if (event.entries.any { it is Entry.Finished }) ended = true
+                    val parsed = current.parse(line) ?: return@forEachLine
+                    parsed.conversation?.let { threadConversation = it }
+                    val done = parsed.entries.any { it is Entry.Finished }
+                    if (done) ended = true
+                    val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
+                        ?.let { parsed.copy(context = it.context ?: parsed.context, window = it.window ?: parsed.window, limits = it.limits ?: parsed.limits) } ?: parsed
                     main.post { if (turn === started) apply(app, event) }
                 }
             }
             runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
+            OrphanReaper.release(started.pid)
             main.post {
                 if (turn === started) {
                     turn = null
@@ -305,6 +349,16 @@ object AgentHost {
         queue.remove(item)
     }
 
+    /** Sends [item] now: the running turn stops where it is, and the rest of the queue waits for the next one. */
+    fun sendNow(context: Context, item: Queued) {
+        val app = context.applicationContext
+        if (!queue.remove(item)) return
+        val rest = queue.toList()
+        stop(app)
+        queue.addAll(rest)
+        send(app, item.text, item.files)
+    }
+
     /** Starts a new conversation; the current one stays in the history. */
     fun forget(context: Context) {
         stop(context)
@@ -313,6 +367,7 @@ object AgentHost {
         chat = null
         conversation = null
         this.context = 0
+        window = 0
         prefs(context).edit().remove(CHAT_KEY).apply()
         state = if (installed) State.IDLE else State.MISSING
     }
@@ -362,6 +417,11 @@ object AgentHost {
         event.text?.let { live += it }
         event.thinking?.let { liveThinking += it }
         event.context?.let { context = it }
+        event.window?.let { window = it }
+        event.limits?.let { reported ->
+            limits = (limits.filter { old -> reported.none { it.minutes == old.minutes } } + reported).sortedBy { it.minutes }
+            prefs(app).edit().putString(limitsKey(harness), encodeLimits(limits)).apply()
+        }
         for (entry in event.entries) when (entry) {
             is Entry.Finished -> finish(app, entry.error, usage = event.usage)
             else -> {
@@ -379,7 +439,8 @@ object AgentHost {
         if (!stopped) labFromTurn = false
         live = ""
         liveThinking = ""
-        record(app, Entry.Finished(error, stopped, usage))
+        val held = if (context > 0) (usage ?: Usage(0, 0.0, 0, 0)).copy(context = context, window = window) else usage
+        record(app, Entry.Finished(error, stopped, held, planned = turnPlanned && !stopped && error == null))
         state = State.IDLE
         unseen = true
         failed = error != null
@@ -500,9 +561,15 @@ object AgentHost {
                 val child = guest(app, listOf("sh", "-c",
                     "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
                 main.post { labProcess = child }
-                child.outputStream.close()
-                child.inputStream.readBytes()
-                child.waitFor()
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    child.inputStream.readBytes()
+                    child.waitFor()
+                } finally {
+                    OrphanReaper.release(pid)
+                }
             }.onFailure { Log.w(TAG, "could not run a Lab build", it) }
             main.post {
                 labProcess = null
@@ -531,6 +598,19 @@ object AgentHost {
     private const val RETRY_MS = 3_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
+    private fun limitsKey(harness: AgentHarness) = "limits_${harness.id}"
+
+    @VisibleForTesting
+    internal fun encodeLimits(list: List<Limit>) = org.json.JSONArray(list.map {
+        org.json.JSONObject().put("minutes", it.minutes).put("used", it.usedPercent).put("resets", it.resetsAt)
+    }).toString()
+
+    @VisibleForTesting
+    internal fun decodeLimits(text: String?): List<Limit> = runCatching {
+        val a = org.json.JSONArray(text ?: return emptyList())
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Limit(it.optInt("minutes"), it.optInt("used"), it.optLong("resets")) }
+    }.getOrDefault(emptyList())
+    private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
 }

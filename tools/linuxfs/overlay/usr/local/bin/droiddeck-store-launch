@@ -48,20 +48,35 @@ def sidecar_at(folder):
     return sidecar
 
 
-def find_store_game(argv):
+def find_store_game(argv, depth=MAX_DEPTH):
     for raw in argv:
         arg = raw.strip().strip('"').strip("'").replace("\\", "/")
         low = arg.lower()
         if not (low.endswith(LAUNCHER) or low.endswith(".exe") or low.endswith(".bat")) or "/" not in arg:
             continue
         folder = Path(arg).parent
-        for _ in range(MAX_DEPTH):
+        for _ in range(depth):
             sidecar = sidecar_at(folder)
             if sidecar is not None:
                 return folder, sidecar
             if folder.parent == folder:
                 break
             folder = folder.parent
+    return None
+
+
+def store_launcher(path):
+    real = os.path.realpath(path)
+    for start in dict.fromkeys([os.path.abspath(path), real]):
+        found = find_store_game([start], depth=len(Path(start).parts))
+        if found is None:
+            continue
+        folder, sidecar = found
+        launcher, exe = str(sidecar.get("launcher") or ""), str(sidecar.get("exe") or "")
+        if not launcher or not exe or (folder / launcher).is_symlink() or not (folder / launcher).is_file():
+            continue
+        if os.path.realpath(folder / exe).lower() == real.lower():
+            return str(folder / launcher)
     return None
 
 

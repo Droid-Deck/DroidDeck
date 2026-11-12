@@ -455,6 +455,11 @@ internal fun SetupPanel(
                                 val railContext = androidx.compose.ui.platform.LocalContext.current
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
+                                if (com.droiddeck.launcher.agent.AgentHost.available) {
+                                    ToggleRow(host, "agent-tab", stringResource(R.string.setup_agent_tab), null, com.droiddeck.launcher.agent.AgentTab.shown) {
+                                        com.droiddeck.launcher.agent.AgentTab.set(railContext, it)
+                                    }
+                                }
                                 LanguageRow(host, s.language, a.onLanguage)
                                 ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
                             }
@@ -468,6 +473,11 @@ internal fun SetupPanel(
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
                                     ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
+                                    ChoiceRow(
+                                        host, "home-page", stringResource(R.string.setup_home_page), stringResource(R.string.setup_home_page_hint),
+                                        com.droiddeck.launcher.core.AppUiPrefs.homePageOptions.map { (value, label) -> value to stringResource(label) },
+                                        s.homePage, onPick = a.onHomePage,
+                                    )
                                 }
                                 ChoiceRow(
                                     host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,

@@ -74,7 +74,8 @@ class AgentHostTest {
     }
 
     @Test fun claudeShowsWholeEditsAndTodos() {
-        assertEquals("a.kt\n\n- old\n\n+ new", ClaudeCode.fullInput("Edit", org.json.JSONObject("""{"file_path":"a.kt","old_string":"old","new_string":"new"}""")))
+        assertEquals("a.kt\n-old\n+new", ClaudeCode.fullInput("Edit", org.json.JSONObject("""{"file_path":"a.kt","old_string":"old","new_string":"new"}""")))
+        assertEquals("b.kt\n+one\n+two", ClaudeCode.fullInput("Write", org.json.JSONObject("""{"file_path":"b.kt","content":"one\ntwo"}""")))
         assertEquals("[x] read\n[~] fix\n[ ] test", ClaudeCode.fullInput("TodoWrite", org.json.JSONObject(
             """{"todos":[{"content":"read","status":"completed"},{"content":"fix","status":"in_progress"},{"content":"test","status":"pending"}]}""")))
     }
@@ -164,6 +165,7 @@ class AgentHostTest {
         val written = listOf(
             Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}"),
             Entry.Result("t1", "contents", false), Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
+            Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         )
         written.forEach { AgentChats.append(file, it) }
         file.appendText("broken line\n")
@@ -173,6 +175,7 @@ class AgentHostTest {
         assertEquals(listOf(
             Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}", "contents", false),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
+            Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         ), loaded.entries)
         assertEquals(emptyList<Entry>(), AgentChats.read(File(file.path + ".missing")).entries)
     }
@@ -207,5 +210,47 @@ class AgentHostTest {
         assertEquals(420, p.permille)
         assertTrue(p.running && !p.prepare)
         assertEquals(95, p.etaSeconds)
+    }
+
+    @Test fun anEditBecomesALineDiffWithItsNearbyLines() {
+        assertEquals(" a\n b\n-c\n+C\n+D\n e\n f", lineDiff("x\na\nb\nc\ne\nf\ny", "x\na\nb\nC\nD\ne\nf\ny"))
+        assertEquals("+only", lineDiff("", "only"))
+        assertEquals("-gone", lineDiff("gone", ""))
+        assertEquals("+one\n+two", lineDiff("", "one\ntwo\n"))
+    }
+
+    @Test fun claudeRateLimitsAndContextWindowAreRead() {
+        val event = ClaudeCode.parse("""{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","unifiedWindows":{"five_hour":{"utilization":0.07,"resetsAt":1794435600},"seven_day":{"utilization":0.85,"resetsAt":1794592800}}},"session_id":"s"}""")!!
+        assertEquals(listOf(AgentHost.Limit(300, 7, 1794435600), AgentHost.Limit(10_080, 85, 1794592800)), event.limits)
+        val result = ClaudeCode.parse("""{"type":"result","subtype":"success","is_error":false,"result":"done","usage":{},"modelUsage":{"claude-haiku":{"costUSD":0.01,"contextWindow":200000},"claude-sonnet":{"costUSD":0.7,"contextWindow":1000000}}}""")!!
+        assertEquals(1_000_000L, result.window)
+    }
+
+    @Test fun codexTokenCountsCarryContextAndLimits() {
+        val event = Codex.tokenCount("""{"timestamp":"t","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":90000},"last_token_usage":{"total_tokens":41000},"model_context_window":272000},"rate_limits":{"primary":{"used_percent":12.5,"window_minutes":300,"resets_at":1794435600},"secondary":{"used_percent":40.0,"window_minutes":10080,"resets_at":1794592800}}}}""")!!
+        assertEquals(41_000L, event.context)
+        assertEquals(272_000L, event.window)
+        assertEquals(listOf(AgentHost.Limit(300, 12, 1794435600), AgentHost.Limit(10_080, 40, 1794592800)), event.limits)
+        assertNull(Codex.tokenCount("""{"type":"event_msg","payload":{"type":"agent_message"}}"""))
+    }
+
+    @Test fun codexUsageComesFromTheThreadsSessionLog() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val log = File(root, "root/.codex/sessions/2026/11/12/rollout-2026-11-12T10-00-00-thread1.jsonl").apply { parentFile!!.mkdirs() }
+        log.writeText(
+            """{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"total_tokens":15692},"model_context_window":258400},"rate_limits":{"primary":{"used_percent":86.0,"window_minutes":10080,"resets_at":1794716485},"secondary":null}}}""" + "\n" +
+                """{"type":"response_item","payload":{"type":"additional_tools","tools":[{"description":"reports token_count as it goes"}]}}""" + "\n",
+        )
+        val event = Codex.usage(root, "thread1")!!
+        assertEquals(15_692L, event.context)
+        assertEquals(258_400L, event.window)
+        assertEquals(listOf(AgentHost.Limit(10_080, 86, 1794716485)), event.limits)
+        assertNull(Codex.usage(root, "other"))
+    }
+
+    @Test fun limitsRoundTripThroughPrefs() {
+        val limits = listOf(AgentHost.Limit(300, 7, 1794435600), AgentHost.Limit(10_080, 85, 1794592800))
+        assertEquals(limits, AgentHost.decodeLimits(AgentHost.encodeLimits(limits)))
+        assertEquals(emptyList<AgentHost.Limit>(), AgentHost.decodeLimits("not json"))
     }
 }

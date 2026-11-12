@@ -74,7 +74,11 @@ object AgentChats {
         is Entry.Used -> JSONObject().put("used", entry.tool).put("detail", entry.detail).put("id", entry.id).put("input", entry.input)
             .apply { entry.output?.let { put("output", it).put("failed", entry.failed) } }
         is Entry.Finished -> JSONObject().put("finished", true).put("error", entry.error ?: JSONObject.NULL).put("stopped", entry.stopped).apply {
-            entry.usage?.let { put("ms", it.durationMs).put("cost", it.costUsd).put("in", it.inputTokens).put("out", it.outputTokens) }
+            if (entry.planned) put("planned", true)
+            entry.usage?.let {
+                put("ms", it.durationMs).put("cost", it.costUsd).put("in", it.inputTokens).put("out", it.outputTokens)
+                if (it.context > 0) put("ctx", it.context).put("win", it.window)
+            }
         }
     }.toString()
 
@@ -105,7 +109,8 @@ object AgentChats {
         o.has("result") -> Entry.Result(o.getString("result"), o.optString("output"), o.optBoolean("failed"))
         o.has("finished") -> Entry.Finished(
             if (o.isNull("error")) null else o.optString("error"), o.optBoolean("stopped"),
-            if (o.has("ms")) AgentHost.Usage(o.optLong("ms"), o.optDouble("cost", 0.0), o.optLong("in"), o.optLong("out")) else null,
+            if (o.has("ms")) AgentHost.Usage(o.optLong("ms"), o.optDouble("cost", 0.0), o.optLong("in"), o.optLong("out"), o.optLong("ctx"), o.optLong("win")) else null,
+            o.optBoolean("planned"),
         )
         else -> null
     }
