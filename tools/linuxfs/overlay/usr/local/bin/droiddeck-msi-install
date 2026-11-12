@@ -51,6 +51,11 @@ SYSTEM_PROPERTIES = {
     "UILevel": "2", "INSTALLLEVEL": "1", "ProgramFilesFolder": None, "VersionMsi": "5.00",
 }
 
+NATIVE_ARCHITECTURE = {"intel": "x86", "x64": "AMD64", "amd64": "AMD64", "arm64": "ARM64"}
+ARCHITECTURE_VALUE = ("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "PROCESSOR_ARCHITECTURE")
+REG_LOCATOR_RAW = 2
+REG_ROOT_LOCAL_MACHINE = 2
+
 COMPONENT_64BIT = 0x100
 FILE_NONCOMPRESSED = 0x2000
 SET_PROPERTY, SET_DIRECTORY, ERROR_ACTION = 51, 35, 19
@@ -410,6 +415,18 @@ class Installer:
         return text
 
 
+    def run_app_search(self):
+        locators = {row["Signature_"]: row for row in self.pkg.table("RegLocator")}
+        architecture = NATIVE_ARCHITECTURE.get(self.platform)
+        for row in self.pkg.table("AppSearch"):
+            locator = locators.get(row["Signature_"])
+            if locator is None or architecture is None:
+                continue
+            if to_int(locator.get("Root")) != REG_ROOT_LOCAL_MACHINE or to_int(locator.get("Type")) & 0xF != REG_LOCATOR_RAW:
+                continue
+            if (locator.get("Key", "").rstrip("\\"), locator.get("Name", "")) == ARCHITECTURE_VALUE:
+                self.props[row["Property"]] = architecture
+
     def run_set_actions(self):
         actions = {row["Action"]: row for row in self.pkg.table("CustomAction")}
         sequence = {}
@@ -704,6 +721,7 @@ class Installer:
 
     def install(self):
         self.span.report(0.0, "reading %s" % (self.pkg.summary.get("subject") or Path(self.pkg.path).name))
+        self.run_app_search()
         self.run_set_actions()
         self.select()
         with tempfile.TemporaryDirectory(dir=str(self.out.parent), prefix=".msi-") as work:

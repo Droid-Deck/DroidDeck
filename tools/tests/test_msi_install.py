@@ -174,6 +174,32 @@ class LayoutTest(unittest.TestCase):
         inst.select()
         self.assertEqual(inst.included_components, {"Up", "Wide"})
 
+    def architecture_package(self, platform):
+        return installer({
+            "Feature": rows("Feature Feature_Parent Level", ("Main", "", "1")),
+            "AppSearch": rows("Property Signature_", ("ARM64CHECK", "arch"), ("OTHER", "unrelated")),
+            "RegLocator": rows("Signature_ Root Key Name Type",
+                               ("arch", "2", "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "PROCESSOR_ARCHITECTURE", "2"),
+                               ("unrelated", "2", "SOFTWARE\\Vendor", "Path", "2")),
+            "Component": rows("Component Directory_ Attributes Condition",
+                              ("Native", "TARGETDIR", "256", 'ARM64CHECK = "ARM64"'),
+                              ("Always", "TARGETDIR", "256", "")),
+            "FeatureComponents": rows("Feature_ Component_", ("Main", "Native"), ("Main", "Always")),
+        }, summary={"template": "%s;1033" % platform})
+
+    def test_the_architecture_lookup_enables_arm64_components_in_an_arm64_package(self):
+        inst = self.architecture_package("Arm64")
+        inst.run_app_search()
+        inst.select()
+        self.assertEqual(inst.included_components, {"Native", "Always"})
+        self.assertNotIn("OTHER", inst.props)
+
+    def test_the_architecture_lookup_leaves_other_packages_alone(self):
+        inst = self.architecture_package("x64")
+        inst.run_app_search()
+        inst.select()
+        self.assertEqual(inst.included_components, {"Always"})
+
     def test_a_duplicate_onto_the_file_itself_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "cab" / "dotnet.exe"
