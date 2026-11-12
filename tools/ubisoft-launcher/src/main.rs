@@ -123,13 +123,17 @@ mod service {
         let mut frames = Frames::new(&pipe);
         let Some(req) = frames.next() else { return };
         match launcher::announced(&req) {
-            Some((product, pid)) => {
-                state.say(&format!("api_process: product {product} is process {pid}"));
-                if pid != 0 {
-                    state.game.store(pid, Ordering::SeqCst);
+            Some((product, named)) => {
+                let product = product.unwrap_or(state.cfg.product);
+                match named.or_else(|| pipe.client_pid()) {
+                    Some(pid) => {
+                        state.say(&format!("api_process: product {product} is process {pid}"));
+                        state.game.store(pid, Ordering::SeqCst);
+                    }
+                    None => state.say(&format!("api_process: product {product} named no process")),
                 }
             }
-            None => state.say(&format!("api_process: {} B announcement not understood", req.len())),
+            None => state.say(&format!("api_process: {} B announcement not understood {}", req.len(), hex(&req, 32))),
         }
         send(&pipe, &state.cfg.init_process());
         state.event.set();
@@ -141,14 +145,19 @@ mod service {
         let mut pushes = 0;
         while let Some(req) = frames.next() {
             match launcher::session_request(&req) {
-                SessionReq::Init => {
+                SessionReq::Init(wants) => {
                     pushes += 1;
-                    send(&pipe, &state.cfg.session());
-                    state.say(&format!("session: init answered ({pushes})"));
+                    send(&pipe, &state.cfg.session(wants));
+                    let asked = wants.map_or("no subsystems named".to_string(), |w| format!("install {}, storage {}", w.install, w.storage));
+                    state.say(&format!("session: init answered ({pushes}; {asked}; {})", hex(&req, 48)));
                 }
                 SessionReq::Installer => {
                     send(&pipe, &state.cfg.installer());
                     state.say("session: installer init answered");
+                }
+                SessionReq::Credentials(id) => {
+                    send(&pipe, &state.cfg.credentials(id));
+                    state.say(&format!("session: credentials {id} answered"));
                 }
                 SessionReq::ProductList(id) => {
                     send(&pipe, &state.cfg.product_list(id));
@@ -217,6 +226,20 @@ mod service {
         while pipe.read(&mut chunk).is_some() {}
     }
 
+    fn orbit(state: &State, pipe: Handle) {
+        let mut frames = Frames::new(&pipe);
+        while let Some(req) = frames.next() {
+            match state.cfg.orbit(&req) {
+                Some((answer, what)) => {
+                    send(&pipe, &answer);
+                    state.say(&format!("orbit: {what}"));
+                }
+                None => state.say(&format!("orbit: {} B request {} not handled", req.len(), hex(&req, 24))),
+            }
+        }
+        state.say("orbit: closed");
+    }
+
     fn quiet(state: &State, name: &str, pipe: Handle) {
         state.say(&format!("{name}: connected"));
         let mut chunk = vec![0u8; 65536];
@@ -240,6 +263,7 @@ mod service {
                     launcher::SESSION => session(&s, pipe),
                     launcher::AUX => aux(&s, pipe),
                     launcher::SERVICE => service(&s, pipe),
+                    launcher::ORBIT => orbit(&s, pipe),
                     _ => quiet(&s, name, pipe),
                 });
             }
@@ -283,7 +307,7 @@ mod service {
             started: Instant::now(),
         });
         state.say(&format!("product {} on {}*", state.cfg.product, state.prefix));
-        for name in [launcher::GAME_START, launcher::API_PROCESS, launcher::SESSION, launcher::AUX, launcher::SERVICE]
+        for name in [launcher::GAME_START, launcher::API_PROCESS, launcher::SESSION, launcher::AUX, launcher::SERVICE, launcher::ORBIT]
             .into_iter()
             .chain(launcher::QUIET.iter().copied())
         {

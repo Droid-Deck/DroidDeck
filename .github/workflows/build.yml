@@ -195,6 +195,7 @@ jobs:
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
             !app/src/main/assets/linuxfs/libblaudit.so
             !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddnatv-hook.so
             !app/src/main/assets/linuxfs/libblsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
@@ -616,12 +617,11 @@ jobs:
       - name: Check out MaliBridge
         run: git submodule update --init external/MaliBridge
       - name: Fetch the Mali (Venus) component (tools/venus/release.env)
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           . tools/venus/release.env
-          gh release download "${VENUS_TAG}" -R "${VENUS_REPO}" -p venus.tzst -O venus.tzst
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o venus.tzst \
+            "https://github.com/${VENUS_REPO}/releases/download/${VENUS_TAG}/venus.tzst"
           echo "${VENUS_SHA256}  venus.tzst" | sha256sum -c -
           tar --use-compress-program=unzstd -xf venus.tzst -C app/src/main
           test -f app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so

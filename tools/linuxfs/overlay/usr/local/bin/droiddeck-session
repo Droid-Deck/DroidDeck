@@ -132,8 +132,7 @@ clear_stale_tmp() {
 [ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
-  rm -f /tmp/.bl-clock
-  head -c 8 /dev/zero > /tmp/.bl-clock
+  dd if=/dev/zero of=/tmp/.bl-clock bs=8 count=1 conv=notrunc status=none
 fi
 
 steam_devtools() {
@@ -1396,6 +1395,8 @@ case $mode in
           decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
           trap decky_stop TERM INT HUP
           decky_exits=0
+          # The guest has no "deck" user, which Decky otherwise requires at startup.
+          export UNPRIVILEGED_USER=root
           while :; do
             if [ "$decky_arch" = x86_64 ]; then /usr/local/bin/droiddeck-fex run --mode on -- "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &

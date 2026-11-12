@@ -81,7 +81,6 @@ static void cp_init(void) {
   struct stat st;
   void *map;
   int fd;
-  if (strcmp(program_invocation_short_name, "plasmashell") != 0) return;
   if (!cp_find_cond_bit()) return;
   fd = open(CP_CTL, O_RDONLY | O_CLOEXEC);
   if (fd < 0) return;

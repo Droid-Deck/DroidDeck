@@ -2566,6 +2566,8 @@
     <string name="comp_this_device">Αυτή η συσκευή</string>
     <string name="proton_remove_title">Κατάργηση %1$s;</string>
     <string name="setup_tab_diagnostics">Διαγνωστικά</string>
+    <string name="setup_build_watermark">Υδατογράφημα ετικέτας έκδοσης</string>
+    <string name="setup_build_watermark_hint">Εμφάνιση της ετικέτας δοκιμαστικής έκδοσης ή έκδοσης Lab στην οθόνη. Ενεργό από προεπιλογή.</string>
     <string name="setup_ready">Έτοιμο για παιχνίδι</string>
     <string name="setup_not_ready">Δεν είναι ακόμα έτοιμο για παιχνίδι</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

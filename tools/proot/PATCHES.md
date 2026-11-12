@@ -162,6 +162,11 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   `ENOSYS`, because its arguments are host paths; the fast path then stops for that process and
   repeats the call through a plain `svc`, which the guest's filter traps with the guest path.
   `bench/guest-trap.c` installs a tagged `openat` trap and checks its handler answers the call.
+  The kernel and filesystems also return `ENOSYS` themselves: Android's FUSE daemon has no
+  `symlink`, so `symlinkat` on a storage card fails with it. The fast path therefore asks again
+  with the same call number and invalid arguments. A trap answers `ENOSYS` again and the fast path
+  stops for the process; any other error means the call reached the kernel, so only that one call
+  is repeated through a plain `svc` and the fast path stays on.
 - `0028-guest-seccomp-keep-sigsys-unblocked.patch` - a seccomp trap that fires while `SIGSYS` is
   blocked makes the kernel reset the `SIGSYS` handler to `SIG_DFL` (`force_sig_seccomp`), even
   though PRoot answers the call and swallows the signal. glibc starts every thread with all signals
