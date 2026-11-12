@@ -225,6 +225,20 @@ class EaTest {
         assertEquals(listOf("1", "3"), picked.map { it.first.offerId })
     }
 
+    @Test fun anOwnedProductWithoutAnActiveGameDownloadIsLeftOut() {
+        fun row(id: String, type: String, tag: String = type, status: String = "ACTIVE") =
+            JSONObject().put("productId", id).put("entitlementType", type).put("entitlementTag", tag).put("status", status)
+        val rows = listOf(
+            row("DR:106479900", "DEFAULT", "VALIDATED_ONLINE_ACCESS"),
+            row("DR:231813200", "ORIGIN_DOWNLOAD", status = "DISABLED"),
+            row("Origin.OFR.50.0003426", "ONLINE_ACCESS"),
+            row("Origin.OFR.50.0003426", "ORIGIN_DOWNLOAD"),
+            row("Origin.OFR.50.0005237", "ORIGIN_DOWNLOAD"),
+        )
+        assertEquals(setOf("DR:106479900", "DR:231813200"), EaLibrary.withoutGameDownload(rows).keys)
+        assertTrue(EaLibrary.withoutGameDownload(emptyList()).isEmpty())
+    }
+
     @Test fun ownedPageParses() {
         val page = JSONObject(
             """{"me":{"ownedGameProducts":{"next":"100","items":[{"originOfferId":"Origin.OFR.50.0001","product":{"id":"x","name":"N","downloadable":true,"gameSlug":"titanfall-2",
