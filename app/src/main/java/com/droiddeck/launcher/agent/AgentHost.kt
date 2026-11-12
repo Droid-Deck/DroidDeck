@@ -13,8 +13,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.nio.file.Files
@@ -51,7 +51,12 @@ object AgentHost {
     @VisibleForTesting
     internal const val BRIEF = "You run inside DroidDeck on the user's handheld, in its Linux userland (Ubuntu under proot, aarch64), " +
         "and the user talks to you from DroidDeck's Agent tab, often on a small screen, so keep replies short. " +
-        "droiddeckctl (in the /root/DroidDeck checkout, tools/droiddeckctl) inspects and drives the app over loopback adb (\$ADB_SERIAL). " +
+        "droiddeckctl inspects and drives the app over loopback adb (\$ADB_SERIAL); its guide is ${AgentSetup.CTL}/agent-control.md. " +
+        "Steam, the desktop and games run in DroidDeck's session, a separate guest from yours: a program you start here is not in it and has no screen. " +
+        "Reach the session through droiddeckctl: state, start steam, stop, launch, quit, focus, screenshot, logs, and guest to run a command inside it. " +
+        "Starting, stopping or restarting a session leaves you running. " +
+        "Never kill by a command-line pattern (pkill -f, pgrep -f piped to kill): your own command line holds the user's message, so the pattern matches you. " +
+        "End a game with droiddeckctl quit, the session with droiddeckctl stop, anything else by its pid. " +
         "dd-lab-build builds the checkout as a Lab build and restarts DroidDeck on it (docs/lab-builds.md). DroidDeck runs the build in a " +
         "process of its own and shows the user its progress and time left; dd-lab-build follows that build's log until it is done. " +
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
@@ -262,14 +267,16 @@ object AgentHost {
         val workdir = workspace(app)
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
+            runCatching { AgentSetup.installHelpers(app) }
             val child = try {
-                spawn(guest(app, command, workdir))
+                guest(app, command, workdir).start()
             } catch (e: Exception) {
                 Log.w(TAG, "could not start ${current.name}", e)
                 main.post { if (generation == gen) finish(app, e.message ?: "could not start") }
                 return@Thread
             }
             val started = Turn(child, AgentProcesses.pidOf(child))
+            OrphanReaper.keep(started.pid)
             main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
             child.outputStream.close()
             var ended = false
@@ -288,6 +295,7 @@ object AgentHost {
             }
             runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
+            OrphanReaper.release(started.pid)
             main.post {
                 if (turn === started) {
                     turn = null
@@ -355,15 +363,6 @@ object AgentHost {
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
         }
-    }
-
-    /** Starts a guest command that a Steam session starting or stopping must not sweep away with its own leftovers. */
-    fun spawn(builder: ProcessBuilder): Process {
-        val process = builder.start()
-        val pid = AgentProcesses.pidOf(process)
-        OrphanReaper.keep(pid)
-        Thread({ runCatching { process.waitFor() }; OrphanReaper.release(pid) }, "agent-keep").apply { isDaemon = true }.start()
-        return process
     }
 
     fun guestFileExists(context: Context, path: String): Boolean {
@@ -516,12 +515,18 @@ object AgentHost {
         AgentHostService.setupStarted(app)
         Thread({
             runCatching {
-                val child = spawn(guest(app, listOf("sh", "-c",
-                    "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd))
+                val child = guest(app, listOf("sh", "-c",
+                    "mkdir -p /root/.cache; DD_LAB_DETACHED=1 exec dd-lab-build \"\$@\" > /root/.cache/dd-lab-build.log 2>&1", "dd-lab-build") + args, cwd).start()
                 main.post { labProcess = child }
-                child.outputStream.close()
-                child.inputStream.readBytes()
-                child.waitFor()
+                val pid = AgentProcesses.pidOf(child)
+                OrphanReaper.keep(pid)
+                try {
+                    child.outputStream.close()
+                    child.inputStream.readBytes()
+                    child.waitFor()
+                } finally {
+                    OrphanReaper.release(pid)
+                }
             }.onFailure { Log.w(TAG, "could not run a Lab build", it) }
             main.post {
                 labProcess = null

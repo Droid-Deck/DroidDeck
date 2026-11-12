@@ -126,11 +126,11 @@ class PadPartialAxesTest {
 
     @Test fun wiredXboxTriggerKeysDoNotOverrideTheirAxes() {
         val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, wired = true)
-        motion(device, MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to -0.6f)
         key(device, KeyEvent.KEYCODE_BUTTON_L2)
         key(device, KeyEvent.KEYCODE_BUTTON_R2)
         assertEquals(0.5f, pad().leftTrigger)
-        assertEquals(0f, pad().rightTrigger)
+        assertEquals(0.2f, pad().rightTrigger, 0.0001f)
     }
 
     @Test fun digitalTriggerKeysStillPressAndRelease() {
@@ -148,11 +148,46 @@ class PadPartialAxesTest {
     }
 
     @Test fun keyTriggerDecision() {
-        assertEquals(1f, PadBridge.keyTrigger(0f, true, 0, false))
-        assertEquals(0f, PadBridge.keyTrigger(1f, false, 0, false))
-        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, true, 1, false))
-        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, true, 0, true))
-        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, false, 0, true))
+        val held = BooleanArray(2)
+        assertEquals(1f, PadBridge.keyTrigger(0f, true, 0, false, held, 0))
+        assertEquals(0f, PadBridge.keyTrigger(1f, false, 0, false, held, 0))
+        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, true, 1, false, held, 0))
+        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, true, 0, true, held, 0))
+        assertEquals(0.25f, PadBridge.keyTrigger(0.25f, false, 0, true, held, 0))
+        assertEquals(1f, PadBridge.keyTrigger(0f, true, 0, true, held, 1))
+        assertEquals(1f, PadBridge.axisTrigger(0f, held, 1))
+        assertEquals(0f, PadBridge.keyTrigger(1f, false, 0, true, held, 1))
+        assertEquals(0f, PadBridge.axisTrigger(0f, held, 1))
+    }
+
+    @Test fun silentTriggerAxesLetTheirKeysPress() {
+        val device = device(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER)
+        motion(device)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2)
+        assertEquals(1f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+        motion(device, MotionEvent.AXIS_X to 0.8f)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2, repeat = 1)
+        assertEquals(1f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.ACTION_UP)
+        assertEquals(0f, pad().leftTrigger)
+        assertEquals(1f, pad().rightTrigger)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.ACTION_UP)
+        assertEquals(0f, pad().rightTrigger)
+    }
+
+    @Test fun aLiveAxisTakesOverFromItsKey() {
+        val device = device(MotionEvent.AXIS_LTRIGGER)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2)
+        assertEquals(1f, pad().leftTrigger)
+        motion(device, MotionEvent.AXIS_LTRIGGER to 0.4f)
+        assertEquals(0.4f, pad().leftTrigger)
+        motion(device, MotionEvent.AXIS_LTRIGGER to 0f)
+        assertEquals(0f, pad().leftTrigger)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.ACTION_UP)
+        assertEquals(0f, pad().leftTrigger)
     }
 
     private fun pad(): PadState = requireNotNull(JoyConPadTest.RecordingWriter.pads[0])

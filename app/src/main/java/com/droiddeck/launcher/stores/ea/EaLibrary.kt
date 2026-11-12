@@ -69,8 +69,8 @@ data class EaGame(
 }
 
 object EaLibrary {
-    private const val KEY_CACHE = "library_cache"
-    private const val KEY_SYNCED_AT = "library_synced_at"
+    private const val KEY_CACHE = "library_cache_v2"
+    private const val KEY_SYNCED_AT = "library_synced_at_v2"
     private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
     private const val ART_TTL_MS = 7 * 24 * 60 * 60 * 1000L
     private const val ART_THREADS = 4
@@ -136,6 +136,16 @@ object EaLibrary {
             chosen to offers.getValue(chosen.offerId)
         }.sortedBy { it.first.name.lowercase() }
     }
+
+    /**
+     * Offers EA lists as owned whose entitlements grant no active game download: an online pass or product-key
+     * link such as Burnout Paradise's VALIDATED_ONLINE_ACCESS, or a Game Pass title disabled once the
+     * subscription lapsed. EA refuses their licence. Offers with no entitlement rows at all are left alone.
+     */
+    internal fun withoutGameDownload(rows: List<JSONObject>): Map<String, List<JSONObject>> =
+        rows.groupBy { it.optString("productId") }.filterKeys { it.isNotEmpty() }.filterValues { offer ->
+            offer.none { it.optString("entitlementType").equals("ORIGIN_DOWNLOAD", true) && it.optString("status").equals("ACTIVE", true) }
+        }
 
     private fun art(app: Context, token: String, slugs: Collection<String>, gen: Int): Map<String, EaApi.Images> {
         val prefs = EaPrefs.get(app)
@@ -229,13 +239,28 @@ object EaLibrary {
             status(R.string.stores_sync_sign_in)
             val token = EaAuth.accessToken(app) ?: return problem(StoresState.notSignedInLine(store))
             status(R.string.stores_sync_game_list)
-            val owned = withToken(app, token) { EaApi.owned(it) }
+            val listed = withToken(app, token) { EaApi.owned(it) }
+            val rows = try {
+                withToken(app, token) { EaApi.legacyEntitlements(it) }
+            } catch (e: Exception) {
+                if (e is EaApiException && e.status == 401) throw e
+                if (e !is EaApiException && e !is java.io.IOException) throw e
+                StoresState.logLine("ea: entitlements unavailable, keeping every owned product: ${e.message}")
+                emptyList()
+            }
+            val unplayable = withoutGameDownload(rows)
+            for ((id, held) in unplayable) if (listed.any { it.offerId == id }) StoresState.logLine(
+                "ea: left out $id, no game download: " + held.joinToString(",") { it.optString("entitlementTag") + "/" + it.optString("status") + "/" + it.optString("statusReasonCode") + "/" + it.optString("externalType") })
+            val owned = listed.filterNot { it.offerId in unplayable }
             val offers = withToken(app, token) { EaApi.offers(it, owned.map { o -> o.offerId }) }.associateBy { it.offerId }
             val picked = pick(owned, offers)
             StoresState.logLine("ea: ${owned.size} owned products, ${picked.size} games")
             for ((o, offer) in picked) StoresState.logLine(
                 "ea: owned ${o.offerId} content=${offer.contentId} master=${offer.masterTitleId} mp=${offer.multiplayerId} via=${o.ownership.joinToString("+")} type=${o.gameType}")
-            if (picked.isEmpty()) return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
+            if (picked.isEmpty()) {
+                if (owned.size < listed.size && storeCache(app, emptyList(), gen)) publish(app, emptyList(), gen)
+                return problem(app.getString(R.string.stores_sync_no_games, store.label).takeIf { cache.isEmpty() || owned.size < listed.size })
+            }
             if (gen != generation.get()) return
             status(R.string.stores_sync_cover_art)
             val images = art(app, token, picked.map { it.first.slug }, gen)

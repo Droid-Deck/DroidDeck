@@ -40,6 +40,43 @@ class EaTest {
         assertNull(EaCrypto.challengeSeed("9", answer))
     }
 
+    @Test fun onlyTokenRejectionsAreRetried() {
+        val rejected = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>".toByteArray(), emptyMap())
+        val notEntitled = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>".toByteArray(), emptyMap())
+        var authCalls = 0
+        val success = EaReply(200, ByteArray(0), emptyMap())
+        val result = EaOoa.retryTokenRejected {
+            authCalls++
+            if (authCalls == 1) rejected else success
+        }
+        assertEquals(2, authCalls)
+        assertEquals(200, result.status)
+
+        var entitlementCalls = 0
+        val refused = EaOoa.retryTokenRejected {
+            entitlementCalls++
+            notEntitled
+        }
+        assertEquals(1, entitlementCalls)
+        assertEquals(409, refused.status)
+
+        val otherAuthFailure = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"machineHash\"/></error>".toByteArray(), emptyMap())
+        var otherAuthCalls = 0
+        val otherRefused = EaOoa.retryTokenRejected {
+            otherAuthCalls++
+            otherAuthFailure
+        }
+        assertEquals(1, otherAuthCalls)
+        assertEquals(409, otherRefused.status)
+
+        var failedCalls = 0
+        EaOoa.retryTokenRejected {
+            failedCalls++
+            rejected
+        }
+        assertEquals(4, failedCalls)
+    }
+
     @Test fun licenceRoundTripsThroughTheFileFormat() {
         val xml = "<?xml version=\"1.0\"?><License xmlns=\"http://ea.com/license\"><CipherKey>k</CipherKey><MachineHash>h</MachineHash>" +
             "<ContentId>1234</ContentId><UserId>9</UserId><GameToken>tok</GameToken><GrantTime>g</GrantTime><StartTime>s</StartTime><Nonce>n</Nonce></License>"
@@ -186,6 +223,20 @@ class EaTest {
         val list = listOf(owned("1", "game"), owned("2", "game-deluxe", base = "game"), owned("3", "other"), owned("4", "trial", trial = true), owned("5", "dlc", type = "EXTRA_CONTENT"))
         val picked = EaLibrary.pick(list, list.associate { it.offerId to offer(it.offerId) })
         assertEquals(listOf("1", "3"), picked.map { it.first.offerId })
+    }
+
+    @Test fun anOwnedProductWithoutAnActiveGameDownloadIsLeftOut() {
+        fun row(id: String, type: String, tag: String = type, status: String = "ACTIVE") =
+            JSONObject().put("productId", id).put("entitlementType", type).put("entitlementTag", tag).put("status", status)
+        val rows = listOf(
+            row("DR:106479900", "DEFAULT", "VALIDATED_ONLINE_ACCESS"),
+            row("DR:231813200", "ORIGIN_DOWNLOAD", status = "DISABLED"),
+            row("Origin.OFR.50.0003426", "ONLINE_ACCESS"),
+            row("Origin.OFR.50.0003426", "ORIGIN_DOWNLOAD"),
+            row("Origin.OFR.50.0005237", "ORIGIN_DOWNLOAD"),
+        )
+        assertEquals(setOf("DR:106479900", "DR:231813200"), EaLibrary.withoutGameDownload(rows).keys)
+        assertTrue(EaLibrary.withoutGameDownload(emptyList()).isEmpty())
     }
 
     @Test fun ownedPageParses() {

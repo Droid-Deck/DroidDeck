@@ -11,6 +11,8 @@ object SteamStorage {
     const val PROTON_11_ARM = 4628740
     const val REDISTRIBUTABLES = 228980
     const val FEX = 3127680
+    const val EAC_RUNTIME = 1826330
+    const val BATTLEYE_RUNTIME = 1161040
 
     const val ARM_TOOL = "droiddeck-proton-arm64"
     const val ARM_11_TOOL = "droiddeck-proton-11-arm64"
@@ -18,7 +20,7 @@ object SteamStorage {
     private val VALVE_TOOLS = setOf(
         858280, 961940, 1054830, 1113280, 1245040, 1420170, 1493710, 1580130, 1887720, 2180100, 2348590,
         2805730, 3029110, 3658110, 4183110, 4628710, 4690330,
-        SCOUT, SOLDIER, SNIPER, ARM_RUNTIME, PROTON_ARM, PROTON_11_ARM, REDISTRIBUTABLES, FEX,
+        SCOUT, SOLDIER, SNIPER, ARM_RUNTIME, PROTON_ARM, PROTON_11_ARM, REDISTRIBUTABLES, FEX, EAC_RUNTIME, BATTLEYE_RUNTIME,
     )
 
     private val APP_ID = Regex("^\\s*\"appid\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
@@ -93,6 +95,7 @@ object SteamStorage {
         val dir = m.installDir.orEmpty()
         return when {
             m.appId == SCOUT || m.appId == SOLDIER || dir == "SteamLinuxRuntime" || dir == "SteamLinuxRuntime_soldier" -> Kind.OLD_RUNTIME
+            m.appId == EAC_RUNTIME || m.appId == BATTLEYE_RUNTIME -> Kind.REQUIRED
             dir.startsWith("Proton") && "ARM64" in dir -> Kind.ARM_PROTON
             m.appId == PROTON_ARM || m.appId == PROTON_11_ARM -> Kind.ARM_PROTON
             dir.startsWith("Proton ") -> Kind.X86_PROTON

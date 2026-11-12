@@ -919,6 +919,8 @@
     <string name="setup_logs_hint">Saved after each session</string>
     <string name="setup_enhanced_diagnostics">Enhanced diagnostics for next session</string>
     <string name="setup_enhanced_diagnostics_hint">Captures detailed logs for one session. May reduce performance and use more storage. Turns itself off when the session starts; review logs before sharing.</string>
+    <string name="setup_build_watermark">Build label watermark</string>
+    <string name="setup_build_watermark_hint">Show the test or Lab build label on screen. On by default.</string>
     <string name="diagnostics_share_title">Share diagnostic bundles</string>
     <string name="diagnostics_share_session">Session and device</string>
     <string name="diagnostics_share_graphics">Graphics</string>
@@ -2640,6 +2642,7 @@
     <string name="stores_sort">Sort</string>
     <string name="setup_rail_labels">Sidebar labels</string>
     <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
+    <string name="setup_agent_tab">Agent tab</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
     <string name="library_display_smaller">Smaller cards</string>
@@ -3338,6 +3341,7 @@
     <string name="storage_tool_redist">VC++ and DirectX installers games ask for</string>
     <string name="storage_tool_fex">Runs Linux x86 games</string>
     <string name="storage_tool_steam">Steam tool</string>
+    <string name="storage_tool_anticheat">Steam downloads this for games that ship anti-cheat, even when it is off. Removing it stalls their install at 0%</string>
     <string name="storage_tool_old_runtime">DroidDeck runs games without this runtime</string>
     <string name="storage_tool_x86_proton">x86 Proton, which DroidDeck cannot run</string>
     <string name="storage_tool_custom_default">Default for every game</string>

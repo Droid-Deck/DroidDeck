@@ -99,6 +99,31 @@ class X64RepointTest(unittest.TestCase):
         self.assertEqual(COMPAT["x64_repoint"](str(self.root), None), [])
         self.assertEqual((self.root / "config" / "config.vdf").read_text(), before)
 
+    def test_new_owned_shortcut_gets_the_x64_default_and_explicit_choice_stays(self):
+        app = "2350879490"
+        chosen = "proton-cachyos-a64"
+        config = self.root / "config" / "config.vdf"
+        state = self.root / "droiddeck-compat"
+        self.assertEqual(COMPAT["register_default"](
+            str(config), apps=[app], protect={chosen: "proton-cachyos-a64"},
+            default="GE-Proton11-7-a64", directory=str(state),
+            linux_tool="droiddeck-direct", owned=[app]), "GE-Proton11-7-a64")
+        self.assertEqual(self.mapping()[app], "GE-Proton11-7-a64")
+        self.assertEqual(COMPAT["register_default"](
+            str(config), apps=[app], protect={chosen: "proton-cachyos-a64"},
+            default="GE-Proton11-7-a64", directory=str(state),
+            linux_tool="droiddeck-direct", owned=[app]), "GE-Proton11-7-a64")
+        self.assertEqual(self.mapping()[app], "GE-Proton11-7-a64")
+        tokens = COMPAT["tokenize"](config.read_text())
+        mapping = COMPAT["mapping_block"](tokens)
+        COMPAT["set_mapping"](tokens, mapping, app, chosen)
+        config.write_text(COMPAT["serialize"](tokens))
+        COMPAT["register_default"](
+            str(config), apps=[app], protect={chosen: "proton-cachyos-a64"},
+            default="GE-Proton11-7-a64", directory=str(state),
+            linux_tool="droiddeck-direct", owned=[app])
+        self.assertEqual(self.mapping()[app], chosen)
+
 
 if __name__ == "__main__":
     unittest.main()

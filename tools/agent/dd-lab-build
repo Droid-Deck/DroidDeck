@@ -5,12 +5,17 @@
 #              compile what changed. Setup runs it once; it takes the longest.
 #   --explain  logs why each task ran and Kotlin's build report, to find out what makes a build slow.
 set -euo pipefail
-pkg=com.droiddeck.launcher
+pkg=${DROIDDECK_PACKAGE:-}
+if [ -z "$pkg" ] && [[ ${DD_AGENT_INBOX:-} =~ ^/data/(user/[0-9]+|data)/([^/]+)/files/agent$ ]]; then
+  pkg=${BASH_REMATCH[2]}
+fi
+pkg=${pkg:-com.droiddeck.launcher}
 serial=${ADB_SERIAL:-127.0.0.1:5555}
 mode=build
 explain=()
 for arg in "$@"; do
   case $arg in
+    --package=*) pkg=${arg#--package=} ;;
     --no-restart) mode=no-restart ;;
     --prepare) mode=prepare ;;
     --explain) explain=(--info -Pkotlin.build.report.output=file) ;;
@@ -31,16 +36,18 @@ progress() {  # stage [permille task done total eta]
 fail() { progress failed 0 "$*"; echo "dd-lab-build: $*" >&2; exit 1; }
 trap 'progress failed 0 stopped; exit 143' INT TERM
 trap 'progress failed 0 "a command failed on line $LINENO"' ERR
+[[ $pkg =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]] || fail "invalid Android package: $pkg"
+export DROIDDECK_PACKAGE=$pkg
 device() { adb -s "$serial" shell "$@" | tr -d '\r'; }
 
 # The app's agent loses every process it started when its turn ends, a build included, so it asks
 # the app to run the build in a process of its own and follows that build here.
-agent=/data/user/0/$pkg/files/agent
+agent=${DD_AGENT_INBOX:-/data/user/0/$pkg/files/agent}
 if [ -n "${DD_AGENT:-}" ] && [ -z "${DD_LAB_DETACHED:-}" ] && [ -d "$agent" ]; then
   trap - ERR
   log=$cache/dd-lab-build.log
   rm -f "$progress_file"
-  python3 -c 'import json,os,sys; print(json.dumps({"cwd": os.getcwd(), "args": sys.argv[1:]}))' "$@" > "$agent/lab-request.part"
+  python3 -c 'import json,os,sys; print(json.dumps({"cwd": os.getcwd(), "args": [*sys.argv[1:], "--package=" + os.environ["DROIDDECK_PACKAGE"]]}))' "$@" > "$agent/lab-request.part"
   mv "$agent/lab-request.part" "$agent/lab-request"
   echo "DroidDeck runs this build itself, so it keeps going if this turn ends. Its log follows."
   for _ in $(seq 1 30); do [ -f "$progress_file" ] && break; sleep 1; done
@@ -102,7 +109,7 @@ export DROIDDECK_SOURCE_COMMIT=$base DROIDDECK_BUILD_LABEL="lab on $installed_la
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   progress sdk
-  { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+  (set +o pipefail; yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null)
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 
@@ -125,7 +132,19 @@ gradle=(./gradlew :app:processReleaseResources :app:mergeDexRelease --max-worker
   -Pandroid.aapt2FromMavenOverride=$HOME/aapt2/aapt2 -Pkotlin.compiler.execution.strategy=daemon
   -Pkotlin.daemon.jvmargs=-Xmx${kotlin_heap}m -Dorg.gradle.jvmargs=-Xmx${gradle_heap}m --console=plain)
 progress planning
-mapfile -t plan < <("${gradle[@]}" --dry-run -q 2>/dev/null | awk '/^:/ {print $1}' || true)
+plan_file=$cache/dd-lab-build-plan
+plan_key=$(
+  {
+    printf '%s\n' "$repo" "${gradle[@]}"
+    git ls-files -z -- '*gradle*' | xargs -0 -r sha256sum
+  } | sha256sum | cut -d ' ' -f1
+)
+if [ "$(head -n 1 "$plan_file" 2>/dev/null)" != "$plan_key" ]; then
+  plan_output=$("${gradle[@]}" --dry-run) || fail "Gradle planning failed: $plan_output"
+  { printf '%s\n' "$plan_key"; awk '/^:/ {print $1}' <<<"$plan_output"; } > "$plan_file.part"
+  mv "$plan_file.part" "$plan_file"
+fi
+mapfile -t plan < <(tail -n +2 "$plan_file")
 total=${#plan[@]}
 
 # Each task's estimate is how long it took last time; a full compile of the app takes about 15 minutes.
@@ -221,6 +240,6 @@ device cmd package compile -m verify -f $pkg >/dev/null
 progress restarting 1000 "$name"
 echo "Restarting DroidDeck on the Lab build; it shows a notification when it is back"
 # The app's own agent ends with the app, so it is told to carry on once the app is back.
-if [ -n "${DD_AGENT:-}" ]; then mkdir -p "/data/user/0/$pkg/files/agent" && : > "/data/user/0/$pkg/files/agent/resume"; fi
+if [ -n "${DD_AGENT:-}" ]; then mkdir -p "$agent" && : > "$agent/resume"; fi
 device "nohup sh -c 'sleep 3; monkey -p $pkg -c android.intent.category.LAUNCHER 1' >/dev/null 2>&1 &"
 for pid in $(device pidof $pkg); do kill "$pid" 2>/dev/null || true; done
