@@ -59,6 +59,7 @@ object Themes {
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
     const val WHITE_RED = "white_red"
+    const val AMOLED = "amoled"
 
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
@@ -126,6 +127,14 @@ object Themes {
             background = Color(0xFF070A10), surface = Color(0xFF0F1522), surfaceVariant = Color(0xFF16203A), line = Color(0xFF1E2A47), line2 = Color(0xFF2A3A5E),
             onBackground = Color(0xFFEEF3FF), onSurfaceVariant = Color(0xFF8B9AB8),
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
+            good = Color(0xFF4CD37F),
+        ),
+        // Page and panels are pure black so an OLED panel leaves those pixels off; only raised cards and rules are lit.
+        Palette(
+            AMOLED, R.string.theme_amoled, R.string.theme_amoled_detail,
+            background = Color(0xFF000000), surface = Color(0xFF000000), surfaceVariant = Color(0xFF0C0C0D), line = Color(0xFF1C1D20), line2 = Color(0xFF2A2C30),
+            onBackground = Color(0xFFF2F4F7), onSurfaceVariant = Color(0xFF8E9196),
+            primary = Color(0xFF1A9FFF), primary2 = Color(0xFF1487DB), onPrimary = Color(0xFF03111F), signal = Color(0xFF1A9FFF),
             good = Color(0xFF4CD37F),
         ),
         Palette(
