@@ -920,7 +920,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             ?.takeIf { it.toLongOrNull() != null }
                     if (gameId != lastRunGameId) {
                         lastRunGameId = gameId
-                        loadFrameGenFor(gameId?.toLongOrNull())
+                        if (drawerGameProfileFollowState.followsSteam) {
+                            loadFrameGenFor(gameId?.toLongOrNull())
+                        }
                         applyFrameGen()
                     }
                 } else {
@@ -1094,7 +1096,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         }
                         if (target.first != frameGenActiveGameId) {
                             frameGenActiveGameId = target.first
-                            loadFrameGenFor(target.first)
+                            if (drawerGameProfileFollowState.followsSteam) {
+                                loadFrameGenFor(target.first)
+                            }
                         }
                         frameGenActiveGameName = target.second
                     }
