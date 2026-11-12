@@ -128,6 +128,7 @@ object SoundtrackCollections {
         val s = snapshot
         if (id == FAVORITES_ID) return
         commit(context, Snapshot(s.favorites, s.collections.filterNot { it.id == id }))
+        SoundtrackCollectionArt.clear(context, id)
     }
 
     @Synchronized
@@ -146,23 +147,45 @@ object SoundtrackCollections {
         else commit(context, Snapshot(s.favorites, s.collections.map { if (it.id == id) Collection(id, it.name, it.tracks.filterNot { t -> t.path in paths }) else it }))
     }
 
+    @Synchronized
+    fun reorder(context: Context, id: Int, ordered: List<String>) {
+        load(context)
+        val s = snapshot
+        fun arrange(list: List<TrackRef>): List<TrackRef> {
+            val byPath = list.associateBy { it.path }
+            val placed = ordered.mapNotNull { byPath[it] }
+            val named = ordered.toSet()
+            val rest = list.filter { it.path !in named }
+            return placed + rest
+        }
+        if (id == FAVORITES_ID) commit(context, Snapshot(arrange(s.favorites), s.collections))
+        else commit(context, Snapshot(s.favorites, s.collections.map { if (it.id == id) Collection(id, it.name, arrange(it.tracks)) else it }))
+    }
+
+    @Synchronized
+    fun refresh() {
+        state.value = Snapshot(state.value.favorites, state.value.collections)
+    }
+
+    internal fun autoCover(id: Int): File? = coverOf(tracksOf(id))
+
     private fun coverOf(tracks: List<TrackRef>): File? =
         tracks.firstNotNullOfOrNull { t -> t.cover.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile } }
 
-    private fun game(id: Int, name: String, tracks: List<TrackRef>): Library.SteamGame = Library.SteamGame(
-        appId = id, name = name, art = coverOf(tracks), library = Library.ADDED, gameId = id.toLong(),
-        source = if (id == FAVORITES_ID) Library.SOURCE_FAVORITES else Library.SOURCE_COLLECTION, soundtrack = true,
+    private fun game(context: Context, id: Int, name: String, tracks: List<TrackRef>): Library.SteamGame = Library.SteamGame(
+        appId = id, name = name, art = SoundtrackCollectionArt.chosen(context, id) ?: coverOf(tracks), library = Library.ADDED, gameId = id.toLong(),
+        source = Library.SOURCE_COLLECTION, soundtrack = true,
     )
 
-    fun games(favoritesLabel: String): List<Library.SteamGame> {
+    fun games(context: Context, favoritesLabel: String): List<Library.SteamGame> {
         val s = snapshot
-        return listOf(game(FAVORITES_ID, favoritesLabel, s.favorites)) + s.collections.map { game(it.id, it.name, it.tracks) }
+        return listOf(game(context, FAVORITES_ID, favoritesLabel, s.favorites)) + s.collections.map { game(context, it.id, it.name, it.tracks) }
     }
 
-    fun album(id: Int): Soundtrack.Album {
+    fun album(context: Context, id: Int): Soundtrack.Album {
         val tracks = tracksOf(id).filter { File(it.path).isFile }.mapIndexed { i, t ->
             Soundtrack.Track(File(t.path), t.title, 1, i + 1, t.durationMs, t.artist)
         }
-        return Soundtrack.Album(mapOf(1 to tracks), "", null)
+        return Soundtrack.Album(mapOf(1 to tracks), "", SoundtrackCollectionArt.chosen(context, id))
     }
 }

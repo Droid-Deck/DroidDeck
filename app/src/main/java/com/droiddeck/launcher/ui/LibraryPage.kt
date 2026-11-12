@@ -163,7 +163,7 @@ internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = e
 
 internal const val LIBRARY_ALL = "all"
 internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet()): List<String> =
-    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION + Library.SOURCE_FAVORITES)
+    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION)
         .filter { source -> source in always || entries.any { it.source == source } }
 
 internal object LibraryDisplay {
@@ -235,7 +235,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
     val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
-            (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(favoritesLabel))
+            (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
         else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
     }
@@ -259,7 +259,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
     val sources = librarySources(
         all, SessionPrefs.storesTabOrder(ctx),
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }, Library.SOURCE_FAVORITES.takeIf { soundMode }).toSet(),
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }).toSet(),
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -347,7 +347,9 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     var stable by remember { mutableStateOf(emptyList<LibraryEntry>()) }
     val ordered = if (sizesPending) retainOrder(candidates, stable) { it.key } else sorted
     SideEffect { if (!sizesPending) stable = sorted }
-    val visible = installedFirst(ordered)
+    val visible = installedFirst(ordered).let { list ->
+        if (soundMode && source == Library.SOURCE_COLLECTION) list.sortedBy { if (it.game?.appId == SoundtrackCollections.FAVORITES_ID) 0 else 1 } else list
+    }
     val split = visible.count { it.installed }.takeIf { it in 1 until visible.size } ?: 0
 
     val open = selected.takeIf { it.startsWith(if (soundMode) "sound:" else "app:") }
@@ -669,7 +671,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             val store = Store.byId(src)
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                src == Library.SOURCE_STEAM -> sourceColours(src).dot
+                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
                 else -> null
             }
             SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }

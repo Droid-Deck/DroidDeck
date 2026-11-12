@@ -62,14 +62,17 @@ Setup › Launcher has an Enable ingame toggle, shown while soundtracks are on. 
 
 ## Searching and sorting
 
-Inside a soundtrack, a search field above the track list filters by title, artist and album, and a sort button orders the list by album order, title or length. The Music tab search also looks up tracks: soundtracks and collections whose names match come first, followed by a Tracks section.
+Inside a soundtrack, a search field above the track list filters by title, artist and album, and a sort button orders the list by album order, title or length. Track numbers always count from 1 by position in the list shown.
+
+Custom (added) soundtracks, collections and Favorites can be reordered: with Album order selected and no search text, long-press a track and drag it. The order of an added soundtrack is stored in `soundtrack-order.json` and applied by `Soundtrack.load` within each disc; a collection stores its order in `soundtrack-collections.json`. Steam soundtracks cannot be reordered. While reordering is available, long-press drags, so tracks are selected with the select button in the header instead. The Music tab search also looks up tracks: soundtracks and collections whose names match come first, followed by a Tracks section.
 
 ## Favorites and collections
 
 - The heart under the transport controls adds or removes the current track from Favorites. The bookmark button next to it opens the Saved panel to add the track to a collection or create one.
-- The Music tab has Collections and Favorites chips. The bookmark in the Music header opens the same Saved panel to open or create a collection.
+- The Music tab has a Collections chip. Favorites is the first entry under it. The bookmark in the Music header opens the same Saved panel to open or create a collection.
 - Long-press a track to select. The selection bar has Select all, Deselect all, Add to collection, Add to favorites and, on a collection page, Remove from collection.
 - A collection page has a Manage button to rename, add tracks, remove tracks or delete. Favorites cannot be renamed or deleted.
+- Collection pages have Manage, Playback options, Shortcut and Edit art. Edit art changes the collection cover only, from a track cover in the collection or an image of your own, and is stored in `soundtrack-art/<id>`.
 - Collections are stored in `soundtrack-collections.json` in the app files directory as snapshots of path, title, artist, album, length and cover. Tracks whose files are gone are skipped when a collection is played.
 - Collection and Favorites playback does not overwrite the saved resume position of an album.
 

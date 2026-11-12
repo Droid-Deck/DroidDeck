@@ -70,6 +70,7 @@ import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LogoPosition
+import com.droiddeck.launcher.frontend.SoundtrackCollectionArt
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
 import com.droiddeck.launcher.frontend.SteamLaunchOptions
@@ -179,6 +180,16 @@ internal class ArtTarget(
             { c, value -> AddedGameEdits.setLogoPosition(c, game.folder.path, value) },
         )
 
+        fun ofCollection(id: Int, name: String) = ArtTarget(
+            name,
+            { c, _ -> SoundtrackCollectionArt.source(c, id) },
+            { _, _ -> AddedGameArt.Choices(SoundtrackCollectionArt.options(id), SteamGridDb.Status.OK) },
+            { c, _, option -> SoundtrackCollectionArt.choose(c, id, option) },
+            { c, _ -> SoundtrackCollectionArt.reset(c, id) },
+            { _ -> null },
+            { _, _ -> false },
+        )
+
         fun of(game: com.droiddeck.launcher.frontend.Library.SteamGame) = ArtTarget(
             game.name,
             { c, slot -> SteamGameArt.chosenSource(c, game.appId, slot).second },
@@ -200,6 +211,12 @@ internal fun SteamGameArtEditor(
 }
 
 @Composable
+internal fun CollectionArtEditor(id: Int, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
+    val target = remember(id) { ArtTarget.ofCollection(id, name) }
+    ArtOnlyEditor(name, target, id, { SoundtrackCollectionArt.describe(it, id) }, onClose, onChanged, listOf(AddedGameArt.Slot.COVER))
+}
+
+@Composable
 internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
     val app = LocalContext.current.applicationContext
     var game by remember(folder) { mutableStateOf<AddedGames.Game?>(null) }
@@ -212,7 +229,7 @@ internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Uni
 @Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
-    onClose: () -> Unit, onChanged: () -> Unit,
+    onClose: () -> Unit, onChanged: () -> Unit, slots: List<AddedGameArt.Slot> = AddedGameArt.Slot.values().toList(),
 ) {
     val app = LocalContext.current.applicationContext
     val shown = rememberShown(onClose)
@@ -233,7 +250,7 @@ private fun ArtOnlyEditor(
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
-            for (slot in AddedGameArt.Slot.values()) key(slot) {
+            for (slot in slots) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
                 FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -242,7 +259,7 @@ private fun ArtOnlyEditor(
                     }
                 }
             }
-            PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
+            if (AddedGameArt.Slot.LOGO in slots) PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
         }
     }
     val chosen = target ?: return

@@ -293,7 +293,7 @@ object Soundtrack {
     fun load(context: Context, root: File, coverHint: File? = null): Album {
         val files = audioFiles(root)
         val raws = fromCache(context, root, files) ?: files.map { read(it, root) }.also { toCache(context, root, it) }
-        val disc = group(raws)
+        val disc = SoundtrackOrder.apply(context, root, group(raws))
         val artist = disc.values.flatten().map { it.artist }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
         return Album(disc, artist, coverHint ?: cover(root) ?: embeddedCover(context, root, files))
     }

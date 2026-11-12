@@ -120,7 +120,7 @@ class SoundtrackService : MediaSessionService() {
 
     private fun refreshTrackCover(item: MediaItem?) {
         val current = item ?: return
-        if (current.mediaMetadata.artworkUri?.path.orEmpty().contains("/steam-art/")) return
+        if (current.mediaMetadata.artworkUri?.path.orEmpty().let { it.contains("/steam-art/") || it.contains("/soundtrack-art/") }) return
         val file = File(current.mediaId)
         covers.execute {
             val art = Soundtrack.trackCover(this, file) ?: return@execute

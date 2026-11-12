@@ -74,6 +74,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.Soundtrack
 import com.droiddeck.launcher.frontend.SoundtrackCollections
+import com.droiddeck.launcher.frontend.SoundtrackOrder
 import com.droiddeck.launcher.playback.SoundtrackController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -86,19 +87,19 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
     remember { SoundtrackCollections.load(ctx) }
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
     val snapshot = SoundtrackCollections.snapshot
-    val saved = remember(snapshot, favoritesLabel) { SoundtrackCollections.games(favoritesLabel) }
+    val saved = remember(snapshot, favoritesLabel) { SoundtrackCollections.games(ctx, favoritesLabel) }
     val game = s.soundtracks.firstOrNull { it.appId == appId } ?: saved.firstOrNull { it.appId == appId }
     LaunchedEffect(game == null, s.soundtracksLoaded) { if (game == null && s.soundtracksLoaded) onBack() }
     if (game == null) return
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val root = game.gameFiles
-    val collectionId = if (game.source == Library.SOURCE_COLLECTION || game.source == Library.SOURCE_FAVORITES) game.appId else null
+    val collectionId = if (game.source == Library.SOURCE_COLLECTION) game.appId else null
     val target = remember(root, collectionId) { PlayTarget(root, collectionId) }
-    val loadedAlbum by produceState<Soundtrack.Album?>(null, root, game.art) {
+    val loadedAlbum by produceState<Soundtrack.Album?>(null, root, game.art, SoundtrackOrder.version) {
         value = root?.let { dir -> withContext(Dispatchers.IO) { Soundtrack.load(ctx, dir, game.art) } }
     }
-    val collectionAlbum = remember(snapshot, collectionId) { collectionId?.let { SoundtrackCollections.album(it) } }
+    val collectionAlbum = remember(snapshot, collectionId) { collectionId?.let { SoundtrackCollections.album(ctx, it) } }
     val album = collectionAlbum ?: loadedAlbum
     LaunchedEffect(Unit) { SoundtrackController.connect(ctx) }
     val inset = LocalDetailInset.current
@@ -106,7 +107,7 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
     val trackArt by produceState<java.io.File?>(null, currentTrack) {
         value = currentTrack?.let { id -> withContext(Dispatchers.IO) { Soundtrack.trackCover(ctx, java.io.File(id)) } }
     }
-    val pinned = game.art?.path.orEmpty().contains("/steam-art/")
+    val pinned = game.art?.path.orEmpty().let { it.contains("/steam-art/") || it.contains("/soundtrack-art/") }
     val art: Any? = if (pinned) game.art else trackArt ?: game.art ?: album?.cover
     val refs = remember(snapshot, collectionId) { collectionId?.let { id -> SoundtrackCollections.tracksOf(id).associateBy { it.path } }.orEmpty() }
     val coverPath = (game.art ?: album?.cover)?.path.orEmpty()
@@ -114,6 +115,11 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
         refs[t.id] ?: SoundtrackCollections.TrackRef(t.id, t.title, t.artist.ifBlank { album?.artist.orEmpty() }, game.name, t.durationMs, coverPath)
     }
     var selectRequest by remember { mutableIntStateOf(0) }
+    val onReorder: ((List<String>) -> Unit)? = when {
+        collectionId != null -> ({ paths: List<String> -> SoundtrackCollections.reorder(ctx, collectionId, paths) })
+        game.library == Library.ADDED && root != null -> ({ paths: List<String> -> SoundtrackOrder.set(ctx, root, paths) })
+        else -> null
+    }
     GameBackdrop(art, art, hueOf(game.name), fadeTop = inset.top < 8.dp, artBlur = 24.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top)) {
             Rise(0) {
@@ -127,12 +133,12 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
             if (stacked) Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Rise(1) { SoundtrackPlayer(game, loaded, art, lead, s, a, target, refOf, collectionId) { selectRequest++ } }
                 if (loaded != null) Rise(2) {
-                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.55f).dp))
+                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, onReorder, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.55f).dp))
                 }
             } else Row(horizontalArrangement = Arrangement.spacedBy(28.dp), modifier = Modifier.fillMaxWidth()) {
                 Rise(1, Modifier.weight(0.42f)) { SoundtrackPlayer(game, loaded, art, lead, s, a, target, refOf, collectionId) { selectRequest++ } }
                 if (loaded != null) Rise(2, Modifier.weight(0.58f)) {
-                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.72f).dp))
+                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, onReorder, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.72f).dp))
                 }
             }
         }
@@ -350,7 +356,6 @@ private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: Fron
     if (managing && collectionId != null) ManageDialog(collectionId, s.soundtracks, onRemoveMode) { managing = false }
     SeeMoreButton(stringResource(R.string.soundtracks_options), "sound:options") { options = true }
     if (options) SoundtrackOptionsDialog { options = false }
-    if (collectionId != null) return
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
         SeeMoreButton(stringResource(R.string.games_files), "sound:files") { a.onBrowseFiles(dir) }
     }
@@ -362,7 +367,11 @@ private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: Fron
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { menu = false; a.onCopyGameLink(game) }
         }
     }
-    if (game.library != Library.ADDED) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { GamesDialogState.steamArt = game }
+    var collectionArt by remember(game.appId) { mutableStateOf(false) }
+    if (collectionId != null) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { collectionArt = true }
+    else if (game.library != Library.ADDED) SeeMoreButton(stringResource(R.string.game_edit_art), "sound:art") { GamesDialogState.steamArt = game }
+    if (collectionArt && collectionId != null) CollectionArtEditor(collectionId, game.name, onClose = { collectionArt = false }, onChanged = { SoundtrackCollections.refresh() })
+    if (collectionId != null) return
     var asking by remember(game.appId) { mutableStateOf(false) }
     val added = game.library == Library.ADDED
     val label = stringResource(if (added) R.string.edit_remove else R.string.common_uninstall)
