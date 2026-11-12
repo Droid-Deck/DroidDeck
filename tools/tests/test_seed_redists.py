@@ -464,12 +464,14 @@ class SeedRedistsTest(unittest.TestCase):
         self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
         shim = self.tmp / "bin"
         shim.mkdir()
-        (shim / "find").write_text('#!/bin/sh\nsleep 2\nexec %s "$@"\n' % shutil.which("find"))
+        go = self.tmp / "go"
+        (shim / "find").write_text('#!/bin/sh\ncase "$*" in *"installscript*"*) while [ ! -e "%s" ]; do sleep 0.1; done;; esac\nexec %s "$@"\n' % (go, shutil.which("find")))
         (shim / "find").chmod(0o755)
         env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_LATER="1", PATH="%s:%s" % (shim, os.environ["PATH"]))
         marker = '"PhysX Version"=dword:00000001'
         subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         self.assertNotIn(marker, self.reg.read_text())
+        go.touch()
         deadline = time.monotonic() + 30
         while marker not in self.reg.read_text() and time.monotonic() < deadline:
             time.sleep(0.2)
@@ -478,6 +480,26 @@ class SeedRedistsTest(unittest.TestCase):
         subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         time.sleep(0.5)
         self.assertEqual(before, self.reg.read_text())
+
+    def test_a_later_run_leaves_the_registry_alone_while_a_wine_server_runs(self):
+        self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
+        shim = self.tmp / "bin"
+        shim.mkdir()
+        (shim / "pgrep").write_text("#!/bin/sh\nexit 0\n")
+        (shim / "pgrep").chmod(0o755)
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_LATER="1", PATH="%s:%s" % (shim, os.environ["PATH"]))
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        cache = self.steam / ".droiddeck-game-scripts"
+        deadline = time.monotonic() + 30
+        while not (cache.exists() and "installscript" in cache.read_text().lower()) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        self.assertIn("installscript", cache.read_text().lower())
+        time.sleep(1)
+        self.assertNotIn("PhysX Version", self.reg.read_text())
+        env.pop("DROIDDECK_SEED_LATER")
+        env["PATH"] = os.environ["PATH"]
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        self.assertIn('"PhysX Version"=dword:00000001', self.reg.read_text())
 
     def evaluator(self, appid, install_script):
         script = self.tmp / ("legacycompat/evaluatorscript_%s.vdf" % appid)
