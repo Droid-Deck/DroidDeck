@@ -25,6 +25,11 @@ change.
   Updates lists them under Lab builds: the one in use can be turned off, one built for this
   install can be used again, and any can be deleted.
 
+The build targets the package owning `DD_AGENT_INBOX` when run from the Agent tab.
+For a manual build of another package, set `DROIDDECK_PACKAGE`, for example
+`DROIDDECK_PACKAGE=com.tencent.ig dd-lab-build`. This also selects the control provider,
+Lab storage, and package to restart.
+
 ## What a Lab build cannot change
 
 The manifest, native code (`cpp`, `jniLibs`, Rust), Gradle files, `App`, `AppLanguage`, and `LabOverlay` itself:
