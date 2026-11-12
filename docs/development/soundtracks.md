@@ -6,7 +6,7 @@ Steam soundtracks get their own tab under Library, a built-in music player, and 
 
 Steam installs a soundtrack to `<library>/steamapps/music/<installdir>`, next to a normal `appmanifest_<appid>.acf`. This holds for the internal Steam library and for a second library folder.
 
-`Library.steamGames()` skips any manifest whose install directory exists only under `steamapps/music`. `Library.soundtracks()` returns exactly those entries, marked with `SteamGame.soundtrack`. Games and soundtracks therefore never mix in the Library tab, the launch drawer, game file sync or component preparation.
+`Library.steamGames()` skips any manifest whose install directory exists only under `steamapps/music`. `Library.soundtracks()` returns exactly those entries, marked with `SteamGame.soundtrack`. While the Music tab is enabled, games and soundtracks therefore never mix in the Library tab, the launch drawer, game file sync or component preparation.
 
 Folders added by hand (Soundtracks tab, plus button) are stored in `added-soundtracks.json` and carry a negative app id, so they cannot collide with a Steam app id.
 
@@ -41,7 +41,7 @@ Shortcuts use `droiddeck://soundtrack/<appid>` and open the soundtrack page.
 
 `SoundtrackService` is a media3 `MediaSessionService` with an `ExoPlayer`. It runs as a foreground service of type `mediaPlayback`, so playback keeps going when DroidDeck is closed and the notification and lock screen controls show the cover, title and artist. `SoundtrackController` connects a `MediaController` to it and exposes Compose state.
 
-Launching a game pauses the music. Audio focus and headphone unplug are handled by ExoPlayer.
+Launching a game pauses the music unless Enable ingame is on (see Playing during games). Audio focus and headphone unplug are handled by ExoPlayer.
 
 Added dependencies: `androidx.media3:media3-exoplayer` and `androidx.media3:media3-session` 1.3.1.
 

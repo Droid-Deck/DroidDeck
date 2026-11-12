@@ -259,7 +259,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
     val sources = librarySources(
         all, SessionPrefs.storesTabOrder(ctx),
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn }, Library.SOURCE_COLLECTION.takeIf { soundMode }, Library.SOURCE_FAVORITES.takeIf { soundMode }).toSet(),
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }, Library.SOURCE_FAVORITES.takeIf { soundMode }).toSet(),
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -285,7 +285,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
     val listUninstalled = if (collectionId == null) showUninstalled else collectionShows?.takeIf { it.first == collectionId }?.second ?: true
-    val trackHits by produceState<List<SoundtrackIndex.Hit>>(emptyList(), soundMode, q, s.soundtracks) {
+    val trackHits by produceState<List<SoundtrackIndex.Hit>>(emptyList(), soundMode, q, source, s.soundtracks) {
         if (!soundMode || q.isEmpty()) {
             value = emptyList()
             return@produceState
@@ -293,12 +293,12 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(150)
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             SoundtrackIndex.build(ctx, s.soundtracks)
-                .filter { SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
+                .filter { (source == LIBRARY_ALL || it.game.source == source) && SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
                 .sortedWith(compareBy({ SoundtrackTracks.rank(q, it.ref.title) }, { it.ref.title.lowercase() }))
                 .take(100)
         }
     }
-    val shownHits = trackHits.filter { source == LIBRARY_ALL || it.game.source == source }
+    val shownHits = trackHits
     val hitScope = rememberCoroutineScope()
     val playHit: (SoundtrackIndex.Hit) -> Unit = { hit ->
         val dir = hit.game.gameFiles

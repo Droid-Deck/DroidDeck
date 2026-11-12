@@ -62,6 +62,7 @@ class SoundtrackService : MediaSessionService() {
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(mediaAttributes(), !com.droiddeck.launcher.session.SessionPrefs.soundtracksIngame(this))
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
             .build()
         exo = player
         val sessionIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {

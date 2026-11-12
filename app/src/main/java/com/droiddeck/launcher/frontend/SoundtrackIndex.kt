@@ -8,9 +8,12 @@ object SoundtrackIndex {
     private var cacheKey = ""
     private var cache: List<Hit> = emptyList()
 
+    private fun fingerprint(dir: java.io.File?): Long =
+        if (dir == null) 0L else Soundtrack.audioFiles(dir).fold(17L) { h, f -> 31 * (31 * (31 * h + f.path.hashCode()) + f.length()) + f.lastModified() }
+
     fun build(context: Context, games: List<Library.SteamGame>): List<Hit> {
         val roots = games.filter { it.gameFiles != null }
-        val key = roots.joinToString("|") { "${it.appId}:${it.art?.path}:${it.gameFiles?.lastModified()}" }
+        val key = roots.joinToString("|") { "${it.appId}:${it.gameFiles?.path}:${it.art?.path}:${fingerprint(it.gameFiles)}" }
         synchronized(this) { if (key == cacheKey) return cache }
         val hits = roots.flatMap { g ->
             val dir = g.gameFiles ?: return@flatMap emptyList()
@@ -19,7 +22,7 @@ object SoundtrackIndex {
             album.tracks.map { t ->
                 Hit(SoundtrackCollections.TrackRef(t.file.path, t.title, t.artist.ifBlank { album.artist }, g.name, t.durationMs, cover), g)
             }
-        }
+        }.distinctBy { it.ref.path }
         synchronized(this) {
             cacheKey = key
             cache = hits

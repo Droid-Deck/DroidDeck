@@ -209,7 +209,7 @@ private fun SoundtrackPlayer(
             }
             TransportButton(
                 if (SoundtrackController.repeat == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat, repeatLabel, "sound:repeat",
-                on = SoundtrackController.repeat != Player.REPEAT_MODE_OFF, enabled = loaded != null,
+                on = SoundtrackController.repeat != Player.REPEAT_MODE_OFF, enabled = loaded != null && belongs,
             ) { SoundtrackController.cycleRepeat(ctx) }
         }
         val heartTrack = if (belongs) loaded?.tracks?.firstOrNull { it.id == SoundtrackController.currentId } else null

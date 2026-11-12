@@ -208,7 +208,10 @@ object SoundtrackController {
             if (root != null && root.path in removed) return@run
             val mine = if (collection != null) belongsCollection(collection) else belongs(root)
             if (mine && c.mediaItemCount > 0) {
-                if (c.isPlaying) c.pause() else c.play()
+                if (c.isPlaying) c.pause() else {
+                    if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition(0)
+                    c.play()
+                }
             } else {
                 val saved = if (collection != null) null else root?.let { r -> SoundtrackSettings.resume(context)?.takeIf { it.root == r.path && album.tracks.any { t -> t.id == it.id } } }
                 play(context, album, albumTitle, saved?.id ?: album.tracks.firstOrNull()?.id, root = root, startMs = saved?.positionMs ?: 0L, collection = collection)
@@ -217,8 +220,8 @@ object SoundtrackController {
     }
 
     fun pause(context: Context) {
-        val live = controller ?: return
-        live.pause()
+        val live = controller
+        if (live != null) live.pause() else if (future != null) pending += { it.pause() }
     }
 
     fun next(context: Context) = run(context) { it.seekToNext() }
