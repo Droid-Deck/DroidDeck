@@ -1371,18 +1371,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     if (activeProfileId != effectsEditorProfileId) {
                         Log.w(
                             TAG,
-                            "Screen effects profile changed while editing; saving to active profile",
+                            "Screen effects profile changed while editing; discarding stale edit",
                         )
-                    }
 
-                    SessionPrefs.setScreenEffects(
-                        this@SessionActivity,
-                        activeProfileId,
-                        e,
-                    )
-                    observedScreenEffectsProfileId = activeProfileId
-                    effects = e
-                    e.push(upscaler)
+                        val activeEffects =
+                            SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                        observedScreenEffectsProfileId = activeProfileId
+                        effects = activeEffects
+                        activeEffects.push(upscaler)
+                    } else {
+                        SessionPrefs.setScreenEffects(
+                            this@SessionActivity,
+                            activeProfileId,
+                            e,
+                        )
+                        observedScreenEffectsProfileId = activeProfileId
+                        effects = e
+                        e.push(upscaler)
+                    }
                 }
             },
             onTextureAnisotropy = { value ->
