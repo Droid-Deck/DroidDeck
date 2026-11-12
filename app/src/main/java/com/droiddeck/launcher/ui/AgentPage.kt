@@ -123,7 +123,7 @@ internal fun AgentPage(modifier: Modifier, inputModifier: Modifier = Modifier, v
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
-    val collapseHeader = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && panel == AgentPanel.NONE
+    val collapseHeader = panel == AgentPanel.NONE || panel == AgentPanel.MODEL
     var headerHeight by remember { mutableStateOf(0) }
     var headerOffset by remember(collapseHeader) { mutableStateOf(0f) }
     val headerScroll = remember(collapseHeader) {
