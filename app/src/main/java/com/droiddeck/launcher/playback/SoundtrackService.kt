@@ -60,9 +60,7 @@ class SoundtrackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val player = ExoPlayer.Builder(this)
-            .setAudioAttributes(
-                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true,
-            )
+            .setAudioAttributes(mediaAttributes(), !com.droiddeck.launcher.session.SessionPrefs.soundtracksIngame(this))
             .setHandleAudioBecomingNoisy(true)
             .build()
         exo = player
@@ -88,6 +86,9 @@ class SoundtrackService : MediaSessionService() {
         session = MediaSession.Builder(this, player).setCallback(Resolver()).apply { sessionIntent?.let { setSessionActivity(it) } }.build()
         setMediaNotificationProvider(EdgeButtonsProvider(this).apply { setSmallIcon(R.drawable.ic_soundtrack) })
     }
+
+    private fun mediaAttributes(): AudioAttributes =
+        AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
 
     private fun buttons(player: Player): ImmutableList<CommandButton> = ImmutableList.of(
         CommandButton.Builder()
@@ -210,6 +211,7 @@ class SoundtrackService : MediaSessionService() {
         val SKIP_SILENCE = SessionCommand("droiddeck.skipsilence", Bundle.EMPTY)
         val EQUALIZER = SessionCommand("droiddeck.equalizer", Bundle.EMPTY)
         val SLEEP = SessionCommand("droiddeck.sleep", Bundle.EMPTY)
+        val INGAME = SessionCommand("droiddeck.ingame", Bundle.EMPTY)
         const val ARG_ON = "on"
         const val ARG_BANDS = "bands"
         const val ARG_BASS = "bass"
@@ -224,7 +226,7 @@ class SoundtrackService : MediaSessionService() {
             if (controller.uid == Process.myUid() || controller.isTrusted) {
                 MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(
-                        MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().add(SHUFFLE).add(REPEAT).add(SKIP_SILENCE).add(EQUALIZER).add(SLEEP).build(),
+                        MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().add(SHUFFLE).add(REPEAT).add(SKIP_SILENCE).add(EQUALIZER).add(SLEEP).add(INGAME).build(),
                     )
                     .setCustomLayout(buttons(session.player))
                     .build()
@@ -243,10 +245,11 @@ class SoundtrackService : MediaSessionService() {
                     Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                     else -> Player.REPEAT_MODE_OFF
                 }
-                SKIP_SILENCE.customAction, EQUALIZER.customAction, SLEEP.customAction -> {
+                SKIP_SILENCE.customAction, EQUALIZER.customAction, SLEEP.customAction, INGAME.customAction -> {
                     if (!isOwner(controller)) return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_PERMISSION_DENIED))
                     when (customCommand.customAction) {
                         SKIP_SILENCE.customAction -> exo?.skipSilenceEnabled = args.getBoolean(ARG_ON)
+                        INGAME.customAction -> exo?.setAudioAttributes(mediaAttributes(), !args.getBoolean(ARG_ON))
                         EQUALIZER.customAction -> {
                             eqOn = args.getBoolean(ARG_ON)
                             eqBands = args.getIntArray(ARG_BANDS) ?: IntArray(0)

@@ -207,6 +207,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("soundtracksEnabled", on).apply()
     }
 
+    fun soundtracksIngame(context: Context): Boolean = prefs(context).getBoolean("soundtracksIngame", false)
+
+    fun setSoundtracksIngame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("soundtracksIngame", on).apply()
+    }
+
     fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
 
     fun setGameStoresSpeedTier(context: Context, tier: String) {

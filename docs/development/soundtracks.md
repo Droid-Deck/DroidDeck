@@ -55,3 +55,21 @@ The player page has a Playback options button that opens a panel with:
 - An equalizer with the device presets, one slider per band, and bass boost where the device supports it. The effects are attached to the player's audio session in the service.
 
 Settings are saved in `soundtrack_settings` and sent to the service whenever the controller connects. The last album, track and position are saved too, so the play button on an album resumes where it stopped. The position is saved on track changes, pauses and seeks.
+
+## Playing during games
+
+Setup › Launcher has an Enable ingame toggle, shown while soundtracks are on. When it is off, launching a game pauses the soundtrack. When it is on, the soundtrack keeps playing and the service stops requesting audio focus, so the game's own audio mixes with it. The setting is sent to the service with the `INGAME` session command and is read again when the service starts.
+
+## Searching and sorting
+
+Inside a soundtrack, a search field above the track list filters by title, artist and album, and a sort button orders the list by album order, title or length. The Music tab search also looks up tracks: soundtracks and collections whose names match come first, followed by a Tracks section.
+
+## Favorites and collections
+
+- The heart under the transport controls adds or removes the current track from Favorites. The bookmark button next to it opens the Saved panel to add the track to a collection or create one.
+- The Music tab has Collections and Favorites chips. The bookmark in the Music header opens the same Saved panel to open or create a collection.
+- Long-press a track to select. The selection bar has Select all, Deselect all, Add to collection, Add to favorites and, on a collection page, Remove from collection.
+- A collection page has a Manage button to rename, add tracks, remove tracks or delete. Favorites cannot be renamed or deleted.
+- Collections are stored in `soundtrack-collections.json` in the app files directory as snapshots of path, title, artist, album, length and cover. Tracks whose files are gone are skipped when a collection is played.
+- Collection and Favorites playback does not overwrite the saved resume position of an album.
+

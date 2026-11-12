@@ -14,7 +14,7 @@ object SettingsReset {
     internal val SESSION_KEYS = setOf(
         "orientation", "launcherFullscreen", "animations", "lowStorageWarning", "theme", "runSteamAtStartup", "startupSession", "addedGamesArt",
         "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls", "androidTextFieldKeyboard",
-        "gameStoresEnabled", "soundtracksEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
+        "gameStoresEnabled", "soundtracksEnabled", "soundtracksIngame", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",

@@ -37,6 +37,9 @@ object SoundtrackController {
     var volume by mutableStateOf(1f)
         private set
 
+    var activeCollection by mutableStateOf<Int?>(null)
+        private set
+
     var sleepEndsAt by mutableLongStateOf(0L)
         private set
     var sleepTrackEnd by mutableStateOf(false)
@@ -71,6 +74,7 @@ object SoundtrackController {
         durationMs = 0L
         buffering = false
         volume = 1f
+        activeCollection = null
     }
 
     private fun sync(player: Player) {
@@ -89,6 +93,7 @@ object SoundtrackController {
     private fun persistResume(player: Player) {
         val context = app ?: return
         val id = currentId ?: return
+        if (activeCollection != null) return
         val root = activeRoot ?: SoundtrackSettings.resume(context)?.root?.takeIf { id.startsWith("$it/") }?.also { activeRoot = it } ?: return
         if (id != savedId || !player.isPlaying) {
             savedId = id
@@ -102,6 +107,7 @@ object SoundtrackController {
         c.setPlaybackParameters(PlaybackParameters(SoundtrackSettings.speed, SoundtrackSettings.pitch))
         c.sendCustomCommand(SoundtrackService.SKIP_SILENCE, Bundle().apply { putBoolean(SoundtrackService.ARG_ON, SoundtrackSettings.skipSilence) })
         sendEqualizer(c)
+        c.sendCustomCommand(SoundtrackService.INGAME, Bundle().apply { putBoolean(SoundtrackService.ARG_ON, com.droiddeck.launcher.session.SessionPrefs.soundtracksIngame(context)) })
     }
 
     private fun sendEqualizer(c: MediaController) {
@@ -147,7 +153,10 @@ object SoundtrackController {
 
     fun position(): Long = controller?.currentPosition ?: 0L
 
+    fun belongsCollection(id: Int): Boolean = activeCollection == id && currentId != null
+
     fun belongs(root: File?): Boolean {
+        if (activeCollection != null) return false
         val id = currentId ?: return false
         return root != null && id.startsWith(root.path + "/")
     }
@@ -174,7 +183,7 @@ object SoundtrackController {
 
     fun play(
         context: Context, album: Soundtrack.Album, albumTitle: String, startId: String?, shuffled: Boolean? = null,
-        root: File? = null, startMs: Long = 0L,
+        root: File? = null, startMs: Long = 0L, collection: Int? = null,
     ) {
         val list = items(album, albumTitle)
         if (list.isEmpty()) return
@@ -182,6 +191,7 @@ object SoundtrackController {
             if (root != null && root.path in removed) return@run
             val start = list.indexOfFirst { it.mediaId == startId }.coerceAtLeast(0)
             root?.let { activeRoot = it.path }
+            activeCollection = collection
             c.setMediaItems(list, start, startMs)
             shuffled?.let { c.shuffleModeEnabled = it }
             c.prepare()
@@ -193,14 +203,15 @@ object SoundtrackController {
         removed.removeAll(paths.toSet())
     }
 
-    fun toggle(context: Context, album: Soundtrack.Album, albumTitle: String, root: File?) {
+    fun toggle(context: Context, album: Soundtrack.Album, albumTitle: String, root: File?, collection: Int? = null) {
         run(context) { c ->
             if (root != null && root.path in removed) return@run
-            if (belongs(root) && c.mediaItemCount > 0) {
+            val mine = if (collection != null) belongsCollection(collection) else belongs(root)
+            if (mine && c.mediaItemCount > 0) {
                 if (c.isPlaying) c.pause() else c.play()
             } else {
-                val saved = root?.let { r -> SoundtrackSettings.resume(context)?.takeIf { it.root == r.path && album.tracks.any { t -> t.id == it.id } } }
-                play(context, album, albumTitle, saved?.id ?: album.tracks.firstOrNull()?.id, root = root, startMs = saved?.positionMs ?: 0L)
+                val saved = if (collection != null) null else root?.let { r -> SoundtrackSettings.resume(context)?.takeIf { it.root == r.path && album.tracks.any { t -> t.id == it.id } } }
+                play(context, album, albumTitle, saved?.id ?: album.tracks.firstOrNull()?.id, root = root, startMs = saved?.positionMs ?: 0L, collection = collection)
             }
         }
     }
@@ -247,6 +258,10 @@ object SoundtrackController {
         run(context) { sendEqualizer(it) }
     }
 
+    fun setIngame(context: Context, on: Boolean) {
+        run(context) { it.sendCustomCommand(SoundtrackService.INGAME, Bundle().apply { putBoolean(SoundtrackService.ARG_ON, on) }) }
+    }
+
     fun setSleep(context: Context, minutes: Int) {
         sleepEndsAt = if (minutes > 0) System.currentTimeMillis() + minutes * 60_000L else 0L
         sleepTrackEnd = minutes < 0
@@ -261,7 +276,7 @@ object SoundtrackController {
 
     fun stopIf(context: Context, root: File?) {
         root?.let { removed.add(it.path) }
-        if (!belongs(root)) return
+        if (root == null || currentId?.startsWith(root.path + "/") != true) return
         run(context) { c ->
             c.stop()
             c.clearMediaItems()

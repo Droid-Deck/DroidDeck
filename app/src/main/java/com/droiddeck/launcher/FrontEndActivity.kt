@@ -205,6 +205,7 @@ class FrontEndActivity : ComponentActivity() {
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
     private var soundtracksEnabled by mutableStateOf(true)
+    private var soundtracksIngame by mutableStateOf(false)
     private var soundtracks by mutableStateOf<List<Library.SteamGame>>(emptyList())
     private var soundtracksLoaded by mutableStateOf(false)
     private var gameStoresSpeedTier by mutableStateOf("fast")
@@ -875,7 +876,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
-        com.droiddeck.launcher.playback.SoundtrackController.pause(this)
+        if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
@@ -1147,6 +1148,7 @@ class FrontEndActivity : ComponentActivity() {
         launcherIcon = LauncherIcon.current(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         soundtracksEnabled = SessionPrefs.soundtracksEnabled(this)
+        soundtracksIngame = SessionPrefs.soundtracksIngame(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
         storesSort = SessionPrefs.storesSort(this)
@@ -1241,6 +1243,7 @@ class FrontEndActivity : ComponentActivity() {
                         launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
                         soundtracksEnabled = soundtracksEnabled,
+                        soundtracksIngame = soundtracksIngame,
                         soundtracks = soundtracks,
                         soundtracksLoaded = soundtracksLoaded,
                         gameStoresSpeedTier = gameStoresSpeedTier,
@@ -1510,6 +1513,11 @@ class FrontEndActivity : ComponentActivity() {
                         onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on },
                         onSoundtracksEnabled = { on -> SessionPrefs.setSoundtracksEnabled(this, on); soundtracksEnabled = on },
+                        onSoundtracksIngame = { on ->
+                            SessionPrefs.setSoundtracksIngame(this, on)
+                            soundtracksIngame = on
+                            com.droiddeck.launcher.playback.SoundtrackController.setIngame(this, on)
+                        },
                         onSoundtrackAdded = { folder -> addSoundtrack(folder) },
                         onSoundtrackRemoved = { g -> removeSoundtrack(g) },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },

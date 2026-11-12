@@ -39,6 +39,8 @@ object Library {
     const val BATTLENET_LAUNCHER = "battlenet-launcher"
     const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
+    const val SOURCE_COLLECTION = "collection"
+    const val SOURCE_FAVORITES = "favorites"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {

@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -40,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -69,39 +73,47 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.Soundtrack
+import com.droiddeck.launcher.frontend.SoundtrackCollections
 import com.droiddeck.launcher.playback.SoundtrackController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private sealed interface SoundRow {
-    class Disc(val number: Int, val label: String) : SoundRow
-    class Item(val track: Soundtrack.Track) : SoundRow
-}
-
-private fun rowsOf(album: Soundtrack.Album): List<SoundRow> = buildList {
-    for ((disc, tracks) in album.disc) {
-        if (album.multiDisc) add(SoundRow.Disc(disc, tracks.firstOrNull()?.discLabel ?: disc.toString()))
-        tracks.forEach { add(SoundRow.Item(it)) }
-    }
-}
-
 @Composable
 internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, onBack: () -> Unit) {
     val appId = remember(key) { key.removePrefix("sound:").removePrefix("app:").toIntOrNull() }
-    val game = s.soundtracks.firstOrNull { it.appId == appId }
+    val ctx = LocalContext.current
+    remember { SoundtrackCollections.load(ctx) }
+    val favoritesLabel = stringResource(R.string.soundtracks_favorites)
+    val snapshot = SoundtrackCollections.snapshot
+    val saved = remember(snapshot, favoritesLabel) { SoundtrackCollections.games(favoritesLabel) }
+    val game = s.soundtracks.firstOrNull { it.appId == appId } ?: saved.firstOrNull { it.appId == appId }
     LaunchedEffect(game == null, s.soundtracksLoaded) { if (game == null && s.soundtracksLoaded) onBack() }
     if (game == null) return
-    val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val root = game.gameFiles
-    val album by produceState<Soundtrack.Album?>(null, root, game.art) {
+    val collectionId = if (game.source == Library.SOURCE_COLLECTION || game.source == Library.SOURCE_FAVORITES) game.appId else null
+    val target = remember(root, collectionId) { PlayTarget(root, collectionId) }
+    val loadedAlbum by produceState<Soundtrack.Album?>(null, root, game.art) {
         value = root?.let { dir -> withContext(Dispatchers.IO) { Soundtrack.load(ctx, dir, game.art) } }
     }
+    val collectionAlbum = remember(snapshot, collectionId) { collectionId?.let { SoundtrackCollections.album(it) } }
+    val album = collectionAlbum ?: loadedAlbum
     LaunchedEffect(Unit) { SoundtrackController.connect(ctx) }
     val inset = LocalDetailInset.current
-    val art: Any? = game.art ?: album?.cover
+    val currentTrack = if (target.belongs) SoundtrackController.currentId else null
+    val trackArt by produceState<java.io.File?>(null, currentTrack) {
+        value = currentTrack?.let { id -> withContext(Dispatchers.IO) { Soundtrack.trackCover(ctx, java.io.File(id)) } }
+    }
+    val pinned = game.art?.path.orEmpty().contains("/steam-art/")
+    val art: Any? = if (pinned) game.art else trackArt ?: game.art ?: album?.cover
+    val refs = remember(snapshot, collectionId) { collectionId?.let { id -> SoundtrackCollections.tracksOf(id).associateBy { it.path } }.orEmpty() }
+    val coverPath = (game.art ?: album?.cover)?.path.orEmpty()
+    val refOf: (Soundtrack.Track) -> SoundtrackCollections.TrackRef = { t ->
+        refs[t.id] ?: SoundtrackCollections.TrackRef(t.id, t.title, t.artist.ifBlank { album?.artist.orEmpty() }, game.name, t.durationMs, coverPath)
+    }
+    var selectRequest by remember { mutableIntStateOf(0) }
     GameBackdrop(art, art, hueOf(game.name), fadeTop = inset.top < 8.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top)) {
             Rise(0) {
@@ -113,12 +125,14 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
             }
             val loaded = album
             if (stacked) Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Rise(1) { SoundtrackPlayer(game, loaded, art, lead, s, a) }
-                if (loaded != null) Rise(2) { TrackList(game, loaded, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.55f).dp)) }
+                Rise(1) { SoundtrackPlayer(game, loaded, art, lead, s, a, target, refOf, collectionId) { selectRequest++ } }
+                if (loaded != null) Rise(2) {
+                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.55f).dp))
+                }
             } else Row(horizontalArrangement = Arrangement.spacedBy(28.dp), modifier = Modifier.fillMaxWidth()) {
-                Rise(1, Modifier.weight(0.42f)) { SoundtrackPlayer(game, loaded, art, lead, s, a) }
+                Rise(1, Modifier.weight(0.42f)) { SoundtrackPlayer(game, loaded, art, lead, s, a, target, refOf, collectionId) { selectRequest++ } }
                 if (loaded != null) Rise(2, Modifier.weight(0.58f)) {
-                    TrackList(game, loaded, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.72f).dp))
+                    TrackPanel(loaded, game.name, target, refOf, collectionId, selectRequest, Modifier.fillMaxWidth().height((LocalConfiguration.current.screenHeightDp * 0.72f).dp))
                 }
             }
         }
@@ -126,18 +140,16 @@ internal fun SoundtrackDetail(key: String, s: FrontEndState, a: FrontEndActions,
 }
 
 @Composable
-private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, art: Any?, lead: FocusRequester, s: FrontEndState, a: FrontEndActions) {
+private fun SoundtrackPlayer(
+    game: Library.SteamGame, album: Soundtrack.Album?, art: Any?, lead: FocusRequester, s: FrontEndState, a: FrontEndActions,
+    target: PlayTarget, refOf: (Soundtrack.Track) -> SoundtrackCollections.TrackRef, collectionId: Int?, onRemoveMode: () -> Unit,
+) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val belongs = SoundtrackController.belongs(game.gameFiles)
+    val belongs = target.belongs
     val playing = belongs && SoundtrackController.playing
-    val currentTrack = if (belongs) SoundtrackController.currentId else null
-    val trackArt by produceState<java.io.File?>(null, currentTrack) {
-        value = currentTrack?.let { id -> withContext(Dispatchers.IO) { Soundtrack.trackCover(ctx, java.io.File(id)) } }
-    }
-    val pinned = game.art?.path.orEmpty().contains("/steam-art/")
-    val shownArt: Any? = if (pinned) art else trackArt ?: art
+    val shownArt: Any? = art
+    var saving by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.size(120.dp).clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.35f))) {
@@ -162,7 +174,7 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
                 }
             }
         }
-        Seek(game, album)
+        Seek(target, album)
         val shuffleLabel = stringResource(R.string.soundtracks_shuffle)
         val previousLabel = stringResource(R.string.soundtracks_previous)
         val playLabel = stringResource(if (playing) R.string.soundtracks_pause else R.string.soundtracks_play)
@@ -179,40 +191,50 @@ private fun SoundtrackPlayer(game: Library.SteamGame, album: Soundtrack.Album?, 
             TransportButton(Icons.Filled.Shuffle, shuffleLabel, "sound:shuffle", on = belongs && SoundtrackController.shuffle, enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
                 if (belongs) SoundtrackController.setShuffle(ctx, !SoundtrackController.shuffle)
-                else SoundtrackController.play(ctx, loaded, game.name, null, shuffled = true, root = game.gameFiles)
+                else SoundtrackController.play(ctx, loaded, game.name, null, shuffled = true, root = target.root, collection = target.collection)
             }
             TransportButton(Icons.Filled.SkipPrevious, previousLabel, "sound:previous", enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
-                if (belongs) SoundtrackController.previous(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = game.gameFiles)
+                if (belongs) SoundtrackController.previous(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = target.root, collection = target.collection)
             }
             TransportButton(
                 if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, playLabel, "sound:play", big = true, enabled = loaded != null,
                 modifier = Modifier.focusRequester(lead),
             ) {
-                if (loaded != null) SoundtrackController.toggle(ctx, loaded, game.name, game.gameFiles)
+                if (loaded != null) SoundtrackController.toggle(ctx, loaded, game.name, target.root, target.collection)
             }
             TransportButton(Icons.Filled.SkipNext, nextLabel, "sound:next", enabled = loaded != null) {
                 if (loaded == null) return@TransportButton
-                if (belongs) SoundtrackController.next(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = game.gameFiles)
+                if (belongs) SoundtrackController.next(ctx) else SoundtrackController.play(ctx, loaded, game.name, null, root = target.root, collection = target.collection)
             }
             TransportButton(
                 if (SoundtrackController.repeat == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat, repeatLabel, "sound:repeat",
                 on = SoundtrackController.repeat != Player.REPEAT_MODE_OFF, enabled = loaded != null,
             ) { SoundtrackController.cycleRepeat(ctx) }
         }
+        val heartTrack = if (belongs) loaded?.tracks?.firstOrNull { it.id == SoundtrackController.currentId } else null
+        val liked = heartTrack != null && SoundtrackCollections.snapshot.favorites.any { it.path == heartTrack.id }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TransportButton(
+                if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, stringResource(R.string.soundtracks_add_favorites), "sound:favorite",
+                on = liked, enabled = heartTrack != null,
+            ) { heartTrack?.let { SoundtrackCollections.toggleFavorite(ctx, refOf(it)) } }
+            TransportButton(Icons.Filled.BookmarkBorder, stringResource(R.string.soundtracks_saved), "sound:saved", enabled = heartTrack != null) { saving = true }
+        }
+        if (saving && heartTrack != null) SavedDialog(listOf(refOf(heartTrack)), null) { saving = false }
         Volume()
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            SoundtrackActions(game, s, a)
+            SoundtrackActions(game, s, a, collectionId, onRemoveMode)
         }
     }
 }
 
 @Composable
-private fun Seek(game: Library.SteamGame, album: Soundtrack.Album?) {
+private fun Seek(target: PlayTarget, album: Soundtrack.Album?) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val belongs = SoundtrackController.belongs(game.gameFiles)
+    val belongs = target.belongs
     var position by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
     val duration = if (belongs) SoundtrackController.durationMs else 0L
@@ -321,10 +343,14 @@ private fun SeeMoreButton(label: String, id: String, danger: Boolean = false, mo
 }
 
 @Composable
-private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
+private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndActions, collectionId: Int?, onRemoveMode: () -> Unit) {
     var options by remember { mutableStateOf(false) }
+    var managing by remember { mutableStateOf(false) }
+    if (collectionId != null) SeeMoreButton(stringResource(R.string.soundtracks_manage), "sound:manage") { managing = true }
+    if (managing && collectionId != null) ManageDialog(collectionId, s.soundtracks, onRemoveMode) { managing = false }
     SeeMoreButton(stringResource(R.string.soundtracks_options), "sound:options") { options = true }
     if (options) SoundtrackOptionsDialog { options = false }
+    if (collectionId != null) return
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
         SeeMoreButton(stringResource(R.string.games_files), "sound:files") { a.onBrowseFiles(dir) }
     }
@@ -348,68 +374,4 @@ private fun SoundtrackActions(game: Library.SteamGame, s: FrontEndState, a: Fron
         onConfirm = { a.onSoundtrackRemoved(game) },
         onDismiss = { asking = false },
     )
-}
-
-@Composable
-private fun TrackList(game: Library.SteamGame, album: Soundtrack.Album, modifier: Modifier) {
-    val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val rows = remember(album) { rowsOf(album) }
-    val state = rememberLazyListState()
-    val belongs = SoundtrackController.belongs(game.gameFiles)
-    val current = if (belongs) SoundtrackController.currentId else null
-    LaunchedEffect(album, current) {
-        val at = rows.indexOfFirst { it is SoundRow.Item && it.track.id == current }
-        if (at >= 0) state.animateScrollToItem(at)
-    }
-    if (rows.isEmpty()) {
-        Text(stringResource(R.string.soundtracks_no_tracks), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = modifier.padding(top = 12.dp))
-        return
-    }
-    LazyColumn(
-        state = state, modifier = modifier.clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.28f)).testTag("soundtrack-tracks"),
-    ) {
-        items(rows, key = { if (it is SoundRow.Item) it.track.id else "disc-${(it as SoundRow.Disc).number}" }) { row ->
-            when (row) {
-                is SoundRow.Disc -> Text(
-                    stringResource(R.string.soundtracks_disc, row.label), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
-                    modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-                is SoundRow.Item -> TrackRow(row.track, row.track.id == current) {
-                    if (row.track.id == current) SoundtrackController.toggle(ctx, album, game.name, game.gameFiles)
-                    else SoundtrackController.play(ctx, album, game.name, row.track.id, root = game.gameFiles)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackRow(track: Soundtrack.Track, current: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(8.dp)
-    val tint = if (current) pal.signal else colors.onBackground
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 1.dp).clip(shape)
-            .background(if (current) pal.signal.copy(alpha = 0.14f) else if (hot) Color.White.copy(alpha = 0.08f) else Color.Transparent)
-            .glideBorder(hot, shape, pal.signal, Color.Transparent)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 9.dp),
-    ) {
-        Box(Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
-            if (current && SoundtrackController.playing) Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-            else Text("${track.number}.", fontSize = 13.sp, color = if (current) pal.signal else colors.onSurfaceVariant, maxLines = 1)
-        }
-        Text(
-            track.title, fontSize = 14.sp, color = tint, fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
-        if (track.durationMs > 0) Text(Soundtrack.formatLength(track.durationMs), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
-    }
 }
