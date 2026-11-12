@@ -23,7 +23,7 @@ fn log(message: &str) {
 
 #[cfg(windows)]
 fn run() -> Result<i32, Box<dyn std::error::Error>> {
-    use droiddeck_rockstar_launcher::{pipe::Listener, Frame, Length};
+    use droiddeck_rockstar_launcher::{pipe::Listener, wait_for_game, Frame, Length};
     use std::io::Read;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -99,6 +99,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         .spawn()?;
     let pid = child.id();
     log("game process started");
+    let (result, handshake) = std::sync::mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let serve = || -> std::io::Result<()> {
             let mut pipe = listener.accept()?;
@@ -126,11 +127,13 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
             log("launcher handshake complete");
             Ok(())
         };
-        if let Err(error) = serve() {
+        let outcome = serve();
+        if let Err(error) = &outcome {
             log(&format!("launcher handshake failed: {error}"));
         }
+        let _ = result.send(outcome);
     });
-    Ok(child.wait()?.code().unwrap_or(1))
+    Ok(wait_for_game(&mut child, handshake)?.code().unwrap_or(1))
 }
 
 fn main() {

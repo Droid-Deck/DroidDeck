@@ -12,6 +12,43 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun resumeHashingStopsWhenCancelled() {
+        val file = java.io.File.createTempFile("rockstar-hash", ".bin")
+        try {
+            val bytes = ByteArray(1024 * 1024)
+            file.writeBytes(bytes)
+            val hash = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            val chunk = RockstarChunk("1", "1", hash, 0, bytes.size.toLong())
+            var checks = 0
+            assertFalse(RockstarManifest.verified(file, chunk) { ++checks >= 3 })
+            assertEquals(3, checks)
+            assertTrue(RockstarManifest.verified(file, chunk))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test fun unsupportedGamesKeepTheirFilesWithoutRegisteringALauncher() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(app, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
+        val folder = java.io.File(com.droiddeck.launcher.stores.StoreInstallRoot.storeDir(com.droiddeck.launcher.stores.StoreInstallRoot.installRoot(app), com.droiddeck.launcher.stores.Store.ROCKSTAR), "RDR2").apply { mkdirs() }
+        try {
+            val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "rdr2", "RDR2", "RDR2.exe")
+            java.io.File(folder, game.exe).writeText("installed game")
+            val script = java.io.File(folder, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)
+            script.writeText("old launcher")
+            val finished = com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(folder, game)
+            finished.write(folder)
+            assertFalse(RockstarLaunch.supports(game.id))
+            assertNull(finished.launcher)
+            assertFalse(script.exists())
+            assertTrue(java.io.File(folder, game.exe).isFile)
+            assertNull(com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path))
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
     @Test fun existingGta3LaunchScriptsReceiveThePrecisionDefault() {
         val folder = java.nio.file.Files.createTempDirectory("rockstar-launch").toFile()
         try {

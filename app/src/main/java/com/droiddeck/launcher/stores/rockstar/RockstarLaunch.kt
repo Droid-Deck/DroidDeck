@@ -11,6 +11,8 @@ import java.util.Base64
 object RockstarLaunch {
     internal val pipes = mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe")
 
+    fun supports(id: String?) = id != null && id in pipes
+
     fun prepare(app: Context, id: String): JSONObject {
         val pipe = pipes[id] ?: return failure("unsupported-title")
         val title = RockstarTitles.byId(id) ?: return failure("unknown-title")

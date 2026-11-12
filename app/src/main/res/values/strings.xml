@@ -3991,4 +3991,5 @@
 
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
+    <string name="stores_rockstar_launch_unavailable">Launch unavailable</string>
 </resources>

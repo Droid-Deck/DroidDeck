@@ -6,6 +6,35 @@ pub mod pipe;
 pub const MAX_FRAME_BYTES: usize = 64 * 1024;
 const OVERHEAD: usize = 4 + 4 + 1;
 
+pub fn wait_for_game(
+    child: &mut std::process::Child,
+    handshake: std::sync::mpsc::Receiver<io::Result<()>>,
+) -> io::Result<std::process::ExitStatus> {
+    use std::sync::mpsc::RecvTimeoutError;
+    loop {
+        match handshake.recv_timeout(std::time::Duration::from_millis(10)) {
+            Ok(Ok(())) => return child.wait(),
+            result @ (Ok(Err(_)) | Err(RecvTimeoutError::Disconnected)) => {
+                let error = match result {
+                    Ok(Err(error)) => error,
+                    _ => io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "Rockstar handshake worker stopped",
+                    ),
+                };
+                let _ = child.kill();
+                child.wait()?;
+                return Err(error);
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if let Some(status) = child.try_wait()? {
+                    return Ok(status);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum Length {
     Total,
@@ -83,6 +112,61 @@ impl Frame {
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    #[ignore]
+    fn sleeping_game() {
+        std::thread::sleep(std::time::Duration::from_secs(30));
+    }
+
+    fn sleeping_child() -> std::process::Child {
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::sleeping_game", "--ignored"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap()
+    }
+
+    #[test]
+    fn failed_handshake_terminates_and_reaps_the_game() {
+        let mut child = sleeping_child();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(Err(io::Error::new(io::ErrorKind::TimedOut, "test timeout")))
+            .unwrap();
+        let start = std::time::Instant::now();
+        assert_eq!(
+            wait_for_game(&mut child, receiver).unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+        assert!(start.elapsed() < std::time::Duration::from_secs(3));
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn stopped_handshake_worker_terminates_and_reaps_the_game() {
+        let mut child = sleeping_child();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        drop(sender);
+        assert_eq!(
+            wait_for_game(&mut child, receiver).unwrap_err().kind(),
+            io::ErrorKind::BrokenPipe
+        );
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn an_exited_game_does_not_wait_for_its_handshake() {
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "no_test_with_this_name"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        assert!(wait_for_game(&mut child, receiver).unwrap().success());
+    }
 
     struct Fragmented<T>(T);
 

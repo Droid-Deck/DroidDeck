@@ -20,6 +20,10 @@ object StoreLaunch {
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA || sidecar.store == Store.UBISOFT || sidecar.store == Store.ROCKSTAR
         val file = File(folder, LAUNCHER)
+        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) {
+            file.delete()
+            return sidecar.copy(launcher = null)
+        }
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
         file.writeText(launcherText(sidecar))
         return sidecar.copy(launcher = LAUNCHER)
@@ -99,6 +103,7 @@ object StoreLaunch {
 
     fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         if (sidecar.store !in listOf(Store.UBISOFT, Store.ROCKSTAR) || !sidecar.isInstalled) return sidecar
+        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) return sidecar
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
         if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
         val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe

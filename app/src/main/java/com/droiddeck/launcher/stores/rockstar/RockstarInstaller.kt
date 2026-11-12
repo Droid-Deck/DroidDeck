@@ -44,7 +44,8 @@ internal object RockstarManifest {
         return target
     }
 
-    fun verified(target: File, chunk: RockstarChunk): Boolean {
+    fun verified(target: File, chunk: RockstarChunk, cancelled: () -> Boolean = { false }): Boolean {
+        if (cancelled()) return false
         if (!target.isFile || chunk.offset < 0 || chunk.size < 0 || chunk.offset > target.length() || chunk.size > target.length() - chunk.offset) return false
         return RandomAccessFile(target, "r").use { input ->
             input.seek(chunk.offset)
@@ -52,6 +53,7 @@ internal object RockstarManifest {
             val buffer = ByteArray(256 * 1024)
             var remaining = chunk.size
             while (remaining > 0) {
+                if (cancelled()) return false
                 val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
                 if (count <= 0) return false
                 digest.update(buffer, 0, count)
@@ -129,11 +131,14 @@ internal class RockstarInstaller(
         val pending = ArrayList<Pair<RockstarFile, RockstarChunk>>()
         var have = 0L
         for (f in build.files) {
+            if (cancelled.get()) return null
             val target = RockstarManifest.inside(folder, f.path)
             target.parentFile?.mkdirs()
             for (c in f.chunks) {
-                if (RockstarManifest.key(f, c) in done && RockstarManifest.verified(target, c)) have += c.size else pending += f to c
+                if (cancelled.get()) return null
+                if (RockstarManifest.key(f, c) in done && RockstarManifest.verified(target, c, cancelled::get)) have += c.size else pending += f to c
             }
+            if (cancelled.get()) return null
             RandomAccessFile(target, "rw").use { if (it.length() != f.size) it.setLength(f.size) }
         }
         val fileOf = pending.associate { (f, c) -> "${c.fileEntryId}:${c.chunkId}" to f }
