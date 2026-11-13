@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / 'app/src/main/cpp/waylandcomp/src/compositor.c'
+PEN_STREAM = REPO / 'app/src/main/java/com/droiddeck/launcher/input/PenStream.kt'
 
 
 def function(source, signature):
@@ -55,6 +57,12 @@ class PenEmulationTest(unittest.TestCase):
     def check_case(self, case, binary=None):
         result = subprocess.run([str(binary or self.binary), case], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_flags_match_the_kotlin_pen_stream(self):
+        native = dict(re.findall(r'^#define (PEN_[A-Z]+) \(1 << (\d+)\)$', SOURCE.read_text(), re.MULTILINE))
+        kotlin = dict(re.findall(r'^\s*const val (PEN_[A-Z]+) = 1 shl (\d+)$', PEN_STREAM.read_text(), re.MULTILINE))
+        self.assertEqual({'PEN_IN', 'PEN_TIP', 'PEN_RIGHT', 'PEN_MIDDLE'}, set(native))
+        self.assertEqual(native, kotlin)
 
     def test_hover_moves_the_pointer_in_scene_coordinates(self):
         self.check_case('hover')

@@ -514,6 +514,32 @@ object SessionPrefs {
         prefs(context).edit().putString("touch", mode).apply()
     }
 
+    const val PEN_MOUSE = "mouse"
+    const val PEN_TOUCH = "touch"
+    const val PEN_BUTTON_RIGHT = "right"
+    const val PEN_BUTTON_MIDDLE = "middle"
+    const val PEN_BUTTON_OFF = "off"
+
+    data class Pen(val mode: String = PEN_MOUSE, val button: String = PEN_BUTTON_RIGHT)
+
+    private val PEN_SETTINGS = mapOf(
+        "pen" to setOf(PEN_MOUSE, PEN_TOUCH),
+        "penButton" to setOf(PEN_BUTTON_RIGHT, PEN_BUTTON_MIDDLE, PEN_BUTTON_OFF),
+    )
+
+    private fun penSetting(context: Context, key: String, default: String): String =
+        prefs(context).getString(key, default)?.takeIf { it in PEN_SETTINGS.getValue(key) } ?: default
+
+    fun setPenSetting(context: Context, key: String, value: String) {
+        require(value in PEN_SETTINGS.getValue(key))
+        prefs(context).edit().putString(key, value).apply()
+    }
+
+    fun penMode(context: Context): String = penSetting(context, "pen", PEN_MOUSE)
+    fun penButton(context: Context): String = penSetting(context, "penButton", PEN_BUTTON_RIGHT)
+
+    fun pen(context: Context): Pen = Pen(penMode(context), penButton(context))
+
     const val SHAPE_AUTO = "auto"
     const val SHAPE_WIDE = "16:9"
     const val SHAPE_EXACT = "exact"
