@@ -162,7 +162,7 @@ impl Session {
 
     pub fn login(&self) -> Vec<Message> {
         vec![
-            Message::control(0x30001, Payload::default().u32(3).u64(self.account).u32(0)),
+            Message::control(0x30001, Payload::default().u32(0).u32(3).u64(self.account)),
             Message::control(
                 0x30002,
                 Payload::default()
@@ -261,7 +261,7 @@ mod tests {
         let login = session.login();
         assert_eq!(
             login[0].payload,
-            [3, 0, 0, 0, 136, 119, 102, 85, 68, 51, 34, 17, 0, 0, 0, 0]
+            [0, 0, 0, 0, 3, 0, 0, 0, 136, 119, 102, 85, 68, 51, 34, 17]
         );
         assert_eq!(
             login[1].payload,
