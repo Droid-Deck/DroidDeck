@@ -3100,6 +3100,16 @@
     <string name="storage_data_other">Zachowane</string>
     <string name="storage_data_other_title">Gry poza Steam i współdzielony prefiks Steam</string>
     <string name="storage_data_other_detail">Prefiksy gier dodanych przez sklepy lub ręcznie</string>
+    <string name="storage_shared_prefix">Współdzielony prefiks Steam</string>
+    <string name="storage_shared_prefix_detail">Steam uruchamia tu własne narzędzia pomocnicze Windows</string>
+    <string name="storage_reset_shared_confirm">Usuwa go (%1$s). Steam utworzy nowy, gdy znów będzie potrzebny.</string>
+    <string name="storage_launcher_prefix">Aplikacja sklepu i gry, które z nią działają</string>
+    <string name="storage_launcher_used_by">Używany przez: %1$s</string>
+    <string name="storage_shortcut_app">Gra spoza Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Nie pasuje do żadnej gry, więc zostaje zachowany</string>
+    <string name="storage_remove_selected">Usuń wybrane · %1$s</string>
+    <string name="storage_uninstall_selected">Odinstaluj wybrane · %1$s</string>
+    <string name="storage_bulk_confirm">Usuwa te prefiksy i pamięci podręczne (%1$s). Zapisy i ustawienia w nich zostaną utracone; zapisy w Steam Cloud pozostają na Twoim koncie.</string>
     <string name="storage_components_packages">Pobrane pakiety</string>
     <string name="storage_components_originals">Zachowane oryginały</string>
     <string name="storage_components_none">Nie pobrano żadnych pakietów komponentów.</string>

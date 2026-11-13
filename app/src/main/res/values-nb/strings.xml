@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Beholdes</string>
     <string name="storage_data_other_title">Ikke-Steam-spill og delt Steam-prefiks</string>
     <string name="storage_data_other_detail">Prefikser for spill lagt til via butikker eller manuelt</string>
+    <string name="storage_shared_prefix">Steams delte prefiks</string>
+    <string name="storage_shared_prefix_detail">Steam kjører sine egne Windows-hjelpere her</string>
+    <string name="storage_reset_shared_confirm">Sletter det (%1$s). Steam oppretter et nytt neste gang det trengs.</string>
+    <string name="storage_launcher_prefix">En butikkapp og spillene som kjører med den</string>
+    <string name="storage_launcher_used_by">Brukes av %1$s</string>
+    <string name="storage_shortcut_app">Ikke-Steam-spill %1$s</string>
+    <string name="storage_unknown_prefix_detail">Ikke knyttet til et spill, så det beholdes</string>
+    <string name="storage_remove_selected">Fjern valgte · %1$s</string>
+    <string name="storage_uninstall_selected">Avinstaller valgte · %1$s</string>
+    <string name="storage_bulk_confirm">Sletter disse prefiksene og cachene (%1$s). Lagringer og innstillinger i dem går tapt; Steam Cloud-lagringer blir værende på kontoen din.</string>
     <string name="storage_components_packages">Nedlastede pakker</string>
     <string name="storage_components_originals">Beholdte originaler</string>
     <string name="storage_components_none">Ingen komponentpakker lastet ned.</string>

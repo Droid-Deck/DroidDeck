@@ -3064,6 +3064,16 @@
     <string name="storage_data_other">Păstrate</string>
     <string name="storage_data_other_title">Jocuri non-Steam și prefixul Steam partajat</string>
     <string name="storage_data_other_detail">Prefixele jocurilor din magazine sau adăugate manual</string>
+    <string name="storage_shared_prefix">Prefixul Steam partajat</string>
+    <string name="storage_shared_prefix_detail">Steam rulează aici propriile utilitare Windows</string>
+    <string name="storage_reset_shared_confirm">Îl șterge (%1$s). Steam creează unul nou data viitoare când are nevoie.</string>
+    <string name="storage_launcher_prefix">O aplicație de magazin și jocurile care rulează cu ea</string>
+    <string name="storage_launcher_used_by">Folosit de %1$s</string>
+    <string name="storage_shortcut_app">Joc non-Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Nu corespunde niciunui joc, deci este păstrat</string>
+    <string name="storage_remove_selected">Elimină selecția · %1$s</string>
+    <string name="storage_uninstall_selected">Dezinstalează selecția · %1$s</string>
+    <string name="storage_bulk_confirm">Șterge aceste prefixuri și cache-uri (%1$s). Salvările și setările din ele se pierd; salvările din Steam Cloud rămân în contul tău.</string>
     <string name="storage_components_packages">Pachete descărcate</string>
     <string name="storage_components_originals">Originale păstrate</string>
     <string name="storage_components_none">Niciun pachet de componente descărcat.</string>

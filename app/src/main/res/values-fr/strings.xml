@@ -3064,6 +3064,16 @@
     <string name="storage_data_other">Conservés</string>
     <string name="storage_data_other_title">Jeux hors Steam et préfixe partagé de Steam</string>
     <string name="storage_data_other_detail">Préfixes de jeux ajoutés depuis les boutiques ou à la main</string>
+    <string name="storage_shared_prefix">Préfixe partagé de Steam</string>
+    <string name="storage_shared_prefix_detail">Steam y exécute ses propres utilitaires Windows</string>
+    <string name="storage_reset_shared_confirm">Le supprime (%1$s). Steam en crée un nouveau la prochaine fois qu\'il en a besoin.</string>
+    <string name="storage_launcher_prefix">Une app de boutique et les jeux qui tournent avec elle</string>
+    <string name="storage_launcher_used_by">Utilisé par %1$s</string>
+    <string name="storage_shortcut_app">Jeu hors Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Associé à aucun jeu, il est donc conservé</string>
+    <string name="storage_remove_selected">Supprimer la sélection · %1$s</string>
+    <string name="storage_uninstall_selected">Désinstaller la sélection · %1$s</string>
+    <string name="storage_bulk_confirm">Supprime ces préfixes et caches (%1$s). Les sauvegardes et paramètres qu\'ils contiennent sont perdus ; les sauvegardes Steam Cloud restent dans votre compte.</string>
     <string name="storage_components_packages">Paquets téléchargés</string>
     <string name="storage_components_originals">Originaux conservés</string>
     <string name="storage_components_none">Aucun paquet de composant téléchargé.</string>

@@ -3064,6 +3064,16 @@
     <string name="storage_data_other">Conservati</string>
     <string name="storage_data_other_title">Giochi non Steam e prefisso condiviso di Steam</string>
     <string name="storage_data_other_detail">Prefissi di giochi aggiunti dagli store o a mano</string>
+    <string name="storage_shared_prefix">Prefisso condiviso di Steam</string>
+    <string name="storage_shared_prefix_detail">Steam esegue qui i propri strumenti Windows</string>
+    <string name="storage_reset_shared_confirm">Lo elimina (%1$s). Steam ne crea uno nuovo la prossima volta che serve.</string>
+    <string name="storage_launcher_prefix">Un\'app di uno store e i giochi che girano con essa</string>
+    <string name="storage_launcher_used_by">Usato da %1$s</string>
+    <string name="storage_shortcut_app">Gioco non Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Non associato a nessun gioco, quindi viene conservato</string>
+    <string name="storage_remove_selected">Rimuovi selezionati · %1$s</string>
+    <string name="storage_uninstall_selected">Disinstalla selezionati · %1$s</string>
+    <string name="storage_bulk_confirm">Elimina questi prefissi e cache (%1$s). Salvataggi e impostazioni al loro interno vanno persi; i salvataggi di Steam Cloud restano nel tuo account.</string>
     <string name="storage_components_packages">Pacchetti scaricati</string>
     <string name="storage_components_originals">Originali conservati</string>
     <string name="storage_components_none">Nessun pacchetto di componenti scaricato.</string>

@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Запазени</string>
     <string name="storage_data_other_title">Игри извън Steam и споделен Steam префикс</string>
     <string name="storage_data_other_detail">Префикси на игри, добавени през магазини или ръчно</string>
+    <string name="storage_shared_prefix">Споделен Steam префикс</string>
+    <string name="storage_shared_prefix_detail">Steam изпълнява тук свои помощни програми за Windows</string>
+    <string name="storage_reset_shared_confirm">Изтрива го (%1$s). Steam създава нов следващия път, когато му потрябва.</string>
+    <string name="storage_launcher_prefix">Приложение магазин и игрите, които работят с него</string>
+    <string name="storage_launcher_used_by">Използва се от %1$s</string>
+    <string name="storage_shortcut_app">Игра извън Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Не е свързан с игра, затова се запазва</string>
+    <string name="storage_remove_selected">Премахни избраните · %1$s</string>
+    <string name="storage_uninstall_selected">Деинсталирай избраните · %1$s</string>
+    <string name="storage_bulk_confirm">Изтрива тези префикси и кешове (%1$s). Записите и настройките в тях се губят; записите в Steam Cloud остават в акаунта ви.</string>
     <string name="storage_components_packages">Изтеглени пакети</string>
     <string name="storage_components_originals">Запазени оригинали</string>
     <string name="storage_components_none">Няма изтеглени пакети с компоненти.</string>

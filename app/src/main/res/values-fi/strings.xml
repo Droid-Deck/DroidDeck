@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Säilytetään</string>
     <string name="storage_data_other_title">Muut kuin Steam-pelit ja jaettu Steam-etuliite</string>
     <string name="storage_data_other_detail">Kauppojen kautta tai käsin lisättyjen pelien etuliitteet</string>
+    <string name="storage_shared_prefix">Steamin jaettu etuliite</string>
+    <string name="storage_shared_prefix_detail">Steam suorittaa täällä omia Windows-apuohjelmiaan</string>
+    <string name="storage_reset_shared_confirm">Poistaa sen (%1$s). Steam luo uuden, kun tarvitsee sitä seuraavan kerran.</string>
+    <string name="storage_launcher_prefix">Kauppasovellus ja pelit, jotka toimivat sen kanssa</string>
+    <string name="storage_launcher_used_by">Käyttää: %1$s</string>
+    <string name="storage_shortcut_app">Muu kuin Steam-peli %1$s</string>
+    <string name="storage_unknown_prefix_detail">Ei vastaa mitään peliä, joten se säilytetään</string>
+    <string name="storage_remove_selected">Poista valitut · %1$s</string>
+    <string name="storage_uninstall_selected">Poista valittujen asennus · %1$s</string>
+    <string name="storage_bulk_confirm">Poistaa nämä prefixit ja välimuistit (%1$s). Niiden sisällä olevat tallennukset ja asetukset menetetään; Steam Cloud -tallennukset säilyvät tililläsi.</string>
     <string name="storage_components_packages">Ladatut paketit</string>
     <string name="storage_components_originals">Säilytetyt alkuperäiset</string>
     <string name="storage_components_none">Komponenttipaketteja ei ole ladattu.</string>

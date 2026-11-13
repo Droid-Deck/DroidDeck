@@ -2999,6 +2999,16 @@
     <string name="storage_data_other">保持</string>
     <string name="storage_data_other_title">Steam 以外のゲームと Steam の共有プレフィックス</string>
     <string name="storage_data_other_detail">ストアから、または手動で追加したゲームのプレフィックス</string>
+    <string name="storage_shared_prefix">Steam の共有プレフィックス</string>
+    <string name="storage_shared_prefix_detail">Steam が独自の Windows ヘルパーをここで実行します</string>
+    <string name="storage_reset_shared_confirm">削除します（%1$s）。次に必要になったとき Steam が新しく作成します。</string>
+    <string name="storage_launcher_prefix">ストアアプリとそれで動くゲーム</string>
+    <string name="storage_launcher_used_by">%1$s が使用</string>
+    <string name="storage_shortcut_app">Steam 以外のゲーム %1$s</string>
+    <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
+    <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
+    <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
+    <string name="storage_bulk_confirm">これらのプレフィックスとキャッシュ（%1$s）を削除します。その中のセーブデータと設定は失われます。Steam Cloudのセーブデータはアカウントに残ります。</string>
     <string name="storage_components_packages">ダウンロード済みのパッケージ</string>
     <string name="storage_components_originals">保存済みの元ファイル</string>
     <string name="storage_components_none">ダウンロード済みのコンポーネントパッケージはありません。</string>

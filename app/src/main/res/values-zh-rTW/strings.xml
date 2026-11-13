@@ -2999,6 +2999,16 @@
     <string name="storage_data_other">保留</string>
     <string name="storage_data_other_title">非 Steam 遊戲與 Steam 的共用前綴</string>
     <string name="storage_data_other_detail">從商店或手動新增的遊戲的前綴</string>
+    <string name="storage_shared_prefix">Steam 的共用前綴</string>
+    <string name="storage_shared_prefix_detail">Steam 在此執行其自帶的 Windows 輔助程式</string>
+    <string name="storage_reset_shared_confirm">刪除該前綴（%1$s）。Steam 下次需要時會新建一個。</string>
+    <string name="storage_launcher_prefix">商店應用程式及透過它執行的遊戲</string>
+    <string name="storage_launcher_used_by">由 %1$s 使用</string>
+    <string name="storage_shortcut_app">非 Steam 遊戲 %1$s</string>
+    <string name="storage_unknown_prefix_detail">未配對到任何遊戲，因此保留</string>
+    <string name="storage_remove_selected">移除所選 · %1$s</string>
+    <string name="storage_uninstall_selected">解除安裝所選 · %1$s</string>
+    <string name="storage_bulk_confirm">刪除這些前綴和快取（%1$s）。其中的存檔和設定都會遺失；Steam Cloud 存檔仍保留在你的帳戶中。</string>
     <string name="storage_components_packages">已下載的套件</string>
     <string name="storage_components_originals">已儲存的原始檔案</string>
     <string name="storage_components_none">沒有已下載的元件套件。</string>

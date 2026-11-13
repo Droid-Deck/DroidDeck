@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">रखा गया</string>
     <string name="storage_data_other_title">गैर-Steam गेम और साझा Steam प्रीफ़िक्स</string>
     <string name="storage_data_other_detail">स्टोर से या हाथ से जोड़े गेम के प्रीफ़िक्स</string>
+    <string name="storage_shared_prefix">Steam का साझा प्रीफ़िक्स</string>
+    <string name="storage_shared_prefix_detail">Steam यहाँ अपने Windows हेल्पर चलाता है</string>
+    <string name="storage_reset_shared_confirm">इसे डिलीट करता है (%1$s)। अगली बार ज़रूरत पड़ने पर Steam नया बना लेता है।</string>
+    <string name="storage_launcher_prefix">एक स्टोर ऐप और उसके साथ चलने वाले गेम</string>
+    <string name="storage_launcher_used_by">%1$s द्वारा इस्तेमाल</string>
+    <string name="storage_shortcut_app">गैर-Steam गेम %1$s</string>
+    <string name="storage_unknown_prefix_detail">किसी गेम से मेल नहीं खाता, इसलिए रखा जाता है</string>
+    <string name="storage_remove_selected">चुने गए हटाएँ · %1$s</string>
+    <string name="storage_uninstall_selected">चुने गए अनइंस्टॉल करें · %1$s</string>
+    <string name="storage_bulk_confirm">ये प्रीफ़िक्स और कैश डिलीट करता है (%1$s)। इनके अंदर के सेव और सेटिंग खो जाते हैं; Steam Cloud सेव आपके अकाउंट में रहते हैं।</string>
     <string name="storage_components_packages">डाउनलोड किए पैकेज</string>
     <string name="storage_components_originals">रखे गए मूल</string>
     <string name="storage_components_none">कोई कॉम्पोनेंट पैकेज डाउनलोड नहीं है।</string>

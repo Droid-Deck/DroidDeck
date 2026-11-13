@@ -155,6 +155,32 @@ object SteamStorage {
 
     fun leftoverId(name: String): Int? = name.toLongOrNull()?.takeIf { it in 1 until (1L shl 31) }?.toInt()
 
+    fun shortcutId(name: String): Long? = name.toLongOrNull()
+        ?.takeIf { it in Int.MIN_VALUE until 0 || it in (1L shl 31) until (1L shl 32) }?.and(0xFFFFFFFFL)
+
+    private val COMPAT_PATH = Regex("""STEAM_COMPAT_DATA_PATH=\S*/compatdata/(-?\d+)/?(\s|$)""")
+
+    fun sharedPrefixId(launchOptions: String): Long? = COMPAT_PATH.find(launchOptions)?.groupValues?.get(1)?.let(::shortcutId)
+
+    private val GAME_FOLDER = Regex("""Z:\\\\(?:[^"\\]+\\\\)*?(?:steamapps\\\\common|Games\\\\Stores\\\\[^"\\]+)\\\\([^"\\]+)""")
+
+    fun gameFolderHint(prefix: File): String? = runCatching {
+        listOf("pfx/system.reg", "pfx/user.reg").map { File(prefix, it) }.filter { it.isFile && it.length() < 64L * 1024 * 1024 }
+            .flatMap { f -> f.useLines { lines -> lines.flatMap { GAME_FOLDER.findAll(it).map { m -> m.groupValues[1] } }.toList() } }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+    }.getOrNull()
+
+    fun shortcutNames(root: File): Map<Long, String>? = runCatching {
+        File(root, "userdata").listFiles().orEmpty().mapNotNull { File(it, "config/shortcuts.vdf").takeIf(File::isFile) }.flatMap { file ->
+            val vdf = com.droiddeck.launcher.frontend.SteamAppInfo.readMap(java.nio.ByteBuffer.wrap(file.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN), null)
+            (vdf["shortcuts"] as? Map<*, *>)?.values?.filterIsInstance<Map<*, *>>()?.mapNotNull { s ->
+                fun value(key: String) = s.entries.firstOrNull { (it.key as? String).equals(key, ignoreCase = true) }?.value as? String
+                val id = value("appid")?.toLongOrNull()?.and(0xFFFFFFFFL) ?: return@mapNotNull null
+                id to (value("AppName") ?: value("appname") ?: "")
+            }.orEmpty()
+        }.toMap()
+    }.getOrNull()
+
     fun isStubPrefix(prefix: File): Boolean = prefix.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }
         .none { it.isFile && it.name != "steam_autocloud.vdf" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
 }

@@ -1263,6 +1263,11 @@ object SessionPrefs {
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
 
+    fun addedGameFolders(context: Context): Map<Long, String> = prefs(context).all.mapNotNull { (key, value) ->
+        val id = (value as? Long)?.takeIf { key.startsWith("addedAppId:") && it != 0L } ?: return@mapNotNull null
+        (id and 0xFFFFFFFFL) to key.removePrefix("addedAppId:")
+    }.toMap()
+
     fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
         val p = prefs(context)
         val previous = p.getString("storeFolder:$key", null)

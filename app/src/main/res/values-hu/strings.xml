@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Megtartva</string>
     <string name="storage_data_other_title">Nem Steam-es játékok és a megosztott Steam prefix</string>
     <string name="storage_data_other_detail">Áruházból vagy kézzel hozzáadott játékok prefixei</string>
+    <string name="storage_shared_prefix">A Steam megosztott prefixe</string>
+    <string name="storage_shared_prefix_detail">A Steam itt futtatja saját Windows-segédprogramjait</string>
+    <string name="storage_reset_shared_confirm">Törli (%1$s). A Steam újat hoz létre, amikor legközelebb szüksége lesz rá.</string>
+    <string name="storage_launcher_prefix">Egy áruházalkalmazás és a vele futó játékok</string>
+    <string name="storage_launcher_used_by">Használja: %1$s</string>
+    <string name="storage_shortcut_app">Nem Steam-es játék: %1$s</string>
+    <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
+    <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
+    <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
+    <string name="storage_bulk_confirm">Törli ezeket a prefixeket és gyorsítótárakat (%1$s). A bennük lévő mentések és beállítások elvesznek; a Steam Cloud-mentések a fiókjában maradnak.</string>
     <string name="storage_components_packages">Letöltött csomagok</string>
     <string name="storage_components_originals">Megtartott eredetiek</string>
     <string name="storage_components_none">Nincs letöltött összetevő-csomag.</string>

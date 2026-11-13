@@ -3100,6 +3100,16 @@
     <string name="storage_data_other">Збережено</string>
     <string name="storage_data_other_title">Не-Steam ігри та спільний префікс Steam</string>
     <string name="storage_data_other_detail">Префікси ігор із магазинів або доданих вручну</string>
+    <string name="storage_shared_prefix">Спільний префікс Steam</string>
+    <string name="storage_shared_prefix_detail">Steam запускає тут власні допоміжні програми Windows</string>
+    <string name="storage_reset_shared_confirm">Видаляє його (%1$s). Steam створить новий, коли він знову знадобиться.</string>
+    <string name="storage_launcher_prefix">Застосунок магазину та ігри, які з ним працюють</string>
+    <string name="storage_launcher_used_by">Використовується: %1$s</string>
+    <string name="storage_shortcut_app">Не-Steam гра %1$s</string>
+    <string name="storage_unknown_prefix_detail">Не зіставлено з грою, тому зберігається</string>
+    <string name="storage_remove_selected">Видалити вибрані · %1$s</string>
+    <string name="storage_uninstall_selected">Видалити вибрані · %1$s</string>
+    <string name="storage_bulk_confirm">Видаляє ці префікси та кеші (%1$s). Збереження й налаштування в них буде втрачено; збереження Steam Cloud залишаються у вашому обліковому записі.</string>
     <string name="storage_components_packages">Завантажені пакети</string>
     <string name="storage_components_originals">Збережені оригінали</string>
     <string name="storage_components_none">Жодного завантаженого пакета компонентів.</string>

@@ -2999,6 +2999,16 @@
     <string name="storage_data_other">Disimpan</string>
     <string name="storage_data_other_title">Permainan bukan Steam dan awalan Steam dikongsi</string>
     <string name="storage_data_other_detail">Awalan permainan daripada kedai atau yang ditambah sendiri</string>
+    <string name="storage_shared_prefix">Awalan Steam dikongsi</string>
+    <string name="storage_shared_prefix_detail">Steam menjalankan pembantu Windowsnya sendiri di sini</string>
+    <string name="storage_reset_shared_confirm">Memadamnya (%1$s). Steam mencipta yang baharu apabila memerlukannya lagi.</string>
+    <string name="storage_launcher_prefix">Aplikasi kedai dan permainan yang berjalan dengannya</string>
+    <string name="storage_launcher_used_by">Digunakan oleh %1$s</string>
+    <string name="storage_shortcut_app">Permainan bukan Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Tidak sepadan dengan mana-mana permainan, jadi ia disimpan</string>
+    <string name="storage_remove_selected">Alih keluar yang dipilih · %1$s</string>
+    <string name="storage_uninstall_selected">Nyahpasang yang dipilih · %1$s</string>
+    <string name="storage_bulk_confirm">Memadam prefix dan cache ini (%1$s). Simpanan dan tetapan di dalamnya akan hilang; simpanan Steam Cloud kekal dalam akaun anda.</string>
     <string name="storage_components_packages">Pakej yang dimuat turun</string>
     <string name="storage_components_originals">Fail asal yang disimpan</string>
     <string name="storage_components_none">Tiada pakej komponen dimuat turun.</string>

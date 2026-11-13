@@ -3064,6 +3064,16 @@
     <string name="storage_data_other">Mantidos</string>
     <string name="storage_data_other_title">Jogos não Steam e prefixo partilhado do Steam</string>
     <string name="storage_data_other_detail">Prefixos de jogos adicionados pelas lojas ou à mão</string>
+    <string name="storage_shared_prefix">Prefixo partilhado do Steam</string>
+    <string name="storage_shared_prefix_detail">O Steam executa aqui os seus próprios auxiliares do Windows</string>
+    <string name="storage_reset_shared_confirm">Elimina-o (%1$s). O Steam cria um novo da próxima vez que precisar.</string>
+    <string name="storage_launcher_prefix">Uma app de loja e os jogos que correm com ela</string>
+    <string name="storage_launcher_used_by">Usado por %1$s</string>
+    <string name="storage_shortcut_app">Jogo não Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Não corresponde a nenhum jogo, por isso é mantido</string>
+    <string name="storage_remove_selected">Remover seleção · %1$s</string>
+    <string name="storage_uninstall_selected">Desinstalar seleção · %1$s</string>
+    <string name="storage_bulk_confirm">Elimina estes prefixos e caches (%1$s). Os guardados e as definições neles perdem-se; os guardados do Steam Cloud ficam na sua conta.</string>
     <string name="storage_components_packages">Pacotes transferidos</string>
     <string name="storage_components_originals">Originais mantidos</string>
     <string name="storage_components_none">Nenhum pacote de componentes transferido.</string>

@@ -155,6 +155,35 @@ object StorageState {
         true
     })
 
+    fun resetKept(context: Context, prefix: KeptPrefix) = act(context, "kept-${prefix.dir.name}", { _, fresh ->
+        val dir = fresh.kept.firstOrNull { it.dir.path == prefix.dir.path && it.owner == prefix.owner }
+            ?.takeIf { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }?.dir ?: return@act false
+        check(FileOps.delete(dir)) { "cannot delete $dir" }
+        true
+    })
+
+    fun uninstallStoreGames(context: Context, games: List<StoreGameUsage>) {
+        if (cleaning || SessionState.running || games.isEmpty()) return
+        val app = context.applicationContext
+        com.droiddeck.launcher.stores.StoresState.uninstall(app, games.first().game) {
+            if (games.size > 1 && !SessionState.running) uninstallStoreGames(app, games.drop(1))
+            else {
+                com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(app)
+                refresh(app, force = true)
+            }
+        }
+    }
+
+    fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
+        val allowed = (fresh.games.mapNotNull { it.prefixDir } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
+            fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.map { it.dir }).mapTo(HashSet()) { it.path }
+        val wanted = dirs.distinctBy { it.path }
+        val targets = wanted.filter { it.path in allowed }
+        if (targets.size < wanted.size) Log.w(TAG, "kept ${wanted.size - targets.size} folders that are no longer safe to remove")
+        targets.forEach { check(FileOps.delete(it)) { "cannot delete $it" } }
+        targets.isNotEmpty()
+    })
+
     fun removeComponent(context: Context, usage: ComponentUsage) = act(context, "component", { app, fresh ->
         val current = fresh.components.firstOrNull { it.packageFile == usage.packageFile && it.protonId == usage.protonId &&
             it.comp == usage.comp && it.version == usage.version } ?: return@act false

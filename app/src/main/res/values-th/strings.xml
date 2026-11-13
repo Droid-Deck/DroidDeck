@@ -2999,6 +2999,16 @@
     <string name="storage_data_other">เก็บไว้</string>
     <string name="storage_data_other_title">เกมนอก Steam และ Prefix Steam ที่ใช้ร่วมกัน</string>
     <string name="storage_data_other_detail">Prefix ของเกมจากสโตร์หรือที่เพิ่มเอง</string>
+    <string name="storage_shared_prefix">Prefix Steam ที่ใช้ร่วมกัน</string>
+    <string name="storage_shared_prefix_detail">Steam รันตัวช่วย Windows ของตัวเองที่นี่</string>
+    <string name="storage_reset_shared_confirm">ลบ prefix นี้ (%1$s) Steam จะสร้างใหม่เมื่อต้องใช้ครั้งถัดไป</string>
+    <string name="storage_launcher_prefix">แอปสโตร์และเกมที่ทำงานกับแอปนั้น</string>
+    <string name="storage_launcher_used_by">ใช้โดย %1$s</string>
+    <string name="storage_shortcut_app">เกมนอก Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">ไม่ตรงกับเกมใด จึงเก็บไว้</string>
+    <string name="storage_remove_selected">นำรายการที่เลือกออก · %1$s</string>
+    <string name="storage_uninstall_selected">ถอนการติดตั้งรายการที่เลือก · %1$s</string>
+    <string name="storage_bulk_confirm">ลบ prefix และแคชเหล่านี้ (%1$s) เซฟและการตั้งค่าข้างในจะหายไป เซฟใน Steam Cloud ยังอยู่ในบัญชีของคุณ</string>
     <string name="storage_components_packages">แพ็กเกจที่ดาวน์โหลด</string>
     <string name="storage_components_originals">ต้นฉบับที่เก็บไว้</string>
     <string name="storage_components_none">ยังไม่มีแพ็กเกจคอมโพเนนต์ที่ดาวน์โหลด</string>

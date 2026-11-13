@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Bewaard</string>
     <string name="storage_data_other_title">Niet-Steam-games en gedeeld Steam-prefix</string>
     <string name="storage_data_other_detail">Prefixen van games die via winkels of handmatig zijn toegevoegd</string>
+    <string name="storage_shared_prefix">Gedeeld Steam-prefix</string>
+    <string name="storage_shared_prefix_detail">Steam voert hier eigen Windows-hulpmiddelen uit</string>
+    <string name="storage_reset_shared_confirm">Verwijdert het (%1$s). Steam maakt een nieuw aan zodra het er weer een nodig heeft.</string>
+    <string name="storage_launcher_prefix">Een winkel-app en de games die ermee draaien</string>
+    <string name="storage_launcher_used_by">Gebruikt door %1$s</string>
+    <string name="storage_shortcut_app">Niet-Steam-game %1$s</string>
+    <string name="storage_unknown_prefix_detail">Niet aan een game gekoppeld, dus het blijft bewaard</string>
+    <string name="storage_remove_selected">Selectie verwijderen · %1$s</string>
+    <string name="storage_uninstall_selected">Selectie verwijderen · %1$s</string>
+    <string name="storage_bulk_confirm">Verwijdert deze prefixen en caches (%1$s). Opgeslagen spellen en instellingen daarin gaan verloren; Steam Cloud-opslagen blijven in je account.</string>
     <string name="storage_components_packages">Gedownloade pakketten</string>
     <string name="storage_components_originals">Bewaarde originelen</string>
     <string name="storage_components_none">Geen componentpakketten gedownload.</string>

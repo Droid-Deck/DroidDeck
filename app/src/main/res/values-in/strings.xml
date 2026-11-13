@@ -2999,6 +2999,16 @@
     <string name="storage_data_other">Disimpan</string>
     <string name="storage_data_other_title">Gim non-Steam dan prefix Steam bersama</string>
     <string name="storage_data_other_detail">Prefix gim dari toko atau yang ditambahkan sendiri</string>
+    <string name="storage_shared_prefix">Prefix Steam bersama</string>
+    <string name="storage_shared_prefix_detail">Steam menjalankan helper Windows-nya sendiri di sini</string>
+    <string name="storage_reset_shared_confirm">Menghapusnya (%1$s). Steam membuat yang baru saat membutuhkannya lagi.</string>
+    <string name="storage_launcher_prefix">Aplikasi toko dan gim yang berjalan dengannya</string>
+    <string name="storage_launcher_used_by">Dipakai oleh %1$s</string>
+    <string name="storage_shortcut_app">Gim non-Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Tidak cocok dengan gim mana pun, jadi tetap disimpan</string>
+    <string name="storage_remove_selected">Hapus yang dipilih · %1$s</string>
+    <string name="storage_uninstall_selected">Hapus instalasi yang dipilih · %1$s</string>
+    <string name="storage_bulk_confirm">Menghapus prefix dan cache ini (%1$s). Save dan setelan di dalamnya akan hilang; save Steam Cloud tetap di akun Anda.</string>
     <string name="storage_components_packages">Paket yang diunduh</string>
     <string name="storage_components_originals">Berkas asli yang disimpan</string>
     <string name="storage_components_none">Tidak ada paket komponen yang diunduh.</string>

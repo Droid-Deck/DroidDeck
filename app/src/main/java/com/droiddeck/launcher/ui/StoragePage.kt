@@ -86,6 +86,9 @@ import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
 import com.droiddeck.launcher.storage.ComponentUsage
 import com.droiddeck.launcher.storage.GameUsage
+import com.droiddeck.launcher.storage.KeptPrefix
+import com.droiddeck.launcher.storage.PrefixOwner
+import com.droiddeck.launcher.storage.StoreGameUsage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
@@ -148,6 +151,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "data" -> GameDataView(report, s.sessionRunning) { view = "overview" }
         "components" -> ComponentsView(report, s.sessionRunning) { view = "overview" }
         "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
+        "stores" -> StoreGamesView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
@@ -338,7 +342,8 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         },
         { m ->
             BucketCard(Bucket.STORES, Icons.Outlined.ShoppingBag, stringResource(R.string.storage_stores),
-                stringResource(R.string.storage_stores_hint), report.buckets.getValue(Bucket.STORES), m)
+                pluralStringResource(R.plurals.storage_games_installed, report.storeGames.size, report.storeGames.size),
+                report.buckets.getValue(Bucket.STORES), m) { onOpen("stores") }
         },
         { m ->
             BucketCard(Bucket.DESKTOP, Icons.Outlined.Monitor, stringResource(R.string.storage_desktop),
@@ -811,13 +816,17 @@ private fun ListCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ItemRow(title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null, action: (@Composable () -> Unit)? = null) {
+private fun ItemRow(
+    title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null,
+    selected: Boolean? = null, onSelect: () -> Unit = {}, selectable: Boolean = true, slot: Boolean = false, action: (@Composable () -> Unit)? = null,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
+        if (selected != null) SelectBox(selected, selectable, onSelect) else if (slot) Spacer(Modifier.size(40.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -827,6 +836,33 @@ private fun ItemRow(title: String, detail: String?, bytes: Long, last: Boolean, 
         action?.invoke()
     }
     if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+private fun SelectBox(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = enabled && (src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value)
+    val shape = RoundedCornerShape(6.dp)
+    val edge = when {
+        on || hot -> pal.signal
+        enabled -> colors.onSurfaceVariant
+        else -> colors.onSurfaceVariant.copy(alpha = 0.35f)
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .then(if (enabled) Modifier.hoverable(src)
+                .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Checkbox, onClick = onToggle)
+                .controllerConfirm(onClick = onToggle) else Modifier),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(22.dp).clip(shape).background(if (on) pal.signal else Color.Transparent).border(2.dp, edge, shape),
+        ) { if (on) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+    }
 }
 
 @Composable
@@ -846,22 +882,48 @@ private fun ConfirmDialog(title: String, body: String, confirm: String, danger: 
     )
 }
 
+private class DataTarget(val key: String, val label: String, val bytes: Long, val dirs: List<java.io.File>)
+
 @Composable
 private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val busy = sessionRunning || StorageState.cleaning
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
     var confirmPrefix by remember { mutableStateOf<com.droiddeck.launcher.storage.GameUsage?>(null) }
-    SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack)
+    var confirmKept by remember { mutableStateOf<KeptPrefix?>(null) }
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    var confirmBulk by remember { mutableStateOf(false) }
+    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
+    val leftovers = report.leftovers.sortedByDescending { it.bytes }
+    val safe = leftovers.filter { it.safe }
+    val unsure = leftovers.filter { !it.safe }
+    val kept = report.kept.filter { it.bytes >= ONE_MB }.sortedByDescending { it.bytes }
+    val safeLabel = pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size)
+    val gameNames = games.associate { it.prefixDir?.path to gameName(it) }
+    val unsureNames = unsure.associate { leftoverKey(it) to leftoverName(it) }
+    val keptNames = kept.associate { it.dir.path to keptName(it) }
+    val targets = buildList {
+        games.forEach { g -> g.prefixDir?.let { add(DataTarget("game:${it.path}", gameNames[it.path].orEmpty(), g.prefix, listOf(it))) } }
+        if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.sumOf { it.bytes }, safe.flatMap { listOfNotNull(it.prefix, it.shaders) }))
+        unsure.forEach { l -> add(DataTarget("left:${leftoverKey(l)}", unsureNames[leftoverKey(l)].orEmpty(), l.bytes, listOfNotNull(l.prefix, l.shaders))) }
+        kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }
+            .forEach { k -> add(DataTarget("kept:${k.dir.path}", keptNames[k.dir.path].orEmpty(), k.bytes, listOf(k.dir))) }
+    }.associateBy { it.key }
+    val chosen = picked.mapNotNull { targets[it] }
+    fun toggle(key: String) { picked = if (key in picked) picked - key else picked + key }
+    SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack) {
+        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_selected, gb(chosen.sumOf { it.bytes })), compact = true, enabled = !busy) { confirmBulk = true }
+    }
     ActionStatus()
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
-    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
     SectionTitle(stringResource(R.string.storage_data_installed), gb(games.sumOf { it.data }))
     ListCard {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
+            val key = "game:${g.prefixDir?.path}"
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
+                selected = key in picked, selectable = !busy && g.prefixDir != null, onSelect = { toggle(key) },
                 action = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) }
@@ -871,33 +933,72 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
             )
         }
     }
-    val leftovers = report.leftovers.sortedByDescending { it.bytes }
     if (!report.leftoversChecked) {
         SectionTitle(stringResource(R.string.storage_data_leftovers), null)
         Note(stringResource(R.string.storage_leftovers_unchecked))
     }
     if (leftovers.isNotEmpty()) {
         SectionTitle(stringResource(R.string.storage_data_leftovers), gb(leftovers.sumOf { it.bytes }))
-        val safe = leftovers.filter { it.safe }
         ListCard {
             if (safe.isNotEmpty()) ItemRow(
-                pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size), null, safe.sumOf { it.bytes }, leftovers.none { !it.safe },
+                safeLabel, null, safe.sumOf { it.bytes }, unsure.isEmpty(),
                 pill = { Pill(stringResource(R.string.storage_tag_safe), LocalPalette.current.good) },
+                selected = "safe" in picked, selectable = !busy, onSelect = { toggle("safe") },
                 action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { StorageState.clean(ctx, setOf(CleanItem.LEFTOVERS)) { } } },
             )
-            val unsure = leftovers.filter { !it.safe }
             unsure.forEachIndexed { i, l ->
+                val key = "left:${leftoverKey(l)}"
                 ItemRow(
-                    stringResource(R.string.storage_steam_app, l.appId), stringResource(R.string.storage_leftover_unsure_detail), l.bytes, i == unsure.lastIndex,
+                    leftoverName(l), stringResource(R.string.storage_leftover_unsure_detail), l.bytes, i == unsure.lastIndex,
                     pill = { Pill(stringResource(R.string.storage_tag_saves), AttentionAmber) },
+                    selected = key in picked, selectable = !busy, onSelect = { toggle(key) },
                     action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { confirm = l } },
                 )
             }
         }
     }
-    if (report.otherPrefixes > 0) {
-        SectionTitle(stringResource(R.string.storage_data_other), null)
-        ListCard { ItemRow(stringResource(R.string.storage_data_other_title), stringResource(R.string.storage_data_other_detail), report.otherPrefixes, true) }
+    if (kept.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.storage_data_other), gb(kept.sumOf { it.bytes }))
+        ListCard {
+            kept.forEachIndexed { i, k ->
+                val resettable = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
+                val key = "kept:${k.dir.path}"
+                ItemRow(
+                    keptName(k),
+                    when (k.owner) {
+                        PrefixOwner.SHARED -> stringResource(R.string.storage_shared_prefix_detail)
+                        PrefixOwner.LAUNCHER -> if (k.users.isEmpty()) stringResource(R.string.storage_launcher_prefix)
+                            else stringResource(R.string.storage_launcher_used_by, k.users.distinct().joinToString(", "))
+                        PrefixOwner.GAME -> stringResource(R.string.storage_data_other_detail)
+                        PrefixOwner.UNKNOWN -> stringResource(R.string.storage_unknown_prefix_detail)
+                    },
+                    k.bytes, i == kept.lastIndex,
+                    pill = if (k.owner == PrefixOwner.LAUNCHER) { { Pill(stringResource(R.string.storage_tag_required), MaterialTheme.colorScheme.onSurfaceVariant) } } else null,
+                    selected = if (resettable) key in picked else null, slot = true, selectable = !busy, onSelect = { toggle(key) },
+                    action = if (resettable) {
+                        { SecondaryButton(stringResource(R.string.storage_reset_prefix), compact = true, enabled = !busy) { confirmKept = k } }
+                    } else null,
+                )
+            }
+        }
+    }
+    if (confirmBulk) {
+        val total = gb(chosen.sumOf { it.bytes })
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_selected, total),
+            chosen.joinToString("\n") { "• " + it.label } + "\n\n" + stringResource(R.string.storage_bulk_confirm, total),
+            stringResource(R.string.storage_remove),
+            onConfirm = { StorageState.removeDirs(ctx, chosen.flatMap { it.dirs }); picked = emptySet() }, onDismiss = { confirmBulk = false },
+        )
+    }
+    confirmKept?.let { k ->
+        ConfirmDialog(
+            stringResource(R.string.storage_reset_prefix_title, keptName(k)),
+            if (k.owner == PrefixOwner.SHARED) stringResource(R.string.storage_reset_shared_confirm, gb(k.bytes))
+            else stringResource(R.string.storage_reset_prefix_confirm, gb(k.bytes), k.library),
+            stringResource(R.string.storage_reset_prefix),
+            onConfirm = { StorageState.resetKept(ctx, k) }, onDismiss = { confirmKept = null },
+        )
     }
     confirmPrefix?.let { g ->
         ConfirmDialog(
@@ -908,9 +1009,72 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     }
     confirm?.let { l ->
         ConfirmDialog(
-            stringResource(R.string.storage_remove_title, stringResource(R.string.storage_steam_app, l.appId)),
+            stringResource(R.string.storage_remove_title, leftoverName(l)),
             stringResource(R.string.storage_leftover_confirm, gb(l.bytes)), stringResource(R.string.storage_remove),
             onConfirm = { StorageState.removeLeftover(ctx, l) }, onDismiss = { confirm = null },
+        )
+    }
+}
+
+private fun leftoverKey(l: com.droiddeck.launcher.storage.Leftover) = l.prefix?.path ?: l.shaders?.path ?: l.appId.toString()
+
+@Composable
+private fun keptName(k: KeptPrefix): String {
+    val name = when (k.owner) {
+        PrefixOwner.SHARED -> stringResource(R.string.storage_shared_prefix)
+        PrefixOwner.GAME -> k.name ?: stringResource(R.string.storage_data_other_title)
+        else -> k.name ?: k.dir.name
+    }
+    return if (k.x64) stringResource(R.string.storage_game_x64, name) else name
+}
+
+@Composable
+private fun leftoverName(l: com.droiddeck.launcher.storage.Leftover): String = when {
+    l.name != null -> l.name
+    l.shortcut -> stringResource(R.string.storage_shortcut_app, l.appId.toString())
+    else -> stringResource(R.string.storage_steam_app, l.appId)
+}
+
+@Composable
+private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val uninstalling = com.droiddeck.launcher.stores.StoresState.uninstalling
+    val busy = sessionRunning || StorageState.cleaning || uninstalling.isNotEmpty()
+    var confirm by remember { mutableStateOf<List<StoreGameUsage>>(emptyList()) }
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    val games = report.storeGames
+    val chosen = games.filter { it.game.folder.path in picked }
+    SubHeader(stringResource(R.string.storage_stores),
+        pluralStringResource(R.plurals.storage_games_installed, games.size, games.size) + " · " + gb(games.sumOf { it.bytes }), onBack) {
+        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_uninstall_selected, gb(chosen.sumOf { it.bytes })), compact = true, enabled = !busy) { confirm = chosen }
+    }
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    ListCard {
+        if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+        games.forEachIndexed { i, g ->
+            val removing = g.game.key in uninstalling
+            val key = g.game.folder.path
+            ItemRow(
+                g.game.sidecar.title,
+                if (g.internal) g.game.sidecar.store.label else g.game.sidecar.store.label + " · " + stringResource(R.string.fm_drive_sd),
+                g.bytes, i == games.lastIndex,
+                selected = key in picked, selectable = !busy, onSelect = { picked = if (key in picked) picked - key else picked + key },
+                action = {
+                    SecondaryButton(stringResource(if (removing) R.string.stores_uninstalling else R.string.storage_uninstall), compact = true,
+                        enabled = !busy) { confirm = listOf(g) }
+                },
+            )
+        }
+    }
+    if (confirm.isNotEmpty()) {
+        val list = confirm
+        val total = gb(list.sumOf { it.bytes })
+        ConfirmDialog(
+            if (list.size == 1) stringResource(R.string.stores_uninstall_title, list[0].game.sidecar.title) else stringResource(R.string.storage_uninstall_selected, total),
+            (if (list.size == 1) "" else list.joinToString("\n") { "• " + it.game.sidecar.title } + "\n\n") + stringResource(R.string.stores_uninstall_body_size, total),
+            stringResource(R.string.storage_uninstall),
+            onConfirm = { StorageState.uninstallStoreGames(ctx, list); picked = emptySet() }, onDismiss = { confirm = emptyList() },
         )
     }
 }

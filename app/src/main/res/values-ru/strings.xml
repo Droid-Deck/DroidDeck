@@ -3183,6 +3183,16 @@
     <string name="storage_data_other">Сохранённые</string>
     <string name="storage_data_other_title">Игры не из Steam и общий префикс Steam</string>
     <string name="storage_data_other_detail">Префиксы игр, добавленных магазинами или вручную</string>
+    <string name="storage_shared_prefix">Общий префикс Steam</string>
+    <string name="storage_shared_prefix_detail">Steam запускает здесь свои вспомогательные программы Windows</string>
+    <string name="storage_reset_shared_confirm">Удаляет его (%1$s). Steam создаст новый, когда он снова понадобится.</string>
+    <string name="storage_launcher_prefix">Приложение магазина и игры, которые с ним работают</string>
+    <string name="storage_launcher_used_by">Используется: %1$s</string>
+    <string name="storage_shortcut_app">Игра не из Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Не сопоставлен с игрой, поэтому сохраняется</string>
+    <string name="storage_remove_selected">Удалить выбранные · %1$s</string>
+    <string name="storage_uninstall_selected">Удалить выбранные · %1$s</string>
+    <string name="storage_bulk_confirm">Удаляет эти префиксы и кэши (%1$s). Сохранения и настройки в них будут потеряны; сохранения Steam Cloud остаются в вашем аккаунте.</string>
     <string name="storage_components_packages">Загруженные пакеты</string>
     <string name="storage_components_originals">Сохранённые оригиналы</string>
     <string name="storage_components_none">Пакеты компонентов не загружены.</string>

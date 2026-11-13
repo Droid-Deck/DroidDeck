@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Διατηρούνται</string>
     <string name="storage_data_other_title">Παιχνίδια εκτός Steam και κοινό prefix Steam</string>
     <string name="storage_data_other_detail">Prefix παιχνιδιών που προστέθηκαν από καταστήματα ή χειροκίνητα</string>
+    <string name="storage_shared_prefix">Κοινό prefix του Steam</string>
+    <string name="storage_shared_prefix_detail">Το Steam εκτελεί εδώ τα δικά του βοηθητικά προγράμματα Windows</string>
+    <string name="storage_reset_shared_confirm">Το διαγράφει (%1$s). Το Steam δημιουργεί νέο την επόμενη φορά που θα το χρειαστεί.</string>
+    <string name="storage_launcher_prefix">Μια εφαρμογή καταστήματος και τα παιχνίδια που τρέχουν με αυτήν</string>
+    <string name="storage_launcher_used_by">Χρησιμοποιείται από %1$s</string>
+    <string name="storage_shortcut_app">Παιχνίδι εκτός Steam %1$s</string>
+    <string name="storage_unknown_prefix_detail">Δεν αντιστοιχεί σε παιχνίδι, οπότε διατηρείται</string>
+    <string name="storage_remove_selected">Αφαίρεση επιλεγμένων · %1$s</string>
+    <string name="storage_uninstall_selected">Κατάργηση επιλεγμένων · %1$s</string>
+    <string name="storage_bulk_confirm">Διαγράφει αυτά τα prefix και τις προσωρινές μνήμες (%1$s). Οι αποθηκεύσεις και οι ρυθμίσεις μέσα τους χάνονται· οι αποθηκεύσεις Steam Cloud παραμένουν στον λογαριασμό σας.</string>
     <string name="storage_components_packages">Ληφθέντα πακέτα</string>
     <string name="storage_components_originals">Διατηρημένα αρχικά</string>
     <string name="storage_components_none">Δεν έχουν ληφθεί πακέτα στοιχείων.</string>

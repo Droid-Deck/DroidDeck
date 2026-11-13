@@ -3028,6 +3028,16 @@
     <string name="storage_data_other">Behålls</string>
     <string name="storage_data_other_title">Icke-Steam-spel och delat Steam-prefix</string>
     <string name="storage_data_other_detail">Prefix för spel som lagts till via butiker eller manuellt</string>
+    <string name="storage_shared_prefix">Steams delade prefix</string>
+    <string name="storage_shared_prefix_detail">Steam kör sina egna Windows-hjälpprogram här</string>
+    <string name="storage_reset_shared_confirm">Raderar det (%1$s). Steam skapar ett nytt nästa gång det behövs.</string>
+    <string name="storage_launcher_prefix">En butiksapp och spelen som körs med den</string>
+    <string name="storage_launcher_used_by">Används av %1$s</string>
+    <string name="storage_shortcut_app">Icke-Steam-spel %1$s</string>
+    <string name="storage_unknown_prefix_detail">Inte kopplat till något spel, så det behålls</string>
+    <string name="storage_remove_selected">Ta bort valda · %1$s</string>
+    <string name="storage_uninstall_selected">Avinstallera valda · %1$s</string>
+    <string name="storage_bulk_confirm">Raderar dessa prefix och cacheminnen (%1$s). Sparningar och inställningar i dem går förlorade; Steam Cloud-sparningar finns kvar på ditt konto.</string>
     <string name="storage_components_packages">Hämtade paket</string>
     <string name="storage_components_originals">Behållna original</string>
     <string name="storage_components_none">Inga komponentpaket hämtade.</string>
