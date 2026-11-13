@@ -558,11 +558,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
                 ) { selectedGlassesTab = it }
                 // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
+                if (page == SessionDrawerPage.AGENT) AgentPageWithControls(
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
                     inputModifier = focus.track(page, "agent-input"),
                     visible = open,
                     startTyping = false,
+                    showControlsWithoutKeyboard = true,
                 ) else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
