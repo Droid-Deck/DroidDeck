@@ -60,17 +60,19 @@ object GraphicsReport {
         appendLine("-- path")
         appendLine("path: " + path(context))
         appendLine("driver mode: " + SessionPrefs.gpuDriverMode(context))
-        appendLine("display driver (compositor): " + SessionPrefs.androidDriver(context).ifEmpty {
-            if (DeviceSupport.adreno()) "(auto: bundled Turnip)" else "(auto: the phone's own Vulkan driver, ${SystemVulkanDriver.hal() ?: "vendor HAL"})"
-        })
         val display = SessionPrefs.androidDriver(context)
+        val shown = com.droiddeck.launcher.gpu.TurnipDriver(context).effectiveId()
+        appendLine("display driver (compositor): " +
+            (if (shown == "system") "the phone's own Vulkan driver, ${SystemVulkanDriver.hal() ?: "vendor HAL"}" else shown) +
+            if (display.isEmpty()) " (auto)" else if (display != shown) " (picked $display, not used)" else "")
         appendLine("display driver chosen by: " + when {
             display.isEmpty() -> "auto (or a pair on a non-Adreno GPU: the phone's own driver)"
             DriverBundle.containing(context, display, false) != null -> "pair (its display half)"
             else -> "user (picked on its own)"
         })
         val linux = SessionPrefs.linuxDriver(context)
-        appendLine("runtime driver: " + linux.ifEmpty { "(runtime default)" })
+        appendLine("runtime driver: " + (com.droiddeck.launcher.gpu.DeviceInfo.hostRoute(context)
+            ?.let { "$it (picked ${linux.ifEmpty { "runtime default" }}, not used)" } ?: linux.ifEmpty { "(runtime default)" }))
         if (linux.isNotEmpty()) {
             val dir = com.droiddeck.launcher.gpu.LinuxVulkanDriverManager(context).getDriverDir(linux)
             appendLine("runtime driver dir: ${dir.path} (" + (dir.listFiles()?.filter { it.name.endsWith(".so") }?.joinToString { it.name } ?: "missing") + ")")

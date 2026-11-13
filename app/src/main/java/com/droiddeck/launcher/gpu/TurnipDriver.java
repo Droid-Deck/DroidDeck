@@ -34,6 +34,7 @@ public final class TurnipDriver {
     public static final List<String> BUNDLED = Collections.unmodifiableList(Arrays.asList(
             DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER,
             DRIVER_A6XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER_A6XX));
+    private static final String KGSL_NODE = "/dev/kgsl-3d0";
     private static final String OVERRIDE_FILE = "Download/droiddeck-driver";
     private static final String PREFS = "graphics_driver";
     private static final String KEY_HIDDEN = "hiddenBundled";
@@ -138,6 +139,21 @@ public final class TurnipDriver {
     public String autoId() {
         String id = chooseByDevice();
         return id == null ? "system" : id;
+    }
+
+    public String effectiveId() {
+        String id = choose();
+        return id == null || !reachesGpu(id) ? "system" : id;
+    }
+
+    public boolean reachesGpu(String driverId) {
+        String library = libraryName(driverId);
+        return library == null || !needsMissingKgsl(new File(new File(contentDir, driverId), library),
+                com.droiddeck.launcher.core.DeviceSupport.INSTANCE.adreno());
+    }
+
+    static boolean needsMissingKgsl(File library, boolean kgsl) {
+        return !kgsl && library.isFile() && LinuxVulkanDriverManager.containsAscii(library, KGSL_NODE);
     }
 
     public void remove(String driverId) {
@@ -255,6 +271,11 @@ public final class TurnipDriver {
         String library = libraryName(id);
         if (library == null || !new File(dir, library).isFile()) {
             Log.e(TAG, id + " unpacked without " + library);
+            return null;
+        }
+        if (!reachesGpu(id)) {
+            Log.w(TAG, id + " needs " + KGSL_NODE + ", which this GPU does not have; display on the system Vulkan loader");
+            DriverSetupLog.write(context, "install.no-kgsl driver=" + id);
             return null;
         }
         Log.i(TAG, "graphics driver " + id + " (" + library + ")");
