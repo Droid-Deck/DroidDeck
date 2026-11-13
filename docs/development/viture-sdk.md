@@ -5,11 +5,12 @@ For the cross-brand feature matrix and user setup, see [smart-glasses support](.
 ## Importing the SDK
 
 Connect VITURE glasses and open **Setup → Smart glasses → Display** (or the
-glasses settings in a running session). **Import VITURE SDK** opens Android's
-file picker. Select the VITURE XR Glasses SDK for Android **2.4.x ZIP** from the
-[VITURE developer portal](https://www.viture.com/developer), review
-the validated version, and confirm the import. An enclosing release directory
-inside the ZIP is supported.
+glasses settings in a running session). **Get SDK from VITURE** opens the
+[VITURE developer portal](https://www.viture.com/developer) in a browser. Choose
+**VITURE XR Glasses SDK for Android (2.4.x)**, download the ZIP, and leave it zipped.
+Return to DroidDeck and choose **Import VITURE SDK** to open Android's file picker.
+Select the downloaded ZIP, review the validated version, and confirm the import.
+An enclosing release directory inside the ZIP is supported.
 
 The importer requires the three Android ARM64 libraries (`libglasses.so`,
 `libcarina_vio.so`, and `libcloud_protocol.so`), the SDK version header, and
