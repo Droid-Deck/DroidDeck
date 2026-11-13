@@ -6,7 +6,6 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -37,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
@@ -63,7 +63,6 @@ import com.droiddeck.launcher.frontend.Soundtrack
 import com.droiddeck.launcher.frontend.SoundtrackCollections
 import com.droiddeck.launcher.frontend.SoundtrackTracks
 import com.droiddeck.launcher.playback.SoundtrackController
-import kotlinx.coroutines.delay
 
 internal class PlayTarget(val root: java.io.File?, val collection: Int?) {
     val belongs: Boolean get() = if (collection != null) SoundtrackController.belongsCollection(collection) else SoundtrackController.belongs(root)
@@ -117,12 +116,13 @@ internal fun TrackPanel(
             album.tracks.filter { SoundtrackTracks.matches(query, it.title, it.artist) }, sort, { it.title }, { it.durationMs },
         ).map { SoundRow.Item(it) }
     }
-    var working by remember(rows) { mutableStateOf<List<SoundRow>?>(null) }
+    val rowIds = rows.filterIsInstance<SoundRow.Item>().map { it.track.id }
+    var working by remember(rowIds) { mutableStateOf<List<SoundRow>?>(null) }
     val display = working ?: rows
-    val shown = rows.filterIsInstance<SoundRow.Item>().map { it.track }
     val canReorder = onReorder != null && sort == SoundtrackTracks.Sort.DEFAULT && query.isBlank() && selecting
     var dragId by remember { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragTotal by remember { mutableFloatStateOf(0f) }
+    var dragTo by remember { mutableIntStateOf(0) }
     val numbers = remember(display) {
         val out = HashMap<String, Int>()
         var n = 0
@@ -132,28 +132,33 @@ internal fun TrackPanel(
         }
         out
     }
+    val state = rememberLazyListState()
     val drag = remember { DragState() }
     fun applyDrag() {
-        val to = dragTarget(drag.total, drag.size, drag.from, drag.lo, drag.hi)
-        if (to != drag.to) {
-            drag.to = to
-            working = drag.base.toMutableList().apply { add(to, removeAt(drag.from)) }
-        }
-        dragOffset = drag.total - (drag.to - drag.from) * drag.size
+        drag.total = drag.total.coerceIn((drag.lo - drag.from) * drag.size, (drag.hi - drag.from) * drag.size)
+        dragTotal = drag.total
+        dragTo = dragTarget(drag.total, drag.size, drag.from, drag.lo, drag.hi)
     }
     val finishDrag: () -> Unit = {
-        val list = working
-        dragId = null
-        dragOffset = 0f
-        if (list != null) {
-            val now = list.filterIsInstance<SoundRow.Item>().map { it.track.id }
-            if (now == shown.map { it.id }) working = null else onReorder?.invoke(now)
+        if (dragId != null) {
+            val from = drag.from
+            val to = dragTo
+            if (to != from && from in drag.base.indices) {
+                val moved = drag.base.toMutableList().apply { add(to, removeAt(from)) }
+                val index = state.firstVisibleItemIndex
+                val offset = state.firstVisibleItemScrollOffset
+                working = moved
+                state.requestScrollToItem(index, offset)
+                onReorder?.invoke(moved.filterIsInstance<SoundRow.Item>().map { it.track.id })
+            }
+            dragId = null
+            dragTotal = 0f
+            dragTo = from
         }
     }
     val rowsNow by rememberUpdatedState(rows)
     val finishNow by rememberUpdatedState(finishDrag)
     val current = if (target.belongs) SoundtrackController.currentId else null
-    val state = rememberLazyListState()
     var scrolledTo by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(album, current) {
         if (current == null) {
@@ -165,23 +170,6 @@ internal fun TrackPanel(
         if (at >= 0) {
             scrolledTo = current
             state.animateScrollToItem(at)
-        }
-    }
-    LaunchedEffect(dragId) {
-        if (dragId == null) return@LaunchedEffect
-        while (true) {
-            delay(16)
-            val me = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == dragId } ?: continue
-            val pos = me.offset + me.size / 2f + dragOffset
-            val step = when {
-                pos < 80f -> -24f
-                pos > state.layoutInfo.viewportEndOffset - 80f -> 24f
-                else -> 0f
-            }
-            if (step != 0f) {
-                drag.total += state.scrollBy(step)
-                applyDrag()
-            }
         }
     }
     val chosen = album.tracks.filter { it.id in picked }.map(refOf)
@@ -259,9 +247,24 @@ internal fun TrackPanel(
                         val flip = { picked = if (id in picked) picked - id else picked + id }
                         val dragging = dragId == id
                         val draggable = canReorder && id in picked
-                        val dragModifier = if (!draggable) Modifier else Modifier
+                        val shift = if (!canReorder) Modifier else Modifier
                             .zIndex(if (dragging) 1f else 0f)
-                            .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                            .graphicsLayer {
+                                translationY = when {
+                                    dragId == null -> 0f
+                                    dragId == id -> dragTotal
+                                    else -> {
+                                        val at = drag.index[id] ?: -1
+                                        val f = drag.from
+                                        val t = dragTo
+                                        if (at < 0) 0f
+                                        else if (f < t && at in (f + 1)..t) -drag.size
+                                        else if (t < f && at in t until f) drag.size
+                                        else 0f
+                                    }
+                                }
+                            }
+                        val dragModifier = if (!draggable) shift else shift
                             .pointerInput(id) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
@@ -273,15 +276,24 @@ internal fun TrackPanel(
                                             while (lo > 0 && (base[lo - 1] as? SoundRow.Item)?.track?.disc == disc) lo--
                                             var hi = from
                                             while (hi < base.lastIndex && (base[hi + 1] as? SoundRow.Item)?.track?.disc == disc) hi++
+                                            val visible = state.layoutInfo.visibleItemsInfo
+                                            val me = visible.firstOrNull { it.key == id }
+                                            val next = visible.firstOrNull { it.index == (me?.index ?: -2) + 1 && it.key != "disc-0" && base.getOrNull(from + 1) is SoundRow.Item }
+                                            val prev = visible.firstOrNull { it.index == (me?.index ?: -2) - 1 && base.getOrNull(from - 1) is SoundRow.Item }
+                                            val pitch = when {
+                                                me != null && next != null -> (next.offset - me.offset).toFloat()
+                                                me != null && prev != null -> (me.offset - prev.offset).toFloat()
+                                                else -> me?.size?.toFloat() ?: 0f
+                                            }
                                             drag.base = base
+                                            drag.index = HashMap<String, Int>().also { m -> base.forEachIndexed { i, r -> if (r is SoundRow.Item) m[r.track.id] = i } }
                                             drag.from = from
-                                            drag.to = from
                                             drag.lo = lo
                                             drag.hi = hi
-                                            drag.size = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.size?.toFloat()?.takeIf { it > 0f } ?: 1f
+                                            drag.size = if (pitch > 0f) pitch else 1f
                                             drag.total = 0f
-                                            working = base
-                                            dragOffset = 0f
+                                            dragTotal = 0f
+                                            dragTo = from
                                             dragId = id
                                         }
                                     },
@@ -364,8 +376,8 @@ private fun TrackRow(
 
 private class DragState {
     var base: List<SoundRow> = emptyList()
+    var index: Map<String, Int> = emptyMap()
     var from = 0
-    var to = 0
     var lo = 0
     var hi = 0
     var size = 1f
