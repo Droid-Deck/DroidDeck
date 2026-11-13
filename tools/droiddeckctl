@@ -287,7 +287,9 @@ def displays(adb: str, serial: str) -> list[dict]:
 
 def physical_display(adb: str, serial: str, logical: int | None) -> str | None:
     if logical is None:
-        return None
+        found = displays(adb, serial)
+        main = next((d["physicalId"] for d in found if d["display"] == 0), None)
+        return main if len(found) > 1 else None
     for d in displays(adb, serial):
         if d["display"] == logical:
             if not d["physicalId"]:
