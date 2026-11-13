@@ -532,6 +532,7 @@ class SessionService : Service() {
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        com.droiddeck.launcher.frontend.SteamCollection.start(this)
         try {
             GameEnvironmentStore.publish(this)
         } catch (e: Exception) {
@@ -1990,6 +1991,7 @@ class SessionService : Service() {
                 SessionState.pipActive = false
                 pipTask = false
                 SessionState.guestPid = -1
+                com.droiddeck.launcher.frontend.SteamCollection.stop()
                 com.droiddeck.launcher.agent.AgentGuest.stop()
                 com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
                 Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()

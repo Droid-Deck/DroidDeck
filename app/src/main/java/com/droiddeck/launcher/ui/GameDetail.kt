@@ -148,7 +148,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
+    val games = s.steamGames + com.droiddeck.launcher.frontend.SteamCollection.games + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
@@ -187,7 +187,7 @@ internal fun GameDetail(
     val tabs = buildList {
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || scored || (!s.shortcutPicker && title.isNotBlank() && title != id)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
-        val cloud = game?.library == Library.XBOX_CLOUD
+        val cloud = game?.library == Library.XBOX_CLOUD || game?.library == Library.STEAM_OWNED
         if (game != null && !cloud) add(GameTab.LAUNCH)
         if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
         if (addonTargets.isNotEmpty()) add(GameTab.ADDONS)
@@ -212,6 +212,7 @@ internal fun GameDetail(
         picked = tabs[(at + step + tabs.size) % tabs.size]
     }
     val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
+        ?: game?.takeIf { it.library == Library.STEAM_OWNED }?.let { "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${it.appId}/header.jpg" }
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
     val inSteam = !s.shortcutPicker && source != Library.SOURCE_STEAM && (game != null || installed != null) && !(game?.library == Library.XBOX_CLOUD && installed == null)
     val inset = LocalDetailInset.current
@@ -225,7 +226,7 @@ internal fun GameDetail(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
                             if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
-                            RemoveButton(title, game, installed, a)
+                            if (game?.library != Library.STEAM_OWNED) RemoveButton(title, game, installed, a)
                         }
                     }
                 }
@@ -300,6 +301,7 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
     val passName = item?.includedWith.orEmpty()
     val state = when {
         installed != null -> listOf(stringResource(R.string.stores_eyebrow_installed), StoreInstallRoot.labelFor(ctx, installed.folder))
+        game?.library == Library.STEAM_OWNED -> listOf(stringResource(R.string.stores_eyebrow_library))
         game?.library == Library.XBOX_CLOUD -> listOf(libraryLabel(game))
         game != null -> listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
         !downloadAt.isNullOrBlank() -> listOf(stringResource(R.string.stores_eyebrow_library), downloadAt)
@@ -405,6 +407,9 @@ internal fun GameActions(
             s.shortcutPicker && game != null -> {
                 PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 FileButtons(game, a)
+            }
+            game?.library == Library.STEAM_OWNED -> {
+                PrimaryButton(stringResource(R.string.steam_collection_install), enabled = !s.busy, main = true, modifier = leadOn) { a.onSteamGame(game) }
             }
             !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }

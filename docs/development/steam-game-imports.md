@@ -90,3 +90,17 @@ References: [Steam Apps
 API](https://partner.steamgames.com/doc/api/ISteamApps#BIsSubscribedApp), [Valve's
 versioned interfaces](https://github.com/ValveSoftware/Proton/tree/proton_11.0/lsteamcli
 ent/steamworks_sdk_154).
+
+## Steam collection in the Android library
+
+The Library's Steam source also lists uninstalled games. While Steam is running,
+it snapshots game overviews from the signed-in client's library every
+30 seconds. The snapshot is saved in the selected account's config directory as
+`.droiddeck-collection.json`, so browsing it later does not require a running session,
+a public profile, or a Web API key. A first sync requires opening Steam and signing in.
+Failures leave the previous snapshot intact. Switching accounts selects that account's
+cache, and installed entries take precedence over cached entries with the same app ID.
+
+Choose All owned in the Library filter to include uninstalled games. These entries have
+an Install in Steam action, which hands the game to the Steam client. Install, launch
+settings and removal controls remain available on installed games.

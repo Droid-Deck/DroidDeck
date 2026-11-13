@@ -27,6 +27,18 @@ class LibraryEntriesTest {
         assertNull(entries[2].game)
     }
 
+    @Test fun cachedSteamGamesAreUninstalledAndInstalledCopiesWin() {
+        val cached = Library.SteamGame(440, "Cached title", null, Library.STEAM_OWNED)
+        val other = Library.SteamGame(570, "Dota 2", null, Library.STEAM_OWNED)
+        val installed = Library.SteamGame(440, "Team Fortress 2", null, "internal")
+        val entries = libraryEntries(listOf(cached, other, installed), emptyMap(), emptySet())
+        assertEquals(2, entries.size)
+        assertTrue(entries.first { it.key == "app:440" }.installed)
+        assertEquals("Team Fortress 2", entries.first { it.key == "app:440" }.title)
+        assertFalse(entries.first { it.key == "app:570" }.installed)
+        assertEquals(listOf("steam"), librarySources(entries, emptyList()))
+    }
+
     @Test fun theEpicLauncherIsNotAGame() {
         val launcher = Library.SteamGame(0, Library.EPIC_LAUNCHER_NAME, null, Library.EPIC_LAUNCHER)
         assertEquals(emptyList<String>(), libraryEntries(listOf(launcher), emptyMap(), emptySet()).map { it.key })

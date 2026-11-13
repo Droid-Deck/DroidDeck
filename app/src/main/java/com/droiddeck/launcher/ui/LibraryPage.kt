@@ -133,7 +133,7 @@ internal fun libraryEntries(
 ): List<LibraryEntry> {
     val claimed = HashSet<String>()
     val out = ArrayList<LibraryEntry>()
-    for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
+    for (g in games.sortedBy { if (it.library == Library.STEAM_OWNED) 2 else if (it.library == Library.XBOX_CLOUD) 1 else 0 }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
@@ -142,7 +142,7 @@ internal fun libraryEntries(
             claimed.add(storeKey)
         }
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
-            installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
+            installed = g.library != Library.STEAM_OWNED && (g.library != Library.XBOX_CLOUD || storeKey in installedStore))
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
@@ -230,14 +230,21 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val installedStore = StoresState.installed.map { it.key }.toSet()
     val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val cloudRows = rememberXboxCloudRows(s)
+    LaunchedEffect(soundMode, s.shortcutPicker, com.droiddeck.launcher.session.SessionState.running) {
+        if (!soundMode && !s.shortcutPicker) while (true) {
+            com.droiddeck.launcher.frontend.SteamCollection.refresh(ctx)
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
+    val steamOwned = if (soundMode || s.shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.SteamCollection.games
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
+    val all = remember(soundMode, s.steamGames, steamOwned, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
-        else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+        else libraryEntries(s.steamGames + steamOwned + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
     }
     var addingSoundtrack by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
@@ -469,6 +476,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
             }
         }
+        if (!s.shortcutPicker) Note(stringResource(R.string.steam_collection_hint))
         Box(Modifier.padding(top = 12.dp)) { GameFileFolderActions(s, a) }
     }
 }
@@ -538,7 +546,12 @@ private fun LibraryGrid(
             Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource) }
+            Rise(1) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LibraryFilters(sources, source, onSource)
+                    if (!soundMode && !s.shortcutPicker && source == Library.SOURCE_STEAM) Note(stringResource(R.string.steam_collection_hint))
+                }
+            }
         }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -704,7 +717,9 @@ private fun SourceFilterChip(key: String, label: String, on: Boolean, dot: Color
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
     val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
     val wide: Any? = e.game?.hero ?: e.item?.imageUrl ?: inst?.sidecar?.hero ?: inst?.sidecar?.cover
+        ?: e.game?.takeIf { it.library == Library.STEAM_OWNED }?.let { "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${it.appId}/header.jpg" }
     val portrait: Any? = e.game?.art ?: e.item?.tallImageUrl ?: inst?.sidecar?.cover
+        ?: e.game?.takeIf { it.library == Library.STEAM_OWNED }?.let { "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${it.appId}/library_600x900.jpg" }
     return if (tall) portrait ?: wide else wide ?: portrait
 }
 
