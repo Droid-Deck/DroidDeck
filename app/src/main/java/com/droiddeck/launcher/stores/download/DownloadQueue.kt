@@ -114,9 +114,9 @@ object DownloadQueue {
 
     fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key) } }
 
-    internal fun beginCleanup(key: String): Boolean = synchronized(lock) { key !in removing && cleaningUp.add(key) }
+    private fun beginCleanup(key: String): Boolean = synchronized(lock) { key !in removing && cleaningUp.add(key) }
 
-    internal fun endCleanup(key: String) { synchronized(lock) { cleaningUp.remove(key) } }
+    private fun endCleanup(key: String) { synchronized(lock) { cleaningUp.remove(key) } }
 
     private fun cleanUpLater(key: String, name: String, work: () -> Unit) {
         Thread({ try { work() } finally { endCleanup(key) } }, name).start()
