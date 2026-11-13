@@ -137,8 +137,8 @@ object StorageState {
     }
 
     fun clearShaders(context: Context, appId: Int, x64: Boolean = false) = act(context, "shaders-$appId", { _, fresh ->
-        val dir = fresh.games.firstOrNull { it.appId == appId && it.x64 == x64 }?.shaderDir ?: return@act false
-        FileOps.delete(dir)
+        val dirs = fresh.games.firstOrNull { it.appId == appId && it.x64 == x64 }?.shaderDirs.orEmpty()
+        dirs.isNotEmpty() && dirs.map { FileOps.delete(it) }.all { it }
     })
 
     fun resetPrefix(context: Context, game: GameUsage) = act(context, "prefix-${game.appId}", { _, fresh ->
@@ -175,7 +175,7 @@ object StorageState {
     }
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
-        val allowed = (fresh.games.flatMap { listOfNotNull(it.prefixDir, it.shaderDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
+        val allowed = (fresh.games.flatMap { it.shaderDirs + listOfNotNull(it.prefixDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
             fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.map { it.dir }).mapTo(HashSet()) { it.path }
         val wanted = dirs.distinctBy { it.path }
         val targets = wanted.filter { it.path in allowed }
@@ -230,7 +230,7 @@ object StorageState {
             CleanItem.LEFTOVERS -> report.leftovers.filter { it.safe }.forEach(::deleteLeftover)
             CleanItem.LEFTOVERS_UNSURE -> report.leftovers.filter { !it.safe }.forEach(::deleteLeftover)
             CleanItem.LOGS -> report.logs.forEach { FileOps.delete(it) }
-            CleanItem.SHADERS -> report.games.mapNotNull { it.shaderDir }.forEach { FileOps.delete(it) }
+            CleanItem.SHADERS -> report.games.flatMap { it.shaderDirs }.forEach { FileOps.delete(it) }
         }
     }
 

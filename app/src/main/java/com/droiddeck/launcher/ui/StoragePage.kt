@@ -916,7 +916,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val targets = buildList {
         games.forEach { g ->
             add(DataTarget("game:${g.prefixDir?.path ?: g.appId}", gameNames[g.prefixDir?.path].orEmpty(),
-                listOfNotNull(g.prefixDir?.let { it to g.prefix }), listOfNotNull(g.shaderDir?.takeIf { g.shaders > 0 }?.let { it to g.shaders })))
+                listOfNotNull(g.prefixDir?.let { it to g.prefix }), g.shaderDirs.takeIf { g.shaders > 0 }.orEmpty().mapIndexed { i, d -> d to if (i == 0) g.shaders else 0L }))
         }
         if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))
         unsure.forEach { l -> add(DataTarget("left:${leftoverKey(l)}", unsureNames[leftoverKey(l)].orEmpty(), listOfNotNull(l.prefix?.let { it to l.prefixBytes }), listOfNotNull(l.shaders?.let { it to l.bytes - l.prefixBytes }))) }
