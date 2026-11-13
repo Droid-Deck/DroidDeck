@@ -272,7 +272,7 @@ object StorageScan {
             SteamStorage.sharedPrefixId(launchOptions)?.takeIf { it != own }?.let { users.getOrPut(it) { LinkedHashSet() }.add(name) }
         }
         added?.forEach { shares(it.appId and 0xFFFFFFFFL, it.name, it.launchOptions) }
-        shortcuts.forEach { it?.forEach { (id, s) -> shares(id, s.name, s.launchOptions) } }
+        shortcuts.forEach { it?.forEach { (id, s) -> s.launchOptions.forEach { shares(id, s.name, it) } } }
         val kept = ArrayList<KeptPrefix>()
         for (lib in libs) {
             val dirs = File(lib.data, "steamapps/compatdata").listFiles().orEmpty().filter { it.isDirectory && SteamStorage.leftoverId(it.name) == null }

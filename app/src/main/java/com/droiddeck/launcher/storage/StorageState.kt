@@ -30,6 +30,7 @@ object StorageState {
     var storeBatch by mutableStateOf(false)
         private set
     val busy: Boolean get() = cleaning || storeBatch
+    private var refreshAgain = false
     var lastFreed by mutableStateOf<Long?>(null)
     var progress by mutableStateOf<String?>(null)
         private set
@@ -51,6 +52,7 @@ object StorageState {
 
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
+        if (scanning && force) refreshAgain = true
         if (scanning || cleaning) return
         if (!force && current != null && System.currentTimeMillis() - current.at < FRESH_MS) return
         val app = context.applicationContext
@@ -61,6 +63,10 @@ object StorageState {
             main.post {
                 if (result != null) report = result
                 scanning = false
+                if (refreshAgain) {
+                    refreshAgain = false
+                    refresh(app, force = true)
+                }
             }
         }, "storage-scan").start()
     }

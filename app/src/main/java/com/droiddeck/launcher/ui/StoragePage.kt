@@ -910,12 +910,12 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val unsure = leftovers.filter { !it.safe }
     val kept = report.kept.filter { it.bytes >= ONE_MB }.sortedByDescending { it.bytes }
     val safeLabel = pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size)
-    val gameNames = games.associate { it.prefixDir?.path to gameName(it) }
+    val gameNames = games.associate { gameKey(it) to gameName(it) }
     val unsureNames = unsure.associate { leftoverKey(it) to leftoverName(it) }
     val keptNames = kept.associate { it.dir.path to keptName(it) }
     val targets = buildList {
         games.forEach { g ->
-            add(DataTarget(gameKey(g), gameNames[g.prefixDir?.path].orEmpty(),
+            add(DataTarget(gameKey(g), gameNames[gameKey(g)].orEmpty(),
                 listOfNotNull(g.prefixDir?.let { it to g.prefix }), g.shaderDirs.takeIf { g.shaders > 0 }.orEmpty().mapIndexed { i, d -> d to if (i == 0) g.shaders else 0L }))
         }
         if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))

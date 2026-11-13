@@ -102,6 +102,22 @@ object DownloadQueue {
     private val lock = Any()
     private val items = LinkedHashMap<String, Item>()
     private val heldPaused = HashSet<String>()
+    private val removing = HashSet<String>()
+    private val cleaningUp = HashSet<String>()
+
+    fun holdForRemoval(key: String): Boolean = synchronized(lock) {
+        val item = items[key]
+        if (item?.entry?.isActive == true || item?.job != null || key in cleaningUp || key in removing) return@synchronized false
+        removing.add(key)
+        true
+    }
+
+    fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key) } }
+
+    private fun cleanUpLater(key: String, name: String, work: () -> Unit) {
+        synchronized(lock) { cleaningUp.add(key) }
+        Thread({ try { work() } finally { synchronized(lock) { cleaningUp.remove(key) } } }, name).start()
+    }
 
     fun holdPaused(key: String) = synchronized(lock) { heldPaused.add(key) }
     private var running = 0
@@ -131,6 +147,7 @@ object DownloadQueue {
     fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
         val app = context.applicationContext
         synchronized(lock) {
+            if (entry.key in removing) { Log.i(TAG, "${entry.key}: being uninstalled"); return }
             items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return } }
             items.remove(entry.key)
             val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
@@ -185,6 +202,7 @@ object DownloadQueue {
         val retry: (() -> Unit)?
         synchronized(lock) {
             val item = items[key] ?: return
+            if (key in removing) return
             if (item.entry.state != DownloadState.PAUSED && item.entry.state != DownloadState.FAILED) return
             retry = item.retry
             if (retry == null && item.factory == null) return
@@ -221,7 +239,7 @@ object DownloadQueue {
             }
         }
         if (!wasRunning) {
-            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-cancel").start()
+            cleanUpLater(key, "store-dl-cancel") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
         }
         StoresState.logLine("cancelled \"${item.entry.name}\"")
         StoreDownloadService.finish(app, key)
@@ -233,7 +251,7 @@ object DownloadQueue {
         val item = synchronized(lock) { items[key] } ?: return
         if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
         if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
-            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-clear").start()
+            cleanUpLater(key, "store-dl-clear") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
         }
         synchronized(lock) { items.remove(key); publishLocked() }
         StoreDownloadService.finish(context.applicationContext, key)

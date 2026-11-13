@@ -174,7 +174,7 @@ object SteamStorage {
             .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
     }.getOrNull()
 
-    class Shortcut(val name: String, val launchOptions: String)
+    class Shortcut(val name: String, val launchOptions: List<String>)
 
     fun shortcuts(root: File): Map<Long, Shortcut>? = runCatching {
         val userdata = File(root, "userdata")
@@ -184,9 +184,11 @@ object SteamStorage {
             (vdf["shortcuts"] as? Map<*, *>)?.values?.filterIsInstance<Map<*, *>>()?.mapNotNull { s ->
                 fun value(key: String) = s.entries.firstOrNull { (it.key as? String).equals(key, ignoreCase = true) }?.value as? String
                 val id = value("appid")?.toLongOrNull()?.and(0xFFFFFFFFL) ?: return@mapNotNull null
-                id to Shortcut(value("AppName") ?: "", value("LaunchOptions") ?: "")
+                id to Shortcut(value("AppName") ?: "", listOfNotNull(value("LaunchOptions")))
             }.orEmpty()
-        }.toMap()
+        }.groupBy({ it.first }, { it.second }).mapValues { (_, all) ->
+            Shortcut(all.firstOrNull { it.name.isNotEmpty() }?.name.orEmpty(), all.flatMap { it.launchOptions })
+        }
     }.getOrNull()
 
     fun isStubPrefix(prefix: File): Boolean = prefix.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }
