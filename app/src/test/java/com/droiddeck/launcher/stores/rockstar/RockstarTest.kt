@@ -12,6 +12,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun sdkTitleStateRequiresAnOwnedPackageInsteadOfCatalogVisibility() {
+        val visible = RockstarApp("1", "future_title", "123", emptyList())
+        val featured = RockstarAccountApps(listOf(visible), listOf(RockstarPackage("future_title", true)))
+        assertFalse(RockstarLibrary.owns(featured, 123, "future_title"))
+        val owned = RockstarAccountApps(listOf(visible), listOf(RockstarPackage("future_title", false)))
+        assertTrue(RockstarLibrary.owns(owned, 123, "future_title"))
+        assertFalse(RockstarLibrary.owns(owned, 124, "other_title"))
+    }
+
     @Test fun directLaunchPreservesArgumentsThroughTheWindowsBatchInterpreter() {
         org.junit.Assume.assumeTrue(java.io.File.separatorChar == '\\')
         val root = java.nio.file.Files.createTempDirectory("rockstar-batch").toFile()

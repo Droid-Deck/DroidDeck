@@ -49,7 +49,11 @@ object RockstarLaunch {
         val tokenRoot = RockstarRos.result("app.asmx/GetTitleAccessToken2", listOf("ticket" to ticket.ticket, "titleId" to rosId.toString(), "platformId" to "8"))
         val token = RockstarRos.text(tokenRoot, "Result")?.takeIf { it.isNotEmpty() } ?: return failure("no-title-token")
         val result = JSONObject().put("ok", true).put("expiresAt", System.currentTimeMillis() + 90_000)
-        if (sdk) result.put("session", JSONObject().put("accountId", ticket.rockstarId).put("identity", ticket.email.ifEmpty { ticket.nickname }).put("ticket", ticket.ticket).put("titleId", metadata?.id ?: id))
+        if (sdk) {
+            val session = JSONObject().put("accountId", ticket.rockstarId).put("identity", ticket.email.ifEmpty { ticket.nickname }).put("ticket", ticket.ticket)
+            if (RockstarLibrary.owns(account, rosId, metadata?.id ?: id)) session.put("titleId", metadata?.id ?: id)
+            result.put("session", session)
+        }
         if (pipe == null) return result
         val hash = MessageDigest.getInstance("SHA-256").digest(RockstarAuth.fingerprint(app).toString().toByteArray()).copyOf(16)
         val launch = RockstarRos.result("app.asmx/GetTitleLaunchData", listOf("ticket" to ticket.ticket, "titleAccessToken" to token,
