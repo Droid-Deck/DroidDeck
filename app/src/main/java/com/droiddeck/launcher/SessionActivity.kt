@@ -1119,7 +1119,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                             id to name
                         }
                         if (target.first != frameGenActiveGameId) {
+                            val previousActiveGameId = frameGenActiveGameId
                             frameGenActiveGameId = target.first
+                            if (target.first != null || previousActiveGameId != null) {
+                                val activeEffectsProfileId = target.first?.let {
+                                    SessionPrefs.screenEffectsProfileId(
+                                        SessionService.MODE_STEAM, it.toString(), null,
+                                    )
+                                }
+                                SessionPrefs.setActiveScreenEffectsProfile(
+                                    this@SessionActivity, activeEffectsProfileId,
+                                )
+                                observedScreenEffectsProfileId = activeEffectsProfileId
+                                syncActiveScreenEffectsProfile()
+                            }
                             if (drawerGameProfileFollowState.followsSteam) {
                                 loadFrameGenFor(target.first)
                             }
@@ -2066,9 +2079,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
             effects = activeEffects
             upscaler = activeUpscaler
-            WaylandCompositor.nativeSetUpscaler(activeUpscaler)
-            WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(activeEffects, activeUpscaler)?.name)
         }
+        WaylandCompositor.nativeSetUpscaler(activeUpscaler)
         activeEffects.push(activeUpscaler)
     }
 
@@ -5241,14 +5253,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
-        val activeEffects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
-        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, observedScreenEffectsProfileId)
+        val activeProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
+        observedScreenEffectsProfileId = activeProfileId
+        val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
         if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
             effects = activeEffects
+            upscaler = activeUpscaler
         } else {
             effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         }
-        if (CompositorHost.isStarted) activeEffects.push(activeUpscaler)
+        if (CompositorHost.isStarted) {
+            WaylandCompositor.nativeSetUpscaler(activeUpscaler)
+            activeEffects.push(activeUpscaler)
+        }
         refreshInputProfile()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()

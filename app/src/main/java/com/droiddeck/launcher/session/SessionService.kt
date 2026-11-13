@@ -1522,7 +1522,8 @@ class SessionService : Service() {
         SessionState.gameId = accepted
         val effectsProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, accepted, null)
         SessionPrefs.setActiveScreenEffectsProfile(this, effectsProfileId)
-        SessionPrefs.screenEffects(this, effectsProfileId).push(SessionPrefs.upscaler(this))
+        SessionPrefs.screenEffects(this, effectsProfileId)
+            .push(SessionPrefs.screenEffectsUpscaler(this, effectsProfileId))
         pendingSteamGameId = accepted
         pendingSteamGameGeneration = sessionGen
         if (SessionState.suspended) resumeSession()
@@ -1554,7 +1555,7 @@ class SessionService : Service() {
                     SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
                 SessionPrefs.setActiveScreenEffectsProfile(this, previousProfileId)
                 SessionPrefs.screenEffects(this, previousProfileId)
-                    .push(SessionPrefs.upscaler(this))
+                    .push(SessionPrefs.screenEffectsUpscaler(this, previousProfileId))
             }
             return
         }
@@ -1628,7 +1629,7 @@ class SessionService : Service() {
         val gameProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
         if (SessionPrefs.activeScreenEffectsProfileId(this) != gameProfileId) return
         SessionPrefs.setActiveScreenEffectsProfile(this, null)
-        SessionPrefs.screenEffects(this, null).push(SessionPrefs.upscaler(this))
+        SessionPrefs.screenEffects(this, null).push(SessionPrefs.screenEffectsUpscaler(this, null))
     }
 
     private fun returnAfterGame(gameId: String, gen: Int, token: Int) {
