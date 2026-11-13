@@ -128,7 +128,8 @@ object DownloadQueue {
     private fun cleanUpLater(context: Context, key: String, name: String, work: () -> Unit) {
         Thread({
             try {
-                StoreInstalls.collectingDiscards(work).forEach { it.join() }
+                val deleting = ArrayList<Thread>()
+                try { StoreInstalls.collectingDiscards(deleting, work) } finally { deleting.forEach { it.join() } }
             } finally {
                 endCleanup(key)
                 advance(context)
@@ -249,7 +250,7 @@ object DownloadQueue {
             wasRunning = item.entry.state == DownloadState.RUNNING
             if (wasRunning) {
                 item.cancelled.set(true)
-                val deleting = StoreInstalls.collectingDiscards { item.job?.cancel(deleteFiles = true) }
+                val deleting = StoreInstalls.collectingDiscards { runCatching { item.job?.cancel(deleteFiles = true) } }
                 if (deleting.isNotEmpty()) { holdCleanup(key); awaitDeletion = deleting }
             }
             if (!wasRunning) {
@@ -362,10 +363,14 @@ object DownloadQueue {
             val job = checkNotNull(item.factory).invoke()
             synchronized(lock) { item.job = job }
             StoresState.logLine("${item.entry.store.label}: fetching manifest for \"${item.entry.name}\"")
-            val deleting = StoreInstalls.collectingDiscards { result = job.run(handle) }
-            if (deleting.isNotEmpty()) {
-                holdCleanup(item.entry.key)
-                cleanUpLater(context, item.entry.key, "store-dl-run-discard") { deleting.forEach { it.join() } }
+            val deleting = ArrayList<Thread>()
+            try {
+                StoreInstalls.collectingDiscards(deleting) { result = job.run(handle) }
+            } finally {
+                if (deleting.isNotEmpty()) {
+                    holdCleanup(item.entry.key)
+                    cleanUpLater(context, item.entry.key, "store-dl-run-discard") { deleting.forEach { it.join() } }
+                }
             }
             if (result == null && !item.cancelled.get()) error = "install failed"
         } catch (t: Throwable) {

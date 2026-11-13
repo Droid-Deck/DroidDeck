@@ -196,6 +196,26 @@ class DownloadQueueRemovalTest {
         DownloadQueue.releaseRemoval(entry.key)
     }
 
+    @Test fun aJobThatThrowsAfterStartingADiscardStillKeepsTheGameHeld() {
+        val folder = File(app.filesDir, "throw-after-discard").apply { mkdirs() }
+        val release = blockDiscards()
+        val entry = DownloadEntry(Store.GOG, "throw-after-discard", "throws")
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    StoreInstalls.discard(app, folder, emptyList())
+                    throw IllegalStateException("fails after discard")
+                }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertTrue(idleUntil { DownloadQueue.entry(entry.key)?.state == DownloadState.FAILED })
+        assertFalse(DownloadQueue.holdForRemoval(entry.key))
+        release.countDown()
+        awaitHold(entry.key)
+        DownloadQueue.releaseRemoval(entry.key)
+    }
+
     @Test fun cancellingARunningJobTwiceWaitsForEveryDiscard() {
         val folder = File(app.filesDir, "double-cancel").apply { mkdirs() }
         val release = blockDiscards()

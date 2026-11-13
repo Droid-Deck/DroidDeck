@@ -13,6 +13,7 @@ import com.droiddeck.launcher.files.FileOps
 import com.droiddeck.launcher.runtime.FlatpakManager
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.stores.StoreGameSidecar
 
 enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
 
@@ -34,29 +35,37 @@ object StorageState {
     val storeSizes = androidx.compose.runtime.mutableStateMapOf<String, Long>()
     private var measuringStores = false
 
-    fun storeBytes(usage: StoreGameUsage): Long = if (usage.bytes >= 0) usage.bytes else storeSizes[usage.game.folder.path] ?: -1L
+    private fun sizeKey(usage: StoreGameUsage): String = with(usage.game) {
+        "${folder.path}|${sidecar.installVersion}|${sidecar.installedAt}|${StoreGameSidecar.file(folder).lastModified()}"
+    }
 
-    private fun measureStoreGames(app: Context, report: StorageReport) {
+    fun storeBytes(usage: StoreGameUsage): Long = if (usage.bytes >= 0) usage.bytes else storeSizes[sizeKey(usage)] ?: -1L
+
+    private fun measureStoreGames(app: Context) {
+        val current = report ?: return
         if (measuringStores) return
-        val wanted = report.storeGames.filter { it.bytes < 0 && it.game.folder.path !in storeSizes }.map { it.game.folder }
+        val wanted = current.storeGames.filter { it.bytes < 0 && sizeKey(it) !in storeSizes }.map { sizeKey(it) to it.game.folder }
         if (wanted.isEmpty()) return
         measuringStores = true
         Thread({
             val started = android.os.SystemClock.elapsedRealtime()
-            for (folder in wanted) {
+            for ((key, folder) in wanted) {
                 val bytes = runCatching { StorageScan.measure(folder) }.getOrDefault(0L)
-                main.post { storeSizes[folder.path] = bytes }
+                main.post { storeSizes[key] = bytes }
             }
             Log.i(TAG, "measured ${wanted.size} store games on removable storage in ${android.os.SystemClock.elapsedRealtime() - started} ms")
-            main.post { measuringStores = false }
+            main.post {
+                measuringStores = false
+                measureStoreGames(app)
+            }
         }, "storage-store-sizes").start()
     }
 
     private fun publish(app: Context, result: StorageReport) {
         report = result
-        val live = result.storeGames.mapTo(HashSet()) { it.game.folder.path }
+        val live = result.storeGames.mapTo(HashSet()) { sizeKey(it) }
         storeSizes.keys.retainAll(live)
-        measureStoreGames(app, result)
+        measureStoreGames(app)
     }
     var lastFreed by mutableStateOf<Long?>(null)
     var progress by mutableStateOf<String?>(null)

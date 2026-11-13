@@ -108,13 +108,16 @@ object StoreInstalls {
 
     private val started = ThreadLocal<MutableList<Thread>?>()
 
-    fun collectingDiscards(block: () -> Unit): List<Thread> {
+    fun collectingDiscards(into: MutableList<Thread> = ArrayList(), block: () -> Unit): List<Thread> {
         val previous = started.get()
-        val mine = ArrayList<Thread>()
-        started.set(mine)
-        try { block() } finally { started.set(previous) }
-        previous?.addAll(mine)
-        return mine
+        started.set(into)
+        try {
+            block()
+        } finally {
+            started.set(previous)
+            previous?.addAll(into)
+        }
+        return into
     }
 
     fun discard(context: Context, folder: File, caches: List<File>) {
