@@ -1,27 +1,17 @@
 #!/bin/bash
-# GitHub sign-in through Android's browser, with the one-time code typed in for the person.
-serial=${ADB_SERIAL:-127.0.0.1:5555}
-display=${DD_BROWSER_DISPLAY:-0}
-adb connect "$serial" >/dev/null 2>&1
+# Starts GitHub's device login and opens its approval page in Android.
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
-# bash drops GH and GH_PID once gh exits, which can be before the loop reads its last line.
-ghpid=$GH_PID
+gh_pid=$GH_PID
 exec {ghout}<&"${GH[0]}" {ghin}>&"${GH[1]}"
-typed=
+shown=
 while IFS= read -r line <&"$ghout"; do
   printf '%s\n' "$line"
   code=$(grep -oE '[A-Z0-9]{4}-[A-Z0-9]{4}' <<<"$line" | head -1)
-  if [ -n "$code" ] && [ -z "$typed" ]; then
-    typed=1
+  if [ -n "$code" ] && [ -z "$shown" ]; then
+    shown=1
     echo >&"$ghin"
-    adb -s "$serial" shell "am start --display $display -a android.intent.action.VIEW -d https://github.com/login/device" >/dev/null 2>&1
-    # Chrome drops characters from `input text` and from fast key events on this page.
-    keys=
-    for ((i = 0; i < ${#code}; i++)); do
-      c=${code:i:1}
-      [ "$c" = - ] || keys+="input -d $display keyevent KEYCODE_$c; sleep 0.4; "
-    done
-    (sleep 7; adb -s "$serial" shell "$keys" >/dev/null 2>&1) &
+    printf 'GitHub device code: %s · github.com/login/device\n' "$code"
+    android-open https://github.com/login/device
   fi
 done
-wait "$ghpid"
+wait "$gh_pid"
