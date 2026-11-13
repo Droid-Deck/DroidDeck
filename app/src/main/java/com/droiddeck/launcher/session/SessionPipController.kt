@@ -48,7 +48,7 @@ class SessionPipController(
         return builder.build()
     }
 
-    fun enter() {
+    fun enter(explicit: Boolean = true) {
         if (!eligible()) {
             Toast.makeText(activity, R.string.pip_not_ready, Toast.LENGTH_SHORT).show()
             return
@@ -60,7 +60,7 @@ class SessionPipController(
             return
         }
         prepare()
-        requested = true
+        requested = explicit
         val entered = runCatching { activity.enterPictureInPictureMode(params(bounds())) }.getOrDefault(false)
         if (!entered) {
             requested = false
@@ -71,7 +71,7 @@ class SessionPipController(
 
     fun leaving() {
         if (!automatic() || !allowed()) return
-        if (Build.VERSION.SDK_INT < 31) enter() else prepare()
+        if (Build.VERSION.SDK_INT < 31) enter(explicit = false) else prepare()
     }
 
     private fun prepare() {
