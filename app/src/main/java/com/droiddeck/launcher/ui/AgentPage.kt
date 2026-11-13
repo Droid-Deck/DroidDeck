@@ -129,7 +129,18 @@ private const val COMPOSER_SLIDE_MS = 350L
 @Composable
 internal fun AgentPage(
     modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true, hidesPet: Boolean = true,
-    showControlsWithoutKeyboard: Boolean = false,
+) = AgentPageContent(modifier, inputModifier, visible, startTyping, hidesPet, showControlsWithoutKeyboard = false)
+
+@Composable
+internal fun AgentPageWithControls(
+    modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true,
+    showControlsWithoutKeyboard: Boolean,
+) = AgentPageContent(modifier, inputModifier, visible, startTyping, hidesPet = true, showControlsWithoutKeyboard = showControlsWithoutKeyboard)
+
+@Composable
+private fun AgentPageContent(
+    modifier: Modifier, inputModifier: Modifier, visible: Boolean, startTyping: Boolean, hidesPet: Boolean,
+    showControlsWithoutKeyboard: Boolean,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
