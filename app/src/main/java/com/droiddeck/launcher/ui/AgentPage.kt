@@ -565,7 +565,7 @@ private fun AgentComposer(
             if (showControlsWithoutKeyboard) {
                 controlsOpen = false
                 composer.typing = true
-                composer.opening = false
+                composer.opening = true
             } else {
                 controlsOpen = true
                 composer.open()
