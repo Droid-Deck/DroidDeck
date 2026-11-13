@@ -519,6 +519,7 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
         } else {
             Rect(margin, motion.dockY + motion.size + gap, w - margin, h - margin)
         }
+        val menuSlot = remember { AgentMenuSlot() }
         val grow = remember { Animatable(0f) }
         val fade = remember { Animatable(0f) }
         LaunchedEffect(open) {
@@ -559,9 +560,10 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
                 Text(stringResource(R.string.agent_pet_name), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                     modifier = Modifier.padding(start = 4.dp))
                 Spacer(Modifier.weight(1f))
+                menuSlot.content?.invoke()
                 HeaderAction(Icons.Outlined.Close, stringResource(R.string.agent_close), size = 34.dp, tag = "agent-pet-close", onClick = onClose)
             }
-            AgentPage(Modifier.weight(1f).fillMaxWidth(), visible = open, startTyping = AgentHost.entries.isEmpty(), hidesPet = false)
+            AgentPage(Modifier.weight(1f).fillMaxWidth(), visible = open, startTyping = AgentHost.entries.isEmpty(), hidesPet = false, menuSlot = menuSlot)
         }
     }
 }
