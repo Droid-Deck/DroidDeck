@@ -189,7 +189,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 log("legacy launcher handshake complete");
             }
             if let (Some(listener), Some(session)) = (sdk_listener, session) {
-                let mut pipe = listener.accept()?.with_timeout(Duration::from_secs(86400));
+                let mut pipe = listener.accept()?.with_deadline(Duration::from_secs(90));
                 if pipe.client_pid()? != pid {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::PermissionDenied,
@@ -211,6 +211,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                     }
                     if sends_login && !authenticated {
                         authenticated = true;
+                        pipe = pipe.with_timeout(Duration::from_secs(86400));
                         log("SDK login sent");
                         let _ = result.send(Ok(()));
                     }

@@ -337,8 +337,9 @@ def rockstar_sdk(folder, sidecar):
     for _ in range(4):
         children = [p for directory in level for p in islice(directory.iterdir(), 256)
                     if not p.is_symlink() and p.resolve().is_relative_to(root)]
-        for path in children:
-            if path.is_file() and path.name.lower() == "title.rgl" and 112 <= path.stat().st_size <= 1048576:
+        metadata = [directory / "title.rgl" for directory in level] + [p for p in children if p.name.lower() == "title.rgl"]
+        for path in metadata:
+            if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root) and 112 <= path.stat().st_size <= 1048576:
                 with path.open("rb") as source:
                     if source.read(4) == b"RGLM":
                         return True

@@ -32,11 +32,11 @@ object StoreLaunch {
             ?: exe.substringBeforeLast('\\', "")
         val lines = ArrayList<String>()
         lines += "@echo off"
-        lines += "setlocal"
+        lines += if (sidecar.store == Store.ROCKSTAR) "setlocal DisableDelayedExpansion" else "setlocal"
         if (sidecar.store != Store.ROCKSTAR) lines += "rem Written by DroidDeck for ${sidecar.store.label}: ${sidecar.title}. Steam's shortcut runs this file."
         lines += "cd /d \"%~dp0$dir\""
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
-        val args = sidecar.args.joinToString(" ") { quoteArg(it) }
+        val args = sidecar.args.joinToString(" ") { if (sidecar.store == Store.ROCKSTAR) batchArg(it) else quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
@@ -83,6 +83,22 @@ object StoreLaunch {
     }
 
     private val ENV_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
+
+    private fun batchArg(arg: String): String {
+        val quoted = StringBuilder("\"")
+        var slashes = 0
+        for (c in arg.filter { it >= ' ' && it != '\u007f' }) {
+            if (c == '\\') { slashes++; continue }
+            quoted.append("\\".repeat(if (c == '"') slashes * 2 + 1 else slashes)).append(c)
+            slashes = 0
+        }
+        quoted.append("\\".repeat(slashes * 2)).append('"')
+        return quoted.toString().map { c -> when (c) {
+            '%' -> "%%"
+            in "^&|<>()\"" -> "^$c"
+            else -> c.toString()
+        } }.joinToString("")
+    }
 
     fun quoteArg(arg: String): String {
         val clean = arg.filter { it >= ' ' && it != '\u007f' }

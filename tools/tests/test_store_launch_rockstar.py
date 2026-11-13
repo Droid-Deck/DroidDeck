@@ -10,6 +10,14 @@ from test_store_launch import store
 
 
 class RockstarLaunch(unittest.TestCase):
+    def test_root_metadata_is_found_after_many_assets(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            for index in range(300):
+                (folder / ('asset-%s.dat' % index)).write_bytes(b'asset')
+            (folder / 'title.rgl').write_bytes(b'RGLM' + bytes(108))
+            self.assertTrue(store.rockstar_sdk(folder, {'id': 'future_title', 'exe': 'Game.exe'}))
+
     def test_sdk_titles_receive_only_their_short_lived_game_session(self):
         with tempfile.TemporaryDirectory() as root:
             def change(values):

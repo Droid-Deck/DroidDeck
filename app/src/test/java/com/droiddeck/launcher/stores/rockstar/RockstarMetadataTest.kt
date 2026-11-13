@@ -14,6 +14,17 @@ import javax.crypto.spec.SecretKeySpec
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarMetadataTest {
+    @Test fun findsRootMetadataAfterManyOtherFiles() {
+        val root = java.nio.file.Files.createTempDirectory("rockstar-many-files").toFile()
+        try {
+            repeat(300) { java.io.File(root, "asset-$it.dat").writeText("asset") }
+            java.io.File(root, "title.rgl").writeBytes(container("""{"titleId":"game","rosTitleId":123,"principalFileName":"Game.exe"}"""))
+            assertEquals("game", RockstarMetadata.find(root)?.id)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun container(json: String): ByteArray {
         val iv = ByteArray(16) { it.toByte() }
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")

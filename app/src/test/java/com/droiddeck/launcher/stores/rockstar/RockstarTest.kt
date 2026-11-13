@@ -12,6 +12,32 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun directLaunchPreservesArgumentsThroughTheWindowsBatchInterpreter() {
+        org.junit.Assume.assumeTrue(java.io.File.separatorChar == '\\')
+        val root = java.nio.file.Files.createTempDirectory("rockstar-batch").toFile()
+        try {
+            java.io.File(System.getenv("SystemRoot"), "System32/cscript.exe").copyTo(java.io.File(root, "Game.exe"))
+            java.io.File(root, "probe.vbs").writeText("""
+                Set output = CreateObject("Scripting.FileSystemObject").CreateTextFile("args.txt", True)
+                For Each arg In WScript.Arguments
+                    output.WriteLine(arg)
+                Next
+                output.Close
+            """.trimIndent())
+            val args = listOf("", "&literal", "one argument", "%PATH%", "!PATH!", "^&|<>()")
+            val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR,
+                "future_title", "Game", "Game.exe", args = listOf("//nologo", "probe.vbs") + args)
+            com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(root, game)
+            val process = ProcessBuilder("cmd.exe", "/d", "/c", java.io.File(root, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER).path)
+                .directory(root).redirectErrorStream(true).start()
+            assertTrue(process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(process.inputStream.bufferedReader().readText(), 0, process.exitValue())
+            assertEquals(args, java.io.File(root, "args.txt").readLines())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun launcherAdoptionDoesNotFollowSymbolicLinks() {
         val folder = java.nio.file.Files.createTempDirectory("rockstar-launch-link").toFile()
         val outside = java.io.File.createTempFile("rockstar-keep", ".txt").apply { writeText("keep") }

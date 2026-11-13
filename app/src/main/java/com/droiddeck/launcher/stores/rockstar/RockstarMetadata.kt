@@ -18,7 +18,8 @@ internal object RockstarMetadata {
         repeat(4) {
             val children = level.flatMap { it.listFiles().orEmpty().take(256).toList() }
                 .filter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator) }
-            for (file in children.filter { it.isFile && it.name.equals("title.rgl", true) }) {
+            val metadata = level.map { File(it, "title.rgl") } + children.filter { it.name.equals("title.rgl", true) }
+            for (file in metadata.distinct().filter { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator) }) {
                 if (file.length() in 112..1_048_576) runCatching { decode(file.readBytes()) }.getOrNull()?.let {
                     return it.copy(exe = File(file.parentFile, it.exe).relativeTo(root).invariantSeparatorsPath)
                 }
