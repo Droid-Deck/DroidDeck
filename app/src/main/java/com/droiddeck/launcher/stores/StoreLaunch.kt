@@ -21,10 +21,6 @@ object StoreLaunch {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA || sidecar.store == Store.UBISOFT || sidecar.store == Store.ROCKSTAR
         val file = File(folder, LAUNCHER)
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(file.toPath())) return sidecar.copy(launcher = null)
-        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) {
-            file.delete()
-            return sidecar.copy(launcher = null)
-        }
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
         file.writeText(launcherText(sidecar))
         return sidecar.copy(launcher = LAUNCHER)
@@ -36,11 +32,11 @@ object StoreLaunch {
             ?: exe.substringBeforeLast('\\', "")
         val lines = ArrayList<String>()
         lines += "@echo off"
-        lines += "setlocal"
+        lines += if (sidecar.store == Store.ROCKSTAR) "setlocal DisableDelayedExpansion" else "setlocal"
         if (sidecar.store != Store.ROCKSTAR) lines += "rem Written by DroidDeck for ${sidecar.store.label}: ${sidecar.title}. Steam's shortcut runs this file."
         lines += "cd /d \"%~dp0$dir\""
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
-        val args = sidecar.args.joinToString(" ") { quoteArg(it) }
+        val args = sidecar.args.joinToString(" ") { if (sidecar.store == Store.ROCKSTAR) batchArg(it) else quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
@@ -60,8 +56,11 @@ object StoreLaunch {
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
         } else if (sidecar.store == Store.ROCKSTAR) {
+            lines += "if not exist \"C:\\Program Files\\Rockstar Games\\Launcher\\launch.json\" goto direct"
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
             lines += "exit /b %errorlevel%"
+            lines += ":direct"
+            lines += run
         } else if (sidecar.store == Store.UBISOFT) {
             lines += "if not exist \"%~dp0$UBISOFT_LAUNCH\" goto direct"
             lines += "if not exist \"$UBISOFT_SERVICE\" goto direct"
@@ -85,6 +84,22 @@ object StoreLaunch {
 
     private val ENV_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
+    private fun batchArg(arg: String): String {
+        val quoted = StringBuilder("\"")
+        var slashes = 0
+        for (c in arg.filter { it >= ' ' && it != '\u007f' }) {
+            if (c == '\\') { slashes++; continue }
+            quoted.append("\\".repeat(if (c == '"') slashes * 2 + 1 else slashes)).append(c)
+            slashes = 0
+        }
+        quoted.append("\\".repeat(slashes * 2)).append('"')
+        return quoted.toString().map { c -> when (c) {
+            '%' -> "%%"
+            in "^&|<>()\"" -> "^$c"
+            else -> c.toString()
+        } }.joinToString("")
+    }
+
     fun quoteArg(arg: String): String {
         val clean = arg.filter { it >= ' ' && it != '\u007f' }
         return if (' ' in clean && !clean.contains('"')) "\"$clean\"" else clean
@@ -103,11 +118,12 @@ object StoreLaunch {
 
     fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         if (sidecar.store !in listOf(Store.UBISOFT, Store.ROCKSTAR) || !sidecar.isInstalled) return sidecar
-        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) return sidecar
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(File(folder, LAUNCHER).toPath())) return sidecar.copy(launcher = null)
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
         if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
-        val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
+        val metadataExe = if (sidecar.store == Store.ROCKSTAR) com.droiddeck.launcher.stores.rockstar.RockstarMetadata.find(folder)?.exe
+            ?.takeIf { File(folder, it).isFile && File(folder, it).canonicalPath.startsWith(folder.canonicalPath + File.separator) } else null
+        val exe = metadataExe ?: if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
         if (exe == sidecar.exe && sidecar.launcher == LAUNCHER &&
             runCatching { File(folder, LAUNCHER).readText() }.getOrNull() == launcherText(sidecar)) return sidecar
         return runCatching { writeLauncher(folder, sidecar.copy(exe = exe)).also { it.write(folder) } }.getOrDefault(sidecar)

@@ -418,7 +418,7 @@ object AddedGames {
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>, single: AddedExes.Entry? = null, reuse: Boolean = false) {
         run {
             val sidecar = StoreGameSidecar.read(folder)?.let { com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, it) }
-            if (sidecar?.store == Store.ROCKSTAR && (!com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id) || sidecar.launcher != com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)) return
+            if (sidecar?.store == Store.ROCKSTAR && sidecar.launcher != com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER) return
             sidecar?.takeIf { it.id.isNotEmpty() }?.let { SessionPrefs.followStoreGame(context, "${it.store.id}:${it.id}", folder.path) { old -> !File(old).exists() } }
             val ranking = rank(folder, reuse)
             val candidates = ranking.exes

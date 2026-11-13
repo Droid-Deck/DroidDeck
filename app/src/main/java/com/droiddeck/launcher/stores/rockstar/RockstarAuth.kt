@@ -29,7 +29,7 @@ object RockstarAuth {
     private const val TICKET_MARGIN_MS = 15 * 60 * 1000L
     private val lock = Any()
 
-    class Ticket(val ticket: String, val sessionKey: String, val sessionTicket: String, val rockstarId: String, val nickname: String, val expiresAt: Long)
+    class Ticket(val ticket: String, val sessionKey: String, val sessionTicket: String, val rockstarId: String, val nickname: String, val expiresAt: Long, val email: String = "", val sdkTicket: String = "")
 
     internal fun fingerprint(context: Context): JSONObject {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -159,7 +159,7 @@ object RockstarAuth {
 
     private fun stored(o: JSONObject): Ticket? {
         val t = o.optString("ticket").takeIf { it.isNotEmpty() } ?: return null
-        return Ticket(t, o.optString("session_key"), o.optString("session_ticket"), o.optString("rockstar_id"), o.optString("display_name"), o.optLong("ticket_expires_at"))
+        return Ticket(t, o.optString("session_key"), o.optString("session_ticket"), o.optString("rockstar_id"), o.optString("display_name"), o.optLong("ticket_expires_at"), o.optString("email"), o.optString("sdk_ticket").takeIf { o.optInt("sdk_ticket_version") == 1 }.orEmpty())
     }
 
     private fun mint(context: Context): Ticket {
@@ -176,7 +176,7 @@ object RockstarAuth {
         }
         val t = parseTicket(root) ?: throw IllegalStateException("no ticket in the answer")
         o.put("ticket", t.ticket).put("session_key", t.sessionKey).put("session_ticket", t.sessionTicket)
-            .put("rockstar_id", t.rockstarId).put("ticket_expires_at", t.expiresAt)
+            .put("rockstar_id", t.rockstarId).put("ticket_expires_at", t.expiresAt).put("email", t.email).put("sdk_ticket", t.sdkTicket).put("sdk_ticket_version", 1)
         if (t.nickname.isNotEmpty()) o.put("display_name", t.nickname)
         StoreAccounts.write(app, Store.ROCKSTAR, o)
         return t
@@ -191,7 +191,48 @@ object RockstarAuth {
             (account?.let { RockstarRos.text(it, "RockstarId") } ?: RockstarRos.text(root, "RockstarId")).orEmpty(),
             account?.let { RockstarRos.text(it, "Nickname") }.orEmpty(),
             now + secs * 1000L,
+            account?.let { RockstarRos.text(it, "Email") }.orEmpty(),
+            sdkTicket(root),
         )
+    }
+
+    internal fun sdkTicket(root: org.w3c.dom.Element): String {
+        val document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
+        val response = document.createElement("Response").also { document.appendChild(it) }
+        val fields = setOf("Status", "Ticket", "SessionKey", "SessionTicket", "SecsUntilExpiration", "PlayerAccountId", "PlayerAccountRuid",
+            "Region", "Privileges", "Privs", "Services", "SslServices", "Hosts", "DisabledSecurityFlags", "SessionId", "CloudKey", "PublicIp", "PosixTime", "IsSubAccount")
+        val blocked = setOf("scauthtoken", "accesstoken", "refreshtoken", "rememberedmachinetoken", "loginguid", "password")
+        fun copy(source: org.w3c.dom.Element): org.w3c.dom.Element {
+            val target = document.createElement(source.tagName)
+            for (i in 0 until source.attributes.length) {
+                val attribute = source.attributes.item(i)
+                if (attribute.nodeName.lowercase() !in blocked) target.setAttribute(attribute.nodeName, attribute.nodeValue)
+            }
+            var child = source.firstChild
+            while (child != null) {
+                if (child is org.w3c.dom.Element) {
+                    if (child.tagName.lowercase() !in blocked) target.appendChild(copy(child))
+                } else if (child.nodeType == org.w3c.dom.Node.TEXT_NODE || child.nodeType == org.w3c.dom.Node.CDATA_SECTION_NODE) {
+                    target.appendChild(document.createTextNode(child.nodeValue))
+                }
+                child = child.nextSibling
+            }
+            return target
+        }
+        for (field in fields) RockstarRos.first(root, field)?.let { response.appendChild(copy(it)) }
+        RockstarRos.first(root, "RockstarAccount")?.let { account ->
+            val target = document.createElement("RockstarAccount")
+            for (field in setOf("RockstarId", "Nickname", "Email", "Age", "CountryCode", "LanguageCode", "AvatarUrl", "ZipCode", "Ruid")) {
+                RockstarRos.first(account, field)?.let { target.appendChild(copy(it)) }
+            }
+            response.appendChild(target)
+        }
+        val output = java.io.StringWriter()
+        javax.xml.transform.TransformerFactory.newInstance().newTransformer().apply {
+            setOutputProperty(javax.xml.transform.OutputKeys.OMIT_XML_DECLARATION, "yes")
+            transform(javax.xml.transform.dom.DOMSource(document), javax.xml.transform.stream.StreamResult(output))
+        }
+        return output.toString()
     }
 
     fun signOut(context: Context) = synchronized(lock) { StoreAccounts.clear(context.applicationContext, Store.ROCKSTAR) }
