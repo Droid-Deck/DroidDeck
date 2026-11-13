@@ -115,6 +115,7 @@ class Parker:
         self.pid = None
         self.before = {}
         self.present = None
+        self.own = set()
 
     def tasks(self, pid):
         try:
@@ -135,7 +136,7 @@ class Parker:
                 except OSError:
                     continue
         # A mask the game gave one of its own threads may be passed on by it, not by a parked thread.
-        own = {frozenset(now) for tid, now in masks.items() if tid in self.present}
+        self.own.update(frozenset(now) for tid, now in masks.items() if tid in self.present)
         inherited = {frozenset(parked): before for before, parked in self.before.values()}
         for tid, now in masks.items():
             try:
@@ -143,7 +144,7 @@ class Parker:
                 if wanted and wanted != now:
                     self.cores.set(tid, wanted)
                     self.before[tid] = (now, wanted)
-                elif tid not in self.present and frozenset(now) in inherited and frozenset(now) not in own:
+                elif tid not in self.present and frozenset(now) in inherited and frozenset(now) not in self.own:
                     self.before[tid] = (inherited[frozenset(now)], now)
             except OSError:
                 continue
@@ -157,6 +158,7 @@ class Parker:
                 continue
         self.pid = None
         self.present = None
+        self.own.clear()
         self.before.clear()
 
 

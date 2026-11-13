@@ -183,6 +183,18 @@ class GovernorTest(unittest.TestCase):
         self.assertEqual(self.cores.state[404], EFFICIENT)
         self.assertEqual(self.cores.state[400], ALL)
 
+    def test_a_child_of_a_game_pinned_thread_that_exited_keeps_its_mask(self):
+        self.cores.state[402] = set(EFFICIENT)
+        self.run_for(4, VBLANK)
+        (self.governor.parker.proc / f'{self.PID}/task/402').rmdir()
+        del self.cores.state[402]
+        (self.governor.parker.proc / f'{self.PID}/task/404').mkdir()
+        self.cores.state[404] = set(EFFICIENT)
+        self.run_for(1, VBLANK)
+        self.run_for(2, 2 * VBLANK)
+        self.assertEqual(self.cores.state[404], EFFICIENT)
+        self.assertEqual(self.cores.state[400], ALL)
+
     def test_a_stalled_game_is_not_parked_on_old_frames(self):
         self.run_for(0.5, VBLANK)
         self.idle_for(3)
