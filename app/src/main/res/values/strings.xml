@@ -731,6 +731,7 @@
     <string name="hud_metric_vram">Graphics memory</string>
     <string name="hud_metric_swap">Swap</string>
     <string name="hud_metric_battery">Battery level</string>
+    <string name="hud_metric_battery_time">Battery life remaining</string>
     <string name="hud_metric_power">Power draw</string>
     <string name="hud_metric_network">Network</string>
     <string name="hud_metric_resolution">Resolution</string>

@@ -14,6 +14,8 @@
 
 package com.droiddeck.launcher.hud;
 
+import com.droiddeck.launcher.session.BatteryRuntimeEstimator;
+
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
@@ -560,10 +562,7 @@ public class HudMetrics {
         return sawSignal;
     }
 
-    private Double smoothedBatteryRuntimeHours = null;
-    private static final double MAX_RUNTIME_HOURS = 72.0;
-    private static final double RUNTIME_SMOOTHING_OLD_WEIGHT = 0.65;
-    private static final double RUNTIME_SMOOTHING_NEW_WEIGHT = 0.35;
+    private final BatteryRuntimeEstimator batteryRuntimeEstimator = new BatteryRuntimeEstimator();
 
     public Battery collectBattery() {
         BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
@@ -585,7 +584,7 @@ public class HudMetrics {
             Boolean sysCharging = readChargingFromPowerSupply();
             if (sysCharging != null) charging = sysCharging;
         }
-        long currentMicroAmps = Math.abs(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW));
+        long currentMicroAmps = BatteryRuntimeEstimator.toMicroamps(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW));
         long chargeCounter = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
         int voltageMv = status.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
 
@@ -606,34 +605,12 @@ public class HudMetrics {
             if (uw != null && uw != 0L) watts = (float) (Math.abs(uw) / 1_000_000.0);
         }
 
+        Double runtimeHours = batteryRuntimeEstimator.estimateHours(chargeCounter, Math.abs((double) currentMicroAmps));
         String runtimeText;
-        if (charging) {
-            smoothedBatteryRuntimeHours = null;
-            runtimeText = "LEFT CHG";
-        } else if (currentMicroAmps <= 0L || chargeCounter <= 0L) {
-            runtimeText = null;
-        } else {
-            double rawHours = (double) chargeCounter / (double) currentMicroAmps;
-            if (!Double.isFinite(rawHours) || rawHours <= 0.0 || rawHours > MAX_RUNTIME_HOURS) {
-                runtimeText = null;
-            } else {
-                double smoothed = smoothedBatteryRuntimeHours == null ? rawHours
-                    : (smoothedBatteryRuntimeHours * RUNTIME_SMOOTHING_OLD_WEIGHT)
-                        + (rawHours * RUNTIME_SMOOTHING_NEW_WEIGHT);
-                smoothedBatteryRuntimeHours = smoothed;
-                runtimeText = "LEFT " + formatRuntimeHours(smoothed);
-            }
-        }
+        if (st == BatteryManager.BATTERY_STATUS_FULL || (percent != null && percent >= 100)) runtimeText = "Full";
+        else if (charging) runtimeText = "Charging";
+        else runtimeText = BatteryRuntimeEstimator.formatDuration(runtimeHours);
         return new Battery(watts, charging, percent, tempC, runtimeText);
-    }
-
-    private static String formatRuntimeHours(double hours) {
-        int totalMinutes = Math.max(1, (int) Math.round(hours * 60.0));
-        int wholeHours = totalMinutes / 60;
-        int minutes = totalMinutes % 60;
-        if (wholeHours > 0 && minutes > 0) return wholeHours + "h " + minutes + "m";
-        if (wholeHours > 0) return wholeHours + "h";
-        return minutes + "m";
     }
 
     private static float currentRawToAmps(long raw) {
@@ -848,7 +825,7 @@ public class HudMetrics {
         Battery android = collectBattery();
         MangoReadings.Battery bat = m.battery();
         Battery battery = bat == null ? android : new Battery(bat.getWatts(), bat.getCharging(),
-            bat.getPercent() != null ? bat.getPercent() : android.percent, android.tempC, android.runtimeText);
+            bat.getPercent() != null ? bat.getPercent() : android.percent, android.tempC, bat.getRuntimeText());
         long[] net = readNetRateBps();
         return new Snapshot(cpu != null ? cpu.getPercent() : null, m.gpuPercent(), getCpuClockMhz(), m.gpuClockMhz(),
             m.cpuTempC(), m.gpuTempC(), used, total, total > 0 ? used * 100f / total : 0f, m.vramBytes(), battery,

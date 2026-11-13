@@ -167,6 +167,7 @@ private val METRICS = listOf(
     HudMetric("VRAM", "showVram", R.string.hud_metric_vram),
     HudMetric("Swap", "showSwap", R.string.hud_metric_swap),
     HudMetric("Battery", "showBattery", R.string.hud_metric_battery),
+    HudMetric("Battery time", "showBatteryTime", R.string.hud_metric_battery_time),
     HudMetric("Power", "showPower", R.string.hud_metric_power),
     HudMetric("Network", "showNet", R.string.hud_metric_network),
     HudMetric("Resolution", "showResolution", R.string.hud_metric_resolution),
@@ -176,8 +177,6 @@ private val METRICS = listOf(
 )
 
 private val HIDDEN = mapOf(
-    DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
-    DroidDeckHudSize.MINIMAL to setOf("FPS"),
+    DroidDeckHudSize.PILL to setOf("FPS graph"),
     DroidDeckHudSize.TILES to setOf("FPS graph", "0.1% low", "0.01% low"),
-    DroidDeckHudSize.STRIP to setOf("FPS"),
 )

@@ -11,6 +11,7 @@ import kotlin.math.abs
 class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
+    private val runtimeEstimator = BatteryRuntimeEstimator()
 
     override fun start() {
         File(dir, "BAT0").deleteRecursively()
@@ -53,7 +54,8 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val energyNowUwh = chargeNowUah * voltageUv / 1_000_000L
             val energyFullUwh = chargeFullUah * voltageUv / 1_000_000L
             val powerNowUw = abs(currentNowUa) * voltageUv / 1_000_000L
-            val timeToEmptyS = if (discharging && chargeNowUah > 0 && abs(currentAvgUa) > 0) chargeNowUah * 3600L / abs(currentAvgUa) else 0L
+            val runtimeHours = runtimeEstimator.estimateHours(chargeNowUah.toDouble(), currentNowUa.toDouble())
+            val timeToEmptyS = if (discharging) BatteryRuntimeEstimator.secondsFromHours(runtimeHours) else 0L
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING
             val timeToFullS = if (charging && chargeFullUah > chargeNowUah && abs(currentAvgUa) > 0) (chargeFullUah - chargeNowUah) * 3600L / abs(currentAvgUa) else 0L
             val statusText = when (status) {
@@ -126,9 +128,7 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
 
     companion object {
         private const val TAG = "SessionService"
-        private const val MILLIAMP_CEILING = 10_000L
-
-        internal fun toMicroamps(raw: Long): Long = if (abs(raw) < MILLIAMP_CEILING) raw * 1000L else raw
+        internal fun toMicroamps(raw: Long): Long = BatteryRuntimeEstimator.toMicroamps(raw)
         private const val PERIOD_MS = 5_000L
         private val VPOWER_FILES = listOf(
             "ac_status", "battery_percent", "battery_status",
