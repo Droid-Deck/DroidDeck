@@ -24,6 +24,7 @@ extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
+extern void droiddeck_wayland_send_pen(int flags, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
 extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
@@ -278,6 +279,12 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendTouch(
         JNIEnv *env, jclass clazz, jint action, jint pointer_id, jint x, jint y) {
     droiddeck_wayland_send_touch(action, pointer_id, x, y);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendPen(
+        JNIEnv *env, jclass clazz, jint flags, jint x, jint y) {
+    droiddeck_wayland_send_pen(flags, x, y);
 }
 
 JNIEXPORT jint JNICALL
