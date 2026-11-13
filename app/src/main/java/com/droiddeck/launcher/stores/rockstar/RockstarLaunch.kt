@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores.rockstar
 
 import android.content.Context
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
@@ -14,8 +15,10 @@ object RockstarLaunch {
     fun supports(id: String?) = id != null && id in pipes
 
     fun applyDefaults(app: Context, id: String, appId: Long) {
-        if (id in setOf("gta3", "gtasa")) {
-            com.droiddeck.launcher.session.GameEnvironmentStore.setDefault(app, (appId and 0xffffffffL).toString(), "FEX_X87REDUCEDPRECISION", "0")
+        val scope = (appId and 0xffffffffL).toString()
+        when (id) {
+            "gta3" -> GameEnvironmentStore.setDefault(app, scope, "FEX_X87REDUCEDPRECISION", "0")
+            "gtasa" -> GameEnvironmentStore.setDefault(app, scope, "PROTON_USE_WINED3D", "1")
         }
     }
 

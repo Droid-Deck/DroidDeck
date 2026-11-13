@@ -89,18 +89,23 @@ class RockstarTest {
 
     @Test
     @Config(sdk = [28])
-    fun classicPrecisionDefaultsAreSetBeforeWineAndKeepExplicitSettings() {
+    fun classicLaunchDefaultsAreSetBeforeWineAndKeepExplicitSettings() {
         val app = org.robolectric.RuntimeEnvironment.getApplication()
-        val explicit = com.droiddeck.launcher.core.GameEnvironment.Config(games = mapOf("100" to mapOf("FEX_X87REDUCEDPRECISION" to "1")))
+        val explicit = com.droiddeck.launcher.core.GameEnvironment.Config(games = mapOf(
+            "100" to mapOf("FEX_X87REDUCEDPRECISION" to "1"),
+            "104" to mapOf("PROTON_USE_WINED3D" to "0"),
+        ))
         com.droiddeck.launcher.session.GameEnvironmentStore.save(app, explicit)
         RockstarLaunch.applyDefaults(app, "gta3", 100)
         RockstarLaunch.applyDefaults(app, "gta3", 101)
         RockstarLaunch.applyDefaults(app, "gtasa", 102)
         RockstarLaunch.applyDefaults(app, "gtavc", 103)
+        RockstarLaunch.applyDefaults(app, "gtasa", 104)
         val config = com.droiddeck.launcher.session.GameEnvironmentStore.read(app)
         assertEquals("1", config.games["100"]?.get("FEX_X87REDUCEDPRECISION"))
         assertEquals("0", config.games["101"]?.get("FEX_X87REDUCEDPRECISION"))
-        assertEquals("0", config.games["102"]?.get("FEX_X87REDUCEDPRECISION"))
+        assertEquals(mapOf("PROTON_USE_WINED3D" to "1"), config.games["102"])
+        assertEquals("0", config.games["104"]?.get("PROTON_USE_WINED3D"))
         assertFalse(config.games.containsKey("103"))
     }
 
