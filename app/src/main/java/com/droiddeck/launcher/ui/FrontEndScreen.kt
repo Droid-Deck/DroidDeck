@@ -579,8 +579,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.soundtracksEnabled) {
         if (!s.soundtracksEnabled && (selected == "soundtracks" || selected.startsWith("sound:"))) selected = "games"
     }
-    LaunchedEffect(s.steamGames.isEmpty()) {
-        if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
+    LaunchedEffect(s.steamGames.isEmpty(), s.soundtracks, s.soundtracksLoaded) {
+        if (s.steamGames.isEmpty() && selected.startsWith("app:")) {
+            val id = GameRef.parse(selected).appId
+            if (id != null && s.soundtracks.none { it.appId == id } && s.soundtracksLoaded) selected = "games"
+        }
     }
     remember { Motion.refresh(ctx); true }
 

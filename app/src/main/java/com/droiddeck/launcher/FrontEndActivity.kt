@@ -2743,7 +2743,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         soundtrackRemovals.remove(path)
                         com.droiddeck.launcher.playback.SoundtrackController.allow(listOf(path))
                     }
-                    soundtracks = soundtracks.filter { it.library != Library.ADDED } + list
+                    soundtracks = soundtracks.filter { it.library != Library.ADDED } + list.filterNot { s -> s.gameFiles?.path?.let { soundtrackRemovals[it] } != null }
                     android.widget.Toast.makeText(this, getString(R.string.gfiles_remove_failed, g.name), android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
