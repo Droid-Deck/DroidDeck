@@ -81,6 +81,21 @@ class FrameStatsTest {
         assertEquals(0, stats.slowFrames(now, 60_000_000_000L))
     }
 
+    @Test fun guestFrameTimesMoveByThePausedSessionsClockShift() {
+        val control = java.io.File.createTempFile("bl-clock", null)
+        try {
+            control.writeBytes(java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(62_283_930_706L).array())
+            val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"), clockControl = control)
+            assertEquals(62_283_930_706L, feed.guestClockShift(1_000_000_000L, 1_000_000_000L))
+            control.writeBytes(java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(70_000_000_000L).array())
+            assertEquals(62_283_930_706L, feed.guestClockShift(1_050_000_000L, 1_000_000_000L))
+            assertEquals(70_000_000_000L, feed.guestClockShift(1_200_000_000L, 100_000_000L))
+            assertEquals(0L, GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames")).guestClockShift(0L, 0L))
+        } finally {
+            control.delete()
+        }
+    }
+
     @Test fun compositorFramesDoNotCountAsLiveGamescopeFrames() {
         val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"))
         var now = 1_000_000_000L

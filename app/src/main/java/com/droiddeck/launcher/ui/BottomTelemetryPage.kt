@@ -55,7 +55,6 @@ import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.GameFrameFeed
-import com.droiddeck.launcher.hud.HudFrames
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.hud.KeyValueSet
 import com.droiddeck.launcher.hud.MangoReadings
@@ -144,7 +143,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var perfTick by remember { mutableIntStateOf(0) }
     var traceTick by remember { mutableIntStateOf(0) }
     var clock by remember { mutableStateOf("") }
-    val frames = remember { GameFrameFeed(File(LinuxRuntime.rootDir(context), HudFrames.PATH)) }
+    val frames = remember { GameFrameFeed.forRoot(LinuxRuntime.rootDir(context)) }
     DisposableEffect(frames) { onDispose { frames.close() } }
     val currentFps = { if (frames.live) frames.stats.fps else fps() }
     var hud by remember { mutableStateOf(StatsHud.from(SessionPrefs.statsHud(context))) }
