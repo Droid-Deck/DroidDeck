@@ -147,9 +147,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     };
     let mut identity_listeners = Vec::new();
     if session.is_some() {
-        for name in
-            droiddeck_rockstar_launcher::identity::pipe_names(&mut std::fs::File::open(&exe)?)?
-        {
+        for name in droiddeck_rockstar_launcher::identity::title_pipe_names(&exe)? {
             identity_listeners.push(Listener::new(&name, Duration::from_secs(90))?);
         }
     }
