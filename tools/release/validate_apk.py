@@ -11,10 +11,12 @@ def api(path, *args):
     return json.loads(subprocess.check_output(["gh", "api", path, *args], text=True))
 
 
-def compilation_state(run, jobs):
+def compilation_state(run, jobs, *, draft=False):
     for job in jobs:
         if job["name"] in ("Compile and test APK", "Build APK"):
             if job["status"] != "completed":
+                return "pending"
+            if draft and run.get("conclusion") == "skipped" and job["conclusion"] == "skipped":
                 return "pending"
             return "success" if job["conclusion"] == "success" else "failure"
     return "failure" if run["status"] == "completed" else "pending"
@@ -106,16 +108,21 @@ def main():
         query = urlencode({"head_sha": sha, "event": source_event, "per_page": 20})
         runs = api(f"repos/{repo}/actions/workflows/build.yml/runs?{query}")["workflow_runs"]
         runs = [item for item in runs if item["head_sha"] == sha]
+        deferred = False
         if runs:
             latest = max(runs, key=lambda item: item["id"])
             jobs = api(f"repos/{repo}/actions/runs/{latest['id']}/jobs?per_page=100")["jobs"]
-            state = compilation_state(latest, jobs)
+            draft = bool(pr and pr.get("draft"))
+            state = compilation_state(latest, jobs, draft=draft)
+            deferred = draft and latest.get("conclusion") == "skipped" and state == "pending"
             target = latest["html_url"]
         else:
             state = "pending"
         description = {"pending": "Source validated; awaiting APK compilation",
                        "success": "Source validation and APK compilation passed",
                        "failure": "APK compilation failed"}[state]
+        if deferred:
+            description = "Source validated; APK build deferred while PR is draft"
     finally:
         api(f"repos/{repo}/statuses/{sha}", "--method", "POST",
             "-f", "context=Build APK", "-f", f"state={state}",
