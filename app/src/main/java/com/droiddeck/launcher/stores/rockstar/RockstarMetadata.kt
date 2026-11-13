@@ -16,15 +16,16 @@ internal object RockstarMetadata {
         val root = folder.canonicalFile
         var level = listOf(root)
         repeat(4) {
-            val children = level.flatMap { it.listFiles().orEmpty().take(256).toList() }
-                .filter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator) }
-            val metadata = level.map { File(it, "title.rgl") } + children.filter { it.name.equals("title.rgl", true) }
-            for (file in metadata.distinct().filter { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator) }) {
+            val entries = level.map { it.listFiles().orEmpty() }
+            val metadata = entries.flatMap { files -> files.filter { it.name.equals("title.rgl", true) } }
+            for (file in metadata.filter { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator) }) {
                 if (file.length() in 112..1_048_576) runCatching { decode(file.readBytes()) }.getOrNull()?.let {
                     return it.copy(exe = File(file.parentFile, it.exe).relativeTo(root).invariantSeparatorsPath)
                 }
             }
-            level = children.filter { it.isDirectory }.take(256)
+            level = entries.flatMap { files -> files.asSequence().filter {
+                it.isDirectory && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.canonicalPath.startsWith(root.path + File.separator)
+            }.take(256).toList() }.take(256)
         }
         return null
     }

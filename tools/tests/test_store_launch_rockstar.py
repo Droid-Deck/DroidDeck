@@ -10,12 +10,39 @@ from test_store_launch import store
 
 
 class RockstarLaunch(unittest.TestCase):
+    def test_service_directory_cannot_export_sessions_outside_the_prefix(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, sidecar, prefix, _, _ = self.setup_game(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            target = prefix / 'pfx' / store.ROCKSTAR_FOLDER
+            target.parent.mkdir(parents=True)
+            target.symlink_to(outside, target_is_directory=True)
+            sentinel = outside / 'launch.json'
+            sentinel.write_text('keep')
+            with patch.object(store, 'ask') as ask:
+                self.assertEqual('invalid-service-path', store.prepare_rockstar(folder, sidecar, prefix, 'channel'))
+            ask.assert_not_called()
+            self.assertEqual('keep', sentinel.read_text())
+
+    def test_sdk_registration_does_not_use_an_untrusted_display_name_as_a_key(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, _, prefix, _, _ = self.setup_game(root)
+            with patch.object(store, 'wait_for_server', return_value=True):
+                self.assertTrue(store.rockstar_registry(folder, None, prefix, '', sdk_arch='x64'))
+            text = (prefix / 'pfx/system.reg').read_text()
+            self.assertIn(r'[Software\\Rockstar Games\\Rockstar Games Social Club]', text)
+            self.assertNotIn('Grand Theft Auto', text)
+
     def test_root_metadata_is_found_after_many_assets(self):
         with tempfile.TemporaryDirectory() as root:
             folder = Path(root)
             for index in range(300):
                 (folder / ('asset-%s.dat' % index)).write_bytes(b'asset')
             (folder / 'title.rgl').write_bytes(b'RGLM' + bytes(108))
+            self.assertTrue(store.rockstar_sdk(folder, {'id': 'future_title', 'exe': 'Game.exe'}))
+            (folder / 'title.rgl').unlink()
+            (folder / 'Title.RGL').write_bytes(b'RGLM' + bytes(108))
             self.assertTrue(store.rockstar_sdk(folder, {'id': 'future_title', 'exe': 'Game.exe'}))
 
     def test_sdk_titles_receive_only_their_short_lived_game_session(self):

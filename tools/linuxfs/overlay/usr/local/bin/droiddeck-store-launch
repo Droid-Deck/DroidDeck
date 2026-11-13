@@ -13,7 +13,6 @@ import subprocess
 import tempfile
 import hashlib
 import threading
-from itertools import islice
 from pathlib import Path
 
 LAUNCHER = ".droiddeck-launch.bat"
@@ -335,22 +334,27 @@ def rockstar_sdk(folder, sidecar):
         return False
     level = [root]
     for _ in range(4):
-        children = [p for directory in level for p in islice(directory.iterdir(), 256)
-                    if not p.is_symlink() and p.resolve().is_relative_to(root)]
-        metadata = [directory / "title.rgl" for directory in level] + [p for p in children if p.name.lower() == "title.rgl"]
-        for path in metadata:
-            if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root) and 112 <= path.stat().st_size <= 1048576:
-                with path.open("rb") as source:
-                    if source.read(4) == b"RGLM":
-                        return True
-        level = [p for p in children if p.is_dir()][:256]
+        children = []
+        for directory in level:
+            for path in directory.iterdir():
+                if path.is_symlink():
+                    continue
+                if path.name.lower() == "title.rgl" and path.is_file() and path.resolve().is_relative_to(root) and 112 <= path.stat().st_size <= 1048576:
+                    with path.open("rb") as source:
+                        if source.read(4) == b"RGLM":
+                            return True
+                if len(children) < 256 and path.is_dir() and path.resolve().is_relative_to(root):
+                    children.append(path)
+        level = children
     return False
 
 
 def rockstar_registry(folder, title, compat_data, proton, sdk_arch=None):
     pfx = Path(compat_data) / "pfx"
     launcher = r"C:\Program Files\Rockstar Games\Launcher"
-    values = [(r"Rockstar Games\Launcher", launcher), ("Rockstar Games\\" + title, windows_path(str(folder)))]
+    values = [(r"Rockstar Games\Launcher", launcher)]
+    if title:
+        values.append(("Rockstar Games\\" + title, windows_path(str(folder))))
     entries = [("Software\\" + view + key, value) for view in ("", "Wow6432Node\\") for key, value in values]
     if sdk_arch:
         entries.append((r"Software\Rockstar Games\Rockstar Games Social Club", r"C:\Program Files\Rockstar Games\Social Club"))
@@ -446,11 +450,13 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
     if not compat_data:
         return "no-prefix"
     target = Path(compat_data) / "pfx" / ROCKSTAR_FOLDER
+    if not target.resolve().is_relative_to((Path(compat_data) / "pfx").resolve()):
+        return "invalid-service-path"
     config = target / "launch.json"
     config.unlink(missing_ok=True)
     legacy = str(sidecar.get("id")) in ROCKSTAR_TITLES
     sdk = rockstar_sdk(folder, sidecar)
-    title = ROCKSTAR_TITLES.get(str(sidecar.get("id"))) or str(sidecar.get("title") or sidecar.get("id"))
+    title = ROCKSTAR_TITLES.get(str(sidecar.get("id")))
     if not launch_dir:
         return "no-channel"
     root = folder.resolve()

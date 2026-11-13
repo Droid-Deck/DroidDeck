@@ -20,6 +20,9 @@ class RockstarMetadataTest {
             repeat(300) { java.io.File(root, "asset-$it.dat").writeText("asset") }
             java.io.File(root, "title.rgl").writeBytes(container("""{"titleId":"game","rosTitleId":123,"principalFileName":"Game.exe"}"""))
             assertEquals("game", RockstarMetadata.find(root)?.id)
+            java.io.File(root, "title.rgl").delete()
+            java.io.File(root, "Title.RGL").writeBytes(container("""{"titleId":"game","rosTitleId":123,"principalFileName":"Game.exe"}"""))
+            assertEquals("game", RockstarMetadata.find(root)?.id)
         } finally {
             root.deleteRecursively()
         }
