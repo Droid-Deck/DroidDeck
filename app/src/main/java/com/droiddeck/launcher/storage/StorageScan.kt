@@ -142,6 +142,7 @@ object StorageScan {
 
         val tools = LinkedHashMap<String, ToolUsage>()
         val games = ArrayList<GameUsage>()
+        val countedShaders = HashSet<String>()
         for (lib in libs) {
             for (m in lib.manifests.orEmpty()) {
                 val dir = m.installDir
@@ -186,7 +187,7 @@ object StorageScan {
                 val prefix = prefixDir?.let { walker.measure(it) } ?: 0
                 val shaderDirs = (listOf(lib) + libs.filter { it !== lib && it.x64 == lib.x64 })
                     .map { File(it.data, "steamapps/shadercache/${m.appId}") }.filter { it.isDirectory }.distinctBy { canonical(it) }
-                val shaders = shaderDirs.sumOf { walker.measure(it) }
+                val shaders = shaderDirs.filter { countedShaders.add(canonical(it)) }.sumOf { walker.measure(it) }
                 val workshop = File(lib.root, "steamapps/workshop/content/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
                 val known = art[lib.x64]?.get(m.appId)
                 games.add(GameUsage(
