@@ -547,7 +547,9 @@ object AgentHost {
             com.droiddeck.launcher.DeviceCodeActivity.close()
             return
         }
-        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay)) openUrl(app, url)
+        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay) && !openUrl(app, url)) {
+            runCatching { File(app.filesDir, "$DEVICE_CODE.failed").writeText("") }
+        }
     }
 
     private fun openUrl(app: Context, url: String): Boolean {
