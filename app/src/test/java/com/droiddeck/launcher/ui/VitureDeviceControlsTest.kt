@@ -16,6 +16,7 @@ import com.droiddeck.launcher.glasses.VitureDeviceState
 import com.droiddeck.launcher.glasses.VitureSdk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,11 +29,16 @@ import org.robolectric.annotation.Config
 class VitureDeviceControlsTest {
     @get:Rule val compose = createRobolectricComposeRule()
 
+    @Before fun controlAnimationFrames() {
+        compose.mainClock.autoAdvance = false
+    }
+
     @Test fun advancedTabHasADistinctLabelFromExistingDeviceTab() {
         var labels = emptyList<String>()
         compose.setContent {
             labels = glassesTabs(GlassesState(connected = true, controllable = true, viture = VitureDeviceState())).map { it.second }
         }
+        compose.renderPendingChanges()
         compose.runOnIdle {
             assertEquals(labels.size, labels.distinct().size)
             assertEquals(true, labels.contains(RuntimeEnvironment.getApplication().getString(R.string.viture_device_tab)))
@@ -43,10 +49,12 @@ class VitureDeviceControlsTest {
         val state = mutableStateOf(GlassesState(connected = true, controllable = true,
             viture = VitureDeviceState(imuRate = 3, imuRateMask = (1 shl 3) or (1 shl 5))))
         compose.setContent { Column { VitureDeviceControls(rememberMenuHost(), state.value) } }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("setting-viture-imu-rate").assertExists()
         compose.onNodeWithTag("setting-viture-native-mode").assertDoesNotExist()
         compose.onNodeWithTag("setting-viture-auto-exposure").assertDoesNotExist()
         compose.runOnIdle { state.value = state.value.copy(connected = false) }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("setting-viture-imu-rate").assertDoesNotExist()
     }
 
@@ -58,9 +66,11 @@ class VitureDeviceControlsTest {
             Column { VitureDeviceControls(rememberMenuHost(), state.value,
                 actions = VitureDeviceActions(nativeMode = { selected = it })) }
         }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("setting-viture-native-mode").performClick()
         assertFalse(selected)
         compose.runOnIdle { state.value = state.value.copy(viture = state.value.viture!!.copy(nativeMode = 0)) }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("setting-viture-native-tracking").assertDoesNotExist()
         compose.onNodeWithTag("setting-viture-device-display").assertExists()
     }
@@ -75,9 +85,13 @@ class VitureDeviceControlsTest {
                     actions = VitureDeviceActions(control = { command, _, _ -> commands += command }))
             }
         }
-        compose.onNodeWithTag("viture-tracking-reset").performScrollTo().performClick()
+        compose.renderPendingChanges()
+        compose.onNodeWithTag("viture-tracking-reset").performScrollTo()
+        compose.renderPendingChanges()
+        compose.onNodeWithTag("viture-tracking-reset").performClick()
         assertEquals(listOf(VitureSdk.CONTROL_CARINA_RESET), commands)
         compose.runOnIdle { state.value = state.value.copy(viture = state.value.viture!!.copy(busy = true)) }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-tracking-reset").assertIsNotEnabled()
         compose.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.viture_tracking_reset_hint)).assertExists()
     }
