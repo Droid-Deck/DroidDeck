@@ -43,10 +43,16 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
     copy.pCode = final.words;
     copy.codeSize = final.count * sizeof(uint32_t);
     VkResult result = dev->CreateShaderModule(device, &copy, allocator, module);
-    free(capped.words);
-    free(stripped.words);
-    if (result != VK_SUCCESS || !have_stripped)
+    if (result != VK_SUCCESS) {
+        free(capped.words);
+        free(stripped.words);
         return result;
+    }
+    if (!have_stripped) {
+        free(capped.words);
+        free(stripped.words);
+        return VK_SUCCESS;
+    }
 
     struct spirv_code *original = malloc(sizeof(*original));
     original->count = words;
@@ -55,6 +61,8 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
     pthread_mutex_lock(&dev->lock);
     map_put(&dev->shader_modules, HANDLE(*module), original);
     pthread_mutex_unlock(&dev->lock);
+    free(capped.words);
+    free(stripped.words);
     return VK_SUCCESS;
 }
 
