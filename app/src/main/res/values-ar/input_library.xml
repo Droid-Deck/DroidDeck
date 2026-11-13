@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">عند تعيينها لمؤشر الفأرة: اضغط للنقر، واستمر للتمرير بالسحب، ومرّر بإصبعين.</string>
     <string name="input_quick_override_hint">لدى %1$s تجاوز للقائمة السريعة. اختر تلقائي هناك لاستخدام ملف التعريف الافتراضي والأجزاء الثلاثة المحفوظة.</string>
     <string name="input_route_local">إدخال DroidDeck</string>
-    <string name="input_axis_action_hint">يُحتجز أثناء تحريك العصا في أي اتجاه: يُضغط فوق 55% ويُحرّر تحت 35%. استخدم مفاتيح الاتجاه لتعيين كل اتجاه على حدة. تُنفَّذ أوامر DroidDeck مرة واحدة لكل انحراف. يُضبط النقر على العصا على حدة.</string>
+    <string name="input_axis_action_hint" formatted="false">يُحتجز أثناء تحريك العصا في أي اتجاه: يُضغط فوق 55% ويُحرّر تحت 35%. استخدم مفاتيح الاتجاه لتعيين كل اتجاه على حدة. تُنفَّذ أوامر DroidDeck مرة واحدة لكل انحراف. يُضبط النقر على العصا على حدة.</string>
     <string name="input_contact_action_hint">يُحتجز أثناء لمس لوحة اللمس؛ ويُحرّر عند رفع إصبعك. تُنفَّذ أوامر DroidDeck مرة واحدة لكل لمسة. يُضبط النقر على اللوحة على حدة.</string>
-    <string name="input_trigger_action_hint">يُحتجز عندما يتجاوز الزناد 55%؛ ويُحرّر تحت 35%. تُنفَّذ أوامر DroidDeck مرة واحدة لكل ضغطة.</string>
+    <string name="input_trigger_action_hint" formatted="false">يُحتجز عندما يتجاوز الزناد 55%؛ ويُحرّر تحت 35%. تُنفَّذ أوامر DroidDeck مرة واحدة لكل ضغطة.</string>
     <string name="input_scroll_axis">اتجاه التمرير</string>
     <string name="input_vertical">رأسي</string>
     <string name="input_horizontal">أفقي</string>

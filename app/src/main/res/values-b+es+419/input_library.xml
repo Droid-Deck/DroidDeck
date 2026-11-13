@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Si se asigna al puntero del mouse: toca para hacer clic, mantén para arrastrar y desplaza con dos dedos.</string>
     <string name="input_quick_override_hint">%1$s tiene una anulación del menú rápido. Selecciona Auto allí para usar su perfil predeterminado y sus tres partes guardadas.</string>
     <string name="input_route_local">Entrada de DroidDeck</string>
-    <string name="input_axis_action_hint">Se mantiene mientras la palanca se mueve en cualquier dirección: se presiona por encima del 55 %, se suelta por debajo del 35 %. Usa Teclas de dirección para asignar cada dirección por separado. Los comandos de DroidDeck se ejecutan una vez por desvío. El clic de la palanca se configura aparte.</string>
+    <string name="input_axis_action_hint" formatted="false">Se mantiene mientras la palanca se mueve en cualquier dirección: se presiona por encima del 55 %, se suelta por debajo del 35 %. Usa Teclas de dirección para asignar cada dirección por separado. Los comandos de DroidDeck se ejecutan una vez por desvío. El clic de la palanca se configura aparte.</string>
     <string name="input_contact_action_hint">Se mantiene mientras se toca el panel táctil; se suelta al levantar el dedo. Los comandos de DroidDeck se ejecutan una vez por toque. El clic del panel se configura aparte.</string>
-    <string name="input_trigger_action_hint">Se mantiene cuando el gatillo supera el 55 %; se suelta por debajo del 35 %. Los comandos de DroidDeck se ejecutan una vez por pulsación.</string>
+    <string name="input_trigger_action_hint" formatted="false">Se mantiene cuando el gatillo supera el 55 %; se suelta por debajo del 35 %. Los comandos de DroidDeck se ejecutan una vez por pulsación.</string>
     <string name="input_scroll_axis">Dirección de desplazamiento</string>
     <string name="input_vertical">Vertical</string>
     <string name="input_horizontal">Horizontal</string>

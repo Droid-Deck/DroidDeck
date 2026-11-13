@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Ha az egérkurzorhoz van rendelve: koppintson a kattintáshoz, tartsa nyomva a húzáshoz, és két ujjal görgessen.</string>
     <string name="input_quick_override_hint">A(z) %1$s gyorsmenü-felülírással rendelkezik. Válassza ott az Automatikust, hogy az alapértelmezett profilját és mindhárom mentett részét használja.</string>
     <string name="input_route_local">DroidDeck bemenet</string>
-    <string name="input_axis_action_hint">Nyomva tartva, amíg a kart bármely irányba mozgatja: nyomás 55% felett, elengedés 35% alatt. Az Iránybillentyűkkel külön rendelhető minden irány. A DroidDeck parancsok kitérésenként egyszer futnak. A kar kattintása külön állítható.</string>
+    <string name="input_axis_action_hint" formatted="false">Nyomva tartva, amíg a kart bármely irányba mozgatja: nyomás 55% felett, elengedés 35% alatt. Az Iránybillentyűkkel külön rendelhető minden irány. A DroidDeck parancsok kitérésenként egyszer futnak. A kar kattintása külön állítható.</string>
     <string name="input_contact_action_hint">Nyomva tartva az érintőfelület érintése közben; az ujj felemelésekor elengedve. A DroidDeck parancsok érintésenként egyszer futnak. Az érintőfelület kattintása külön állítható.</string>
-    <string name="input_trigger_action_hint">Nyomva tartva, amikor a ravasz átlépi az 55%-ot; 35% alatt elengedve. A DroidDeck parancsok nyomásonként egyszer futnak.</string>
+    <string name="input_trigger_action_hint" formatted="false">Nyomva tartva, amikor a ravasz átlépi az 55%-ot; 35% alatt elengedve. A DroidDeck parancsok nyomásonként egyszer futnak.</string>
     <string name="input_scroll_axis">Görgetési irány</string>
     <string name="input_vertical">Függőleges</string>
     <string name="input_horizontal">Vízszintes</string>

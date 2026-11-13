@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Jika ditetapkan ke penunjuk mouse: ketuk untuk klik, tahan untuk menyeret, dan gulir dengan dua jari.</string>
     <string name="input_quick_override_hint">%1$s memiliki penggantian menu cepat. Pilih Otomatis di sana untuk memakai profil bawaan dan ketiga bagian tersimpannya.</string>
     <string name="input_route_local">Input DroidDeck</string>
-    <string name="input_axis_action_hint">Ditahan saat stik digerakkan ke segala arah: tekan di atas 55%, lepas di bawah 35%. Gunakan Tombol arah untuk menetapkan tiap arah secara terpisah. Perintah DroidDeck berjalan sekali per defleksi. Klik stik diatur terpisah.</string>
+    <string name="input_axis_action_hint" formatted="false">Ditahan saat stik digerakkan ke segala arah: tekan di atas 55%, lepas di bawah 35%. Gunakan Tombol arah untuk menetapkan tiap arah secara terpisah. Perintah DroidDeck berjalan sekali per defleksi. Klik stik diatur terpisah.</string>
     <string name="input_contact_action_hint">Ditahan saat menyentuh touchpad; dilepas saat jari diangkat. Perintah DroidDeck berjalan sekali per sentuhan. Klik touchpad diatur terpisah.</string>
-    <string name="input_trigger_action_hint">Ditahan saat pemicu melewati 55%; dilepas di bawah 35%. Perintah DroidDeck berjalan sekali per penekanan.</string>
+    <string name="input_trigger_action_hint" formatted="false">Ditahan saat pemicu melewati 55%; dilepas di bawah 35%. Perintah DroidDeck berjalan sekali per penekanan.</string>
     <string name="input_scroll_axis">Arah gulir</string>
     <string name="input_vertical">Vertikal</string>
     <string name="input_horizontal">Horizontal</string>

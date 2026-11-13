@@ -38,7 +38,7 @@
     <string name="input_click_properties">Egenskaber for klik</string>
     <string name="input_click_name">%1$s · Klik</string>
     <string name="input_buttons">Knapper</string>
-    <string name="input_axes">Stik, pads og aftrækkere</string>
+    <string name="input_axes">Styrepinde, pads og aftrækkere</string>
     <string name="input_hide_tools">Skjul værktøjer</string>
     <string name="input_route_controller">Controller</string>
     <string name="input_controller_route_hint">Sender controllerinput til Steam Input eller spillet.</string>
@@ -57,7 +57,7 @@
     <string name="input_name">Navn</string>
     <string name="input_start_from">Start fra</string>
     <string name="input_element_button">Knap</string>
-    <string name="input_element_stick">Stik</string>
+    <string name="input_element_stick">Styrepind</string>
     <string name="input_element_trackpad">Touchpad</string>
     <string name="input_element_dpad">Retningskryds</string>
     <string name="input_element_trigger">Aftrækker</string>
@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Når tildelt musemarkøren: tryk for at klikke, hold for at trække, og rul med to fingre.</string>
     <string name="input_quick_override_hint">%1$s har en tilsidesættelse af hurtigmenuen. Vælg Auto for at bruge dens standardprofil og alle tre gemte dele.</string>
     <string name="input_route_local">DroidDeck-input</string>
-    <string name="input_axis_action_hint">Holdes, mens stikket flyttes i en vilkårlig retning: tryk over 55 %, slip under 35 %. Brug Retningstaster til at tildele hver retning separat. DroidDeck-kommandoer kører én gang pr. udsving. Stikklikket konfigureres separat.</string>
+    <string name="input_axis_action_hint" formatted="false">Holdes, mens styrepinden flyttes i en vilkårlig retning: tryk over 55 %, slip under 35 %. Brug Retningstaster til at tildele hver retning separat. DroidDeck-kommandoer kører én gang pr. udsving. Stikklikket konfigureres separat.</string>
     <string name="input_contact_action_hint">Holdes, mens du rører touchpadden; slippes, når du løfter fingeren. DroidDeck-kommandoer kører én gang pr. berøring. Touchpadklikket konfigureres separat.</string>
-    <string name="input_trigger_action_hint">Holdes, når aftrækkeren passerer 55 %; slippes under 35 %. DroidDeck-kommandoer kører én gang pr. tryk.</string>
+    <string name="input_trigger_action_hint" formatted="false">Holdes, når aftrækkeren passerer 55 %; slippes under 35 %. DroidDeck-kommandoer kører én gang pr. tryk.</string>
     <string name="input_scroll_axis">Rulleretning</string>
     <string name="input_vertical">Lodret</string>
     <string name="input_horizontal">Vandret</string>
@@ -126,7 +126,7 @@
     <string name="input_imported_image">Importeret billede</string>
     <string name="input_diagonal_keys">Separate diagonalknapper</string>
     <string name="input_diagonal_keys_hint">Tildel en tast til hver diagonal. En tom diagonal trykker sine to naboretninger.</string>
-    <string name="input_diagonal_neighbors">Naborterninger</string>
+    <string name="input_diagonal_neighbors">Naboretninger</string>
     <string name="input_imported_keys_hint">Dine gamle skærmtaster er gemt som importerede profiler nedenfor. Vælg en for at bruge eller redigere den. Dine nuværende profilvalg er bevaret.</string>
     <string name="input_import_failed">De gamle skærmtaster kunne ikke importeres automatisk. De oprindelige indstillinger er bevaret.</string>
 </resources>

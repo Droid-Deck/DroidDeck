@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Când este atribuit indicatorului mouse-ului: atinge pentru clic, ține pentru tragere și derulează cu două degete.</string>
     <string name="input_quick_override_hint">%1$s are o suprascriere a meniului rapid. Selectează Auto acolo pentru a folosi profilul implicit și toate cele trei părți salvate.</string>
     <string name="input_route_local">Intrare DroidDeck</string>
-    <string name="input_axis_action_hint">Ținut cât timp maneta este mișcată în orice direcție: apăsat peste 55%, eliberat sub 35%. Folosește Tastele direcționale pentru a atribui fiecare direcție separat. Comenzile DroidDeck rulează o dată per deviere. Clicul manetei se configurează separat.</string>
+    <string name="input_axis_action_hint" formatted="false">Ținut cât timp maneta este mișcată în orice direcție: apăsat peste 55%, eliberat sub 35%. Folosește Tastele direcționale pentru a atribui fiecare direcție separat. Comenzile DroidDeck rulează o dată per deviere. Clicul manetei se configurează separat.</string>
     <string name="input_contact_action_hint">Ținut cât timp atingi touchpad-ul; eliberat când ridici degetul. Comenzile DroidDeck rulează o dată per atingere. Clicul touchpad-ului se configurează separat.</string>
-    <string name="input_trigger_action_hint">Ținut când trăgaciul trece de 55%; eliberat sub 35%. Comenzile DroidDeck rulează o dată per apăsare.</string>
+    <string name="input_trigger_action_hint" formatted="false">Ținut când trăgaciul trece de 55%; eliberat sub 35%. Comenzile DroidDeck rulează o dată per apăsare.</string>
     <string name="input_scroll_axis">Direcția de derulare</string>
     <string name="input_vertical">Vertical</string>
     <string name="input_horizontal">Orizontal</string>

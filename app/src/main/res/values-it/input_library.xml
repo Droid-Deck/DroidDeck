@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Se assegnato al puntatore del mouse: tocca per fare clic, tieni premuto per trascinare e scorri con due dita.</string>
     <string name="input_quick_override_hint">%1$s ha una sostituzione del menu rapido. Seleziona Auto per usare il suo profilo predefinito e tutte e tre le parti salvate.</string>
     <string name="input_route_local">Input DroidDeck</string>
-    <string name="input_axis_action_hint">Mantenuto mentre lo stick è mosso in qualsiasi direzione: pressione sopra il 55%, rilascio sotto il 35%. Usa Tasti direzionali per assegnare ogni direzione separatamente. I comandi DroidDeck vengono eseguiti una volta per deflessione. Il clic dello stick si configura a parte.</string>
+    <string name="input_axis_action_hint" formatted="false">Mantenuto mentre lo stick è mosso in qualsiasi direzione: pressione sopra il 55%, rilascio sotto il 35%. Usa Tasti direzionali per assegnare ogni direzione separatamente. I comandi DroidDeck vengono eseguiti una volta per deflessione. Il clic dello stick si configura a parte.</string>
     <string name="input_contact_action_hint">Mantenuto mentre tocchi il touchpad; rilasciato quando sollevi il dito. I comandi DroidDeck vengono eseguiti una volta per tocco. Il clic del touchpad si configura a parte.</string>
-    <string name="input_trigger_action_hint">Mantenuto quando il grilletto supera il 55%; rilasciato sotto il 35%. I comandi DroidDeck vengono eseguiti una volta per pressione.</string>
+    <string name="input_trigger_action_hint" formatted="false">Mantenuto quando il grilletto supera il 55%; rilasciato sotto il 35%. I comandi DroidDeck vengono eseguiti una volta per pressione.</string>
     <string name="input_scroll_axis">Direzione di scorrimento</string>
     <string name="input_vertical">Verticale</string>
     <string name="input_horizontal">Orizzontale</string>

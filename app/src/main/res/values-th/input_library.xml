@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">เมื่อกำหนดให้ตัวชี้เมาส์: แตะเพื่อคลิก กดค้างเพื่อลาก และเลื่อนด้วยสองนิ้ว</string>
     <string name="input_quick_override_hint">%1$s มีการแทนที่เมนูด่วน เลือกอัตโนมัติที่นั่นเพื่อใช้โปรไฟล์เริ่มต้นและทั้งสามส่วนที่บันทึกไว้</string>
     <string name="input_route_local">อินพุต DroidDeck</string>
-    <string name="input_axis_action_hint">ถูกกดค้างขณะก้านถูกเลื่อนไปทุกทิศทาง: กดเมื่อเกิน 55% ปล่อยเมื่อต่ำกว่า 35% ใช้ปุ่มทิศทางเพื่อกำหนดแต่ละทิศแยกกัน คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการเอียง คลิกก้านตั้งค่าแยก</string>
+    <string name="input_axis_action_hint" formatted="false">ถูกกดค้างขณะก้านถูกเลื่อนไปทุกทิศทาง: กดเมื่อเกิน 55% ปล่อยเมื่อต่ำกว่า 35% ใช้ปุ่มทิศทางเพื่อกำหนดแต่ละทิศแยกกัน คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการเอียง คลิกก้านตั้งค่าแยก</string>
     <string name="input_contact_action_hint">ถูกกดค้างขณะแตะทัชแพด และปล่อยเมื่อยกนิ้ว คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการแตะ คลิกทัชแพดตั้งค่าแยก</string>
-    <string name="input_trigger_action_hint">ถูกกดค้างเมื่อไกเกิน 55% และปล่อยเมื่อต่ำกว่า 35% คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการกด</string>
+    <string name="input_trigger_action_hint" formatted="false">ถูกกดค้างเมื่อไกเกิน 55% และปล่อยเมื่อต่ำกว่า 35% คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการกด</string>
     <string name="input_scroll_axis">ทิศทางการเลื่อน</string>
     <string name="input_vertical">แนวตั้ง</string>
     <string name="input_horizontal">แนวนอน</string>

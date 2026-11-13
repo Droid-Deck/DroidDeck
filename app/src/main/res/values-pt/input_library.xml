@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Quando atribuído ao ponteiro do mouse: toque para clicar, segure para arrastar e role com dois dedos.</string>
     <string name="input_quick_override_hint">%1$s tem uma substituição do menu rápido. Selecione Auto lá para usar o perfil padrão e as três partes salvas.</string>
     <string name="input_route_local">Entrada do DroidDeck</string>
-    <string name="input_axis_action_hint">Mantido enquanto o analógico é movido em qualquer direção: pressiona acima de 55%, solta abaixo de 35%. Use Teclas de direção para atribuir cada direção separadamente. Os comandos do DroidDeck rodam uma vez por deflexão. O clique do analógico é configurado à parte.</string>
+    <string name="input_axis_action_hint" formatted="false">Mantido enquanto o analógico é movido em qualquer direção: pressiona acima de 55%, solta abaixo de 35%. Use Teclas de direção para atribuir cada direção separadamente. Os comandos do DroidDeck rodam uma vez por deflexão. O clique do analógico é configurado à parte.</string>
     <string name="input_contact_action_hint">Mantido enquanto o touchpad é tocado; liberado ao levantar o dedo. Os comandos do DroidDeck rodam uma vez por toque. O clique do touchpad é configurado à parte.</string>
-    <string name="input_trigger_action_hint">Mantido quando o gatilho passa de 55%; liberado abaixo de 35%. Os comandos do DroidDeck rodam uma vez por pressionamento.</string>
+    <string name="input_trigger_action_hint" formatted="false">Mantido quando o gatilho passa de 55%; liberado abaixo de 35%. Os comandos do DroidDeck rodam uma vez por pressionamento.</string>
     <string name="input_scroll_axis">Direção de rolagem</string>
     <string name="input_vertical">Vertical</string>
     <string name="input_horizontal">Horizontal</string>

@@ -26,7 +26,7 @@
     <string name="input_element_button">Nút</string>
     <string name="input_element_stick">Cần</string>
     <string name="input_element_trackpad">Bàn di chuột</string>
-    <string name="input_element_dpad">Phím chéo</string>
+    <string name="input_element_dpad">Phím điều hướng</string>
     <string name="input_element_trigger">Cò</string>
     <string name="input_editor_done">Xong</string>
     <string name="input_editor_undo">Hoàn tác</string>
@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Khi gán cho con trỏ chuột: chạm để nhấp, giữ để kéo và cuộn bằng hai ngón.</string>
     <string name="input_quick_override_hint">%1$s có ghi đè menu nhanh. Chọn Tự động ở đó để dùng hồ sơ mặc định và cả ba phần đã lưu.</string>
     <string name="input_route_local">Đầu vào DroidDeck</string>
-    <string name="input_axis_action_hint">Giữ khi cần được đẩy theo mọi hướng: nhấn trên 55%, nhả dưới 35%. Dùng Phím hướng để gán từng hướng riêng. Lệnh DroidDeck chạy một lần mỗi lần lệch. Nhấp cần được cấu hình riêng.</string>
+    <string name="input_axis_action_hint" formatted="false">Giữ khi cần được đẩy theo mọi hướng: nhấn trên 55%, nhả dưới 35%. Dùng Phím hướng để gán từng hướng riêng. Lệnh DroidDeck chạy một lần mỗi lần lệch. Nhấp cần được cấu hình riêng.</string>
     <string name="input_contact_action_hint">Giữ khi chạm bàn di chuột; nhả khi nhấc ngón tay. Lệnh DroidDeck chạy một lần mỗi lần chạm. Nhấp bàn di chuột được cấu hình riêng.</string>
-    <string name="input_trigger_action_hint">Giữ khi cò vượt 55%; nhả dưới 35%. Lệnh DroidDeck chạy một lần mỗi lần nhấn.</string>
+    <string name="input_trigger_action_hint" formatted="false">Giữ khi cò vượt 55%; nhả dưới 35%. Lệnh DroidDeck chạy một lần mỗi lần nhấn.</string>
     <string name="input_scroll_axis">Hướng cuộn</string>
     <string name="input_vertical">Dọc</string>
     <string name="input_horizontal">Ngang</string>

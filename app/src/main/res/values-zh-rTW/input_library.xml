@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">綁定到滑鼠指標時：輕點點擊、按住拖曳、雙指捲動。</string>
     <string name="input_quick_override_hint">%1$s 有快速選單覆寫。在那裡選「自動」會使用它的預設設定檔與全部三個已儲存部分。</string>
     <string name="input_route_local">DroidDeck 輸入</string>
-    <string name="input_axis_action_hint">搖桿朝任意方向推動期間保持：超過 55% 時按下，低於 35% 時放開。用「方向鍵」逐方向指定。DroidDeck 動作每次推動只執行一次。搖桿點擊另外設定。</string>
+    <string name="input_axis_action_hint" formatted="false">搖桿朝任意方向推動期間保持：超過 55% 時按下，低於 35% 時放開。用「方向鍵」逐方向指定。DroidDeck 動作每次推動只執行一次。搖桿點擊另外設定。</string>
     <string name="input_contact_action_hint">按住觸控板期間保持，抬手時放開。DroidDeck 動作每次觸碰執行一次。觸控板點擊另外設定。</string>
-    <string name="input_trigger_action_hint">扳機超過 55% 時保持，低於 35% 時放開。DroidDeck 動作每次按下執行一次。</string>
+    <string name="input_trigger_action_hint" formatted="false">扳機超過 55% 時保持，低於 35% 時放開。DroidDeck 動作每次按下執行一次。</string>
     <string name="input_scroll_axis">捲動方向</string>
     <string name="input_vertical">垂直</string>
     <string name="input_horizontal">水平</string>

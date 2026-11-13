@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Wenn dem Mauszeiger zugewiesen: Tippen zum Klicken, Halten zum Ziehen, mit zwei Fingern scrollen.</string>
     <string name="input_quick_override_hint">%1$s hat eine Schnellmenü-Überschreibung. Wähle dort Auto, um sein Standardprofil und alle drei gespeicherten Teile zu verwenden.</string>
     <string name="input_route_local">DroidDeck Input</string>
-    <string name="input_axis_action_hint">Gehalten, während der Stick in eine beliebige Richtung bewegt wird: drücken über 55 %, loslassen unter 35 %. Mit Richtungstasten jede Richtung einzeln zuweisen. DroidDeck-Aktionen laufen einmal pro Ausschlag. Der Stick-Klick wird separat konfiguriert.</string>
+    <string name="input_axis_action_hint" formatted="false">Gehalten, während der Stick in eine beliebige Richtung bewegt wird: drücken über 55 %, loslassen unter 35 %. Mit Richtungstasten jede Richtung einzeln zuweisen. DroidDeck-Aktionen laufen einmal pro Ausschlag. Der Stick-Klick wird separat konfiguriert.</string>
     <string name="input_contact_action_hint">Gehalten, während das Touchpad berührt wird; losgelassen beim Abheben des Fingers. DroidDeck-Aktionen laufen einmal pro Berührung. Der Touchpad-Klick wird separat konfiguriert.</string>
-    <string name="input_trigger_action_hint">Gehalten, wenn der Trigger 55 % überschreitet; losgelassen unter 35 %. DroidDeck-Aktionen laufen einmal pro Druck.</string>
+    <string name="input_trigger_action_hint" formatted="false">Gehalten, wenn der Trigger 55 % überschreitet; losgelassen unter 35 %. DroidDeck-Aktionen laufen einmal pro Druck.</string>
     <string name="input_scroll_axis">Scrollrichtung</string>
     <string name="input_vertical">Vertikal</string>
     <string name="input_horizontal">Horizontal</string>

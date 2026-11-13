@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">마우스 포인터에 할당된 경우: 탭하여 클릭, 길게 눌러 드래그, 두 손가락으로 스크롤합니다.</string>
     <string name="input_quick_override_hint">%1$s에는 빠른 메뉴 재정의가 있습니다. 자동을 선택하면 기본 프로필과 저장된 세 부분을 모두 사용합니다.</string>
     <string name="input_route_local">DroidDeck 입력</string>
-    <string name="input_axis_action_hint">스틱을 어느 방향으로든 움직이는 동안 유지됩니다: 55% 초과 시 누름, 35% 미만 시 해제. 방향 키로 각 방향을 따로 지정합니다. DroidDeck 명령은 기울기마다 한 번 실행됩니다. 스틱 클릭은 따로 설정합니다.</string>
+    <string name="input_axis_action_hint" formatted="false">스틱을 어느 방향으로든 움직이는 동안 유지됩니다: 55% 초과 시 누름, 35% 미만 시 해제. 방향 키로 각 방향을 따로 지정합니다. DroidDeck 명령은 기울기마다 한 번 실행됩니다. 스틱 클릭은 따로 설정합니다.</string>
     <string name="input_contact_action_hint">터치패드를 만지는 동안 유지되고 손을 떼면 해제됩니다. DroidDeck 명령은 터치마다 한 번 실행됩니다. 터치패드 클릭은 따로 설정합니다.</string>
-    <string name="input_trigger_action_hint">트리거가 55%를 넘으면 유지되고 35% 미만이면 해제됩니다. DroidDeck 명령은 누를 때마다 한 번 실행됩니다.</string>
+    <string name="input_trigger_action_hint" formatted="false">트리거가 55%를 넘으면 유지되고 35% 미만이면 해제됩니다. DroidDeck 명령은 누를 때마다 한 번 실행됩니다.</string>
     <string name="input_scroll_axis">스크롤 방향</string>
     <string name="input_vertical">세로</string>
     <string name="input_horizontal">가로</string>

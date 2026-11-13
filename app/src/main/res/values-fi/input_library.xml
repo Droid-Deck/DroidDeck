@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Kun määritetty hiiren osoittimelle: napauta klikataksesi, pidä painettuna vetääksesi ja vieritä kahdella sormella.</string>
     <string name="input_quick_override_hint">Kohteella %1$s on pikavalikon ohitus. Valitse Automaattinen käyttääksesi sen oletusprofiilia ja kaikkia kolmea tallennettua osaa.</string>
     <string name="input_route_local">DroidDeck-syöte</string>
-    <string name="input_axis_action_hint">Pidetään, kun tikkua liikutetaan mihin tahansa suuntaan: painetaan yli 55 %:ssa, vapautetaan alle 35 %:ssa. Määritä jokainen suunta erikseen Suuntanäppäimillä. DroidDeck-komennot suoritetaan kerran poikkeamaa kohti. Tikun napsautus määritetään erikseen.</string>
+    <string name="input_axis_action_hint" formatted="false">Pidetään, kun tikkua liikutetaan mihin tahansa suuntaan: painetaan yli 55 %:ssa, vapautetaan alle 35 %:ssa. Määritä jokainen suunta erikseen Suuntanäppäimillä. DroidDeck-komennot suoritetaan kerran poikkeamaa kohti. Tikun napsautus määritetään erikseen.</string>
     <string name="input_contact_action_hint">Pidetään kosketuslevyn kosketuksen ajan; vapautetaan, kun nostat sormen. DroidDeck-komennot suoritetaan kerran kosketusta kohti. Kosketuslevyn napsautus määritetään erikseen.</string>
-    <string name="input_trigger_action_hint">Pidetään, kun liipaisin ylittää 55 %; vapautetaan alle 35 %:ssa. DroidDeck-komennot suoritetaan kerran painallusta kohti.</string>
+    <string name="input_trigger_action_hint" formatted="false">Pidetään, kun liipaisin ylittää 55 %; vapautetaan alle 35 %:ssa. DroidDeck-komennot suoritetaan kerran painallusta kohti.</string>
     <string name="input_scroll_axis">Vierityssuunta</string>
     <string name="input_vertical">Pystysuora</string>
     <string name="input_horizontal">Vaakasuora</string>

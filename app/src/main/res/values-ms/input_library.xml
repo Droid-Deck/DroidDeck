@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Apabila ditetapkan pada penuding tetikus: ketik untuk klik, tahan untuk seret, dan tatal dengan dua jari.</string>
     <string name="input_quick_override_hint">%1$s mempunyai penggantian menu pantas. Pilih Auto di sana untuk menggunakan profil lalainya dan ketiga-tiga bahagian tersimpan.</string>
     <string name="input_route_local">Input DroidDeck</string>
-    <string name="input_axis_action_hint">Ditetapkan semasa kayu digerakkan ke mana-mana arah: tekan melebihi 55%, lepas di bawah 35%. Gunakan Kekunci arah untuk menetapkan setiap arah secara berasingan. Perintah DroidDeck berjalan sekali setiap pesongan. Klik kayu ditetapkan secara berasingan.</string>
+    <string name="input_axis_action_hint" formatted="false">Ditetapkan semasa kayu digerakkan ke mana-mana arah: tekan melebihi 55%, lepas di bawah 35%. Gunakan Kekunci arah untuk menetapkan setiap arah secara berasingan. Perintah DroidDeck berjalan sekali setiap pesongan. Klik kayu ditetapkan secara berasingan.</string>
     <string name="input_contact_action_hint">Ditetapkan semasa menyentuh pad sentuh; dilepaskan apabila jari diangkat. Perintah DroidDeck berjalan sekali setiap sentuhan. Klik pad sentuh ditetapkan secara berasingan.</string>
-    <string name="input_trigger_action_hint">Ditetapkan apabila pencetus melepasi 55%; dilepaskan di bawah 35%. Perintah DroidDeck berjalan sekali setiap tekanan.</string>
+    <string name="input_trigger_action_hint" formatted="false">Ditetapkan apabila pencetus melepasi 55%; dilepaskan di bawah 35%. Perintah DroidDeck berjalan sekali setiap tekanan.</string>
     <string name="input_scroll_axis">Arah tatal</string>
     <string name="input_vertical">Menegak</string>
     <string name="input_horizontal">Mendatar</string>

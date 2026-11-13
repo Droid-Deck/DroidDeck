@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Při přiřazení k ukazateli myši: klepnutím kliknete, podržením táhnete a dvěma prsty posouváte.</string>
     <string name="input_quick_override_hint">%1$s má přepsání rychlé nabídky. Vyberte Automaticky, chcete-li použít výchozí profil a všechny tři uložené části.</string>
     <string name="input_route_local">Vstup DroidDeck</string>
-    <string name="input_axis_action_hint">Drženo, když je páčka vychýlena jakýmkoli směrem: stisk nad 55 %, uvolnění pod 35 %. Pomocí Směrových kláves přiřaďte každý směr zvlášť. Příkazy DroidDeck se spustí jednou za vychýlení. Kliknutí páčky se nastavuje zvlášť.</string>
+    <string name="input_axis_action_hint" formatted="false">Drženo, když je páčka vychýlena jakýmkoli směrem: stisk nad 55 %, uvolnění pod 35 %. Pomocí Směrových kláves přiřaďte každý směr zvlášť. Příkazy DroidDeck se spustí jednou za vychýlení. Kliknutí páčky se nastavuje zvlášť.</string>
     <string name="input_contact_action_hint">Drženo při dotyku touchpadu; uvolněno při zvednutí prstu. Příkazy DroidDeck se spustí jednou za dotyk. Kliknutí touchpadu se nastavuje zvlášť.</string>
-    <string name="input_trigger_action_hint">Drženo, když spoušť překročí 55 %; uvolněno pod 35 %. Příkazy DroidDeck se spustí jednou za stisk.</string>
+    <string name="input_trigger_action_hint" formatted="false">Drženo, když spoušť překročí 55 %; uvolněno pod 35 %. Příkazy DroidDeck se spustí jednou za stisk.</string>
     <string name="input_scroll_axis">Směr posunu</string>
     <string name="input_vertical">Svisle</string>
     <string name="input_horizontal">Vodorovně</string>

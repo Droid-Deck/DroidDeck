@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Når tilordnet musepekeren: trykk for å klikke, hold for å dra, og rull med to fingre.</string>
     <string name="input_quick_override_hint">%1$s har en overstyring av hurtigmenyen. Velg Auto der for å bruke standardprofilen og alle tre lagrede delene.</string>
     <string name="input_route_local">DroidDeck-inndata</string>
-    <string name="input_axis_action_hint">Holdes mens stikka flyttes i en hvilken som helst retning: trykk over 55 %, slipp under 35 %. Bruk Retningstaster for å tildele hver retning separat. DroidDeck-kommandoer kjøres én gang per utslag. Stikkklikket konfigureres separat.</string>
+    <string name="input_axis_action_hint" formatted="false">Holdes mens stikka flyttes i en hvilken som helst retning: trykk over 55 %, slipp under 35 %. Bruk Retningstaster for å tildele hver retning separat. DroidDeck-kommandoer kjøres én gang per utslag. Stikkklikket konfigureres separat.</string>
     <string name="input_contact_action_hint">Holdes mens du berører styreflaten; slippes når du løfter fingeren. DroidDeck-kommandoer kjøres én gang per berøring. Styreflateklikket konfigureres separat.</string>
-    <string name="input_trigger_action_hint">Holdes når avtrekkeren passerer 55 %; slippes under 35 %. DroidDeck-kommandoer kjøres én gang per trykk.</string>
+    <string name="input_trigger_action_hint" formatted="false">Holdes når avtrekkeren passerer 55 %; slippes under 35 %. DroidDeck-kommandoer kjøres én gang per trykk.</string>
     <string name="input_scroll_axis">Rulleretning</string>
     <string name="input_vertical">Loddrett</string>
     <string name="input_horizontal">Vannrett</string>
@@ -126,7 +126,7 @@
     <string name="input_imported_image">Importert bilde</string>
     <string name="input_diagonal_keys">Separate diagonalknapper</string>
     <string name="input_diagonal_keys_hint">Tilordne en tast til hver diagonal. En tom diagonal trykker de to naboretningene.</string>
-    <string name="input_diagonal_neighbors">Naborterninger</string>
+    <string name="input_diagonal_neighbors">Naboretninger</string>
     <string name="input_imported_keys_hint">De gamle skjermtastene dine er lagret som importerte profiler nedenfor. Velg en for å bruke eller redigere den. Dine nåværende profilvalg er beholdt.</string>
     <string name="input_import_failed">De gamle skjermtastene kunne ikke importeres automatisk. De opprinnelige innstillingene er beholdt.</string>
 </resources>

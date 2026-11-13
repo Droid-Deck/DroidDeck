@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">माउस पॉइंटर पर असाइन होने पर: क्लिक के लिए टैप करें, खींचने के लिए दबाए रखें, और दो उँगलियों से स्क्रॉल करें।</string>
     <string name="input_quick_override_hint">%1$s में क्विक-मेन्यू ओवरराइड है। वहाँ Auto चुनें ताकि उसका डिफ़ॉल्ट प्रोफ़ाइल और तीनों सहेजे भाग उपयोग हों।</string>
     <string name="input_route_local">DroidDeck इनपुट</string>
-    <string name="input_axis_action_hint">स्टिक को किसी भी दिशा में हिलाने पर दबा रहता है: 55% से ऊपर दबाएँ, 35% से नीचे छोड़ें। प्रत्येक दिशा अलग असाइन करने के लिए दिशा कुंजियाँ उपयोग करें। DroidDeck क्रियाएँ प्रति झुकाव एक बार चलती हैं। स्टिक क्लिक अलग से सेट होता है।</string>
+    <string name="input_axis_action_hint" formatted="false">स्टिक को किसी भी दिशा में हिलाने पर दबा रहता है: 55% से ऊपर दबाएँ, 35% से नीचे छोड़ें। प्रत्येक दिशा अलग असाइन करने के लिए दिशा कुंजियाँ उपयोग करें। DroidDeck क्रियाएँ प्रति झुकाव एक बार चलती हैं। स्टिक क्लिक अलग से सेट होता है।</string>
     <string name="input_contact_action_hint">टचपैड छूने पर दबा रहता है; उँगली उठाने पर छूटता है। DroidDeck क्रियाएँ प्रति स्पर्श एक बार चलती हैं। टचपैड क्लिक अलग से सेट होता है।</string>
-    <string name="input_trigger_action_hint">ट्रिगर 55% पार करने पर दबा रहता है; 35% से नीचे छूटता है। DroidDeck क्रियाएँ प्रति दबाव एक बार चलती हैं।</string>
+    <string name="input_trigger_action_hint" formatted="false">ट्रिगर 55% पार करने पर दबा रहता है; 35% से नीचे छूटता है। DroidDeck क्रियाएँ प्रति दबाव एक बार चलती हैं।</string>
     <string name="input_scroll_axis">स्क्रॉल दिशा</string>
     <string name="input_vertical">लंबवत</string>
     <string name="input_horizontal">क्षैतिज</string>

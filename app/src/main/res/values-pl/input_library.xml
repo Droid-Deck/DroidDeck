@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Po przypisaniu do wskaźnika myszy: dotknij, aby kliknąć, przytrzymaj, aby przeciągnąć, i przewijaj dwoma palcami.</string>
     <string name="input_quick_override_hint">%1$s ma zastąpienie szybkiego menu. Wybierz tam Auto, aby użyć profilu domyślnego i wszystkich trzech zapisanych części.</string>
     <string name="input_route_local">Wejście DroidDeck</string>
-    <string name="input_axis_action_hint">Przytrzymywane, gdy drążek jest wychylony w dowolnym kierunku: naciśnięcie powyżej 55%, zwolnienie poniżej 35%. Użyj Klawiszy kierunkowych, aby przypisać każdy kierunek osobno. Polecenia DroidDeck działają raz na wychylenie. Kliknięcie drążka ustawia się osobno.</string>
+    <string name="input_axis_action_hint" formatted="false">Przytrzymywane, gdy drążek jest wychylony w dowolnym kierunku: naciśnięcie powyżej 55%, zwolnienie poniżej 35%. Użyj Klawiszy kierunkowych, aby przypisać każdy kierunek osobno. Polecenia DroidDeck działają raz na wychylenie. Kliknięcie drążka ustawia się osobno.</string>
     <string name="input_contact_action_hint">Przytrzymywane podczas dotykania touchpada; zwalniane po podniesieniu palca. Polecenia DroidDeck działają raz na dotknięcie. Kliknięcie touchpada ustawia się osobno.</string>
-    <string name="input_trigger_action_hint">Przytrzymywane, gdy spust przekroczy 55%; zwalniane poniżej 35%. Polecenia DroidDeck działają raz na naciśnięcie.</string>
+    <string name="input_trigger_action_hint" formatted="false">Przytrzymywane, gdy spust przekroczy 55%; zwalniane poniżej 35%. Polecenia DroidDeck działają raz na naciśnięcie.</string>
     <string name="input_scroll_axis">Kierunek przewijania</string>
     <string name="input_vertical">Pionowo</string>
     <string name="input_horizontal">Poziomo</string>

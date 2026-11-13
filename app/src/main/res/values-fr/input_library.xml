@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Si assigné au pointeur de la souris : toucher pour cliquer, maintenir pour faire glisser, défiler avec deux doigts.</string>
     <string name="input_quick_override_hint">%1$s a une dérogation de menu rapide. Sélectionnez Auto pour utiliser son profil par défaut et ses trois parties enregistrées.</string>
     <string name="input_route_local">Entrée DroidDeck</string>
-    <string name="input_axis_action_hint">Maintenu lorsque le stick est déplacé dans n\'importe quelle direction : appui au-dessus de 55 %, relâchement sous 35 %. Utilisez Touches de direction pour assigner chaque direction séparément. Les commandes DroidDeck s\'exécutent une fois par déflexion. Le clic du stick se configure séparément.</string>
+    <string name="input_axis_action_hint" formatted="false">Maintenu lorsque le stick est déplacé dans n\'importe quelle direction : appui au-dessus de 55 %, relâchement sous 35 %. Utilisez Touches de direction pour assigner chaque direction séparément. Les commandes DroidDeck s\'exécutent une fois par déflexion. Le clic du stick se configure séparément.</string>
     <string name="input_contact_action_hint">Maintenu pendant le contact avec le pavé tactile ; relâché au lever du doigt. Les commandes DroidDeck s\'exécutent une fois par contact. Le clic du pavé se configure séparément.</string>
-    <string name="input_trigger_action_hint">Maintenu lorsque la gâchette dépasse 55 % ; relâché sous 35 %. Les commandes DroidDeck s\'exécutent une fois par pression.</string>
+    <string name="input_trigger_action_hint" formatted="false">Maintenu lorsque la gâchette dépasse 55 % ; relâché sous 35 %. Les commandes DroidDeck s\'exécutent une fois par pression.</string>
     <string name="input_scroll_axis">Direction du défilement</string>
     <string name="input_vertical">Vertical</string>
     <string name="input_horizontal">Horizontal</string>

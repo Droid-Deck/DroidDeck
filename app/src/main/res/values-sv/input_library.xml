@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">När tilldelad muspekaren: tryck för att klicka, håll för att dra och rulla med två fingrar.</string>
     <string name="input_quick_override_hint">%1$s har en åsidosättning av snabbmenyn. Välj Auto där för att använda standardprofilen och alla tre sparade delarna.</string>
     <string name="input_route_local">DroidDeck-inmatning</string>
-    <string name="input_axis_action_hint">Hålls medan spaken rörs i valfri riktning: tryck över 55 %, släpp under 35 %. Använd Riktningstangenter för att tilldela varje riktning separat. DroidDeck-kommandon körs en gång per utslag. Spakens klick konfigureras separat.</string>
+    <string name="input_axis_action_hint" formatted="false">Hålls medan spaken rörs i valfri riktning: tryck över 55 %, släpp under 35 %. Använd Riktningstangenter för att tilldela varje riktning separat. DroidDeck-kommandon körs en gång per utslag. Spakens klick konfigureras separat.</string>
     <string name="input_contact_action_hint">Hålls medan du rör styrplattan; släpps när du lyfter fingret. DroidDeck-kommandon körs en gång per beröring. Styrplattans klick konfigureras separat.</string>
-    <string name="input_trigger_action_hint">Hålls när avtryckaren passerar 55 %; släpps under 35 %. DroidDeck-kommandon körs en gång per tryck.</string>
+    <string name="input_trigger_action_hint" formatted="false">Hålls när avtryckaren passerar 55 %; släpps under 35 %. DroidDeck-kommandon körs en gång per tryck.</string>
     <string name="input_scroll_axis">Rullningsriktning</string>
     <string name="input_vertical">Lodrätt</string>
     <string name="input_horizontal">Vågrätt</string>

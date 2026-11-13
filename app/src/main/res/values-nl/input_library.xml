@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Bij toewijzing aan de muisaanwijzer: tik om te klikken, houd vast om te slepen en scroll met twee vingers.</string>
     <string name="input_quick_override_hint">%1$s heeft een snelmenu-overschrijving. Kies daar Auto om het standaardprofiel en alle drie opgeslagen delen te gebruiken.</string>
     <string name="input_route_local">DroidDeck-invoer</string>
-    <string name="input_axis_action_hint">Vastgehouden terwijl de stick in een willekeurige richting wordt bewogen: ingedrukt boven 55%, losgelaten onder 35%. Gebruik Richtingtoetsen om elke richting apart toe te wijzen. DroidDeck-opdrachten worden één keer per uitslag uitgevoerd. De stickklik wordt apart ingesteld.</string>
+    <string name="input_axis_action_hint" formatted="false">Vastgehouden terwijl de stick in een willekeurige richting wordt bewogen: ingedrukt boven 55%, losgelaten onder 35%. Gebruik Richtingtoetsen om elke richting apart toe te wijzen. DroidDeck-opdrachten worden één keer per uitslag uitgevoerd. De stickklik wordt apart ingesteld.</string>
     <string name="input_contact_action_hint">Vastgehouden tijdens aanraking van de touchpad; losgelaten bij het optillen van je vinger. DroidDeck-opdrachten worden één keer per aanraking uitgevoerd. De touchpadklik wordt apart ingesteld.</string>
-    <string name="input_trigger_action_hint">Vastgehouden wanneer de trigger 55% passeert; losgelaten onder 35%. DroidDeck-opdrachten worden één keer per druk uitgevoerd.</string>
+    <string name="input_trigger_action_hint" formatted="false">Vastgehouden wanneer de trigger 55% passeert; losgelaten onder 35%. DroidDeck-opdrachten worden één keer per druk uitgevoerd.</string>
     <string name="input_scroll_axis">Scrollrichting</string>
     <string name="input_vertical">Verticaal</string>
     <string name="input_horizontal">Horizontaal</string>

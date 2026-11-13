@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Fare işaretçisine atandığında: tıklamak için dokunun, sürüklemek için basılı tutun ve iki parmakla kaydırın.</string>
     <string name="input_quick_override_hint">%1$s için hızlı menü geçersiz kılması var. Varsayılan profilini ve üç kayıtlı bölümünü kullanmak için orada Otomatik seçin.</string>
     <string name="input_route_local">DroidDeck girişi</string>
-    <string name="input_axis_action_hint">Çubuk herhangi bir yöne hareket ettirildiğinde basılı tutulur: %55 üzerinde basılır, %35 altında bırakılır. Her yönü ayrı atamak için Yön tuşlarını kullanın. DroidDeck komutları her sapma için bir kez çalışır. Çubuk tıklaması ayrıca yapılandırılır.</string>
+    <string name="input_axis_action_hint" formatted="false">Çubuk herhangi bir yöne hareket ettirildiğinde basılı tutulur: %55 üzerinde basılır, %35 altında bırakılır. Her yönü ayrı atamak için Yön tuşlarını kullanın. DroidDeck komutları her sapma için bir kez çalışır. Çubuk tıklaması ayrıca yapılandırılır.</string>
     <string name="input_contact_action_hint">Dokunmatik yüzeye dokunulduğunda basılı tutulur; parmağınızı kaldırdığınızda bırakılır. DroidDeck komutları her dokunuş için bir kez çalışır. Dokunmatik yüzey tıklaması ayrıca yapılandırılır.</string>
-    <string name="input_trigger_action_hint">Tetik %55 i geçtiğinde basılı tutulur; %35 altında bırakılır. DroidDeck komutları her basış için bir kez çalışır.</string>
+    <string name="input_trigger_action_hint" formatted="false">Tetik %55 i geçtiğinde basılı tutulur; %35 altında bırakılır. DroidDeck komutları her basış için bir kez çalışır.</string>
     <string name="input_scroll_axis">Kaydırma yönü</string>
     <string name="input_vertical">Dikey</string>
     <string name="input_horizontal">Yatay</string>

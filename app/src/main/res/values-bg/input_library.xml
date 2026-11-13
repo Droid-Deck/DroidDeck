@@ -59,7 +59,7 @@
     <string name="input_element_button">Бутон</string>
     <string name="input_element_stick">Стик</string>
     <string name="input_element_trackpad">Тъчпад</string>
-    <string name="input_element_dpad">Кръстовище</string>
+    <string name="input_element_dpad">D-pad</string>
     <string name="input_element_trigger">Спусък</string>
     <string name="input_editor_done">Готово</string>
     <string name="input_editor_undo">Отмяна</string>
@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">Когато е зададено на показалеца на мишката: докоснете за щракване, задръжте за плъзгане и превъртайте с два пръста.</string>
     <string name="input_quick_override_hint">%1$s има замяна на бързото меню. Изберете Автоматично, за да използвате профила по подразбиране и трите запазени части.</string>
     <string name="input_route_local">Вход на DroidDeck</string>
-    <string name="input_axis_action_hint">Задържа се, докато стикът е отместен в която и да е посока: натиска при над 55%, отпуска под 35%. Използвайте Клавиши за посока, за да зададете всяка посока отделно. Командите на DroidDeck се изпълняват веднъж на отклонение. Щракването на стика се настройва отделно.</string>
+    <string name="input_axis_action_hint" formatted="false">Задържа се, докато стикът е отместен в която и да е посока: натиска при над 55%, отпуска под 35%. Използвайте Клавиши за посока, за да зададете всяка посока отделно. Командите на DroidDeck се изпълняват веднъж на отклонение. Щракването на стика се настройва отделно.</string>
     <string name="input_contact_action_hint">Задържа се, докато докосвате тъчпада; отпуска се при вдигане на пръста. Командите на DroidDeck се изпълняват веднъж на докосване. Щракването на тъчпада се настройва отделно.</string>
-    <string name="input_trigger_action_hint">Задържа се, когато спусъкът премине 55%; отпуска се под 35%. Командите на DroidDeck се изпълняват веднъж на натискане.</string>
+    <string name="input_trigger_action_hint" formatted="false">Задържа се, когато спусъкът премине 55%; отпуска се под 35%. Командите на DroidDeck се изпълняват веднъж на натискане.</string>
     <string name="input_scroll_axis">Посока на превъртане</string>
     <string name="input_vertical">Вертикално</string>
     <string name="input_horizontal">Хоризонтално</string>

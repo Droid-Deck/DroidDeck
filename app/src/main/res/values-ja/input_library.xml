@@ -85,9 +85,9 @@
     <string name="input_mouse_gestures_hint">マウスポインターに割り当てた場合: タップでクリック、長押しでドラッグ、2 本指でスクロールします。</string>
     <string name="input_quick_override_hint">%1$s にはクイックメニューの上書きがあります。[自動] を選ぶと既定のプロファイルと保存済みの 3 つのパーツを使用します。</string>
     <string name="input_route_local">DroidDeck 入力</string>
-    <string name="input_axis_action_hint">スティックをどの方向に動かしている間も保持されます: 55% を超えると押下、35% を下回ると解放。方向キーで各方向を個別に割り当てます。DroidDeck コマンドは 1 回の傾きにつき 1 回実行されます。スティックのクリックは別に設定します。</string>
+    <string name="input_axis_action_hint" formatted="false">スティックをどの方向に動かしている間も保持されます: 55% を超えると押下、35% を下回ると解放。方向キーで各方向を個別に割り当てます。DroidDeck コマンドは 1 回の傾きにつき 1 回実行されます。スティックのクリックは別に設定します。</string>
     <string name="input_contact_action_hint">タッチパッドに触れている間保持され、指を離すと解放されます。DroidDeck コマンドは 1 回のタッチにつき 1 回実行されます。タッチパッドのクリックは別に設定します。</string>
-    <string name="input_trigger_action_hint">トリガーが 55% を超えると保持され、35% を下回ると解放されます。DroidDeck コマンドは 1 回の押下につき 1 回実行されます。</string>
+    <string name="input_trigger_action_hint" formatted="false">トリガーが 55% を超えると保持され、35% を下回ると解放されます。DroidDeck コマンドは 1 回の押下につき 1 回実行されます。</string>
     <string name="input_scroll_axis">スクロール方向</string>
     <string name="input_vertical">縦</string>
     <string name="input_horizontal">横</string>
