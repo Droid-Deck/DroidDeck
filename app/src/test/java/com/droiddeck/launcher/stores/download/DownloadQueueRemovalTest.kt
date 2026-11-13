@@ -231,9 +231,18 @@ class DownloadQueueRemovalTest {
         }
         assertTrue(idleUntil { DownloadQueue.entry(entry.key)?.state == DownloadState.FAILED })
         assertFalse(DownloadQueue.holdForRemoval(entry.key))
+        val reinstalled = CountDownLatch(1)
+        DownloadQueue.enqueue(app, DownloadEntry(Store.GOG, "throw-after-discard", "again")) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? { reinstalled.countDown(); return "/done" }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertFalse(reinstalled.await(300, TimeUnit.MILLISECONDS))
+        assertEquals(DownloadState.QUEUED, DownloadQueue.entry(entry.key)?.state)
         release.countDown()
-        awaitHold(entry.key)
-        DownloadQueue.releaseRemoval(entry.key)
+        assertTrue(reinstalled.await(5, TimeUnit.SECONDS))
+        assertTrue(idleUntil { DownloadQueue.entry(entry.key)?.state == DownloadState.INSTALLED })
     }
 
     @Test fun cancellingARunningJobTwiceWaitsForEveryDiscard() {
