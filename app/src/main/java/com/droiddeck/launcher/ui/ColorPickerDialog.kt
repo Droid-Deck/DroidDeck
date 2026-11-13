@@ -85,15 +85,23 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
     }
     // A screen wider than tall has no room for one tall column: the wheel goes beside the sliders, and nothing has to scroll.
     // A small landscape window is too narrow for the closing row, so it keeps the column.
-    val beside = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp && it.screenWidthDp >= 600 }
+    val screen = LocalConfiguration.current
+    val beside = screen.screenWidthDp > screen.screenHeightDp && screen.screenWidthDp >= 600
+    // Title, closing row, gaps and the dialog's margins take about 164 dp of the height; the wheel gets the rest less a little
+    // spare, up to 216 dp. A short screen also gets shorter slider rows, so OK stays on screen down to about 360 dp.
+    val wheelSize = if (beside) (screen.screenHeightDp - 176).coerceIn(160, 216).dp else 168.dp
+    val short = beside && wheelSize < 216.dp
     AppDialog(shown, close, "colorPicker", wide = false, maxWidth = if (beside) 680.dp else 460.dp, scrollState = scroll) {
         DialogTitleRow(title, close)
-        val wheel: @Composable () -> Unit = { ColorWheel(hue, sat, value, if (beside) 216.dp else 168.dp) { h, s -> picked(h = h, s = s) } }
+        val wheel: @Composable () -> Unit = { ColorWheel(hue, sat, value, wheelSize) { h, s -> picked(h = h, s = s) } }
+        val track = if (short) 24.dp else 40.dp
         val sliders: @Composable () -> Unit = {
             ValueSlider(hue.toInt(), 0..360, step = 5, enabled = true, label = stringResource(R.string.theme_color_hue), format = { "$it°" },
-                modifier = Modifier.focusRequester(first)) { picked(h = it.toFloat()) }
-            ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" }) { picked(s = it / 100f) }
-            ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" }) { picked(v = it / 100f) }
+                modifier = Modifier.focusRequester(first), track = track) { picked(h = it.toFloat()) }
+            ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" },
+                track = track) { picked(s = it / 100f) }
+            ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" },
+                track = track) { picked(v = it / 100f) }
         }
         val hex: @Composable (Modifier) -> Unit = { modifier ->
             AdbTextField(
@@ -113,7 +121,7 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         if (beside) {
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 wheel()
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(if (short) 2.dp else 8.dp), modifier = Modifier.weight(1f)) {
                     CompositionLocalProvider(LocalCompactSettings provides true) { sliders() }
                 }
             }
