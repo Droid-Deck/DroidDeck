@@ -76,7 +76,7 @@ object BootMovie {
 
     fun prepare(context: Context): File? {
         BootMovieLibrary.restore(context)
-        if (SessionPrefs.skipBootMovie(context)) return extractAsset(context, SKIP)
+        if (SessionPrefs.skipBootMovie(context)) return assetFile(context, SKIP)
         val source = sourceOf(context, choice(context)) ?: return null
         return variant(context, source)
     }
