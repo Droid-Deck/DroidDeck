@@ -14,6 +14,8 @@ internal class RokidModel private constructor(override val name: String, private
     override val resolutions = if (max) listOf(GlassesResolution(1920, 1080), GlassesResolution(1920, 1200))
         else listOf(GlassesResolution(1920, 1080))
 
+    override fun supportsSbs90(resolution: GlassesResolution?) = max && resolution?.height != 1080
+
     override fun mode(hz: Int, sbs: Boolean): Int = mode(hz, sbs, null)
 
     override fun mode(hz: Int, sbs: Boolean, resolution: GlassesResolution?): Int = when {

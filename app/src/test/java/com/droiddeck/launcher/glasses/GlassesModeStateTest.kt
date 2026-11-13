@@ -93,6 +93,28 @@ class GlassesModeStateTest {
         assertEquals(Confirmation.NONE, state.observe(false, 20_100))
     }
 
+    @Test fun acceptedManualDisplayCannotBeOverriddenByThePreviousStereoTimeoutOrVrStop() {
+        state.sent(true, 100)
+        state.startVr()
+        state.manualDisplayAccepted()
+        assertFalse(state.pendingStereo)
+        assertNull(state.nextCheckAt)
+        assertEquals(Confirmation.NONE, state.observe(false, 20_100))
+        assertFalse(state.stopVr())
+        assertFalse(state.restorePending)
+    }
+
+    @Test fun acceptedManualDisplaySupersedesAPendingRestore() {
+        state.sent(true, 100)
+        state.startVr()
+        assertTrue(state.stopVr())
+        state.manualDisplayAccepted()
+        assertFalse(state.pendingStereo)
+        assertFalse(state.restorePending)
+        assertFalse(state.stopVr())
+        assertEquals(Confirmation.NONE, state.observe(false, 20_100))
+    }
+
     @Test fun modeReenumerationPreservesDeadlineAndVrOwnership() {
         state.sent(true, 100)
         state.startVr()

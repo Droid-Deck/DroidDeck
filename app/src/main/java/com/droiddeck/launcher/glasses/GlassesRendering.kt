@@ -1,26 +1,42 @@
 package com.droiddeck.launcher.glasses
 
 import com.droiddeck.launcher.gpu.Cardboard
+import kotlin.math.roundToInt
 
 internal object GlassesRendering {
     enum class Picture { FLAT, DUPLICATED, VIRTUAL_SCREEN, STEREO }
 
     fun native30HzAvailable(settings: GlassesSettings, state: GlassesState): Boolean =
-        state.usable && state.supports30Hz && settings.gameOnGlasses
+        state.usable && state.supports30Hz && settings.gameOnGlasses && state.viture?.supportsNative != true
 
-    fun refreshRates(settings: GlassesSettings, state: GlassesState): List<Int> = buildList {
-        if (native30HzAvailable(settings, state)) add(30)
-        add(60)
-        if (state.sbs) { if (state.sbs90) add(90) }
-        else addAll(state.rates2d.filter { it > 60 })
+    fun refreshRates(settings: GlassesSettings, state: GlassesState): List<Int> {
+        state.viture?.takeIf { it.supportsNative }?.let { device ->
+            val current = device.takeIf { it.nativeMode in 0..1 }?.selectedDisplayMode
+                ?: return listOf(outputHz(settings, state))
+            return device.displayModes.filter {
+                it.stereo == current.stereo && it.ultrawide == current.ultrawide && it.height == current.height
+            }.map { it.hz }.distinct().sorted()
+        }
+        return buildList {
+            if (native30HzAvailable(settings, state)) add(30)
+            if (state.sbs) {
+                add(60)
+                if (state.sbs90) add(90)
+            } else addAll(state.rates2d.filter { it >= 60 }.distinct().sorted().ifEmpty { listOf(60) })
+        }
     }
 
     fun outputHz(settings: GlassesSettings, state: GlassesState): Int {
+        state.viture?.takeIf { it.supportsNative }?.let { device ->
+            device.takeIf { it.nativeMode in 0..1 }?.selectedDisplayMode?.let { return it.hz }
+            return state.hz.takeIf { it.isFinite() && it >= 1f }?.roundToInt() ?: 60
+        }
         val requested = if (state.sbs) settings.sbsHz else settings.refreshHz
+        val minimum = if (state.sbs) 60 else state.rates2d.minOrNull() ?: 60
         return when {
-            requested == 30 -> if (native30HzAvailable(settings, state)) 30 else 60
+            requested == 30 -> if (native30HzAvailable(settings, state)) 30 else minimum
             state.sbs && !state.sbs90 -> 60
-            !state.sbs && requested !in state.rates2d -> state.rates2d.filter { it <= requested }.maxOrNull() ?: 60
+            !state.sbs && requested !in state.rates2d -> state.rates2d.filter { it <= requested }.maxOrNull() ?: minimum
             else -> requested
         }
     }

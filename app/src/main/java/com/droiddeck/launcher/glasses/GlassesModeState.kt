@@ -43,6 +43,11 @@ internal class GlassesModeState(private val timeoutMs: Long) {
         restorePending = false
     }
 
+    fun manualDisplayAccepted() {
+        manual()
+        cancelPending()
+    }
+
     fun startVr() {
         vrOwned = true
         restorePending = false

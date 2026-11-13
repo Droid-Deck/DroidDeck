@@ -122,6 +122,12 @@ object SpatialTracking {
     }
     fun setFloor(height: Float) { session.setFloor(height); refreshStatus(); publish(System.nanoTime()) }
     fun recenter(screen: Boolean) { session.recenter(screen); refreshStatus(); publish(System.nanoTime()) }
+    @Synchronized internal fun invalidateOrigin(eyeHeight: Float) {
+        session.reset(session.generation, eyeHeight, requireSetup = true)
+        lastStatus = 0L
+        refreshStatus()
+        publish(System.nanoTime())
+    }
     fun diagnostics(on: Boolean) { diagnosticsEnabled = on; engine?.diagnostics(on) }
     fun calibrationStart() { engine?.startCalibration() }
     fun calibrationCapture() { engine?.captureCalibration() }
