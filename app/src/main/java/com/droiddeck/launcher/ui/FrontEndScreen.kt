@@ -469,7 +469,7 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
     var selected by rememberSaveable {
-        mutableStateOf(if (s.shortcutPicker) "games" else if (NavTabs.place(s, "steam") == TabPlace.HIDDEN) navigationKeys(s).first() else "steam")
+        mutableStateOf(if (s.shortcutPicker) "games" else if (NavTabs.place(s, "steam") == TabPlace.HIDDEN) navigationKeys(s).first { it != "components" } else "steam")
     }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
@@ -577,7 +577,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
-    BackHandler(enabled = !processSettingsPageVisible && s.pageKey == null && Hops.origin == null && selected in NavTabs.more(s)) {
+    val backToMore = s.pageKey == null && Hops.origin == null && selected in NavTabs.more(s)
+    BackHandler(enabled = !processSettingsPageVisible && backToMore) {
         selected = NavTabs.MORE
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
@@ -840,7 +841,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             )
         }
     }
-    val hasBackTarget = (s.pageKey != null && page != null) ||
+    val hasBackTarget = backToMore || (s.pageKey != null && page != null) ||
         (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))

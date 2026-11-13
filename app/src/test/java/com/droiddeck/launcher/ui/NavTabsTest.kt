@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
@@ -125,6 +126,36 @@ class NavTabsTest {
         compose.onNodeWithTag("more-stores").assertIsDisplayed()
         compose.onNodeWithTag("more-components").assertIsDisplayed()
         compose.onNode(hasText("4") and hasParentTag("more-stores"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test fun backFromAShelvedTabReturnsToMore() {
+        NavTabs.setPlace(ctx, "desktop", TabPlace.MORE)
+        var back: androidx.activity.OnBackPressedDispatcher? = null
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+            DroidDeckTheme { FrontEndScreen(state(), actions(), page = null) }
+        }
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("rail-more").performClick()
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("more-desktop").performClick()
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("more-desktop").assertDoesNotExist()
+        compose.runOnIdle { back!!.onBackPressed() }
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("more-desktop").assertIsDisplayed()
+    }
+
+    @Test fun startupWithSteamHiddenNeverLandsOnABareComponentsSelection() {
+        NavTabs.setPlace(ctx, "steam", TabPlace.HIDDEN)
+        repeat(NavTabs.ALL.size) { NavTabs.move(ctx, state(), "components", -1) }
+        assertEquals("components", navigationKeys(state()).first())
+        compose.mainClock.autoAdvance = false
+        compose.setContent { DroidDeckTheme { FrontEndScreen(state(), actions(), page = null) } }
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNode(hasText(ctx.getString(com.droiddeck.launcher.R.string.content_page_gone))).assertDoesNotExist()
+        compose.onNode(hasTestTag("rail-games") and androidx.compose.ui.test.isSelected()).assertExists()
     }
 
     private fun hasParentTag(tag: String) = androidx.compose.ui.test.hasAnyAncestor(hasTestTag(tag))

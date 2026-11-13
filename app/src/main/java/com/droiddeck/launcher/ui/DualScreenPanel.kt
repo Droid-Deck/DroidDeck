@@ -60,6 +60,7 @@ class DualPanelModel(
     val onSelect: (String) -> Unit,
     val onResume: () -> Unit,
     val title: String = selected,
+    val moreDownloads: Int = 0,
 )
 
 object DualScreenPanel {
@@ -337,7 +338,7 @@ internal fun DualPanelContent(model: DualPanelModel) {
                 for (row in model.keys.chunked(columns)) {
                     Row(Modifier.fillMaxWidth().height(tileHeight), horizontalArrangement = Arrangement.spacedBy(gap)) {
                         for (key in row) PanelTile(key, key == model.selected, key in model.badges,
-                            if (key == "stores" || (key == NavTabs.MORE && "stores" !in model.keys)) model.storeDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
+                            if (key == "stores") model.storeDownloads else if (key == NavTabs.MORE) model.moreDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
                         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -404,7 +405,7 @@ private fun PanelClock() {
 internal fun DualPanelPublisher(s: FrontEndState, selected: String, title: String, onSelect: (String) -> Unit, a: FrontEndActions) {
     val keys = navigationKeys(s)
     val badges = keys.filter { railBadge(s, it) }.toSet()
-    val model = DualPanelModel(keys, selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume, title)
+    val model = DualPanelModel(keys, selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume, title, railCount(s, NavTabs.MORE))
     androidx.compose.runtime.SideEffect { DualScreenPanel.model = model }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { DualScreenPanel.model = null } }
 }
