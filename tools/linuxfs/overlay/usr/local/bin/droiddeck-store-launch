@@ -1446,6 +1446,8 @@ def main(argv):
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "rockstar":
+        if game not in ROCKSTAR_TITLES:
+            return STORE_GAME
         try:
             state = prepare_rockstar(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))
         except (OSError, ValueError, subprocess.TimeoutExpired):

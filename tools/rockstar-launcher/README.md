@@ -4,6 +4,8 @@
 
 The handoff is deleted before starting the game. It expires after 90 seconds. The pipe accepts the child process's greeting and returns the server-issued launch material. No game files are patched.
 
+The pipe service is used for GTA III, Vice City and San Andreas. Other Rockstar titles keep Play and Steam shortcuts and attempt to start their installed executable through the normal launch path. Their launcher and DRM compatibility has not been verified.
+
 GTA III defaults to full x87 precision for FEX before Wine starts, because reduced precision crashed new-game initialization on the test device. San Andreas defaults to WineD3D, because DXVK intermittently corrupted its textures; full precision and conservative memory ordering did not prevent that corruption. These defaults use DroidDeck's per-game settings and preserve explicit per-game overrides.
 
 `build.sh` builds 32-bit and 64-bit executables with the GNU Windows targets and stages them as APK resources. `legacy-cipher.bin` contains the fixed client protocol tables, not account credentials or APK signing keys.

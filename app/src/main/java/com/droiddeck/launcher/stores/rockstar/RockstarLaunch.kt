@@ -12,7 +12,7 @@ import java.util.Base64
 object RockstarLaunch {
     internal val pipes = mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe")
 
-    fun supports(id: String?) = id != null && id in pipes
+    fun usesClassicLauncher(id: String) = id in pipes
 
     fun applyDefaults(app: Context, id: String, appId: Long) {
         val scope = (appId and 0xffffffffL).toString()

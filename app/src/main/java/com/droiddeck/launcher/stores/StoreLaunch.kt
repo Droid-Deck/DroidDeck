@@ -21,10 +21,6 @@ object StoreLaunch {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA || sidecar.store == Store.UBISOFT || sidecar.store == Store.ROCKSTAR
         val file = File(folder, LAUNCHER)
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(file.toPath())) return sidecar.copy(launcher = null)
-        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) {
-            file.delete()
-            return sidecar.copy(launcher = null)
-        }
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
         file.writeText(launcherText(sidecar))
         return sidecar.copy(launcher = LAUNCHER)
@@ -59,7 +55,7 @@ object StoreLaunch {
             lines += "del \"%~dp0$EPIC_ARGS\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
-        } else if (sidecar.store == Store.ROCKSTAR) {
+        } else if (sidecar.store == Store.ROCKSTAR && com.droiddeck.launcher.stores.rockstar.RockstarLaunch.usesClassicLauncher(sidecar.id)) {
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
             lines += "exit /b %errorlevel%"
         } else if (sidecar.store == Store.UBISOFT) {
@@ -103,7 +99,6 @@ object StoreLaunch {
 
     fun adopt(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         if (sidecar.store !in listOf(Store.UBISOFT, Store.ROCKSTAR) || !sidecar.isInstalled) return sidecar
-        if (sidecar.store == Store.ROCKSTAR && !com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id)) return sidecar
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(File(folder, LAUNCHER).toPath())) return sidecar.copy(launcher = null)
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
         if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar

@@ -51,7 +51,7 @@ class RockstarTest {
         }
     }
 
-    @Test fun unsupportedGamesKeepTheirFilesWithoutRegisteringALauncher() {
+    @Test fun otherRockstarGamesRegisterAndLaunchTheirInstalledExecutable() {
         val app = org.robolectric.RuntimeEnvironment.getApplication()
         com.droiddeck.launcher.session.SessionPrefs.setGameStorage(app, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
         val folder = java.io.File(com.droiddeck.launcher.stores.StoreInstallRoot.storeDir(com.droiddeck.launcher.stores.StoreInstallRoot.installRoot(app), com.droiddeck.launcher.stores.Store.ROCKSTAR), "RDR2").apply { mkdirs() }
@@ -62,11 +62,12 @@ class RockstarTest {
             script.writeText("old launcher")
             val finished = com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(folder, game)
             finished.write(folder)
-            assertFalse(RockstarLaunch.supports(game.id))
-            assertNull(finished.launcher)
-            assertFalse(script.exists())
+            assertFalse(RockstarLaunch.usesClassicLauncher(game.id))
+            assertEquals(com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER, finished.launcher)
+            assertTrue(script.readText().contains("\"%~dp0RDR2.exe\""))
+            assertFalse(script.readText().contains("Rockstar Games\\Launcher\\Launcher.exe"))
             assertTrue(java.io.File(folder, game.exe).isFile)
-            assertNull(com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path))
+            assertTrue(com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path) != null)
         } finally {
             folder.deleteRecursively()
         }
@@ -111,6 +112,7 @@ class RockstarTest {
 
     @Test fun classicTitlesUseTheirObservedPipeNames() {
         assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe"), RockstarLaunch.pipes)
+        for (id in RockstarLaunch.pipes.keys) assertTrue(RockstarLaunch.usesClassicLauncher(id))
     }
 
     @Test fun signingOutClearsOwnedShelfCards() {

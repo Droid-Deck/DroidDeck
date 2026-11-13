@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import time
@@ -9,6 +10,26 @@ from test_store_launch import store
 
 
 class RockstarLaunch(unittest.TestCase):
+    def test_other_titles_can_launch_without_the_classic_pipe_service(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            sidecar = {'store': 'rockstar', 'id': 'rdr2', 'exe': 'RDR2.exe'}
+            with patch.object(store, 'find_store_game', return_value=(folder, sidecar)), \
+                    patch.object(store, 'prepare_rockstar') as prepare, \
+                    patch.object(store, 'ask') as ask, patch.dict(os.environ, {}, clear=True):
+                self.assertEqual(store.STORE_GAME, store.main([str(folder / 'RDR2.exe')]))
+            prepare.assert_not_called()
+            ask.assert_not_called()
+
+    def test_classic_authentication_failure_still_stops_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            sidecar = {'store': 'rockstar', 'id': 'gtavc', 'exe': 'gta-vc.exe'}
+            with patch.object(store, 'find_store_game', return_value=(folder, sidecar)), \
+                    patch.object(store, 'prepare_rockstar', return_value='session-not-owned'), \
+                    patch.dict(os.environ, {}, clear=True):
+                self.assertEqual(store.RAN_FAILED, store.main([str(folder / 'gta-vc.exe')]))
+
     def setup_game(self, root):
         folder = Path(root) / 'game'
         folder.mkdir()
