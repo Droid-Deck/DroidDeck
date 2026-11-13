@@ -50,20 +50,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         routing: i32::MAX,
         kind: 0x40000,
         flags: 2,
-        payload: 42u32.to_le_bytes().to_vec(),
+        payload: 4u32.to_le_bytes().to_vec(),
     }
     .write(&mut pipe)?;
-    let expected = [0x30001, 0x30002, 0x30003, 0x30000];
+    let expected = [0x30002, 0x30003, 0x30004, 0x30000];
     for kind in expected {
         let message = Message::read(&mut pipe)?;
         if message.kind != kind || message.routing != i32::MAX || message.flags != 2 {
             return Err("unexpected SDK message envelope".into());
         }
-        if kind == 0x30001 && message.payload != [0, 0, 0, 0, 3, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0]
+        if kind == 0x30002 && message.payload != [3, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         {
             return Err("unexpected fixture account".into());
         }
-        if kind == 0x30000 && message.payload != 42u32.to_le_bytes() {
+        if kind == 0x30000 && message.payload != 4u32.to_le_bytes() {
             return Err("launcher hello lost its context".into());
         }
     }

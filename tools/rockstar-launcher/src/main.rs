@@ -236,7 +236,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                         Err(error) => return Err(error),
                     };
                     let responses = session.respond(&request)?;
-                    let sends_login = responses.iter().any(|response| response.kind == 0x30003);
+                    let sends_login = request.kind == 0x40000;
                     for response in responses {
                         response.write(&mut pipe)?;
                     }

@@ -38,6 +38,7 @@ object RockstarLaunch {
         if (pipe != null && !listOf(folder, exe.parentFile).any { java.io.File(it, "MTLX.dll").isFile }) return failure("missing-game-files")
         val rosId = metadata?.rosId ?: RockstarTitles.byId(id)?.rosTitleId ?: return failure("missing-title-metadata")
         var ticket = RockstarAuth.ticket(app) ?: RockstarAuth.ticket(app, fresh = true) ?: return failure("signed-out")
+        if (sdk && ticket.sdkTicket.isEmpty()) ticket = RockstarAuth.ticket(app, fresh = true) ?: return failure("signed-out")
         val account = try {
             RockstarApps.fetch(ticket.ticket) {}
         } catch (e: RockstarRos.RosException) {
@@ -50,7 +51,7 @@ object RockstarLaunch {
         val token = RockstarRos.text(tokenRoot, "Result")?.takeIf { it.isNotEmpty() } ?: return failure("no-title-token")
         val result = JSONObject().put("ok", true).put("expiresAt", System.currentTimeMillis() + 90_000)
         if (sdk) {
-            val session = JSONObject().put("accountId", ticket.rockstarId).put("identity", ticket.email.ifEmpty { ticket.nickname }).put("ticket", ticket.ticket)
+            val session = JSONObject().put("accountId", ticket.rockstarId).put("identity", ticket.email.ifEmpty { ticket.nickname }).put("ticket", ticket.sdkTicket)
             if (RockstarLibrary.owns(account, rosId, metadata?.id ?: id)) session.put("titleId", metadata?.id ?: id)
             result.put("session", session)
         }

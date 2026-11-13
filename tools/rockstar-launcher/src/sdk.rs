@@ -104,6 +104,7 @@ pub struct Session {
     identity: String,
     ticket: String,
     title: Option<String>,
+    api: std::cell::Cell<u32>,
 }
 
 impl Session {
@@ -123,6 +124,7 @@ impl Session {
             identity,
             ticket,
             title: None,
+            api: std::cell::Cell::new(3),
         })
     }
 
@@ -161,17 +163,21 @@ impl Session {
     }
 
     pub fn login(&self) -> Vec<Message> {
+        let offset = u32::from(self.api.get() >= 4);
         vec![
-            Message::control(0x30001, Payload::default().u32(0).u32(3).u64(self.account)),
             Message::control(
-                0x30002,
+                0x30001 + offset,
+                Payload::default().u32(3).u64(self.account).u32(0),
+            ),
+            Message::control(
+                0x30002 + offset,
                 Payload::default()
                     .u64(self.account)
                     .u32(0)
                     .string(&self.identity),
             ),
             Message::control(
-                0x30003,
+                0x30003 + offset,
                 Payload::default()
                     .string(&self.identity)
                     .string(&self.ticket),
@@ -193,11 +199,15 @@ impl Session {
                     return Err(invalid());
                 }
                 let context = u32::from_le_bytes(message.payload[..4].try_into().unwrap());
+                self.api.set(context);
                 let mut result = self.login();
                 result.push(Message::control(0x30000, Payload::default().u32(context)));
                 Ok(result)
             }
-            0x40005 | 0x40007 => Ok(vec![Message::control(0x30004, Payload::default())]),
+            0x40005 | 0x40007 => Ok(vec![Message::control(
+                0x30004 + u32::from(self.api.get() >= 4),
+                Payload::default(),
+            )]),
             _ => Ok(Vec::new()),
         }
     }
@@ -261,7 +271,7 @@ mod tests {
         let login = session.login();
         assert_eq!(
             login[0].payload,
-            [0, 0, 0, 0, 3, 0, 0, 0, 136, 119, 102, 85, 68, 51, 34, 17]
+            [3, 0, 0, 0, 136, 119, 102, 85, 68, 51, 34, 17, 0, 0, 0, 0]
         );
         assert_eq!(
             login[1].payload,
@@ -276,13 +286,19 @@ mod tests {
     #[test]
     fn init_sends_authenticated_state_before_launcher_hello() {
         let session = Session::new(123, "name".into(), "ticket".into()).unwrap();
-        let request = Message::control(0x40000, Payload::default().u32(42));
-        let result = session.respond(&request).unwrap();
-        assert_eq!(
-            result.iter().map(|m| m.kind).collect::<Vec<_>>(),
-            [0x30001, 0x30002, 0x30003, 0x30000]
-        );
-        assert_eq!(result[3].payload, 42u32.to_le_bytes());
+        for (api, expected) in [
+            (3, [0x30001, 0x30002, 0x30003, 0x30000]),
+            (4, [0x30002, 0x30003, 0x30004, 0x30000]),
+        ] {
+            let request = Message::control(0x40000, Payload::default().u32(api));
+            let result = session.respond(&request).unwrap();
+            assert_eq!(result.iter().map(|m| m.kind).collect::<Vec<_>>(), expected);
+            assert_eq!(
+                result[0].payload,
+                [3, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            );
+            assert_eq!(result[3].payload, api.to_le_bytes());
+        }
     }
 
     #[test]

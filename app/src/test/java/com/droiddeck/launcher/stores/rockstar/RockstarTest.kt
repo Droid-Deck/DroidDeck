@@ -12,6 +12,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun sdkTicketExportsOnlyTheShortLivedServerResponse() {
+        val root = RockstarRos.parse("""<Response><Status>1</Status><Ticket>opaque-game-ticket</Ticket><SessionKey>session-key</SessionKey><SessionTicket>session-ticket</SessionTicket><ScAuthToken>refresh-secret</ScAuthToken><RockstarAccount><RockstarId>123</RockstarId><Nickname>Player</Nickname><Email>player@example.invalid</Email><ScAuthToken>nested-refresh-secret</ScAuthToken></RockstarAccount></Response>""")
+        val sdk = RockstarRos.parse(RockstarAuth.sdkTicket(root))
+        assertEquals("opaque-game-ticket", RockstarRos.text(sdk, "Ticket"))
+        assertEquals("session-key", RockstarRos.text(sdk, "SessionKey"))
+        assertEquals("123", RockstarRos.text(sdk, "RockstarId"))
+        assertNull(RockstarRos.first(sdk, "ScAuthToken"))
+        assertFalse(RockstarAuth.sdkTicket(root).contains("refresh-secret"))
+    }
+
     @Test fun sdkTitleStateRequiresAnOwnedPackageInsteadOfCatalogVisibility() {
         val visible = RockstarApp("1", "future_title", "123", emptyList())
         val featured = RockstarAccountApps(listOf(visible), listOf(RockstarPackage("future_title", true)))
