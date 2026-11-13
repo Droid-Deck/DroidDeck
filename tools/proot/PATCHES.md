@@ -170,6 +170,18 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
 
 Old kernel fixes:
 
+- `0028-fchdir-open-directory.patch` - `fchdir` resolved the directory again from its guest path,
+  one `lstat` per path component, then an `lstat` and an `O_PATH` open of the result. The
+  descriptor is already open, so `/proc/<pid>/fd/<n>` gives its host path and one `stat` through
+  that link confirms it is a live directory. The guest path it maps to is checked to map back to
+  the same host path, and the parent of the binding it falls under is checked to still resolve
+  to itself, so the cwd PRoot records is the one the old walk produced; a deleted directory, a
+  path outside the guest, a binding whose ancestor became a symlink, or anything else that does
+  not round-trip takes the old walk. Listing a directory in Wine does `fchdir` there and back: on a memory card behind
+  Android's FUSE daemon the old walk cost about 4 ms per call in the single tracer thread, 8.4 s
+  of an 8.8 s tracer total across one program start, and is now under 0.1 ms.
+  `bench/fchdir.py [directory...]` checks the cwd after `fchdir` to plain, bound, symlinked,
+  renamed and deleted directories and prints the per-call cost.
 - `0015-lost-fork-events.patch` - works around a problem reported on Xiaomi's msm 4.14 kernel:
   the kernel sometimes reports a new process or thread but gives its ID as zero. Without that ID,
   PRoot cannot finish setting it up, which can leave the session stuck. The patch searches `/proc`
