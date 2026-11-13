@@ -9,6 +9,7 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PROBE = r"""
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +23,25 @@ int main(int argc, char **argv) {
     if (strncmp(argv[i], "cd:", 3) == 0) {
       int ok = chdir(argv[i] + 3) == 0 && getcwd(cwd, sizeof(cwd)) != NULL;
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
+      continue;
+    }
+    if (strncmp(argv[i], "at:", 3) == 0) {
+      int dfd = open(argv[i] + 3, O_RDONLY | O_DIRECTORY);
+      printf("%s\t%d\t%d\n", argv[i], fstatat(AT_FDCWD, argv[i] + 3, &st, 0) == 0, dfd >= 0);
+      if (dfd >= 0) close(dfd);
+      continue;
+    }
+    if (strncmp(argv[i], "ls:", 3) == 0) {
+      DIR *dir = opendir(argv[i] + 3);
+      char names[1024] = "";
+      struct dirent *de;
+      while (dir && (de = readdir(dir)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        if (names[0]) strncat(names, ",", sizeof(names) - strlen(names) - 1);
+        strncat(names, de->d_name, sizeof(names) - strlen(names) - 1);
+      }
+      if (dir) closedir(dir);
+      printf("%s\t%s\n", argv[i], dir ? names : "-");
       continue;
     }
     int fd = open(argv[i], O_RDONLY);
@@ -65,6 +85,12 @@ class NativeHookMountTest(unittest.TestCase):
             devices = cls.root / "pfx" / name / "dosdevices"
             devices.mkdir(parents=True)
             os.symlink(target, devices / "z:")
+        relinked = cls.root / "pfx/relinked"
+        (relinked / "dosdevices").mkdir(parents=True)
+        (relinked / "drive_c").mkdir()
+        (relinked / "drive_c/c.txt").write_text("drive c")
+        os.symlink(os.path.relpath(cls.root, relinked / "dosdevices"), relinked / "dosdevices/z:")
+        os.symlink("../drive_c", relinked / "dosdevices/c:")
 
     @classmethod
     def tearDownClass(cls):
@@ -104,6 +130,32 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(*paths)
         for path in paths:
             self.assertEqual(result[path], ["1", "rootfs"], path)
+
+    def test_wine_lookup_steps_reach_the_mount(self):
+        for pfx in ("/pfx/native", "/pfx/guest", "/pfx/relinked", f"{self.root}/pfx/native", f"{self.root}/pfx/guest",
+                    f"{self.root}/pfx/relinked"):
+            drive = f"{pfx}/dosdevices/z:"
+            args = [f"at:{drive}{GAME}/", f"at:{drive}{GAME}", f"ls:{drive}/mnt/library", f"ls:{drive}{GAME}"]
+            result = self.run_probe(*args)
+            self.assertEqual(result[args[0]], ["1", "1"], pfx)
+            self.assertEqual(result[args[1]], ["1", "1"], pfx)
+            self.assertEqual(result[args[2]], ["Some Game"], pfx)
+            self.assertEqual(result[args[3]], ["game.txt"], pfx)
+
+    def test_relative_drive_link_reaches_the_mount(self):
+        path = f"/pfx/relinked/dosdevices/z:{GAME}/game.txt"
+        cd = f"cd:/pfx/relinked/dosdevices/z:{GAME}/"
+        result = self.run_probe(path, cd)
+        self.assertEqual(result[path], ["1", "library"])
+        self.assertEqual(result[cd], [GAME])
+
+    def test_relative_links_outside_mounts_are_unchanged(self):
+        paths = ["/pfx/relinked/dosdevices/z:/etc/hostname", "/pfx/relinked/dosdevices/c:/c.txt",
+                 f"{self.root}/pfx/relinked/dosdevices/c:/c.txt"]
+        result = self.run_probe(*paths)
+        self.assertEqual(result[paths[0]], ["1", "rootfs"])
+        self.assertEqual(result[paths[1]], ["1", "drive c"])
+        self.assertEqual(result[paths[2]], ["1", "drive c"])
 
 
 if __name__ == "__main__":

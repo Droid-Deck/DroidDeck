@@ -163,6 +163,65 @@ static long raw_readlinkat(int dirfd, const char *path, char *buf, size_t size) 
 
 static __thread int t_bind_link_depth = 0;
 
+static void normalize_path(char *path);
+
+#if defined(__aarch64__)
+static long raw_link_dir(const char *link, char *out, size_t size) {
+    const char *slash = strrchr(link, '/');
+    if (!slash || (size_t)(slash - link) >= PATH_MAX) return -1;
+    char dir[PATH_MAX];
+    size_t dlen = slash == link ? 1 : (size_t)(slash - link);
+    memcpy(dir, link, dlen);
+    dir[dlen] = '\0';
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)dir;
+    register long x2 __asm__("x2") = O_PATH | O_DIRECTORY | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    long fd = x0;
+    if (fd < 0) return -1;
+    char proc[32];
+    snprintf(proc, sizeof(proc), "/proc/self/fd/%ld", fd);
+    long n = raw_readlinkat(AT_FDCWD, proc, out, size - 1);
+    register long c8 __asm__("x8") = 57;
+    register long c0 __asm__("x0") = fd;
+    __asm__ volatile("svc #0" : "+r"(c0) : "r"(c8) : "memory");
+    if (n <= 0 || out[0] != '/') return -1;
+    out[n] = '\0';
+    return n;
+}
+
+static int join_into_bind(const char *dir, const char *target, const char *rest, char *out, size_t size) {
+    size_t used = ddnatv_append(out, size, 0, dir, strlen(dir));
+    used = ddnatv_append(out, size, used, "/", 1);
+    used = ddnatv_append(out, size, used, target, strlen(target));
+    size_t rest_len = strlen(rest);
+    if (used + rest_len + 1 >= size) return 0;
+    ddnatv_append(out, size, used, rest, rest_len);
+    normalize_path(out);
+    if (rest_len > 0 && rest[rest_len - 1] == '/') ddnatv_append(out, size, strlen(out), "/", 1);
+    const char *sub = get_rootfs_subpath(out);
+    if (!sub || sub[0] != '/') return 0;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (!b->identity && is_path_prefix(sub, b->dst, b->dst_len)) return 1;
+    }
+    return 0;
+}
+
+static int relative_link_into_bind(const char *link, const char *target, const char *rest, char *out, size_t size) {
+    char dir[PATH_MAX];
+    if (raw_link_dir(link, dir, sizeof(dir)) >= 0 && join_into_bind(dir, target, rest, out, size)) return 1;
+    const char *slash = strrchr(link, '/');
+    if (!slash) return 0;
+    size_t dlen = (size_t)(slash - link);
+    memcpy(dir, link, dlen);
+    dir[dlen] = '\0';
+    return join_into_bind(dir, target, rest, out, size);
+}
+#endif
+
 // A mount stand-in can hold symbolic links with absolute guest targets (/sys/class/hidraw/hidraw16 ->
 // /sys/devices/droiddeck/...): proot follows them inside the guest, the kernel on Android's own /sys.
 // A link met on the way to a deeper path is replaced by its target, mapped again; the last component is
@@ -180,10 +239,13 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
         long n = raw_readlinkat(AT_FDCWD, prefix, target, sizeof(target) - 1);
         if (n <= 0) continue;
         target[n] = '\0';
-        if (target[0] != '/') continue;
         char guest[PATH_MAX];
-        size_t used = ddnatv_append(guest, sizeof(guest), 0, target, (size_t)n);
-        ddnatv_append(guest, sizeof(guest), used, host + i, len - i);
+        if (target[0] != '/') {
+            if (!relative_link_into_bind(prefix, target, host + i, guest, sizeof(guest))) continue;
+        } else {
+            size_t used = ddnatv_append(guest, sizeof(guest), 0, target, (size_t)n);
+            ddnatv_append(guest, sizeof(guest), used, host + i, len - i);
+        }
         t_bind_link_depth++;
         const char *mapped = rewrite_path_in_root(guest, buffer, bufsize);
         if (mapped != buffer) ddnatv_copy_cstr(buffer, bufsize, mapped);
