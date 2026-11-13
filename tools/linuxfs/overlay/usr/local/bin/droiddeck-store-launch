@@ -315,14 +315,51 @@ UBISOFT_WINDOWS_DIR = "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\
 UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
 ROCKSTAR_SERVICE = Path("/usr/local/lib/droiddeck-rockstar")
 ROCKSTAR_FOLDER = "drive_c/Program Files/Rockstar Games/Launcher"
-ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas"}
+ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas",
+                   "gta4": "Grand Theft Auto IV", "lanoire": "LANoireMTL"}
 
 
-def rockstar_registry(folder, title, compat_data, proton):
+def rockstar_sdk(folder, sidecar):
+    if str(sidecar.get("id")) in ("gta4", "lanoire"):
+        return True
+    root = folder.resolve()
+    exe = (folder / str(sidecar.get("exe") or "").replace("\\", "/")).resolve()
+    if not exe.is_relative_to(root):
+        return False
+    for directory in {root, exe.parent}:
+        if directory.is_dir() and any(p.is_file() and not p.is_symlink() and p.name.lower() in ("socialclub.dll", "socialclub64.dll")
+                                      for p in directory.iterdir()):
+            return True
+    if str(sidecar.get("id")) in ROCKSTAR_TITLES:
+        return False
+    level = [root]
+    for _ in range(4):
+        children = []
+        for directory in level:
+            for path in directory.iterdir():
+                if path.is_symlink():
+                    continue
+                if path.name.lower() == "title.rgl" and path.is_file() and path.resolve().is_relative_to(root) and 112 <= path.stat().st_size <= 1048576:
+                    with path.open("rb") as source:
+                        if source.read(4) == b"RGLM":
+                            return True
+                if len(children) < 256 and path.is_dir() and path.resolve().is_relative_to(root):
+                    children.append(path)
+        level = children
+    return False
+
+
+def rockstar_registry(folder, title, compat_data, proton, sdk_arch=None):
     pfx = Path(compat_data) / "pfx"
     launcher = r"C:\Program Files\Rockstar Games\Launcher"
-    values = [(r"Rockstar Games\Launcher", launcher), ("Rockstar Games\\" + title, windows_path(str(folder)))]
+    values = [(r"Rockstar Games\Launcher", launcher)]
+    if title:
+        values.append(("Rockstar Games\\" + title, windows_path(str(folder))))
     entries = [("Software\\" + view + key, value) for view in ("", "Wow6432Node\\") for key, value in values]
+    if sdk_arch:
+        entries.append((r"Software\Rockstar Games\Rockstar Games Social Club", r"C:\Program Files\Rockstar Games\Social Club"))
+        program = "Program Files (x86)" if sdk_arch == "x86" else "Program Files"
+        entries.append((r"Software\Wow6432Node\Rockstar Games\Rockstar Games Social Club", "C:\\" + program + r"\Rockstar Games\Social Club"))
     reg = pfx / "system.reg"
     if all(has_value(reg, "[" + key.replace("\\", "\\\\") + "]", "InstallFolder", value) for key, value in entries):
         return True
@@ -338,15 +375,88 @@ def rockstar_registry(folder, title, compat_data, proton):
         return result.returncode == 0
 
 
+def rockstar_runtime(folder, exe, compat_data, arch):
+    if arch == "x86":
+        rockstar_runtime(folder, exe, compat_data, "x64")
+    pfx = Path(compat_data) / "pfx"
+    target = pfx / "drive_c" / ("Program Files (x86)" if arch == "x86" else "Program Files") / "Rockstar Games/Social Club"
+    if not target.resolve().is_relative_to(pfx.resolve()):
+        raise ValueError("invalid Social Club destination")
+    required = ("socialclub.dll", "socialclub.pak") + (("SocialClubHelper.exe",) if arch == "x64" else ())
+    marker = target / ".droiddeck-installing"
+    if all((target / name).is_file() for name in required) and not marker.exists():
+        return "present"
+    root = folder.resolve()
+    installers = [base / sub / "Social-Club-Setup.exe" for base in (root, exe.parent)
+                  for sub in ("Redistributables", "Installers")]
+    installer = next((p for p in installers if p.is_file() and p.resolve().is_relative_to(root) and p.stat().st_size <= 256 * 1024 * 1024), None)
+    if installer is None:
+        return "game-runtime"
+    tool = shutil.which("7z")
+    if not tool:
+        return "no-unpacker"
+    listing = subprocess.run([tool, "l", "-t7z", "-slt", "-ba", str(installer)], capture_output=True,
+                             stdin=subprocess.DEVNULL, timeout=30)
+    if listing.returncode:
+        return "installer-unreadable"
+    entries, size = [], 0
+    for block in listing.stdout.decode("utf-8", "replace").split("\n\n"):
+        fields = dict(line.split(" = ", 1) for line in block.splitlines() if " = " in line)
+        name = fields.get("Path", "").replace("\\", "/")
+        if not name.startswith(arch + "/"):
+            continue
+        if ".." in name.split("/") or ":" in name or fields.get("Symbolic Link") or fields.get("Hard Link"):
+            raise ValueError("invalid Social Club archive path")
+        entry_size = int(fields.get("Size", "0"))
+        if entry_size < 0:
+            raise ValueError("invalid Social Club member size")
+        size += entry_size
+        entries.append(name)
+    if not entries or len(entries) > 2048 or size > 768 * 1024 * 1024:
+        raise ValueError("invalid Social Club archive size")
+    with tempfile.TemporaryDirectory(prefix="droiddeck-socialclub-") as temporary:
+        result = subprocess.run([tool, "x", "-t7z", "-y", "-o" + temporary, str(installer), arch + "/*"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, timeout=180)
+        source = Path(temporary) / arch
+        if result.returncode or not all((source / name).is_file() for name in required):
+            return "installer-incomplete"
+        target.mkdir(parents=True, exist_ok=True)
+        if marker.is_symlink():
+            raise ValueError("invalid Social Club install marker")
+        marker.touch()
+        for path in source.rglob("*"):
+            if path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+                raise ValueError("invalid Social Club archive member")
+            if not path.is_file():
+                continue
+            output = target / path.relative_to(source)
+            if not output.resolve().is_relative_to(pfx.resolve()):
+                raise ValueError("invalid Social Club output path")
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=output.parent, delete=False) as stage:
+                stage_path = Path(stage.name)
+                try:
+                    with path.open("rb") as stream:
+                        shutil.copyfileobj(stream, stage)
+                except BaseException:
+                    stage_path.unlink(missing_ok=True)
+                    raise
+            os.replace(stage_path, output)
+        marker.unlink()
+    return "installed"
+
+
 def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_app=None):
     if not compat_data:
         return "no-prefix"
     target = Path(compat_data) / "pfx" / ROCKSTAR_FOLDER
+    if not target.resolve().is_relative_to((Path(compat_data) / "pfx").resolve()):
+        return "invalid-service-path"
     config = target / "launch.json"
     config.unlink(missing_ok=True)
+    legacy = str(sidecar.get("id")) in ROCKSTAR_TITLES
+    sdk = rockstar_sdk(folder, sidecar)
     title = ROCKSTAR_TITLES.get(str(sidecar.get("id")))
-    if not title:
-        return "unsupported-title"
     if not launch_dir:
         return "no-channel"
     root = folder.resolve()
@@ -354,7 +464,7 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
     if not exe.is_relative_to(root):
         return "invalid-game-path"
     workdir = (folder / str(sidecar["workdir"])).resolve() if sidecar.get("workdir") is not None else exe.parent
-    if not workdir.is_relative_to(root) or not exe.is_file() or not (folder / "MTLX.dll").is_file():
+    if not workdir.is_relative_to(root) or not exe.is_file() or legacy and not any((p / "MTLX.dll").is_file() for p in (root, exe.parent)):
         return "invalid-game-path"
     args = sidecar.get("args") or []
     if not isinstance(args, list) or any(not isinstance(arg, str) or "\0" in arg for arg in args):
@@ -376,7 +486,10 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
     made = "present" if (Path(compat_data) / "pfx/user.reg").is_file() else create_prefix(compat_data, proton)
     if made not in ("created", "present"):
         return "prefix-" + made
-    if not rockstar_registry(folder, title, compat_data, proton):
+    arch = "x86" if signature[4:] == b"\x4c\x01" else "x64"
+    if sdk:
+        log("rockstar runtime: " + rockstar_runtime(folder, exe, compat_data, arch))
+    if not rockstar_registry(folder, title, compat_data, proton, sdk_arch=arch if sdk else None):
         return "registry-unavailable"
     target.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(prefix="Launcher-", suffix=".exe", dir=target, delete=False) as temporary:
@@ -391,14 +504,28 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
     answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "rockstar-launch", "store": "rockstar", "id": str(sidecar.get("id"))}, timeout=120.0)
     if not isinstance(answer, dict) or not answer.get("ok"):
         return "session-" + (str(answer.get("reason") or "refused") if isinstance(answer, dict) else "timeout")
-    if not isinstance(answer.get("material"), str) or not re.fullmatch(r"[0-9A-Fa-f]{640}", answer["material"]):
+    if legacy and (not isinstance(answer.get("material"), str) or not re.fullmatch(r"[0-9A-Fa-f]{640}", answer["material"])):
         return "invalid-material"
     expires = answer.get("expiresAt")
     if not isinstance(expires, int) or not time.time() * 1000 < expires <= time.time() * 1000 + 120_000:
         return "invalid-expiry"
     launch = {"folder": windows_path(str(root)), "exe": windows_path(str(exe)), "workdir": windows_path(str(workdir)),
-              "args": args, "pipe": answer.get("pipe"), "material": answer["material"], "expiresAt": expires}
-    if len(json.dumps(launch).encode("utf-8")) > 16384:
+              "args": args, "expiresAt": expires}
+    if legacy:
+        launch.update(pipe=answer.get("pipe"), material=answer["material"])
+    if sdk:
+        session = answer.get("session")
+        if not isinstance(session, dict) or not isinstance(session.get("accountId"), str) \
+                or not re.fullmatch(r"[1-9][0-9]{0,19}", session["accountId"]) or int(session["accountId"]) > 2**64 - 1 \
+                or any(not isinstance(session.get(key), str) or not session[key] or "\0" in session[key]
+                       or len(session[key].encode("utf-8")) > limit for key, limit in (("identity", 512), ("ticket", 49152))):
+            return "invalid-sdk-session"
+        launch["session"] = {key: session[key] for key in ("accountId", "identity", "ticket")}
+        if "titleId" in session:
+            if not isinstance(session["titleId"], str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", session["titleId"]):
+                return "invalid-sdk-title"
+            launch["session"]["titleId"] = session["titleId"]
+    if len(json.dumps(launch).encode("utf-8")) > 65536:
         return "handoff-too-large"
     with tempfile.NamedTemporaryFile(mode="w", prefix="launch-", suffix=".json", dir=target, delete=False) as temporary:
         temporary_path = Path(temporary.name)
@@ -1446,6 +1573,10 @@ def main(argv):
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "rockstar":
+        if game not in ROCKSTAR_TITLES and not rockstar_sdk(folder, sidecar):
+            if compat_data:
+                (Path(compat_data) / "pfx" / ROCKSTAR_FOLDER / "launch.json").unlink(missing_ok=True)
+            return STORE_GAME
         try:
             state = prepare_rockstar(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))
         except (OSError, ValueError, subprocess.TimeoutExpired):
