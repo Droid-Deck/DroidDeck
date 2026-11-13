@@ -174,6 +174,11 @@ impl Listener {
 }
 
 impl Pipe {
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
     pub fn client_pid(&self) -> io::Result<u32> {
         let mut pid = 0;
         if unsafe { GetNamedPipeClientProcessId(self.handle.0, &mut pid) } == 0 || pid == 0 {

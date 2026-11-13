@@ -55,9 +55,12 @@ object StoreLaunch {
             lines += "del \"%~dp0$EPIC_ARGS\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
-        } else if (sidecar.store == Store.ROCKSTAR && com.droiddeck.launcher.stores.rockstar.RockstarLaunch.usesClassicLauncher(sidecar.id)) {
+        } else if (sidecar.store == Store.ROCKSTAR) {
+            lines += "if not exist \"C:\\Program Files\\Rockstar Games\\Launcher\\launch.json\" goto direct"
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
             lines += "exit /b %errorlevel%"
+            lines += ":direct"
+            lines += run
         } else if (sidecar.store == Store.UBISOFT) {
             lines += "if not exist \"%~dp0$UBISOFT_LAUNCH\" goto direct"
             lines += "if not exist \"$UBISOFT_SERVICE\" goto direct"
@@ -102,7 +105,9 @@ object StoreLaunch {
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(File(folder, LAUNCHER).toPath())) return sidecar.copy(launcher = null)
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
         if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
-        val exe = if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
+        val metadataExe = if (sidecar.store == Store.ROCKSTAR) com.droiddeck.launcher.stores.rockstar.RockstarMetadata.find(folder)?.exe
+            ?.takeIf { File(folder, it).isFile && File(folder, it).canonicalPath.startsWith(folder.canonicalPath + File.separator) } else null
+        val exe = metadataExe ?: if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe
         if (exe == sidecar.exe && sidecar.launcher == LAUNCHER &&
             runCatching { File(folder, LAUNCHER).readText() }.getOrNull() == launcherText(sidecar)) return sidecar
         return runCatching { writeLauncher(folder, sidecar.copy(exe = exe)).also { it.write(folder) } }.getOrDefault(sidecar)

@@ -1,0 +1,53 @@
+#[cfg(windows)]
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    use droiddeck_rockstar_launcher::{pipe::Pipe, sdk::Message};
+    let args: Vec<_> = std::env::args().collect();
+    let instance: u32 = args
+        .iter()
+        .find_map(|arg| arg.strip_prefix("-processInstance="))
+        .ok_or("missing instance")?
+        .parse()?;
+    let output = args
+        .windows(2)
+        .find(|pair| pair[0] == "--result")
+        .map(|pair| &pair[1])
+        .ok_or("missing result path")?;
+    let mut pipe = Pipe::connect(
+        &format!("chrome.rgsc_gameinst_{instance}"),
+        std::time::Duration::from_secs(10),
+    )?;
+    if Message::read(&mut pipe)?.kind != 0xffff {
+        return Err("missing transport hello".into());
+    }
+    Message {
+        routing: i32::MAX,
+        kind: 0x40000,
+        flags: 2,
+        payload: 42u32.to_le_bytes().to_vec(),
+    }
+    .write(&mut pipe)?;
+    let expected = [0x30001, 0x30002, 0x30003, 0x30000];
+    for kind in expected {
+        let message = Message::read(&mut pipe)?;
+        if message.kind != kind || message.routing != i32::MAX || message.flags != 2 {
+            return Err("unexpected SDK message envelope".into());
+        }
+        if kind == 0x30001 && message.payload != [3, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        {
+            return Err("unexpected fixture account".into());
+        }
+        if kind == 0x30000 && message.payload != 42u32.to_le_bytes() {
+            return Err("launcher hello lost its context".into());
+        }
+    }
+    std::fs::write(output, "SDK handshake accepted")?;
+    Ok(())
+}
+
+fn main() {
+    #[cfg(windows)]
+    if let Err(error) = run() {
+        eprintln!("SDK probe failed: {error}");
+        std::process::exit(1);
+    }
+}

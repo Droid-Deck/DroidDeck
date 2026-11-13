@@ -65,7 +65,7 @@ class RockstarTest {
             assertFalse(RockstarLaunch.usesClassicLauncher(game.id))
             assertEquals(com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER, finished.launcher)
             assertTrue(script.readText().contains("\"%~dp0RDR2.exe\""))
-            assertFalse(script.readText().contains("Rockstar Games\\Launcher\\Launcher.exe"))
+            assertTrue(script.readText().contains("if not exist \"C:\\Program Files\\Rockstar Games\\Launcher\\launch.json\" goto direct"))
             assertTrue(java.io.File(folder, game.exe).isFile)
         } finally {
             folder.deleteRecursively()
@@ -126,7 +126,7 @@ class RockstarTest {
     }
 
     @Test fun classicTitlesUseTheirObservedPipeNames() {
-        assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe"), RockstarLaunch.pipes)
+        assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe", "gta4" to "GTAIV_Pipe", "lanoire" to "LANOIRE_Pipe"), RockstarLaunch.pipes)
         for (id in RockstarLaunch.pipes.keys) assertTrue(RockstarLaunch.usesClassicLauncher(id))
     }
 
@@ -179,14 +179,15 @@ class RockstarTest {
     }
 
     @Test
-    fun classicGamesStartTheirParentLauncherWithoutEmbeddingCredentials() {
+    fun rockstarLaunchScriptsContainNoCredentials() {
         val sidecar = com.droiddeck.launcher.stores.StoreGameSidecar(
             com.droiddeck.launcher.stores.Store.ROCKSTAR, "gtavc", "Vice City", "gta-vc.exe",
         )
         val text = com.droiddeck.launcher.stores.StoreLaunch.launcherText(sidecar)
         assertTrue(text.contains("\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""))
         assertTrue(text.contains("exit /b %errorlevel%"))
-        assertFalse(text.contains("gta-vc.exe"))
+        assertTrue(text.contains("goto direct"))
+        assertTrue(text.contains("\"%~dp0gta-vc.exe\""))
         assertFalse(text.contains("ticket", true))
         assertFalse(text.contains("rem ", true))
     }

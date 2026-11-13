@@ -29,7 +29,7 @@ object RockstarAuth {
     private const val TICKET_MARGIN_MS = 15 * 60 * 1000L
     private val lock = Any()
 
-    class Ticket(val ticket: String, val sessionKey: String, val sessionTicket: String, val rockstarId: String, val nickname: String, val expiresAt: Long)
+    class Ticket(val ticket: String, val sessionKey: String, val sessionTicket: String, val rockstarId: String, val nickname: String, val expiresAt: Long, val email: String = "")
 
     internal fun fingerprint(context: Context): JSONObject {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -159,7 +159,7 @@ object RockstarAuth {
 
     private fun stored(o: JSONObject): Ticket? {
         val t = o.optString("ticket").takeIf { it.isNotEmpty() } ?: return null
-        return Ticket(t, o.optString("session_key"), o.optString("session_ticket"), o.optString("rockstar_id"), o.optString("display_name"), o.optLong("ticket_expires_at"))
+        return Ticket(t, o.optString("session_key"), o.optString("session_ticket"), o.optString("rockstar_id"), o.optString("display_name"), o.optLong("ticket_expires_at"), o.optString("email"))
     }
 
     private fun mint(context: Context): Ticket {
@@ -176,7 +176,7 @@ object RockstarAuth {
         }
         val t = parseTicket(root) ?: throw IllegalStateException("no ticket in the answer")
         o.put("ticket", t.ticket).put("session_key", t.sessionKey).put("session_ticket", t.sessionTicket)
-            .put("rockstar_id", t.rockstarId).put("ticket_expires_at", t.expiresAt)
+            .put("rockstar_id", t.rockstarId).put("ticket_expires_at", t.expiresAt).put("email", t.email)
         if (t.nickname.isNotEmpty()) o.put("display_name", t.nickname)
         StoreAccounts.write(app, Store.ROCKSTAR, o)
         return t
@@ -191,6 +191,7 @@ object RockstarAuth {
             (account?.let { RockstarRos.text(it, "RockstarId") } ?: RockstarRos.text(root, "RockstarId")).orEmpty(),
             account?.let { RockstarRos.text(it, "Nickname") }.orEmpty(),
             now + secs * 1000L,
+            account?.let { RockstarRos.text(it, "Email") }.orEmpty(),
         )
     }
 

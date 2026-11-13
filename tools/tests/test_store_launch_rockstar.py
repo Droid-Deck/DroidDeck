@@ -10,6 +10,57 @@ from test_store_launch import store
 
 
 class RockstarLaunch(unittest.TestCase):
+    def test_sdk_titles_receive_only_their_short_lived_game_session(self):
+        with tempfile.TemporaryDirectory() as root:
+            def change(values):
+                folder, sidecar, _, _, answer = values
+                sidecar['id'] = 'future_title'
+                (folder / 'socialclub.dll').write_bytes(b'game-runtime')
+                answer['session'] = {'accountId': '123', 'identity': 'player@example.invalid', 'ticket': 'game-session',
+                                     'ScAuthToken': 'never-export-refresh-token'}
+            result, path, _ = self.prepare(root, change)
+            self.assertEqual('ready', result)
+            data = json.loads(path.read_text())
+            self.assertEqual({'accountId', 'identity', 'ticket'}, set(data['session']))
+            self.assertNotIn('pipe', data)
+            self.assertNotIn('material', data)
+            self.assertNotIn('never-export-refresh-token', path.read_text())
+            self.assertEqual(0o600, path.stat().st_mode & 0o777)
+
+    def test_invalid_sdk_sessions_cannot_reuse_an_old_handoff(self):
+        for session in (None, {'accountId': '0', 'identity': 'player', 'ticket': 'session'},
+                        {'accountId': '123', 'identity': 'player', 'ticket': 'bad\0session'}):
+            with self.subTest(session=session), tempfile.TemporaryDirectory() as root:
+                def change(values):
+                    folder, sidecar, _, _, answer = values
+                    sidecar['id'] = 'future_title'
+                    (folder / 'socialclub.dll').write_bytes(b'game-runtime')
+                    answer['session'] = session
+                result, path, _ = self.prepare(root, change)
+                self.assertEqual('invalid-sdk-session', result)
+                self.assertFalse(path.exists())
+
+    def test_sdk_detection_does_not_follow_external_metadata(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'game'
+            folder.mkdir()
+            metadata = Path(root) / 'outside.rgl'
+            metadata.write_bytes(b'RGLM' + bytes(108))
+            (folder / 'title.rgl').symlink_to(metadata)
+            self.assertFalse(store.rockstar_sdk(folder, {'id': 'future_title', 'exe': 'Game.exe'}))
+
+    def test_sdk_installer_cannot_escape_its_architecture_folder(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'game'
+            installer = folder / 'Installers/Social-Club-Setup.exe'
+            installer.parent.mkdir(parents=True)
+            installer.write_bytes(b'installer')
+            listing = type('Listing', (), {'returncode': 0, 'stdout': b'Path = x64/../../outside.dll\nSize = 1\n'})()
+            with patch.object(store.shutil, 'which', return_value='/bin/7z'), patch.object(store.subprocess, 'run', return_value=listing):
+                with self.assertRaises(ValueError):
+                    store.rockstar_runtime(folder, folder / 'Game.exe', str(Path(root) / 'prefix'), 'x64')
+            self.assertFalse((Path(root) / 'outside.dll').exists())
+
     def test_other_titles_can_launch_without_the_classic_pipe_service(self):
         with tempfile.TemporaryDirectory() as root:
             folder = Path(root)
