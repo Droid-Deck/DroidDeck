@@ -2325,7 +2325,6 @@
     <string name="rail_stores">Магазины</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Свои</string>
-    <string name="setup_stores">Магазины</string>
     <string name="setup_stores_speed">Уровень скорости загрузки</string>
     <string name="stores_tier_balanced">Сбалансированный</string>
     <string name="stores_tier_fast">Быстрый</string>
@@ -3887,7 +3886,6 @@
     <string name="soundtracks_equalizer">Эквалайзер</string>
     <string name="soundtracks_bass">Усиление баса</string>
     <string name="soundtracks_eq_unavailable">Эквалайзер недоступен на этом устройстве</string>
-    <string name="setup_soundtracks">Саундтреки</string>
     <string name="setup_soundtracks_ingame">Включить в игре</string>
     <string name="setup_soundtracks_ingame_hint">Продолжать воспроизведение саундтрека во время игры</string>
     <string name="soundtracks_empty">Саундтреки ещё не установлены.</string>

@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Kaupat</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Mukautettu</string>
-    <string name="setup_stores">Kaupat</string>
     <string name="setup_stores_speed">Latausnopeuden taso</string>
     <string name="stores_tier_balanced">Tasapainotettu</string>
     <string name="stores_tier_fast">Nopea</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Taajuuskorjain</string>
     <string name="soundtracks_bass">Bassonkorostus</string>
     <string name="soundtracks_eq_unavailable">Taajuuskorjain ei ole käytettävissä tällä laitteella</string>
-    <string name="setup_soundtracks">Soundtrackit</string>
     <string name="setup_soundtracks_ingame">Ota käyttöön pelin aikana</string>
     <string name="setup_soundtracks_ingame_hint">Pidä soundtrack soimassa pelin aikana</string>
     <string name="soundtracks_empty">Soundtrackeja ei ole vielä asennettu.</string>

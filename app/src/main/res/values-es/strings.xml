@@ -2217,7 +2217,6 @@
     <string name="rail_stores">Tiendas</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizados</string>
-    <string name="setup_stores">Tiendas</string>
     <string name="setup_stores_speed">Nivel de velocidad de descarga</string>
     <string name="stores_tier_balanced">Equilibrado</string>
     <string name="stores_tier_fast">Rápido</string>
@@ -3765,7 +3764,6 @@
     <string name="soundtracks_equalizer">Ecualizador</string>
     <string name="soundtracks_bass">Refuerzo de graves</string>
     <string name="soundtracks_eq_unavailable">El ecualizador no está disponible en este dispositivo</string>
-    <string name="setup_soundtracks">Bandas sonoras</string>
     <string name="setup_soundtracks_ingame">Activar en el juego</string>
     <string name="setup_soundtracks_ingame_hint">Mantén la banda sonora sonando mientras se ejecuta un juego</string>
     <string name="soundtracks_empty">Aún no hay bandas sonoras instaladas.</string>

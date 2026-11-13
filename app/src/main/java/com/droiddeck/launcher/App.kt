@@ -44,6 +44,7 @@ class App : Application() {
         CrashHandler.install(this)
         com.droiddeck.launcher.agent.AgentHost.refresh(this)
         com.droiddeck.launcher.agent.AgentTab.load(this)
+        com.droiddeck.launcher.ui.NavTabs.load(this)
         com.droiddeck.launcher.ui.AgentPet.install(this)
         if (com.droiddeck.launcher.agent.AgentTab.visible) com.droiddeck.launcher.lab.LabNotice.openOnInstall = "agent"
         com.droiddeck.launcher.lab.LabNotice.started(this)

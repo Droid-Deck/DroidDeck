@@ -2167,7 +2167,6 @@
     <string name="rail_stores">遊戲商店</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">自訂</string>
-    <string name="setup_stores">遊戲商店</string>
     <string name="setup_stores_speed">下載速度等級</string>
     <string name="stores_tier_balanced">平衡</string>
     <string name="stores_tier_fast">快速</string>
@@ -3699,7 +3698,6 @@
     <string name="soundtracks_equalizer">等化器</string>
     <string name="soundtracks_bass">重低音增強</string>
     <string name="soundtracks_eq_unavailable">此裝置不支援等化器</string>
-    <string name="setup_soundtracks">原聲帶</string>
     <string name="setup_soundtracks_ingame">在遊戲中啟用</string>
     <string name="setup_soundtracks_ingame_hint">遊戲執行時繼續播放原聲帶</string>
     <string name="soundtracks_empty">尚未安裝任何原聲帶。</string>

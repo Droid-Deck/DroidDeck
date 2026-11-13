@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Áruházak</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Egyéni</string>
-    <string name="setup_stores">Áruházak</string>
     <string name="setup_stores_speed">Letöltési sebességi szint</string>
     <string name="stores_tier_balanced">Kiegyensúlyozott</string>
     <string name="stores_tier_fast">Gyors</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Hangszínszabályzó</string>
     <string name="soundtracks_bass">Mélyhangerősítés</string>
     <string name="soundtracks_eq_unavailable">A hangszínszabályzó nem érhető el ezen az eszközön</string>
-    <string name="setup_soundtracks">Soundtrackek</string>
     <string name="setup_soundtracks_ingame">Engedélyezés játék közben</string>
     <string name="setup_soundtracks_ingame_hint">A soundtrack szóljon tovább játék közben</string>
     <string name="soundtracks_empty">Még nincs telepített soundtrack.</string>

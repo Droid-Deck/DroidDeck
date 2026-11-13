@@ -2292,7 +2292,6 @@
     <string name="rail_stores">المتاجر</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">مخصَّص</string>
-    <string name="setup_stores">المتاجر</string>
     <string name="setup_stores_speed">فئة سرعة التنزيل</string>
     <string name="stores_tier_balanced">متوازن</string>
     <string name="stores_tier_fast">سريع</string>
@@ -3882,7 +3881,6 @@
     <string name="soundtracks_equalizer">المعادل</string>
     <string name="soundtracks_bass">تعزيز الجهير</string>
     <string name="soundtracks_eq_unavailable">المعادل غير متاح على هذا الجهاز</string>
-    <string name="setup_soundtracks">الموسيقى التصويرية</string>
     <string name="setup_soundtracks_ingame">تفعيل أثناء اللعب</string>
     <string name="setup_soundtracks_ingame_hint">استمر في تشغيل الموسيقى التصويرية أثناء تشغيل اللعبة</string>
     <string name="soundtracks_empty">لا توجد موسيقى تصويرية مثبّتة بعد.</string>

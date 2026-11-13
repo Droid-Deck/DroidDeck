@@ -273,6 +273,10 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
+    if (selected == NavTabs.MORE) {
+        MorePage(s, a, onSelect, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "agent") {
         AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
         return

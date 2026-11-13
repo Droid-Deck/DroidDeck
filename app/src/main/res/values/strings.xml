@@ -1569,6 +1569,14 @@
     <string name="rail_apps">Apps</string>
     <string name="rail_setup">Setup</string>
     <string name="rail_updates">Updates</string>
+    <string name="rail_more">More</string>
+    <string name="more_edit_tabs">Edit tabs</string>
+    <string name="setup_group_tabs">Tabs</string>
+    <string name="tabs_place_bar">Shown</string>
+    <string name="tabs_place_more">In More</string>
+    <string name="tabs_place_hidden">Hidden</string>
+    <string name="tabs_move_up">Move %1$s up</string>
+    <string name="tabs_move_down">Move %1$s down</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Resume %1$s</string>
     <string name="roms_text">Shows up as /root/ROMs in each session. Internal storage is at /root/Storage.</string>
@@ -2585,7 +2593,6 @@
     <string name="rail_stores">Stores</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Custom</string>
-    <string name="setup_stores">Stores</string>
     <string name="setup_stores_speed">Download speed tier</string>
     <string name="stores_tier_balanced">Balanced</string>
     <string name="stores_tier_fast">Fast</string>
@@ -2689,7 +2696,6 @@
     <string name="stores_sort">Sort</string>
     <string name="setup_rail_labels">Sidebar labels</string>
     <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
-    <string name="setup_agent_tab">Agent tab</string>
     <string name="setup_agent_pet">Agent pet</string>
     <string name="setup_agent_pet_hint">DeeDee floats over the launcher and games and shows what the agent is doing.</string>
     <string name="setup_agent_pet_float">Over other apps</string>
@@ -4042,8 +4048,7 @@
     <string name="soundtracks_equalizer">Equalizer</string>
     <string name="soundtracks_bass">Bass boost</string>
     <string name="soundtracks_eq_unavailable">The equalizer is not available on this device</string>
-    <string name="setup_soundtracks">Soundtracks</string>
-    <string name="setup_soundtracks_ingame">Enable ingame</string>
+    <string name="setup_soundtracks_ingame">Music while playing</string>
     <string name="setup_soundtracks_ingame_hint">Keep the soundtrack playing while a game runs</string>
     <string name="soundtracks_empty">No soundtracks installed yet.</string>
     <string name="soundtracks_search">Search soundtracks</string>

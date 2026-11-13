@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Магазини</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Персонализирана</string>
-    <string name="setup_stores">Магазини</string>
     <string name="setup_stores_speed">Скорост на изтегляне</string>
     <string name="stores_tier_balanced">Балансирано</string>
     <string name="stores_tier_fast">Бързо</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Еквалайзер</string>
     <string name="soundtracks_bass">Усилване на басите</string>
     <string name="soundtracks_eq_unavailable">Еквалайзерът не е наличен на това устройство</string>
-    <string name="setup_soundtracks">Саундтраци</string>
     <string name="setup_soundtracks_ingame">Включи в играта</string>
     <string name="setup_soundtracks_ingame_hint">Саундтракът да продължи да свири, докато върви игра</string>
     <string name="soundtracks_empty">Все още няма инсталирани саундтраци.</string>

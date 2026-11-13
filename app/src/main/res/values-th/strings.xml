@@ -2167,7 +2167,6 @@
     <string name="rail_stores">สโตร์</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">กำหนดเอง</string>
-    <string name="setup_stores">สโตร์</string>
     <string name="setup_stores_speed">ระดับความเร็วการดาวน์โหลด</string>
     <string name="stores_tier_balanced">สมดุล</string>
     <string name="stores_tier_fast">เร็ว</string>
@@ -3696,7 +3695,6 @@
     <string name="soundtracks_equalizer">อีควอไลเซอร์</string>
     <string name="soundtracks_bass">เพิ่มเสียงเบส</string>
     <string name="soundtracks_eq_unavailable">อุปกรณ์นี้ไม่รองรับอีควอไลเซอร์</string>
-    <string name="setup_soundtracks">ซาวด์แทร็ก</string>
     <string name="setup_soundtracks_ingame">เปิดใช้ขณะเล่นเกม</string>
     <string name="setup_soundtracks_ingame_hint">เล่นซาวด์แทร็กต่อไปขณะที่เกมทำงาน</string>
     <string name="soundtracks_empty">ยังไม่มีซาวด์แทร็กที่ติดตั้ง</string>
