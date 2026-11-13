@@ -9,6 +9,10 @@ bool VitureSdkLoader::load(const std::string& directory, std::string& error, con
             error = "The active VITURE SDK does not match the imported version";
             return false;
         }
+        if (directory != loaded_directory) {
+            error = "A different VITURE SDK is already loaded; restart the app before loading another SDK directory";
+            return false;
+        }
         error.clear();
         return true;
     }
@@ -48,6 +52,7 @@ bool VitureSdkLoader::load(const std::string& directory, std::string& error, con
     api = candidate;
     // Vendor callbacks may outlive a session; loaded code stays resident for this process.
     handles = std::move(pending);
+    loaded_directory = directory;
     error.clear();
     return true;
 }

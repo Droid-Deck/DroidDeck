@@ -79,6 +79,24 @@ class VitureProtocolTest {
         assertEquals(52f, VitureProtocol.model(0x1101, null)!!.diagonalFovDeg, 0f)
     }
 
+    @Test fun missingLumaProductNamesUsePidOpticsConsistentWithTheSdk() {
+        for ((pid, marketName) in mapOf(0x1121 to "Luma Pro", 0x1141 to "Luma Pro", 0x1151 to "Luma Pro", 0x1131 to "Luma")) {
+            val sdk = VitureProtocol.sdkModel(marketName)!!
+            for (productName in listOf(null, "", "  ")) {
+                val model = VitureProtocol.model(pid, productName)!!
+                assertEquals(sdk.name, model.name)
+                assertEquals("PID ${pid.toString(16)}", sdk.diagonalFovDeg, model.diagonalFovDeg, 0f)
+            }
+        }
+    }
+
+    @Test fun explicitLumaProductNamesKeepPriorityOverPidOptics() {
+        assertEquals(50f, VitureProtocol.model(0x1121, "VITURE Luma XR Glasses")!!.diagonalFovDeg, 0f)
+        assertEquals(52f, VitureProtocol.model(0x1131, "  viture Luma Pro XR Glasses  ")!!.diagonalFovDeg, 0f)
+        assertEquals(52f, VitureProtocol.model(0x1131, "VITURE Luma Cyber XR Glasses")!!.diagonalFovDeg, 0f)
+        assertEquals(50f, VitureProtocol.model(0x1121, "VITURE Unknown XR Glasses")!!.diagonalFovDeg, 0f)
+    }
+
     @Test fun otherSdkModelLimitsRemainDistinct() {
         for (name in listOf("Pro", "Pro 2", "Luma", "Luma Pro", "Luma Cyber", "Luma Ultra", "Beast", "Phantom Beast")) {
             val model = VitureProtocol.sdkModel(name)!!

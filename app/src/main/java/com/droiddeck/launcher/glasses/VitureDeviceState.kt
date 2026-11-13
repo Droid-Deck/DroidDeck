@@ -55,8 +55,13 @@ data class VitureDeviceState(
     internal fun retainingNativeTracking(previous: VitureDeviceState?) : VitureDeviceState {
         if (!supportsNative) return this
         val mode = nativeMode ?: previous?.nativeMode
+        val restoreDisplay = nativeMode == null && mode == 1
         return copy(nativeMode = mode, nativeDof = if (mode == 1)
-            nativeDof ?: previous?.takeIf { it.nativeMode == 1 }?.nativeDof else null)
+            nativeDof ?: previous?.takeIf { it.nativeMode == 1 }?.nativeDof else null,
+            displayMode = if (restoreDisplay) previous?.displayMode else displayMode,
+            distance = if (restoreDisplay) previous?.distance else distance,
+            size = if (restoreDisplay) previous?.size else size,
+            side = if (restoreDisplay) previous?.side else side)
     }
 
     companion object {

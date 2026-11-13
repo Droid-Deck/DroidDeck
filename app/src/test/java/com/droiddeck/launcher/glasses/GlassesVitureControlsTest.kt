@@ -14,6 +14,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -160,6 +161,99 @@ class GlassesVitureControlsTest {
         assertEquals("1920x1080", settings.value.resolutionVr)
     }
 
+    @Test fun delayedInitializationRetriesUnknownNativeStateBeforeStartingTracking() {
+        prepareUnknownNativeMode()
+        finishInitialization()
+        assertFalse(state.value.viture!!.nativeTrackingKnown)
+        assertTrue(device.trackingRequests.isEmpty())
+
+        device.nativeMode = 1f
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
+
+        assertEquals(2, device.stateReads)
+        assertTrue(state.value.viture!!.nativeTrackingKnown)
+        assertEquals(listOf(true), device.trackingRequests)
+        assertTrue(state.value.tracking)
+    }
+
+    @Test fun unavailableNativeStateRetriesAreBoundedAndLeaveTrackingOff() {
+        prepareUnknownNativeMode()
+        finishInitialization()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+
+        assertEquals(3, device.stateReads)
+        assertFalse(state.value.viture!!.nativeTrackingKnown)
+        assertTrue(device.trackingRequests.isEmpty())
+        assertFalse(state.value.tracking)
+    }
+
+    @Test fun delayedInitializationDoesNotReadOrStartADetachedLink() {
+        prepareUnknownNativeMode()
+        finishInitialization()
+        field("link").set(null, null)
+        device.nativeMode = 1f
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+
+        assertEquals(1, device.stateReads)
+        assertTrue(device.trackingRequests.isEmpty())
+        assertFalse(state.value.tracking)
+    }
+
+    @Test fun delayedNativeDisplayReadCorrectsStereoClassification() {
+        for (code in listOf(0x37, 0x40)) {
+            prepareUnknownNativeMode()
+            state.value = state.value.copy(width = 3840, sbs = true)
+            device.nativeDisplay = code
+            finishInitialization()
+            assertFalse(state.value.sbs)
+
+            device.nativeMode = 1f
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
+            assertEquals(code == 0x40, state.value.viture!!.ultrawide)
+            assertEquals(code == 0x37, state.value.sbs)
+        }
+    }
+
+    @Test fun wideOutputRequiresKnownNativeStereoLayout() {
+        val unknown = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE)
+        assertFalse(Glasses.isStereoDisplay(3840, unknown))
+        assertFalse(Glasses.isStereoDisplay(3840, unknown.copy(nativeMode = 1)))
+        assertFalse(Glasses.isStereoDisplay(3840, unknown.copy(nativeMode = 1, displayMode = 0x40)))
+        assertFalse(Glasses.isStereoDisplay(3840, unknown.copy(nativeMode = 1, displayMode = 0x34)))
+        assertTrue(Glasses.isStereoDisplay(3840, unknown.copy(nativeMode = 1, displayMode = 0x37)))
+        assertTrue(Glasses.isStereoDisplay(3840, unknown.copy(nativeMode = 0, displayMode = 0x45)))
+        assertFalse(Glasses.isStereoDisplay(1920, unknown.copy(nativeMode = 1, displayMode = 0x37)))
+        assertTrue(Glasses.isStereoDisplay(3840, null))
+        assertTrue(Glasses.isStereoDisplay(3840, VitureDeviceState(displayMode = 0x42)))
+    }
+
+    @Test fun delayedDisplayReadRetriesAfterTrackingStateIsKnown() {
+        prepareUnknownNativeMode()
+        state.value = state.value.copy(width = 3840)
+        device.nativeMode = 1f
+        device.nativeDisplay = -1
+        finishInitialization()
+        assertTrue(state.value.viture!!.nativeTrackingKnown)
+        assertFalse(state.value.sbs)
+
+        device.nativeDisplay = 0x37
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
+
+        assertEquals(2, device.stateReads)
+        assertTrue(state.value.sbs)
+    }
+
+    private fun prepareUnknownNativeMode() {
+        state.value = state.value.copy(viture = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE))
+        device.nativeMode = -1f
+        field("sink").set(null, Glasses.PoseSink { _, _, _, _, _ -> })
+    }
+
+    private fun finishInitialization() {
+        Glasses::class.java.getDeclaredMethod("finishLinkInitialization", GlassesLink::class.java, Int::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, device, 3)
+    }
+
     private fun prepareFailedPause() {
         state.value = state.value.copy(tracking = true)
         device.trackingEnabled = true
@@ -172,6 +266,9 @@ class GlassesVitureControlsTest {
         override var trackingEnabled = false
         var failStop = false
         var failStart = false
+        var nativeMode = 1f
+        var nativeDisplay = 0x34
+        var stateReads = 0
         var trackingDuringRead: Boolean? = null
         var trackingBeforeRestart: Boolean? = null
         val trackingRequests = mutableListOf<Boolean>()
@@ -179,14 +276,15 @@ class GlassesVitureControlsTest {
         val displays = mutableListOf<Int>()
 
         override fun deviceCapabilities(): Int {
+            stateReads++
             trackingDuringRead = Glasses.state.value.tracking
             return VitureSdk.CAP_NATIVE
         }
 
         override fun deviceValue(key: Int): Float = when (key) {
-            VitureSdk.VALUE_NATIVE_MODE -> 1f
+            VitureSdk.VALUE_NATIVE_MODE -> nativeMode
             VitureSdk.VALUE_NATIVE_DOF -> 0f
-            VitureSdk.VALUE_NATIVE_DISPLAY -> 0x34.toFloat()
+            VitureSdk.VALUE_NATIVE_DISPLAY -> nativeDisplay.toFloat()
             else -> -4f
         }
 
