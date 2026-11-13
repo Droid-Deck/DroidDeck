@@ -67,6 +67,15 @@ internal class FrameStats {
     }
 
     @Synchronized
+    fun addIfNew(frametimeNs: Long, timeNs: Long, rebase: Boolean): Boolean {
+        if (timeNs <= lastPresentNs) return false
+        val elapsedNs = if (rebase && lastPresentNs != 0L) timeNs - lastPresentNs else frametimeNs
+        if (elapsedNs <= 0L) return false
+        add(elapsedNs, timeNs)
+        return true
+    }
+
+    @Synchronized
     fun reset() {
         graph.fill(0f)
         graphHead = 0
@@ -199,11 +208,11 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
         if (n > 0) {
-            if (!fromGamescope) {
-                stats.reset()
-                fromGamescope = true
+            var rebase = !fromGamescope
+            fromGamescope = true
+            for (i in 0 until n) {
+                if (stats.addIfNew(frametimes[i], times[i], rebase)) rebase = false
             }
-            for (i in 0 until n) stats.add(frametimes[i], times[i])
             lastRingFrameNs = times[n - 1]
         } else if (lastRingFrameNs != 0L && nowNs - lastRingFrameNs > LIVE_NS) {
             fromGamescope = false
