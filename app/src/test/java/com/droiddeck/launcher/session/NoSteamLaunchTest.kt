@@ -70,6 +70,13 @@ class NoSteamLaunchTest {
         assertEquals(NoSteamLaunch.EPIC to listOf("run"), epic.program to epic.args)
     }
 
+    @Test fun onlyAnAddedGameStartedFromItsOwnFilesHasItsFolderRead() {
+        assertTrue(NoSteamLaunch.needsAddedGame(shortcut))
+        assertFalse(NoSteamLaunch.needsAddedGame(Library.SteamGame(shortcut.appId, shortcut.name, null, Library.ADDED, source = com.droiddeck.launcher.stores.Store.BATTLENET.id)))
+        assertFalse(NoSteamLaunch.needsAddedGame(steamGame))
+        assertFalse(NoSteamLaunch.needsAddedGame(launcher))
+    }
+
     @Test fun anAddedGameOwnedOnSteamUsesItsSteamIdForSettingsAndLaunch() {
         val routed = AddedGames.Game(
             File("/x/Stardew Valley"), "Stardew Valley", File("/x/Stardew Valley/Stardew Valley.exe"),
