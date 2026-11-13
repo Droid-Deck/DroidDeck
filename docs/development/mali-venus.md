@@ -123,10 +123,26 @@ What it does, per feature:
   - Decoded texels go through the layer's own staging buffers, recycled when the command buffer is reset.
   - Copies from a BC image into a buffer, and between BC and uncompressed images, are skipped with a warning.
 
+The SPIR-V version the driver gets:
+- The phone's own driver compiles the guest's SPIR-V, and its compiler is old: on the MT6897
+  Mali-G615 (r44p1, "Vulkan 1.3.247") it dies with a null read in `cmpbe_v2_compile_multiple_shaders`
+  while compiling a pipeline, and the render server dies with it, so every guest client that
+  draws loses its device.
+- Zink writes SPIR-V 1.6 for any Vulkan 1.3 device (`zink_screen.c`: `spirv_version` from the
+  device's version), and SPIR-V 1.4 changed the entry point's interface: it has to list every
+  global variable, not only the input and output ones.
+- The layer therefore lowers every module to SPIR-V 1.3 before the driver sees it: the version
+  word, the interface list (back to the input and output variables) and `OpTerminateInvocation`
+  (SPIR-V 1.6's name for `OpKill`). A module that uses something 1.3 cannot express (a
+  `ShaderViewportIndex` capability, the Vulkan memory model, `OpCopyLogical`) is left alone and
+  the layer says so in its log.
+- This is what Dawn ("Disable SPIR-V 1.4 on Android ARM"), ANGLE (`supportsSPIRV14`) and naga
+  (`AVOID_SPIRV_COPY_LOGICAL`) do for a proprietary compiler they cannot trust.
+
 Files:
 - `layer.c`: loader plumbing, feature and limit reporting, device creation, the hook table.
 - `pipeline.c`: pipelines, shader modules, viewports.
-- `spirv.c`: the SPIR-V rewriter for clip and cull distances.
+- `spirv.c`: the SPIR-V rewriter for clip and cull distances, and the version cap.
 - `bc.c`: BC formats, images and uploads.
 - `VkLayer_droiddeck_mali_compat.json`: implicit layer manifest.
 
@@ -142,7 +158,9 @@ How it ships:
   - Guest paths: `usr/local/lib/droiddeck-mali/` and `usr/local/share/vulkan/implicit_layer.d/`.
 
 Not done yet:
-- Unit tests for the SPIR-V rewriter. It is untested beyond DXVK's shaders, and unknown whether Silksong's shaders used clip distances at all.
+- Unit tests for the clip and cull distance rewrite. The version cap has one
+  (`tools/tests/test_mali_compat_spirv.py`); the distance rewrite is untested beyond DXVK's shaders,
+  and unknown whether Silksong's shaders used clip distances at all.
 - Performance: BC decoding on the CPU makes loads slow. A compute-shader decoder would be the next step.
 
 ## Changes on the branch

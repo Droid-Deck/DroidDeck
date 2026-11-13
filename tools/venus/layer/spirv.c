@@ -15,6 +15,7 @@
 
 #define OPCODE(word) ((word) & 0xffffu)
 #define LENGTH(word) ((word) >> 16)
+#define VERSION_1_3 0x00010300u
 #define VERSION_1_4 0x00010400u
 
 struct words {
@@ -827,6 +828,104 @@ bool spirv_emulate_clip(const uint32_t *words, size_t count, enum clip_role role
     strip(&m, &a, keep);
     if (role == CLIP_CONSUMER)
         add_clip_test(&m, location, clip_count);
+    bool done = finish(&m, out);
+    unload(&m);
+    return done;
+}
+
+static bool needs_newer_version(uint32_t op)
+{
+    switch (op) {
+    case SpvOpCopyLogical:
+    case SpvOpPtrEqual:
+    case SpvOpPtrNotEqual:
+    case SpvOpPtrDiff:
+    case SpvOpDemoteToHelperInvocation:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool needs_newer_capability(uint32_t capability)
+{
+    switch (capability) {
+    case SpvCapabilityShaderLayer:
+    case SpvCapabilityShaderViewportIndex:
+    case SpvCapabilityUniformDecoration:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool variable_storage(const struct module *m, uint32_t id, uint32_t *storage)
+{
+    size_t d = definition(m, id);
+    if (!d || OPCODE(m->w[d]) != SpvOpVariable)
+        return false;
+    *storage = m->w[d + 3];
+    return true;
+}
+
+static void trim_entry_interfaces(struct module *m)
+{
+    for (size_t i = 5; i < m->first_declaration; i += LENGTH(m->w[i])) {
+        if (OPCODE(m->w[i]) != SpvOpEntryPoint)
+            continue;
+        uint32_t length = LENGTH(m->w[i]);
+        if (length < 4)
+            continue;
+        uint32_t first = 3 + string_words(&m->w[i + 3], length - 3);
+        for (uint32_t k = first; k < length; k++) {
+            uint32_t id = m->w[i + k];
+            uint32_t storage;
+            if (id < m->original_bound && variable_storage(m, id, &storage) &&
+                storage != SpvStorageClassInput && storage != SpvStorageClassOutput)
+                m->interface_remove[id] = 1;
+        }
+    }
+}
+uint32_t spirv_version(const uint32_t *words, size_t count)
+{
+    if (count < 5 || words[0] != SpvMagicNumber)
+        return 0;
+    return words[1];
+}
+
+bool spirv_cap_version(const uint32_t *words, size_t count, struct spirv_code *out)
+{
+    if (count < 5 || words[0] != SpvMagicNumber || words[1] <= VERSION_1_3)
+        return false;
+    struct module m;
+    if (!load(&m, words, count))
+        return false;
+    for (size_t i = 5; i < m.count; i += LENGTH(m.w[i])) {
+        uint32_t op = OPCODE(m.w[i]);
+        uint32_t length = LENGTH(m.w[i]);
+        if (op == SpvOpMemoryModel && (length < 3 || m.w[i + 2] != SpvMemoryModelGLSL450)) {
+            unload(&m);
+            return false;
+        }
+        if (op == SpvOpCapability && (length < 2 || needs_newer_capability(m.w[i + 1]))) {
+            unload(&m);
+            return false;
+        }
+        if (op == SpvOpExecutionModeId && (length < 3 || m.w[i + 2] == SpvExecutionModeLocalSizeId)) {
+            unload(&m);
+            return false;
+        }
+        if (needs_newer_version(op)) {
+            unload(&m);
+            return false;
+        }
+    }
+    for (size_t i = 5; i < m.count; i += LENGTH(m.w[i])) {
+        if (OPCODE(m.w[i]) == SpvOpTerminateInvocation)
+            m.w[i] = (LENGTH(m.w[i]) << 16) | SpvOpKill;
+    }
+    trim_entry_interfaces(&m);
+    m.w[1] = VERSION_1_3;
     bool done = finish(&m, out);
     unload(&m);
     return done;

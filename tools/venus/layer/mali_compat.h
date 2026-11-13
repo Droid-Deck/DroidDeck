@@ -183,6 +183,8 @@ struct spirv_code {
 bool spirv_uses_distances(const uint32_t *words, size_t count);
 /* The module with clip and cull distances taken out; false when it cannot be rewritten. */
 bool spirv_strip_distances(const uint32_t *words, size_t count, struct spirv_code *out);
+uint32_t spirv_version(const uint32_t *words, size_t count);
+bool spirv_cap_version(const uint32_t *words, size_t count, struct spirv_code *out);
 
 enum clip_role { CLIP_STRIP, CLIP_PRODUCER, CLIP_CONSUMER };
 

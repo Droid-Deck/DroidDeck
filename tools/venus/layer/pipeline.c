@@ -6,6 +6,12 @@
 #define HANDLE(h) ((uint64_t)(uintptr_t)(h))
 #define MAX_STAGES 8
 
+static void log_spirv_version(const char *what, const uint32_t *words, size_t count)
+{
+    uint32_t version = spirv_version(words, count);
+    layer_log("shader module: SPIR-V %u.%u %s (%zu words)", (version >> 16) & 0xff, (version >> 8) & 0xff, what, count);
+}
+
 /* A module with distances goes to the driver without them; its original stays here, for the
  * pipeline that can emulate its clip distances. */
 VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShaderModuleCreateInfo *info,
@@ -13,26 +19,39 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
 {
     struct device *dev = device_from_handle(device);
     size_t count = info->codeSize / sizeof(uint32_t);
-    if (!spirv_uses_distances(info->pCode, count))
+    struct spirv_code capped = {0};
+    bool have_capped = spirv_cap_version(info->pCode, count, &capped);
+    if (have_capped)
+        log_spirv_version("lowered to 1.3", info->pCode, count);
+    else if (spirv_version(info->pCode, count) > 0x00010300u)
+        log_spirv_version("left as it is", info->pCode, count);
+    const uint32_t *code = have_capped ? capped.words : info->pCode;
+    size_t words = have_capped ? capped.count : count;
+
+    struct spirv_code stripped = {0};
+    bool have_stripped = false;
+    if (spirv_uses_distances(code, words)) {
+        have_stripped = spirv_strip_distances(code, words, &stripped);
+        if (!have_stripped)
+            layer_log("could not take the clip and cull distances out of a shader module");
+    }
+    if (!have_stripped && !have_capped)
         return dev->CreateShaderModule(device, info, allocator, module);
 
-    struct spirv_code stripped;
-    if (!spirv_strip_distances(info->pCode, count, &stripped)) {
-        layer_log("could not take the clip and cull distances out of a shader module");
-        return dev->CreateShaderModule(device, info, allocator, module);
-    }
+    struct spirv_code final = have_stripped ? stripped : capped;
     VkShaderModuleCreateInfo copy = *info;
-    copy.pCode = stripped.words;
-    copy.codeSize = stripped.count * sizeof(uint32_t);
+    copy.pCode = final.words;
+    copy.codeSize = final.count * sizeof(uint32_t);
     VkResult result = dev->CreateShaderModule(device, &copy, allocator, module);
+    free(capped.words);
     free(stripped.words);
-    if (result != VK_SUCCESS)
+    if (result != VK_SUCCESS || !have_stripped)
         return result;
 
     struct spirv_code *original = malloc(sizeof(*original));
-    original->count = count;
-    original->words = malloc(info->codeSize);
-    memcpy(original->words, info->pCode, info->codeSize);
+    original->count = words;
+    original->words = malloc(words * sizeof(uint32_t));
+    memcpy(original->words, code, words * sizeof(uint32_t));
     pthread_mutex_lock(&dev->lock);
     map_put(&dev->shader_modules, HANDLE(*module), original);
     pthread_mutex_unlock(&dev->lock);
@@ -60,6 +79,7 @@ struct stage_code {
     VkShaderModuleCreateInfo *inline_info;
     /* A module whose distances were already taken out at creation. */
     bool stripped_module;
+    struct spirv_code capped;
 };
 
 static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreateInfo *stage, struct stage_code *code)
@@ -70,6 +90,13 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
             code->inline_info = (VkShaderModuleCreateInfo *)s;
             code->words = code->inline_info->pCode;
             code->count = code->inline_info->codeSize / sizeof(uint32_t);
+            if (spirv_cap_version(code->words, code->count, &code->capped)) {
+                log_spirv_version("lowered to 1.3", code->words, code->count);
+                code->words = code->capped.words;
+                code->count = code->capped.count;
+            } else if (spirv_version(code->words, code->count) > 0x00010300u) {
+                log_spirv_version("left as it is", code->words, code->count);
+            }
             return;
         }
     }
@@ -152,42 +179,43 @@ static void rewrite_shaders(struct device *dev, VkGraphicsPipelineCreateInfo *in
     struct stage_code code[MAX_STAGES];
     bool uses[MAX_STAGES];
     bool any = false;
+    bool distances = (dev->emulated & GAPS_SHADER) != 0;
     for (uint32_t i = 0; i < n; i++) {
         find_stage_code(dev, &info->pStages[i], &code[i]);
-        uses[i] = code[i].words && spirv_uses_distances(code[i].words, code[i].count);
+        uses[i] = distances && code[i].words && spirv_uses_distances(code[i].words, code[i].count);
         any |= uses[i];
     }
-    if (!any)
-        return;
 
-    int producer = stage_index(info, VK_SHADER_STAGE_GEOMETRY_BIT);
-    if (producer < 0)
-        producer = stage_index(info, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
-    if (producer < 0)
-        producer = stage_index(info, VK_SHADER_STAGE_VERTEX_BIT);
-    int consumer = stage_index(info, VK_SHADER_STAGE_FRAGMENT_BIT);
-    bool emulate = (dev->emulated & GAP_CLIP_DISTANCE) && producer >= 0 && consumer >= 0 && uses[producer] &&
-                   code[consumer].words;
-    for (uint32_t i = 0; i < n && emulate; i++) {
-        if ((int)i != producer && (int)i != consumer && uses[i])
-            emulate = false;
-    }
-    if (emulate) {
-        struct clip_info produced, consumed;
-        spirv_clip_info(code[producer].words, code[producer].count, CLIP_PRODUCER, &produced);
-        spirv_clip_info(code[consumer].words, code[consumer].count, CLIP_CONSUMER, &consumed);
-        uint32_t location = produced.locations_used > consumed.locations_used ? produced.locations_used
-                                                                               : consumed.locations_used;
-        emulate = produced.has_clip && location != UINT32_MAX &&
-                  location + produced.clip_count <= dev->max_varying_locations &&
-                  spirv_emulate_clip(code[producer].words, code[producer].count, CLIP_PRODUCER, location,
-                                     produced.clip_count, &rw->code[producer]) &&
-                  spirv_emulate_clip(code[consumer].words, code[consumer].count, CLIP_CONSUMER, location,
-                                     produced.clip_count, &rw->code[consumer]);
-        if (!emulate) {
-            free(rw->code[producer].words);
-            free(rw->code[consumer].words);
-            rw->code[producer] = rw->code[consumer] = (struct spirv_code){0};
+    if (any) {
+        int producer = stage_index(info, VK_SHADER_STAGE_GEOMETRY_BIT);
+        if (producer < 0)
+            producer = stage_index(info, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+        if (producer < 0)
+            producer = stage_index(info, VK_SHADER_STAGE_VERTEX_BIT);
+        int consumer = stage_index(info, VK_SHADER_STAGE_FRAGMENT_BIT);
+        bool emulate = (dev->emulated & GAP_CLIP_DISTANCE) && producer >= 0 && consumer >= 0 && uses[producer] &&
+                       code[consumer].words;
+        for (uint32_t i = 0; i < n && emulate; i++) {
+            if ((int)i != producer && (int)i != consumer && uses[i])
+                emulate = false;
+        }
+        if (emulate) {
+            struct clip_info produced, consumed;
+            spirv_clip_info(code[producer].words, code[producer].count, CLIP_PRODUCER, &produced);
+            spirv_clip_info(code[consumer].words, code[consumer].count, CLIP_CONSUMER, &consumed);
+            uint32_t location = produced.locations_used > consumed.locations_used ? produced.locations_used
+                                                                                   : consumed.locations_used;
+            emulate = produced.has_clip && location != UINT32_MAX &&
+                      location + produced.clip_count <= dev->max_varying_locations &&
+                      spirv_emulate_clip(code[producer].words, code[producer].count, CLIP_PRODUCER, location,
+                                         produced.clip_count, &rw->code[producer]) &&
+                      spirv_emulate_clip(code[consumer].words, code[consumer].count, CLIP_CONSUMER, location,
+                                         produced.clip_count, &rw->code[consumer]);
+            if (!emulate) {
+                free(rw->code[producer].words);
+                free(rw->code[consumer].words);
+                rw->code[producer] = rw->code[consumer] = (struct spirv_code){0};
+            }
         }
     }
 
@@ -196,8 +224,13 @@ static void rewrite_shaders(struct device *dev, VkGraphicsPipelineCreateInfo *in
             !spirv_strip_distances(code[i].words, code[i].count, &rw->code[i])) {
             layer_log("could not take the clip and cull distances out of a pipeline's shader");
         }
+        if (!rw->code[i].words && code[i].capped.words) {
+            rw->code[i] = code[i].capped;
+            code[i].capped.words = NULL;
+        }
         if (rw->code[i].words)
             use_code(dev, info, rw, &code[i], i);
+        free(code[i].capped.words);
     }
 }
 
@@ -241,8 +274,7 @@ static void rewrite_pipeline(struct device *dev, VkGraphicsPipelineCreateInfo *i
             rw->viewport.scissorCount = 1;
         info->pViewportState = &rw->viewport;
     }
-    if (dev->emulated & GAPS_SHADER)
-        rewrite_shaders(dev, info, rw);
+    rewrite_shaders(dev, info, rw);
 }
 
 static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
