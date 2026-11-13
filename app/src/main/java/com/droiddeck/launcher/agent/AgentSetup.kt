@@ -106,7 +106,10 @@ object AgentSetup {
                         child.inputStream.bufferedReader().forEachLine { line ->
                             log.appendLine(line)
                             val text = line.trim()
-                            if (text.isNotEmpty() && !noise(text)) main.post { detail[step] = text.take(160) }
+                            if (text.isNotEmpty() && !noise(text)) main.post {
+                                detail[step] = text.take(160)
+                                if (step == Step.GITHUB && text.startsWith("GitHub device code:")) AgentHostService.update(app)
+                            }
                         }
                         child.waitFor().also { log.appendLine("exit $it") }
                     }
