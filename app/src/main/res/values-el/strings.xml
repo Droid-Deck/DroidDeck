@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Καταστήματα</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Προσαρμοσμένο</string>
-    <string name="setup_stores">Καταστήματα</string>
     <string name="setup_stores_speed">Επίπεδο ταχύτητας λήψης</string>
     <string name="stores_tier_balanced">Ισορροπημένο</string>
     <string name="stores_tier_fast">Ταχύ</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Ισοσταθμιστής</string>
     <string name="soundtracks_bass">Ενίσχυση μπάσων</string>
     <string name="soundtracks_eq_unavailable">Ο ισοσταθμιστής δεν είναι διαθέσιμος σε αυτή τη συσκευή</string>
-    <string name="setup_soundtracks">Soundtrack</string>
     <string name="setup_soundtracks_ingame">Ενεργοποίηση εντός παιχνιδιού</string>
     <string name="setup_soundtracks_ingame_hint">Η μουσική συνεχίζει να παίζει όσο εκτελείται ένα παιχνίδι</string>
     <string name="soundtracks_empty">Δεν υπάρχουν εγκατεστημένα soundtrack ακόμη.</string>

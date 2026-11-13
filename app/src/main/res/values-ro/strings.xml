@@ -2217,7 +2217,6 @@
     <string name="rail_stores">Magazine</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizat</string>
-    <string name="setup_stores">Magazine</string>
     <string name="setup_stores_speed">Nivelul vitezei de descărcare</string>
     <string name="stores_tier_balanced">Echilibrat</string>
     <string name="stores_tier_fast">Rapid</string>
@@ -3765,7 +3764,6 @@
     <string name="soundtracks_equalizer">Egalizator</string>
     <string name="soundtracks_bass">Amplificare bas</string>
     <string name="soundtracks_eq_unavailable">Egalizatorul nu este disponibil pe acest dispozitiv</string>
-    <string name="setup_soundtracks">Coloane sonore</string>
     <string name="setup_soundtracks_ingame">Activează în joc</string>
     <string name="setup_soundtracks_ingame_hint">Continuă redarea coloanei sonore cât timp rulează un joc</string>
     <string name="soundtracks_empty">Nicio coloană sonoră instalată încă.</string>

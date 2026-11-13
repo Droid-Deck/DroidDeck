@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Butiker</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Egna</string>
-    <string name="setup_stores">Butiker</string>
     <string name="setup_stores_speed">Nedladdningshastighet</string>
     <string name="stores_tier_balanced">Balanserad</string>
     <string name="stores_tier_fast">Snabb</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Equalizer</string>
     <string name="soundtracks_bass">Basförstärkning</string>
     <string name="soundtracks_eq_unavailable">Equalizern är inte tillgänglig på den här enheten</string>
-    <string name="setup_soundtracks">Soundtracks</string>
     <string name="setup_soundtracks_ingame">Aktivera i spel</string>
     <string name="setup_soundtracks_ingame_hint">Fortsätt spela soundtracket medan ett spel körs</string>
     <string name="soundtracks_empty">Inga soundtracks installerade än.</string>

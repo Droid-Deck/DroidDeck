@@ -2167,7 +2167,6 @@
     <string name="rail_stores">ストア</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">カスタム</string>
-    <string name="setup_stores">ストア</string>
     <string name="setup_stores_speed">ダウンロード速度レベル</string>
     <string name="stores_tier_balanced">バランス</string>
     <string name="stores_tier_fast">高速</string>
@@ -3696,7 +3695,6 @@
     <string name="soundtracks_equalizer">イコライザー</string>
     <string name="soundtracks_bass">低音ブースト</string>
     <string name="soundtracks_eq_unavailable">このデバイスではイコライザーを使用できません</string>
-    <string name="setup_soundtracks">サウンドトラック</string>
     <string name="setup_soundtracks_ingame">ゲーム中も有効にする</string>
     <string name="setup_soundtracks_ingame_hint">ゲーム実行中もサウンドトラックを再生し続けます</string>
     <string name="soundtracks_empty">インストール済みのサウンドトラックはまだありません。</string>

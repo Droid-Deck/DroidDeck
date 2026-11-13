@@ -2167,7 +2167,6 @@
     <string name="rail_stores">Kedai</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Tersuai</string>
-    <string name="setup_stores">Kedai</string>
     <string name="setup_stores_speed">Tahap kelajuan muat turun</string>
     <string name="stores_tier_balanced">Seimbang</string>
     <string name="stores_tier_fast">Pantas</string>
@@ -3696,7 +3695,6 @@
     <string name="soundtracks_equalizer">Penyama</string>
     <string name="soundtracks_bass">Peningkat bes</string>
     <string name="soundtracks_eq_unavailable">Penyama tidak tersedia pada peranti ini</string>
-    <string name="setup_soundtracks">Runut bunyi</string>
     <string name="setup_soundtracks_ingame">Dayakan dalam permainan</string>
     <string name="setup_soundtracks_ingame_hint">Teruskan memainkan runut bunyi semasa permainan berjalan</string>
     <string name="soundtracks_empty">Belum ada runut bunyi dipasang.</string>

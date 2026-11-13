@@ -468,7 +468,9 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
-    var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
+    var selected by rememberSaveable {
+        mutableStateOf(if (s.shortcutPicker) "games" else if (NavTabs.place(s, "steam") == TabPlace.HIDDEN) navigationKeys(s).first { it != "components" } else "steam")
+    }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
@@ -575,6 +577,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
+    val backToMore = s.pageKey == null && Hops.origin == null && selected in NavTabs.more(s)
+    BackHandler(enabled = !processSettingsPageVisible && backToMore) {
+        selected = NavTabs.MORE
+    }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.soundtracksEnabled) {
         if (!s.soundtracksEnabled && (selected == "soundtracks" || selected.startsWith("sound:"))) selected = "games"
@@ -587,7 +593,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     remember { Motion.refresh(ctx); true }
 
-    val railSelection = when {
+    val openTab = when {
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
         s.pageKey == "performance" -> "steam"
         s.pageKey == "controller-mapping" -> "setup"
@@ -596,6 +602,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
+    val railSelection = if (openTab in NavTabs.more(s)) NavTabs.MORE else openTab
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
@@ -711,7 +718,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
-        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, openTab, { key ->
             if (processSettingsPageVisible) return@DualPanelPublisher
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
             focusManager.clearFocus(force = true)
@@ -834,7 +841,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             )
         }
     }
-    val hasBackTarget = (s.pageKey != null && page != null) ||
+    val hasBackTarget = backToMore || (s.pageKey != null && page != null) ||
         (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))

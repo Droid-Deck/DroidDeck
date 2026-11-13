@@ -2167,7 +2167,6 @@
     <string name="rail_stores">Cửa hàng game</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Tùy chỉnh</string>
-    <string name="setup_stores">Cửa hàng</string>
     <string name="setup_stores_speed">Mức tốc độ tải</string>
     <string name="stores_tier_balanced">Cân bằng</string>
     <string name="stores_tier_fast">Nhanh</string>
@@ -3696,7 +3695,6 @@
     <string name="soundtracks_equalizer">Bộ cân bằng âm</string>
     <string name="soundtracks_bass">Tăng âm trầm</string>
     <string name="soundtracks_eq_unavailable">Thiết bị này không có bộ cân bằng âm</string>
-    <string name="setup_soundtracks">Nhạc nền</string>
     <string name="setup_soundtracks_ingame">Bật trong game</string>
     <string name="setup_soundtracks_ingame_hint">Tiếp tục phát nhạc nền khi game đang chạy</string>
     <string name="soundtracks_empty">Chưa có nhạc nền nào được cài đặt.</string>

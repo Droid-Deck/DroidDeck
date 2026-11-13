@@ -2192,7 +2192,6 @@
     <string name="rail_stores">Butikker</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Egendefinert</string>
-    <string name="setup_stores">Butikker</string>
     <string name="setup_stores_speed">Nedlastingshastighetsnivå</string>
     <string name="stores_tier_balanced">Balansert</string>
     <string name="stores_tier_fast">Rask</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Equalizer</string>
     <string name="soundtracks_bass">Bassforsterkning</string>
     <string name="soundtracks_eq_unavailable">Equalizeren er ikke tilgjengelig på denne enheten</string>
-    <string name="setup_soundtracks">Lydspor</string>
     <string name="setup_soundtracks_ingame">Aktiver i spill</string>
     <string name="setup_soundtracks_ingame_hint">Fortsett å spille lydsporet mens et spill kjører</string>
     <string name="soundtracks_empty">Ingen lydspor installert ennå.</string>

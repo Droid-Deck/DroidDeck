@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -124,16 +125,7 @@ internal fun BottomBar(
     }
 }
 
-internal fun navigationKeys(s: FrontEndState) = buildList {
-    add("steam"); add("games")
-    if (s.soundtracksEnabled) add("soundtracks")
-    if (s.gameStoresEnabled) add("stores")
-    add("desktop")
-    if (com.droiddeck.launcher.agent.AgentTab.visible) add("agent")
-    add("components")
-    if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
-}
+internal fun navigationKeys(s: FrontEndState) = NavTabs.bar(s)
 
 internal object RailLabels {
     var shown by mutableStateOf(true)
@@ -208,11 +200,25 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
     PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+
+internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boolean = setupNeedsAttention(s)): Boolean = when (key) {
+    "setup" -> setupNeedsAttention
+    "updates" -> s.updates.hasUpdate
+    NavTabs.MORE -> NavTabs.more(s).any { it != NavTabs.MORE && railBadge(s, it, setupNeedsAttention) }
+    else -> false
+}
+
+internal fun railCount(s: FrontEndState, key: String): Int = when (key) {
+    "stores" -> s.storeDownloadsActive
+    NavTabs.MORE -> if ("stores" in NavTabs.more(s)) s.storeDownloadsActive else 0
+    else -> 0
+}
 
 @Composable
 private fun NavigationItems(
@@ -224,8 +230,8 @@ private fun NavigationItems(
         val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
-                badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == "stores") s.storeDownloadsActive else 0,
+                badge = railBadge(s, key, setupNeedsAttention),
+                count = railCount(s, key),
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }

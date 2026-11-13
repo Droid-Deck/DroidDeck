@@ -265,7 +265,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
-    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", false)
+    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
 
     fun setAgentTab(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("agentTab", show).apply()
@@ -287,6 +287,24 @@ object SessionPrefs {
 
     fun setStoresTabHidden(context: Context, hidden: Set<String>) {
         prefs(context).edit().putString("storesTabHidden", hidden.joinToString(",")).apply()
+    }
+
+    fun navTabOrder(context: Context): List<String> = idList(prefs(context).getString("navTabOrder", null))
+
+    fun setNavTabOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("navTabOrder", order.joinToString(",")).apply()
+    }
+
+    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent")).toSet()
+
+    fun setNavTabShelved(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("navTabShelved", keys.joinToString(",")).apply()
+    }
+
+    fun navTabHidden(context: Context): Set<String> = idList(prefs(context).getString("navTabHidden", null)).toSet()
+
+    fun setNavTabHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
     }
 
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }

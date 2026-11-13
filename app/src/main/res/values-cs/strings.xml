@@ -2242,7 +2242,6 @@
     <string name="rail_stores">Obchody</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Vlastní</string>
-    <string name="setup_stores">Obchody</string>
     <string name="setup_stores_speed">Úroveň rychlosti stahování</string>
     <string name="stores_tier_balanced">Vyvážené</string>
     <string name="stores_tier_fast">Rychlé</string>
@@ -3804,7 +3803,6 @@
     <string name="soundtracks_equalizer">Ekvalizér</string>
     <string name="soundtracks_bass">Zesílení basů</string>
     <string name="soundtracks_eq_unavailable">Ekvalizér není na tomto zařízení k dispozici</string>
-    <string name="setup_soundtracks">Soundtracky</string>
     <string name="setup_soundtracks_ingame">Povolit ve hře</string>
     <string name="setup_soundtracks_ingame_hint">Nechat soundtrack hrát během hry</string>
     <string name="soundtracks_empty">Zatím nejsou nainstalovány žádné soundtracky.</string>

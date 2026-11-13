@@ -2192,7 +2192,6 @@
     <string name="rail_stores">स्टोर</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">कस्टम</string>
-    <string name="setup_stores">स्टोर</string>
     <string name="setup_stores_speed">डाउनलोड स्पीड टियर</string>
     <string name="stores_tier_balanced">बैलेंस्ड</string>
     <string name="stores_tier_fast">फ़ास्ट</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">इक्वलाइज़र</string>
     <string name="soundtracks_bass">बास बूस्ट</string>
     <string name="soundtracks_eq_unavailable">इस डिवाइस पर इक्वलाइज़र उपलब्ध नहीं है</string>
-    <string name="setup_soundtracks">साउंडट्रैक</string>
     <string name="setup_soundtracks_ingame">गेम के दौरान चालू करें</string>
     <string name="setup_soundtracks_ingame_hint">गेम चलते समय साउंडट्रैक बजता रखें</string>
     <string name="soundtracks_empty">अभी तक कोई साउंडट्रैक इंस्टॉल नहीं है।</string>

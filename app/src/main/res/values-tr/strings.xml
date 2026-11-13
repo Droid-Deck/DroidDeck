@@ -2184,7 +2184,6 @@
     <string name="rail_stores">Mağazalar</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Özel</string>
-    <string name="setup_stores">Mağazalar</string>
     <string name="setup_stores_speed">İndirme hızı katmanı</string>
     <string name="stores_tier_balanced">Dengeli</string>
     <string name="stores_tier_fast">Hızlı</string>
@@ -3726,7 +3725,6 @@
     <string name="soundtracks_equalizer">Ekolayzır</string>
     <string name="soundtracks_bass">Bas güçlendirme</string>
     <string name="soundtracks_eq_unavailable">Ekolayzır bu cihazda kullanılamıyor</string>
-    <string name="setup_soundtracks">Oyun müzikleri</string>
     <string name="setup_soundtracks_ingame">Oyun içinde etkinleştir</string>
     <string name="setup_soundtracks_ingame_hint">Oyun çalışırken oyun müziği çalmaya devam etsin</string>
     <string name="soundtracks_empty">Henüz oyun müziği yüklenmedi.</string>

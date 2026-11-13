@@ -2248,7 +2248,6 @@
     <string name="rail_stores">游戏商店</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">自定义</string>
-    <string name="setup_stores">游戏商店</string>
     <string name="setup_stores_speed">下载速度档位</string>
     <string name="stores_tier_balanced">均衡</string>
     <string name="stores_tier_fast">快速</string>
@@ -3700,7 +3699,6 @@
     <string name="soundtracks_equalizer">均衡器</string>
     <string name="soundtracks_bass">低音增强</string>
     <string name="soundtracks_eq_unavailable">此设备不支持均衡器</string>
-    <string name="setup_soundtracks">原声音乐</string>
     <string name="setup_soundtracks_ingame">在游戏中启用</string>
     <string name="setup_soundtracks_ingame_hint">游戏运行时继续播放原声音乐</string>
     <string name="soundtracks_empty">尚未安装任何原声音乐。</string>

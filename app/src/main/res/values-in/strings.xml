@@ -2167,7 +2167,6 @@
     <string name="rail_stores">Toko</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Khusus</string>
-    <string name="setup_stores">Toko</string>
     <string name="setup_stores_speed">Tingkat kecepatan unduhan</string>
     <string name="stores_tier_balanced">Seimbang</string>
     <string name="stores_tier_fast">Cepat</string>
@@ -3696,7 +3695,6 @@
     <string name="soundtracks_equalizer">Ekualiser</string>
     <string name="soundtracks_bass">Penguat bass</string>
     <string name="soundtracks_eq_unavailable">Ekualiser tidak tersedia di perangkat ini</string>
-    <string name="setup_soundtracks">Soundtrack</string>
     <string name="setup_soundtracks_ingame">Aktifkan saat bermain</string>
     <string name="setup_soundtracks_ingame_hint">Tetap putar soundtrack saat game berjalan</string>
     <string name="soundtracks_empty">Belum ada soundtrack yang terpasang.</string>
