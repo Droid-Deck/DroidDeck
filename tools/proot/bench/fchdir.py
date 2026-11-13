@@ -83,8 +83,9 @@ def main():
     base = tempfile.mkdtemp(prefix="fchdir-")
     os.mkdir(base + "/real")
     os.symlink(base + "/real", base + "/link")
+    os.mkdir(base + "/dot.")
     open(base + "/real/file", "w").close()
-    for path in ["/", "/tmp", "/usr/lib", "/proc/self", "/dev", base + "/real", base + "/link"] + extra:
+    for path in ["/", "/tmp", "/usr/lib", "/proc/self", "/dev", base + "/real", base + "/link", base + "/dot."] + extra:
         report(path, lambda: enter(path))
     report("file", lambda: enter_file(base))
     report("deleted", lambda: enter_deleted(base))
@@ -96,6 +97,7 @@ def main():
         print("fchdir_us", path, cost(path))
     os.unlink(base + "/real/file")
     os.unlink(base + "/link")
+    os.rmdir(base + "/dot.")
     os.rmdir(base + "/real")
     os.rmdir(base)
 

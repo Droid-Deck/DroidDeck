@@ -7,14 +7,22 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
 ---
 --- a/src/syscall/enter.c
 +++ b/src/syscall/enter.c
-@@ -48,6 +48,36 @@
+@@ -46,8 +46,63 @@
+ #include "tracee/abi.h"
+ #include "path/path.h"
  #include "path/canon.h"
++#include "path/binding.h"
  #include "arch.h"
  
 +static int translate_open_directory(Tracee *tracee, char path[PATH_MAX], int fd, struct stat *statl)
 +{
 +	char guest[PATH_MAX];
++	char mount[PATH_MAX];
++	char parent[PATH_MAX];
 +	char link[32];
++	char *slash;
++	const Binding *binding;
++	size_t length;
 +	int status;
 +
 +	status = readlink_proc_pid_fd(tracee->pid, fd, path);
@@ -25,6 +33,20 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
 +	status = detranslate_path(tracee, guest, NULL);
 +	if (status < 0)
 +		return 1;
++
++	binding = get_binding(tracee, GUEST, guest);
++	if (binding == NULL)
++		return 1;
++
++	strcpy(parent, binding->guest.path);
++	slash = strrchr(parent, '/');
++	if (slash != NULL && slash != parent) {
++		*slash = '\0';
++		strcpy(mount, "/");
++		status = canonicalize(tracee, parent, true, mount, 0);
++		if (status < 0 || compare_paths(mount, parent) != PATHS_ARE_EQUAL)
++			return 1;
++	}
 +
 +	status = substitute_binding(tracee, GUEST, guest);
 +	if (status < 0 || strcmp(guest, path) != 0)
@@ -38,13 +60,18 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
 +	if (status < 0 || !S_ISDIR(statl->st_mode) || statl->st_nlink == 0)
 +		return 1;
 +
++	length = strlen(path);
++	if (length + 2 >= PATH_MAX)
++		return 1;
++
++	strcpy(path + (length == 1 ? 0 : length), "/.");
 +	return 0;
 +}
 +
  /**
   * Translate @path and put the result in the @tracee's memory address
   * space pointed to by the @reg argument of the current syscall. See
-@@ -193,13 +223,16 @@
+@@ -193,13 +248,16 @@
  			dirfd = peek_reg(tracee, CURRENT, SYSARG_1);
  		}
  
@@ -67,7 +94,7 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
  
  		/* Check this directory is accessible.  */
  		if ((statl.st_mode & S_IXUSR) == 0)
-@@ -208,7 +241,7 @@
+@@ -208,7 +266,7 @@
  
  
  
