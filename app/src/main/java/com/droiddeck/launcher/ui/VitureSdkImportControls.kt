@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +44,7 @@ internal fun VitureSdkImportControls(glasses: GlassesState, visible: Boolean) {
     var busy by remember { mutableStateOf(false) }
     var installing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var errorTitle by remember { mutableStateOf(R.string.viture_sdk_import_failed) }
     val fallbackError = stringResource(R.string.viture_sdk_import_failed)
     fun discard() {
         val candidate = pending
@@ -81,8 +84,18 @@ internal fun VitureSdkImportControls(glasses: GlassesState, visible: Boolean) {
         }
     }
     if (visible && glasses.vitureDetected) SettingsGroup(stringResource(R.string.viture_sdk_title)) {
-        VitureSdkImportRow(glasses.vitureDetected, glasses.vitureSdkAvailable, busy, installing) {
+        VitureSdkImportRow(glasses.vitureDetected, glasses.vitureSdkAvailable, busy, installing, onGetSdk = {
             error = null
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.viture.com/developer"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                errorTitle = R.string.viture_sdk_download_failed
+                error = context.getString(R.string.viture_sdk_download_fallback)
+            }
+        }) {
+            error = null
+            errorTitle = R.string.viture_sdk_import_failed
             runCatching { picker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }
                 .onFailure { error = it.localizedMessage ?: fallbackError }
         }
@@ -114,7 +127,7 @@ internal fun VitureSdkImportControls(glasses: GlassesState, visible: Boolean) {
     error?.let { message ->
         GlideAlertDialog(
             onDismissRequest = { error = null },
-            title = { Text(stringResource(R.string.viture_sdk_import_failed)) },
+            title = { Text(stringResource(errorTitle)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { error = null }, modifier = Modifier.focusGlide(CircleShape)) {
@@ -126,7 +139,8 @@ internal fun VitureSdkImportControls(glasses: GlassesState, visible: Boolean) {
 }
 
 @Composable
-internal fun VitureSdkImportRow(detected: Boolean, available: Boolean, busy: Boolean, installing: Boolean = false, onImport: () -> Unit) {
+internal fun VitureSdkImportRow(detected: Boolean, available: Boolean, busy: Boolean, installing: Boolean = false,
+    onGetSdk: () -> Unit, onImport: () -> Unit) {
     if (!detected) return
     when {
         busy -> SettingsRow(stringResource(R.string.viture_sdk_title),
@@ -134,8 +148,12 @@ internal fun VitureSdkImportRow(detected: Boolean, available: Boolean, busy: Boo
             LinearProgressIndicator(Modifier.testTag("viture-sdk-progress"))
         }
         available -> SettingsRow(stringResource(R.string.viture_sdk_ready), stringResource(R.string.viture_sdk_ready_hint)) {}
-        else -> ActionRow(stringResource(R.string.viture_sdk_title), stringResource(R.string.viture_sdk_import_hint),
-            stringResource(R.string.viture_sdk_import), onImport, modifier = Modifier.testTag("viture-sdk-import"))
+        else -> SettingsRow(stringResource(R.string.viture_sdk_title), stringResource(R.string.viture_sdk_import_hint), stacked = true) {
+            Actions {
+                SecondaryButton(stringResource(R.string.viture_sdk_get), modifier = Modifier.testTag("viture-sdk-get"), onClick = onGetSdk)
+                SecondaryButton(stringResource(R.string.viture_sdk_import), modifier = Modifier.testTag("viture-sdk-import"), onClick = onImport)
+            }
+        }
     }
 }
 

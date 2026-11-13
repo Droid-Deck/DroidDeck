@@ -65,7 +65,7 @@ The pointer is left out of the picture when it cannot be drawn where the game is
 ## Setup and app-wide behavior
 
 1. Connect the glasses through a compatible video/data connection. Accept USB access when requested. For XREAL 1S, Android must also expose the glasses' USB-Ethernet network; the app leaves Steam's Internet connection on its normal network.
-2. Open **Setup → Smart glasses**. For VITURE glasses, choose **Import VITURE SDK** on the **Display** tab, select the official Android SDK 2.4.x ZIP, and confirm after validation. This enables supported SDK features without rebuilding the app. Enable glasses output and **3DoF virtual screen** to select the tracked screen without forcing SBS or changing brightness.
+2. Open **Setup → Smart glasses**. For VITURE glasses, choose **Get SDK from VITURE** on the **Display** tab. On the developer page, download **VITURE XR Glasses SDK for Android (2.4.x)** and leave the ZIP intact. Return to DroidDeck, choose **Import VITURE SDK**, select that ZIP, and confirm after validation. This enables supported SDK features without rebuilding the app. Enable glasses output and **3DoF virtual screen** to select the tracked screen without forcing SBS or changing brightness.
 3. Adjust screen width and distance, then recenter while looking where the screen should sit. The same settings apply when navigating DroidDeck, opening a non-Steam launcher, or entering a game/desktop session.
 4. On an SDK-enabled Luma Ultra, optionally enable positional tracking and set the floor from the current eye height. Use the tracking setup and recovery controls for calibration or recentering. SteamVR startup defers Luma positional initialization until two seconds after SteamVR reports running.
 

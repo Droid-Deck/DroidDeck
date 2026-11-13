@@ -3122,7 +3122,10 @@
     <string name="viture_sdk_title">VITURE SDK</string>
     <string name="viture_sdk_required">Import the VITURE SDK to enable device controls and tracking.</string>
     <string name="viture_sdk_import">Import VITURE SDK</string>
-    <string name="viture_sdk_import_hint">Select the VITURE Android C SDK ZIP to enable supported features, including Luma Ultra 6DoF.</string>
+    <string name="viture_sdk_import_hint">On the VITURE developer page, choose VITURE XR Glasses SDK for Android (2.4.x). Download the ZIP and leave it zipped, then return here to import it and enable supported features, including Luma Ultra 6DoF.</string>
+    <string name="viture_sdk_get">Get SDK from VITURE</string>
+    <string name="viture_sdk_download_failed">Could not open the VITURE website</string>
+    <string name="viture_sdk_download_fallback">Open https://www.viture.com/developer in a browser to download the VITURE XR Glasses SDK for Android (2.4.x). Leave the ZIP intact, then return here to import it.</string>
     <string name="viture_sdk_ready">VITURE SDK loaded</string>
     <string name="viture_sdk_ready_hint">Supported SDK features are available. On Luma Ultra, enable positional tracking in Tracking for 6DoF.</string>
     <string name="viture_sdk_checking">Checking SDK files…</string>

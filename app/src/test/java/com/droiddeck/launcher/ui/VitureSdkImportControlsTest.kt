@@ -42,7 +42,7 @@ class VitureSdkImportControlsTest {
         val available = mutableStateOf(false)
         var imports = 0
         compose.setContent {
-            Column { VitureSdkImportRow(detected.value, available.value, false) { imports++ } }
+            Column { VitureSdkImportRow(detected.value, available.value, false, onGetSdk = {}) { imports++ } }
         }
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.runOnIdle { detected.value = true }
@@ -58,7 +58,7 @@ class VitureSdkImportControlsTest {
     @Test fun checkingAndInstallingPreventDuplicateImports() {
         val installing = mutableStateOf(false)
         compose.setContent {
-            Column { VitureSdkImportRow(true, false, true, installing.value) {} }
+            Column { VitureSdkImportRow(true, false, true, installing.value, onGetSdk = {}) {} }
         }
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.onNodeWithTag("viture-sdk-progress").assertExists()
