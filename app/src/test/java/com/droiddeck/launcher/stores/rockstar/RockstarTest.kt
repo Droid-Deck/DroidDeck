@@ -13,11 +13,14 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
     @Test fun sdkTicketExportsOnlyTheShortLivedServerResponse() {
-        val root = RockstarRos.parse("""<Response><Status>1</Status><Ticket>opaque-game-ticket</Ticket><SessionKey>session-key</SessionKey><SessionTicket>session-ticket</SessionTicket><ScAuthToken>refresh-secret</ScAuthToken><RockstarAccount><RockstarId>123</RockstarId><Nickname>Player</Nickname><Email>player@example.invalid</Email><ScAuthToken>nested-refresh-secret</ScAuthToken></RockstarAccount></Response>""")
+        val root = RockstarRos.parse("""<Response><Status>1</Status><Result><Ticket>opaque-game-ticket</Ticket><PlayerAccountId>456</PlayerAccountId><SessionKey>session-key</SessionKey><SessionTicket>session-ticket</SessionTicket><Services Count="1"><Service Name="game"><Hosts Count="1"><Host>example.invalid</Host></Hosts></Service><ScAuthToken>service-refresh-secret</ScAuthToken></Services><ScAuthToken>refresh-secret</ScAuthToken><RockstarAccount><RockstarId>123</RockstarId><Nickname>Player</Nickname><Email>player@example.invalid</Email><ScAuthToken>nested-refresh-secret</ScAuthToken></RockstarAccount></Result></Response>""")
         val sdk = RockstarRos.parse(RockstarAuth.sdkTicket(root))
         assertEquals("opaque-game-ticket", RockstarRos.text(sdk, "Ticket"))
         assertEquals("session-key", RockstarRos.text(sdk, "SessionKey"))
         assertEquals("123", RockstarRos.text(sdk, "RockstarId"))
+        assertEquals("456", RockstarRos.text(sdk, "PlayerAccountId"))
+        assertEquals("1", RockstarRos.first(sdk, "Services")?.getAttribute("Count"))
+        assertEquals("example.invalid", RockstarRos.text(sdk, "Host"))
         assertNull(RockstarRos.first(sdk, "ScAuthToken"))
         assertFalse(RockstarAuth.sdkTicket(root).contains("refresh-secret"))
     }
