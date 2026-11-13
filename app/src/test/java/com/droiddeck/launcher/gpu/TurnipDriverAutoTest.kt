@@ -133,6 +133,18 @@ class TurnipDriverAutoTest {
         assertEquals(false, TurnipDriver.needsMissingKgsl(File(lib.parentFile, "absent.so"), false))
     }
 
+    @Test fun kgslIsTheKernelInterfaceNotTheVendorVulkanLibrary() {
+        val root = File(RuntimeEnvironment.getApplication().filesDir, "kgsl-probe").apply { mkdirs() }
+        val node = File(root, "dev-kgsl-3d0")
+        val sysfs = File(root, "sys-kgsl-3d0")
+        assertEquals(false, TurnipDriver.kgslPresent(node, sysfs))
+        node.writeText("")
+        assertEquals(true, TurnipDriver.kgslPresent(node, sysfs))
+        node.delete()
+        sysfs.mkdirs()
+        assertEquals(true, TurnipDriver.kgslPresent(node, sysfs))
+    }
+
     @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {
         for (sdk in listOf(28, 36)) {
             assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(650, sdk))

@@ -35,6 +35,7 @@ public final class TurnipDriver {
             DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER,
             DRIVER_A6XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER_A6XX));
     private static final String KGSL_NODE = "/dev/kgsl-3d0";
+    private static final String KGSL_SYSFS = "/sys/class/kgsl/kgsl-3d0";
     private static final String OVERRIDE_FILE = "Download/droiddeck-driver";
     private static final String PREFS = "graphics_driver";
     private static final String KEY_HIDDEN = "hiddenBundled";
@@ -149,7 +150,11 @@ public final class TurnipDriver {
     public boolean reachesGpu(String driverId) {
         String library = libraryName(driverId);
         return library == null || !needsMissingKgsl(new File(new File(contentDir, driverId), library),
-                com.droiddeck.launcher.core.DeviceSupport.INSTANCE.adreno());
+                kgslPresent(new File(KGSL_NODE), new File(KGSL_SYSFS)));
+    }
+
+    static boolean kgslPresent(File node, File sysfs) {
+        return node.exists() || sysfs.exists();
     }
 
     static boolean needsMissingKgsl(File library, boolean kgsl) {
