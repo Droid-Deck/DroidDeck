@@ -455,18 +455,6 @@ internal fun SetupPanel(
                                 val railContext = androidx.compose.ui.platform.LocalContext.current
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
-                                if (com.droiddeck.launcher.agent.AgentHost.available) {
-                                    ToggleRow(host, "agent-tab", stringResource(R.string.setup_agent_tab), null, com.droiddeck.launcher.agent.AgentTab.shown) {
-                                        com.droiddeck.launcher.agent.AgentTab.set(railContext, it)
-                                    }
-                                    ToggleRow(host, "agent-pet", stringResource(R.string.setup_agent_pet), stringResource(R.string.setup_agent_pet_hint), AgentPet.enabled) {
-                                        AgentPet.set(railContext, it)
-                                    }
-                                    if (AgentPet.enabled && !AgentPet.allowed) ActionRow(
-                                        stringResource(R.string.setup_agent_pet_float), stringResource(R.string.setup_agent_pet_float_hint),
-                                        stringResource(R.string.setup_agent_pet_allow), onClick = { AgentPet.requestFloating(railContext) },
-                                    )
-                                }
                                 LanguageRow(host, s.language, a.onLanguage)
                                 ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
                             }
@@ -606,6 +594,19 @@ internal fun SetupPanel(
                             ) { a.onGameDebugLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
+                            if (com.droiddeck.launcher.agent.AgentHost.available) {
+                                val agentContext = androidx.compose.ui.platform.LocalContext.current
+                                ToggleRow(host, "agent-tab", stringResource(R.string.setup_agent_tab), null, com.droiddeck.launcher.agent.AgentTab.shown) {
+                                    com.droiddeck.launcher.agent.AgentTab.set(agentContext, it)
+                                }
+                                ToggleRow(host, "agent-pet", stringResource(R.string.setup_agent_pet), stringResource(R.string.setup_agent_pet_hint), AgentPet.enabled) {
+                                    AgentPet.set(agentContext, it)
+                                }
+                                if (AgentPet.enabled && !AgentPet.allowed) ActionRow(
+                                    stringResource(R.string.setup_agent_pet_float), stringResource(R.string.setup_agent_pet_float_hint),
+                                    stringResource(R.string.setup_agent_pet_allow), onClick = { AgentPet.requestFloating(agentContext) },
+                                )
+                            }
                             ToggleRow(host, "graphics-logs", stringResource(R.string.setup_graphics_logs), stringResource(R.string.setup_graphics_logs_hint), s.graphicsLogs) { a.onGraphicsLogs() }
                             if (!s.adreno && com.droiddeck.launcher.session.SessionPrefs.steamGpuCompositingAllowed()) ToggleRow(host, "steam-gpu-drawing", stringResource(R.string.setup_steam_gpu_drawing), stringResource(R.string.setup_steam_gpu_drawing_hint), s.steamGpuDrawing) { a.onSteamGpuDrawing() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,

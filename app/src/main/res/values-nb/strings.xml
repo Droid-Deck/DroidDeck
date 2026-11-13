@@ -2568,7 +2568,7 @@
     <string name="gpu_chip_restart">%1$s · krever omstart</string>
     <string name="comp_this_device">Denne enheten</string>
     <string name="proton_remove_title">Fjerne %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostikk</string>
+    <string name="setup_tab_diagnostics">Utvikler</string>
     <string name="setup_build_watermark">Vannmerke for byggetikett</string>
     <string name="setup_build_watermark_hint">Vis etiketten for test- eller Lab-bygget på skjermen. På som standard.</string>
     <string name="setup_ready">Klar til å spille</string>

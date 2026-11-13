@@ -2554,7 +2554,7 @@
     <string name="gpu_separately">分别设置运行时驱动和显示驱动</string>
     <string name="gpu_use_title">使用 %1$s？</string>
     <string name="proton_remove_title">移除 %1$s？</string>
-    <string name="setup_tab_diagnostics">诊断</string>
+    <string name="setup_tab_diagnostics">开发者</string>
     <string name="setup_build_watermark">构建标签水印</string>
     <string name="setup_build_watermark_hint">在屏幕上显示测试版或 Lab 构建标签。默认启用。</string>
     <string name="setup_ready">可以游玩了</string>

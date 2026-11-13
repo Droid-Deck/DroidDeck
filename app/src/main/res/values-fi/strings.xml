@@ -2568,7 +2568,7 @@
     <string name="gpu_chip_restart">%1$s · vaatii uudelleenkäynnistyksen</string>
     <string name="comp_this_device">Tämä laite</string>
     <string name="proton_remove_title">Poistetaanko %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostiikka</string>
+    <string name="setup_tab_diagnostics">Kehittäjä</string>
     <string name="setup_build_watermark">Koontiversion vesileima</string>
     <string name="setup_build_watermark_hint">Näytä testi- tai Lab-version tunniste näytöllä. Käytössä oletusarvoisesti.</string>
     <string name="setup_ready">Valmis pelattavaksi</string>

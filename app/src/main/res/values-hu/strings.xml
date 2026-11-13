@@ -2568,7 +2568,7 @@
     <string name="gpu_chip_restart">%1$s · újraindítás szükséges</string>
     <string name="comp_this_device">Ez a készülék</string>
     <string name="proton_remove_title">Eltávolítja a %1$s-t?</string>
-    <string name="setup_tab_diagnostics">Diagnosztika</string>
+    <string name="setup_tab_diagnostics">Fejlesztő</string>
     <string name="setup_build_watermark">Buildcímke vízjelként</string>
     <string name="setup_build_watermark_hint">A tesztbuild vagy Lab-build címkéjének megjelenítése a képernyőn. Alapértelmezés szerint bekapcsolva.</string>
     <string name="setup_ready">Készen áll a játékra</string>

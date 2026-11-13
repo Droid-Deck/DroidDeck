@@ -2557,7 +2557,7 @@
     <string name="gpu_chip_restart">%1$s · yeniden başlatma bekliyor</string>
     <string name="comp_this_device">Bu cihaz</string>
     <string name="proton_remove_title">%1$s kaldırılsın mı?</string>
-    <string name="setup_tab_diagnostics">Tanılama</string>
+    <string name="setup_tab_diagnostics">Geliştirici</string>
     <string name="setup_build_watermark">Derleme etiketi filigranı</string>
     <string name="setup_build_watermark_hint">Test veya Lab derlemesinin etiketini ekranda gösterir. Varsayılan olarak açıktır.</string>
     <string name="setup_ready">Oynamaya hazır</string>
