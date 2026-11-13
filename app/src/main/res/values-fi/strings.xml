@@ -683,6 +683,7 @@
     <string name="hud_metric_vram">Näytönohjaimen muisti</string>
     <string name="hud_metric_swap">Swap-tila</string>
     <string name="hud_metric_battery">Akun varaus</string>
+    <string name="hud_metric_battery_time">Akun jäljellä oleva käyttöaika</string>
     <string name="hud_metric_power">Virrankulutus</string>
     <string name="hud_metric_network">Verkko</string>
     <string name="hud_metric_resolution">Tarkkuus</string>

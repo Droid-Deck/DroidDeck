@@ -683,6 +683,7 @@
     <string name="hud_metric_vram">Μνήμη γραφικών</string>
     <string name="hud_metric_swap">Μνήμη swap</string>
     <string name="hud_metric_battery">Στάθμη μπαταρίας</string>
+    <string name="hud_metric_battery_time">Υπολειπόμενη διάρκεια μπαταρίας</string>
     <string name="hud_metric_power">Κατανάλωση ισχύος</string>
     <string name="hud_metric_network">Δίκτυο</string>
     <string name="hud_metric_resolution">Ανάλυση</string>

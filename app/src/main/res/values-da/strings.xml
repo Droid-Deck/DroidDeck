@@ -683,6 +683,7 @@
     <string name="hud_metric_vram">Grafikhukommelse</string>
     <string name="hud_metric_swap">Swap-hukommelse</string>
     <string name="hud_metric_battery">Batteriniveau</string>
+    <string name="hud_metric_battery_time">Resterende batteritid</string>
     <string name="hud_metric_power">Strømforbrug</string>
     <string name="hud_metric_network">Netværk</string>
     <string name="hud_metric_resolution">Opløsning</string>

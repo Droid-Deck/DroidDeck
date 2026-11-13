@@ -681,6 +681,7 @@
     <string name="hud_metric_vram">หน่วยความจำกราฟิก</string>
     <string name="hud_metric_swap">พื้นที่สว็อป</string>
     <string name="hud_metric_battery">ระดับแบตเตอรี่</string>
+    <string name="hud_metric_battery_time">เวลาการใช้งานแบตเตอรี่ที่เหลือ</string>
     <string name="hud_metric_power">การใช้พลังงาน</string>
     <string name="hud_metric_network">เครือข่าย</string>
     <string name="hud_metric_resolution">ความละเอียด</string>

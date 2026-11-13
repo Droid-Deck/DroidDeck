@@ -685,6 +685,7 @@
     <string name="hud_metric_vram">Memorie grafică</string>
     <string name="hud_metric_swap">Memorie swap</string>
     <string name="hud_metric_battery">Nivel baterie</string>
+    <string name="hud_metric_battery_time">Autonomie rămasă a bateriei</string>
     <string name="hud_metric_power">Consum de energie</string>
     <string name="hud_metric_network">Rețea</string>
     <string name="hud_metric_resolution">Rezoluție</string>

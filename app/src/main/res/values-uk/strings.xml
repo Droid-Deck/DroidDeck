@@ -687,6 +687,7 @@
     <string name="hud_metric_vram">Відеопам\'ять</string>
     <string name="hud_metric_swap">Підкачка</string>
     <string name="hud_metric_battery">Заряд батареї</string>
+    <string name="hud_metric_battery_time">Залишковий час роботи батареї</string>
     <string name="hud_metric_power">Споживана потужність</string>
     <string name="hud_metric_network">Мережа</string>
     <string name="hud_metric_resolution">Роздільна здатність</string>

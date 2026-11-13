@@ -683,6 +683,7 @@
     <string name="hud_metric_vram">Grafikspeicher</string>
     <string name="hud_metric_swap">Swap-Speicher</string>
     <string name="hud_metric_battery">Akkustand</string>
+    <string name="hud_metric_battery_time">Verbleibende Akkulaufzeit</string>
     <string name="hud_metric_power">Leistungsaufnahme</string>
     <string name="hud_metric_network">Netzwerk</string>
     <string name="hud_metric_resolution">Auflösung</string>

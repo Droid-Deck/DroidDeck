@@ -681,6 +681,7 @@
     <string name="hud_metric_vram">Bộ nhớ đồ họa</string>
     <string name="hud_metric_swap">Bộ nhớ swap</string>
     <string name="hud_metric_battery">Mức pin</string>
+    <string name="hud_metric_battery_time">Thời lượng pin còn lại</string>
     <string name="hud_metric_power">Công suất tiêu thụ</string>
     <string name="hud_metric_network">Mạng</string>
     <string name="hud_metric_resolution">Độ phân giải</string>

@@ -681,6 +681,7 @@
     <string name="hud_metric_vram">グラフィックスメモリ</string>
     <string name="hud_metric_swap">スワップ</string>
     <string name="hud_metric_battery">バッテリー残量</string>
+    <string name="hud_metric_battery_time">バッテリー残り時間</string>
     <string name="hud_metric_power">消費電力</string>
     <string name="hud_metric_network">ネットワーク</string>
     <string name="hud_metric_resolution">解像度</string>

@@ -685,6 +685,7 @@
     <string name="hud_metric_vram">Memoria gráfica</string>
     <string name="hud_metric_swap">Memoria de intercambio</string>
     <string name="hud_metric_battery">Nivel de batería</string>
+    <string name="hud_metric_battery_time">Tiempo de batería restante</string>
     <string name="hud_metric_power">Consumo de energía</string>
     <string name="hud_metric_network">Red</string>
     <string name="hud_metric_resolution">Resolución</string>
