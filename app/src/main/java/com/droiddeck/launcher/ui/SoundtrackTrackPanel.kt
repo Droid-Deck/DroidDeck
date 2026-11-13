@@ -39,7 +39,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,7 +63,7 @@ import com.droiddeck.launcher.frontend.Soundtrack
 import com.droiddeck.launcher.frontend.SoundtrackCollections
 import com.droiddeck.launcher.frontend.SoundtrackTracks
 import com.droiddeck.launcher.playback.SoundtrackController
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 internal class PlayTarget(val root: java.io.File?, val collection: Int?) {
     val belongs: Boolean get() = if (collection != null) SoundtrackController.belongsCollection(collection) else SoundtrackController.belongs(root)
@@ -124,7 +123,6 @@ internal fun TrackPanel(
     val canReorder = onReorder != null && sort == SoundtrackTracks.Sort.DEFAULT && query.isBlank() && selecting
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    val scope = rememberCoroutineScope()
     val numbers = remember(display) {
         val out = HashMap<String, Int>()
         var n = 0
@@ -133,6 +131,15 @@ internal fun TrackPanel(
             else if (row is SoundRow.Item) out[row.track.id] = ++n
         }
         out
+    }
+    val drag = remember { DragState() }
+    fun applyDrag() {
+        val to = dragTarget(drag.total, drag.size, drag.from, drag.lo, drag.hi)
+        if (to != drag.to) {
+            drag.to = to
+            working = drag.base.toMutableList().apply { add(to, removeAt(drag.from)) }
+        }
+        dragOffset = drag.total - (drag.to - drag.from) * drag.size
     }
     val finishDrag: () -> Unit = {
         val list = working
@@ -147,9 +154,35 @@ internal fun TrackPanel(
     val finishNow by rememberUpdatedState(finishDrag)
     val current = if (target.belongs) SoundtrackController.currentId else null
     val state = rememberLazyListState()
+    var scrolledTo by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(album, current) {
+        if (current == null) {
+            scrolledTo = null
+            return@LaunchedEffect
+        }
+        if (dragId != null || current == scrolledTo) return@LaunchedEffect
         val at = rows.indexOfFirst { it is SoundRow.Item && it.track.id == current }
-        if (at >= 0 && dragId == null) state.animateScrollToItem(at)
+        if (at >= 0) {
+            scrolledTo = current
+            state.animateScrollToItem(at)
+        }
+    }
+    LaunchedEffect(dragId) {
+        if (dragId == null) return@LaunchedEffect
+        while (true) {
+            delay(16)
+            val me = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == dragId } ?: continue
+            val pos = me.offset + me.size / 2f + dragOffset
+            val step = when {
+                pos < 80f -> -24f
+                pos > state.layoutInfo.viewportEndOffset - 80f -> 24f
+                else -> 0f
+            }
+            if (step != 0f) {
+                drag.total += state.scrollBy(step)
+                applyDrag()
+            }
+        }
     }
     val chosen = album.tracks.filter { it.id in picked }.map(refOf)
     Column(modifier) {
@@ -232,36 +265,32 @@ internal fun TrackPanel(
                             .pointerInput(id) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
-                                        dragId = id
-                                        dragOffset = 0f
-                                        if (working == null) working = rowsNow
+                                        val base = working ?: rowsNow
+                                        val from = base.indexOfFirst { it is SoundRow.Item && it.track.id == id }
+                                        if (from >= 0) {
+                                            val disc = (base[from] as SoundRow.Item).track.disc
+                                            var lo = from
+                                            while (lo > 0 && (base[lo - 1] as? SoundRow.Item)?.track?.disc == disc) lo--
+                                            var hi = from
+                                            while (hi < base.lastIndex && (base[hi + 1] as? SoundRow.Item)?.track?.disc == disc) hi++
+                                            drag.base = base
+                                            drag.from = from
+                                            drag.to = from
+                                            drag.lo = lo
+                                            drag.hi = hi
+                                            drag.size = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.size?.toFloat()?.takeIf { it > 0f } ?: 1f
+                                            drag.total = 0f
+                                            working = base
+                                            dragOffset = 0f
+                                            dragId = id
+                                        }
                                     },
                                     onDrag = { change, amount ->
                                         change.consume()
-                                        dragOffset += amount.y
-                                        val list = working ?: return@detectDragGesturesAfterLongPress
-                                        val visible = state.layoutInfo.visibleItemsInfo
-                                        val me = visible.firstOrNull { it.key == id } ?: return@detectDragGesturesAfterLongPress
-                                        val center = me.offset + me.size / 2f + dragOffset
-                                        val over = visible.firstOrNull { it.key != id && center >= it.offset && center < it.offset + it.size }
-                                        if (over != null) {
-                                            val from = list.indexOfFirst { it is SoundRow.Item && it.track.id == id }
-                                            val to = list.indexOfFirst { it is SoundRow.Item && it.track.id == over.key }
-                                            val a = list.getOrNull(from) as? SoundRow.Item
-                                            val b = list.getOrNull(to) as? SoundRow.Item
-                                            if (a != null && b != null && a.track.disc == b.track.disc) {
-                                                working = list.toMutableList().apply { add(to, removeAt(from)) }
-                                                dragOffset -= (over.offset - me.offset)
-                                            }
+                                        if (dragId == id) {
+                                            drag.total += amount.y
+                                            applyDrag()
                                         }
-                                        val edge = 80f
-                                        val pos = me.offset + me.size / 2f + dragOffset
-                                        val step = when {
-                                            pos < edge -> -24f
-                                            pos > state.layoutInfo.viewportEndOffset - edge -> 24f
-                                            else -> 0f
-                                        }
-                                        if (step != 0f) scope.launch { dragOffset += state.scrollBy(step) }
                                     },
                                     onDragEnd = { finishNow() },
                                     onDragCancel = { finishNow() },
@@ -332,3 +361,16 @@ private fun TrackRow(
         if (track.durationMs > 0) Text(Soundtrack.formatLength(track.durationMs), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }
+
+private class DragState {
+    var base: List<SoundRow> = emptyList()
+    var from = 0
+    var to = 0
+    var lo = 0
+    var hi = 0
+    var size = 1f
+    var total = 0f
+}
+
+internal fun dragTarget(total: Float, size: Float, from: Int, lo: Int, hi: Int): Int =
+    (from + Math.round(total / size)).coerceIn(lo, hi)
