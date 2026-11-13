@@ -139,8 +139,9 @@ object VitureProtocol {
         }
         val name = if (productId == PHANTOM_PRODUCT_ID) fallback else
             productName?.trim()?.removeSuffix(" Glasses")?.takeIf { it.startsWith("VITURE", ignoreCase = true) } ?: fallback
+        val opticsName = productName?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
         return Model(name, family, lite = productId == 0x1015 || productId == 0x101b,
-            lumaProOptics = family == Family.LUMA && productName?.trim()?.let(lumaProProductName::matches) == true)
+            lumaProOptics = family == Family.LUMA && lumaProProductName.matches(opticsName))
     }
 
     private val CRC_TABLE = IntArray(256) { i ->

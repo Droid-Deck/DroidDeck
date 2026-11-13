@@ -160,10 +160,18 @@ int main() {
             assert(opened[i] == std::string("/private/sdk/") + libraries[i]);
         const auto first_functions = loader.api;
         missing_library = "libglasses.so";
-        assert(loader.load("/different/sdk", error));
+        assert(!loader.load("/different/sdk", error, supported));
+        assert(error.find("restart") != std::string::npos);
+        assert(loader.loaded());
         assert(opened.size() == 3);
         assert(closed.empty());
         assert(first_functions.xr_device_provider_create == loader.api.xr_device_provider_create);
+        assert(loader.load("/private/sdk", error, supported));
+        assert(error.empty());
+        assert(!loader.load("", error));
+        assert(error.find("restart") != std::string::npos);
+        assert(opened.size() == 3);
+        assert(closed.empty());
     }
     reset();
     {
@@ -176,7 +184,8 @@ int main() {
         version = "2.4.2";
         assert(mixed.load("/private/sdk", error, "2.4.2"));
         assert(error.empty());
-        assert(!mixed.load("/different/sdk", error, "2.4.0"));
+        assert(!mixed.load("/private/sdk", error, "2.4.0"));
+        assert(error.find("imported version") != std::string::npos);
         assert(mixed.loaded());
         assert(opened.size() == 3);
         assert(closed.empty());
@@ -187,6 +196,12 @@ int main() {
     VitureSdkLoader bundled;
     assert(bundled.load("", error));
     for (size_t i = 0; i < libraries.size(); ++i) assert(opened[i] == libraries[i]);
+    assert(bundled.load("", error));
+    assert(error.empty());
+    assert(!bundled.load("/private/sdk", error, "2.4.0"));
+    assert(error.find("restart") != std::string::npos);
+    assert(opened.size() == 3);
+    assert(closed.empty());
 
     using droiddeck::viture::supports_film;
     assert(!supports_film("Lite"));

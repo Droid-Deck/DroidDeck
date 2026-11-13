@@ -71,4 +71,32 @@ class VitureDeviceStateTest {
             .retainingNativeTracking(bypass)
         assertFalse(enteringNative.nativeTrackingKnown)
     }
+
+    @Test fun failedNativeModeReadPreservesUltrawideDisplayAndScreenControls() {
+        for (code in listOf(0x3d, 0x40)) {
+            val previous = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, nativeMode = 1,
+                nativeDof = 0, displayMode = code, distance = 6, size = 4, side = true)
+            val failed = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, displayMode = 0x35)
+                .retainingNativeTracking(previous)
+            assertTrue(failed.ultrawide)
+            assertEquals(code, failed.displayMode)
+            assertEquals(6, failed.distance)
+            assertEquals(4, failed.size)
+            assertEquals(true, failed.side)
+        }
+    }
+
+    @Test fun successfulModeReadsKeepTheirOwnDisplayAndScreenControls() {
+        val previous = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, nativeMode = 1,
+            nativeDof = 0, displayMode = 0x40, distance = 6, size = 4, side = true)
+        val native = previous.copy(displayMode = 0x34, distance = 3, size = 2, side = false)
+        assertEquals(native, native.retainingNativeTracking(previous))
+        val bypass = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, nativeMode = 0, displayMode = 0x45)
+        assertEquals(bypass, bypass.retainingNativeTracking(previous))
+        val failedBypass = bypass.copy(nativeMode = null, displayMode = 0x35)
+            .retainingNativeTracking(bypass)
+        assertEquals(0, failedBypass.nativeMode)
+        assertEquals(0x35, failedBypass.displayMode)
+        assertNull(failedBypass.size)
+    }
 }

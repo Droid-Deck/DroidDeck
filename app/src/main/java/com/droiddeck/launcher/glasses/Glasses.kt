@@ -490,6 +490,7 @@ object Glasses {
         if (link !== sdk) return
         publish { it.copy(viture = device, brightnessMax = device.brightnessMax ?: it.brightnessMax,
             volumeMax = device.volumeMax ?: it.volumeMax, hasSunblock = (device.filmMax ?: 0) > 0,
+            sbs = isStereoDisplay(it.width, device),
             sunblock = device.film?.let { voltage -> voltage > 0 } ?: it.sunblock) }
         syncVitureTracking(device)
     }
@@ -767,7 +768,9 @@ object Glasses {
         val mode = display?.mode
         val width = mode?.physicalWidth ?: 0
         val height = mode?.physicalHeight ?: 0
-        val sbsByDisplay = width >= 3000 && _state.value.viture?.ultrawide != true
+        if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
+        if (device != null && permitted && link == null) openLink(device)
+        val sbsByDisplay = isStereoDisplay(width, _state.value.viture)
         val noSignal = display != null && width in 1 until 1280
         when (modeState.observe(sbsByDisplay, SystemClock.uptimeMillis())) {
             GlassesModeState.Confirmation.FAILED -> {
@@ -781,8 +784,6 @@ object Glasses {
             markSbsFailed(device?.productId, false)
             rememberSbs(GlassesState.SBS_WORKS)
         }
-        if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
-        if (device != null && permitted && link == null) openLink(device)
         publish {
             it.copy(
                 present = device != null || display != null || namedViture != null,
@@ -838,6 +839,9 @@ object Glasses {
 
     internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid) ||
         vid == XrealModel.VENDOR_ID || vid == RokidModel.VENDOR_ID
+
+    internal fun isStereoDisplay(width: Int, device: VitureDeviceState?): Boolean = width >= 3000 &&
+        if (device?.supportsNative == true) device.selectedDisplayMode?.stereo == true else device?.ultrawide != true
 
     internal fun supports30Hz(display: Display): Boolean {
         val current = display.mode
@@ -973,9 +977,22 @@ object Glasses {
         handler.postDelayed({
             if (link !== opened) return@postDelayed
             _settings.value.sunblock?.let { sendFilm(it) }
-            updateImu()
-            applyMode(force = false)
+            finishLinkInitialization(opened, 3)
         }, 300)
+    }
+
+    private fun finishLinkInitialization(opened: GlassesLink, attempts: Int) {
+        if (link !== opened) return
+        if (opened is VitureDeviceLink) {
+            readVitureDevice(opened)
+            val device = _state.value.viture
+            if (attempts > 1 && device != null && (!device.nativeTrackingKnown ||
+                    (device.supportsNative && device.selectedDisplayMode == null))) {
+                handler.postDelayed({ finishLinkInitialization(opened, attempts - 1) }, 300)
+            }
+        }
+        updateImu()
+        applyMode(force = false)
     }
 
     private fun xrealListener(generation: Long) = object : XrealLink.Listener {
@@ -1044,7 +1061,7 @@ object Glasses {
                     val mode = sdk.deviceValue(VitureSdk.VALUE_NATIVE_MODE).toInt().takeIf { it >= 0 }
                     val display = if (mode == 1) sdk.deviceValue(VitureSdk.VALUE_NATIVE_DISPLAY).toInt() else sdk.deviceDisplayMode()
                     if (display < 0) return@post
-                    current.copy(nativeMode = mode, displayMode = display)
+                    current.copy(nativeMode = mode, displayMode = display).retainingNativeTracking(current)
                 }
                 3 -> current.copy(film = value.toFloat() / (current.filmMax ?: 1).coerceAtLeast(1))
                 4 -> {

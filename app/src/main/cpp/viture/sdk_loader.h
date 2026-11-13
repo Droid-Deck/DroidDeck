@@ -14,4 +14,5 @@ public:
 
 private:
     std::vector<void*> handles;
+    std::string loaded_directory;
 };

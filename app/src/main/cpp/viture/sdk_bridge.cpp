@@ -322,7 +322,7 @@ const VitureSdkApi* viture_loaded_api() {
 extern "C" JNIEXPORT jboolean JNICALL JNI_METHOD(nativeAvailable)(JNIEnv*, jobject) {
     std::lock_guard<std::mutex> lock(api_mutex);
     std::string error;
-    if (!sdk.load("", error)) return JNI_FALSE;
+    if (!sdk.loaded() && !sdk.load("", error)) return JNI_FALSE;
     __android_log_print(ANDROID_LOG_INFO, "VitureSdk", "SDK %s", sdk.api.GetVersionString());
     return JNI_TRUE;
 }
@@ -525,7 +525,12 @@ extern "C" JNIEXPORT jint JNICALL JNI_METHOD(nativeDeviceControl)(JNIEnv*, jobje
             if (!s.native_dof || !sdk.api.xr_device_provider_native_recenter_dof) return -4;
             if (s.tracking) return -10;
             return sdk.api.xr_device_provider_native_recenter_dof(s.device);
-        case 6: return s.native_dof ? sdk.api.xr_device_provider_native_set_display_mode(s.device, integer) : -4;
+        case 6: {
+            if (!s.native_dof) return -4;
+            int rc = sdk.api.xr_device_provider_native_set_display_mode(s.device, integer);
+            if (rc == 0 && s.tracking) rc = suspend_native_dof(s);
+            return rc;
+        }
         case 7: return s.native_dof && sdk.api.xr_device_provider_native_set_display_distance ?
             sdk.api.xr_device_provider_native_set_display_distance(s.device, integer) : -4;
         case 8: return s.native_dof && sdk.api.xr_device_provider_native_set_display_size ?
