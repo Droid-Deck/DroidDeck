@@ -972,6 +972,7 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_memory_critical || return 0
+          [ "${BL_ZRAM_IDLE:-1}" = 1 ] && bl_game_focused 0 || return 0
           local _wait=$_bl_tier_backoff _before _pids _targets
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
@@ -1103,7 +1104,7 @@ case $mode in
           local id
           id=$(sed -n 's/.*"focusedApp"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
             "$BL_LAUNCH_DIR/agent/focus.json" 2>/dev/null | head -1)
-          [ -n "$id" ] || return 1
+          [ -n "$id" ] || return "${1:-1}"
           case " ${_bl_apps-} " in
             *" $id "*) return 0 ;;
           esac
