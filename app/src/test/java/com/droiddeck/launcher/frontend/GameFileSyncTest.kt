@@ -47,4 +47,33 @@ class GameFileSyncTest {
         assertFalse(File(folder, "Geometry Wars.steam").exists())
         assertEquals(0, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
     }
+
+    @Test fun libraryNotCreatedYetOnPresentStorageIsEmptyNotUnavailable() {
+        val context = RuntimeEnvironment.getApplication()
+        val root = LinuxRuntime.rootDir(context)
+        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/"), "opt/android-host/proot", "opt/android-host/loader").forEach { path ->
+            File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
+        }
+        SessionPrefs.setAddedGamesDirs(context, emptyList())
+        File(root, "root/.local/share/Steam/steamapps").mkdirs()
+        val volume = File(context.filesDir, "card").apply { mkdirs() }
+        val library = File(volume, "steam")
+        SessionPrefs.setGameStorage(context, library.path, "Card")
+        val folder = File(context.filesDir, "exports-card").apply { mkdirs() }
+        GameFileSync.enable(context, folder)
+        assertEquals(folder.path, GameFileSync.folder(context))
+        assertFalse(library.exists())
+        library.writeText("")
+        assertThrows(IllegalStateException::class.java) { GameFileSync.syncConfigured(context) }
+        assertTrue(library.delete())
+        GameFileSync.disable(context)
+    }
+
+    @Test fun libraryReadableOnlyWhenListableOrNotCreatedOnPresentParent() {
+        val base = File(RuntimeEnvironment.getApplication().filesDir, "readable").apply { mkdirs() }
+        assertTrue(GameFileSync.libraryReadable(File(base, "dir").apply { mkdirs() }))
+        assertTrue(GameFileSync.libraryReadable(File(base, "missing")))
+        assertFalse(GameFileSync.libraryReadable(File(base, "gone/steam")))
+        assertFalse(GameFileSync.libraryReadable(File(base, "file").apply { writeText("") }))
+    }
 }
