@@ -1,17 +1,52 @@
 #!/bin/bash
-# Starts GitHub's device login and opens its approval page in Android.
+# Starts GitHub's device login, floats its code over Android's browser and opens the approval page.
+url=https://github.com/login/device
+inbox=${DD_AGENT_INBOX:-}
+
+# DroidDeck takes $inbox/device-code within a few seconds when it can float the code.
+float_code() {
+  [ -n "$inbox" ] && [ -d "$inbox" ] || return 1
+  rm -f "$inbox/device-code.result"
+  printf '%s %s\n' "$1" "$url" > "$inbox/device-code.part" && mv -f "$inbox/device-code.part" "$inbox/device-code" || return 1
+  i=0
+  while [ $i -lt 40 ] && [ -e "$inbox/device-code" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  if [ -e "$inbox/device-code" ]; then
+    rm -f "$inbox/device-code"
+    return 1
+  fi
+  # DroidDeck writes "ok" or "failed" once it has tried to open the page; no answer counts as failed.
+  i=0
+  while [ $i -lt 50 ] && [ ! -e "$inbox/device-code.result" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  result=$(cat "$inbox/device-code.result" 2>/dev/null)
+  rm -f "$inbox/device-code.result"
+  [ "$result" = ok ]
+}
+
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
 gh_pid=$GH_PID
 exec {ghout}<&"${GH[0]}" {ghin}>&"${GH[1]}"
 shown=
 while IFS= read -r line <&"$ghout"; do
-  printf '%s\n' "$line"
   code=$(grep -oE '[A-Z0-9]{4}-[A-Z0-9]{4}' <<<"$line" | head -1)
+  # gh's own prompts would push the code out of the one line the setup card shows.
+  case "$line" in
+    *"one-time code"* | *"Press Enter"* | *"Open this URL"*) ;;
+    *) printf '%s\n' "$line" ;;
+  esac
   if [ -n "$code" ] && [ -z "$shown" ]; then
     shown=1
     echo >&"$ghin"
     printf 'GitHub device code: %s · github.com/login/device\n' "$code"
-    android-open https://github.com/login/device
+    float_code "$code" || android-open "$url"
   fi
 done
 wait "$gh_pid"
+status=$?
+[ -n "$shown" ] && [ -n "$inbox" ] && [ -d "$inbox" ] && : > "$inbox/device-code"
+exit $status

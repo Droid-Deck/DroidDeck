@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -86,6 +87,9 @@ import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
 import com.droiddeck.launcher.storage.ComponentUsage
 import com.droiddeck.launcher.storage.GameUsage
+import com.droiddeck.launcher.storage.KeptPrefix
+import com.droiddeck.launcher.storage.PrefixOwner
+import com.droiddeck.launcher.storage.StoreGameUsage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
@@ -148,6 +152,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "data" -> GameDataView(report, s.sessionRunning) { view = "overview" }
         "components" -> ComponentsView(report, s.sessionRunning) { view = "overview" }
         "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
+        "stores" -> StoreGamesView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
@@ -260,12 +265,23 @@ private fun DefaultStorageGroup() {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
+    val narrowPane = LocalNarrowPane.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wide = !narrowPane && maxWidth >= WIDE_OVERVIEW
+        Column { OverviewContent(report, sessionRunning, wide, onCleanUp, onOpen) }
+    }
+}
+
+private val WIDE_OVERVIEW = 700.dp
+private val NARROW_ROW = 640.dp
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val wide = !LocalNarrowPane.current
     val used = report.total - report.free
     val safe = StorageState.safeBytes(report)
     val low = report.free < StorageState.LOW_SPACE_BYTES
@@ -275,7 +291,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val usage: @Composable (Modifier) -> Unit = { m -> Column(m) {
             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.storage_internal), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text("· " + stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
+                Text(stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 Pill(stringResource(R.string.storage_free, gb(report.free)), if (low) AttentionAmber else pal.good)
             }
             val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(report.at))
@@ -294,7 +310,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
         Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
         Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
-        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
+        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.busy, compact = true, onClick = onCleanUp)
     } }
     if (wide) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = summary) {
         usage(Modifier.weight(1f))
@@ -338,7 +354,8 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         },
         { m ->
             BucketCard(Bucket.STORES, Icons.Outlined.ShoppingBag, stringResource(R.string.storage_stores),
-                stringResource(R.string.storage_stores_hint), report.buckets.getValue(Bucket.STORES), m)
+                pluralStringResource(R.plurals.storage_games_installed, report.storeGames.size, report.storeGames.size),
+                report.buckets.getValue(Bucket.STORES), m) { onOpen("stores") }
         },
         { m ->
             BucketCard(Bucket.DESKTOP, Icons.Outlined.Monitor, stringResource(R.string.storage_desktop),
@@ -485,7 +502,7 @@ private fun CleanUpDialog(report: StorageReport, sessionRunning: Boolean, onDism
             }
         },
         confirmButton = {
-            if (picked.isNotEmpty() && !sessionRunning && !StorageState.cleaning) {
+            if (picked.isNotEmpty() && !sessionRunning && !StorageState.busy) {
                 FocusText(stringResource(R.string.storage_free_button, gb(total)), pal.signal) {
                     StorageState.clean(ctx, picked) { onDismiss() }
                 }
@@ -501,8 +518,6 @@ private fun CleanUpDialog(report: StorageReport, sessionRunning: Boolean, onDism
 private fun CleanRow(item: CleanItem, report: StorageReport, on: Boolean, modifier: Modifier, onToggle: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val unsureCount = report.leftovers.count { !it.safe }
     val safeCount = report.leftovers.count { it.safe }
     val oldTools = report.unusedTools.filter { it.reason != ToolReason.CUSTOM }
@@ -517,6 +532,23 @@ private fun CleanRow(item: CleanItem, report: StorageReport, on: Boolean, modifi
         CleanItem.UNUSED_COMPONENTS -> Triple(stringResource(R.string.storage_item_components), unusedLabels.joinToString(", "), 1)
         CleanItem.SHADERS -> Triple(stringResource(R.string.storage_item_shaders), stringResource(R.string.storage_item_shaders_detail), 2)
     }
+    ToggleRow(
+        title, detail, StorageState.bytes(report, item), on, modifier,
+        when (tag) {
+            0 -> stringResource(R.string.storage_tag_safe) to pal.good
+            1 -> stringResource(R.string.storage_tag_unused) to colors.onSurfaceVariant
+            else -> stringResource(if (item == CleanItem.SHADERS) R.string.storage_tag_stutter else R.string.storage_tag_saves) to AttentionAmber
+        },
+        onToggle,
+    )
+}
+
+@Composable
+private fun ToggleRow(title: String, detail: String, bytes: Long, on: Boolean, modifier: Modifier, pill: Pair<String, Color>, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shape = RoundedCornerShape(12.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -535,16 +567,12 @@ private fun CleanRow(item: CleanItem, report: StorageReport, on: Boolean, modifi
         ) { if (on) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                when (tag) {
-                    0 -> Pill(stringResource(R.string.storage_tag_safe), pal.good)
-                    1 -> Pill(stringResource(R.string.storage_tag_unused), colors.onSurfaceVariant)
-                    else -> Pill(stringResource(if (item == CleanItem.SHADERS) R.string.storage_tag_stutter else R.string.storage_tag_saves), AttentionAmber)
-                }
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Pill(pill.first, pill.second)
             }
             Text(detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Text(gb(StorageState.bytes(report, item)), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+        Text(gb(bytes), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
     }
 }
 
@@ -583,6 +611,8 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val narrow = maxWidth < NARROW_ROW
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
@@ -594,13 +624,14 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                     Text(gameName(g), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(
+                            stringResource(R.string.storage_game_parts, gb(g.game), gb(g.data)).takeIf { narrow },
                             g.library.takeIf { !g.internal },
                             if (g.lastPlayed > 0) stringResource(R.string.storage_played, DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(g.lastPlayed * 1000))) else stringResource(R.string.storage_never_played),
                         ).joinToString(" · "),
-                        fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = if (narrow) 2 else 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Column(Modifier.weight(1f)) {
+                if (!narrow) Column(Modifier.weight(1f)) {
                     Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF0A0C0F))) {
                         listOf(g.game to BucketColors.getValue(Bucket.GAMES), g.prefix to BucketColors.getValue(Bucket.GAME_DATA), (g.shaders + g.workshop) to Color(0xFFC5B8FF))
                             .forEach { (v, c) -> if (v > 0) Box(Modifier.weight(v.toFloat() / max).fillMaxHeight().background(c)) }
@@ -614,6 +645,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                 }
                 Text(gb(g.total), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
                 SecondaryButton(stringResource(R.string.storage_uninstall), compact = true, enabled = !sessionRunning) { confirm = g }
+            }
             }
             if (i < games.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         }
@@ -662,7 +694,7 @@ private fun ToolsView(report: StorageReport, sessionRunning: Boolean, onBack: ()
         stringResource(R.string.storage_tools_detail, gb(report.tools.sumOf { it.bytes }), gb(unused.sumOf { it.bytes })), onBack,
     ) {
         if (unused.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_unused, gb(unused.sumOf { it.bytes })), compact = true,
-            enabled = !sessionRunning && !StorageState.cleaning) { confirmAll = true }
+            enabled = !sessionRunning && !StorageState.busy) { confirmAll = true }
     }
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
     SectionTitle(stringResource(R.string.storage_in_use), null)
@@ -731,26 +763,22 @@ private fun toolDetail(t: ToolUsage): String = when (t.reason) {
 private fun ToolList(tools: List<ToolUsage>, sessionRunning: Boolean, onRemove: (ToolUsage) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+    ListCard {
         tools.forEachIndexed { i, t ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(t.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(toolDetail(t), fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                when (t.state) {
-                    ToolState.IN_USE -> Pill(if (t.isDefault) stringResource(R.string.storage_tag_default) else pluralStringResource(R.plurals.storage_tag_games, t.games, t.games), pal.signal)
-                    ToolState.REQUIRED -> Pill(stringResource(R.string.storage_tag_required), colors.onSurfaceVariant)
-                    ToolState.UNUSED -> Pill(stringResource(R.string.storage_tag_not_used), AttentionAmber)
-                }
-                Text(gb(t.bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
-                if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.cleaning) { onRemove(t) }
-                else Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            }
-            if (i < tools.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            ItemRow(
+                t.name, toolDetail(t), t.bytes, i == tools.lastIndex,
+                pill = {
+                    when (t.state) {
+                        ToolState.IN_USE -> Pill(if (t.isDefault) stringResource(R.string.storage_tag_default) else pluralStringResource(R.plurals.storage_tag_games, t.games, t.games), pal.signal)
+                        ToolState.REQUIRED -> Pill(stringResource(R.string.storage_tag_required), colors.onSurfaceVariant)
+                        ToolState.UNUSED -> Pill(stringResource(R.string.storage_tag_not_used), AttentionAmber)
+                    }
+                },
+                action = {
+                    if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.busy) { onRemove(t) }
+                    else Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                },
+            )
         }
     }
 }
@@ -811,22 +839,70 @@ private fun ListCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ItemRow(title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null, action: (@Composable () -> Unit)? = null) {
+private fun ItemRow(
+    title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null,
+    selected: Boolean? = null, onSelect: () -> Unit = {}, selectable: Boolean = true, slot: Boolean = false,
+    stack: Boolean = pill != null, action: (@Composable () -> Unit)? = null,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val tight = maxWidth < NARROW_ROW
+        val narrow = tight && stack
+        val size = @Composable {
+            Text(if (bytes < 0) "…" else gb(bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                modifier = if (narrow) Modifier else Modifier.widthIn(min = 70.dp))
         }
-        pill?.invoke()
-        Text(gb(bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
-        action?.invoke()
+        Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (selected != null) SelectBox(selected, selectable, onSelect) else if (slot) Spacer(Modifier.size(40.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = if (narrow) 2 else 1, overflow = TextOverflow.Ellipsis)
+                    if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = if (tight) 2 else 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (narrow) size() else {
+                    pill?.invoke()
+                    size()
+                    action?.invoke()
+                }
+            }
+            if (narrow) Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                pill?.invoke()
+                action?.invoke()
+            }
+        }
     }
     if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+private fun SelectBox(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = enabled && (src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value)
+    val shape = RoundedCornerShape(6.dp)
+    val edge = when {
+        on || hot -> pal.signal
+        enabled -> colors.onSurfaceVariant
+        else -> colors.onSurfaceVariant.copy(alpha = 0.35f)
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .then(if (enabled) Modifier.hoverable(src)
+                .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Checkbox, onClick = onToggle)
+                .controllerConfirm(onClick = onToggle) else Modifier),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(22.dp).clip(shape).background(if (on) pal.signal else Color.Transparent).border(2.dp, edge, shape),
+        ) { if (on) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+    }
 }
 
 @Composable
@@ -846,22 +922,53 @@ private fun ConfirmDialog(title: String, body: String, confirm: String, danger: 
     )
 }
 
+private class DataTarget(val key: String, val label: String, val prefixes: List<Pair<java.io.File, Long>>, val shaders: List<Pair<java.io.File, Long>>)
+
 @Composable
 private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
     var confirmPrefix by remember { mutableStateOf<com.droiddeck.launcher.storage.GameUsage?>(null) }
-    SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack)
+    var confirmKept by remember { mutableStateOf<KeptPrefix?>(null) }
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    var confirmBulk by remember { mutableStateOf(false) }
+    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
+    val leftovers = report.leftovers.sortedByDescending { it.bytes }
+    val safe = leftovers.filter { it.safe }
+    val unsure = leftovers.filter { !it.safe }
+    val kept = report.kept.filter { it.bytes + it.shaderBytes >= ONE_MB }.sortedByDescending { it.bytes + it.shaderBytes }
+    val safeLabel = pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size)
+    val gameNames = games.associate { gameKey(it) to gameName(it) }
+    val unsureNames = unsure.associate { leftoverKey(it) to leftoverName(it) }
+    val keptNames = kept.associate { it.dir.path to keptName(it) }
+    val targets = buildList {
+        games.forEach { g ->
+            add(DataTarget(gameKey(g), gameNames[gameKey(g)].orEmpty(),
+                listOfNotNull(g.prefixDir?.let { it to g.prefix }), g.shaderDirs.takeIf { g.shaders > 0 }.orEmpty().mapIndexed { i, d -> d to if (i == 0) g.shaders else 0L }))
+        }
+        if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))
+        unsure.forEach { l -> add(DataTarget("left:${leftoverKey(l)}", unsureNames[leftoverKey(l)].orEmpty(), listOfNotNull(l.prefix?.let { it to l.prefixBytes }), listOfNotNull(l.shaders?.let { it to l.bytes - l.prefixBytes }))) }
+        kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }
+            .forEach { k -> add(DataTarget("kept:${k.dir.path}", keptNames[k.dir.path].orEmpty(), listOf(k.dir to k.bytes), listOfNotNull(k.shaders?.let { it to k.shaderBytes }))) }
+    }.associateBy { it.key }
+    val chosen = picked.mapNotNull { targets[it] }
+    fun bytesOf(t: DataTarget, prefixes: Boolean, shaders: Boolean): Long =
+        (if (prefixes) t.prefixes.sumOf { it.second } else 0L) + (if (shaders) t.shaders.sumOf { it.second } else 0L)
+    fun toggle(key: String) { picked = if (key in picked) picked - key else picked + key }
+    SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack) {
+        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_selected, gb(chosen.sumOf { bytesOf(it, true, true) })), compact = true, enabled = !busy) { confirmBulk = true }
+    }
     ActionStatus()
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
-    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
     SectionTitle(stringResource(R.string.storage_data_installed), gb(games.sumOf { it.data }))
     ListCard {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
+            val key = gameKey(g)
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
+                selected = key in picked, selectable = !busy && (g.prefixDir != null || g.shaders > 0), onSelect = { toggle(key) }, stack = true,
                 action = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) }
@@ -871,33 +978,73 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
             )
         }
     }
-    val leftovers = report.leftovers.sortedByDescending { it.bytes }
     if (!report.leftoversChecked) {
         SectionTitle(stringResource(R.string.storage_data_leftovers), null)
         Note(stringResource(R.string.storage_leftovers_unchecked))
     }
     if (leftovers.isNotEmpty()) {
         SectionTitle(stringResource(R.string.storage_data_leftovers), gb(leftovers.sumOf { it.bytes }))
-        val safe = leftovers.filter { it.safe }
         ListCard {
             if (safe.isNotEmpty()) ItemRow(
-                pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size), null, safe.sumOf { it.bytes }, leftovers.none { !it.safe },
+                safeLabel, null, safe.sumOf { it.bytes }, unsure.isEmpty(),
                 pill = { Pill(stringResource(R.string.storage_tag_safe), LocalPalette.current.good) },
+                selected = "safe" in picked, selectable = !busy, onSelect = { toggle("safe") },
                 action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { StorageState.clean(ctx, setOf(CleanItem.LEFTOVERS)) { } } },
             )
-            val unsure = leftovers.filter { !it.safe }
             unsure.forEachIndexed { i, l ->
+                val key = "left:${leftoverKey(l)}"
                 ItemRow(
-                    stringResource(R.string.storage_steam_app, l.appId), stringResource(R.string.storage_leftover_unsure_detail), l.bytes, i == unsure.lastIndex,
+                    leftoverName(l), stringResource(R.string.storage_leftover_unsure_detail), l.bytes, i == unsure.lastIndex,
                     pill = { Pill(stringResource(R.string.storage_tag_saves), AttentionAmber) },
+                    selected = key in picked, selectable = !busy, onSelect = { toggle(key) },
                     action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { confirm = l } },
                 )
             }
         }
     }
-    if (report.otherPrefixes > 0) {
-        SectionTitle(stringResource(R.string.storage_data_other), null)
-        ListCard { ItemRow(stringResource(R.string.storage_data_other_title), stringResource(R.string.storage_data_other_detail), report.otherPrefixes, true) }
+    if (kept.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.storage_data_other), gb(kept.sumOf { it.bytes + it.shaderBytes }))
+        ListCard {
+            kept.forEachIndexed { i, k ->
+                val resettable = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
+                val key = "kept:${k.dir.path}"
+                ItemRow(
+                    keptName(k),
+                    listOfNotNull(when (k.owner) {
+                        PrefixOwner.SHARED -> stringResource(R.string.storage_shared_prefix_detail)
+                        PrefixOwner.LAUNCHER -> if (k.users.isEmpty()) stringResource(R.string.storage_launcher_prefix)
+                            else stringResource(R.string.storage_launcher_used_by, k.users.distinct().joinToString(", "))
+                        PrefixOwner.GAME -> stringResource(R.string.storage_prefix_shaders, gb(k.bytes), gb(k.shaderBytes))
+                        PrefixOwner.UNKNOWN -> stringResource(R.string.storage_unknown_prefix_detail)
+                    }, k.shaderBytes.takeIf { it >= ONE_MB && k.owner != PrefixOwner.GAME }?.let { stringResource(R.string.storage_bulk_shaders) + " " + gb(it).replace(' ', ' ') }).joinToString(" · "),
+                    k.bytes + k.shaderBytes, i == kept.lastIndex,
+                    pill = if (k.owner == PrefixOwner.LAUNCHER) { { Pill(stringResource(R.string.storage_tag_required), MaterialTheme.colorScheme.onSurfaceVariant) } } else null,
+                    selected = if (resettable) key in picked else null, slot = true, selectable = !busy, onSelect = { toggle(key) },
+                    action = if (resettable) {
+                        { SecondaryButton(stringResource(R.string.storage_reset_prefix), compact = true, enabled = !busy) { confirmKept = k } }
+                    } else null,
+                )
+            }
+        }
+    }
+    if (confirmBulk) BulkRemoveDialog(
+        chosen,
+        hasPrefixes = chosen.any { it.prefixes.isNotEmpty() }, hasShaders = chosen.any { it.shaders.isNotEmpty() },
+        bytesOf = ::bytesOf,
+        onConfirm = { prefixes, shaders ->
+            StorageState.removeDirs(ctx, chosen.flatMap { (if (prefixes) it.prefixes.map { p -> p.first } else emptyList()) + (if (shaders) it.shaders.map { c -> c.first } else emptyList()) })
+            picked = emptySet()
+        },
+        onDismiss = { confirmBulk = false },
+    )
+    confirmKept?.let { k ->
+        ConfirmDialog(
+            stringResource(R.string.storage_reset_prefix_title, keptName(k)),
+            if (k.owner == PrefixOwner.SHARED) stringResource(R.string.storage_reset_shared_confirm, gb(k.bytes))
+            else stringResource(R.string.storage_reset_prefix_confirm, gb(k.bytes), k.library),
+            stringResource(R.string.storage_reset_prefix),
+            onConfirm = { StorageState.resetKept(ctx, k) }, onDismiss = { confirmKept = null },
+        )
     }
     confirmPrefix?.let { g ->
         ConfirmDialog(
@@ -908,9 +1055,115 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     }
     confirm?.let { l ->
         ConfirmDialog(
-            stringResource(R.string.storage_remove_title, stringResource(R.string.storage_steam_app, l.appId)),
+            stringResource(R.string.storage_remove_title, leftoverName(l)),
             stringResource(R.string.storage_leftover_confirm, gb(l.bytes)), stringResource(R.string.storage_remove),
             onConfirm = { StorageState.removeLeftover(ctx, l) }, onDismiss = { confirm = null },
+        )
+    }
+}
+
+@Composable
+private fun BulkRemoveDialog(
+    chosen: List<DataTarget>, hasPrefixes: Boolean, hasShaders: Boolean, bytesOf: (DataTarget, Boolean, Boolean) -> Long,
+    onConfirm: (prefixes: Boolean, shaders: Boolean) -> Unit, onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var prefixes by remember { mutableStateOf(hasPrefixes) }
+    var shaders by remember { mutableStateOf(hasShaders) }
+    val total = chosen.sumOf { bytesOf(it, prefixes, shaders) }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    AlertDialog(
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth(0.62f).widthIn(min = 420.dp, max = 760.dp),
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.storage_remove_selected, gb(total))) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(chosen.joinToString("\n") { "• " + it.label }, fontSize = 14.sp, color = colors.onBackground)
+                Spacer(Modifier.height(4.dp))
+                if (hasPrefixes) ToggleRow(
+                    stringResource(R.string.storage_bulk_prefixes), stringResource(R.string.storage_bulk_prefixes_detail),
+                    chosen.sumOf { bytesOf(it, true, false) }, prefixes, Modifier.focusRequester(first),
+                    stringResource(R.string.storage_tag_saves) to AttentionAmber,
+                ) { prefixes = !prefixes }
+                if (hasShaders) ToggleRow(
+                    stringResource(R.string.storage_bulk_shaders), stringResource(R.string.storage_item_shaders_detail),
+                    chosen.sumOf { bytesOf(it, false, true) }, shaders, if (hasPrefixes) Modifier else Modifier.focusRequester(first),
+                    stringResource(R.string.storage_tag_stutter) to AttentionAmber,
+                ) { shaders = !shaders }
+            }
+        },
+        confirmButton = {
+            if (prefixes || shaders) FocusText(stringResource(R.string.storage_remove), colors.error) { onDismiss(); onConfirm(prefixes, shaders) }
+        },
+        dismissButton = { FocusText(stringResource(R.string.common_cancel), colors.onBackground, onClick = onDismiss) },
+    )
+}
+
+private fun gameKey(g: com.droiddeck.launcher.storage.GameUsage) = "game:${g.x64}:${g.appId}:${g.prefixDir?.path}"
+
+private fun leftoverKey(l: com.droiddeck.launcher.storage.Leftover) = l.prefix?.path ?: l.shaders?.path ?: l.appId.toString()
+
+@Composable
+private fun keptName(k: KeptPrefix): String {
+    val name = when (k.owner) {
+        PrefixOwner.SHARED -> stringResource(R.string.storage_shared_prefix)
+        PrefixOwner.GAME -> k.name ?: stringResource(R.string.storage_data_other_title)
+        else -> k.name ?: k.dir.name
+    }
+    return if (k.x64) stringResource(R.string.storage_game_x64, name) else name
+}
+
+@Composable
+private fun leftoverName(l: com.droiddeck.launcher.storage.Leftover): String = when {
+    l.name != null -> l.name
+    l.shortcut -> stringResource(R.string.storage_shortcut_app, l.appId.toString())
+    else -> stringResource(R.string.storage_steam_app, l.appId)
+}
+
+@Composable
+private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val uninstalling = com.droiddeck.launcher.stores.StoresState.uninstalling
+    val busy = sessionRunning || StorageState.busy || uninstalling.isNotEmpty()
+    var confirm by remember { mutableStateOf<List<StoreGameUsage>>(emptyList()) }
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    val games = report.storeGames
+    val chosen = games.filter { it.game.folder.path in picked && !com.droiddeck.launcher.stores.download.DownloadQueue.isActive(it.game.key) }
+    SubHeader(stringResource(R.string.storage_stores),
+        pluralStringResource(R.plurals.storage_games_installed, games.size, games.size) + " · " + gb(games.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) }), onBack) {
+        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_uninstall_selected, gb(chosen.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) })), compact = true, enabled = !busy) { confirm = chosen }
+    }
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    ListCard {
+        if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+        games.forEachIndexed { i, g ->
+            val removing = g.game.key in uninstalling
+            val downloading = com.droiddeck.launcher.stores.download.DownloadQueue.isActive(g.game.key)
+            val key = g.game.folder.path
+            ItemRow(
+                g.game.sidecar.title,
+                if (g.internal) g.game.sidecar.store.label else g.game.sidecar.store.label + " · " + stringResource(R.string.fm_drive_sd),
+                StorageState.storeBytes(g), i == games.lastIndex,
+                selected = key in picked && !downloading, selectable = !busy && !downloading, onSelect = { picked = if (key in picked) picked - key else picked + key },
+                action = {
+                    SecondaryButton(stringResource(if (removing) R.string.stores_uninstalling else R.string.storage_uninstall), compact = true,
+                        enabled = !busy && !downloading) { confirm = listOf(g) }
+                },
+            )
+        }
+    }
+    if (confirm.isNotEmpty()) {
+        val list = confirm
+        val total = gb(list.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) })
+        ConfirmDialog(
+            if (list.size == 1) stringResource(R.string.stores_uninstall_title, list[0].game.sidecar.title) else stringResource(R.string.storage_uninstall_selected, total),
+            (if (list.size == 1) "" else list.joinToString("\n") { "• " + it.game.sidecar.title } + "\n\n") + stringResource(R.string.stores_uninstall_body_size, total),
+            stringResource(R.string.storage_uninstall),
+            onConfirm = { StorageState.uninstallStoreGames(ctx, list); picked = emptySet() }, onDismiss = { confirm = emptyList() },
         )
     }
 }
@@ -920,7 +1173,7 @@ internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBa
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<ComponentUsage?>(null) }
     var confirmAll by remember { mutableStateOf(false) }
     val unused = report.unusedComponents
@@ -978,7 +1231,7 @@ internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBa
 @Composable
 private fun DesktopView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.FlatpakUsage?>(null) }
     var confirmPrune by remember { mutableStateOf(false) }
     SubHeader(stringResource(R.string.storage_desktop), stringResource(R.string.storage_desktop_detail, gb(report.flatpak)), onBack) {

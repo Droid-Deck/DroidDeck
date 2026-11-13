@@ -131,6 +131,17 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".DeviceCodeActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.devicecode"
+            android:excludeFromRecents="true"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".PairingGuideActivity"
             android:exported="false"
             android:launchMode="singleTask"

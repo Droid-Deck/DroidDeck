@@ -191,6 +191,14 @@ object AgentSetup {
         for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
         val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
         for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+        unpinAdbSerial(File(root, "root/.bashrc"))
+    }
+
+    /** Older tools/agent/setup pinned the adb port in .bashrc, which overrides the live port DroidDeck passes. */
+    internal fun unpinAdbSerial(bashrc: File) {
+        val text = runCatching { bashrc.readText() }.getOrNull() ?: return
+        val fixed = text.replace("ADB_SERIAL=127.0.0.1:5555 ", "ADB_SERIAL=\"\${ADB_SERIAL:-127.0.0.1:5555}\" ")
+        if (fixed != text) runCatching { bashrc.writeText(fixed) }
     }
 
     private fun copyAsset(app: Context, asset: String, target: File) {

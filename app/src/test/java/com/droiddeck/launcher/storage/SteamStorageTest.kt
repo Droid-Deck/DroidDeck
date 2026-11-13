@@ -181,6 +181,37 @@ class SteamStorageTest {
         assertEquals(452280, SteamStorage.leftoverId("452280"))
     }
 
+    @Test fun shortcutIdsReadBothSignedAndUnsignedFolderNames() {
+        assertEquals(3207321049L, SteamStorage.shortcutId("3207321049"))
+        assertEquals(2526420341L, SteamStorage.shortcutId("-1768546955"))
+        assertNull(SteamStorage.shortcutId("0"))
+        assertNull(SteamStorage.shortcutId("452280"))
+        assertNull(SteamStorage.shortcutId("pfx"))
+        assertNull(SteamStorage.shortcutId("4294967296"))
+    }
+
+    @Test fun sharedPrefixComesFromTheCompatDataPathInLaunchOptions() {
+        assertEquals(2929927072L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=/root/.local/share/Steam/steamapps/compatdata/2929927072 %command%"))
+        assertEquals(2596113170L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=/x/compatdata/2596113170/ %command% --exec=\"launch WoW\""))
+        assertNull(SteamStorage.sharedPrefixId("%command% -windowed"))
+        assertNull(SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=/x/compatdata/0 %command%"))
+        assertEquals(3000000002L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=\"/root/My Games/steamapps/compatdata/3000000002\" %command%"))
+        assertEquals(3000000002L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH='/x/compatdata/3000000002/' %command%"))
+    }
+
+    @Test fun gameFolderHintReadsTheFolderWineRecorded() {
+        val prefix = tmp.newFolder("compatdata", "3000000002")
+        File(prefix, "pfx").mkdirs()
+        File(prefix, "pfx/system.reg").writeText(
+            "\"Path\"=\"Z:\\\\usr\\\\local\\\\share\\\\fonts\\\\a.ttf\"\n" +
+                "\"A\"=\"Z:\\\\root\\\\Games\\\\Stores\\\\Ubisoft\\\\Tom Clancy's Splinter Cell\\\\\"\n" +
+                "\"B\"=\"Z:\\\\root\\\\Games\\\\Stores\\\\Ubisoft\\\\Tom Clancy's Splinter Cell\\\\system\\\\x.exe\"\n",
+        )
+        File(prefix, "pfx/user.reg").writeText("\"C\"=\"Z:\\\\mnt\\\\droiddeck-lib\\\\1\\\\steamapps\\\\common\\\\198X\\\\198X.exe\"\n")
+        assertEquals("Tom Clancy's Splinter Cell", SteamStorage.gameFolderHint(prefix))
+        assertNull(SteamStorage.gameFolderHint(tmp.newFolder("compatdata", "3000000003")))
+    }
+
     @Test fun stubPrefixes() {
         val stub = tmp.newFolder("compatdata", "10")
         assertTrue(SteamStorage.isStubPrefix(stub))
