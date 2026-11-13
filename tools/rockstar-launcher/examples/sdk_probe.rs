@@ -8,20 +8,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         let name = std::str::from_utf8(&path[9..path.len() - 1])?;
         let mut pipe = Pipe::connect(name, std::time::Duration::from_secs(10))?;
-        let request = b"INIT:fixture:42:";
+        let request = b"INIT:42:";
         if framed {
             let mut bytes = (request.len() as u32).to_le_bytes().to_vec();
             bytes.extend_from_slice(request);
             pipe.write_all(&bytes)?;
             let response = Frame::read(&mut pipe, Length::Body)?;
-            if response.tag != *b"TINI" || response.payload != b"launcher:fixture:42:" {
+            if response.tag != *b"TINI" || response.payload != b"launcher:42:" {
                 return Err("invalid framed launcher identity reply".into());
             }
         } else {
-            pipe.write_all(request)?;
-            let mut response = vec![0; b"TINI:launcher:fixture:42:".len()];
+            pipe.write_all(b"INIT:4")?;
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            pipe.write_all(b"2:")?;
+            let mut response = vec![0; b"TINI:launcher:42:".len()];
             pipe.read_exact(&mut response)?;
-            if response != b"TINI:launcher:fixture:42:" {
+            if response != b"TINI:launcher:42:" {
                 return Err("invalid raw launcher identity reply".into());
             }
         }

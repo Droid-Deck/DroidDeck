@@ -175,6 +175,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
                 let reply = droiddeck_rockstar_launcher::identity::exchange(&mut pipe)?;
                 pipe.write_all(&reply)?;
                 log("launcher identity challenge complete");
+                pipe = pipe.with_timeout(Duration::from_secs(86400));
+                let mut progress = [0; 4096];
+                while matches!(pipe.read(&mut progress), Ok(size) if size > 0) {}
                 Ok(())
             };
             if let Err(error) = serve() {

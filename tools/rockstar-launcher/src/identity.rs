@@ -78,10 +78,23 @@ pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
         reader.read_exact(&mut bytes)?;
         bytes
     } else {
-        let mut rest = [0; LIMIT];
-        let size = reader.read(&mut rest)?;
         let mut bytes = header.to_vec();
-        bytes.extend_from_slice(&rest[..size]);
+        let mut byte = [0];
+        reader.read_exact(&mut byte)?;
+        if byte[0] != b':' {
+            return Err(invalid());
+        }
+        bytes.push(b':');
+        loop {
+            reader.read_exact(&mut byte)?;
+            if !(32..127).contains(&byte[0]) || bytes.len() >= 261 {
+                return Err(invalid());
+            }
+            bytes.push(byte[0]);
+            if byte[0] == b':' {
+                break;
+            }
+        }
         bytes
     };
     if request.last() == Some(&0) {
@@ -89,6 +102,7 @@ pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
     }
     let challenge = request.strip_prefix(b"INIT:").ok_or_else(invalid)?;
     if challenge.is_empty()
+        || !framed && challenge == b":"
         || challenge.len() > 256
         || !challenge.iter().all(|byte| (32..127).contains(byte))
     {
@@ -128,9 +142,16 @@ mod tests {
 
     #[test]
     fn identity_replies_echo_only_a_valid_challenge() {
+        struct Split<R>(R);
+        impl<R: Read> Read for Split<R> {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                let size = buffer.len().min(2);
+                self.0.read(&mut buffer[..size])
+            }
+        }
         assert_eq!(
-            exchange(&mut Cursor::new(b"INIT:nonce:123:\0")).unwrap(),
-            b"TINI:launcher:nonce:123:"
+            exchange(&mut Split(Cursor::new(b"INIT:123456789:\0"))).unwrap(),
+            b"TINI:launcher:123456789:"
         );
         let request = b"INIT:nonce:123:";
         let mut bytes = (request.len() as u32).to_le_bytes().to_vec();
@@ -143,6 +164,7 @@ mod tests {
         assert_eq!(&reply[4..], b"TINI:launcher:nonce:123:");
         assert!(exchange(&mut Cursor::new(b"INIT:")).is_err());
         assert!(exchange(&mut Cursor::new(b"INIT:a\0b")).is_err());
+        assert!(exchange(&mut Cursor::new(b"INIT:unterminated")).is_err());
         assert!(exchange(&mut Cursor::new([255; 4])).is_err());
     }
 }
