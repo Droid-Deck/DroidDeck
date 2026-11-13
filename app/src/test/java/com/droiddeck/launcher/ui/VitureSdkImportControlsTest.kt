@@ -10,6 +10,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.glasses.GlassesState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,13 +24,19 @@ import org.robolectric.annotation.Config
 class VitureSdkImportControlsTest {
     @get:Rule val compose = createRobolectricComposeRule()
 
+    @Before fun controlAnimationFrames() {
+        compose.mainClock.autoAdvance = false
+    }
+
     @Test fun importOpensAndroidDocumentPickerAndRemainsAvailableAcrossTabs() {
         val displayTab = mutableStateOf(false)
         compose.setContent {
             Column { VitureSdkImportControls(GlassesState(vitureDetected = true), visible = displayTab.value) }
         }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.runOnIdle { displayTab.value = true }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").performClick()
         val intent = shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity
         assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
@@ -44,14 +51,18 @@ class VitureSdkImportControlsTest {
         compose.setContent {
             Column { VitureSdkImportRow(detected.value, available.value, false, onGetSdk = {}) { imports++ } }
         }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.runOnIdle { detected.value = true }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").performClick()
         assertEquals(1, imports)
         compose.runOnIdle { available.value = true }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.onNodeWithText(text(R.string.viture_sdk_ready)).assertExists()
         compose.runOnIdle { detected.value = false }
+        compose.renderPendingChanges()
         compose.onNodeWithText(text(R.string.viture_sdk_ready)).assertDoesNotExist()
     }
 
@@ -60,10 +71,12 @@ class VitureSdkImportControlsTest {
         compose.setContent {
             Column { VitureSdkImportRow(true, false, true, installing.value, onGetSdk = {}) {} }
         }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
         compose.onNodeWithTag("viture-sdk-progress").assertExists()
         compose.onNodeWithText(text(R.string.viture_sdk_checking)).assertExists()
         compose.runOnIdle { installing.value = true }
+        compose.renderPendingChanges()
         compose.onNodeWithText(text(R.string.viture_sdk_installing)).assertExists()
         compose.onNodeWithTag("viture-sdk-import").assertDoesNotExist()
     }
@@ -77,13 +90,17 @@ class VitureSdkImportControlsTest {
                 onDismiss = { cancellations++; shown.value = false },
                 onConfirm = { installs++; shown.value = false })
         }
+        compose.renderPendingChanges()
         compose.onNodeWithText(text(R.string.viture_sdk_confirm_trust)).assertExists()
         assertEquals(0, installs)
         compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.renderPendingChanges()
         assertEquals(1, cancellations)
         assertEquals(0, installs)
         compose.runOnIdle { shown.value = true }
+        compose.renderPendingChanges()
         compose.onNodeWithTag("viture-sdk-confirm").performClick()
+        compose.renderPendingChanges()
         assertEquals(1, installs)
     }
 
