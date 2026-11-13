@@ -9,9 +9,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.ConscryptMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
+@ConscryptMode(ConscryptMode.Mode.OFF)
 class SteamCollectionTest {
     @Test fun matchingAccountsCollectionCanBeReadOffline() {
         val snapshot = JSONObject("""{"account":"76561197960265851","games":[{"id":620,"name":"Portal 2"}]}""")
