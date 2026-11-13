@@ -83,7 +83,7 @@ object AgentSetup {
             Step.CONNECTION -> return
             Step.INSTALL -> {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "dpkg --configure -a; apt-get update; apt-get -f install -y; " +
+                    "dpkg --configure -a; apt-get update || echo 'Some package sources could not be refreshed; continuing'; apt-get -f install -y; " +
                     "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
