@@ -13,6 +13,8 @@ import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 import java.io.File
 
+private const val SCREEN_EFFECTS_PROFILE_UPSCALER_KEY = "upscaler"
+
 object SessionPrefs {
     data class GameTextureFiltering(val anisotropy: Int? = null, val lodBias: String? = null)
 
@@ -1485,7 +1487,44 @@ object SessionPrefs {
         val profiles = runCatching {
             JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
         }.getOrDefault(JSONObject())
-        profiles.put(profileId, effects.encode())
+        val encoded = effects.encode()
+        profiles.optJSONObject(profileId)?.let { savedProfile ->
+            if (savedProfile.has(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY)) {
+                encoded.put(
+                    SCREEN_EFFECTS_PROFILE_UPSCALER_KEY,
+                    savedProfile.optInt(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY),
+                )
+            }
+        }
+        profiles.put(profileId, encoded)
+        sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
+    }
+
+    fun screenEffectsUpscaler(context: Context, profileId: String?): Int {
+        if (profileId.isNullOrBlank()) return upscaler(context)
+        val stored = runCatching {
+            val profiles = JSONObject(prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+            val profile = profiles.optJSONObject(profileId)
+            if (profile?.has(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY) == true) {
+                profile.optInt(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY, -1)
+            } else -1
+        }.getOrDefault(-1)
+        return if (stored >= 0) canonicalUpscaler(stored) else upscaler(context)
+    }
+
+    fun setScreenEffectsUpscaler(context: Context, profileId: String?, mode: Int) {
+        if (profileId.isNullOrBlank()) {
+            setUpscaler(context, mode)
+            return
+        }
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrDefault(JSONObject())
+        val profile = profiles.optJSONObject(profileId)
+            ?: screenEffects(context, profileId).encode()
+        profile.put(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY, canonicalUpscaler(mode))
+        profiles.put(profileId, profile)
         sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
     }
 

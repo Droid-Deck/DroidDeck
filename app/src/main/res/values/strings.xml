@@ -767,7 +767,7 @@
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="screen_effects_target">Edit profile</string>
     <string name="screen_effects_target_hint">Choose which profile to change screen effects for.</string>
-    <string name="screen_effects_target_auto">Current game (automatic)</string>
+    <string name="screen_effects_target_auto">Current session (automatic)</string>
     <string name="screen_effects_reset">Reset effects</string>
     <string name="screen_effects_reset_hint">Restore the default-off effect values for this profile.</string>
     <string name="screen_effects_delete">Delete saved override</string>

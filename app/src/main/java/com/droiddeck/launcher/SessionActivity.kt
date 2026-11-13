@@ -1372,6 +1372,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 WaylandCompositor.nativeSetUpscaler(m)
                 WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
             },
+            onPresetUpscaler = { m ->
+                val target = effectsEditorTarget ?: screenEffectsTarget
+                val profileId = screenEffectsProfileIdForTarget(target)
+                SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
+                if (target == screenEffectsTarget && screenEffectsTargetAppliesToLiveOutput(target)) {
+                    upscaler = m
+                    WaylandCompositor.nativeSetUpscaler(m)
+                    WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
+                }
+            },
             onUpscaleSharpness = { pct ->
                 SessionPrefs.setUpscaleSharpness(this@SessionActivity, pct); upscaleSharpness = pct
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
@@ -1407,11 +1417,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onScreenEffectsTarget = ::selectScreenEffectsTarget,
             onScreenEffectsReset = {
                 val target = effectsEditorTarget ?: screenEffectsTarget
-                if (target == screenEffectsTarget) resetScreenEffectsTarget(target)
+                val profileStillMatches = target != SCREEN_EFFECTS_TARGET_AUTO ||
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId
+                if (target == screenEffectsTarget && profileStillMatches) {
+                    resetScreenEffectsTarget(target)
+                }
             },
             onScreenEffectsDelete = {
                 val target = effectsEditorTarget ?: screenEffectsTarget
-                if (target == screenEffectsTarget) deleteScreenEffectsTarget(target)
+                val profileStillMatches = target != SCREEN_EFFECTS_TARGET_AUTO ||
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId
+                if (target == screenEffectsTarget && profileStillMatches) {
+                    deleteScreenEffectsTarget(target)
+                }
             },
             onScreenEffectsProfilesRefresh = {
                 drawerGameInventoryRevision++
@@ -2042,8 +2060,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val profileId = SessionPrefs.activeScreenEffectsProfileId(this)
         observedScreenEffectsProfileId = profileId
         val activeEffects = SessionPrefs.screenEffects(this, profileId)
-        if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) effects = activeEffects
-        activeEffects.push(upscaler)
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, profileId)
+        if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
+            effects = activeEffects
+            upscaler = activeUpscaler
+            WaylandCompositor.nativeSetUpscaler(activeUpscaler)
+            WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(activeEffects, activeUpscaler)?.name)
+        }
+        activeEffects.push(activeUpscaler)
     }
 
     private fun screenEffectsProfileIdForTarget(target: String): String? = when (target) {
@@ -2053,16 +2077,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun screenEffectsTargetOptions(): List<Pair<String, String>> {
-        val installed = drawerGameProfileRefresh.data?.profiles.orEmpty().associate { it.first.toString() to it.second }
+        val installed = drawerGameProfileRefresh.data?.profiles.orEmpty()
+            .associate { it.first.toULong().toString() to it.second }
         val ids = linkedSetOf<String>()
         ids.addAll(installed.keys)
         SessionPrefs.screenEffectsProfileIds(this).forEach { saved ->
             if (saved.startsWith("game:")) {
-                saved.removePrefix("game:").toLongOrNull()?.let { ids.add(it.toString()) }
+                saved.removePrefix("game:").toULongOrNull()?.let { ids.add(it.toString()) }
             }
         }
         currentScreenEffectsProfileId()?.takeIf { it.startsWith("game:") }
-            ?.removePrefix("game:")?.toLongOrNull()?.let { ids.add(it.toString()) }
+            ?.removePrefix("game:")?.toULongOrNull()?.let { ids.add(it.toString()) }
 
         return buildList {
             add(SCREEN_EFFECTS_TARGET_AUTO to getString(R.string.screen_effects_target_auto))
@@ -2087,8 +2112,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             syncActiveScreenEffectsProfile()
             return
         }
-        effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(target))
-        if (screenEffectsTargetAppliesToLiveOutput(target)) effects.push(upscaler)
+        val profileId = screenEffectsProfileIdForTarget(target)
+        val targetEffects = SessionPrefs.screenEffects(this, profileId)
+        val targetUpscaler = SessionPrefs.screenEffectsUpscaler(this, profileId)
+        effects = targetEffects
+        upscaler = targetUpscaler
+        if (screenEffectsTargetAppliesToLiveOutput(target)) {
+            WaylandCompositor.nativeSetUpscaler(targetUpscaler)
+            WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(targetEffects, targetUpscaler)?.name)
+            targetEffects.push(targetUpscaler)
+        }
     }
 
     private fun selectScreenEffectsTarget(target: String) {
@@ -2226,7 +2259,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
-        upscaler = SessionPrefs.upscaler(this)
+        upscaler = SessionPrefs.screenEffectsUpscaler(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         applyCardboard(SessionPrefs.cardboard(this))
@@ -5203,8 +5236,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
-        effects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
-        if (CompositorHost.isStarted) effects.push(upscaler)
+        val activeEffects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
+        if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
+            effects = activeEffects
+        } else {
+            effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
+        }
+        if (CompositorHost.isStarted) activeEffects.push(upscaler)
         refreshInputProfile()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()

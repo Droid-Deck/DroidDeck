@@ -305,6 +305,7 @@ class DrawerActions(
     val onDirectHoldBehavior: (String) -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
+    val onPresetUpscaler: (Int) -> Unit = onUpscaler,
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
     val onScreenEffectsTarget: (String) -> Unit = {},
@@ -1097,7 +1098,7 @@ private fun ScreenEffectsGroup(
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
             preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
-                picked.scalingMode?.let(a.onUpscaler)
+                picked.scalingMode?.let(a.onPresetUpscaler)
                 a.onEffects(picked.effects)
             }
         }
