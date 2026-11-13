@@ -343,7 +343,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         releaseChecking = true
         autoStatus = activity.getString(R.string.drivers_checking_latest)
         Thread({
-            val problem = if (force || releasesStale()) runCatching { TurnipReleases.refresh(activity) }.exceptionOrNull()?.message else null
+            val failure = if (force || releasesStale()) runCatching { TurnipReleases.refresh(activity) }.exceptionOrNull() else null
+            val problem = failure?.message
+            val checkFailed = failure != null
             val holdBack = !force && com.droiddeck.launcher.frontend.AutoComponents.constrained(activity)
             runCatching { com.droiddeck.launcher.gpu.VulkanInfo.query() }
             ui.post {
@@ -359,7 +361,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     row?.active == true -> autoStatus = problem?.let { activity.getString(R.string.drivers_up_to_date_check_failed, it) }
                         ?: activity.getString(R.string.upd_current_status)
                     gpu.family == GpuInfo.Family.POWERVR && (pair == null || !pair.complete) &&
-                        (problem != null || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
+                        (checkFailed || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
                         SessionPrefs.ensurePowerVrAutoDrivers(activity)
                         autoStatus = activity.getString(R.string.upd_couldnt_check, problem ?: TurnipReleases.NON_ADRENO_LABEL)
                         refreshDrivers()
@@ -370,7 +372,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                         refreshDrivers()
                     }
                     gpu.family.mali && (pair == null || !pair.complete) &&
-                        (problem != null || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
+                        (checkFailed || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
                         // The list could not be read: nothing is known to be missing, so a working route stays.
                         // With no open driver, Venus or bridge the session would run the runtime's Turnip,
                         // which finds no GPU on a Mali, so the stand-in goes on anyway.
