@@ -950,6 +950,22 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
+        gpu = MODULE["game_gpu"]
+        session = {"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "KEEP": "1"}
+        self.assertEqual(gpu(session), {"KEEP": "1"})
+        self.assertEqual(gpu(session, True), {"MESA_NO_ERROR": "1", "KEEP": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        both = gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})
+        self.assertEqual(both, {"TU_DEBUG": "nolrz"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "MESA_NO_ERROR": "1"}),
+                         {"MESA_NO_ERROR": "1"})
+        config = {"version": 1, "games": {"42": {"MESA_NO_ERROR": "1"}}}
+        env = gpu(session)
+        self.assertEqual(MODULE["apply_config"](env, config, "42")["MESA_NO_ERROR"], "1")
+        self.assertNotIn("MESA_NO_ERROR", MODULE["apply_config"](env, config, "43"))
+
     def test_a_chromium_app_keeps_the_sessions_turnip_debug(self):
         gpu = MODULE["game_gpu"]
         self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}, True),
