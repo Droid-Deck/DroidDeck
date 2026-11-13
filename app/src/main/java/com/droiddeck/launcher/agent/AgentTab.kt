@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.SessionPrefs
 
 object AgentTab {
-    var shown by mutableStateOf(true)
+    var shown by mutableStateOf(false)
         private set
 
     val visible: Boolean get() = shown && AgentHost.available

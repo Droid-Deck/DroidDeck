@@ -25,6 +25,12 @@ class HomeActivity : Activity() {
         } else {
             Intent(this, FrontEndActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .apply {
+                    val page = com.droiddeck.launcher.core.AppUiPrefs.homePage(this@HomeActivity)
+                    if (page != com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM) {
+                        putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, page)
+                    }
+                }
         }
         startActivity(destination)
         finish()

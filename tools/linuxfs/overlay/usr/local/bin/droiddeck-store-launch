@@ -286,6 +286,12 @@ def cloud_on(sidecar):
 def exited(argv, code=0):
     found = find_store_game(argv)
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if found is not None and launch_dir and str(found[1].get("store")) == "rockstar":
+        ask(Path(launch_dir) / "stores", {"op": "rockstar-exited", "store": "rockstar", "id": str(found[1].get("id"))}, timeout=1.0)
+        compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH")
+        if compat_data:
+            (Path(compat_data) / "pfx" / ROCKSTAR_FOLDER / "launch.json").unlink(missing_ok=True)
+        return 0
     if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
             and os.access(EPIC_CLIENT, os.X_OK):
         try:
@@ -307,6 +313,104 @@ def exited(argv, code=0):
 UBISOFT_DIR = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
 UBISOFT_WINDOWS_DIR = "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\"
 UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe"
+ROCKSTAR_SERVICE = Path("/usr/local/lib/droiddeck-rockstar")
+ROCKSTAR_FOLDER = "drive_c/Program Files/Rockstar Games/Launcher"
+ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas"}
+
+
+def rockstar_registry(folder, title, compat_data, proton):
+    pfx = Path(compat_data) / "pfx"
+    launcher = r"C:\Program Files\Rockstar Games\Launcher"
+    values = [(r"Rockstar Games\Launcher", launcher), ("Rockstar Games\\" + title, windows_path(str(folder)))]
+    entries = [("Software\\" + view + key, value) for view in ("", "Wow6432Node\\") for key, value in values]
+    reg = pfx / "system.reg"
+    if all(has_value(reg, "[" + key.replace("\\", "\\\\") + "]", "InstallFolder", value) for key, value in entries):
+        return True
+    if wait_for_server(pfx, 2):
+        return all(set_value(reg, "[" + key.replace("\\", "\\\\") + "]", "InstallFolder", value) for key, value in entries)
+    with tempfile.TemporaryDirectory(prefix="droiddeck-rockstar-") as temp:
+        path = Path(temp) / "install.reg"
+        text = "Windows Registry Editor Version 5.00\r\n\r\n"
+        text += "\r\n".join('[HKEY_LOCAL_MACHINE\\%s]\r\n"InstallFolder"="%s"\r\n' % (key, reg_escape(value)) for key, value in entries)
+        path.write_text(text, encoding="utf-16")
+        result = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(path))],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=45)
+        return result.returncode == 0
+
+
+def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_app=None):
+    if not compat_data:
+        return "no-prefix"
+    target = Path(compat_data) / "pfx" / ROCKSTAR_FOLDER
+    config = target / "launch.json"
+    config.unlink(missing_ok=True)
+    title = ROCKSTAR_TITLES.get(str(sidecar.get("id")))
+    if not title:
+        return "unsupported-title"
+    if not launch_dir:
+        return "no-channel"
+    root = folder.resolve()
+    exe = (folder / str(sidecar.get("exe") or "").replace("\\", "/")).resolve()
+    if not exe.is_relative_to(root):
+        return "invalid-game-path"
+    workdir = (folder / str(sidecar["workdir"])).resolve() if sidecar.get("workdir") is not None else exe.parent
+    if not workdir.is_relative_to(root) or not exe.is_file() or not (folder / "MTLX.dll").is_file():
+        return "invalid-game-path"
+    args = sidecar.get("args") or []
+    if not isinstance(args, list) or any(not isinstance(arg, str) or "\0" in arg for arg in args):
+        return "invalid-game-arguments"
+    with exe.open("rb") as source:
+        if source.read(2) != b"MZ":
+            return "invalid-game-exe"
+        source.seek(0x3c)
+        raw = source.read(4)
+        if len(raw) != 4:
+            return "invalid-game-exe"
+        source.seek(int.from_bytes(raw, "little"))
+        signature = source.read(6)
+        if len(signature) != 6 or signature[:4] != b"PE\0\0" or signature[4:] not in (b"\x4c\x01", b"\x64\x86"):
+            return "invalid-game-exe"
+    service = ROCKSTAR_SERVICE / ("Launcher32.exe" if signature[4:] == b"\x4c\x01" else "Launcher64.exe")
+    if not service.is_file():
+        return "no-service"
+    made = "present" if (Path(compat_data) / "pfx/user.reg").is_file() else create_prefix(compat_data, proton)
+    if made not in ("created", "present"):
+        return "prefix-" + made
+    if not rockstar_registry(folder, title, compat_data, proton):
+        return "registry-unavailable"
+    target.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(prefix="Launcher-", suffix=".exe", dir=target, delete=False) as temporary:
+        temporary_path = Path(temporary.name)
+        try:
+            with service.open("rb") as source:
+                shutil.copyfileobj(source, temporary)
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
+    os.replace(temporary_path, target / "Launcher.exe")
+    answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "rockstar-launch", "store": "rockstar", "id": str(sidecar.get("id"))}, timeout=120.0)
+    if not isinstance(answer, dict) or not answer.get("ok"):
+        return "session-" + (str(answer.get("reason") or "refused") if isinstance(answer, dict) else "timeout")
+    if not isinstance(answer.get("material"), str) or not re.fullmatch(r"[0-9A-Fa-f]{640}", answer["material"]):
+        return "invalid-material"
+    expires = answer.get("expiresAt")
+    if not isinstance(expires, int) or not time.time() * 1000 < expires <= time.time() * 1000 + 120_000:
+        return "invalid-expiry"
+    launch = {"folder": windows_path(str(root)), "exe": windows_path(str(exe)), "workdir": windows_path(str(workdir)),
+              "args": args, "pipe": answer.get("pipe"), "material": answer["material"], "expiresAt": expires}
+    if len(json.dumps(launch).encode("utf-8")) > 16384:
+        return "handoff-too-large"
+    with tempfile.NamedTemporaryFile(mode="w", prefix="launch-", suffix=".json", dir=target, delete=False) as temporary:
+        temporary_path = Path(temporary.name)
+        try:
+            json.dump(launch, temporary)
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
+    os.replace(temporary_path, config)
+    return "ready"
+
+
 UBISOFT_CACHE = Path("/root/.cache/droiddeck/ubisoft")
 UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
 UBISOFT_SERVICE = Path("/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe")
@@ -1341,6 +1445,15 @@ def main(argv):
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
         log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+    if store == "rockstar":
+        try:
+            state = prepare_rockstar(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            state = "preparation-failed"
+        log("rockstar %s: %s" % (game, state))
+        if state != "ready" and launch_dir:
+            ask(Path(launch_dir) / "stores", {"op": "rockstar-exited", "store": "rockstar", "id": game}, timeout=1.0)
+        return STORE_GAME if state == "ready" else RAN_FAILED
     if store == "ubisoft":
         try:
             log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))

@@ -97,7 +97,7 @@ object AddedGames {
         return File(LinuxRuntime.rootDir(context), guest.removePrefix("/"))
     }
 
-    fun candidates(folder: File): List<File> = rank(folder).exes
+    fun candidates(folder: File, reuse: Boolean = false): List<File> = rank(folder, reuse).exes
 
     fun rank(folder: File, reuse: Boolean = false): GameExePicker.Ranking {
         val key = "${folder.path}|${folder.lastModified()}"
@@ -418,6 +418,7 @@ object AddedGames {
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>, single: AddedExes.Entry? = null, reuse: Boolean = false) {
         run {
             val sidecar = StoreGameSidecar.read(folder)?.let { com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, it) }
+            if (sidecar?.store == Store.ROCKSTAR && (!com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id) || sidecar.launcher != com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)) return
             sidecar?.takeIf { it.id.isNotEmpty() }?.let { SessionPrefs.followStoreGame(context, "${it.store.id}:${it.id}", folder.path) { old -> !File(old).exists() } }
             val ranking = rank(folder, reuse)
             val candidates = ranking.exes
@@ -433,6 +434,7 @@ object AddedGames {
             val autoName = sidecar?.title ?: identifiedName(folder, found) ?: folder.name
             val crc = CRC32().apply { update(("\"${foundGuest.replaceFirst(Regex("^$LIBRARY/"), "$LEGACY_LIBRARY/")}\"" + autoName).toByteArray()) }.value
             val appId = SessionPrefs.addedGameAppId(context, folder.path, crc or 0x80000000L)
+            if (sidecar?.store == Store.ROCKSTAR) com.droiddeck.launcher.stores.rockstar.RockstarLaunch.applyDefaults(context, sidecar.id, appId)
             val config = accountConfig(SessionPrefs.activeSteamRoot(context))
             val record = config?.let { shortcutRecord(it, appId) }
             val rev = record?.optInt("rev", 0) ?: 0

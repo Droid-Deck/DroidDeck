@@ -220,6 +220,9 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
+    val frameGenTargetGameId: String? = null,
+    val frameGenTargetGameName: String? = null,
+    val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -262,6 +265,7 @@ class DrawerActions(
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val onFrameGenReset: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
     val onImportLossless: () -> Unit,
@@ -558,6 +562,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
                     inputModifier = focus.track(page, "agent-input"),
                     visible = open,
+                    startTyping = false,
                 ) else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
@@ -568,10 +573,21 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                                SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
+                                SettingsRow(
+                                    stringResource(R.string.frame_gen_title),
+                                    if (a.frameGenTargetGameId != null)
+                                        "${stringResource(R.string.frame_gen_scope_game)} · ${a.frameGenTargetGameName ?: "ID ${a.frameGenTargetGameId}"}"
+                                    else stringResource(R.string.frame_gen_scope_global),
+                                    highlighted = fgOpen
+                                ) {
                                     Box {
                                         ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                        FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                                        FrameGenMenu(
+                                            host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
+                                            gameProfileId = a.frameGenTargetGameId,
+                                            hasGameOverride = a.hasGameOverride,
+                                            onResetGame = a.onFrameGenReset,
+                                        )
                                     }
                                 }
                                 if (a.direct) SliderRow(
@@ -1350,6 +1366,12 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             )
             if (!profile.fexPreset.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_game_fex), fexProfileLabel(profile.fexPreset))
+            }
+            if (!profile.frameGenInherited) {
+                ProfileSummaryRow(
+                    stringResource(R.string.frame_gen_title),
+                    FrameGen.label(LocalContext.current, profile.frameGen),
+                )
             }
             if (!profile.proton.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_proton), profileValueLabel(profile.proton))

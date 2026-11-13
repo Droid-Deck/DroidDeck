@@ -325,7 +325,7 @@ or repeatedly hit a path the wrappers cannot resolve.
 
 ### Opt-in tracer profiling
 
-With **Setup > Diagnostics > Debugging tools** enabled, queue profiling for one session:
+With **Setup > Developer > Debugging tools** enabled, queue profiling for one session:
 
 ```sh
 tools/droiddeckctl proot-profile enable --slow-us 1000

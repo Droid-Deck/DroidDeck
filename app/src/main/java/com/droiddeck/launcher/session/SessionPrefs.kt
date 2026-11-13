@@ -265,7 +265,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
-    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
+    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", false)
 
     fun setAgentTab(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("agentTab", show).apply()

@@ -236,6 +236,27 @@ object StoresState {
     var itchPicking by mutableStateOf<CatalogItem?>(null)
     var gameJoltPicking by mutableStateOf<CatalogItem?>(null)
 
+    /** Store cards whose free game is being added to the account. */
+    val claiming = mutableStateMapOf<String, Boolean>()
+
+    fun canClaim(item: CatalogItem): Boolean = !item.accessible && isSignedIn(item.store) && backends[item.store]?.canClaim(item) == true
+
+    /** Adds a free game to the account, then refreshes the library so it can be installed; [failed] runs when the store refused. */
+    fun claim(context: Context, item: CatalogItem, failed: () -> Unit) {
+        val backend = backends[item.store] ?: return failed()
+        if (claiming.put(item.key, true) == true) return
+        val app = context.applicationContext
+        background("stores-claim", onFailure = { main.post { claiming.remove(item.key); failed() } }) {
+            val ok = backend.claim(app, item)
+            logLine("${item.store.label}: ${item.title} ${if (ok) "added to the library" else "could not be added; opening the store page"}")
+            if (ok) backend.syncLibrary(app, true)
+            main.post {
+                claiming.remove(item.key)
+                if (!ok) failed()
+            }
+        }
+    }
+
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
         if (item.store == Store.ITCH && item.extra["uploadId"].isNullOrEmpty()) { itchPicking = item; return }
@@ -359,6 +380,12 @@ interface StoreBackend {
     fun syncLibrary(context: Context, force: Boolean)
     fun loadShelves(context: Context, force: Boolean)
     fun search(context: Context, query: String): List<CatalogItem> = emptyList()
+
+    /** Whether this store can add a free game to the account itself, rather than through its website. */
+    fun canClaim(item: CatalogItem): Boolean = false
+
+    /** Adds a free game to the account; true once the store has it in the account's library. */
+    fun claim(context: Context, item: CatalogItem): Boolean = false
     fun install(context: Context, item: CatalogItem, root: java.io.File)
     fun uninstall(context: Context, game: InstalledStoreGame)
 }

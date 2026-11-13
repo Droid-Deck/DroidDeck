@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -1072,12 +1073,20 @@ internal fun ModeHeader(
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
+    // Closing takes the field away with focus still in it; the search button gets it once it is back on screen.
+    val searchIcon = remember { FocusRequester() }
+    var toIcon by remember { mutableStateOf(false) }
     val close = {
         searching = false
         focusOnOpen = false
+        toIcon = true
         if (query.isNotEmpty()) onQuery("")
     }
     BackHandler(enabled = searching && !clearSearchFocus) { close() }
+    LaunchedEffect(toIcon, searching, open <= 0.01f) {
+        if (searching) toIcon = false
+        else if (toIcon && open <= 0.01f) { focusSoon { searchIcon }; toIcon = false }
+    }
     val heading: @Composable () -> Unit = {
         if (lead != null) lead()
         else Text(
@@ -1093,7 +1102,7 @@ internal fun ModeHeader(
                 Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                     AdbTextField(
                         value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        placeholder = placeholder, compact = true, showLabel = false, focusOnShow = focusOnOpen,
                         clearFocus = clearSearchFocus || !searching,
                         onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                     )
@@ -1103,7 +1112,7 @@ internal fun ModeHeader(
         }
     }
     val searchButton: @Composable () -> Unit = {
-        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+        Box(Modifier.focusRequester(searchIcon)) { SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true } }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth
@@ -1159,6 +1168,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         Store.UBISOFT -> Color(0xFF2E7DFF) to Color(0xFF1A5BD6)
         Store.EA -> Color(0xFFFF4747) to Color(0xFFE03030)
+        Store.ROCKSTAR -> Color(0xFFFCAF17) to Color(0xFFD98E00)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
