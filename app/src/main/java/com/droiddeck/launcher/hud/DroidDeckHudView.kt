@@ -846,7 +846,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (showPower && s.battery.watts > 0f) { if (any) parts += Span(" · ", colDim, subPx); parts += numUnit(fmt1(s.battery.watts), "W", valPx, unitPx); any = true }
             if (any) tiles.add(Tile("BAT", colBat, parts, null, true))
         }
-        if (showBatteryTime) tiles.add(Tile("BAT TIME", colBat, listOf(Span(s.battery.runtimeText ?: "—", colValue, valPx)), "remaining at current load", true))
+        if (showBatteryTime) tiles.add(Tile("BAT TIME", colBat, listOf(Span(s.battery.runtimeText ?: "—", colValue, valPx)), "", true))
         if (tiles.isEmpty()) { contentW = 0f; contentH = 0f; return }
 
         val keyH = lineH(keyPx); val valH = lineH(valPx); val subH = lineH(subPx)
