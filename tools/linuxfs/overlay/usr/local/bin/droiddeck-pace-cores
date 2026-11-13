@@ -137,7 +137,9 @@ class Parker:
                     continue
         # A mask the game gave one of its own threads may be passed on by it, not by a parked thread.
         self.own.update(frozenset(now) for tid, now in masks.items() if tid in self.present)
-        inherited = {frozenset(parked): before for before, parked in self.before.values()}
+        inherited = {}
+        for before, parked in self.before.values():
+            inherited[frozenset(parked)] = inherited.get(frozenset(parked), set()) | before
         for tid, now in masks.items():
             try:
                 wanted = now & self.efficient
