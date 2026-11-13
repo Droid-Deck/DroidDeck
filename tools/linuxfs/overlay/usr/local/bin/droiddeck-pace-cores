@@ -123,6 +123,7 @@ class Parker:
 
     def park(self, pid):
         self.pid = pid
+        inherited = {frozenset(parked): before for before, parked in self.before.values()}
         for tid in self.tasks(pid):
             if tid in self.before:
                 continue
@@ -132,6 +133,8 @@ class Parker:
                 if wanted and wanted != now:
                     self.cores.set(tid, wanted)
                     self.before[tid] = (now, wanted)
+                elif frozenset(now) in inherited:
+                    self.before[tid] = (inherited[frozenset(now)], now)
             except OSError:
                 continue
 
@@ -170,6 +173,9 @@ class Governor:
             self.window, self.since = [], now
             return
         self.window.extend((now, value) for value in intervals)
+        if self.parker.pid is None and not intervals:
+            self.window, self.since = [], now
+            return
         if self.parker.pid is None:
             self.consider(now, refresh_mhz)
         else:
@@ -179,7 +185,10 @@ class Governor:
         self.window = [entry for entry in self.window if entry[0] >= now - SETTLE]
         if now - self.since < SETTLE or now < self.blocked.get(self.pid, (0, 0))[0]:
             return
-        held = paced_interval([value for _, value in self.window], refresh_mhz)
+        intervals = [value for _, value in self.window]
+        if sum(intervals) < 0.9 * SETTLE * 1e9:
+            return
+        held = paced_interval(intervals, refresh_mhz)
         if held is None:
             return
         self.held = held
@@ -195,7 +204,10 @@ class Governor:
         self.parker.park(self.pid)
         self.window = [entry for entry in self.window if entry[0] >= now - WINDOW]
         intervals = [value for _, value in self.window]
-        if now - self.since < WINDOW or len(intervals) < 4:
+        if now - self.since < WINDOW:
+            return
+        if len(intervals) < 0.5 * WINDOW * 1e9 / self.held:
+            self.release(now, "frames stalled")
             return
         if late_share(intervals, self.held) > RELEASE_LATE_SHARE or median(intervals) > SLOWER * self.held:
             self.release(now, "frames fell behind")

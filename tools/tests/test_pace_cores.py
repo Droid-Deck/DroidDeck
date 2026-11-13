@@ -152,6 +152,33 @@ class GovernorTest(unittest.TestCase):
         self.assertEqual(self.cores.state[401], {7})
         self.assertEqual(self.cores.state[400], ALL)
 
+    def idle_for(self, seconds):
+        for _ in range(int(seconds / 0.5)):
+            self.now += 0.5
+            self.governor.tick()
+
+    def test_thread_born_parked_is_restored(self):
+        self.run_for(4, VBLANK)
+        (self.governor.parker.proc / f'{self.PID}/task/403').mkdir()
+        self.cores.state[403] = set(EFFICIENT)
+        self.run_for(1, VBLANK)
+        self.run_for(2, 2 * VBLANK)
+        self.assertEqual(self.cores.state[403], ALL)
+
+    def test_a_stalled_game_is_not_parked_on_old_frames(self):
+        self.run_for(0.5, VBLANK)
+        self.idle_for(3)
+        self.assertIsNone(self.governor.parker.pid)
+        self.run_for(2, VBLANK)
+        self.assertIsNone(self.governor.parker.pid)
+
+    def test_a_parked_game_that_stops_presenting_is_released(self):
+        self.run_for(4, VBLANK)
+        self.run_for(1, 1e9)
+        self.idle_for(1)
+        self.assertIsNone(self.governor.parker.pid)
+        self.assertTrue(all(cpus == ALL for cpus in self.cores.state.values()))
+
     def test_threads_pinned_to_fast_cores_are_left_alone(self):
         self.cores.state[402] = {6, 7}
         self.run_for(4, VBLANK)
