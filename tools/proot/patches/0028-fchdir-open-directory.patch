@@ -7,7 +7,7 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
 ---
 --- a/src/syscall/enter.c
 +++ b/src/syscall/enter.c
-@@ -46,8 +46,63 @@
+@@ -46,8 +46,66 @@
  #include "tracee/abi.h"
  #include "path/path.h"
  #include "path/canon.h"
@@ -41,10 +41,13 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
 +	strcpy(parent, binding->guest.path);
 +	slash = strrchr(parent, '/');
 +	if (slash != NULL && slash != parent) {
-+		*slash = '\0';
++		if ((size_t) (slash - parent) + 3 > PATH_MAX)
++			return 1;
++
++		strcpy(slash, "/.");
 +		strcpy(mount, "/");
 +		status = canonicalize(tracee, parent, true, mount, 0);
-+		if (status < 0 || compare_paths(mount, parent) != PATHS_ARE_EQUAL)
++		if (status < 0 || strcmp(mount, parent) != 0)
 +			return 1;
 +	}
 +
@@ -71,7 +74,7 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
  /**
   * Translate @path and put the result in the @tracee's memory address
   * space pointed to by the @reg argument of the current syscall. See
-@@ -193,13 +248,16 @@
+@@ -193,13 +251,16 @@
  			dirfd = peek_reg(tracee, CURRENT, SYSARG_1);
  		}
  
@@ -94,7 +97,7 @@ Subject: [PATCH] fchdir: take the path of the open directory instead of resolvin
  
  		/* Check this directory is accessible.  */
  		if ((statl.st_mode & S_IXUSR) == 0)
-@@ -208,7 +266,7 @@
+@@ -208,7 +269,7 @@
  
  
  
