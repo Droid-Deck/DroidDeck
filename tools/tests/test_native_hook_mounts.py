@@ -100,13 +100,20 @@ class NativeHookMountTest(unittest.TestCase):
         (elsewhere / "mnt/library/Some Game/game.txt").write_text("elsewhere")
         os.symlink("../../..", elsewhere / "outside/pfx/dosdevices/z:")
         os.symlink(str(elsewhere / "outside/pfx"), cls.root / "pfx/outside")
+        cls.private = tmp / "private"
+        private_pfx = cls.private / "123/pfx/dosdevices"
+        private_pfx.mkdir(parents=True)
+        os.symlink(os.path.relpath("/", "/mnt/private/123/pfx/dosdevices"), private_pfx / "z:")
+        private_copy = cls.private / "456/pfx/dosdevices"
+        private_copy.mkdir(parents=True)
+        os.symlink("../" * 12 + "..", private_copy / "z:")
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def run_probe(self, *args):
-        hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": f"{self.library}:/mnt/library", "LD_PRELOAD": str(self.hook)}
+        hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": f"{self.library}:/mnt/library|{self.private}:/mnt/private", "LD_PRELOAD": str(self.hook)}
         env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -184,6 +191,20 @@ class NativeHookMountTest(unittest.TestCase):
     def test_relative_link_is_resolved_from_its_real_directory(self):
         path = f"/pfx/outside/dosdevices/z:{GAME}/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["1", "elsewhere"])
+
+    def test_drive_link_in_a_bound_prefix_reaches_the_mount(self):
+        path = f"/mnt/private/123/pfx/dosdevices/z:{GAME}/game.txt"
+        cd = f"cd:/mnt/private/123/pfx/dosdevices/z:{GAME}/"
+        result = self.run_probe(path, cd)
+        self.assertEqual(result[path], ["1", "library"])
+        self.assertEqual(result[cd], [GAME])
+
+    def test_drive_link_copied_into_a_bound_prefix_reaches_the_mount(self):
+        path = f"/mnt/private/456/pfx/dosdevices/z:{GAME}/game.txt"
+        cd = f"cd:/mnt/private/456/pfx/dosdevices/z:{GAME}/"
+        result = self.run_probe(path, cd)
+        self.assertEqual(result[path], ["1", "library"])
+        self.assertEqual(result[cd], [GAME])
 
 
 if __name__ == "__main__":

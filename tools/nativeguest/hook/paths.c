@@ -211,33 +211,44 @@ static int climbs_past_root(const char *dir, const char *target) {
     return 0;
 }
 
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap);
+
+static const char *guest_path_of_host_dir(const char *dir, char *out, size_t size) {
+    const char *sub = get_rootfs_subpath(dir);
+    if (sub) {
+        ddnatv_copy_cstr(out, size, sub[0] ? sub : "/");
+        return out;
+    }
+    if (dir[0] != '/') return NULL;
+    size_t len = ddnatv_copy_cstr(out, size, dir);
+    if (guest_path_of_mount_source(out, len, size) != len) return out;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (b->identity && is_path_prefix(dir, b->dst, b->dst_len)) {
+            ddnatv_copy_cstr(out, size, dir);
+            return out;
+        }
+    }
+    return NULL;
+}
+
 static int join_into_bind(const char *dir, const char *target, const char *rest, char *out, size_t size) {
-    const char *guest_dir = get_rootfs_subpath(dir);
-    size_t root_len = guest_dir ? g_ddnatv_root_len : 0;
-    if (guest_dir && guest_dir[0] == '\0') guest_dir = "/";
+    char guest_dir_buf[PATH_MAX];
+    const char *guest_dir = guest_path_of_host_dir(dir, guest_dir_buf, sizeof(guest_dir_buf));
+    if (!guest_dir) return 0;
     char joined[PATH_MAX];
-    const char *base = guest_dir ? guest_dir : dir;
-    size_t used = ddnatv_append(joined, sizeof(joined), 0, base, strlen(base));
+    size_t used = ddnatv_append(joined, sizeof(joined), 0, guest_dir, strlen(guest_dir));
     used = ddnatv_append(joined, sizeof(joined), used, "/", 1);
     used = ddnatv_append(joined, sizeof(joined), used, target, strlen(target));
     if (used + 1 >= sizeof(joined)) return 0;
     normalize_path(joined);
-    used = ddnatv_append(out, size, 0, g_ddnatv_root, root_len);
-    if (root_len && joined[1] == '\0') joined[0] = '\0';
-    used = ddnatv_append(out, size, used, joined, strlen(joined));
+    used = ddnatv_append(out, size, 0, joined, strlen(joined));
     if (used + 1 >= size) return 0;
     if (rest[0] == '/' && used > 0 && out[used - 1] == '/') rest++;
     size_t rest_len = strlen(rest);
     if (used + rest_len + 1 >= size) return 0;
     ddnatv_append(out, size, used, rest, rest_len);
-    const char *sub = get_rootfs_subpath(out);
-    if (!sub || sub[0] != '/') return 0;
-    if (guest_dir && climbs_past_root(guest_dir, target)) return 1;
-    for (int i = 0; i < g_nbinds; i++) {
-        const struct ddnatv_bind *b = &g_binds[i];
-        if (!b->identity && is_path_prefix(sub, b->dst, b->dst_len)) return 1;
-    }
-    return 0;
+    return out[0] == '/';
 }
 
 static int relative_link_into_bind(const char *link, const char *target, const char *rest, char *out, size_t size) {
