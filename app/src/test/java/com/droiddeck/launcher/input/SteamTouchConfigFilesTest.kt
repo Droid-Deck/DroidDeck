@@ -130,6 +130,7 @@ class SteamTouchConfigFilesTest {
     }
 
     @Test fun savingDoesNotOverwriteUnreadableExistingTouchConfig() {
+        configset("configset_controller_mobile_touch.vdf", "413150" to "\"autosave\"\t\t\"1\"")
         val file = File(dir, "413150/controller_mobile_touch.vdf").apply {
             parentFile!!.mkdirs()
             writeText("\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n\t\"touch_layout\"\t\t\"zz\"\n}\n")
