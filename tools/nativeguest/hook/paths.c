@@ -211,7 +211,7 @@ static int climbs_past_root(const char *dir, const char *target) {
     return 0;
 }
 
-static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap);
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap, int *converted);
 
 static const char *guest_path_of_host_dir(const char *dir, char *out, size_t size) {
     const char *sub = get_rootfs_subpath(dir);
@@ -221,7 +221,9 @@ static const char *guest_path_of_host_dir(const char *dir, char *out, size_t siz
     }
     if (dir[0] != '/') return NULL;
     size_t len = ddnatv_copy_cstr(out, size, dir);
-    if (guest_path_of_mount_source(out, len, size) != len) return out;
+    int converted = 0;
+    guest_path_of_mount_source(out, len, size, &converted);
+    if (converted) return out;
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
         if (b->identity && is_path_prefix(dir, b->dst, b->dst_len)) {
@@ -563,7 +565,8 @@ static int is_proc_fd_link(const char *path) {
 // reports as its real place (getcwd(), /proc/self/cwd and fd links). Wine found no DOS drive for
 // Sekiro's folder on the SD card library ("starting in the Windows directory"), and the game quit.
 // Rewrites buf[0..len) in place when the guest path fits in cap; returns the new length.
-static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap, int *converted) {
+    if (converted) *converted = 0;
     const struct ddnatv_bind *best = NULL;
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
@@ -577,6 +580,7 @@ static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
     memmove(buf + best->dst_len, buf + best->src_len, rest);
     memcpy(buf, best->dst, best->dst_len);
     buf[best->dst_len + rest] = '\0';
+    if (converted) *converted = 1;
     return best->dst_len + rest;
 }
 
@@ -586,7 +590,7 @@ static ssize_t postprocess_readlink(const char *linkpath, char *buf, ssize_t ret
         buf[ret] = '\0';
         ret = (ssize_t)link_root_guest_target(buf, (size_t)ret);
     }
-    ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz);
+    ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz, NULL);
 
     // 1. Strip g_ddnatv_root if target starts with it
     if (g_ddnatv_root_len > 0 && !is_proc_fd_link(linkpath)) {

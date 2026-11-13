@@ -107,13 +107,19 @@ class NativeHookMountTest(unittest.TestCase):
         private_copy = cls.private / "456/pfx/dosdevices"
         private_copy.mkdir(parents=True)
         os.symlink("../" * 12 + "..", private_copy / "z:")
+        cls.eqlen_src = tmp / "eqsrcdir"
+        cls.eqlen_dst = "/" + "d" * (len(str(cls.eqlen_src)) - 1)
+        eqlen_pfx = cls.eqlen_src / "123/pfx/dosdevices"
+        eqlen_pfx.mkdir(parents=True)
+        os.symlink(os.path.relpath("/", f"{cls.eqlen_dst}/123/pfx/dosdevices"), eqlen_pfx / "z:")
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def run_probe(self, *args):
-        hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": f"{self.library}:/mnt/library|{self.private}:/mnt/private", "LD_PRELOAD": str(self.hook)}
+        binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
+        hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
         env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -202,6 +208,13 @@ class NativeHookMountTest(unittest.TestCase):
     def test_drive_link_copied_into_a_bound_prefix_reaches_the_mount(self):
         path = f"/mnt/private/456/pfx/dosdevices/z:{GAME}/game.txt"
         cd = f"cd:/mnt/private/456/pfx/dosdevices/z:{GAME}/"
+        result = self.run_probe(path, cd)
+        self.assertEqual(result[path], ["1", "library"])
+        self.assertEqual(result[cd], [GAME])
+
+    def test_drive_link_in_equal_length_bound_prefix_reaches_the_mount(self):
+        path = f"{self.eqlen_dst}/123/pfx/dosdevices/z:{GAME}/game.txt"
+        cd = f"cd:{self.eqlen_dst}/123/pfx/dosdevices/z:{GAME}/"
         result = self.run_probe(path, cd)
         self.assertEqual(result[path], ["1", "library"])
         self.assertEqual(result[cd], [GAME])
