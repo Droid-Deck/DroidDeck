@@ -354,7 +354,12 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            if (startsSession) disableIdleSleep(home)
+            if (startsSession) {
+                val shuffle = SessionPrefs.bootMovieShuffle(context)
+                setStartupMovieShuffle(config, shuffle)
+                if (startupMovieShuffle(config) == shuffle) SessionPrefs.setBootMovieShuffleSeen(context, config, shuffle)
+                disableIdleSleep(home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
@@ -484,6 +489,40 @@ object SessionFiles {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = activeStartupMovie(text) ?: return null
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
+    }
+
+    internal fun startupMovieShuffle(config: File): Boolean? {
+        val text = runCatching { config.readText() }.getOrNull() ?: return null
+        val movie = activeStartupMovie(text) ?: return false
+        return scalar(text.substring(movie.keyStart, movie.close + 1), "Shuffle") == "1"
+    }
+
+    internal fun withStartupMovieShuffle(text: String, on: Boolean): String {
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val value = if (on) "1" else "0"
+        return listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }.fold(text) { acc, movie ->
+            val block = acc.substring(movie.keyStart, movie.close + 1)
+            if (!on && scalar(block, "Shuffle") == null) acc else acc.replaceRange(movie.keyStart, movie.close + 1, setScalar(block, "Shuffle", value, newline))
+        }
+    }
+
+    internal fun setStartupMovieShuffle(config: File, on: Boolean): Boolean {
+        if (!config.isFile) return false
+        val text = runCatching { config.readText() }.getOrElse {
+            Log.w(TAG, "could not read Steam config to set the startup movie shuffle", it)
+            return false
+        }
+        val updated = withStartupMovieShuffle(text, on)
+        if (updated == text) return true
+        val staged = File(config.parentFile, config.name + ".staged")
+        return try {
+            staged.writeText(updated)
+            staged.renameTo(config).also { if (!it) staged.delete() }
+        } catch (e: Exception) {
+            staged.delete()
+            Log.w(TAG, "could not set Steam startup movie shuffle", e)
+            false
+        }
     }
 
     internal fun startupMovieBlock(config: File): String? {

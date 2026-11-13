@@ -147,8 +147,21 @@ object BootMovie {
         folder.listFiles()?.forEach { if (it.name != keep) it.delete() }
     }
 
+    internal fun syncShuffleFromSteam(context: Context, config: File) {
+        val steam = SessionFiles.startupMovieShuffle(config) ?: return
+        if (SessionPrefs.bootMovieShuffleSeen(context, config) != steam) SessionPrefs.setBootMovieShuffle(context, steam)
+        SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
+    }
+
+    internal fun syncShuffleFromSteam(context: Context, configs: List<File>) = configs.forEach { syncShuffleFromSteam(context, it) }
+
     fun syncFromSteam(context: Context): Boolean {
-        val named = SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context)) ?: return false
+        val active = BootMovieLibrary.steamConfig(context)
+        syncShuffleFromSteam(
+            context,
+            BootMovieLibrary.steamRoots(context).map { File(it, "config/config.vdf") }.filter { it != active } + active,
+        )
+        val named = SessionFiles.startupMovieLocalPath(active) ?: return false
         val seen = SessionPrefs.bootMovieSteamSeen(context)
         if (named == seen) return false
         SessionPrefs.setBootMovieSteamSeen(context, named)
