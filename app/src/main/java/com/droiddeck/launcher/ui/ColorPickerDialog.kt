@@ -84,7 +84,8 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))
     }
     // A screen wider than tall has no room for one tall column: the wheel goes beside the sliders, and nothing has to scroll.
-    val beside = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
+    // A small landscape window is too narrow for the closing row, so it keeps the column.
+    val beside = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp && it.screenWidthDp >= 600 }
     AppDialog(shown, close, "colorPicker", wide = false, maxWidth = if (beside) 680.dp else 460.dp, scrollState = scroll) {
         DialogTitleRow(title, close)
         val wheel: @Composable () -> Unit = { ColorWheel(hue, sat, value, if (beside) 216.dp else 168.dp) { h, s -> picked(h = h, s = s) } }
