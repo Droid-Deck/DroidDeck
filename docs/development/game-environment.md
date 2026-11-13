@@ -261,6 +261,7 @@ interface and Chromium apps only. Games keep Mesa's GL error checks: with
 a NULL buffer object instead of returning `GL_INVALID_OPERATION`, and the game's
 render thread stops. A game profile entry, or `MESA_NO_ERROR` in the session's own
 environment, still applies to games.
+
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,
