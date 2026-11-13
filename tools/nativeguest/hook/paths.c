@@ -196,11 +196,13 @@ static int join_into_bind(const char *dir, const char *target, const char *rest,
     size_t used = ddnatv_append(out, size, 0, dir, strlen(dir));
     used = ddnatv_append(out, size, used, "/", 1);
     used = ddnatv_append(out, size, used, target, strlen(target));
+    if (used + 1 >= size) return 0;
+    normalize_path(out);
+    used = strlen(out);
+    if (rest[0] == '/' && used > 0 && out[used - 1] == '/') rest++;
     size_t rest_len = strlen(rest);
     if (used + rest_len + 1 >= size) return 0;
     ddnatv_append(out, size, used, rest, rest_len);
-    normalize_path(out);
-    if (rest_len > 0 && rest[rest_len - 1] == '/') ddnatv_append(out, size, strlen(out), "/", 1);
     const char *sub = get_rootfs_subpath(out);
     if (!sub || sub[0] != '/') return 0;
     for (int i = 0; i < g_nbinds; i++) {
@@ -212,7 +214,7 @@ static int join_into_bind(const char *dir, const char *target, const char *rest,
 
 static int relative_link_into_bind(const char *link, const char *target, const char *rest, char *out, size_t size) {
     char dir[PATH_MAX];
-    if (raw_link_dir(link, dir, sizeof(dir)) >= 0 && join_into_bind(dir, target, rest, out, size)) return 1;
+    if (raw_link_dir(link, dir, sizeof(dir)) >= 0) return join_into_bind(dir, target, rest, out, size);
     const char *slash = strrchr(link, '/');
     if (!slash) return 0;
     size_t dlen = (size_t)(slash - link);

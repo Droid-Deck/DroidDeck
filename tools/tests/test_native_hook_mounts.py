@@ -91,6 +91,12 @@ class NativeHookMountTest(unittest.TestCase):
         (relinked / "drive_c/c.txt").write_text("drive c")
         os.symlink(os.path.relpath(cls.root, relinked / "dosdevices"), relinked / "dosdevices/z:")
         os.symlink("../drive_c", relinked / "dosdevices/c:")
+        elsewhere = tmp / "elsewhere"
+        (elsewhere / "outside/pfx/dosdevices").mkdir(parents=True)
+        (elsewhere / "mnt/library/Some Game").mkdir(parents=True)
+        (elsewhere / "mnt/library/Some Game/game.txt").write_text("elsewhere")
+        os.symlink("../../..", elsewhere / "outside/pfx/dosdevices/z:")
+        os.symlink(str(elsewhere / "outside/pfx"), cls.root / "pfx/outside")
 
     @classmethod
     def tearDownClass(cls):
@@ -156,6 +162,14 @@ class NativeHookMountTest(unittest.TestCase):
         self.assertEqual(result[paths[0]], ["1", "rootfs"])
         self.assertEqual(result[paths[1]], ["1", "drive c"])
         self.assertEqual(result[paths[2]], ["1", "drive c"])
+
+    def test_suffix_after_a_relative_link_is_not_collapsed(self):
+        path = "/pfx/relinked/dosdevices/z:/mnt/library/missing/../Some Game/game.txt"
+        self.assertEqual(self.run_probe(path)[path], ["0", "-"])
+
+    def test_relative_link_is_resolved_from_its_real_directory(self):
+        path = f"/pfx/outside/dosdevices/z:{GAME}/game.txt"
+        self.assertEqual(self.run_probe(path)[path], ["1", "elsewhere"])
 
 
 if __name__ == "__main__":
