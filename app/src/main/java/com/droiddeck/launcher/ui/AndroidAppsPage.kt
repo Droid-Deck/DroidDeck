@@ -22,6 +22,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -94,6 +95,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalContext
@@ -170,6 +172,9 @@ private class AppMove(
 )
 
 private val LocalAppMove = staticCompositionLocalOf<AppMove?> { null }
+
+/** The focus id of the tile an entry is shown as. */
+private fun tileId(entry: AppEntry): String = "tile:" + if (entry is AppEntry.App) entry.app.key else entry.key
 
 private fun indexLetter(label: String): String {
     val c = label.trim().firstOrNull()?.uppercaseChar() ?: return "#"
@@ -486,7 +491,28 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            val front = LocalFrontFocus.current
+            val steer = rememberCoroutineScope()
+            // Down goes to the tile straight below. The grid's own search only sees the tiles laid out so far, so above a short or
+            // unseen last row it lands on a tile further left; above a gap in a short last row the row's last tile takes it.
+            Box(Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                // A tile being carried takes Down itself, in the grid below.
+                if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN || front == null || moving != null) return@onPreviewKeyEvent false
+                val from = entries.indexOfFirst { tileId(it) == front.last }
+                val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                if (from < 0 || from / columns == entries.lastIndex / columns) return@onPreviewKeyEvent false
+                if (k.action == KeyEvent.ACTION_DOWN) {
+                    val id = tileId(entries[minOf(from + columns, entries.lastIndex)])
+                    val shown = (front.attached[id] ?: 0) > 0
+                    if (!shown || runCatching { front.items.getValue(id).requestFocus() }.isFailure) steer.launch {
+                        // The row below is not laid out yet: bring it in, then take it.
+                        if (!shown) grid.scrollBy((grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index == from + leadItems }?.size?.height ?: 0).toFloat())
+                        focusSoon { front.items.getValue(id) }
+                    }
+                }
+                true
+            }) {
                 val scroller = q.isEmpty() && byName && entries.size > 16
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp),
@@ -1131,7 +1157,7 @@ private fun WidgetCard(w: HomeWidgets.Placed, maxWidthDp: Int) {
     val activity = remember(ctx) { ctx.findActivity() }
     Box {
         Box(
-            Modifier.size(width.dp, w.heightDp.dp)
+            Modifier.paneItem("widget:${w.id}").size(width.dp, w.heightDp.dp)
                 .clip(Shape16)
                 .background(colors.surface.copy(alpha = 0.35f))
                 .glideBorder(hot || menu, Shape16, pal.signal)

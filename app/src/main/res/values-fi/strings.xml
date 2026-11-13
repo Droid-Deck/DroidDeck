@@ -28,6 +28,8 @@
     <string name="suspend_now">Keskeytä nyt</string>
     <string name="stop_session">Lopeta istunto</string>
     <string name="frame_gen_title">Kehysten generointi</string>
+    <string name="frame_gen_scope_game">Tämän pelin asetukset</string>
+    <string name="frame_gen_scope_global">Oletusasetukset</string>
     <string name="frame_gen_hint">Valitse kehysten generoinnin tila</string>
     <string name="frame_gen_off">Pois</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

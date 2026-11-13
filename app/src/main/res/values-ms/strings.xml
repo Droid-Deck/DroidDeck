@@ -28,6 +28,8 @@
     <string name="suspend_now">Gantung sekarang</string>
     <string name="stop_session">Hentikan sesi</string>
     <string name="frame_gen_title">Penjanaan bingkai</string>
+    <string name="frame_gen_scope_game">Tetapan untuk permainan ini</string>
+    <string name="frame_gen_scope_global">Tetapan lalai</string>
     <string name="frame_gen_hint">Pilih mod penjanaan bingkai</string>
     <string name="frame_gen_off">Mati</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

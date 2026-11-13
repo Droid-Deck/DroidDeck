@@ -55,6 +55,8 @@
     <string name="suspend_now">Suspend now</string>
     <string name="stop_session">Stop session</string>
     <string name="frame_gen_title">Frame generation</string>
+    <string name="frame_gen_scope_game">Settings for this game</string>
+    <string name="frame_gen_scope_global">Default settings</string>
     <string name="frame_gen_hint">Select the frame generation mode</string>
     <string name="frame_gen_off">Off</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -2691,6 +2693,13 @@
     <string name="setup_rail_labels">Sidebar labels</string>
     <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
     <string name="setup_agent_tab">Agent tab</string>
+    <string name="setup_agent_pet">Agent pet</string>
+    <string name="setup_agent_pet_hint">DeeDee floats over the launcher and games and shows what the agent is doing.</string>
+    <string name="setup_agent_pet_float">Over other apps</string>
+    <string name="setup_agent_pet_float_hint">Let DeeDee float over every app and open its chat there</string>
+    <string name="setup_agent_pet_allow">Allow</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">Chat with DeeDee</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
     <string name="library_display_smaller">Smaller cards</string>
@@ -3993,4 +4002,6 @@
 
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
+    <string name="stores_rockstar_launch_unavailable">Launch unavailable</string>
+    <string name="agent_browser_unavailable">No web browser is available to open this link.</string>
 </resources>

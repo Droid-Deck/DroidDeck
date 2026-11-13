@@ -70,6 +70,8 @@ object SessionFiles {
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
+            "rockstar/helpers/Launcher32.exe" to "usr/local/lib/droiddeck-rockstar/Launcher32.exe",
+            "rockstar/helpers/Launcher64.exe" to "usr/local/lib/droiddeck-rockstar/Launcher64.exe",
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
             "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
@@ -241,7 +243,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("linuxfs/$asset").use { input ->
+                (if (asset.startsWith("rockstar/")) requireNotNull(javaClass.getResourceAsStream("/$asset")) else context.assets.open("linuxfs/$asset")).use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)

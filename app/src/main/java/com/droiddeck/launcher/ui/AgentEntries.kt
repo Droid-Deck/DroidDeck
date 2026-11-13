@@ -42,14 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -326,84 +322,6 @@ internal fun AttachmentChip(path: String, onRemove: (() -> Unit)?) {
             modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(20.dp).clip(Shape12).background(MaterialTheme.colorScheme.surface).clickable(onClick = onRemove),
         ) {
             Icon(Icons.Outlined.Close, stringResource(R.string.agent_remove_attachment), tint = pal.onSurfaceVariant, modifier = Modifier.size(14.dp))
-        }
-    }
-}
-
-/** The Markdown agents write: headings, lists, fenced code, `code` and **bold**. */
-@Composable
-internal fun AgentMarkdown(text: String, modifier: Modifier) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (block in markdownBlocks(text)) when (block) {
-            is MdBlock.Code -> Text(block.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.onSurface,
-                modifier = Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(12.dp))
-            is MdBlock.Line -> Text(
-                inlineMarkdown(block.text, pal.primary2, pal.surfaceVariant),
-                fontSize = if (block.heading) 17.sp else 15.sp,
-                fontWeight = if (block.heading) FontWeight.Bold else null,
-                lineHeight = 22.sp, color = colors.onSurface,
-                modifier = if (block.bullet) Modifier.padding(start = 12.dp) else Modifier,
-            )
-        }
-    }
-}
-
-internal sealed interface MdBlock {
-    data class Line(val text: String, val heading: Boolean = false, val bullet: Boolean = false) : MdBlock
-    data class Code(val text: String) : MdBlock
-}
-
-private val HEADING = Regex("^#{1,6}\\s+")
-private val BULLET = Regex("^\\s*[-*+]\\s+")
-
-internal fun markdownBlocks(text: String): List<MdBlock> {
-    val out = mutableListOf<MdBlock>()
-    val code = StringBuilder()
-    var inCode = false
-    for (raw in text.lines()) {
-        if (raw.trimStart().startsWith("```")) {
-            if (inCode) {
-                out += MdBlock.Code(code.toString().trimEnd('\n'))
-                code.clear()
-            }
-            inCode = !inCode
-            continue
-        }
-        if (inCode) {
-            code.append(raw).append('\n')
-            continue
-        }
-        val line = raw.trimEnd()
-        if (line.isBlank()) continue
-        val heading = HEADING.find(line)
-        val bullet = BULLET.find(line)
-        out += when {
-            heading != null -> MdBlock.Line(line.substring(heading.range.last + 1), heading = true)
-            bullet != null -> MdBlock.Line("•  " + line.substring(bullet.range.last + 1), bullet = true)
-            else -> MdBlock.Line(line)
-        }
-    }
-    if (inCode && code.isNotEmpty()) out += MdBlock.Code(code.toString().trimEnd('\n'))
-    return out
-}
-
-internal fun inlineMarkdown(text: String, codeColor: Color, codeBackground: Color): AnnotatedString = buildAnnotatedString {
-    var i = 0
-    while (i < text.length) {
-        val boldEnd = if (text.startsWith("**", i)) text.indexOf("**", i + 2) else -1
-        val tickEnd = if (text[i] == '`') text.indexOf('`', i + 1) else -1
-        when {
-            boldEnd > i + 2 -> {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text, i + 2, boldEnd) }
-                i = boldEnd + 2
-            }
-            tickEnd > i + 1 -> {
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = codeColor, background = codeBackground)) { append(text, i + 1, tickEnd) }
-                i = tickEnd + 1
-            }
-            else -> append(text[i++])
         }
     }
 }

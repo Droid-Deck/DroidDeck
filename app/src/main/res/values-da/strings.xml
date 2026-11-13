@@ -28,6 +28,8 @@
     <string name="suspend_now">Sæt på pause nu</string>
     <string name="stop_session">Afslut session</string>
     <string name="frame_gen_title">Billedgenerering</string>
+    <string name="frame_gen_scope_game">Indstillinger for dette spil</string>
+    <string name="frame_gen_scope_global">Standardindstillinger</string>
     <string name="frame_gen_hint">Vælg metode til billedgenerering</string>
     <string name="frame_gen_off">Fra</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>

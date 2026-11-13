@@ -10,11 +10,9 @@ import android.view.View
 import android.view.animation.PathInterpolator
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -39,6 +37,8 @@ class DroidDeckHudHost(context: Context) {
     private var snapping = false
     private var previewFade: ValueAnimator? = null
     private var flingX = 0f
+    private var flingY = 0f
+    private var throwSpring: com.droiddeck.launcher.ui.FlingSpring? = null
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -95,18 +95,22 @@ class DroidDeckHudHost(context: Context) {
             stopMotion(hud)
             shrinkPastEdge(hud, rawX, rawY)
         }
-        hud.setOnFlungListener { vx, _ -> flingX = vx }
+        hud.setOnFlungListener { vx, vy -> flingX = vx; flingY = vy }
         hud.setOnTabDraggedListener { x, y -> dragTab(hud, x, y) }
         hud.setOnTabDroppedListener { dropTab(hud) }
         hud.setOnTabDragCancelledListener { snapping = false; keepOnScreen(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
             val vx = flingX
+            val vy = flingY
             flingX = 0f
-            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            flingY = 0f
+            // A throw only carries the strip into its tab; a floating HUD flung across goes to the other side.
+            val coast = hud.isStrip
+            dockEdgeFor(hud, if (coast) vx else 0f, if (coast) vy else 0f)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             stopMotion(hud)
             fadeDockPreview(hud)
-            if (snaps && !hud.isStrip) { snapToAnchor(hud, vx); return@setOnMovedListener }
+            if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
             val fromX = hud.x; val fromY = hud.y
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
@@ -179,9 +183,8 @@ class DroidDeckHudHost(context: Context) {
     private fun applyShown() {
         if (!running) return
         val show = !hidden && !backgrounded
-        val visible = show && SessionState.mode != SessionService.MODE_DESKTOP
-        view?.visibility = if (visible) View.VISIBLE else View.GONE
-        showing = visible
+        view?.visibility = if (show) View.VISIBLE else View.GONE
+        showing = show
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
@@ -238,28 +241,36 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun presentedFps(): Float {
-        if (FrameGen.mode(context).engine == FrameGen.ENGINE_OFF) return 0f
-        val stats = runCatching { WaylandCompositor.nativeFrameGenStats() }.getOrNull() ?: return 0f
+        if (!runCatching { WaylandCompositor.nativeFrameGenActive() }
+                .getOrDefault(false)) return 0f
+
+        val stats = runCatching {
+            WaylandCompositor.nativeFrameGenStats()
+        }.getOrNull() ?: return 0f
+
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
-    private fun dockEdgeFor(v: View): DroidDeckHudDock? {
-        val over = overhang(v) ?: return null
+    /** The edge the HUD tucks into: one it hangs far enough over, or would once a throw at [vx], [vy] coasts out. */
+    private fun dockEdgeFor(v: View, vx: Float = 0f, vy: Float = 0f): DroidDeckHudDock? {
+        val over = overhang(v, vx * com.droiddeck.launcher.ui.EdgeFling.COAST_S, vy * com.droiddeck.launcher.ui.EdgeFling.COAST_S) ?: return null
         return over.key.takeIf { over.value >= DOCK_OVERHANG }
     }
 
-    private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
+    private fun overhang(v: View, dx: Float = 0f, dy: Float = 0f): Map.Entry<DroidDeckHudDock, Float>? {
         val p = v.parent as? View ?: return null
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
         val strip = (v as? DroidDeckHudView)?.isStrip == true
         val density = v.resources.displayMetrics.density
         val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
         val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
+        val x = v.x + dx
+        val y = v.y + dy
         return mapOf(
-            DroidDeckHudDock.LEFT to -v.x / w,
-            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / w,
-            DroidDeckHudDock.TOP to -v.y / h,
-            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / h,
+            DroidDeckHudDock.LEFT to -x / w,
+            DroidDeckHudDock.RIGHT to (x + v.width - p.width) / w,
+            DroidDeckHudDock.TOP to -y / h,
+            DroidDeckHudDock.BOTTOM to (y + v.height - p.height) / h,
         ).maxByOrNull { it.value }
     }
 
@@ -294,6 +305,7 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun stopMotion(hud: DroidDeckHudView) {
+        throwSpring?.cancel()
         hud.animate().setUpdateListener(null)
         hud.animate().cancel()
     }
@@ -323,23 +335,21 @@ class DroidDeckHudHost(context: Context) {
         }
     }
 
-    private fun snapToAnchor(hud: DroidDeckHudView, vx: Float) {
+    /** Sends the HUD to a side the way a chat head goes: by where the throw would carry it, springing on from its speed. */
+    private fun snapToAnchor(hud: DroidDeckHudView, vx: Float, vy: Float) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
-        anchorX = if (hud.x + vx * FLING_REACH_S < maxX / 2f) 0f else 1f
+        val right = com.droiddeck.launcher.ui.EdgeFling.toRight(hud.x + hud.width / 2f, p.width.toFloat(), vx, context.resources.displayMetrics.density)
+        anchorX = if (right) 1f else 0f
         wantX = anchorX * maxX
-        wantY = hud.y.coerceIn(0f, maxY)
+        wantY = com.droiddeck.launcher.ui.EdgeFling.restY(hud.y, vy, 0f, maxY)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         stopMotion(hud)
-        if (Motion.scale == 0f) {
-            hud.scaleX = 1f; hud.scaleY = 1f
-            hud.x = wantX; hud.y = wantY
-            return
-        }
+        hud.scaleX = 1f; hud.scaleY = 1f
         snapping = true
-        hud.animate().x(wantX).y(wantY).scaleX(1f).scaleY(1f).setDuration(Motion.ms(260).toLong()).setInterpolator(EASE)
-            .withEndAction { snapping = false; keepOnScreen(hud) }.start()
+        val spring = throwSpring ?: com.droiddeck.launcher.ui.FlingSpring { sx, sy -> hud.x = sx; hud.y = sy }.also { throwSpring = it }
+        spring.start(hud.x, hud.y, vx, vy, wantX, wantY) { snapping = false; keepOnScreen(hud) }
     }
 
     private fun shrinkPastEdge(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
@@ -496,10 +506,9 @@ class DroidDeckHudHost(context: Context) {
 
     companion object {
         private const val DOCK_OVERHANG = 0.4f
-        private const val FLING_REACH_S = 0.18f
         private const val PREVIEW_FROM = 0.55f
-        private const val STRIP_PULL_ACROSS_DP = 600f
-        private const val STRIP_PULL_OFF_DP = 150f
+        private const val STRIP_PULL_ACROSS_DP = 360f
+        private const val STRIP_PULL_OFF_DP = 100f
         private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
