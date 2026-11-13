@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
@@ -147,6 +148,7 @@ internal fun GameBackdrop(
     fadeTop: Boolean,
     modifier: Modifier = Modifier,
     onArtPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit = {},
+    artBlur: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -178,13 +180,13 @@ internal fun GameBackdrop(
                     glass.fadeBottom(this, size)
                 },
         )
-        if (art != null) ArtLayer(art, ambient ?: art, fadeTop, onArtPlaced)
+        if (art != null) ArtLayer(art, ambient ?: art, fadeTop, artBlur, onArtPlaced)
         CompositionLocalProvider(LocalGlass provides glass) { content() }
     }
 }
 
 @Composable
-private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
+private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx.compose.ui.unit.Dp, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val light = colors.background.luminance() > 0.5f
     val pale = ((rememberArtBrightness(sample) - 0.28f) / 0.5f).coerceIn(0f, 1f)
@@ -208,7 +210,7 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, onPlaced: (and
                 model = model, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(0.45f, -0.35f),
                 colorFilter = artFilter,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.matchParentSize().then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
             )
             Box(
                 Modifier.matchParentSize().drawBehind {
