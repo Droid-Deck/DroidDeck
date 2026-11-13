@@ -92,6 +92,7 @@ class UpdatesActions(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
+    val host = rememberMenuHost()
     val u = s.updates
     val ua = a.updates
     val me = remember { AppUpdates.installed() }
@@ -127,6 +128,12 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                         Box(Modifier.weight(1f)) { ChannelPicker(u, ua, s.sessionRunning) }
                         Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
                     }
+                }
+                Box(Modifier.padding(top = 18.dp)) {
+                    ToggleRow(
+                        host, "build-watermark", stringResource(R.string.setup_build_watermark),
+                        stringResource(R.string.setup_build_watermark_hint), s.buildWatermark,
+                    ) { a.onBuildWatermark() }
                 }
             }
         }

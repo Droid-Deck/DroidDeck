@@ -13,6 +13,11 @@ object HostProcess {
 
     @JvmStatic
     fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?, outputFile: File?): Int {
+        return start(command, env, dir, onExit, onLine, outputFile, null)
+    }
+
+    @JvmStatic
+    fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?, outputFile: File?, onOutputComplete: Runnable?): Int {
         val argv = split(command)
         if (argv.isEmpty()) return -1
         return try {
@@ -35,6 +40,8 @@ object HostProcess {
                     try {
                         process.inputStream.bufferedReader().useLines { lines -> lines.forEach { onLine.accept(it) } }
                     } catch (e: Exception) {
+                    } finally {
+                        onOutputComplete?.run()
                     }
                 }, "proc-out-$pid").apply { priority = Thread.NORM_PRIORITY - 1; isDaemon = true; start() }
             }

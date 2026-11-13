@@ -14,7 +14,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.GameFrameFeed
-import com.droiddeck.launcher.hud.HudFrames
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.hud.KeyValueSet
 import com.droiddeck.launcher.hud.MangoReadings
@@ -34,7 +33,7 @@ private const val STRIP_TEMP_PLAIN = 0xFFF2F5F9.toInt()
 @Composable
 internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
     val context = LocalContext.current
-    val frames = remember { GameFrameFeed(File(LinuxRuntime.rootDir(context), HudFrames.PATH)) }
+    val frames = remember { GameFrameFeed.forRoot(LinuxRuntime.rootDir(context)) }
     DisposableEffect(frames) { onDispose { frames.close() } }
     val page by rememberUpdatedState(pageId)
     var frameTick by remember { mutableIntStateOf(0) }

@@ -58,6 +58,22 @@ class AddonPackTest {
         assertFalse(AddonPack("sample", "", 0L, listOf("tool"), reuseDeviceCopy = false).installed(context))
     }
 
+    @Test fun labBuildReusesInstalledPackDespiteDifferentSourcePin() {
+        installed("b".repeat(64))
+        val pack = AddonPack("sample", "a".repeat(64), 1L, listOf("tool"), labBuild = true)
+
+        assertTrue(pack.installed(context))
+        assertEquals("b".repeat(64), pack.dir(context).name)
+    }
+
+    @Test fun labBuildWithoutCompleteInstalledPackKeepsSourcePin() {
+        installed("b".repeat(64), complete = false)
+        val pack = AddonPack("sample", "a".repeat(64), 1L, listOf("tool"), labBuild = true)
+
+        assertFalse(pack.installed(context))
+        assertEquals("a".repeat(64), pack.dir(context).name)
+    }
+
     @Test fun localBuildInstallsTheBundledPackWithoutDownloading() {
         val archive = tarZst("tool" to "x")
         val pack = AddonPack("sample", Hashes.sha256(archive), archive.length(), listOf("tool"), bundle = { archive.inputStream() })

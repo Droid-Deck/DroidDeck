@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreNet
-import com.droiddeck.launcher.stores.StoreShelves
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.mergeItems
 import org.json.JSONArray
@@ -36,13 +36,14 @@ data class EaGame(
     val masterTitleId: String = "",
     val cloudSaves: String = "",
     val locales: List<String> = emptyList(),
+    val productName: String = "",
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("offerId", offerId).put("contentId", contentId).put("title", title).put("slug", slug)
         .put("tall", tall).put("wide", wide).put("logo", logo).put("version", version)
         .put("executePath", executePath).put("installCheck", installCheck).put("parameters", parameters)
         .put("multiplayerId", multiplayerId).put("masterTitleId", masterTitleId).put("cloudSaves", cloudSaves)
-        .put("locales", JSONArray(locales))
+        .put("locales", JSONArray(locales)).put("productName", productName)
 
     companion object {
         fun fromJson(o: JSONObject): EaGame? {
@@ -63,14 +64,15 @@ data class EaGame(
                 masterTitleId = o.optString("masterTitleId"),
                 cloudSaves = o.optString("cloudSaves"),
                 locales = (0 until (locales?.length() ?: 0)).map { locales!!.optString(it) },
+                productName = o.optString("productName"),
             )
         }
     }
 }
 
 object EaLibrary {
-    private const val KEY_CACHE = "library_cache"
-    private const val KEY_SYNCED_AT = "library_synced_at"
+    private const val KEY_CACHE = "library_cache_v3"
+    private const val KEY_SYNCED_AT = "library_synced_at_v3"
     private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
     private const val ART_TTL_MS = 7 * 24 * 60 * 60 * 1000L
     private const val ART_THREADS = 4
@@ -118,7 +120,7 @@ object EaLibrary {
             owned = true,
             sizeBytes = prefs.getLong("size_${g.offerId}", 0L),
             storeUrl = STORE_URL,
-            extra = mapOf("contentId" to g.contentId, "slug" to g.slug, "version" to g.version),
+            extra = mapOf("contentId" to g.contentId, "slug" to g.slug, "version" to g.version, "productName" to g.productName),
             logoUrl = g.logo.ifEmpty { null },
         )
     }
@@ -136,6 +138,16 @@ object EaLibrary {
             chosen to offers.getValue(chosen.offerId)
         }.sortedBy { it.first.name.lowercase() }
     }
+
+    /**
+     * Offers EA lists as owned whose entitlements grant no active game download: an online pass or product-key
+     * link such as Burnout Paradise's VALIDATED_ONLINE_ACCESS, or a Game Pass title disabled once the
+     * subscription lapsed. EA refuses their licence. Offers with no entitlement rows at all are left alone.
+     */
+    internal fun withoutGameDownload(rows: List<JSONObject>): Map<String, List<JSONObject>> =
+        rows.groupBy { it.optString("productId") }.filterKeys { it.isNotEmpty() }.filterValues { offer ->
+            offer.none { it.optString("entitlementType").equals("ORIGIN_DOWNLOAD", true) && it.optString("status").equals("ACTIVE", true) }
+        }
 
     private fun art(app: Context, token: String, slugs: Collection<String>, gen: Int): Map<String, EaApi.Images> {
         val prefs = EaPrefs.get(app)
@@ -189,8 +201,7 @@ object EaLibrary {
         StoresState.post {
             if (gen != generation.get()) return@post
             StoresState.library[store] = mergeItems(StoresState.library[store], items)
-            val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
-            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
+            StoresState.shelves[store]?.let { StoresState.shelves[store] = StoreFront.markOwned(it, items, EaStore::sameGame) }
         }
     }
 
@@ -229,13 +240,28 @@ object EaLibrary {
             status(R.string.stores_sync_sign_in)
             val token = EaAuth.accessToken(app) ?: return problem(StoresState.notSignedInLine(store))
             status(R.string.stores_sync_game_list)
-            val owned = withToken(app, token) { EaApi.owned(it) }
+            val listed = withToken(app, token) { EaApi.owned(it) }
+            val rows = try {
+                withToken(app, token) { EaApi.legacyEntitlements(it) }
+            } catch (e: Exception) {
+                if (e is EaApiException && e.status == 401) throw e
+                if (e !is EaApiException && e !is java.io.IOException) throw e
+                StoresState.logLine("ea: entitlements unavailable, keeping every owned product: ${e.message}")
+                emptyList()
+            }
+            val unplayable = withoutGameDownload(rows)
+            for ((id, held) in unplayable) if (listed.any { it.offerId == id }) StoresState.logLine(
+                "ea: left out $id, no game download: " + held.joinToString(",") { it.optString("entitlementTag") + "/" + it.optString("status") + "/" + it.optString("statusReasonCode") + "/" + it.optString("externalType") })
+            val owned = listed.filterNot { it.offerId in unplayable }
             val offers = withToken(app, token) { EaApi.offers(it, owned.map { o -> o.offerId }) }.associateBy { it.offerId }
             val picked = pick(owned, offers)
             StoresState.logLine("ea: ${owned.size} owned products, ${picked.size} games")
             for ((o, offer) in picked) StoresState.logLine(
                 "ea: owned ${o.offerId} content=${offer.contentId} master=${offer.masterTitleId} mp=${offer.multiplayerId} via=${o.ownership.joinToString("+")} type=${o.gameType}")
-            if (picked.isEmpty()) return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
+            if (picked.isEmpty()) {
+                if (owned.size < listed.size && storeCache(app, emptyList(), gen)) publish(app, emptyList(), gen)
+                return problem(app.getString(R.string.stores_sync_no_games, store.label).takeIf { cache.isEmpty() || owned.size < listed.size })
+            }
             if (gen != generation.get()) return
             status(R.string.stores_sync_cover_art)
             val images = art(app, token, picked.map { it.first.slug }, gen)
@@ -246,6 +272,7 @@ object EaLibrary {
                     tall = img?.tall.orEmpty(), wide = img?.wide.orEmpty(), logo = img?.logo.orEmpty(), version = offer.gameVersion,
                     executePath = offer.executePathOverride, installCheck = offer.installCheckOverride, parameters = offer.executeParameters,
                     multiplayerId = offer.multiplayerId, masterTitleId = offer.masterTitleId, cloudSaves = offer.cloudSaves, locales = offer.locales,
+                    productName = o.productName,
                 )
             }
             if (!storeCache(app, games, gen)) return
