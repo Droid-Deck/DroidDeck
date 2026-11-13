@@ -888,13 +888,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
+    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}): Boolean {
         if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
+            onHandled()
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome)
+        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome, onHandled)
+        onHandled()
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -938,12 +940,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             .apply { if (returnHome) putExtra(SessionActivity.EXTRA_LINK_TASK, task) }
     }
 
-    private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean): Boolean {
+    private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean, onHandled: () -> Unit = {}): Boolean {
         val app = applicationContext
         Thread({
-            val added = if (game.library == Library.ADDED) runCatching { com.droiddeck.launcher.session.NoSteamLaunch.addedGame(app, game) }.getOrNull() else null
+            val added = if (com.droiddeck.launcher.session.NoSteamLaunch.needsAddedGame(game)) runCatching { com.droiddeck.launcher.session.NoSteamLaunch.addedGame(app, game) }.getOrNull() else null
             val command = com.droiddeck.launcher.session.NoSteamLaunch.command(game, added)
             ui.post {
+                onHandled()
                 if (isDestroyed) return@post
                 if (command == null) {
                     android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
@@ -2069,8 +2072,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = done) {
             if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) { done(); return@beforeLaunch }
             com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
-                done()
-                if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+                if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g, onHandled = done)
+                else done()
             }
         }
     }

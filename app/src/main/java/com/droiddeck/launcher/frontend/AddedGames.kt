@@ -200,13 +200,17 @@ object AddedGames {
     private val scanning = Any()
 
     fun scan(context: Context): List<Game> = synchronized(scanning) {
-        val file = File(context.filesDir, AddedGamesCache.FILE)
-        val cache = kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
+        val cache = cache(context)
         try {
             scanAll(context)
         } finally {
             cache.save()
         }
+    }
+
+    private fun cache(context: Context): AddedGamesCache {
+        val file = File(context.filesDir, AddedGamesCache.FILE)
+        return kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
     }
 
     private fun scanAll(context: Context): List<Game> {
@@ -241,11 +245,17 @@ object AddedGames {
         return out.distinctBy { it.folder.canonicalPath }
     }
 
-    fun single(context: Context, folderPath: String): Game? {
+    fun single(context: Context, folderPath: String, reuse: Boolean = false): Game? {
         val folder = File(folderPath)
         if (!folder.isDirectory || folderPath in SessionPrefs.removedAddedGames(context)) return null
         val out = ArrayList<Game>(1)
-        scanGame(context, folder, out, single = AddedExes.list(context).firstOrNull { it.folder == folderPath })
+        val entry = AddedExes.list(context).firstOrNull { it.folder == folderPath }
+        val cache = if (reuse) cache(context) else null
+        try {
+            scanGame(context, folder, out, single = entry, reuse = reuse)
+        } finally {
+            cache?.save()
+        }
         return out.firstOrNull()
     }
 
