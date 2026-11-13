@@ -508,6 +508,7 @@ object AgentHost {
         appContext?.let { app ->
             claimLabRequest(app)
             claimOpenUrl(app)
+            claimDeviceCode(app)
             // proot comes from an add-on pack fetched after the app starts, so the runtime can become usable later.
             if (!available && state != State.WORKING) available = LinuxRuntime.hasRootfs(app)
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
@@ -529,15 +530,34 @@ object AgentHost {
         val url = runCatching { claimed.readText().trim() }.getOrNull()
         claimed.delete()
         if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return
+        if (!openUrl(app, url)) runCatching { File(app.filesDir, "$OPEN_URL.failed").writeText("") }
+    }
+
+    /** dd-gh-login leaves "<code> <url>" here to float the code over the page, and an empty file when it ends. */
+    private fun claimDeviceCode(app: Context) {
+        val request = File(app.filesDir, DEVICE_CODE)
+        if (!request.isFile) return
+        val claimed = File(app.filesDir, "$DEVICE_CODE.claimed")
+        if (!request.renameTo(claimed)) return
+        val parts = runCatching { claimed.readText().trim() }.getOrDefault("").split(' ', limit = 2)
+        claimed.delete()
+        val code = parts[0]
+        val url = parts.getOrNull(1)?.takeIf { it.startsWith("https://") }
+        if (code.isEmpty() || url == null) {
+            com.droiddeck.launcher.DeviceCodeActivity.close()
+            return
+        }
+        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay)) openUrl(app, url)
+    }
+
+    private fun openUrl(app: Context, url: String): Boolean {
         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(AgentAdb.browserDisplay).toBundle()
-        runCatching { app.startActivity(intent, options) }
+        return runCatching { app.startActivity(intent, options) }
             .recoverCatching { app.startActivity(intent) }
-            .onFailure {
-                Log.w(TAG, "could not open a sign-in link: ${it.javaClass.simpleName}")
-                runCatching { File(app.filesDir, "$OPEN_URL.failed").writeText("") }
-            }
+            .onFailure { Log.w(TAG, "could not open a sign-in link: ${it.javaClass.simpleName}") }
+            .isSuccess
     }
 
     /**
@@ -593,6 +613,7 @@ object AgentHost {
     private const val RESUME = "agent/resume"
     private const val LAB_REQUEST = "agent/lab-request"
     private const val OPEN_URL = "agent/open-url"
+    private const val DEVICE_CODE = "agent/device-code"
     private const val LAB_CHAT_KEY = "lab_chat"
     /** The raw output of the latest turn, for working out what a CLI did when the chat shows nothing. */
     private const val TURN_LOG = "agent/turn.log"
