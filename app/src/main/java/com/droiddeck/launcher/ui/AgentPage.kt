@@ -129,6 +129,7 @@ private const val COMPOSER_SLIDE_MS = 350L
 @Composable
 internal fun AgentPage(
     modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true, hidesPet: Boolean = true,
+    showControlsWithoutKeyboard: Boolean = false,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -227,7 +228,7 @@ internal fun AgentPage(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, inputModifier, panel, togglePanel) { setup = true }
+                    AgentComposer(composer, draft, inputModifier, panel, togglePanel, showControlsWithoutKeyboard) { setup = true }
                 }
             }
         }
@@ -492,7 +493,8 @@ internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.
 
 @Composable
 private fun AgentComposer(
-    composer: ComposerState, draftState: MutableState<String>, inputModifier: Modifier, panel: AgentPanel, onPanel: (AgentPanel) -> Unit, onSetup: () -> Unit,
+    composer: ComposerState, draftState: MutableState<String>, inputModifier: Modifier, panel: AgentPanel, onPanel: (AgentPanel) -> Unit,
+    showControlsWithoutKeyboard: Boolean, onSetup: () -> Unit,
 ) {
     val context = LocalContext.current
     var draft by draftState
@@ -539,8 +541,15 @@ private fun AgentComposer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
             ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-            AgentEditor(composer, draftState, inputModifier, panel, onPanel, onSetup, controlsOpen, { controlsOpen = it }, send)
-        } else AgentReadingBar(composer, draft, inputModifier, labOpen, onLab = { labOpen = !labOpen }) { controlsOpen = true; composer.open() }
+            AgentEditor(composer, draftState, inputModifier, panel, onPanel, onSetup, controlsOpen, { controlsOpen = it },
+                highlightControls = showControlsWithoutKeyboard && controlsOpen, send = send)
+        } else AgentReadingBar(composer, draft, inputModifier, labOpen, onLab = { labOpen = !labOpen }) {
+            controlsOpen = true
+            if (showControlsWithoutKeyboard) {
+                composer.typing = true
+                composer.opening = false
+            } else composer.open()
+        }
     }
 }
 
@@ -583,7 +592,7 @@ private fun AgentReadingBar(
 @Composable
 private fun AgentEditor(
     composer: ComposerState, draftState: MutableState<String>, inputModifier: Modifier, panel: AgentPanel, onPanel: (AgentPanel) -> Unit,
-    onSetup: () -> Unit, menu: Boolean, onMenu: (Boolean) -> Unit, send: () -> Unit,
+    onSetup: () -> Unit, menu: Boolean, onMenu: (Boolean) -> Unit, highlightControls: Boolean = false, send: () -> Unit,
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -613,7 +622,7 @@ private fun AgentEditor(
     LaunchedEffect(composer.focusRequests) { if (composer.focusRequests > 0) runCatching { field.requestFocus() } }
     Column(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
-            .border(1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
+            .border(if (focused || highlightControls) 2.dp else 1.dp, if (focused || highlightControls) pal.primary else pal.line, Shape16).padding(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(36.dp)) {
             val model = AgentHost.models(context).firstOrNull { it.id == AgentHost.model }?.label ?: AgentHost.model ?: stringResource(R.string.agent_model_default)
