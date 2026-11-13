@@ -569,7 +569,7 @@
     <string name="perf_game_cores">Játékmagok</string>
     <string name="perf_game_cores_hint">Magok a játékokhoz. Ha mind kiválasztva van, az Android szabadon ütemez.</string>
     <string name="perf_pace_cores">Energiatakarékosság stabil játékoknál</string>
-    <string name="perf_pace_cores_hint">A játékot a lassabb magokon futtatja, amíg tartja a képkockasebességét, és az összes magon, amint lemarad.</string>
+    <string name="perf_pace_cores_hint">A játékot a lassabb magokon futtatja, amíg stabil képkockasebességet tart, és visszaadja a szokásos magjait, amint lemarad.</string>
     <string name="perf_client_ui">Kliens felhasználói felület</string>
     <string name="perf_glthread">Szálalt GL</string>
     <string name="perf_glthread_hint">Reszponzívabbá teheti a Steam menüit.</string>

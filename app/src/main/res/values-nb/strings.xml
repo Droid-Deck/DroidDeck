@@ -569,7 +569,7 @@
     <string name="perf_game_cores">Spillkjerner</string>
     <string name="perf_game_cores_hint">Kjerner for spill. Med alle valgt, planlegger Android fritt.</string>
     <string name="perf_pace_cores">Spar strøm i stabile spill</string>
-    <string name="perf_pace_cores_hint">Kjører et spill på de tregere kjernene mens det holder bildefrekvensen, og på alle kjerner når det henger etter.</string>
+    <string name="perf_pace_cores_hint">Kjører et spill på de tregere kjernene mens det holder en stabil bildefrekvens, og flytter det tilbake til de vanlige kjernene når det henger etter.</string>
     <string name="perf_client_ui">Klientgrensesnitt</string>
     <string name="perf_glthread">Trådet GL</string>
     <string name="perf_glthread_hint">Kan gjøre Steam-menyer mer responsive.</string>

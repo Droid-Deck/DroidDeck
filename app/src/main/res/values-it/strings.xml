@@ -571,7 +571,7 @@
     <string name="perf_game_cores">Core dei giochi</string>
     <string name="perf_game_cores_hint">Core per i giochi. Con tutti selezionati, Android li gestisce liberamente.</string>
     <string name="perf_pace_cores">Risparmia energia nei giochi stabili</string>
-    <string name="perf_pace_cores_hint">Esegue un gioco sui core più lenti finché mantiene il frame rate, e su tutti i core appena resta indietro.</string>
+    <string name="perf_pace_cores_hint">Esegue un gioco sui core più lenti finché mantiene un frame rate stabile, e lo riporta sui suoi core abituali appena resta indietro.</string>
     <string name="perf_client_ui">Interfaccia del client</string>
     <string name="perf_glthread">GL multithread</string>
     <string name="perf_glthread_hint">Può rendere più reattivi i menu di Steam.</string>

@@ -567,7 +567,7 @@
     <string name="perf_game_cores">Teras permainan</string>
     <string name="perf_game_cores_hint">Teras untuk permainan. Dengan semua dipilih, Android menjadualkan secara bebas.</string>
     <string name="perf_pace_cores">Jimat kuasa dalam permainan yang stabil</string>
-    <string name="perf_pace_cores_hint">Menjalankan permainan pada teras yang lebih perlahan selagi kadar bingkainya kekal, dan pada semua teras sebaik ia ketinggalan.</string>
+    <string name="perf_pace_cores_hint">Menjalankan permainan pada teras yang lebih perlahan selagi kadar bingkainya stabil, dan mengembalikannya ke teras biasanya sebaik ia ketinggalan.</string>
     <string name="perf_client_ui">Antara muka klien</string>
     <string name="perf_glthread">GL berbenang</string>
     <string name="perf_glthread_hint">Boleh menjadikan menu Steam lebih responsif.</string>

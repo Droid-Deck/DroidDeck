@@ -567,7 +567,7 @@
     <string name="perf_game_cores">คอร์เกม</string>
     <string name="perf_game_cores_hint">คอร์สำหรับเกม เมื่อเลือกทั้งหมด Android จะจัดสรรได้อย่างอิสระ</string>
     <string name="perf_pace_cores">ประหยัดพลังงานในเกมที่นิ่ง</string>
-    <string name="perf_pace_cores_hint">รันเกมบนคอร์ที่ช้ากว่าขณะที่เฟรมเรตคงที่ และใช้ทุกคอร์ทันทีที่ตามไม่ทัน</string>
+    <string name="perf_pace_cores_hint">รันเกมบนคอร์ที่ช้ากว่าขณะที่เฟรมเรตคงที่ และย้ายกลับไปยังคอร์ปกติทันทีที่ตามไม่ทัน</string>
     <string name="perf_client_ui">อินเทอร์เฟซไคลเอนต์</string>
     <string name="perf_glthread">GL แบบเธรด</string>
     <string name="perf_glthread_hint">อาจทำให้เมนู Steam ตอบสนองไวขึ้น</string>

@@ -569,7 +569,7 @@
     <string name="perf_game_cores">Gamecores</string>
     <string name="perf_game_cores_hint">Cores voor games. Met alles geselecteerd verdeelt Android vrij.</string>
     <string name="perf_pace_cores">Stroom besparen bij stabiele games</string>
-    <string name="perf_pace_cores_hint">Draait een game op de tragere kernen zolang de framerate standhoudt, en op alle kernen zodra die achterraakt.</string>
+    <string name="perf_pace_cores_hint">Draait een game op de tragere kernen zolang de framerate stabiel blijft, en zet hem terug op zijn gebruikelijke kernen zodra hij achterraakt.</string>
     <string name="perf_client_ui">Clientinterface</string>
     <string name="perf_glthread">GL-threading</string>
     <string name="perf_glthread_hint">Kan Steam-menu’s sneller laten reageren.</string>

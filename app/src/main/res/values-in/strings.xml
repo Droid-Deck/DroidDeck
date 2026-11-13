@@ -567,7 +567,7 @@
     <string name="perf_game_cores">Core gim</string>
     <string name="perf_game_cores_hint">Core untuk gim. Dengan semua dipilih, Android menjadwalkan secara bebas.</string>
     <string name="perf_pace_cores">Hemat daya pada game yang stabil</string>
-    <string name="perf_pace_cores_hint">Menjalankan game di core yang lebih lambat selama frame rate-nya terjaga, dan di semua core begitu tertinggal.</string>
+    <string name="perf_pace_cores_hint">Menjalankan game di core yang lebih lambat selama frame rate-nya stabil, dan mengembalikannya ke core biasanya begitu tertinggal.</string>
     <string name="perf_client_ui">Antarmuka klien</string>
     <string name="perf_glthread">GL berulir (threaded)</string>
     <string name="perf_glthread_hint">Dapat membuat menu Steam lebih responsif.</string>

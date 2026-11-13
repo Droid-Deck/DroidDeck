@@ -571,7 +571,7 @@
     <string name="perf_game_cores">Nuclee pentru joc</string>
     <string name="perf_game_cores_hint">Nuclee pentru jocuri. Cu toate selectate, Android le programează liber.</string>
     <string name="perf_pace_cores">Economisește energie în jocurile stabile</string>
-    <string name="perf_pace_cores_hint">Rulează jocul pe nucleele mai lente cât timp își menține rata de cadre și pe toate nucleele când rămâne în urmă.</string>
+    <string name="perf_pace_cores_hint">Rulează jocul pe nucleele mai lente cât timp își menține o rată de cadre stabilă și îl readuce pe nucleele obișnuite când rămâne în urmă.</string>
     <string name="perf_client_ui">Interfața clientului</string>
     <string name="perf_glthread">GL pe fire</string>
     <string name="perf_glthread_hint">Poate face meniurile Steam mai receptive.</string>

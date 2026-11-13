@@ -617,7 +617,7 @@
     <string name="perf_game_cores">Game cores</string>
     <string name="perf_game_cores_hint">Cores for games. With all selected, Android schedules freely.</string>
     <string name="perf_pace_cores">Save power on steady games</string>
-    <string name="perf_pace_cores_hint">Runs a game on the slower cores while it holds its frame rate, and on every core once it falls behind.</string>
+    <string name="perf_pace_cores_hint">Runs a game on the slower cores while it holds a steady frame rate, and back on its usual cores once it falls behind.</string>
     <string name="perf_client_ui">Client interface</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">May make Steam menus more responsive.</string>

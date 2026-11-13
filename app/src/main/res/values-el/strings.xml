@@ -569,7 +569,7 @@
     <string name="perf_game_cores">Πυρήνες παιχνιδιού</string>
     <string name="perf_game_cores_hint">Πυρήνες για παιχνίδια. Με όλους επιλεγμένους, το Android τους προγραμματίζει ελεύθερα.</string>
     <string name="perf_pace_cores">Εξοικονόμηση ενέργειας σε σταθερά παιχνίδια</string>
-    <string name="perf_pace_cores_hint">Τρέχει το παιχνίδι στους πιο αργούς πυρήνες όσο κρατά τον ρυθμό καρέ του, και σε όλους όταν μένει πίσω.</string>
+    <string name="perf_pace_cores_hint">Τρέχει το παιχνίδι στους πιο αργούς πυρήνες όσο κρατά σταθερό ρυθμό καρέ, και το επιστρέφει στους συνήθεις πυρήνες του όταν μένει πίσω.</string>
     <string name="perf_client_ui">Διεπαφή πελάτη</string>
     <string name="perf_glthread">Νηματοποιημένο GL</string>
     <string name="perf_glthread_hint">Μπορεί να κάνει τα μενού του Steam πιο αποκρίσιμα.</string>

@@ -567,7 +567,7 @@
     <string name="perf_game_cores">Lõi game</string>
     <string name="perf_game_cores_hint">Lõi dành cho game. Khi chọn tất cả, Android tự do lập lịch.</string>
     <string name="perf_pace_cores">Tiết kiệm pin với game ổn định</string>
-    <string name="perf_pace_cores_hint">Chạy game trên các nhân chậm hơn khi game giữ được tốc độ khung hình, và trên mọi nhân khi bị tụt lại.</string>
+    <string name="perf_pace_cores_hint">Chạy game trên các nhân chậm hơn khi game giữ tốc độ khung hình ổn định, và đưa game về các nhân thường dùng khi bị tụt lại.</string>
     <string name="perf_client_ui">Giao diện client</string>
     <string name="perf_glthread">GL đa luồng</string>
     <string name="perf_glthread_hint">Có thể giúp menu Steam phản hồi nhanh hơn.</string>

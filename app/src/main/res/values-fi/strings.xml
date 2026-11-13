@@ -569,7 +569,7 @@
     <string name="perf_game_cores">Pelin ytimet</string>
     <string name="perf_game_cores_hint">Ytimet peleille. Kun kaikki on valittuna, Android ajoittaa vapaasti.</string>
     <string name="perf_pace_cores">Säästä virtaa tasaisissa peleissä</string>
-    <string name="perf_pace_cores_hint">Ajaa pelin hitaammilla ytimillä, kun se pitää ruudunpäivitysnopeutensa, ja kaikilla ytimillä, kun se jää jälkeen.</string>
+    <string name="perf_pace_cores_hint">Ajaa pelin hitaammilla ytimillä, kun se pitää tasaisen ruudunpäivitysnopeuden, ja palauttaa sen tavallisille ytimilleen, kun se jää jälkeen.</string>
     <string name="perf_client_ui">Asiakasohjelman käyttöliittymä</string>
     <string name="perf_glthread">Säikeistetty GL</string>
     <string name="perf_glthread_hint">Voi tehdä Steamin valikoista reagoivampia.</string>
