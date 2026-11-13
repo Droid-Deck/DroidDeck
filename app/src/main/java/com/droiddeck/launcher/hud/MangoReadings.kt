@@ -172,7 +172,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
                 else -> runtimeChargeComplete = false
             }
 
-            // The virtual Android battery exports the same ETA that MangoHud's feed uses.
             if (dirs.size == 1) {
                 suppliedRuntimeSeconds = readLong(File(dir, "time_to_empty_avg"))?.takeIf { it > 0L }
                     ?: readLong(File(dir, "time_to_empty_now"))?.takeIf { it > 0L }
@@ -191,7 +190,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
             }
             if (currentForEta == null) currentComplete = false else aggregateCurrentUa += currentForEta
 
-            // MangoHud counts only watts from batteries explicitly discharging.
             if (isDischarging) {
                 val power = if (powerFile.isFile) readFloat(powerFile)?.toDouble() else null
                 if (power != null) watts += abs(power) / 1_000_000.0

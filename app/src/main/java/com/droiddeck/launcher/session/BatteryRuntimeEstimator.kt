@@ -4,7 +4,6 @@ import java.util.ArrayDeque
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
-/** Shared remaining-charge / rolling-mean-current math for the battery feed and DD HUD. */
 class BatteryRuntimeEstimator {
     private val currentSamples = ArrayDeque<Double>()
 
@@ -33,14 +32,12 @@ class BatteryRuntimeEstimator {
             return if (abs(raw) < MILLIAMP_CEILING) raw * 1_000L else raw
         }
 
-        // µWh / µV -> µAh, with the scale factor made explicit.
         @JvmStatic
         fun chargeMicroampHoursFromEnergy(energyUwh: Double, voltageUv: Double): Double? {
             if (!energyUwh.isFinite() || energyUwh <= 0.0 || !voltageUv.isFinite() || voltageUv <= 0.0) return null
             return (energyUwh * 1_000_000.0 / voltageUv).takeIf { it.isFinite() && it > 0.0 }
         }
 
-        // µW / µV -> µA.
         @JvmStatic
         fun currentMicroampsFromPower(powerUw: Double, voltageUv: Double): Double? {
             if (!powerUw.isFinite() || voltageUv <= 0.0 || !voltageUv.isFinite()) return null

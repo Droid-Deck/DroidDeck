@@ -919,7 +919,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, stkPx)))
             if (l.isNotEmpty()) stack.add(l)
         }
-        if (showFPS && showBatteryTime) stack.add(listOf(Span("BAT TIME ${s.battery.runtimeText ?: "—"}", colBat, stkPx)))
+        if (showBatteryTime) stack.add(listOf(Span("BAT TIME ${s.battery.runtimeText ?: "—"}", colBat, stkPx)))
         run {
             val l = ArrayList<Span>()
             if (showFPS) l += Span("${fmt1(1000f / max(fpsNow, 1f))}ms", colDim, stkPx)
@@ -980,7 +980,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         if (showFPS && showLow1) low("1%", lows.low1Fps)
         if (showFPS && showLow01) low("0.1%", lows.low01Fps)
         if (showFPS && showLow001) low("0.01%", lows.low001Fps)
-        if (showFPS && showBatteryTime) {
+        if (showBatteryTime) {
             if (sub.isNotEmpty()) sub += Span("  ·  ", colDim, subPx)
             sub += Span("BAT TIME ", colBat, subPx)
             sub += Span(s.battery.runtimeText ?: "—", colBat, subPx)
