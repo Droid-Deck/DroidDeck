@@ -67,7 +67,22 @@ class RockstarTest {
             assertTrue(script.readText().contains("\"%~dp0RDR2.exe\""))
             assertFalse(script.readText().contains("Rockstar Games\\Launcher\\Launcher.exe"))
             assertTrue(java.io.File(folder, game.exe).isFile)
-            assertTrue(com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path) != null)
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test fun otherRockstarGamesCanRegisterShortcuts() {
+        org.junit.Assume.assumeTrue(java.io.File.separatorChar == '/')
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(app, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
+        val folder = java.io.File(com.droiddeck.launcher.stores.StoreInstallRoot.storeDir(com.droiddeck.launcher.stores.StoreInstallRoot.installRoot(app), com.droiddeck.launcher.stores.Store.ROCKSTAR), "RDR2").apply { mkdirs() }
+        try {
+            java.io.File(folder, "RDR2.exe").writeText("installed game")
+            com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "rdr2", "RDR2", "RDR2.exe").write(folder)
+            val game = com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path)
+            assertTrue(game != null)
+            assertTrue(game!!.guestExe.endsWith("/" + com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER))
         } finally {
             folder.deleteRecursively()
         }
