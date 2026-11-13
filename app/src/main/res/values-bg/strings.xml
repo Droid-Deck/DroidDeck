@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Избор на папка…</string>
     <string name="storage_default_choose_folder_detail">Използвайте която и да е папка на SD карта или USB устройство</string>
     <string name="storage_default_note">Игрите отиват в папка Games в избраното място. Съществуващите игри не се преместват.</string>
-    <string name="storage_where">Къде отива</string>
+    <string name="storage_where">Какво заема място</string>
     <string name="storage_games">Игри от Steam</string>
     <string name="storage_game_data">Данни на игрите</string>
     <string name="storage_game_data_hint">Префикси %1$s · workshop %2$s · шейдъри %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Префикси на Wine</string>
     <string name="storage_bulk_prefixes_detail">Записите и настройките в тях се губят; записите в Steam Cloud остават в акаунта ви.</string>
     <string name="storage_bulk_shaders">Кешове на шейдърите</string>
+    <string name="storage_prefix_shaders">Префикс %1$s · шейдъри %2$s</string>
     <string name="storage_components_packages">Изтеглени пакети</string>
     <string name="storage_components_originals">Запазени оригинали</string>
     <string name="storage_components_none">Няма изтеглени пакети с компоненти.</string>

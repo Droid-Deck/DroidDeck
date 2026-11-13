@@ -317,15 +317,10 @@ object StoresState {
             main.post(onDone)
             return
         }
-        if (StoreInstalls.isDiscarding(game.folder)) {
-            com.droiddeck.launcher.stores.download.DownloadQueue.releaseRemoval(key)
-            logLine("kept \"${game.sidecar.title}\": its download or update is still running")
-            main.post(onDone)
-            return
-        }
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             try {
+                StoreInstalls.awaitDiscard(game.folder)
                 uninstallHeld(app, game, key, onDone)
             } finally {
                 com.droiddeck.launcher.stores.download.DownloadQueue.releaseRemoval(key)

@@ -529,6 +529,17 @@ object AddedGames {
         }
     }
 
+    class Listed(val appId: Long, val name: String, val launchOptions: String)
+
+    fun listed(context: Context): List<Listed>? = runCatching {
+        val file = File(context.filesDir, "session/added-games.json")
+        if (!file.isFile) return null
+        val entries = org.json.JSONArray(file.readText())
+        (0 until entries.length()).mapNotNull { i ->
+            entries.optJSONObject(i)?.takeIf { it.has("appid") }?.let { Listed(it.optLong("appid") and 0xFFFFFFFFL, it.optString("name"), it.optString("launch")) }
+        }
+    }.getOrNull()
+
     fun writeListing(context: Context, games: List<Game>,
         extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {
         val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }

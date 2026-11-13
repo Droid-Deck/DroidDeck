@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Klasör seç…</string>
     <string name="storage_default_choose_folder_detail">SD kart veya USB sürücüdeki herhangi bir klasörü kullanın</string>
     <string name="storage_default_note">Oyunlar, seçilen konumdaki bir Games klasörüne yüklenir. Mevcut oyunlar taşınmaz.</string>
-    <string name="storage_where">Nereye gidiyor</string>
+    <string name="storage_where">Yer kaplayanlar</string>
     <string name="storage_games">Steam oyunları</string>
     <string name="storage_game_data">Oyun verileri</string>
     <string name="storage_game_data_hint">Önekler %1$s · atölye %2$s · gölgelendiriciler %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine önekleri</string>
     <string name="storage_bulk_prefixes_detail">İçindeki kayıtlar ve ayarlar kaybolur; Steam Cloud kayıtları hesabınızda kalır.</string>
     <string name="storage_bulk_shaders">Gölgelendirici önbellekleri</string>
+    <string name="storage_prefix_shaders">Önek %1$s · gölgelendiriciler %2$s</string>
     <string name="storage_components_packages">İndirilen paketler</string>
     <string name="storage_components_originals">Kaydedilen orijinaller</string>
     <string name="storage_components_none">İndirilmiş bileşen paketi yok.</string>

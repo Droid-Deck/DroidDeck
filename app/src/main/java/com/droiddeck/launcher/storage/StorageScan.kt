@@ -37,7 +37,10 @@ class Leftover(val appId: Long, val prefix: File?, val shaders: File?, val bytes
 
 enum class PrefixOwner { SHARED, LAUNCHER, GAME, UNKNOWN }
 
-class KeptPrefix(val dir: File, val owner: PrefixOwner, val name: String?, val bytes: Long, val library: String, val x64: Boolean, val users: List<String> = emptyList())
+class KeptPrefix(
+    val dir: File, val owner: PrefixOwner, val name: String?, val bytes: Long, val library: String, val x64: Boolean, val users: List<String> = emptyList(),
+    val shaders: File? = null, val shaderBytes: Long = 0,
+)
 
 class StoreGameUsage(val game: com.droiddeck.launcher.stores.InstalledStoreGame, val bytes: Long, val internal: Boolean)
 
@@ -99,7 +102,16 @@ object StorageScan {
 
     fun steamRoot(context: Context) = SessionPrefs.steamRoot(context, "arm64")
 
+    fun measure(file: File): Long = Walker().measure(file)
+
     fun scan(context: Context): StorageReport {
+        val phases = ArrayList<String>()
+        var mark = android.os.SystemClock.elapsedRealtime()
+        fun phase(name: String) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            phases.add("$name ${now - mark}")
+            mark = now
+        }
         val walker = Walker()
         val files = context.filesDir
         val rootfs = LinuxRuntime.rootDir(context)
@@ -107,6 +119,7 @@ object StorageScan {
         val x64Root = SessionPrefs.steamRoot(context, "x86_64").takeIf { SteamStorage.x64ClientPresent(it) }
         val clients = listOfNotNull("arm64", "x86_64".takeIf { x64Root != null })
         fun canonical(f: File) = runCatching { f.canonicalPath }.getOrDefault(f.path)
+        phase("setup")
         val art = clients.associate { arch ->
             (arch == "x86_64") to runCatching { Library.steamGames(context, arch = arch) }.getOrDefault(emptyList()).associateBy { it.appId }
         }
@@ -114,6 +127,7 @@ object StorageScan {
         class Lib(val root: File, val label: String, val internal: Boolean, val data: File, val listing: SteamStorage.Listing?, val x64: Boolean) {
             val manifests: List<SteamStorage.Manifest>? get() = listing?.manifests
         }
+        phase("steam games")
         val libs = clients.flatMap { arch ->
             val x64 = arch == "x86_64"
             val primary = canonical(SessionPrefs.steamRoot(context, arch))
@@ -131,6 +145,7 @@ object StorageScan {
         val clientIds = libs.groupBy { it.x64 }.mapValues { (_, own) -> own.flatMap { it.listing?.ids.orEmpty() }.toSet() }
         fun installedGames(x64: Boolean) = libs.filter { it.x64 == x64 }.flatMap { it.manifests.orEmpty() }
             .filter { !SteamStorage.isTool(it) && it.installed }.map { it.appId.toString() }.toSet()
+        phase("libraries")
         val armUse = runCatching { SteamStorage.compatMappings(File(steamRoot, "config/config.vdf").readText()) }.getOrNull()
             ?.let { SteamStorage.ToolUse(it, installedGames(false)) }
         val x64Vdf = x64Root?.let { File(it, "config/config.vdf") }
@@ -140,6 +155,7 @@ object StorageScan {
         val uses = listOfNotNull(armUse, x64Use)
         fun gamesOn(tool: String) = uses.sumOf { it.games(tool) }
 
+        val libraryDataRoots = File(files, "steam-libraries").listFiles().orEmpty().filter { it.isDirectory }
         val tools = LinkedHashMap<String, ToolUsage>()
         val games = ArrayList<GameUsage>()
         val countedShaders = HashSet<String>()
@@ -185,8 +201,8 @@ object StorageScan {
                 val compatRoot = File(lib.data, "steamapps/compatdata").takeIf { it.isDirectory } ?: File(lib.root, "steamapps/compatdata")
                 val prefixDir = File(compatRoot, m.appId.toString()).takeIf { it.isDirectory }
                 val prefix = prefixDir?.let { walker.measure(it) } ?: 0
-                val shaderDirs = (listOf(lib) + libs.filter { it !== lib && it.x64 == lib.x64 })
-                    .map { File(it.data, "steamapps/shadercache/${m.appId}") }.filter { it.isDirectory }.distinctBy { canonical(it) }
+                val shaderDirs = ((listOf(lib) + libs.filter { it !== lib && it.x64 == lib.x64 }).map { it.data } + libraryDataRoots)
+                    .map { File(it, "steamapps/shadercache/${m.appId}") }.filter { it.isDirectory }.distinctBy { canonical(it) }
                 val shaders = shaderDirs.filter { countedShaders.add(canonical(it)) }.sumOf { walker.measure(it) }
                 val workshop = File(lib.root, "steamapps/workshop/content/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
                 val known = art[lib.x64]?.get(m.appId)
@@ -197,6 +213,7 @@ object StorageScan {
             }
         }
 
+        phase("manifests and games")
         File(steamRoot, "compatibilitytools.d").listFiles()?.sortedBy { it.name }?.forEach { dir ->
             if (!dir.isDirectory) return@forEach
             val bytes = walker.measure(dir)
@@ -216,6 +233,7 @@ object StorageScan {
             )
         }
 
+        phase("compat tools")
         val leftovers = ArrayList<Leftover>()
         for (lib in libs) {
             if (!everyLibraryRead) break
@@ -237,10 +255,12 @@ object StorageScan {
             }
         }
 
+        phase("leftovers")
         val logs = SessionPaths.sessionFolders(context).filter { it != SessionPaths.current() } +
             listOf(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR)).filter { it.exists() }
         val logBytes = logs.sumOf { walker.measure(it) }
 
+        phase("logs")
         val flatpakDir = File(rootfs, "root/.local/share/flatpak")
         val flatpakNames = runCatching { FlatpakManager.installedApps(context) }.getOrDefault(emptyList()).associate { it.id to it.name }
         val flatpakApps = File(flatpakDir, "app").listFiles().orEmpty().filter { it.isDirectory }.map { dir ->
@@ -248,6 +268,7 @@ object StorageScan {
         }.sortedByDescending { it.bytes }
         val flatpakRuntimes = File(flatpakDir, "runtime").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
 
+        phase("flatpak")
         val componentsDir = File(files, "components")
         val stored = runCatching { ComponentsManager.stored(context) }.onFailure { Log.w("StorageScan", "components", it) }.getOrNull()
         val components = stored?.let { st ->
@@ -255,13 +276,16 @@ object StorageScan {
                 st.originals.map { ComponentUsage(it.comp, it.protonVersion, it.size, it.kept, protonId = it.protonId, protonName = it.protonName) }
         }.orEmpty()
 
-        val added = runCatching { com.droiddeck.launcher.frontend.AddedGames.scan(context) }.onFailure { Log.w("StorageScan", "added games", it) }.getOrNull()
+        phase("components")
+        val added = com.droiddeck.launcher.frontend.AddedGames.listed(context)
         val shortcuts = listOfNotNull(steamRoot, x64Root).map { SteamStorage.shortcuts(it) }
         val ownersRead = added != null && shortcuts.all { it != null }
         val live = HashMap<Long, String>()
         shortcuts.forEach { it?.forEach { (id, s) -> live[id] = s.name } }
-        added?.forEach { live[it.appId and 0xFFFFFFFFL] = it.name }
+        added?.forEach { live[it.appId] = it.name }
         val folders = SessionPrefs.addedGameFolders(context)
+        val removedFolders = SessionPrefs.removedAddedGames(context).toSet()
+        folders.forEach { (id, path) -> if (id !in live && path !in removedFolders && File(path).exists()) live[id] = File(path).name }
         val launchers = mapOf(
             com.droiddeck.launcher.runtime.BattleNet.APP_ID to com.droiddeck.launcher.stores.Store.BATTLENET.label,
             com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.APP_ID to com.droiddeck.launcher.stores.Store.UBISOFT.label,
@@ -271,8 +295,9 @@ object StorageScan {
         fun shares(own: Long, name: String, launchOptions: String) {
             SteamStorage.sharedPrefixId(launchOptions)?.takeIf { it != own }?.let { users.getOrPut(it) { LinkedHashSet() }.add(name) }
         }
-        added?.forEach { shares(it.appId and 0xFFFFFFFFL, it.name, it.launchOptions) }
+        added?.forEach { shares(it.appId, it.name, it.launchOptions) }
         shortcuts.forEach { it?.forEach { (id, s) -> s.launchOptions.forEach { shares(id, s.name, it) } } }
+        phase("added games and shortcuts")
         val kept = ArrayList<KeptPrefix>()
         for (lib in libs) {
             val dirs = File(lib.data, "steamapps/compatdata").listFiles().orEmpty().filter { it.isDirectory && SteamStorage.leftoverId(it.name) == null }
@@ -281,14 +306,15 @@ object StorageScan {
             for (dir in dirs) {
                 val bytes = walker.measure(dir)
                 val id = SteamStorage.shortcutId(dir.name)
+                val cache = id?.let { caches[it] }
+                val cacheBytes = cache?.let { walker.measure(it) } ?: 0
                 when {
                     dir.name == "0" -> kept.add(KeptPrefix(dir, PrefixOwner.SHARED, null, bytes, lib.label, lib.x64))
                     id != null && (id in launchers || id in users) -> kept.add(KeptPrefix(dir, PrefixOwner.LAUNCHER,
-                        launchers[id] ?: live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64, users[id].orEmpty().toList()))
-                    id != null && id in live -> kept.add(KeptPrefix(dir, PrefixOwner.GAME, live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64))
+                        launchers[id] ?: live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64, users[id].orEmpty().toList(), cache, cacheBytes))
+                    id != null && id in live -> kept.add(KeptPrefix(dir, PrefixOwner.GAME, live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64, shaders = cache, shaderBytes = cacheBytes))
                     id != null && ownersRead -> {
-                        val cache = caches[id]
-                        leftovers.add(Leftover(id, dir, cache, bytes + (cache?.let { walker.measure(it) } ?: 0), SteamStorage.isStubPrefix(dir),
+                        leftovers.add(Leftover(id, dir, cache, bytes + cacheBytes, SteamStorage.isStubPrefix(dir),
                             shortcut = true, name = folders[id]?.let { File(it).name } ?: SteamStorage.gameFolderHint(dir), prefixBytes = bytes))
                     }
                     else -> kept.add(KeptPrefix(dir, PrefixOwner.UNKNOWN, id?.toString() ?: dir.name, bytes, lib.label, lib.x64))
@@ -302,13 +328,18 @@ object StorageScan {
             }
         }
 
+        phase("kept prefixes")
         val storeGames = (com.droiddeck.launcher.stores.StoreInstallRoot.gameFolders(context).mapNotNull { folder ->
             com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)
                 ?.takeIf { it.isInstalled || it.state == com.droiddeck.launcher.stores.StoreGameSidecar.STATE_UPDATING }
                 ?.let { com.droiddeck.launcher.stores.InstalledStoreGame(it, folder) }
         } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(context) }.getOrDefault(emptyList()))
-            .map { StoreGameUsage(it, walker.measure(it.folder), it.folder.path.startsWith(files.path + "/")) }.sortedByDescending { it.bytes }
+            .map { g ->
+                val internal = g.folder.path.startsWith(files.path + "/")
+                StoreGameUsage(g, if (internal) walker.measure(g.folder) else -1L, internal)
+            }.sortedByDescending { it.bytes }
 
+        phase("store games")
         val clientRoots = listOfNotNull(steamRoot, x64Root)
         val apps = clientRoots.map { File(it, "steamapps") }
         val privateRoots = File(files, "steam-libraries").listFiles().orEmpty().filter { it.isDirectory }
@@ -333,6 +364,8 @@ object StorageScan {
         val componentBytes = m(componentsDir)
         val droiddeck = m(files) + m(context.cacheDir) - rootfsBytes - privateBytes - componentBytes +
             (privateBytes - toolsPrivate - privatePrefixes - privateShaders)
+        phase("totals")
+        Log.i("StorageScan", "scan ms: " + phases.joinToString(", "))
         val stat = StatFs(files.path)
         return StorageReport(
             System.currentTimeMillis(), stat.totalBytes, stat.availableBytes,

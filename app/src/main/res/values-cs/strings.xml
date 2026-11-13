@@ -2954,7 +2954,7 @@
     <string name="storage_default_choose_folder">Vybrat složku…</string>
     <string name="storage_default_choose_folder_detail">Použít libovolnou složku na kartě SD nebo disku USB</string>
     <string name="storage_default_note">Hry se ukládají do složky Games ve vybraném umístění. Stávající hry se nepřesouvají.</string>
-    <string name="storage_where">Kam to jde</string>
+    <string name="storage_where">Co zabírá místo</string>
     <string name="storage_games">Hry ze Steamu</string>
     <string name="storage_game_data">Data her</string>
     <string name="storage_game_data_hint">Prefixy %1$s · workshop %2$s · shadery %3$s</string>
@@ -3112,6 +3112,7 @@
     <string name="storage_bulk_prefixes">Prefixy Wine</string>
     <string name="storage_bulk_prefixes_detail">Uložené hry a nastavení v nich budou ztraceny; uložení ve Steam Cloud zůstanou ve vašem účtu.</string>
     <string name="storage_bulk_shaders">Mezipaměti shaderů</string>
+    <string name="storage_prefix_shaders">Prefix %1$s · shadery %2$s</string>
     <string name="storage_components_packages">Stažené balíky</string>
     <string name="storage_components_originals">Zachované originály</string>
     <string name="storage_components_none">Nejsou stažené žádné balíky komponent.</string>

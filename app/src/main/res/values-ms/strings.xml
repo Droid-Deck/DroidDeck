@@ -2867,7 +2867,7 @@
     <string name="storage_default_choose_folder">Pilih folder…</string>
     <string name="storage_default_choose_folder_detail">Gunakan mana-mana folder pada kad SD atau pemacu USB</string>
     <string name="storage_default_note">Permainan dimasukkan ke dalam folder Games di dalam lokasi yang dipilih. Permainan sedia ada tidak dipindahkan.</string>
-    <string name="storage_where">Ke mana perginya</string>
+    <string name="storage_where">Apa yang guna ruang</string>
     <string name="storage_games">Permainan Steam</string>
     <string name="storage_game_data">Data permainan</string>
     <string name="storage_game_data_hint">Awalan %1$s · workshop %2$s · shader %3$s</string>
@@ -3011,6 +3011,7 @@
     <string name="storage_bulk_prefixes">Prefix Wine</string>
     <string name="storage_bulk_prefixes_detail">Simpanan dan tetapan di dalamnya akan hilang; simpanan Steam Cloud kekal dalam akaun anda.</string>
     <string name="storage_bulk_shaders">Cache shader</string>
+    <string name="storage_prefix_shaders">Awalan %1$s · shader %2$s</string>
     <string name="storage_components_packages">Pakej yang dimuat turun</string>
     <string name="storage_components_originals">Fail asal yang disimpan</string>
     <string name="storage_components_none">Tiada pakej komponen dimuat turun.</string>

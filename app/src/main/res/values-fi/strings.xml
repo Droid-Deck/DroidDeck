@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Valitse kansio…</string>
     <string name="storage_default_choose_folder_detail">Käytä mitä tahansa kansiota SD-kortilla tai USB-asemalla</string>
     <string name="storage_default_note">Pelit tallennetaan valitun sijainnin Games-kansioon. Nykyisiä pelejä ei siirretä.</string>
-    <string name="storage_where">Mihin se menee</string>
+    <string name="storage_where">Mikä vie tilaa</string>
     <string name="storage_games">Steam-pelit</string>
     <string name="storage_game_data">Pelidata</string>
     <string name="storage_game_data_hint">Etuliitteet %1$s · workshop %2$s · shaderit %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine-prefixit</string>
     <string name="storage_bulk_prefixes_detail">Niiden sisällä olevat tallennukset ja asetukset menetetään; Steam Cloud -tallennukset säilyvät tililläsi.</string>
     <string name="storage_bulk_shaders">Shadervälimuistit</string>
+    <string name="storage_prefix_shaders">Etuliite %1$s · shaderit %2$s</string>
     <string name="storage_components_packages">Ladatut paketit</string>
     <string name="storage_components_originals">Säilytetyt alkuperäiset</string>
     <string name="storage_components_none">Komponenttipaketteja ei ole ladattu.</string>

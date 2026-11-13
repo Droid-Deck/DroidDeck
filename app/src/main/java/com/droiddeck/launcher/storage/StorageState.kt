@@ -31,6 +31,33 @@ object StorageState {
         private set
     val busy: Boolean get() = cleaning || storeBatch
     private var refreshAgain = false
+    val storeSizes = androidx.compose.runtime.mutableStateMapOf<String, Long>()
+    private var measuringStores = false
+
+    fun storeBytes(usage: StoreGameUsage): Long = if (usage.bytes >= 0) usage.bytes else storeSizes[usage.game.folder.path] ?: -1L
+
+    private fun measureStoreGames(app: Context, report: StorageReport) {
+        if (measuringStores) return
+        val wanted = report.storeGames.filter { it.bytes < 0 && it.game.folder.path !in storeSizes }.map { it.game.folder }
+        if (wanted.isEmpty()) return
+        measuringStores = true
+        Thread({
+            val started = android.os.SystemClock.elapsedRealtime()
+            for (folder in wanted) {
+                val bytes = runCatching { StorageScan.measure(folder) }.getOrDefault(0L)
+                main.post { storeSizes[folder.path] = bytes }
+            }
+            Log.i(TAG, "measured ${wanted.size} store games on removable storage in ${android.os.SystemClock.elapsedRealtime() - started} ms")
+            main.post { measuringStores = false }
+        }, "storage-store-sizes").start()
+    }
+
+    private fun publish(app: Context, result: StorageReport) {
+        report = result
+        val live = result.storeGames.mapTo(HashSet()) { it.game.folder.path }
+        storeSizes.keys.retainAll(live)
+        measureStoreGames(app, result)
+    }
     var lastFreed by mutableStateOf<Long?>(null)
     var progress by mutableStateOf<String?>(null)
         private set
@@ -64,7 +91,7 @@ object StorageState {
             val result = runCatching { StorageScan.scan(app) }
                 .onFailure { Log.w(TAG, "storage scan failed", it) }.getOrNull()
             main.post {
-                if (result != null) report = result
+                if (result != null) publish(app, result)
                 scanning = false
                 if (refreshAgain) refresh(app, force = true)
             }
@@ -191,7 +218,7 @@ object StorageState {
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
         val allowed = (fresh.games.flatMap { it.shaderDirs + listOfNotNull(it.prefixDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
-            fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.map { it.dir }).mapTo(HashSet()) { it.path }
+            fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
         val wanted = dirs.distinctBy { it.path }
         val targets = wanted.filter { it.path in allowed }
         if (targets.size < wanted.size) Log.w(TAG, "kept ${wanted.size - targets.size} folders that are no longer safe to remove")
@@ -230,7 +257,7 @@ object StorageState {
     private fun finish(app: Context, freed: Long?, onDone: (Long?) -> Unit) {
         val rescanned = runCatching { StorageScan.scan(app) }.getOrNull()
         main.post {
-            if (rescanned != null) report = rescanned
+            if (rescanned != null) publish(app, rescanned)
             cleaning = false
             lastFreed = freed
             onDone(freed)

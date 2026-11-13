@@ -2925,7 +2925,7 @@
     <string name="storage_default_choose_folder">Alege un folder…</string>
     <string name="storage_default_choose_folder_detail">Folosește orice folder de pe un card SD sau o unitate USB</string>
     <string name="storage_default_note">Jocurile sunt puse într-un folder Games din locația selectată. Jocurile existente nu sunt mutate.</string>
-    <string name="storage_where">Unde ajunge</string>
+    <string name="storage_where">Ce ocupă spațiu</string>
     <string name="storage_games">Jocuri Steam</string>
     <string name="storage_game_data">Datele jocurilor</string>
     <string name="storage_game_data_hint">Prefixe %1$s · workshop %2$s · shadere %3$s</string>
@@ -3076,6 +3076,7 @@
     <string name="storage_bulk_prefixes">Prefixuri Wine</string>
     <string name="storage_bulk_prefixes_detail">Salvările și setările din ele se pierd; salvările din Steam Cloud rămân în contul tău.</string>
     <string name="storage_bulk_shaders">Cache-uri de shadere</string>
+    <string name="storage_prefix_shaders">Prefixe %1$s · shadere %2$s</string>
     <string name="storage_components_packages">Pachete descărcate</string>
     <string name="storage_components_originals">Originale păstrate</string>
     <string name="storage_components_none">Niciun pachet de componente descărcat.</string>

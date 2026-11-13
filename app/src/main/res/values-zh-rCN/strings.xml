@@ -2871,7 +2871,7 @@
     <string name="storage_default_choose_folder">选择文件夹…</string>
     <string name="storage_default_choose_folder_detail">使用 SD 卡或 USB 驱动器上的任意文件夹</string>
     <string name="storage_default_note">游戏会放在所选位置中的 Games 文件夹内。现有游戏不会被移动。</string>
-    <string name="storage_where">占用去向</string>
+    <string name="storage_where">占用空间的项目</string>
     <string name="storage_games">Steam 游戏</string>
     <string name="storage_game_data">游戏数据</string>
     <string name="storage_game_data_hint">前缀 %1$s · 创意工坊 %2$s · 着色器 %3$s</string>
@@ -3015,6 +3015,7 @@
     <string name="storage_bulk_prefixes">Wine 前缀</string>
     <string name="storage_bulk_prefixes_detail">其中的存档和设置将丢失；Steam Cloud 存档仍保留在你的账户中。</string>
     <string name="storage_bulk_shaders">着色器缓存</string>
+    <string name="storage_prefix_shaders">前缀 %1$s · 着色器 %2$s</string>
     <string name="storage_components_packages">已下载的包</string>
     <string name="storage_components_originals">已保存的原始文件</string>
     <string name="storage_components_none">没有已下载的组件包。</string>

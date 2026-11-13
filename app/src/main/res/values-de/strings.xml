@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Ordner auswählen…</string>
     <string name="storage_default_choose_folder_detail">Einen beliebigen Ordner auf einer SD-Karte oder einem USB-Laufwerk verwenden</string>
     <string name="storage_default_note">Spiele kommen in einen Games-Ordner am ausgewählten Ort. Vorhandene Spiele werden nicht verschoben.</string>
-    <string name="storage_where">Belegung</string>
+    <string name="storage_where">Was Speicher belegt</string>
     <string name="storage_games">Steam-Spiele</string>
     <string name="storage_game_data">Spieldaten</string>
     <string name="storage_game_data_hint">Präfixe %1$s · Workshop %2$s · Shader %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine-Präfixe</string>
     <string name="storage_bulk_prefixes_detail">Speicherstände und Einstellungen darin gehen verloren; Steam-Cloud-Speicherstände bleiben in deinem Konto.</string>
     <string name="storage_bulk_shaders">Shader-Caches</string>
+    <string name="storage_prefix_shaders">Präfix %1$s · Shader %2$s</string>
     <string name="storage_components_packages">Geladene Pakete</string>
     <string name="storage_components_originals">Gesicherte Originale</string>
     <string name="storage_components_none">Keine geladenen Komponentenpakete.</string>

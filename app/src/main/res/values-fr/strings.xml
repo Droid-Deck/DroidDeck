@@ -2925,7 +2925,7 @@
     <string name="storage_default_choose_folder">Choisir un dossier…</string>
     <string name="storage_default_choose_folder_detail">Utiliser n\'importe quel dossier sur une carte SD ou une clé USB</string>
     <string name="storage_default_note">Les jeux sont placés dans un dossier Games à l\'emplacement sélectionné. Les jeux existants ne sont pas déplacés.</string>
-    <string name="storage_where">Où ça va</string>
+    <string name="storage_where">Ce qui prend de la place</string>
     <string name="storage_games">Jeux Steam</string>
     <string name="storage_game_data">Données de jeu</string>
     <string name="storage_game_data_hint">Préfixes %1$s · atelier %2$s · shaders %3$s</string>
@@ -3076,6 +3076,7 @@
     <string name="storage_bulk_prefixes">Préfixes Wine</string>
     <string name="storage_bulk_prefixes_detail">Les sauvegardes et paramètres qu\'ils contiennent sont perdus ; les sauvegardes Steam Cloud restent dans votre compte.</string>
     <string name="storage_bulk_shaders">Caches de shaders</string>
+    <string name="storage_prefix_shaders">Préfixe %1$s · shaders %2$s</string>
     <string name="storage_components_packages">Paquets téléchargés</string>
     <string name="storage_components_originals">Originaux conservés</string>
     <string name="storage_components_none">Aucun paquet de composant téléchargé.</string>

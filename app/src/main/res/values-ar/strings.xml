@@ -3012,7 +3012,7 @@
     <string name="storage_default_choose_folder">اختيار مجلد…</string>
     <string name="storage_default_choose_folder_detail">استخدم أي مجلد على بطاقة SD أو محرك USB</string>
     <string name="storage_default_note">توضع الألعاب في مجلد Games داخل الموقع المحدد. لا تُنقل الألعاب الحالية.</string>
-    <string name="storage_where">إلى أين يذهب</string>
+    <string name="storage_where">ما يشغل المساحة</string>
     <string name="storage_games">ألعاب Steam</string>
     <string name="storage_game_data">بيانات الألعاب</string>
     <string name="storage_game_data_hint">البادئات %1$s · الورشة %2$s · الشيدرات %3$s</string>
@@ -3184,6 +3184,7 @@
     <string name="storage_bulk_prefixes">بادئات Wine</string>
     <string name="storage_bulk_prefixes_detail">تُفقد الحفظات والإعدادات داخلها، وتبقى حفظات Steam Cloud في حسابك.</string>
     <string name="storage_bulk_shaders">ذاكرات الشيدرات المؤقتة</string>
+    <string name="storage_prefix_shaders">البادئة %1$s · الشيدرات %2$s</string>
     <string name="storage_components_packages">حزم منزّلة</string>
     <string name="storage_components_originals">أصول محفوظة</string>
     <string name="storage_components_none">لا حزم مكوّنات منزّلة.</string>

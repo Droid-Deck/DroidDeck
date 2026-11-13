@@ -2867,7 +2867,7 @@
     <string name="storage_default_choose_folder">เลือกโฟลเดอร์…</string>
     <string name="storage_default_choose_folder_detail">ใช้โฟลเดอร์ใดก็ได้บนการ์ด SD หรือไดรฟ์ USB</string>
     <string name="storage_default_note">เกมจะอยู่ในโฟลเดอร์ Games ภายในตำแหน่งที่เลือก เกมที่มีอยู่จะไม่ถูกย้าย</string>
-    <string name="storage_where">ไปอยู่ที่ไหน</string>
+    <string name="storage_where">สิ่งที่ใช้พื้นที่</string>
     <string name="storage_games">เกม Steam</string>
     <string name="storage_game_data">ข้อมูลเกม</string>
     <string name="storage_game_data_hint">Prefix %1$s · เวิร์กชอป %2$s · เชเดอร์ %3$s</string>
@@ -3011,6 +3011,7 @@
     <string name="storage_bulk_prefixes">Wine prefix</string>
     <string name="storage_bulk_prefixes_detail">เซฟและการตั้งค่าข้างในจะหายไป เซฟใน Steam Cloud ยังอยู่ในบัญชีของคุณ</string>
     <string name="storage_bulk_shaders">แคชเชเดอร์</string>
+    <string name="storage_prefix_shaders">Prefix %1$s · เชเดอร์ %2$s</string>
     <string name="storage_components_packages">แพ็กเกจที่ดาวน์โหลด</string>
     <string name="storage_components_originals">ต้นฉบับที่เก็บไว้</string>
     <string name="storage_components_none">ยังไม่มีแพ็กเกจคอมโพเนนต์ที่ดาวน์โหลด</string>

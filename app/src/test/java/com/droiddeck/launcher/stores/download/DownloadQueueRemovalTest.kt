@@ -139,22 +139,89 @@ class DownloadQueueRemovalTest {
         assertFalse(StoreInstalls.isDiscarding(folder))
     }
 
-    @Test fun uninstallWaitsWhileAnInstallerIsStillDiscardingTheFolder() {
+    private fun idleUntil(condition: () -> Boolean): Boolean {
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (System.nanoTime() < until) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            if (condition()) return true
+            Thread.sleep(10)
+        }
+        return false
+    }
+
+    @Test fun uninstallWaitsForAnInstallersDiscardThenRemovesTheGame() {
         val folder = File(app.filesDir, "discarding-game").apply { mkdirs() }
         File(folder, "game.bin").writeText("x")
         val game = InstalledStoreGame(StoreGameSidecar(Store.GOG, "discarding", "Discarding", exe = "game.bin"), folder)
         StoreInstalls.beginDiscard(folder)
+        val done = CountDownLatch(1)
         try {
-            val done = CountDownLatch(1)
             StoresState.uninstall(app, game) { done.countDown() }
+            Thread.sleep(300)
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
-            assertTrue(done.await(5, TimeUnit.SECONDS))
+            assertEquals(1L, done.count)
             assertTrue(File(folder, "game.bin").isFile)
-            assertTrue(DownloadQueue.holdForRemoval(game.key))
-            DownloadQueue.releaseRemoval(game.key)
         } finally {
             StoreInstalls.endDiscard(folder)
-            folder.deleteRecursively()
         }
+        assertTrue(idleUntil { done.count == 0L })
+        assertFalse(folder.exists())
+    }
+
+    private fun blockDiscards(): CountDownLatch {
+        val release = CountDownLatch(1)
+        StoreInstalls.beforeDiscard = { release.await(5, TimeUnit.SECONDS) }
+        return release
+    }
+
+    @After fun restoreDiscards() { StoreInstalls.beforeDiscard = {} }
+
+    @Test fun aDiscardStartedInsideARunningJobKeepsTheGameHeld() {
+        val folder = File(app.filesDir, "run-discard").apply { mkdirs() }
+        val release = blockDiscards()
+        val entry = DownloadEntry(Store.GOG, "run-discard", "run")
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    StoreInstalls.discard(app, folder, emptyList())
+                    return null
+                }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertTrue(idleUntil { DownloadQueue.entry(entry.key)?.state == DownloadState.FAILED })
+        assertFalse(DownloadQueue.holdForRemoval(entry.key))
+        release.countDown()
+        awaitHold(entry.key)
+        DownloadQueue.releaseRemoval(entry.key)
+    }
+
+    @Test fun cancellingARunningJobTwiceWaitsForEveryDiscard() {
+        val folder = File(app.filesDir, "double-cancel").apply { mkdirs() }
+        val release = blockDiscards()
+        val running = CountDownLatch(1)
+        val stop = CountDownLatch(1)
+        val entry = DownloadEntry(Store.GOG, "double-cancel", "twice")
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    running.countDown()
+                    stop.await(5, TimeUnit.SECONDS)
+                    return null
+                }
+                override fun cancel(deleteFiles: Boolean) {
+                    if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
+                }
+            }
+        }
+        assertTrue(running.await(5, TimeUnit.SECONDS))
+        DownloadQueue.cancel(app, entry.key)
+        DownloadQueue.cancel(app, entry.key)
+        stop.countDown()
+        assertTrue(idleUntil { DownloadQueue.entry(entry.key)?.state != DownloadState.RUNNING })
+        assertFalse(DownloadQueue.holdForRemoval(entry.key))
+        release.countDown()
+        awaitHold(entry.key)
+        DownloadQueue.releaseRemoval(entry.key)
     }
 }

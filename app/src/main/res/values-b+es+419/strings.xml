@@ -2864,7 +2864,7 @@
     <string name="storage_default_choose_folder">Elegir carpeta…</string>
     <string name="storage_default_choose_folder_detail">Usa cualquier carpeta de una tarjeta SD o unidad USB</string>
     <string name="storage_default_note">Los juegos se guardan en una carpeta Games dentro de la ubicación seleccionada. Los juegos existentes no se mueven.</string>
-    <string name="storage_where">Dónde va</string>
+    <string name="storage_where">Qué ocupa espacio</string>
     <string name="storage_games">Juegos de Steam</string>
     <string name="storage_game_data">Datos de juegos</string>
     <string name="storage_game_data_hint">Prefijos %1$s · taller %2$s · shaders %3$s</string>
@@ -3015,6 +3015,7 @@
     <string name="storage_bulk_prefixes">Prefijos de Wine</string>
     <string name="storage_bulk_prefixes_detail">Se pierden las partidas y los ajustes que contienen; las partidas de Steam Cloud se conservan en tu cuenta.</string>
     <string name="storage_bulk_shaders">Cachés de shaders</string>
+    <string name="storage_prefix_shaders">Prefijo %1$s · shaders %2$s</string>
     <string name="storage_components_packages">Paquetes descargados</string>
     <string name="storage_components_originals">Originales guardados</string>
     <string name="storage_components_none">No hay paquetes de componentes descargados.</string>

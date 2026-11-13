@@ -2867,7 +2867,7 @@
     <string name="storage_default_choose_folder">폴더 선택…</string>
     <string name="storage_default_choose_folder_detail">SD 카드나 USB 드라이브의 아무 폴더나 사용</string>
     <string name="storage_default_note">게임은 선택한 위치 안의 Games 폴더에 저장됩니다. 기존 게임은 이동되지 않습니다.</string>
-    <string name="storage_where">사용 내역</string>
+    <string name="storage_where">공간을 차지하는 항목</string>
     <string name="storage_games">Steam 게임</string>
     <string name="storage_game_data">게임 데이터</string>
     <string name="storage_game_data_hint">프리픽스 %1$s · 워크숍 %2$s · 셰이더 %3$s</string>
@@ -3011,6 +3011,7 @@
     <string name="storage_bulk_prefixes">Wine 프리픽스</string>
     <string name="storage_bulk_prefixes_detail">그 안의 저장 파일과 설정은 사라지며, Steam Cloud 저장 파일은 계정에 남아 있습니다.</string>
     <string name="storage_bulk_shaders">셰이더 캐시</string>
+    <string name="storage_prefix_shaders">프리픽스 %1$s · 셰이더 %2$s</string>
     <string name="storage_components_packages">내려받은 패키지</string>
     <string name="storage_components_originals">저장된 원본 파일</string>
     <string name="storage_components_none">내려받은 구성 요소 패키지가 없습니다.</string>

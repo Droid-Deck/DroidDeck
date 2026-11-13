@@ -2867,7 +2867,7 @@
     <string name="storage_default_choose_folder">フォルダーを選択…</string>
     <string name="storage_default_choose_folder_detail">SDカードやUSBドライブの任意のフォルダーを使用します</string>
     <string name="storage_default_note">ゲームは選択した場所の中のGamesフォルダーに保存されます。既存のゲームは移動されません。</string>
-    <string name="storage_where">使用内訳</string>
+    <string name="storage_where">容量を使っているもの</string>
     <string name="storage_games">Steam ゲーム</string>
     <string name="storage_game_data">ゲームデータ</string>
     <string name="storage_game_data_hint">プレフィックス %1$s · ワークショップ %2$s · シェーダー %3$s</string>
@@ -3011,6 +3011,7 @@
     <string name="storage_bulk_prefixes">Wineプレフィックス</string>
     <string name="storage_bulk_prefixes_detail">その中のセーブデータと設定は失われます。Steam Cloudのセーブデータはアカウントに残ります。</string>
     <string name="storage_bulk_shaders">シェーダーキャッシュ</string>
+    <string name="storage_prefix_shaders">プレフィックス %1$s · シェーダー %2$s</string>
     <string name="storage_components_packages">ダウンロード済みのパッケージ</string>
     <string name="storage_components_originals">保存済みの元ファイル</string>
     <string name="storage_components_none">ダウンロード済みのコンポーネントパッケージはありません。</string>

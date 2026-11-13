@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Välj mapp…</string>
     <string name="storage_default_choose_folder_detail">Använd valfri mapp på ett SD-kort eller USB-minne</string>
     <string name="storage_default_note">Spel hamnar i en Games-mapp på den valda platsen. Befintliga spel flyttas inte.</string>
-    <string name="storage_where">Vart det tar vägen</string>
+    <string name="storage_where">Vad som tar plats</string>
     <string name="storage_games">Steam-spel</string>
     <string name="storage_game_data">Speldata</string>
     <string name="storage_game_data_hint">Prefix %1$s · workshop %2$s · shaders %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine-prefix</string>
     <string name="storage_bulk_prefixes_detail">Sparningar och inställningar i dem går förlorade; Steam Cloud-sparningar finns kvar på ditt konto.</string>
     <string name="storage_bulk_shaders">Shadercacheminnen</string>
+    <string name="storage_prefix_shaders">Prefix %1$s · shaders %2$s</string>
     <string name="storage_components_packages">Hämtade paket</string>
     <string name="storage_components_originals">Behållna original</string>
     <string name="storage_components_none">Inga komponentpaket hämtade.</string>

@@ -104,7 +104,7 @@ object DownloadQueue {
     private val items = LinkedHashMap<String, Item>()
     private val heldPaused = HashSet<String>()
     private val removing = HashSet<String>()
-    private val cleaningUp = HashSet<String>()
+    private val cleaningUp = HashMap<String, Int>()
 
     fun holdForRemoval(key: String): Boolean = synchronized(lock) {
         val item = items[key]
@@ -115,9 +115,15 @@ object DownloadQueue {
 
     fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key) } }
 
-    private fun beginCleanup(key: String): Boolean = synchronized(lock) { key !in removing && cleaningUp.add(key) }
+    private fun beginCleanup(key: String): Boolean = synchronized(lock) {
+        if (key in removing) return@synchronized false
+        cleaningUp.merge(key, 1, Int::plus)
+        true
+    }
 
-    private fun endCleanup(key: String) { synchronized(lock) { cleaningUp.remove(key) } }
+    private fun holdCleanup(key: String) { synchronized(lock) { cleaningUp.merge(key, 1, Int::plus) } }
+
+    private fun endCleanup(key: String) { synchronized(lock) { cleaningUp.computeIfPresent(key) { _, n -> (n - 1).takeIf { it > 0 } } } }
 
     private fun cleanUpLater(context: Context, key: String, name: String, work: () -> Unit) {
         Thread({
@@ -244,7 +250,7 @@ object DownloadQueue {
             if (wasRunning) {
                 item.cancelled.set(true)
                 val deleting = StoreInstalls.collectingDiscards { item.job?.cancel(deleteFiles = true) }
-                if (deleting.isNotEmpty() && cleaningUp.add(key)) awaitDeletion = deleting
+                if (deleting.isNotEmpty()) { holdCleanup(key); awaitDeletion = deleting }
             }
             if (!wasRunning) {
                 cleanup = beginCleanup(key)
@@ -356,7 +362,11 @@ object DownloadQueue {
             val job = checkNotNull(item.factory).invoke()
             synchronized(lock) { item.job = job }
             StoresState.logLine("${item.entry.store.label}: fetching manifest for \"${item.entry.name}\"")
-            result = job.run(handle)
+            val deleting = StoreInstalls.collectingDiscards { result = job.run(handle) }
+            if (deleting.isNotEmpty()) {
+                holdCleanup(item.entry.key)
+                cleanUpLater(context, item.entry.key, "store-dl-run-discard") { deleting.forEach { it.join() } }
+            }
             if (result == null && !item.cancelled.get()) error = "install failed"
         } catch (t: Throwable) {
             error = t.message ?: t.javaClass.simpleName

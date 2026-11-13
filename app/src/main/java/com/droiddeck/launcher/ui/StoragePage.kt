@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -264,12 +265,23 @@ private fun DefaultStorageGroup() {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
+    val narrowPane = LocalNarrowPane.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wide = !narrowPane && maxWidth >= WIDE_OVERVIEW
+        Column { OverviewContent(report, sessionRunning, wide, onCleanUp, onOpen) }
+    }
+}
+
+private val WIDE_OVERVIEW = 700.dp
+private val NARROW_ROW = 640.dp
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val wide = !LocalNarrowPane.current
     val used = report.total - report.free
     val safe = StorageState.safeBytes(report)
     val low = report.free < StorageState.LOW_SPACE_BYTES
@@ -279,7 +291,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val usage: @Composable (Modifier) -> Unit = { m -> Column(m) {
             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.storage_internal), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text("· " + stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
+                Text(stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 Pill(stringResource(R.string.storage_free, gb(report.free)), if (low) AttentionAmber else pal.good)
             }
             val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(report.at))
@@ -555,7 +567,7 @@ private fun ToggleRow(title: String, detail: String, bytes: Long, on: Boolean, m
         ) { if (on) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Pill(pill.first, pill.second)
             }
             Text(detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -599,6 +611,8 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val narrow = maxWidth < NARROW_ROW
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
@@ -610,13 +624,14 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                     Text(gameName(g), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(
+                            stringResource(R.string.storage_game_parts, gb(g.game), gb(g.data)).takeIf { narrow },
                             g.library.takeIf { !g.internal },
                             if (g.lastPlayed > 0) stringResource(R.string.storage_played, DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(g.lastPlayed * 1000))) else stringResource(R.string.storage_never_played),
                         ).joinToString(" · "),
-                        fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = if (narrow) 2 else 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Column(Modifier.weight(1f)) {
+                if (!narrow) Column(Modifier.weight(1f)) {
                     Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF0A0C0F))) {
                         listOf(g.game to BucketColors.getValue(Bucket.GAMES), g.prefix to BucketColors.getValue(Bucket.GAME_DATA), (g.shaders + g.workshop) to Color(0xFFC5B8FF))
                             .forEach { (v, c) -> if (v > 0) Box(Modifier.weight(v.toFloat() / max).fillMaxHeight().background(c)) }
@@ -630,6 +645,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                 }
                 Text(gb(g.total), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
                 SecondaryButton(stringResource(R.string.storage_uninstall), compact = true, enabled = !sessionRunning) { confirm = g }
+            }
             }
             if (i < games.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         }
@@ -747,26 +763,22 @@ private fun toolDetail(t: ToolUsage): String = when (t.reason) {
 private fun ToolList(tools: List<ToolUsage>, sessionRunning: Boolean, onRemove: (ToolUsage) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+    ListCard {
         tools.forEachIndexed { i, t ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(t.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(toolDetail(t), fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                when (t.state) {
-                    ToolState.IN_USE -> Pill(if (t.isDefault) stringResource(R.string.storage_tag_default) else pluralStringResource(R.plurals.storage_tag_games, t.games, t.games), pal.signal)
-                    ToolState.REQUIRED -> Pill(stringResource(R.string.storage_tag_required), colors.onSurfaceVariant)
-                    ToolState.UNUSED -> Pill(stringResource(R.string.storage_tag_not_used), AttentionAmber)
-                }
-                Text(gb(t.bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
-                if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.busy) { onRemove(t) }
-                else Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            }
-            if (i < tools.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            ItemRow(
+                t.name, toolDetail(t), t.bytes, i == tools.lastIndex,
+                pill = {
+                    when (t.state) {
+                        ToolState.IN_USE -> Pill(if (t.isDefault) stringResource(R.string.storage_tag_default) else pluralStringResource(R.plurals.storage_tag_games, t.games, t.games), pal.signal)
+                        ToolState.REQUIRED -> Pill(stringResource(R.string.storage_tag_required), colors.onSurfaceVariant)
+                        ToolState.UNUSED -> Pill(stringResource(R.string.storage_tag_not_used), AttentionAmber)
+                    }
+                },
+                action = {
+                    if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.busy) { onRemove(t) }
+                    else Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                },
+            )
         }
     }
 }
@@ -829,22 +841,39 @@ private fun ListCard(content: @Composable () -> Unit) {
 @Composable
 private fun ItemRow(
     title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null,
-    selected: Boolean? = null, onSelect: () -> Unit = {}, selectable: Boolean = true, slot: Boolean = false, action: (@Composable () -> Unit)? = null,
+    selected: Boolean? = null, onSelect: () -> Unit = {}, selectable: Boolean = true, slot: Boolean = false,
+    stack: Boolean = pill != null, action: (@Composable () -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        if (selected != null) SelectBox(selected, selectable, onSelect) else if (slot) Spacer(Modifier.size(40.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val tight = maxWidth < NARROW_ROW
+        val narrow = tight && stack
+        val size = @Composable {
+            Text(if (bytes < 0) "…" else gb(bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                modifier = if (narrow) Modifier else Modifier.widthIn(min = 70.dp))
         }
-        pill?.invoke()
-        Text(gb(bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
-        action?.invoke()
+        Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (selected != null) SelectBox(selected, selectable, onSelect) else if (slot) Spacer(Modifier.size(40.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = if (narrow) 2 else 1, overflow = TextOverflow.Ellipsis)
+                    if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = if (tight) 2 else 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (narrow) size() else {
+                    pill?.invoke()
+                    size()
+                    action?.invoke()
+                }
+            }
+            if (narrow) Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                pill?.invoke()
+                action?.invoke()
+            }
+        }
     }
     if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
@@ -908,7 +937,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val leftovers = report.leftovers.sortedByDescending { it.bytes }
     val safe = leftovers.filter { it.safe }
     val unsure = leftovers.filter { !it.safe }
-    val kept = report.kept.filter { it.bytes >= ONE_MB }.sortedByDescending { it.bytes }
+    val kept = report.kept.filter { it.bytes + it.shaderBytes >= ONE_MB }.sortedByDescending { it.bytes + it.shaderBytes }
     val safeLabel = pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size)
     val gameNames = games.associate { gameKey(it) to gameName(it) }
     val unsureNames = unsure.associate { leftoverKey(it) to leftoverName(it) }
@@ -921,7 +950,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))
         unsure.forEach { l -> add(DataTarget("left:${leftoverKey(l)}", unsureNames[leftoverKey(l)].orEmpty(), listOfNotNull(l.prefix?.let { it to l.prefixBytes }), listOfNotNull(l.shaders?.let { it to l.bytes - l.prefixBytes }))) }
         kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }
-            .forEach { k -> add(DataTarget("kept:${k.dir.path}", keptNames[k.dir.path].orEmpty(), listOf(k.dir to k.bytes), emptyList())) }
+            .forEach { k -> add(DataTarget("kept:${k.dir.path}", keptNames[k.dir.path].orEmpty(), listOf(k.dir to k.bytes), listOfNotNull(k.shaders?.let { it to k.shaderBytes }))) }
     }.associateBy { it.key }
     val chosen = picked.mapNotNull { targets[it] }
     fun bytesOf(t: DataTarget, prefixes: Boolean, shaders: Boolean): Long =
@@ -939,7 +968,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
             val key = gameKey(g)
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
-                selected = key in picked, selectable = !busy && (g.prefixDir != null || g.shaders > 0), onSelect = { toggle(key) },
+                selected = key in picked, selectable = !busy && (g.prefixDir != null || g.shaders > 0), onSelect = { toggle(key) }, stack = true,
                 action = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) }
@@ -974,21 +1003,21 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         }
     }
     if (kept.isNotEmpty()) {
-        SectionTitle(stringResource(R.string.storage_data_other), gb(kept.sumOf { it.bytes }))
+        SectionTitle(stringResource(R.string.storage_data_other), gb(kept.sumOf { it.bytes + it.shaderBytes }))
         ListCard {
             kept.forEachIndexed { i, k ->
                 val resettable = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
                 val key = "kept:${k.dir.path}"
                 ItemRow(
                     keptName(k),
-                    when (k.owner) {
+                    listOfNotNull(when (k.owner) {
                         PrefixOwner.SHARED -> stringResource(R.string.storage_shared_prefix_detail)
                         PrefixOwner.LAUNCHER -> if (k.users.isEmpty()) stringResource(R.string.storage_launcher_prefix)
                             else stringResource(R.string.storage_launcher_used_by, k.users.distinct().joinToString(", "))
-                        PrefixOwner.GAME -> stringResource(R.string.storage_data_other_detail)
+                        PrefixOwner.GAME -> stringResource(R.string.storage_prefix_shaders, gb(k.bytes), gb(k.shaderBytes))
                         PrefixOwner.UNKNOWN -> stringResource(R.string.storage_unknown_prefix_detail)
-                    },
-                    k.bytes, i == kept.lastIndex,
+                    }, k.shaderBytes.takeIf { it >= ONE_MB && k.owner != PrefixOwner.GAME }?.let { stringResource(R.string.storage_bulk_shaders) + " " + gb(it).replace(' ', ' ') }).joinToString(" · "),
+                    k.bytes + k.shaderBytes, i == kept.lastIndex,
                     pill = if (k.owner == PrefixOwner.LAUNCHER) { { Pill(stringResource(R.string.storage_tag_required), MaterialTheme.colorScheme.onSurfaceVariant) } } else null,
                     selected = if (resettable) key in picked else null, slot = true, selectable = !busy, onSelect = { toggle(key) },
                     action = if (resettable) {
@@ -1104,8 +1133,8 @@ private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBac
     val games = report.storeGames
     val chosen = games.filter { it.game.folder.path in picked && !com.droiddeck.launcher.stores.download.DownloadQueue.isActive(it.game.key) }
     SubHeader(stringResource(R.string.storage_stores),
-        pluralStringResource(R.plurals.storage_games_installed, games.size, games.size) + " · " + gb(games.sumOf { it.bytes }), onBack) {
-        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_uninstall_selected, gb(chosen.sumOf { it.bytes })), compact = true, enabled = !busy) { confirm = chosen }
+        pluralStringResource(R.plurals.storage_games_installed, games.size, games.size) + " · " + gb(games.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) }), onBack) {
+        if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_uninstall_selected, gb(chosen.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) })), compact = true, enabled = !busy) { confirm = chosen }
     }
     ActionStatus()
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
@@ -1118,7 +1147,7 @@ private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBac
             ItemRow(
                 g.game.sidecar.title,
                 if (g.internal) g.game.sidecar.store.label else g.game.sidecar.store.label + " · " + stringResource(R.string.fm_drive_sd),
-                g.bytes, i == games.lastIndex,
+                StorageState.storeBytes(g), i == games.lastIndex,
                 selected = key in picked && !downloading, selectable = !busy && !downloading, onSelect = { picked = if (key in picked) picked - key else picked + key },
                 action = {
                     SecondaryButton(stringResource(if (removing) R.string.stores_uninstalling else R.string.storage_uninstall), compact = true,
@@ -1129,7 +1158,7 @@ private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBac
     }
     if (confirm.isNotEmpty()) {
         val list = confirm
-        val total = gb(list.sumOf { it.bytes })
+        val total = gb(list.sumOf { StorageState.storeBytes(it).coerceAtLeast(0) })
         ConfirmDialog(
             if (list.size == 1) stringResource(R.string.stores_uninstall_title, list[0].game.sidecar.title) else stringResource(R.string.storage_uninstall_selected, total),
             (if (list.size == 1) "" else list.joinToString("\n") { "• " + it.game.sidecar.title } + "\n\n") + stringResource(R.string.stores_uninstall_body_size, total),

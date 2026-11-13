@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Velg mappe…</string>
     <string name="storage_default_choose_folder_detail">Bruk en hvilken som helst mappe på et SD-kort eller en USB-enhet</string>
     <string name="storage_default_note">Spill legges i en Games-mappe på valgt plassering. Eksisterende spill flyttes ikke.</string>
-    <string name="storage_where">Hvor det ender</string>
+    <string name="storage_where">Hva som bruker plass</string>
     <string name="storage_games">Steam-spill</string>
     <string name="storage_game_data">Spilldata</string>
     <string name="storage_game_data_hint">Prefikser %1$s · workshop %2$s · shaders %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine-prefikser</string>
     <string name="storage_bulk_prefixes_detail">Lagringer og innstillinger i dem går tapt; Steam Cloud-lagringer blir værende på kontoen din.</string>
     <string name="storage_bulk_shaders">Shadercacher</string>
+    <string name="storage_prefix_shaders">Prefiks %1$s · shaders %2$s</string>
     <string name="storage_components_packages">Nedlastede pakker</string>
     <string name="storage_components_originals">Beholdte originaler</string>
     <string name="storage_components_none">Ingen komponentpakker lastet ned.</string>

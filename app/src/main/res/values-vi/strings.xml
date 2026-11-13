@@ -2867,7 +2867,7 @@
     <string name="storage_default_choose_folder">Chọn thư mục…</string>
     <string name="storage_default_choose_folder_detail">Dùng bất kỳ thư mục nào trên thẻ SD hoặc ổ USB</string>
     <string name="storage_default_note">Game được đặt vào thư mục Games bên trong vị trí đã chọn. Game hiện có không bị di chuyển.</string>
-    <string name="storage_where">Đi đâu</string>
+    <string name="storage_where">Mục chiếm bộ nhớ</string>
     <string name="storage_games">Game Steam</string>
     <string name="storage_game_data">Dữ liệu game</string>
     <string name="storage_game_data_hint">Prefix %1$s · workshop %2$s · shader %3$s</string>
@@ -3011,6 +3011,7 @@
     <string name="storage_bulk_prefixes">Prefix Wine</string>
     <string name="storage_bulk_prefixes_detail">Bản lưu và thiết lập bên trong sẽ mất; bản lưu Steam Cloud vẫn ở trong tài khoản của bạn.</string>
     <string name="storage_bulk_shaders">Bộ nhớ đệm shader</string>
+    <string name="storage_prefix_shaders">Prefix %1$s · shader %2$s</string>
     <string name="storage_components_packages">Gói đã tải</string>
     <string name="storage_components_originals">Bản gốc đã giữ</string>
     <string name="storage_components_none">Chưa tải gói thành phần nào.</string>

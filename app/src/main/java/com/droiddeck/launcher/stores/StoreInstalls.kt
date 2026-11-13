@@ -96,7 +96,14 @@ object StoreInstalls {
     internal fun beginDiscard(folder: File) { synchronized(discarding) { discarding.merge(folder.absolutePath, 1, Int::plus) } }
 
     internal fun endDiscard(folder: File) {
-        synchronized(discarding) { discarding.computeIfPresent(folder.absolutePath) { _, n -> (n - 1).takeIf { it > 0 } } }
+        synchronized(discarding) {
+            discarding.computeIfPresent(folder.absolutePath) { _, n -> (n - 1).takeIf { it > 0 } }
+            (discarding as Object).notifyAll()
+        }
+    }
+
+    fun awaitDiscard(folder: File) {
+        synchronized(discarding) { while (folder.absolutePath in discarding) (discarding as Object).wait() }
     }
 
     private val started = ThreadLocal<MutableList<Thread>?>()
@@ -124,7 +131,11 @@ object StoreInstalls {
         worker.start()
     }
 
+    @androidx.annotation.VisibleForTesting
+    internal var beforeDiscard: (File) -> Unit = {}
+
     private fun discardNow(app: Context, folder: File, caches: List<File>) {
+        beforeDiscard(folder)
         val sidecar = StoreGameSidecar.read(folder)
         val keep = sidecar?.isInstalled == true || sidecar?.state == StoreGameSidecar.STATE_UPDATING
         caches.forEach { deleteTree(it) }

@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Map kiezen…</string>
     <string name="storage_default_choose_folder_detail">Gebruik een willekeurige map op een SD-kaart of USB-stick</string>
     <string name="storage_default_note">Games komen in een map Games op de gekozen locatie. Bestaande games worden niet verplaatst.</string>
-    <string name="storage_where">Waar het naartoe gaat</string>
+    <string name="storage_where">Wat ruimte inneemt</string>
     <string name="storage_games">Steam-games</string>
     <string name="storage_game_data">Gamegegevens</string>
     <string name="storage_game_data_hint">Prefixen %1$s · workshop %2$s · shaders %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine-prefixen</string>
     <string name="storage_bulk_prefixes_detail">Opgeslagen spellen en instellingen daarin gaan verloren; Steam Cloud-opslagen blijven in je account.</string>
     <string name="storage_bulk_shaders">Shadercaches</string>
+    <string name="storage_prefix_shaders">Prefix %1$s · shaders %2$s</string>
     <string name="storage_components_packages">Gedownloade pakketten</string>
     <string name="storage_components_originals">Bewaarde originelen</string>
     <string name="storage_components_none">Geen componentpakketten gedownload.</string>

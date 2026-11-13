@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">Επιλογή φακέλου…</string>
     <string name="storage_default_choose_folder_detail">Χρησιμοποιήστε οποιονδήποτε φάκελο σε κάρτα SD ή μονάδα USB</string>
     <string name="storage_default_note">Τα παιχνίδια μπαίνουν σε φάκελο Games μέσα στην επιλεγμένη τοποθεσία. Τα υπάρχοντα παιχνίδια δεν μετακινούνται.</string>
-    <string name="storage_where">Πού πηγαίνει</string>
+    <string name="storage_where">Τι καταλαμβάνει χώρο</string>
     <string name="storage_games">Παιχνίδια Steam</string>
     <string name="storage_game_data">Δεδομένα παιχνιδιών</string>
     <string name="storage_game_data_hint">Prefix %1$s · workshop %2$s · shaders %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Prefix Wine</string>
     <string name="storage_bulk_prefixes_detail">Οι αποθηκεύσεις και οι ρυθμίσεις μέσα τους χάνονται· οι αποθηκεύσεις Steam Cloud παραμένουν στον λογαριασμό σας.</string>
     <string name="storage_bulk_shaders">Προσωρινές μνήμες shaders</string>
+    <string name="storage_prefix_shaders">Πρόθεμα %1$s · σκιαστές %2$s</string>
     <string name="storage_components_packages">Ληφθέντα πακέτα</string>
     <string name="storage_components_originals">Διατηρημένα αρχικά</string>
     <string name="storage_components_none">Δεν έχουν ληφθεί πακέτα στοιχείων.</string>

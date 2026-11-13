@@ -3037,7 +3037,7 @@
     <string name="storage_default_choose_folder">Выбрать папку…</string>
     <string name="storage_default_choose_folder_detail">Любая папка на SD-карте или USB-накопителе</string>
     <string name="storage_default_note">Игры помещаются в папку Games в выбранном месте. Установленные игры не перемещаются.</string>
-    <string name="storage_where">Куда уходит</string>
+    <string name="storage_where">Что занимает место</string>
     <string name="storage_games">Игры Steam</string>
     <string name="storage_game_data">Данные игр</string>
     <string name="storage_game_data_hint">Префиксы %1$s · мастерская %2$s · шейдеры %3$s</string>
@@ -3195,6 +3195,7 @@
     <string name="storage_bulk_prefixes">Префиксы Wine</string>
     <string name="storage_bulk_prefixes_detail">Сохранения и настройки в них будут потеряны; сохранения Steam Cloud остаются в вашем аккаунте.</string>
     <string name="storage_bulk_shaders">Кэши шейдеров</string>
+    <string name="storage_prefix_shaders">Префикс %1$s · шейдеры %2$s</string>
     <string name="storage_components_packages">Загруженные пакеты</string>
     <string name="storage_components_originals">Сохранённые оригиналы</string>
     <string name="storage_components_none">Пакеты компонентов не загружены.</string>

@@ -2896,7 +2896,7 @@
     <string name="storage_default_choose_folder">फ़ोल्डर चुनें…</string>
     <string name="storage_default_choose_folder_detail">SD कार्ड या USB ड्राइव पर कोई भी फ़ोल्डर इस्तेमाल करें</string>
     <string name="storage_default_note">गेम चुनी गई जगह के अंदर एक Games फ़ोल्डर में जाते हैं। मौजूदा गेम मूव नहीं किए जाते।</string>
-    <string name="storage_where">कहाँ जाता है</string>
+    <string name="storage_where">क्या जगह घेर रहा है</string>
     <string name="storage_games">Steam गेम</string>
     <string name="storage_game_data">गेम डेटा</string>
     <string name="storage_game_data_hint">प्रीफ़िक्स %1$s · वर्कशॉप %2$s · शेडर %3$s</string>
@@ -3040,6 +3040,7 @@
     <string name="storage_bulk_prefixes">Wine प्रीफ़िक्स</string>
     <string name="storage_bulk_prefixes_detail">इनके अंदर के सेव और सेटिंग खो जाते हैं; Steam Cloud सेव आपके अकाउंट में रहते हैं।</string>
     <string name="storage_bulk_shaders">शेडर कैश</string>
+    <string name="storage_prefix_shaders">प्रीफ़िक्स %1$s · शेडर %2$s</string>
     <string name="storage_components_packages">डाउनलोड किए पैकेज</string>
     <string name="storage_components_originals">रखे गए मूल</string>
     <string name="storage_components_none">कोई कॉम्पोनेंट पैकेज डाउनलोड नहीं है।</string>
