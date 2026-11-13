@@ -127,17 +127,23 @@ class Parker:
         tids = self.tasks(pid)
         if self.present is None:
             self.present = set(tids)
-        inherited = {frozenset(parked): before for before, parked in self.before.values()}
+        masks = {}
         for tid in tids:
-            if tid in self.before:
-                continue
+            if tid not in self.before:
+                try:
+                    masks[tid] = self.cores.get(tid)
+                except OSError:
+                    continue
+        # A mask the game gave one of its own threads may be passed on by it, not by a parked thread.
+        own = {frozenset(now) for tid, now in masks.items() if tid in self.present}
+        inherited = {frozenset(parked): before for before, parked in self.before.values()}
+        for tid, now in masks.items():
             try:
-                now = self.cores.get(tid)
                 wanted = now & self.efficient
                 if wanted and wanted != now:
                     self.cores.set(tid, wanted)
                     self.before[tid] = (now, wanted)
-                elif tid not in self.present and frozenset(now) in inherited:
+                elif tid not in self.present and frozenset(now) in inherited and frozenset(now) not in own:
                     self.before[tid] = (inherited[frozenset(now)], now)
             except OSError:
                 continue
