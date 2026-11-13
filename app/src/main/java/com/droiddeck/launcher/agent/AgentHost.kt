@@ -52,6 +52,7 @@ object AgentHost {
 
     private const val TAG = "AgentHost"
     private const val WORKSPACE = "/root/DroidDeck"
+    internal const val GUEST_PATH = "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     private const val TICK_MS = 1_000L
     private const val IDLE_TICK_MS = 5_000L
 
@@ -380,7 +381,7 @@ object AgentHost {
     fun guest(app: Context, command: List<String>, workdir: String = "/root", connectAdb: Boolean = true, fakeRoot: Boolean = false): ProcessBuilder {
         val adb = AgentAdb.prepare(app)
         val env = listOf(
-            "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
+            "/usr/bin/env", "HOME=/root", "PATH=$GUEST_PATH", "LANG=C.UTF-8",
             "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}",
             "DD_AGENT=1", "DD_AGENT_INBOX=${File(app.filesDir, "agent").path}", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
         )
