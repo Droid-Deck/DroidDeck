@@ -243,6 +243,9 @@ class DrawerActions(
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val effects: ScreenEffects = ScreenEffects.OFF,
+    val screenEffectsTarget: String = "auto",
+    val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
+    val screenEffectsCanDelete: Boolean = false,
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
@@ -304,6 +307,10 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
+    val onScreenEffectsTarget: (String) -> Unit = {},
+    val onScreenEffectsReset: () -> Unit = {},
+    val onScreenEffectsDelete: () -> Unit = {},
+    val onScreenEffectsProfilesRefresh: () -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
     val onCardboardRecenter: () -> Unit = {},
     val onGlassesRecenter: () -> Unit = {},
@@ -419,6 +426,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 delay(1_000)
             }
         }
+    }
+    LaunchedEffect(open, page) {
+        if (open && page == SessionDrawerPage.EFFECTS) a.onScreenEffectsProfilesRefresh()
     }
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
@@ -1062,6 +1072,26 @@ private fun ScreenEffectsGroup(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
+        ChoiceRow(
+            host, "effects-profile", stringResource(R.string.screen_effects_target),
+            stringResource(R.string.screen_effects_target_hint), a.screenEffectsTargets,
+            a.screenEffectsTarget, chipModifier = track("effects-profile"),
+            onPick = a.onScreenEffectsTarget,
+        )
+        ActionRow(
+            stringResource(R.string.screen_effects_reset),
+            stringResource(R.string.screen_effects_reset_hint),
+            stringResource(R.string.hud_reset_button),
+            a.onScreenEffectsReset,
+            modifier = track("effects-reset"),
+        )
+        if (a.screenEffectsCanDelete) ActionRow(
+            stringResource(R.string.screen_effects_delete),
+            stringResource(R.string.screen_effects_delete_hint),
+            stringResource(R.string.common_delete),
+            a.onScreenEffectsDelete,
+            modifier = track("effects-delete"),
+        )
         val presets = ScreenEffectLooks.LOOKS.map { it.name to stringResource(it.label) }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,

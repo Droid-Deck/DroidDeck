@@ -716,6 +716,13 @@
     <string name="hud_reset_button">Redefinir</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
+    <string name="screen_effects_target">Perfil de efeitos</string>
+    <string name="screen_effects_target_hint">Escolha qual perfil terá os efeitos de tela editados.</string>
+    <string name="screen_effects_target_auto">Jogo atual (automático)</string>
+    <string name="screen_effects_reset">Redefinir efeitos</string>
+    <string name="screen_effects_reset_hint">Define os efeitos deste perfil como desativados por padrão.</string>
+    <string name="screen_effects_delete">Excluir configuração salva</string>
+    <string name="screen_effects_delete_hint">Remove os efeitos salvos deste jogo para ele herdar o perfil padrão.</string>
     <string name="drawer_effects">Efeitos de tela</string>
     <string name="drawer_effects_hint">Em tempo real. Custa um pouco de tempo de GPU enquanto algum efeito estiver ativado.</string>
     <string name="drawer_look">Predefinições</string>

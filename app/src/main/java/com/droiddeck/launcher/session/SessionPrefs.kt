@@ -1489,6 +1489,39 @@ object SessionPrefs {
         sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
     }
 
+    fun screenEffectsProfileIds(context: Context): Set<String> {
+        val profiles = runCatching {
+            JSONObject(prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        return buildSet {
+            val keys = profiles.keys()
+            while (keys.hasNext()) add(keys.next())
+        }
+    }
+
+    fun hasScreenEffectsOverride(context: Context, profileId: String?): Boolean {
+        if (profileId.isNullOrBlank()) return prefs(context).contains("screenEffects")
+        return profileId in screenEffectsProfileIds(context)
+    }
+
+    fun resetScreenEffectsProfile(context: Context, profileId: String?) {
+        setScreenEffects(context, profileId, ScreenEffects.OFF)
+    }
+
+    fun deleteScreenEffectsProfile(context: Context, profileId: String?) {
+        if (profileId.isNullOrBlank()) return
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        if (!profiles.has(profileId)) return
+        profiles.remove(profileId)
+        sessionPrefs.edit().apply {
+            if (profiles.length() == 0) remove(SCREEN_EFFECTS_PROFILES_KEY)
+            else putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString())
+        }.apply()
+    }
+
     const val CARDBOARD_KEY = "cardboard"
 
     fun cardboard(context: Context): Cardboard {
