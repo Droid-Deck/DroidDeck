@@ -19,6 +19,7 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
             return
         }
         socket.parentFile?.mkdirs()
+        runCatching { File(socket.parentFile, "inapp").createNewFile() }
         val cacheDir = cacheDir(app())
         writeMode(cacheDir, com.droiddeck.launcher.session.SessionPrefs.vkBridgeMode(app()))
         if (VkBridgeNative.start(app(), socket, logFile, cacheDir)) {
