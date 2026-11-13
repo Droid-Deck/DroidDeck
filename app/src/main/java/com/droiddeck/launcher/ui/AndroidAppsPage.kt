@@ -106,6 +106,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -371,6 +372,8 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
         }
     }
     val grid = rememberLazyGridState()
+    // The column count the grid was last measured with; the visible tiles undercount it when only a short last row is on screen.
+    val gridColumns = remember { intArrayOf(1) }
     val widgetsShown = q.isEmpty() && filter == AppsView.ALL && HomeWidgets.widgets.isNotEmpty()
     val leadItems = if (widgetsShown) 1 else 0
     var arranging by remember { mutableStateOf(false) }
@@ -433,6 +436,8 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
     if (!arranging && dragKey != null) dragKey = null
     BackHandler(arranging) { moving = null; arranging = false }
+    // A quick sideways drag that does not pick up a tile must not turn the page while arranging.
+    if (arranging) SwipeLock()
     LaunchedEffect(dragKey) {
         if (dragKey == null) return@LaunchedEffect
         // Near the top or bottom edge the list scrolls under the held tile.
@@ -500,7 +505,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                 // A tile being carried takes Down itself, in the grid below.
                 if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN || front == null || moving != null) return@onPreviewKeyEvent false
                 val from = entries.indexOfFirst { tileId(it) == front.last }
-                val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                val columns = gridColumns[0]
                 if (from < 0 || from / columns == entries.lastIndex / columns) return@onPreviewKeyEvent false
                 if (k.action == KeyEvent.ACTION_DOWN) {
                     val id = tileId(entries[minOf(from + columns, entries.lastIndex)])
@@ -515,7 +520,9 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             }) {
                 val scroller = q.isEmpty() && byName && entries.size > 16
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp),
+                    columns = remember(narrow, AppsGrid.spacing) {
+                        CountedCells(GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp)) { gridColumns[0] = it }
+                    },
                     state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -529,7 +536,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                         // With a tile picked up the D-pad carries it; otherwise it moves the cursor as usual.
                         val from = entriesNow.value.indexOfFirst { it.key == moving }
                         if (from < 0) return@onPreviewKeyEvent false
-                        val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                        val columns = gridColumns[0]
                         val to = when (k.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> from - 1
                             KeyEvent.KEYCODE_DPAD_RIGHT -> from + 1
@@ -662,6 +669,12 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             last?.let { app -> AppIconPicker(app, padH) { iconFor = null } }
         }
     }
+}
+
+/** [cells] as given, also reporting how many columns each measure lays out. */
+private class CountedCells(private val cells: GridCells, private val onCount: (Int) -> Unit) : GridCells {
+    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> =
+        with(cells) { calculateCrossAxisCellSizes(availableSize, spacing) }.also { onCount(it.size) }
 }
 
 @Composable
