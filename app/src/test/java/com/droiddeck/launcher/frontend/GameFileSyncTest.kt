@@ -76,4 +76,23 @@ class GameFileSyncTest {
         assertFalse(GameFileSync.libraryReadable(File(base, "gone/steam")))
         assertFalse(GameFileSync.libraryReadable(File(base, "file").apply { writeText("") }))
     }
+
+    @Test fun previousAutomaticLibraryNotCreatedYetKeepsSyncingButRemovedDriveStops() {
+        val context = RuntimeEnvironment.getApplication()
+        val root = LinuxRuntime.rootDir(context)
+        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/"), "opt/android-host/proot", "opt/android-host/loader").forEach { path ->
+            File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
+        }
+        SessionPrefs.setAddedGamesDirs(context, emptyList())
+        SessionPrefs.setGameStorage(context, "", "")
+        File(root, "root/.local/share/Steam/steamapps").mkdirs()
+        val folder = File(context.filesDir, "exports-auto").apply { mkdirs() }
+        val prefs = context.getSharedPreferences("game_files", android.content.Context.MODE_PRIVATE)
+        val volume = File(context.filesDir, "auto-card").apply { mkdirs() }
+        prefs.edit().putString("storageSetting", "").putString("storagePath", File(volume, "steam").path).apply()
+        GameFileSync.enable(context, folder)
+        prefs.edit().putString("storageSetting", "").putString("storagePath", File(context.filesDir, "removed-card/steam").path).apply()
+        assertThrows(IllegalStateException::class.java) { GameFileSync.syncConfigured(context) }
+        GameFileSync.disable(context)
+    }
 }
