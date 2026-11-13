@@ -231,10 +231,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val cloudRows = rememberXboxCloudRows(s)
     LaunchedEffect(soundMode, s.shortcutPicker, com.droiddeck.launcher.session.SessionState.running) {
-        if (!soundMode && !s.shortcutPicker) while (true) {
-            com.droiddeck.launcher.frontend.SteamCollection.refresh(ctx)
-            kotlinx.coroutines.delay(30_000)
-        }
+        if (!soundMode && !s.shortcutPicker) com.droiddeck.launcher.frontend.SteamCollection.refresh(ctx)
     }
     val steamOwned = if (soundMode || s.shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.SteamCollection.games
     remember { SoundtrackCollections.load(ctx) }

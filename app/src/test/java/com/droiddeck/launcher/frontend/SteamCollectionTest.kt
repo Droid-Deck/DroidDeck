@@ -15,6 +15,27 @@ import org.robolectric.annotation.ConscryptMode
 @Config(manifest = Config.NONE)
 @ConscryptMode(ConscryptMode.Mode.OFF)
 class SteamCollectionTest {
+    @Test fun aSuccessfulLoginSyncRunsOnlyOnceDespiteRepeatedChecks() {
+        val sync = SteamCollection.LoginSync()
+        var saves = 0
+        repeat(5) { sync.sync("client-1:login-1:account-123") { saves++; true } }
+        assertEquals(1, saves)
+        sync.sync("client-1:login-2:account-123") { saves++; true }
+        sync.sync("client-2:login-1:account-123") { saves++; true }
+        sync.sync("client-2:login-2:account-456") { saves++; true }
+        assertEquals(4, saves)
+    }
+
+    @Test fun aFailedOrInterruptedSyncCanRetryTheSameLogin() {
+        val sync = SteamCollection.LoginSync()
+        sync.sync("login") { false }
+        runCatching { sync.sync("login") { error("write failed") } }
+        var saves = 0
+        sync.sync("login") { saves++; true }
+        sync.sync("login") { saves++; true }
+        assertEquals(1, saves)
+    }
+
     @Test fun matchingAccountsCollectionCanBeReadOffline() {
         val snapshot = JSONObject("""{"account":"76561197960265851","games":[{"id":620,"name":"Portal 2"}]}""")
         assertEquals("Portal 2", SteamCollection.readSnapshot(snapshot, "123", File("/missing-steam-root")).single().name)

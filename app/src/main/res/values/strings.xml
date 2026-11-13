@@ -4084,6 +4084,6 @@
     <string name="soundtracks_no_tracks">No audio files found in this soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Launch unavailable</string>
     <string name="agent_browser_unavailable">No web browser is available to open this link.</string>
-    <string name="steam_collection_hint">Your Steam collection syncs while Steam is running and stays available here after it closes. Enable uninstalled games to see the full collection.</string>
+    <string name="steam_collection_hint">Your Steam collection syncs once per Steam login and stays available here after Steam closes. Enable uninstalled games to see the full collection.</string>
     <string name="steam_collection_install">Install in Steam</string>
 </resources>

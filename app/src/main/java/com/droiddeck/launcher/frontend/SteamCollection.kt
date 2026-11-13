@@ -27,6 +27,9 @@ object SteamCollection {
     private val refreshLock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var watcher: Job? = null
+    private val loginSync = LoginSync()
+    private var loadedCache: Pair<String, Long>? = null
+    private var cachedGames = emptyList<Library.SteamGame>()
     var games by mutableStateOf<List<Library.SteamGame>>(emptyList())
         private set
 
@@ -37,7 +40,7 @@ object SteamCollection {
         watcher = scope.launch {
             while (SessionState.running && !SessionState.stopRequested) {
                 refresh(app)
-                delay(30_000)
+                delay(5_000)
             }
         }
     }
@@ -48,38 +51,61 @@ object SteamCollection {
     }
 
     suspend fun refresh(context: Context) = refreshLock.withLock {
-        games = withContext(Dispatchers.IO) {
-            val root = SessionPrefs.activeSteamRoot(context)
-            val config = AddedGames.accountConfig(root) ?: return@withContext emptyList()
-            runCatching { readSnapshot(JSONObject(AtomicFile(File(config, ".droiddeck-collection.json")).readFully().toString(Charsets.UTF_8)), config.parentFile!!.name, root) }
-                .getOrDefault(emptyList())
-        }
+        games = withContext(Dispatchers.IO) { cached(context) }
         val loaded = withContext(Dispatchers.IO) {
+            if (!SessionState.running || SessionState.mode != SessionService.MODE_STEAM ||
+                SessionState.suspended || SessionState.stopRequested) return@withContext null
             val root = SessionPrefs.activeSteamRoot(context)
-            val config = AddedGames.accountConfig(root) ?: return@withContext emptyList()
-            val cache = AtomicFile(File(config, ".droiddeck-collection.json"))
-            if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM &&
-                !SessionState.suspended && !SessionState.stopRequested) {
-                runCatching {
+            val config = AddedGames.accountConfig(root) ?: return@withContext null
+            runCatching {
+                val probe = AgentGuest.steamEval(context, LOGIN, 20_000L)
+                val login = probe.opt("value") as? String
+                if (!probe.optBoolean("ok") || login.isNullOrEmpty()) return@runCatching null
+                val saved = loginSync.sync(login) {
                     val answer = AgentGuest.steamEval(context, SNAPSHOT, 20_000L)
-                    if (answer.optBoolean("ok") && AddedGames.accountConfig(root) == config) {
-                        val value = answer.opt("value")
-                        if (value is String) {
-                            val snapshot = JSONObject(value)
-                            readSnapshot(snapshot, config.parentFile!!.name, root)
-                            val bytes = snapshot.toString().toByteArray(Charsets.UTF_8)
-                            val output = cache.startWrite()
-                            try { output.write(bytes); cache.finishWrite(output) }
-                            catch (e: Exception) { cache.failWrite(output); throw e }
-                        }
-                    }
-                }.onFailure { Log.w("SteamCollection", "Collection sync failed", it) }
-            }
-            if (AddedGames.accountConfig(root) != config) return@withContext emptyList()
-            runCatching { readSnapshot(JSONObject(cache.readFully().toString(Charsets.UTF_8)), config.parentFile!!.name, root) }
-                .getOrDefault(emptyList())
+                    val value = answer.opt("value") as? String
+                    if (!answer.optBoolean("ok") || value == null || AddedGames.accountConfig(root) != config) return@sync false
+                    val snapshot = JSONObject(value)
+                    check(snapshot.getString("login") == login) { "Steam login changed during collection sync" }
+                    readSnapshot(snapshot, config.parentFile!!.name, root)
+                    val cache = AtomicFile(File(config, ".droiddeck-collection.json"))
+                    val output = cache.startWrite()
+                    try { output.write(snapshot.toString().toByteArray(Charsets.UTF_8)); cache.finishWrite(output) }
+                    catch (e: Exception) { cache.failWrite(output); throw e }
+                    true
+                }
+                if (saved) cached(context) else null
+            }.onFailure { Log.w("SteamCollection", "Collection sync failed", it) }.getOrNull()
         }
-        games = loaded
+        loaded?.let { games = it }
+    }
+
+    private fun cached(context: Context): List<Library.SteamGame> {
+        val root = SessionPrefs.activeSteamRoot(context)
+        val config = AddedGames.accountConfig(root)
+        if (config == null) {
+            loadedCache = null
+            cachedGames = emptyList()
+            return cachedGames
+        }
+        val file = File(config, ".droiddeck-collection.json")
+        val stamp = file.path to file.lastModified()
+        if (loadedCache == stamp) return cachedGames
+        cachedGames = runCatching {
+            readSnapshot(JSONObject(AtomicFile(file).readFully().toString(Charsets.UTF_8)), config.parentFile!!.name, root)
+        }.getOrDefault(emptyList())
+        loadedCache = stamp
+        return cachedGames
+    }
+
+    internal class LoginSync {
+        private var completed: String? = null
+
+        fun sync(login: String, save: () -> Boolean): Boolean {
+            if (login == completed || !save()) return false
+            completed = login
+            return true
+        }
     }
 
     internal fun readSnapshot(snapshot: JSONObject, accountId: String, root: File): List<Library.SteamGame> {
@@ -100,13 +126,32 @@ object SteamCollection {
                 icon = art.icon(), logo = art.find(Library.STEAM_LOGOS))
         }.distinctBy { it.appId }
 
+    internal val LOGIN = """
+        (() => {
+          let state = globalThis.__droiddeckCollectionLogin;
+          if (!state) {
+            state = {account: '', revision: 0, nonce: Date.now() + ':' + Math.random()};
+            state.observe = user => {
+              const account = user?.strSteamID || '';
+              if (account !== state.account) { state.account = account; state.revision++; }
+            };
+            SteamClient.User.RegisterForCurrentUserChanges(state.observe);
+            globalThis.__droiddeckCollectionLogin = state;
+          }
+          state.observe(globalThis.App?.m_CurrentUser);
+          const store = globalThis.appStore;
+          if (!state.account || state.account === '0' || !store?.m_bIsInitialized || !Array.isArray(store.allApps)) return null;
+          return state.nonce + ':' + state.revision + ':' + state.account;
+        })()
+    """.trimIndent()
+
     internal val SNAPSHOT = """
         (() => {
+          const login = $LOGIN;
+          if (!login) throw new Error('Steam library is not ready');
           const store = globalThis.appStore;
-          if (!store?.m_bIsInitialized || !Array.isArray(store.allApps)) throw new Error('Steam library is not ready');
-          const account = globalThis.App?.m_CurrentUser?.strSteamID;
-          if (!account) throw new Error('Steam account is not ready');
-          return JSON.stringify({account, games: store.allApps.filter(a => a.app_type === 1 && a.appid > 0 && a.display_name)
+          const account = globalThis.App.m_CurrentUser.strSteamID;
+          return JSON.stringify({account, login, games: store.allApps.filter(a => a.app_type === 1 && a.appid > 0 && a.display_name)
             .map(a => ({id: a.appid, name: a.display_name, lastPlayed: a.rt_last_time_played || 0}))});
         })()
     """.trimIndent()

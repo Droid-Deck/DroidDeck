@@ -93,9 +93,12 @@ ent/steamworks_sdk_154).
 
 ## Steam collection in the Android library
 
-The Library's Steam source also lists uninstalled games. While Steam is running,
-it snapshots game overviews from the signed-in client's library every
-30 seconds. The snapshot is saved in the selected account's config directory as
+The Library's Steam source also lists uninstalled games. During Steam-mode sessions,
+it snapshots game overviews once per Steam login.
+A lightweight login check retries while the client is loading or a sync has failed;
+a successful login snapshot is not fetched again. Account switches and a new client
+login allow another snapshot. Desktop mode is excluded. The snapshot is saved in the
+selected account's config directory as
 `.droiddeck-collection.json`, so browsing it later does not require a running session,
 a public profile, or a Web API key. A first sync requires opening Steam and signing in.
 Failures leave the previous snapshot intact. Switching accounts selects that account's
