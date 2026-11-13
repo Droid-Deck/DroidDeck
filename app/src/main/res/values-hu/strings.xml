@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">Visszatérés a DroidDeckbe játék után</string>
     <string name="mode_return_after_game_hint">Amikor egy a DroidDeckből vagy más indítóból elindított játék bezárul, a Steam szabályosan kilép (előbb befejeződnek a felhőmentések), és oda tér vissza. Ki: a Steamben marad.</string>
     <string name="mode_shader_precache">Shader-előgyorsítótárazás</string>
-    <string name="mode_shader_precache_hint">A Steam előre lefordított shadereket tölt le a játékaihoz, és a háttérben feldolgozza őket, így a játékok kevésbé akadnak. Kikapcsolva adatforgalmat, tárhelyet és akkumulátort takarít meg; a játékok ehelyett játék közben fordítják a shadereket. Ugyanaz a beállítás, mint a Steam Letöltések > Shader-előgyorsítótárazás opciója. A következő munkamenettől érvényes.</string>
+    <string name="mode_shader_precache_hint">A Steam előre lefordított shadereket tölt le a játékaihoz, és a háttérben feldolgozza őket, így a játékok kevésbé akadnak. Kikapcsolva adatforgalmat, tárhelyet és akkumulátort takarít meg; a játékok ehelyett játék közben fordítják a shadereket. Ugyanaz a beállítás, mint a Steam Letöltések &gt; Shader-előgyorsítótárazás opciója. A következő munkamenettől érvényes.</string>
     <string name="mode_steam_repair">Steam-kliens javítása</string>
     <string name="mode_steam_repair_hint">A Steam kliens újbóli letöltése a Steam következő indításakor. Használja, ha a Steam a betöltő képernyőn ragad. A játékok, a bejelentkezés és a beállítások megmaradnak.</string>
     <string name="mode_steam_repair_queued">A Steam kliens újra letöltődik a Steam következő indításakor.</string>
@@ -1329,7 +1329,6 @@
     <string name="game_file_folder">Mappa kiválasztása a frontend játékfájlokhoz</string>
     <string name="game_file_exported">A játékfájlok mentve: %1$s</string>
     <string name="game_frontend_files">Frontend-fájlok</string>
-
     <string name="main_wait_runtime">Várja meg a futtatókörnyezet-művelet befejezését</string>
     <string name="main_wait_proton_install">Várja meg a kompatibilitási eszköz telepítésének befejezését</string>
     <string name="load_compat_title">Kompatibilitási eszközök előkészítése</string>
@@ -1415,7 +1414,6 @@
     <string name="main_removing_runtime">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_settings_main_screen">Nem sikerült megnyitni a Beállításokat az alsó képernyőn; a fő képernyőn nyílt meg.</string>
     <string name="main_open_dev_options">Fejlesztői beállítások megnyitása a Beállításokban</string>
-
     <string name="upd_unknown_apps_failed">Nem sikerült megnyitni az Android „Ismeretlen alkalmazások telepítése” beállítását</string>
     <string name="upd_couldnt_check">Nem sikerült ellenőrizni: %1$s</string>
     <string name="upd_no_download">Ez a build nem rendelkezik letöltéssel a DroidDeck ezen másolatához</string>
@@ -1425,12 +1423,10 @@
     <string name="upd_stage_confirm">Megerősítésre várakozás</string>
     <string name="upd_failed">A frissítés sikertelen</string>
     <string name="upd_not_offered">Az Android nem ajánlotta fel a frissítés telepítését</string>
-
     <string name="decky_install_failed">A Decky telepítése sikertelen: %1$s</string>
     <string name="decky_plugin_starting">Bővítmény importálásának indítása…</string>
     <string name="decky_plugin_failed">A bővítmény importálása sikertelen: %1$s</string>
     <string name="decky_plugin_installed">A bővítmény telepítve. Indítsa újra a Steamet a betöltéséhez.</string>
-
     <string name="drivers_not_checked">Még nincs ellenőrizve – koppintson a frissítésre az új illesztőprogramok kereséséhez</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ezzel együtt beállítja a megjelenítő-illesztőprogramot is</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: ezzel együtt beállítja a futtatókörnyezet illesztőprogramját is</string>
@@ -1483,7 +1479,6 @@
     <string name="drivers_check_failed">ellenőrzés sikertelen</string>
     <string name="drivers_installed_pick_either">%1$s telepítve – válassza ki bármelyik listában mindkét illesztőprogram beállításához</string>
     <string name="drivers_installed_pick">%1$s telepítve – válassza ki a menüben</string>
-
     <string name="session_wait_removal">Várja meg a futtatókörnyezet eltávolításának befejezését</string>
     <string name="session_title_game">Játék</string>
     <string name="session_touch_auto_touchpad">érintőpad</string>
@@ -1529,7 +1524,6 @@
         <item quantity="one">A napló %1$d „Function not implemented” hibát tartalmaz: a proot seccomp-gyorsítása elutasít egy segédfolyamatot ezen az eszközön. Próbálja ki ezt: %2$s → „%3$s” (vagy „%4$s”), majd indítsa el újra.</item>
         <item quantity="other">A napló %1$d „Function not implemented” hibát tartalmaz: a proot seccomp-gyorsítása elutasít egy segédfolyamatot ezen az eszközön. Próbálja ki ezt: %2$s → „%3$s” (vagy „%4$s”), majd indítsa el újra.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Bővítmények</string>
     <string name="mode_decky_plugins_hint">Telepítsen egy bővítmény ZIP-et a következő Steam-munkamenethez.</string>
     <string name="mode_decky_plugin_downloading">Letöltés…</string>
@@ -1850,7 +1844,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">A(z) %1$d port adatokat fogad (%2$d csomag, egyenként %3$d bájt), de olyan formátumban, amelyet ez az oldal még nem tud olvasni.</string>
     <string name="bottom_telemetry_port_busy">A(z) %1$s portot már egy másik program használja, ezért az a játék itt nem jeleníthető meg.</string>
-
     <string name="rtinst_removing">Linux futtatókörnyezet eltávolítása</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Linux futtatókörnyezet eltávolítása · %1$d bejegyzés</item>
@@ -1865,7 +1858,6 @@
     <string name="rtinst_channel_description">Megjelenik, amíg a Linux futtatókörnyezet telepítése vagy eltávolítása zajlik</string>
     <string name="rtinst_title_installing">A Linux futtatókörnyezet telepítése</string>
     <string name="rtinst_title_removing">A Linux futtatókörnyezet eltávolítása</string>
-
     <string name="deskpkg_runtime_missing">A Linux futtatókörnyezet nincs telepítve</string>
     <string name="deskpkg_no_checksum">A katalógusban nincs ellenőrzőösszeg a %1$s-hez</string>
     <string name="deskpkg_checksum_mismatch">Az ellenőrzőösszeg nem egyezik – semmi nem változott</string>
@@ -1873,7 +1865,6 @@
     <string name="deskpkg_place_failed">Nem sikerült elhelyezni az AppImage-et</string>
     <string name="deskpkg_extract_failed">A kicsomagolás sikertelen</string>
     <string name="deskpkg_install_failed">A telepítés sikertelen</string>
-
     <string name="flatpakmgr_setup_failed">A Flatpak beállítása sikertelen (kilépési kód: %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">A Flatpak beállítása nem fejeződött be</string>
     <string name="flatpakmgr_busy">Egy másik áruházi feladat fut</string>
@@ -1892,7 +1883,6 @@
     <string name="flatpakmgr_ref_media_codecs">médiakodekek</string>
     <string name="flatpakmgr_ref_runtime">%1$s futtatókörnyezet</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s futtatókörnyezet %2$s</string>
-
     <string name="appimg_too_small">A fájl túl kicsi ahhoz, hogy AppImage legyen</string>
     <string name="appimg_unreadable">A fájl nem olvasható: %1$s</string>
     <string name="appimg_not_linux">Ez nem egy AppImage (nem Linux-program)</string>
@@ -1907,7 +1897,6 @@
     <string name="appimg_extracting">%1$s kicsomagolása</string>
     <string name="appimg_extract_failed">Az AppImage-et nem sikerült kicsomagolni</string>
     <string name="appimg_extract_failed_detail">Az AppImage-et nem sikerült kicsomagolni: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Állítsa le az aktív munkamenetet a Decky Loader telepítése előtt</string>
     <string name="deckymgr_download_failed">A Decky Loader letöltése sikertelen</string>
     <string name="deckymgr_size_mismatch">A Decky Loader mérete nem egyezett a kiadás metaadataival</string>
@@ -1956,13 +1945,11 @@
     <string name="deckymgr_activate_failed">Nem sikerült aktiválni az importált bővítményt</string>
     <string name="deckymgr_settings_failed">Nem sikerült frissíteni a Decky bővítménybeállításokat</string>
     <string name="deckymgr_restore_failed">Nem sikerült visszaállítani a meglévő bővítményt</string>
-
     <string name="adbfix_save_failed">Nem sikerült menteni a vezeték nélküli hibakeresés azonosítóját</string>
     <string name="adbfix_command_failed">Az ADB-parancs sikertelen (%1$d)</string>
     <string name="adbfix_not_confirmed">Az Android nem erősítette meg a gyermekfolyamat-korlát módosítását: %1$s</string>
     <string name="adbfix_no_pairing">Nincs mentett vezeték nélküli hibakeresés-párosítás</string>
     <string name="adbfix_enter_address">Adja meg a vezeték nélküli hibakeresés jelenlegi IP-címét és portját</string>
-
     <string name="adbpair_timed_out">Időtúllépés a párosítási felugró ablakra várva. Próbálja újra a DroidDeckből.</string>
     <string name="adbpair_discovery_failed_code">Nem sikerült megkeresni a párosítási felugró ablakot (%1$d). Ellenőrizze, hogy a Wi-Fi be van kapcsolva.</string>
     <string name="adbpair_discovery_failed">Nem sikerült megkeresni a párosítási felugró ablakot: %1$s</string>
@@ -1988,7 +1975,6 @@
     <string name="adbpair_title_done">A Steam készen áll</string>
     <string name="adbpair_done_text">Koppintson a DroidDeckhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
     <string name="adbpair_title_failed">A vezeték nélküli hibakeresés beállítása megállt</string>
-
     <string name="selfinst_download_failed">A letöltés nem sikerült</string>
     <string name="selfinst_size_mismatch">A letöltés mérete nem egyezett a közzétett APK-val, és elvetésre került – próbálja újra</string>
     <string name="selfinst_checksum_mismatch">A letöltés nem egyezett az ellenőrzőösszegével, és elvetésre került – próbálja újra</string>
@@ -2001,12 +1987,10 @@
     <string name="selfinst_no_signing">A letöltött APK nem tartalmaz aláírási információt</string>
     <string name="selfinst_wrong_signer">A letöltött APK nincs aláírva a DroidDeck kiadási kulcsával</string>
     <string name="appupd_http">A frissítési katalógus HTTP %1$d választ adott</string>
-
     <string name="loadstate_starting">A munkamenet indítása…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d eltelt · még dolgozik</string>
     <string name="loadstate_steam_update">A Steam-kliens frissítésének letöltése · %1$d%%</string>
     <string name="loadstate_steam_client">A Steam-kliens letöltése · %1$s</string>
-
     <string name="pextra_busy">Már fut egy kompatibilitási eszköz telepítése</string>
     <string name="pextra_stop_session">Állítsa le az aktív munkamenetet a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_no_release">Nem található ARM64-es kiadás a %1$s-hez</string>
@@ -2026,7 +2010,6 @@
     <string name="pextra_install_failed">A %1$s telepítése sikertelen (kilépési kód: %2$d)</string>
     <string name="pextra_could_not_install">Nem sikerült telepíteni a %1$s-t</string>
     <string name="esync_fetching">droiddeck-esync csomag letöltése</string>
-
     <string name="cmgr_fex_linux_helpers">Linux segédprogramokkal</string>
     <string name="cmgr_fex_dlls_only">Csak DLL-ek</string>
     <string name="cmgr_original_proton_updated">Eredeti (a Proton frissült az utolsó csere óta)</string>
@@ -2049,13 +2032,11 @@
     <string name="cmgr_nightly_replaced">A letöltés sikertelen: lehet, hogy ezt a nightly buildet egy újabb váltotta. Frissítse a listát, és próbálja újra.</string>
     <string name="cmgr_list_predates_checksums">Ez a csomaglista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="cmgr_checksum_mismatch">Az ellenőrzőösszeg nem egyezik</string>
-
     <string name="sprefs_upscaler_linear">Lineáris</string>
     <string name="sprefs_upscaler_nearest">Legközelebbi</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (minőség)</string>
     <string name="sprefs_upscaler_sharpen">Csak élesítés</string>
     <string name="sprefs_lod_bias_auto">Automatikus (illeszkedik a méretezéshez)</string>
-
     <string name="look_off_desc">Semmi nincs alkalmazva.</string>
     <string name="look_game_clarity">Játéktisztaság</string>
     <string name="look_game_clarity_desc">Élesítés egy csipetnyi kontraszttal – a mindennapi.</string>
@@ -2079,14 +2060,12 @@
     <string name="look_pixel_clean_desc">Éles pixelek 2D-s és régi játékokhoz.</string>
     <string name="look_anime_edge">Anime élek</string>
     <string name="look_anime_edge_desc">Rajzfilmes körvonalak plusz élesítés.</string>
-
     <string name="gpuinfo_not_adreno">Nem Adreno GPU</string>
     <string name="gpuinfo_supported">Támogatott</string>
     <string name="gpuinfo_experimental">Kísérleti: az illesztőprogramjai teszt buildek</string>
     <string name="gpuinfo_a850_experimental">Kísérleti Adreno 850-támogatás: kompatibilis kísérleti kijelző- és játék-illesztőprogramokat igényel; ezen az eszközön nincs ellenőrizve</string>
     <string name="gpuinfo_below_tested">A tesztelt hardver alatt (Adreno 725 és újabb): lehet, hogy nem fut</string>
     <string name="gpuinfo_unsupported">Nem támogatott: nincs kompatibilis grafikus háttérrendszer ehhez a GPU-hoz</string>
-
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
     <string name="turnip_download_failed">A letöltés nem sikerült</string>
@@ -2107,16 +2086,12 @@
     <string name="bundle_no_manifest">Nem illesztőprogram-csomag: nincs manifest.json, amely android és linux illesztőprogramot nevez meg</string>
     <string name="bundle_entry_outside">Nem illesztőprogram-csomag: a %1$s rajta kívülre mutat</string>
     <string name="bundle_too_large">Nem illesztőprogram-csomag: kicsomagolva több mint %1$d MB</string>
-
     <string name="gstore_sd_card">SD-kártya</string>
     <string name="gstore_folder">Mappa</string>
-
     <string name="logshare_chooser">Munkamenet-naplók megosztása</string>
-
     <string name="hdr_needs_android_10">Android 10 vagy újabb szükséges (színtérrel rendelkező megjelenítési rétegek)</string>
     <string name="hdr_none">ez a kijelző nem jelez HDR-támogatást</string>
     <string name="hdr_not_hdr10">ez a kijelző a %1$s-t támogatja, nem a HDR10-et</string>
-
     <string name="gpu_this_gpu">ez a GPU</string>
     <string name="phantom_title_on">A gyermekfolyamat-korlát be van kapcsolva</string>
     <string name="phantom_title_unset">A gyermekfolyamat-korlát nincs beállítva</string>
@@ -2190,7 +2165,6 @@
     <string name="device_info_copied">Másolva.</string>
     <string name="force_ssbs_title">SSBS kényszerítése</string>
     <string name="force_ssbs_hint">Bekapcsolva tartja azt a CPU-sebesség-beállítást, amelyet a Wine folyton kikapcsol. Gyorsíthatja a Windows-os játékokat Snapdragon 8 Elite-n; régebbi chipeken alig van hatása. A következő játékindítástól érvényes.</string>
-
     <string name="rail_stores">Áruházak</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Egyéni</string>
@@ -2661,7 +2635,6 @@
     <string name="touch_icon_color">Ikon színe</string>
     <string name="touch_button_color">Gomb színe</string>
     <string name="touch_no_icon">Nincs ikon</string>
-
     <string name="stores_sync_sign_in">Bejelentkezés ellenőrzése…</string>
     <string name="stores_sync_library">Könyvtárad lekérése…</string>
     <string name="stores_sync_game_list">Játéklista lekérése…</string>
@@ -3694,9 +3667,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
-
     <string name="theme_white_red">Skarlátvörös hó</string>
-    
     <string name="rail_soundtracks">Soundtrackek</string>
     <string name="rail_music">Zene</string>
     <string name="soundtracks_options">Lejátszási beállítások</string>
@@ -3759,4 +3730,12 @@
     <string name="soundtracks_repeat_one">Egy ismétlése</string>
     <string name="soundtracks_volume">Hangerő</string>
     <string name="soundtracks_no_tracks">Nincs hangfájl ebben a soundtrackben</string>
+    <string name="setup_stores">Áruházak</string>
+    <string name="screen_effects_target">Effektprofil</string>
+    <string name="screen_effects_target_hint">Válaszd ki, melyik profil képernyőeffektusait szeretnéd módosítani.</string>
+    <string name="screen_effects_target_auto">Aktuális játék (automatikus)</string>
+    <string name="screen_effects_reset">Effektek visszaállítása</string>
+    <string name="screen_effects_reset_hint">Visszaállítja a profil alapértelmezett értékeit kikapcsolt effektusokkal.</string>
+    <string name="screen_effects_delete">Mentett felülírás törlése</string>
+    <string name="screen_effects_delete_hint">Eltávolítja a játék mentett effektusait, hogy az az alapértelmezett profilt használja.</string>
 </resources>

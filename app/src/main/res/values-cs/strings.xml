@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">Po hře se vrátit do DroidDeck</string>
     <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z DroidDeck nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
     <string name="mode_shader_precache">Předběžné ukládání shaderů</string>
-    <string name="mode_shader_precache_hint">Steam stahuje předem sestavené shadery pro vaše hry a zpracovává je na pozadí, takže hry méně trhají. Vypnutí šetří data, úložiště a baterii; hry pak shadery sestavují během hraní. Stejné nastavení jako Stahování > Předběžné ukládání shaderů ve Steamu. Použije se od příští relace.</string>
+    <string name="mode_shader_precache_hint">Steam stahuje předem sestavené shadery pro vaše hry a zpracovává je na pozadí, takže hry méně trhají. Vypnutí šetří data, úložiště a baterii; hry pak shadery sestavují během hraní. Stejné nastavení jako Stahování &gt; Předběžné ukládání shaderů ve Steamu. Použije se od příští relace.</string>
     <string name="mode_steam_repair">Opravit klienta Steam</string>
     <string name="mode_steam_repair_hint">Při dalším spuštění znovu stáhne klienta Steam. Použijte, pokud Steam zůstává na načítací obrazovce. Hry, přihlášení a nastavení zůstanou zachovány.</string>
     <string name="mode_steam_repair_queued">Klient Steam se znovu stáhne při dalším spuštění Steamu.</string>
@@ -1343,7 +1343,6 @@
     <string name="game_file_folder">Vybrat složku pro soubory her frontendu</string>
     <string name="game_file_exported">Soubory hry uloženy do %1$s</string>
     <string name="game_frontend_files">Soubory frontendu</string>
-
     <string name="main_wait_runtime">Počkejte, až skončí operace s runtime</string>
     <string name="main_wait_proton_install">Počkejte, až skončí instalace nástroje kompatibility</string>
     <string name="load_compat_title">Příprava nástrojů kompatibility</string>
@@ -1439,7 +1438,6 @@
     <string name="main_removing_runtime">Odstraňování runtime Linuxu</string>
     <string name="main_settings_main_screen">Nepodařilo se otevřít Nastavení na spodní obrazovce; otevřelo se na hlavní obrazovce.</string>
     <string name="main_open_dev_options">Otevřít Možnosti pro vývojáře v Nastavení</string>
-
     <string name="upd_unknown_apps_failed">Nepodařilo se otevřít nastavení Androidu „Instalace neznámých aplikací“</string>
     <string name="upd_couldnt_check">Nepodařilo se zkontrolovat: %1$s</string>
     <string name="upd_no_download">Toto sestavení nemá stažení pro tuto kopii DroidDecku</string>
@@ -1449,12 +1447,10 @@
     <string name="upd_stage_confirm">Čeká na vaše potvrzení</string>
     <string name="upd_failed">Aktualizace se nezdařila</string>
     <string name="upd_not_offered">Android nenabídl instalaci aktualizace</string>
-
     <string name="decky_install_failed">Instalace Decky se nezdařila: %1$s</string>
     <string name="decky_plugin_starting">Spouštění importu pluginu…</string>
     <string name="decky_plugin_failed">Import pluginu se nezdařil: %1$s</string>
     <string name="decky_plugin_installed">Plugin nainstalován. Restartujte Steam, aby se načetl.</string>
-
     <string name="drivers_not_checked">Zatím nezkontrolováno - klepnutím na obnovit vyhledáte nové ovladače</string>
     <string name="drivers_bundle_sets_display">Android + Linux: zároveň nastaví ovladač zobrazení</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: zároveň nastaví ovladač runtime</string>
@@ -1513,7 +1509,6 @@
     <string name="drivers_check_failed">kontrola se nezdařila</string>
     <string name="drivers_installed_pick_either">Nainstalováno %1$s - vyberte ho v kterémkoli seznamu pro nastavení obou ovladačů</string>
     <string name="drivers_installed_pick">Nainstalováno %1$s - vyberte ho v nabídce</string>
-
     <string name="session_wait_removal">Počkejte, až skončí odstranění runtime</string>
     <string name="session_title_game">Hra</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1563,7 +1558,6 @@
         <item quantity="many">V logu je %1$d chyb „Function not implemented“: akcelerace seccomp v proot zde selhává u pomocné funkce na tomto zařízení. Zkuste %2$s → „%3$s“ (nebo „%4$s“) a spusťte to znovu.</item>
         <item quantity="other">V logu je %1$d chyb „Function not implemented“: akcelerace seccomp v proot zde selhává u pomocné funkce na tomto zařízení. Zkuste %2$s → „%3$s“ (nebo „%4$s“) a spusťte to znovu.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Pluginy</string>
     <string name="mode_decky_plugins_hint">Nainstalujte ZIP s pluginem pro další relaci Steamu.</string>
     <string name="mode_decky_plugin_downloading">Stahování…</string>
@@ -1898,7 +1892,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d přijímá data (%2$d paketů po %3$d bajtech), ale ve formátu, který tato stránka zatím neumí přečíst.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s již používá jiný program, takže se zde tato hra nemůže zobrazit.</string>
-
     <string name="rtinst_removing">Odstraňování runtime Linuxu</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Odstraňování runtime Linuxu · %1$d položka</item>
@@ -1915,7 +1908,6 @@
     <string name="rtinst_channel_description">Zobrazuje se při instalaci nebo odstraňování runtime Linuxu</string>
     <string name="rtinst_title_installing">Instalace runtime Linuxu</string>
     <string name="rtinst_title_removing">Odstraňování runtime Linuxu</string>
-
     <string name="deskpkg_runtime_missing">Runtime Linuxu není nainstalován</string>
     <string name="deskpkg_no_checksum">Katalog neobsahuje kontrolní součet pro %1$s</string>
     <string name="deskpkg_checksum_mismatch">Neshoda kontrolního součtu - nic se nezměnilo</string>
@@ -1923,7 +1915,6 @@
     <string name="deskpkg_place_failed">Nepodařilo se umístit AppImage</string>
     <string name="deskpkg_extract_failed">Rozbalení se nezdařilo</string>
     <string name="deskpkg_install_failed">Instalace se nezdařila</string>
-
     <string name="flatpakmgr_setup_failed">Nastavení Flatpaku se nezdařilo (návratový kód %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Nastavení Flatpaku se nedokončilo</string>
     <string name="flatpakmgr_busy">Běží jiná úloha obchodu</string>
@@ -1942,7 +1933,6 @@
     <string name="flatpakmgr_ref_media_codecs">multimediální kodeky</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
-
     <string name="appimg_too_small">Soubor je příliš malý na to, aby byl AppImage</string>
     <string name="appimg_unreadable">Soubor nelze přečíst: %1$s</string>
     <string name="appimg_not_linux">Toto není AppImage (nejde o program pro Linux)</string>
@@ -1957,7 +1947,6 @@
     <string name="appimg_extracting">Rozbalování %1$s</string>
     <string name="appimg_extract_failed">AppImage se nepodařilo rozbalit</string>
     <string name="appimg_extract_failed_detail">AppImage se nepodařilo rozbalit: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Před instalací Decky Loader zastavte aktivní relaci</string>
     <string name="deckymgr_download_failed">Stažení Decky Loader se nezdařilo</string>
     <string name="deckymgr_size_mismatch">Velikost Decky Loader neodpovídala metadatům vydání</string>
@@ -2006,13 +1995,11 @@
     <string name="deckymgr_activate_failed">Nepodařilo se aktivovat importovaný plugin</string>
     <string name="deckymgr_settings_failed">Nepodařilo se aktualizovat nastavení pluginu Decky</string>
     <string name="deckymgr_restore_failed">Nepodařilo se obnovit stávající plugin</string>
-
     <string name="adbfix_save_failed">Nepodařilo se uložit identitu bezdrátového ladění</string>
     <string name="adbfix_command_failed">Příkaz ADB se nezdařil (%1$d)</string>
     <string name="adbfix_not_confirmed">Android nepotvrdil změnu limitu procesů potomků: %1$s</string>
     <string name="adbfix_no_pairing">Není uloženo žádné párování bezdrátového ladění</string>
     <string name="adbfix_enter_address">Zadejte aktuální IP adresu a port bezdrátového ladění</string>
-
     <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z DroidDecku.</string>
     <string name="adbpair_discovery_failed_code">Nepodařilo se vyhledat vyskakovací okno pro párování (%1$d). Zkontrolujte, že je zapnutá Wi-Fi.</string>
     <string name="adbpair_discovery_failed">Nepodařilo se vyhledat vyskakovací okno pro párování: %1$s</string>
@@ -2038,7 +2025,6 @@
     <string name="adbpair_title_done">Steam je připraven</string>
     <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
-
     <string name="selfinst_download_failed">Stahování selhalo</string>
     <string name="selfinst_size_mismatch">Velikost stahování neodpovídala zveřejněnému APK a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_checksum_mismatch">Stahování neodpovídalo svému kontrolnímu součtu a bylo zahozeno - zkuste to znovu</string>
@@ -2051,12 +2037,10 @@
     <string name="selfinst_no_signing">Stažené APK nemá žádné informace o podpisu</string>
     <string name="selfinst_wrong_signer">Stažené APK není podepsáno vydávacím klíčem DroidDecku</string>
     <string name="appupd_http">Katalog aktualizací odpověděl HTTP %1$d</string>
-
     <string name="loadstate_starting">Spouštění relace…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d uplynulo · stále pracuje</string>
     <string name="loadstate_steam_update">Stahování aktualizace klienta Steam · %1$d%%</string>
     <string name="loadstate_steam_client">Stahování klienta Steam · %1$s</string>
-
     <string name="pextra_busy">Instalace nástroje kompatibility už běží</string>
     <string name="pextra_stop_session">Před instalací nástrojů kompatibility zastavte aktivní relaci</string>
     <string name="pextra_no_release">Nepodařilo se najít vydání ARM64 pro %1$s</string>
@@ -2076,7 +2060,6 @@
     <string name="pextra_install_failed">Instalace %1$s se nezdařila (návratový kód %2$d)</string>
     <string name="pextra_could_not_install">Nepodařilo se nainstalovat %1$s</string>
     <string name="esync_fetching">Stahování balíčku droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">s pomocnými nástroji pro Linux</string>
     <string name="cmgr_fex_dlls_only">Jen DLL</string>
     <string name="cmgr_original_proton_updated">Původní (Proton byl od posledního přepnutí aktualizován)</string>
@@ -2099,13 +2082,11 @@
     <string name="cmgr_nightly_replaced">Stažení selhalo: tento noční build mohl být nahrazen novějším. Obnovte seznam a zkuste to znovu.</string>
     <string name="cmgr_list_predates_checksums">Tento seznam balíčků předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="cmgr_checksum_mismatch">Neshoda kontrolního součtu</string>
-
     <string name="sprefs_upscaler_linear">Lineární</string>
     <string name="sprefs_upscaler_nearest">Nejbližší</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kvalita)</string>
     <string name="sprefs_upscaler_sharpen">Jen zaostření</string>
     <string name="sprefs_lod_bias_auto">Automaticky (podle škálování)</string>
-
     <string name="look_off_desc">Nic není použito.</string>
     <string name="look_game_clarity">Herní jasnost</string>
     <string name="look_game_clarity_desc">Zaostření s trochou kontrastu - ten každodenní.</string>
@@ -2129,14 +2110,12 @@
     <string name="look_pixel_clean_desc">Ostré pixely pro 2D a staré hry.</string>
     <string name="look_anime_edge">Anime hrany</string>
     <string name="look_anime_edge_desc">Kreslené obrysy plus zaostření.</string>
-
     <string name="gpuinfo_not_adreno">Není GPU Adreno</string>
     <string name="gpuinfo_supported">Podporováno</string>
     <string name="gpuinfo_experimental">Experimentální: jeho ovladače jsou testovací sestavení</string>
     <string name="gpuinfo_a850_experimental">Experimentální podpora Adreno 850: vyžaduje kompatibilní experimentální ovladače displeje a her; na tomto zařízení neověřeno</string>
     <string name="gpuinfo_below_tested">Pod testovaným hardwarem (Adreno 725 a novější): nemusí fungovat</string>
     <string name="gpuinfo_unsupported">Nepodporováno: pro tento GPU není k dispozici kompatibilní grafický backend</string>
-
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
     <string name="turnip_download_failed">Stahování selhalo</string>
@@ -2157,16 +2136,12 @@
     <string name="bundle_no_manifest">Není balíček ovladačů: chybí manifest.json s názvy ovladače pro Android a Linux</string>
     <string name="bundle_entry_outside">Není balíček ovladačů: %1$s odkazuje mimo něj</string>
     <string name="bundle_too_large">Není balíček ovladačů: po rozbalení přesáhne %1$d MB</string>
-
     <string name="gstore_sd_card">SD karta</string>
     <string name="gstore_folder">Složka</string>
-
     <string name="logshare_chooser">Sdílet logy relace</string>
-
     <string name="hdr_needs_android_10">vyžaduje Android 10 nebo novější (vrstvy displeje s barevným prostorem)</string>
     <string name="hdr_none">tento displej neuvádí podporu HDR</string>
     <string name="hdr_not_hdr10">tento displej podporuje %1$s, ne HDR10</string>
-
     <string name="gpu_this_gpu">toto GPU</string>
     <string name="phantom_title_on">Limit procesů potomků je zapnutý</string>
     <string name="phantom_title_unset">Limit procesů potomků není nastavený</string>
@@ -2240,7 +2215,6 @@
     <string name="device_info_copied">Zkopírováno.</string>
     <string name="force_ssbs_title">Vynutit SSBS</string>
     <string name="force_ssbs_hint">Udržuje zapnuté nastavení rychlosti CPU, které Wine stále vypíná. Může zrychlit Windows hry na Snapdragonu 8 Elite; na starších čipech je rozdíl malý. Použije se při příštím spuštění hry.</string>
-
     <string name="rail_stores">Obchody</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Vlastní</string>
@@ -2717,7 +2691,6 @@
     <string name="touch_icon_color">Barva ikony</string>
     <string name="touch_button_color">Barva tlačítka</string>
     <string name="touch_no_icon">Bez ikony</string>
-
     <string name="stores_sync_sign_in">Ověřování přihlášení…</string>
     <string name="stores_sync_library">Načítání vaší knihovny…</string>
     <string name="stores_sync_game_list">Načítání seznamu her…</string>
@@ -3772,9 +3745,7 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
-
     <string name="theme_white_red">Šarlatový sníh</string>
-    
     <string name="rail_soundtracks">Soundtracky</string>
     <string name="rail_music">Hudba</string>
     <string name="soundtracks_options">Možnosti přehrávání</string>
@@ -3837,4 +3808,12 @@
     <string name="soundtracks_repeat_one">Opakovat jednu</string>
     <string name="soundtracks_volume">Hlasitost</string>
     <string name="soundtracks_no_tracks">V tomto soundtracku nejsou žádné zvukové soubory</string>
+    <string name="setup_stores">Obchody</string>
+    <string name="screen_effects_target">Profil efektů</string>
+    <string name="screen_effects_target_hint">Vyberte profil, jehož efekty obrazovky chcete změnit.</string>
+    <string name="screen_effects_target_auto">Aktuální hra (automaticky)</string>
+    <string name="screen_effects_reset">Obnovit efekty</string>
+    <string name="screen_effects_reset_hint">Obnoví výchozí hodnoty s vypnutými efekty pro tento profil.</string>
+    <string name="screen_effects_delete">Smazat uložené nastavení</string>
+    <string name="screen_effects_delete_hint">Odstraní uložené efekty této hry, aby používala výchozí profil.</string>
 </resources>

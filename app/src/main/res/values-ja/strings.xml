@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
     <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_shader_precache">シェーダーの事前キャッシュ</string>
-    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」>「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
+    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」&gt;「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
@@ -1322,7 +1322,6 @@
     <string name="game_file_folder">フロントエンドゲームファイル用のフォルダを選択</string>
     <string name="game_file_exported">ゲームファイルを %1$s に保存しました</string>
     <string name="game_frontend_files">フロントエンドファイル</string>
-
     <string name="main_wait_runtime">実行環境の処理が完了するまでお待ちください</string>
     <string name="main_wait_proton_install">互換性ツールのインストールが完了するまでお待ちください</string>
     <string name="load_compat_title">互換性ツールを準備しています</string>
@@ -1403,7 +1402,6 @@
     <string name="main_removing_runtime">Linux実行環境を削除中</string>
     <string name="main_settings_main_screen">下部画面で設定を開けなかったため、メイン画面で開きました。</string>
     <string name="main_open_dev_options">設定で開発者向けオプションを開いてください</string>
-
     <string name="upd_unknown_apps_failed">Androidの「不明なアプリのインストール」設定を開けませんでした</string>
     <string name="upd_couldnt_check">確認できませんでした：%1$s</string>
     <string name="upd_no_download">このビルドには、このDroidDeckコピー用のダウンロードがありません</string>
@@ -1413,12 +1411,10 @@
     <string name="upd_stage_confirm">確認を待機中</string>
     <string name="upd_failed">アップデートに失敗しました</string>
     <string name="upd_not_offered">Androidがアップデートのインストールを表示しませんでした</string>
-
     <string name="decky_install_failed">Deckyのインストールに失敗しました：%1$s</string>
     <string name="decky_plugin_starting">プラグインのインポートを開始中…</string>
     <string name="decky_plugin_failed">プラグインのインポートに失敗しました：%1$s</string>
     <string name="decky_plugin_installed">プラグインをインストールしました。読み込むにはSteamを再起動してください。</string>
-
     <string name="drivers_not_checked">未確認 - 更新をタップして新しいドライバーを検索</string>
     <string name="drivers_bundle_sets_display">Android + Linux：ディスプレイドライバーも一緒に設定されます</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：ランタイムドライバーも一緒に設定されます</string>
@@ -1468,7 +1464,6 @@
     <string name="drivers_check_failed">確認に失敗</string>
     <string name="drivers_installed_pick_either">%1$sをインストールしました - どちらかの一覧で選択すると両方のドライバーが設定されます</string>
     <string name="drivers_installed_pick">%1$sをインストールしました - メニューで選択してください</string>
-
     <string name="session_wait_removal">実行環境の削除が完了するまでお待ちください</string>
     <string name="session_title_game">ゲーム</string>
     <string name="session_touch_auto_touchpad">トラックパッド</string>
@@ -1512,7 +1507,6 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">ログに「Function not implemented」エラーが%1$d件あります。このデバイスでは、prootのseccomp高速化が補助プロセスの処理に失敗しています。%2$s →「%3$s」（または「%4$s」）を試してから、もう一度起動してください。</item>
     </plurals>
-
     <string name="mode_decky_plugins">プラグイン</string>
     <string name="mode_decky_plugins_hint">次回のSteamセッション用にプラグインのzipをインストールします。</string>
     <string name="mode_decky_plugin_downloading">ダウンロード中…</string>
@@ -1826,7 +1820,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">ポート%1$dでデータを受信していますが（%3$dバイトのパケット%2$d個）、このページではまだ読み取れない形式です。</string>
     <string name="bottom_telemetry_port_busy">別のプログラムがすでにポート%1$sを使用しているため、そのゲームはここに表示できません。</string>
-
     <string name="rtinst_removing">Linux実行環境を削除中</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Linux実行環境を削除中 · %1$d項目</item>
@@ -1840,7 +1833,6 @@
     <string name="rtinst_channel_description">Linux実行環境のインストール中または削除中に表示</string>
     <string name="rtinst_title_installing">Linux実行環境をインストール中</string>
     <string name="rtinst_title_removing">Linux実行環境を削除中</string>
-
     <string name="deskpkg_runtime_missing">Linux実行環境がインストールされていません</string>
     <string name="deskpkg_no_checksum">カタログに%1$sのチェックサムがありません</string>
     <string name="deskpkg_checksum_mismatch">チェックサムが一致しません - 何も変更されていません</string>
@@ -1848,7 +1840,6 @@
     <string name="deskpkg_place_failed">AppImageを配置できませんでした</string>
     <string name="deskpkg_extract_failed">展開に失敗しました</string>
     <string name="deskpkg_install_failed">インストールに失敗しました</string>
-
     <string name="flatpakmgr_setup_failed">Flatpakのセットアップに失敗しました（終了コード %1$d）</string>
     <string name="flatpakmgr_setup_unfinished">Flatpakのセットアップが完了しませんでした</string>
     <string name="flatpakmgr_busy">別のストアのタスクを実行中です</string>
@@ -1867,7 +1858,6 @@
     <string name="flatpakmgr_ref_media_codecs">メディアコーデック</string>
     <string name="flatpakmgr_ref_runtime">%1$sランタイム</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s実行環境 %2$s</string>
-
     <string name="appimg_too_small">ファイルが小さすぎるため、AppImageではありません</string>
     <string name="appimg_unreadable">ファイルを読み取れません：%1$s</string>
     <string name="appimg_not_linux">AppImageではありません（Linuxプログラムではありません）</string>
@@ -1882,7 +1872,6 @@
     <string name="appimg_extracting">%1$sを展開中</string>
     <string name="appimg_extract_failed">AppImageを展開できませんでした</string>
     <string name="appimg_extract_failed_detail">AppImageを展開できませんでした：%1$s</string>
-
     <string name="deckymgr_stop_session_loader">Decky Loaderをインストールする前に、実行中のセッションを停止してください</string>
     <string name="deckymgr_download_failed">Decky Loaderのダウンロードに失敗しました</string>
     <string name="deckymgr_size_mismatch">Decky Loaderのサイズがリリース情報と一致しません</string>
@@ -1931,13 +1920,11 @@
     <string name="deckymgr_activate_failed">インポートしたプラグインを有効にできませんでした</string>
     <string name="deckymgr_settings_failed">Deckyのプラグイン設定を更新できませんでした</string>
     <string name="deckymgr_restore_failed">既存のプラグインを復元できませんでした</string>
-
     <string name="adbfix_save_failed">ワイヤレスデバッグの識別情報を保存できませんでした</string>
     <string name="adbfix_command_failed">ADBコマンドに失敗しました（%1$d）</string>
     <string name="adbfix_not_confirmed">Androidは子プロセス制限の変更を確認しませんでした：%1$s</string>
     <string name="adbfix_no_pairing">ワイヤレスデバッグのペアリング情報が保存されていません</string>
     <string name="adbfix_enter_address">現在のワイヤレスデバッグのIPアドレスとポートを入力してください</string>
-
     <string name="adbpair_timed_out">ペアリングのポップアップを待機中にタイムアウトしました。DroidDeckからもう一度お試しください。</string>
     <string name="adbpair_discovery_failed_code">ペアリングのポップアップを検索できませんでした（%1$d）。Wi-Fiがオンになっているか確認してください。</string>
     <string name="adbpair_discovery_failed">ペアリングのポップアップを検索できませんでした：%1$s</string>
@@ -1963,7 +1950,6 @@
     <string name="adbpair_title_done">Steamの準備ができました</string>
     <string name="adbpair_done_text">タップしてDroidDeckに戻ります。ワイヤレスデバッグはオフにしてかまいません。</string>
     <string name="adbpair_title_failed">ワイヤレスデバッグのセットアップが中断しました</string>
-
     <string name="selfinst_download_failed">ダウンロードに失敗しました</string>
     <string name="selfinst_size_mismatch">ダウンロードしたファイルのサイズが公開されているAPKと一致しないため、破棄しました。もう一度お試しください</string>
     <string name="selfinst_checksum_mismatch">ダウンロードしたファイルがチェックサムと一致しないため、破棄しました。もう一度お試しください</string>
@@ -1976,12 +1962,10 @@
     <string name="selfinst_no_signing">ダウンロードしたAPKに署名情報がありません</string>
     <string name="selfinst_wrong_signer">ダウンロードしたAPKはDroidDeckのリリースキーで署名されていません</string>
     <string name="appupd_http">アップデートカタログがHTTP %1$dを返しました</string>
-
     <string name="loadstate_starting">セッションを開始中…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d 経過 · 処理中</string>
     <string name="loadstate_steam_update">Steamクライアントのアップデートをダウンロード中 · %1$d%%</string>
     <string name="loadstate_steam_client">Steamクライアントをダウンロード中 · %1$s</string>
-
     <string name="pextra_busy">互換性ツールのインストールはすでに実行中です</string>
     <string name="pextra_stop_session">互換性ツールをインストールする前に、実行中のセッションを停止してください</string>
     <string name="pextra_no_release">%1$sのARM64リリースが見つかりませんでした</string>
@@ -2001,7 +1985,6 @@
     <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
     <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
     <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
-
     <string name="cmgr_fex_linux_helpers">Linux補助プログラム付き</string>
     <string name="cmgr_fex_dlls_only">DLLのみ</string>
     <string name="cmgr_original_proton_updated">元（前回の置き換え以降にProtonが更新されました）</string>
@@ -2024,13 +2007,11 @@
     <string name="cmgr_nightly_replaced">ダウンロードに失敗しました：このナイトリービルドは新しいビルドに置き換えられた可能性があります。一覧を更新してもう一度お試しください。</string>
     <string name="cmgr_list_predates_checksums">このパッケージ一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
     <string name="cmgr_checksum_mismatch">チェックサムが一致しません</string>
-
     <string name="sprefs_upscaler_linear">リニア</string>
     <string name="sprefs_upscaler_nearest">ニアレスト</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（品質）</string>
     <string name="sprefs_upscaler_sharpen">シャープのみ</string>
     <string name="sprefs_lod_bias_auto">自動（スケーリングに合わせる）</string>
-
     <string name="look_off_desc">何も適用されません。</string>
     <string name="look_game_clarity">ゲームクラリティ</string>
     <string name="look_game_clarity_desc">シャープ化に少しコントラストを加えた、普段使い向け。</string>
@@ -2054,14 +2035,12 @@
     <string name="look_pixel_clean_desc">2Dや古いタイトル向けのくっきりしたピクセル。</string>
     <string name="look_anime_edge">アニメエッジ</string>
     <string name="look_anime_edge_desc">トゥーン輪郭線とシャープ化。</string>
-
     <string name="gpuinfo_not_adreno">Adreno GPUではありません</string>
     <string name="gpuinfo_supported">サポート対象</string>
     <string name="gpuinfo_experimental">実験的：ドライバーはテストビルドです</string>
     <string name="gpuinfo_a850_experimental">Adreno 850の実験的サポート：互換性のある実験版のディスプレイドライバーとゲームドライバーが必要です。このデバイスでは未検証です</string>
     <string name="gpuinfo_below_tested">テスト済みハードウェア（Adreno 725以降）未満：動作しない可能性があります</string>
     <string name="gpuinfo_unsupported">サポート対象外：このGPUで利用できる互換グラフィックスバックエンドがありません</string>
-
     <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
     <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>
     <string name="turnip_download_failed">ダウンロードに失敗しました</string>
@@ -2082,16 +2061,12 @@
     <string name="bundle_no_manifest">ドライバーバンドルではありません：androidドライバーとlinuxドライバーを指定するmanifest.jsonがありません</string>
     <string name="bundle_entry_outside">ドライバーバンドルではありません：%1$sがバンドルの外を指しています</string>
     <string name="bundle_too_large">ドライバーバンドルではありません：展開後のサイズが%1$d MBを超えます</string>
-
     <string name="gstore_sd_card">SDカード</string>
     <string name="gstore_folder">フォルダ</string>
-
     <string name="logshare_chooser">セッションログを共有</string>
-
     <string name="hdr_needs_android_10">Android 10以降が必要です（色空間付きのディスプレイレイヤー）</string>
     <string name="hdr_none">このディスプレイはHDRに対応していません</string>
     <string name="hdr_not_hdr10">このディスプレイは%1$sに対応していますが、HDR10には対応していません</string>
-
     <string name="gpu_this_gpu">このGPU</string>
     <string name="phantom_title_on">子プロセス制限がオンです</string>
     <string name="phantom_title_unset">子プロセス制限が未設定です</string>
@@ -2165,7 +2140,6 @@
     <string name="device_info_copied">コピーしました。</string>
     <string name="force_ssbs_title">SSBSを強制</string>
     <string name="force_ssbs_hint">Wineがオフにし続けるCPUの速度設定をオンに保ちます。Snapdragon 8 EliteではWindowsゲームが速くなることがあります。古いチップではほとんど変化がありません。次のゲーム起動時に反映されます。</string>
-
     <string name="rail_stores">ストア</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">カスタム</string>
@@ -2633,7 +2607,6 @@
     <string name="touch_icon_color">アイコンの色</string>
     <string name="touch_button_color">ボタンの色</string>
     <string name="touch_no_icon">アイコンなし</string>
-
     <string name="stores_sync_sign_in">サインインを確認中…</string>
     <string name="stores_sync_library">ライブラリを取得中…</string>
     <string name="stores_sync_game_list">ゲームリストを取得中…</string>
@@ -3664,9 +3637,7 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
-
     <string name="theme_white_red">緋色の雪</string>
-    
     <string name="rail_soundtracks">サウンドトラック</string>
     <string name="rail_music">音楽</string>
     <string name="soundtracks_options">再生オプション</string>
@@ -3729,4 +3700,12 @@
     <string name="soundtracks_repeat_one">1曲リピート</string>
     <string name="soundtracks_volume">音量</string>
     <string name="soundtracks_no_tracks">このサウンドトラックに音声ファイルがありません</string>
+    <string name="setup_stores">ストア</string>
+    <string name="screen_effects_target">エフェクトプロファイル</string>
+    <string name="screen_effects_target_hint">画面エフェクトを変更するプロファイルを選択してください。</string>
+    <string name="screen_effects_target_auto">現在のゲーム（自動）</string>
+    <string name="screen_effects_reset">エフェクトをリセット</string>
+    <string name="screen_effects_reset_hint">このプロファイルのエフェクトを初期状態（オフ）に戻します。</string>
+    <string name="screen_effects_delete">保存した上書きを削除</string>
+    <string name="screen_effects_delete_hint">このゲームの保存済みエフェクトを削除し、デフォルトプロファイルを継承します。</string>
 </resources>

@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">العودة إلى DroidDeck بعد اللعبة</string>
     <string name="mode_return_after_game_hint">عند إغلاق لعبة بدأتها من DroidDeck أو من مشغّل آخر، يُغلَق Steam بشكل سليم (بعد اكتمال الحفظ السحابي) وتعود إلى هناك. عند الإيقاف: تبقى في Steam.</string>
     <string name="mode_shader_precache">التخزين المسبق للمظلِّلات</string>
-    <string name="mode_shader_precache_hint">ينزّل Steam مظلِّلات مُعدّة مسبقًا لألعابك ويعالجها في الخلفية، فتقلّ التقطّعات في الألعاب. يوفّر الإيقاف البيانات والتخزين والبطارية، وتبني الألعاب المظلِّلات أثناء اللعب بدلًا من ذلك. هو الإعداد نفسه في Steam ضمن التنزيلات > التخزين المسبق للمظلِّلات. يُطبَّق في الجلسة التالية.</string>
+    <string name="mode_shader_precache_hint">ينزّل Steam مظلِّلات مُعدّة مسبقًا لألعابك ويعالجها في الخلفية، فتقلّ التقطّعات في الألعاب. يوفّر الإيقاف البيانات والتخزين والبطارية، وتبني الألعاب المظلِّلات أثناء اللعب بدلًا من ذلك. هو الإعداد نفسه في Steam ضمن التنزيلات &gt; التخزين المسبق للمظلِّلات. يُطبَّق في الجلسة التالية.</string>
     <string name="mode_steam_repair">إصلاح عميل Steam</string>
     <string name="mode_steam_repair_hint">يُنزّل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam. استخدمه إذا بقي Steam على شاشة التحميل. يتم الاحتفاظ بالألعاب وتسجيل الدخول والإعدادات.</string>
     <string name="mode_steam_repair_queued">سيتم تنزيل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam.</string>
@@ -1357,7 +1357,6 @@
     <string name="game_file_folder">اختر مجلدًا لملفات الألعاب الخاصة بالواجهات الأمامية</string>
     <string name="game_file_exported">تم حفظ ملفات الألعاب في %1$s</string>
     <string name="game_frontend_files">ملفات الواجهة الأمامية</string>
-
     <string name="main_wait_runtime">انتظر حتى تنتهي عملية بيئة التشغيل</string>
     <string name="main_wait_proton_install">انتظر حتى ينتهي تثبيت أداة التوافق</string>
     <string name="load_compat_title">جارٍ تجهيز أدوات التوافق</string>
@@ -1463,7 +1462,6 @@
     <string name="main_removing_runtime">جارٍ إزالة بيئة تشغيل Linux</string>
     <string name="main_settings_main_screen">تعذّر فتح الإعدادات على الشاشة السفلية، لذا فُتحت على الشاشة الأساسية.</string>
     <string name="main_open_dev_options">افتح خيارات المطوّرين في الإعدادات</string>
-
     <string name="upd_unknown_apps_failed">تعذّر فتح إعداد «تثبيت التطبيقات غير المعروفة» في Android</string>
     <string name="upd_couldnt_check">تعذّر التحقّق: %1$s</string>
     <string name="upd_no_download">لا يتوفّر لهذا الإصدار ملف تنزيل لهذه النسخة من DroidDeck</string>
@@ -1473,12 +1471,10 @@
     <string name="upd_stage_confirm">في انتظار تأكيدك</string>
     <string name="upd_failed">فشل التحديث</string>
     <string name="upd_not_offered">لم يعرض Android تثبيت التحديث</string>
-
     <string name="decky_install_failed">فشل تثبيت Decky: %1$s</string>
     <string name="decky_plugin_starting">جارٍ بدء استيراد الإضافة…</string>
     <string name="decky_plugin_failed">فشل استيراد الإضافة: %1$s</string>
     <string name="decky_plugin_installed">تم تثبيت الإضافة. أعِد تشغيل Steam لتحميلها.</string>
-
     <string name="drivers_not_checked">لم يتم التحقّق بعد - انقر على «تحديث» للبحث عن برامج تشغيل جديدة</string>
     <string name="drivers_bundle_sets_display">Android + Linux: يضبط برنامج تشغيل العرض معه</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: يضبط برنامج تشغيل بيئة Linux معه</string>
@@ -1543,7 +1539,6 @@
     <string name="drivers_check_failed">فشل التحقّق</string>
     <string name="drivers_installed_pick_either">تم تثبيت %1$s - اختره من أيٍّ من القائمتين لضبط برنامجَي التشغيل معًا</string>
     <string name="drivers_installed_pick">تم تثبيت %1$s - اختره من القائمة</string>
-
     <string name="session_wait_removal">انتظر حتى تنتهي إزالة بيئة التشغيل</string>
     <string name="session_title_game">لعبة</string>
     <string name="session_touch_auto_touchpad">لوحة اللمس</string>
@@ -1597,7 +1592,6 @@
         <item quantity="many">يُظهر السجل %1$d خطأً من نوع «Function not implemented»: تسريع seccomp في proot يتسبّب في فشل أداة مساعدة على هذا الجهاز. جرِّب %2$s → «%3$s» (أو «%4$s») وابدأ من جديد.</item>
         <item quantity="other">يُظهر السجل %1$d خطأ من نوع «Function not implemented»: تسريع seccomp في proot يتسبّب في فشل أداة مساعدة على هذا الجهاز. جرِّب %2$s → «%3$s» (أو «%4$s») وابدأ من جديد.</item>
     </plurals>
-
     <string name="mode_decky_plugins">الإضافات</string>
     <string name="mode_decky_plugins_hint">ثبِّت ملف ZIP لإضافة في جلسة Steam التالية.</string>
     <string name="mode_decky_plugin_downloading">جارٍ التنزيل…</string>
@@ -1946,7 +1940,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">يستقبل المنفذ %1$d بيانات (%2$d حزمة بحجم %3$d بايت)، لكن بتنسيق لا تستطيع هذه الصفحة قراءته بعد.</string>
     <string name="bottom_telemetry_port_busy">يستخدم برنامج آخر المنفذ %1$s بالفعل، لذا لا يمكن عرض تلك اللعبة هنا.</string>
-
     <string name="rtinst_removing">جارٍ إزالة بيئة تشغيل Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="zero">جارٍ إزالة بيئة تشغيل Linux · %1$d عنصر</item>
@@ -1965,7 +1958,6 @@
     <string name="rtinst_channel_description">يظهر أثناء تثبيت بيئة تشغيل Linux أو إزالتها</string>
     <string name="rtinst_title_installing">جارٍ تثبيت بيئة تشغيل Linux</string>
     <string name="rtinst_title_removing">جارٍ إزالة بيئة تشغيل Linux</string>
-
     <string name="deskpkg_runtime_missing">بيئة تشغيل Linux غير مثبَّتة</string>
     <string name="deskpkg_no_checksum">لا يتضمّن الكتالوج مجموعًا اختباريًا لـ %1$s</string>
     <string name="deskpkg_checksum_mismatch">المجموع الاختباري غير مطابق - لم يتم تغيير أي شيء</string>
@@ -1973,7 +1965,6 @@
     <string name="deskpkg_place_failed">تعذّر وضع ملف AppImage في مكانه</string>
     <string name="deskpkg_extract_failed">فشل الاستخراج</string>
     <string name="deskpkg_install_failed">فشل التثبيت</string>
-
     <string name="flatpakmgr_setup_failed">فشل إعداد Flatpak (رمز الخروج %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">لم يكتمل إعداد Flatpak</string>
     <string name="flatpakmgr_busy">هناك مهمة أخرى للمتجر قيد التشغيل</string>
@@ -1992,7 +1983,6 @@
     <string name="flatpakmgr_ref_media_codecs">برامج ترميز الوسائط</string>
     <string name="flatpakmgr_ref_runtime">بيئة تشغيل %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">بيئة تشغيل %1$s %2$s</string>
-
     <string name="appimg_too_small">الملف أصغر من أن يكون AppImage</string>
     <string name="appimg_unreadable">تتعذّر قراءة الملف: %1$s</string>
     <string name="appimg_not_linux">هذا ليس AppImage (ليس برنامج Linux)</string>
@@ -2007,7 +1997,6 @@
     <string name="appimg_extracting">جارٍ استخراج %1$s</string>
     <string name="appimg_extract_failed">تعذّر استخراج ملف AppImage</string>
     <string name="appimg_extract_failed_detail">تعذّر استخراج ملف AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">أوقِف الجلسة النشطة قبل تثبيت Decky Loader</string>
     <string name="deckymgr_download_failed">فشل تنزيل Decky Loader</string>
     <string name="deckymgr_size_mismatch">حجم Decky Loader غير مطابق لبيانات الإصدار الوصفية</string>
@@ -2056,13 +2045,11 @@
     <string name="deckymgr_activate_failed">تعذّر تفعيل الإضافة المستورَدة</string>
     <string name="deckymgr_settings_failed">تعذّر تحديث إعدادات إضافات Decky</string>
     <string name="deckymgr_restore_failed">تعذّر استعادة الإضافة الحالية</string>
-
     <string name="adbfix_save_failed">تعذّر حفظ هوية تصحيح الأخطاء اللاسلكي</string>
     <string name="adbfix_command_failed">فشل أمر ADB (%1$d)</string>
     <string name="adbfix_not_confirmed">لم يؤكّد Android تغيير حدّ العمليات الفرعية: %1$s</string>
     <string name="adbfix_no_pairing">لا يوجد إقران محفوظ لتصحيح الأخطاء اللاسلكي</string>
     <string name="adbfix_enter_address">أدخِل عنوان IP الحالي ورقم المنفذ لتصحيح الأخطاء اللاسلكي</string>
-
     <string name="adbpair_timed_out">انتهت مهلة انتظار النافذة المنبثقة للإقران. حاوِل مرة أخرى من DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">تعذّر البحث عن النافذة المنبثقة للإقران (%1$d). تحقَّق من تفعيل Wi-Fi.</string>
     <string name="adbpair_discovery_failed">تعذّر البحث عن النافذة المنبثقة للإقران: %1$s</string>
@@ -2088,7 +2075,6 @@
     <string name="adbpair_title_done">Steam جاهز</string>
     <string name="adbpair_done_text">اضغط للعودة إلى DroidDeck. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
     <string name="adbpair_title_failed">توقَّف إعداد تصحيح الأخطاء اللاسلكي</string>
-
     <string name="selfinst_download_failed">فشل التنزيل</string>
     <string name="selfinst_size_mismatch">حجم التنزيل غير مطابق لملف APK المنشور، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_checksum_mismatch">التنزيل غير مطابق لمجموعه الاختباري، وتم تجاهله - حاوِل مرة أخرى</string>
@@ -2101,12 +2087,10 @@
     <string name="selfinst_no_signing">ملف APK الذي تم تنزيله لا يحمل معلومات توقيع</string>
     <string name="selfinst_wrong_signer">ملف APK الذي تم تنزيله غير موقَّع بمفتاح إصدار DroidDeck</string>
     <string name="appupd_http">استجاب كتالوج التحديثات بـ HTTP %1$d</string>
-
     <string name="loadstate_starting">جارٍ بدء الجلسة…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d منقضية · لا تزال جارية</string>
     <string name="loadstate_steam_update">جارٍ تنزيل تحديث عميل Steam · %1$d%%</string>
     <string name="loadstate_steam_client">جارٍ تنزيل عميل Steam · %1$s</string>
-
     <string name="pextra_busy">يوجد تثبيت لأداة توافق قيد التنفيذ بالفعل</string>
     <string name="pextra_stop_session">أوقِف الجلسة النشطة قبل تثبيت أدوات التوافق</string>
     <string name="pextra_no_release">تعذّر العثور على إصدار ARM64 لـ %1$s</string>
@@ -2126,7 +2110,6 @@
     <string name="pextra_install_failed">فشل تثبيت %1$s (حالة الخروج %2$d)</string>
     <string name="pextra_could_not_install">تعذّر تثبيت %1$s</string>
     <string name="esync_fetching">جارٍ جلب حزمة droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">مع أدوات Linux المساعدة</string>
     <string name="cmgr_fex_dlls_only">ملفات DLL فقط</string>
     <string name="cmgr_original_proton_updated">الأصلي (تم تحديث Proton منذ آخر تبديل)</string>
@@ -2149,13 +2132,11 @@
     <string name="cmgr_nightly_replaced">فشل التنزيل: ربما استُبدل هذا الإصدار الليلي بإصدار أحدث. حدّث القائمة وحاول مرة أخرى.</string>
     <string name="cmgr_list_predates_checksums">قائمة الحزم هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="cmgr_checksum_mismatch">عدم تطابق المجموع الاختباري</string>
-
     <string name="sprefs_upscaler_linear">خطي</string>
     <string name="sprefs_upscaler_nearest">الأقرب</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (جودة)</string>
     <string name="sprefs_upscaler_sharpen">زيادة الحدة فقط</string>
     <string name="sprefs_lod_bias_auto">تلقائي (يطابق التكبير)</string>
-
     <string name="look_off_desc">لا يُطبَّق أي شيء.</string>
     <string name="look_game_clarity">وضوح اللعبة</string>
     <string name="look_game_clarity_desc">زيادة حدّة مع لمسة من التباين - الخيار اليومي.</string>
@@ -2179,14 +2160,12 @@
     <string name="look_pixel_clean_desc">بكسلات واضحة للألعاب الثنائية الأبعاد والألعاب القديمة.</string>
     <string name="look_anime_edge">حافة الأنيمي</string>
     <string name="look_anime_edge_desc">حدود كرتونية مع زيادة الحدّة.</string>
-
     <string name="gpuinfo_not_adreno">وحدة GPU ليست من نوع Adreno</string>
     <string name="gpuinfo_supported">مدعوم</string>
     <string name="gpuinfo_experimental">تجريبي: برامج تشغيله إصدارات اختبارية</string>
     <string name="gpuinfo_a850_experimental">دعم تجريبي لـ Adreno 850: يتطلب برامج تشغيل تجريبية متوافقة للعرض والألعاب، ولم يُتحقَّق منه على هذا الجهاز</string>
     <string name="gpuinfo_below_tested">أقل من العتاد المُختبَر (Adreno 725 وأحدث): قد لا يعمل</string>
     <string name="gpuinfo_unsupported">غير مدعوم: لا تتوفر واجهة رسومات متوافقة مع وحدة معالجة الرسومات هذه</string>
-
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>
     <string name="turnip_download_failed">فشل التنزيل</string>
@@ -2207,16 +2186,12 @@
     <string name="bundle_no_manifest">ليست حزمة برامج تشغيل: لا يوجد manifest.json يذكر برنامج تشغيل لـ Android وآخر لـ Linux</string>
     <string name="bundle_entry_outside">ليست حزمة برامج تشغيل: %1$s يشير إلى خارجها</string>
     <string name="bundle_too_large">ليست حزمة برامج تشغيل: تتجاوز بعد الاستخراج %1$d MB</string>
-
     <string name="gstore_sd_card">بطاقة SD</string>
     <string name="gstore_folder">مجلد</string>
-
     <string name="logshare_chooser">مشاركة سجلات الجلسة</string>
-
     <string name="hdr_needs_android_10">يحتاج إلى Android 10 أو أحدث (طبقات عرض بمساحة ألوان)</string>
     <string name="hdr_none">لا تُعلن هذه الشاشة عن دعم HDR</string>
     <string name="hdr_not_hdr10">تدعم هذه الشاشة %1$s، وليس HDR10</string>
-
     <string name="gpu_this_gpu">وحدة GPU هذه</string>
     <string name="phantom_title_on">حدّ العمليات الفرعية مفعَّل</string>
     <string name="phantom_title_unset">حدّ العمليات الفرعية غير محدَّد</string>
@@ -2290,7 +2265,6 @@
     <string name="device_info_copied">تم النسخ.</string>
     <string name="force_ssbs_title">فرض SSBS</string>
     <string name="force_ssbs_hint">يحافظ على إعداد سرعة لوحدة المعالجة (CPU) يستمر Wine في إيقافه. قد يجعل ألعاب Windows أسرع على Snapdragon 8 Elite؛ مع تغيّر طفيف على الشرائح الأقدم. يُطبَّق عند تشغيل اللعبة في المرة التالية.</string>
-
     <string name="rail_stores">المتاجر</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">مخصَّص</string>
@@ -2773,7 +2747,6 @@
     <string name="touch_icon_color">لون الأيقونة</string>
     <string name="touch_button_color">لون الزر</string>
     <string name="touch_no_icon">بلا أيقونة</string>
-
     <string name="stores_sync_sign_in">جارٍ التحقق من تسجيل الدخول…</string>
     <string name="stores_sync_library">جارٍ جلب مكتبتك…</string>
     <string name="stores_sync_game_list">جارٍ جلب قائمة الألعاب…</string>
@@ -3850,9 +3823,7 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
-
     <string name="theme_white_red">ثلج قرمزي</string>
-    
     <string name="rail_soundtracks">الموسيقى التصويرية</string>
     <string name="rail_music">الموسيقى</string>
     <string name="soundtracks_options">خيارات التشغيل</string>
@@ -3915,4 +3886,12 @@
     <string name="soundtracks_repeat_one">تكرار مقطع واحد</string>
     <string name="soundtracks_volume">مستوى الصوت</string>
     <string name="soundtracks_no_tracks">لا توجد ملفات صوتية في هذه الموسيقى التصويرية</string>
+    <string name="setup_stores">المتاجر</string>
+    <string name="screen_effects_target">ملف التأثيرات</string>
+    <string name="screen_effects_target_hint">اختر الملف الشخصي الذي تريد تغيير تأثيرات الشاشة فيه.</string>
+    <string name="screen_effects_target_auto">اللعبة الحالية (تلقائي)</string>
+    <string name="screen_effects_reset">إعادة ضبط التأثيرات</string>
+    <string name="screen_effects_reset_hint">استعد القيم الافتراضية المعطّلة للتأثيرات في هذا الملف الشخصي.</string>
+    <string name="screen_effects_delete">حذف الإعداد المحفوظ</string>
+    <string name="screen_effects_delete_hint">أزل التأثيرات المحفوظة لهذه اللعبة لتستخدم ملف التعريف الافتراضي.</string>
 </resources>

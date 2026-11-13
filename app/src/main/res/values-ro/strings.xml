@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">Revino la DroidDeck după un joc</string>
     <string name="mode_return_after_game_hint">Când un joc pornit din DroidDeck sau din alt launcher se închide, Steam iese curat (salvările în cloud se termină întâi) și revii acolo. Dezactivat: rămâi în Steam.</string>
     <string name="mode_shader_precache">Pre-cache pentru shadere</string>
-    <string name="mode_shader_precache_hint">Steam descarcă shadere precompilate pentru jocurile tale și le procesează în fundal, ca jocurile să aibă mai puține sacadări. Dezactivat economisește date, spațiu și baterie; jocurile își compilează shaderele în timpul jocului. Aceeași setare ca Descărcări > Pre-cache pentru shadere din Steam. Se aplică la sesiunea următoare.</string>
+    <string name="mode_shader_precache_hint">Steam descarcă shadere precompilate pentru jocurile tale și le procesează în fundal, ca jocurile să aibă mai puține sacadări. Dezactivat economisește date, spațiu și baterie; jocurile își compilează shaderele în timpul jocului. Aceeași setare ca Descărcări &gt; Pre-cache pentru shadere din Steam. Se aplică la sesiunea următoare.</string>
     <string name="mode_steam_repair">Repară clientul Steam</string>
     <string name="mode_steam_repair_hint">Descarcă din nou clientul Steam la următoarea pornire a Steam. Folosește-l dacă Steam rămâne blocat pe ecranul de încărcare. Jocurile, autentificarea și setările sunt păstrate.</string>
     <string name="mode_steam_repair_queued">Clientul Steam va fi descărcat din nou la următoarea pornire a Steam.</string>
@@ -1336,7 +1336,6 @@
     <string name="game_file_folder">Alege un folder pentru fișierele frontend ale jocurilor</string>
     <string name="game_file_exported">Fișierele jocului salvate în %1$s</string>
     <string name="game_frontend_files">Fișiere frontend</string>
-
     <string name="main_wait_runtime">Așteaptă să se termine operația asupra mediului de execuție</string>
     <string name="main_wait_proton_install">Așteaptă să se termine instalarea instrumentului de compatibilitate</string>
     <string name="load_compat_title">Se pregătesc instrumentele de compatibilitate</string>
@@ -1427,7 +1426,6 @@
     <string name="main_removing_runtime">Se elimină mediul de execuție Linux</string>
     <string name="main_settings_main_screen">Setările nu au putut fi deschise pe ecranul de jos; au fost deschise pe ecranul principal.</string>
     <string name="main_open_dev_options">Deschide Opțiunile pentru dezvoltatori din Setări</string>
-
     <string name="upd_unknown_apps_failed">Setarea Android „Instalează aplicații necunoscute” nu a putut fi deschisă</string>
     <string name="upd_couldnt_check">Nu s-a putut verifica: %1$s</string>
     <string name="upd_no_download">Această versiune nu are o descărcare pentru această copie de DroidDeck</string>
@@ -1437,12 +1435,10 @@
     <string name="upd_stage_confirm">Se așteaptă confirmarea ta</string>
     <string name="upd_failed">Actualizarea a eșuat</string>
     <string name="upd_not_offered">Android nu a oferit instalarea actualizării</string>
-
     <string name="decky_install_failed">Instalarea Decky a eșuat: %1$s</string>
     <string name="decky_plugin_starting">Se pornește importul pluginului…</string>
     <string name="decky_plugin_failed">Importul pluginului a eșuat: %1$s</string>
     <string name="decky_plugin_installed">Plugin instalat. Repornește Steam pentru a-l încărca.</string>
-
     <string name="drivers_not_checked">Neverificat încă - apasă reîmprospătare pentru a căuta drivere noi</string>
     <string name="drivers_bundle_sets_display">Android + Linux: setează driverul de afișaj odată cu el</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: setează driverul mediului de execuție odată cu el</string>
@@ -1498,7 +1494,6 @@
     <string name="drivers_check_failed">verificare eșuată</string>
     <string name="drivers_installed_pick_either">Instalat %1$s - alege-l în orice listă pentru a seta ambele drivere</string>
     <string name="drivers_installed_pick">Instalat %1$s - alege-l în meniu</string>
-
     <string name="session_wait_removal">Așteaptă să se termine eliminarea mediului de execuție</string>
     <string name="session_title_game">Joc</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1546,7 +1541,6 @@
         <item quantity="few">Jurnalul arată %1$d erori „Function not implemented”: accelerarea seccomp a proot nu reușește să ruleze un auxiliar pe acest dispozitiv. Încearcă %2$s → „%3$s” (sau „%4$s”) și pornește din nou.</item>
         <item quantity="other">Jurnalul arată %1$d de erori „Function not implemented”: accelerarea seccomp a proot nu reușește să ruleze un auxiliar pe acest dispozitiv. Încearcă %2$s → „%3$s” (sau „%4$s”) și pornește din nou.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Pluginuri</string>
     <string name="mode_decky_plugins_hint">Instalează o arhivă ZIP cu un plugin pentru sesiunea Steam următoare.</string>
     <string name="mode_decky_plugin_downloading">Se descarcă…</string>
@@ -1874,7 +1868,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Portul %1$d primește date (%2$d pachete de %3$d octeți), dar într-un format pe care această pagină nu îl poate citi încă.</string>
     <string name="bottom_telemetry_port_busy">Alt program folosește deja portul %1$s, așa că acel joc nu poate fi afișat aici.</string>
-
     <string name="rtinst_removing">Se elimină mediul de execuție Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Se elimină mediul de execuție Linux · %1$d intrare</item>
@@ -1890,7 +1883,6 @@
     <string name="rtinst_channel_description">Apare cât timp mediul de execuție Linux este instalat sau eliminat</string>
     <string name="rtinst_title_installing">Se instalează mediul de execuție Linux</string>
     <string name="rtinst_title_removing">Se elimină mediul de execuție Linux</string>
-
     <string name="deskpkg_runtime_missing">Mediul de execuție Linux nu este instalat</string>
     <string name="deskpkg_no_checksum">Catalogul nu are o sumă de control pentru %1$s</string>
     <string name="deskpkg_checksum_mismatch">Sumă de control incorectă - nimic nu a fost modificat</string>
@@ -1898,7 +1890,6 @@
     <string name="deskpkg_place_failed">AppImage-ul nu a putut fi plasat</string>
     <string name="deskpkg_extract_failed">Extragerea a eșuat</string>
     <string name="deskpkg_install_failed">Instalarea a eșuat</string>
-
     <string name="flatpakmgr_setup_failed">Configurarea Flatpak a eșuat (cod de ieșire %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Configurarea Flatpak nu s-a terminat</string>
     <string name="flatpakmgr_busy">O altă sarcină a magazinului este în curs</string>
@@ -1917,7 +1908,6 @@
     <string name="flatpakmgr_ref_media_codecs">codecuri media</string>
     <string name="flatpakmgr_ref_runtime">mediul de execuție %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">mediul de execuție %1$s %2$s</string>
-
     <string name="appimg_too_small">Fișierul este prea mic pentru a fi un AppImage</string>
     <string name="appimg_unreadable">Fișierul nu poate fi citit: %1$s</string>
     <string name="appimg_not_linux">Acesta nu este un AppImage (nu este un program Linux)</string>
@@ -1932,7 +1922,6 @@
     <string name="appimg_extracting">Se extrage %1$s</string>
     <string name="appimg_extract_failed">AppImage-ul nu a putut fi extras</string>
     <string name="appimg_extract_failed_detail">AppImage-ul nu a putut fi extras: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Oprește sesiunea activă înainte de a instala Decky Loader</string>
     <string name="deckymgr_download_failed">Descărcarea Decky Loader a eșuat</string>
     <string name="deckymgr_size_mismatch">Dimensiunea Decky Loader nu s-a potrivit cu metadatele versiunii</string>
@@ -1981,13 +1970,11 @@
     <string name="deckymgr_activate_failed">Pluginul importat nu a putut fi activat</string>
     <string name="deckymgr_settings_failed">Setările pluginului Decky nu au putut fi actualizate</string>
     <string name="deckymgr_restore_failed">Pluginul existent nu a putut fi restaurat</string>
-
     <string name="adbfix_save_failed">Identitatea Depanării wireless nu a putut fi salvată</string>
     <string name="adbfix_command_failed">Comanda ADB a eșuat (%1$d)</string>
     <string name="adbfix_not_confirmed">Android nu a confirmat modificarea limitei proceselor-copil: %1$s</string>
     <string name="adbfix_no_pairing">Nicio asociere de Depanare wireless nu este salvată</string>
     <string name="adbfix_enter_address">Introdu adresa IP și portul curente ale Depanării wireless</string>
-
     <string name="adbpair_timed_out">Timpul a expirat în așteptarea ferestrei de asociere. Încearcă din nou din DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Fereastra de asociere nu a putut fi căutată (%1$d). Verifică dacă Wi-Fi-ul este activat.</string>
     <string name="adbpair_discovery_failed">Fereastra de asociere nu a putut fi căutată: %1$s</string>
@@ -2013,7 +2000,6 @@
     <string name="adbpair_title_done">Steam este pregătit</string>
     <string name="adbpair_done_text">Apasă pentru a reveni la DroidDeck. Poți dezactiva acum Depanarea wireless.</string>
     <string name="adbpair_title_failed">Configurarea Depanării wireless s-a oprit</string>
-
     <string name="selfinst_download_failed">Descărcarea a eșuat</string>
     <string name="selfinst_size_mismatch">Dimensiunea descărcării nu s-a potrivit cu APK-ul publicat și a fost abandonată - încearcă din nou</string>
     <string name="selfinst_checksum_mismatch">Descărcarea nu s-a potrivit cu suma sa de control și a fost abandonată - încearcă din nou</string>
@@ -2026,12 +2012,10 @@
     <string name="selfinst_no_signing">APK-ul descărcat nu are informații de semnare</string>
     <string name="selfinst_wrong_signer">APK-ul descărcat nu este semnat cu cheia de lansare a DroidDeck</string>
     <string name="appupd_http">Catalogul de actualizări a răspuns cu HTTP %1$d</string>
-
     <string name="loadstate_starting">Se pornește sesiunea…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d scurse · încă se lucrează</string>
     <string name="loadstate_steam_update">Se descarcă actualizarea clientului Steam · %1$d%%</string>
     <string name="loadstate_steam_client">Se descarcă clientul Steam · %1$s</string>
-
     <string name="pextra_busy">O instalare a unui instrument de compatibilitate este deja în curs</string>
     <string name="pextra_stop_session">Oprește sesiunea activă înainte de a instala instrumente de compatibilitate</string>
     <string name="pextra_no_release">Nu s-a găsit o versiune ARM64 pentru %1$s</string>
@@ -2051,7 +2035,6 @@
     <string name="pextra_install_failed">Instalarea %1$s a eșuat (cod de ieșire %2$d)</string>
     <string name="pextra_could_not_install">%1$s nu a putut fi instalat</string>
     <string name="esync_fetching">Se obține pachetul droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">cu auxiliare Linux</string>
     <string name="cmgr_fex_dlls_only">doar DLL-uri</string>
     <string name="cmgr_original_proton_updated">Original (Proton actualizat de la ultima comutare)</string>
@@ -2074,13 +2057,11 @@
     <string name="cmgr_nightly_replaced">Descărcarea a eșuat: această versiune nightly poate fi fost înlocuită cu una mai nouă. Reîmprospătează lista și încearcă din nou.</string>
     <string name="cmgr_list_predates_checksums">Această listă de pachete e anterioară sumelor de control - reîmprospătează-o și încearcă din nou</string>
     <string name="cmgr_checksum_mismatch">Sumă de control incorectă</string>
-
     <string name="sprefs_upscaler_linear">Liniar</string>
     <string name="sprefs_upscaler_nearest">Cel mai apropiat</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (calitate)</string>
     <string name="sprefs_upscaler_sharpen">Doar claritate</string>
     <string name="sprefs_lod_bias_auto">Automat (se potrivește cu scalarea)</string>
-
     <string name="look_off_desc">Nimic aplicat.</string>
     <string name="look_game_clarity">Claritate de joc</string>
     <string name="look_game_clarity_desc">Claritate cu puțin contrast - cea de zi cu zi.</string>
@@ -2104,14 +2085,12 @@
     <string name="look_pixel_clean_desc">Pixeli clari pentru 2D și titluri vechi.</string>
     <string name="look_anime_edge">Margini anime</string>
     <string name="look_anime_edge_desc">Contururi toon plus claritate.</string>
-
     <string name="gpuinfo_not_adreno">Nu este un GPU Adreno</string>
     <string name="gpuinfo_supported">Acceptat</string>
     <string name="gpuinfo_experimental">Experimental: driverele sale sunt versiuni de test</string>
     <string name="gpuinfo_a850_experimental">Suport experimental pentru Adreno 850: necesită drivere experimentale compatibile de afișaj și de jocuri; neverificat pe acest dispozitiv</string>
     <string name="gpuinfo_below_tested">Sub hardware-ul testat (Adreno 725 și mai nou): poate să nu ruleze</string>
     <string name="gpuinfo_unsupported">Neacceptat: nu este disponibil un backend grafic compatibil pentru acest GPU</string>
-
     <string name="turnip_rate_limited">S-a atins limita de solicitări a GitHub - încearcă din nou mai târziu</string>
     <string name="turnip_github_http">GitHub a răspuns cu HTTP %1$d</string>
     <string name="turnip_download_failed">Descărcarea a eșuat</string>
@@ -2132,16 +2111,12 @@
     <string name="bundle_no_manifest">Nu este un pachet de drivere: niciun manifest.json nu numește un driver android și unul linux</string>
     <string name="bundle_entry_outside">Nu este un pachet de drivere: %1$s indică în afara lui</string>
     <string name="bundle_too_large">Nu este un pachet de drivere: se despachetează la mai mult de %1$d MB</string>
-
     <string name="gstore_sd_card">Card SD</string>
     <string name="gstore_folder">Folder</string>
-
     <string name="logshare_chooser">Partajează jurnalele sesiunii</string>
-
     <string name="hdr_needs_android_10">necesită Android 10 sau mai nou (straturi de afișaj cu un spațiu de culoare)</string>
     <string name="hdr_none">acest afișaj nu raportează suport HDR</string>
     <string name="hdr_not_hdr10">acest afișaj acceptă %1$s, nu HDR10</string>
-
     <string name="gpu_this_gpu">acest GPU</string>
     <string name="phantom_title_on">Limita proceselor-copil este activă</string>
     <string name="phantom_title_unset">Limita proceselor-copil nu este setată</string>
@@ -2215,7 +2190,6 @@
     <string name="device_info_copied">Copiat.</string>
     <string name="force_ssbs_title">Forțează SSBS</string>
     <string name="force_ssbs_hint">Păstrează o setare de viteză a CPU-ului pe care Wine o dezactivează mereu. Poate face jocurile Windows mai rapide pe Snapdragon 8 Elite; schimbare mică observată pe cipuri mai vechi. Se aplică la următoarea lansare a jocului.</string>
-
     <string name="rail_stores">Magazine</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizat</string>
@@ -2689,7 +2663,6 @@
     <string name="touch_icon_color">Culoarea pictogramei</string>
     <string name="touch_button_color">Culoarea butonului</string>
     <string name="touch_no_icon">Fără pictogramă</string>
-
     <string name="stores_sync_sign_in">Se verifică autentificarea…</string>
     <string name="stores_sync_library">Se obține biblioteca ta…</string>
     <string name="stores_sync_game_list">Se obține lista de jocuri…</string>
@@ -3733,9 +3706,7 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
-
     <string name="theme_white_red">Zăpadă stacojie</string>
-    
     <string name="rail_soundtracks">Coloane sonore</string>
     <string name="rail_music">Muzică</string>
     <string name="soundtracks_options">Opțiuni de redare</string>
@@ -3798,4 +3769,12 @@
     <string name="soundtracks_repeat_one">Repetă una</string>
     <string name="soundtracks_volume">Volum</string>
     <string name="soundtracks_no_tracks">Niciun fișier audio în această coloană sonoră</string>
+    <string name="setup_stores">Magazine</string>
+    <string name="screen_effects_target">Profil de efecte</string>
+    <string name="screen_effects_target_hint">Alegeți profilul ale cărui efecte de ecran doriți să le modificați.</string>
+    <string name="screen_effects_target_auto">Jocul curent (automat)</string>
+    <string name="screen_effects_reset">Resetați efectele</string>
+    <string name="screen_effects_reset_hint">Restabilește valorile implicite ale acestui profil, cu efectele dezactivate.</string>
+    <string name="screen_effects_delete">Ștergeți suprascrierea salvată</string>
+    <string name="screen_effects_delete_hint">Elimină efectele salvate pentru acest joc, astfel încât să folosească profilul implicit.</string>
 </resources>

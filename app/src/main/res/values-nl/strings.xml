@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">Na een game terug naar DroidDeck</string>
     <string name="mode_return_after_game_hint">Als een game die je vanuit DroidDeck of een andere launcher hebt gestart sluit, stopt Steam netjes (cloudopslag wordt eerst afgerond) en ga je daarheen terug. Uit: in Steam blijven.</string>
     <string name="mode_shader_precache">Shaders vooraf cachen</string>
-    <string name="mode_shader_precache_hint">Steam downloadt kant-en-klare shaders voor je games en verwerkt ze op de achtergrond, zodat games minder haperen. Uit bespaart data, opslag en batterij; games bouwen shaders dan tijdens het spelen. Dezelfde instelling als Downloads > Shaders vooraf cachen in Steam. Geldt vanaf de volgende sessie.</string>
+    <string name="mode_shader_precache_hint">Steam downloadt kant-en-klare shaders voor je games en verwerkt ze op de achtergrond, zodat games minder haperen. Uit bespaart data, opslag en batterij; games bouwen shaders dan tijdens het spelen. Dezelfde instelling als Downloads &gt; Shaders vooraf cachen in Steam. Geldt vanaf de volgende sessie.</string>
     <string name="mode_steam_repair">Steam-client repareren</string>
     <string name="mode_steam_repair_hint">Downloadt de Steam-client opnieuw bij de volgende start van Steam. Gebruik dit als Steam op het laadscherm blijft hangen. Games, login en instellingen blijven behouden.</string>
     <string name="mode_steam_repair_queued">De Steam-client wordt opnieuw gedownload bij de volgende start van Steam.</string>
@@ -1329,7 +1329,6 @@
     <string name="game_file_folder">Kies een map voor frontend-gamebestanden</string>
     <string name="game_file_exported">Gamebestanden opgeslagen in %1$s</string>
     <string name="game_frontend_files">Frontend-bestanden</string>
-
     <string name="main_wait_runtime">Wacht tot de runtime-bewerking klaar is</string>
     <string name="main_wait_proton_install">Wacht tot de installatie van de compatibiliteitstool klaar is</string>
     <string name="load_compat_title">Compatibiliteitstools voorbereiden</string>
@@ -1415,7 +1414,6 @@
     <string name="main_removing_runtime">Linux-runtime verwijderen</string>
     <string name="main_settings_main_screen">Kan Instellingen niet openen op het onderste scherm; geopend op het hoofdscherm.</string>
     <string name="main_open_dev_options">Open Ontwikkelaarsopties in Instellingen</string>
-
     <string name="upd_unknown_apps_failed">Kan de Android-instelling “Onbekende apps installeren” niet openen</string>
     <string name="upd_couldnt_check">Kan niet controleren: %1$s</string>
     <string name="upd_no_download">Deze build heeft geen download voor deze versie van DroidDeck</string>
@@ -1425,12 +1423,10 @@
     <string name="upd_stage_confirm">Wachten op je bevestiging</string>
     <string name="upd_failed">De update is mislukt</string>
     <string name="upd_not_offered">Android heeft niet aangeboden om de update te installeren</string>
-
     <string name="decky_install_failed">Installatie van Decky mislukt: %1$s</string>
     <string name="decky_plugin_starting">Plug-in importeren…</string>
     <string name="decky_plugin_failed">Importeren van plug-in mislukt: %1$s</string>
     <string name="decky_plugin_installed">Plug-in geïnstalleerd. Start Steam opnieuw om hem te laden.</string>
-
     <string name="drivers_not_checked">Nog niet gecontroleerd - tik op vernieuwen om nieuwe drivers te zoeken</string>
     <string name="drivers_bundle_sets_display">Android + Linux: stelt ook de weergavedriver in</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: stelt ook de runtimedriver in</string>
@@ -1483,7 +1479,6 @@
     <string name="drivers_check_failed">controle mislukt</string>
     <string name="drivers_installed_pick_either">%1$s geïnstalleerd - kies hem in een van beide lijsten om beide drivers in te stellen</string>
     <string name="drivers_installed_pick">%1$s geïnstalleerd - kies hem in het menu</string>
-
     <string name="session_wait_removal">Wacht tot de runtime is verwijderd</string>
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1529,7 +1524,6 @@
         <item quantity="one">Het log toont %1$d fout “Function not implemented”: de seccomp-versnelling van proot laat op dit apparaat een hulpprogramma falen. Probeer %2$s → “%3$s” (of “%4$s”) en start opnieuw.</item>
         <item quantity="other">Het log toont %1$d fouten “Function not implemented”: de seccomp-versnelling van proot laat op dit apparaat een hulpprogramma falen. Probeer %2$s → “%3$s” (of “%4$s”) en start opnieuw.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Plug-ins</string>
     <string name="mode_decky_plugins_hint">Installeer een plug-in-ZIP voor de volgende Steam-sessie.</string>
     <string name="mode_decky_plugin_downloading">Downloaden…</string>
@@ -1850,7 +1844,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Poort %1$d ontvangt gegevens (%2$d pakketten van %3$d bytes), maar in een formaat dat deze pagina nog niet kan lezen.</string>
     <string name="bottom_telemetry_port_busy">Een ander programma gebruikt poort %1$s al, dus die game kan hier niet worden getoond.</string>
-
     <string name="rtinst_removing">Linux-runtime verwijderen</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Linux-runtime verwijderen · %1$d item</item>
@@ -1865,7 +1858,6 @@
     <string name="rtinst_channel_description">Verschijnt tijdens het installeren of verwijderen van de Linux-runtime</string>
     <string name="rtinst_title_installing">Linux-runtime installeren</string>
     <string name="rtinst_title_removing">Linux-runtime verwijderen</string>
-
     <string name="deskpkg_runtime_missing">De Linux-runtime is niet geïnstalleerd</string>
     <string name="deskpkg_no_checksum">De catalogus heeft geen checksum voor %1$s</string>
     <string name="deskpkg_checksum_mismatch">Checksum komt niet overeen - er is niets gewijzigd</string>
@@ -1873,7 +1865,6 @@
     <string name="deskpkg_place_failed">Kan de AppImage niet plaatsen</string>
     <string name="deskpkg_extract_failed">Uitpakken mislukt</string>
     <string name="deskpkg_install_failed">Installatie mislukt</string>
-
     <string name="flatpakmgr_setup_failed">Flatpak instellen mislukt (exitcode %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak instellen is niet voltooid</string>
     <string name="flatpakmgr_busy">Er loopt al een andere winkeltaak</string>
@@ -1892,7 +1883,6 @@
     <string name="flatpakmgr_ref_media_codecs">mediacodecs</string>
     <string name="flatpakmgr_ref_runtime">%1$s-runtime</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s-runtime %2$s</string>
-
     <string name="appimg_too_small">Het bestand is te klein voor een AppImage</string>
     <string name="appimg_unreadable">Het bestand kan niet worden gelezen: %1$s</string>
     <string name="appimg_not_linux">Dit is geen AppImage (het is geen Linux-programma)</string>
@@ -1907,7 +1897,6 @@
     <string name="appimg_extracting">%1$s uitpakken</string>
     <string name="appimg_extract_failed">De AppImage kan niet worden uitgepakt</string>
     <string name="appimg_extract_failed_detail">De AppImage kan niet worden uitgepakt: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Stop de actieve sessie voordat je Decky Loader installeert</string>
     <string name="deckymgr_download_failed">Downloaden van Decky Loader mislukt</string>
     <string name="deckymgr_size_mismatch">De grootte van Decky Loader kwam niet overeen met de metadata van de release</string>
@@ -1956,13 +1945,11 @@
     <string name="deckymgr_activate_failed">Kan de geïmporteerde plug-in niet activeren</string>
     <string name="deckymgr_settings_failed">Kan de instellingen van de Decky-plug-in niet bijwerken</string>
     <string name="deckymgr_restore_failed">Kan de bestaande plug-in niet herstellen</string>
-
     <string name="adbfix_save_failed">Kan de identiteit voor draadloze foutopsporing niet opslaan</string>
     <string name="adbfix_command_failed">ADB-opdracht mislukt (%1$d)</string>
     <string name="adbfix_not_confirmed">Android heeft niet bevestigd dat de limiet voor onderliggende processen is gewijzigd: %1$s</string>
     <string name="adbfix_no_pairing">Er is geen koppeling voor draadloze foutopsporing opgeslagen</string>
     <string name="adbfix_enter_address">Voer het huidige IP-adres en de poort voor draadloze foutopsporing in</string>
-
     <string name="adbpair_timed_out">Wachten op de pop-up met de koppelcode duurde te lang. Probeer het opnieuw vanuit DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Kan niet naar de pop-up met de koppelcode zoeken (%1$d). Controleer of wifi aan staat.</string>
     <string name="adbpair_discovery_failed">Kan niet naar de pop-up met de koppelcode zoeken: %1$s</string>
@@ -1988,7 +1975,6 @@
     <string name="adbpair_title_done">Steam is klaar</string>
     <string name="adbpair_done_text">Tik om terug te gaan naar DroidDeck. Je kunt draadloze foutopsporing nu uitschakelen.</string>
     <string name="adbpair_title_failed">Instellen van draadloze foutopsporing gestopt</string>
-
     <string name="selfinst_download_failed">Downloaden mislukt</string>
     <string name="selfinst_size_mismatch">De downloadgrootte kwam niet overeen met de gepubliceerde APK en is verwijderd - probeer het opnieuw</string>
     <string name="selfinst_checksum_mismatch">De download kwam niet overeen met de checksum en is verwijderd - probeer het opnieuw</string>
@@ -2001,12 +1987,10 @@
     <string name="selfinst_no_signing">De gedownloade APK heeft geen ondertekeningsinformatie</string>
     <string name="selfinst_wrong_signer">De gedownloade APK is niet ondertekend met de release-sleutel van DroidDeck</string>
     <string name="appupd_http">De updatecatalogus antwoordde met HTTP %1$d</string>
-
     <string name="loadstate_starting">Sessie wordt gestart…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d verstreken · nog bezig</string>
     <string name="loadstate_steam_update">Update van de Steam-client downloaden · %1$d%%</string>
     <string name="loadstate_steam_client">Steam-client downloaden · %1$s</string>
-
     <string name="pextra_busy">Er wordt al een compatibiliteitstool geïnstalleerd</string>
     <string name="pextra_stop_session">Stop de actieve sessie voordat je compatibiliteitstools installeert</string>
     <string name="pextra_no_release">Kan geen ARM64-release vinden voor %1$s</string>
@@ -2026,7 +2010,6 @@
     <string name="pextra_install_failed">Installeren van %1$s is mislukt (afsluitcode %2$d)</string>
     <string name="pextra_could_not_install">Kan %1$s niet installeren</string>
     <string name="esync_fetching">Pakket droiddeck-esync ophalen</string>
-
     <string name="cmgr_fex_linux_helpers">met Linux-hulpprogramma’s</string>
     <string name="cmgr_fex_dlls_only">Alleen DLL’s</string>
     <string name="cmgr_original_proton_updated">Origineel (Proton bijgewerkt sinds de laatste wissel)</string>
@@ -2049,13 +2032,11 @@
     <string name="cmgr_nightly_replaced">Download mislukt: deze nightly is mogelijk vervangen door een nieuwere build. Vernieuw de lijst en probeer het opnieuw.</string>
     <string name="cmgr_list_predates_checksums">Deze pakketlijst is ouder dan de checksums - vernieuw de lijst en probeer het opnieuw</string>
     <string name="cmgr_checksum_mismatch">Checksum komt niet overeen</string>
-
     <string name="sprefs_upscaler_linear">Lineair</string>
     <string name="sprefs_upscaler_nearest">Dichtstbijzijnde</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kwaliteit)</string>
     <string name="sprefs_upscaler_sharpen">Alleen verscherpen</string>
     <string name="sprefs_lod_bias_auto">Automatisch (volgt de schaling)</string>
-
     <string name="look_off_desc">Niets toegepast.</string>
     <string name="look_game_clarity">Game-helderheid</string>
     <string name="look_game_clarity_desc">Verscherpen met een vleugje contrast - de dagelijkse optie.</string>
@@ -2079,14 +2060,12 @@
     <string name="look_pixel_clean_desc">Scherpe pixels voor 2D- en oudere games.</string>
     <string name="look_anime_edge">Anime-lijnen</string>
     <string name="look_anime_edge_desc">Contourlijnen plus verscherping.</string>
-
     <string name="gpuinfo_not_adreno">Geen Adreno-GPU</string>
     <string name="gpuinfo_supported">Ondersteund</string>
     <string name="gpuinfo_experimental">Experimenteel: de drivers zijn testbuilds</string>
     <string name="gpuinfo_a850_experimental">Experimentele ondersteuning voor Adreno 850: vereist compatibele experimentele scherm- en gamedrivers; niet geverifieerd op dit apparaat</string>
     <string name="gpuinfo_below_tested">Onder de geteste hardware (Adreno 725 en nieuwer): werkt mogelijk niet</string>
     <string name="gpuinfo_unsupported">Niet ondersteund: er is geen compatibele grafische backend beschikbaar voor deze GPU</string>
-
     <string name="turnip_rate_limited">De ratelimiet van GitHub is bereikt - probeer het later opnieuw</string>
     <string name="turnip_github_http">GitHub antwoordde met HTTP %1$d</string>
     <string name="turnip_download_failed">Downloaden mislukt</string>
@@ -2107,16 +2086,12 @@
     <string name="bundle_no_manifest">Geen driverbundel: geen manifest.json dat een android- en een linux-driver noemt</string>
     <string name="bundle_entry_outside">Geen driverbundel: %1$s wijst buiten de bundel</string>
     <string name="bundle_too_large">Geen driverbundel: na uitpakken is dit groter dan %1$d MB</string>
-
     <string name="gstore_sd_card">SD-kaart</string>
     <string name="gstore_folder">Map</string>
-
     <string name="logshare_chooser">Sessielogs delen</string>
-
     <string name="hdr_needs_android_10">vereist Android 10 of nieuwer (schermlagen met een kleurruimte)</string>
     <string name="hdr_none">dit scherm geeft geen ondersteuning voor HDR aan</string>
     <string name="hdr_not_hdr10">dit scherm ondersteunt %1$s, niet HDR10</string>
-
     <string name="gpu_this_gpu">deze GPU</string>
     <string name="phantom_title_on">Limiet voor onderliggende processen staat aan</string>
     <string name="phantom_title_unset">Limiet voor onderliggende processen is niet ingesteld</string>
@@ -2190,7 +2165,6 @@
     <string name="device_info_copied">Gekopieerd.</string>
     <string name="force_ssbs_title">SSBS forceren</string>
     <string name="force_ssbs_hint">Houdt een CPU-snelheidsinstelling aan die Wine steeds uitschakelt. Kan Windows-games sneller maken op Snapdragon 8 Elite; op oudere chips is weinig verschil te zien. Geldt bij de volgende gamestart.</string>
-
     <string name="rail_stores">Winkels</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Aangepast</string>
@@ -2661,7 +2635,6 @@
     <string name="touch_icon_color">Pictogramkleur</string>
     <string name="touch_button_color">Knopkleur</string>
     <string name="touch_no_icon">Geen pictogram</string>
-
     <string name="stores_sync_sign_in">Aanmelding controleren…</string>
     <string name="stores_sync_library">Je bibliotheek ophalen…</string>
     <string name="stores_sync_game_list">Gamelijst ophalen…</string>
@@ -3694,9 +3667,7 @@
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>
-
     <string name="theme_white_red">Scharlakenrode sneeuw</string>
-    
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Muziek</string>
     <string name="soundtracks_options">Afspeelopties</string>
@@ -3759,4 +3730,12 @@
     <string name="soundtracks_repeat_one">Eén herhalen</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Geen audiobestanden in deze soundtrack</string>
+    <string name="setup_stores">Winkels</string>
+    <string name="screen_effects_target">Effectenprofiel</string>
+    <string name="screen_effects_target_hint">Kies het profiel waarvan je de schermeffecten wilt wijzigen.</string>
+    <string name="screen_effects_target_auto">Huidige game (automatisch)</string>
+    <string name="screen_effects_reset">Effecten resetten</string>
+    <string name="screen_effects_reset_hint">Herstelt de standaardwaarden voor dit profiel, met effecten uitgeschakeld.</string>
+    <string name="screen_effects_delete">Opgeslagen overschrijving verwijderen</string>
+    <string name="screen_effects_delete_hint">Verwijdert opgeslagen effecten voor deze game, zodat deze het standaardprofiel gebruikt.</string>
 </resources>
