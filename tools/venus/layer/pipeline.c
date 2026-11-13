@@ -30,7 +30,7 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
 
     struct spirv_code stripped = {0};
     bool have_stripped = false;
-    if (spirv_uses_distances(code, words)) {
+    if ((dev->emulated & GAPS_SHADER) && spirv_uses_distances(code, words)) {
         have_stripped = spirv_strip_distances(code, words, &stripped);
         if (!have_stripped)
             layer_log("could not take the clip and cull distances out of a shader module");
@@ -135,19 +135,15 @@ struct pipeline_rewrite {
     size_t in_place_size[MAX_STAGES];
 };
 
-static void use_code(struct device *dev, VkGraphicsPipelineCreateInfo *info, struct pipeline_rewrite *rw,
-                     const struct stage_code *code, uint32_t i)
+static void use_stage_code(struct device *dev, VkPipelineShaderStageCreateInfo *stage, struct pipeline_rewrite *rw,
+                           const struct stage_code *code, uint32_t i)
 {
-    if (info->pStages != rw->stages) {
-        memcpy(rw->stages, info->pStages, info->stageCount * sizeof(*rw->stages));
-        info->pStages = rw->stages;
-    }
     const struct spirv_code *out = &rw->code[i];
-    if (code->inline_info && rw->stages[i].pNext == code->inline_info) {
+    if (code->inline_info && stage->pNext == code->inline_info) {
         rw->modules[i] = *code->inline_info;
         rw->modules[i].pCode = out->words;
         rw->modules[i].codeSize = out->count * sizeof(uint32_t);
-        rw->stages[i].pNext = &rw->modules[i];
+        stage->pNext = &rw->modules[i];
     } else if (code->inline_info) {
         rw->in_place[i] = code->inline_info;
         rw->in_place_code[i] = code->inline_info->pCode;
@@ -161,8 +157,18 @@ static void use_code(struct device *dev, VkGraphicsPipelineCreateInfo *info, str
             .pCode = out->words,
         };
         if (dev->CreateShaderModule(dev->handle, &module_info, NULL, &rw->temporary[i]) == VK_SUCCESS)
-            rw->stages[i].module = rw->temporary[i];
+            stage->module = rw->temporary[i];
     }
+}
+
+static void use_code(struct device *dev, VkGraphicsPipelineCreateInfo *info, struct pipeline_rewrite *rw,
+                     const struct stage_code *code, uint32_t i)
+{
+    if (info->pStages != rw->stages) {
+        memcpy(rw->stages, info->pStages, info->stageCount * sizeof(*rw->stages));
+        info->pStages = rw->stages;
+    }
+    use_stage_code(dev, &rw->stages[i], rw, code, i);
 }
 
 static int stage_index(const VkGraphicsPipelineCreateInfo *info, VkShaderStageFlagBits stage)
@@ -312,6 +318,30 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
         rewrite_pipeline(dev, &copies[i], &rewrites[i]);
     }
     VkResult result = dev->CreateGraphicsPipelines(device, cache, count, copies, allocator, pipelines);
+    for (uint32_t i = 0; i < count; i++)
+        undo_rewrite(dev, &rewrites[i]);
+    free(rewrites);
+    free(copies);
+    return result;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
+                                                      const VkComputePipelineCreateInfo *infos,
+                                                      const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
+{
+    struct device *dev = device_from_handle(device);
+    VkComputePipelineCreateInfo *copies = malloc(count * sizeof(*copies));
+    struct pipeline_rewrite *rewrites = calloc(count, sizeof(*rewrites));
+    for (uint32_t i = 0; i < count; i++) {
+        copies[i] = infos[i];
+        struct stage_code code;
+        find_stage_code(dev, &copies[i].stage, &code);
+        if (code.capped.words) {
+            rewrites[i].code[0] = code.capped;
+            use_stage_code(dev, &copies[i].stage, &rewrites[i], &code, 0);
+        }
+    }
+    VkResult result = dev->CreateComputePipelines(device, cache, count, copies, allocator, pipelines);
     for (uint32_t i = 0; i < count; i++)
         undo_rewrite(dev, &rewrites[i]);
     free(rewrites);

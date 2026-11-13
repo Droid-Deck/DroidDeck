@@ -34,21 +34,26 @@ class MaliCompatSpirvTest(unittest.TestCase):
             program = Path(tmp) / "mali-compat-spirv"
             module = Path(tmp) / "capped.spv"
             guest = Path(tmp) / "guest.spv"
+            extension = Path(tmp) / "extension.spv"
+            scalar = Path(tmp) / "scalar.spv"
             built = subprocess.run(
                 [compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-UNDEBUG",
                  "-pthread", "-I", str(LAYER), "-I", str(vulkan), "-I", str(spirv),
                  str(HARNESS), str(LAYER / "spirv.c"), "-o", str(program)],
                 capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            ran = subprocess.run([str(program), str(module), str(guest)], capture_output=True, text=True, timeout=30)
+            ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar)],
+                                 capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("mali compat spirv ok", ran.stdout)
             self.assertTrue(module.is_file())
             self.assertTrue(guest.is_file())
+            self.assertTrue(extension.is_file())
+            self.assertTrue(scalar.is_file())
             validator = shutil.which("spirv-val")
             if not validator:
                 return
-            for lowered in (module, guest):
+            for lowered in (module, guest, extension, scalar):
                 checked = subprocess.run([validator, "--target-env", "vulkan1.1", str(lowered)],
                                          capture_output=True, text=True)
                 self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)

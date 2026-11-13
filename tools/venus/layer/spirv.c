@@ -833,29 +833,205 @@ bool spirv_emulate_clip(const uint32_t *words, size_t count, enum clip_role role
     return done;
 }
 
-static bool needs_newer_version(uint32_t op)
+struct newer_feature {
+    uint32_t value;
+    const char *extension;
+    const char *alternative;
+};
+
+#define PHYSICAL_STORAGE_BUFFER "SPV_EXT_physical_storage_buffer", "SPV_KHR_physical_storage_buffer"
+
+static const struct newer_feature newer_opcodes[] = {
+    {SpvOpCopyLogical, NULL, NULL},
+    {SpvOpPtrEqual, NULL, NULL},
+    {SpvOpPtrNotEqual, NULL, NULL},
+    {SpvOpPtrDiff, NULL, NULL},
+    {SpvOpDemoteToHelperInvocation, "SPV_EXT_demote_to_helper_invocation", NULL},
+    {SpvOpSDot, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpUDot, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpSUDot, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpSDotAccSat, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpUDotAccSat, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpSUDotAccSat, "SPV_KHR_integer_dot_product", NULL},
+    {SpvOpDecorateString, "SPV_GOOGLE_decorate_string", "SPV_GOOGLE_hlsl_functionality1"},
+    {SpvOpMemberDecorateString, "SPV_GOOGLE_decorate_string", "SPV_GOOGLE_hlsl_functionality1"},
+};
+
+static const struct newer_feature newer_capabilities[] = {
+    {SpvCapabilityShaderLayer, NULL, NULL},
+    {SpvCapabilityShaderViewportIndex, NULL, NULL},
+    {SpvCapabilityUniformDecoration, NULL, NULL},
+    {SpvCapabilityStorageBuffer8BitAccess, "SPV_KHR_8bit_storage", NULL},
+    {SpvCapabilityUniformAndStorageBuffer8BitAccess, "SPV_KHR_8bit_storage", NULL},
+    {SpvCapabilityStoragePushConstant8, "SPV_KHR_8bit_storage", NULL},
+    {SpvCapabilityDenormPreserve, "SPV_KHR_float_controls", NULL},
+    {SpvCapabilityDenormFlushToZero, "SPV_KHR_float_controls", NULL},
+    {SpvCapabilitySignedZeroInfNanPreserve, "SPV_KHR_float_controls", NULL},
+    {SpvCapabilityRoundingModeRTE, "SPV_KHR_float_controls", NULL},
+    {SpvCapabilityRoundingModeRTZ, "SPV_KHR_float_controls", NULL},
+    {SpvCapabilityShaderNonUniform, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityRuntimeDescriptorArray, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityInputAttachmentArrayDynamicIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityUniformTexelBufferArrayDynamicIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityStorageTexelBufferArrayDynamicIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityUniformBufferArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilitySampledImageArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityStorageBufferArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityStorageImageArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityInputAttachmentArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityUniformTexelBufferArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityStorageTexelBufferArrayNonUniformIndexing, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvCapabilityVulkanMemoryModel, "SPV_KHR_vulkan_memory_model", NULL},
+    {SpvCapabilityVulkanMemoryModelDeviceScope, "SPV_KHR_vulkan_memory_model", NULL},
+    {SpvCapabilityPhysicalStorageBufferAddresses, PHYSICAL_STORAGE_BUFFER},
+    {SpvCapabilityDemoteToHelperInvocation, "SPV_EXT_demote_to_helper_invocation", NULL},
+    {SpvCapabilityDotProductInputAll, "SPV_KHR_integer_dot_product", NULL},
+    {SpvCapabilityDotProductInput4x8Bit, "SPV_KHR_integer_dot_product", NULL},
+    {SpvCapabilityDotProductInput4x8BitPacked, "SPV_KHR_integer_dot_product", NULL},
+    {SpvCapabilityDotProduct, "SPV_KHR_integer_dot_product", NULL},
+};
+
+static const struct newer_feature newer_decorations[] = {
+    {SpvDecorationUniformId, NULL, NULL},
+    {SpvDecorationNoSignedWrap, "SPV_KHR_no_integer_wrap_decoration", NULL},
+    {SpvDecorationNoUnsignedWrap, "SPV_KHR_no_integer_wrap_decoration", NULL},
+    {SpvDecorationNonUniform, "SPV_EXT_descriptor_indexing", NULL},
+    {SpvDecorationRestrictPointer, PHYSICAL_STORAGE_BUFFER},
+    {SpvDecorationAliasedPointer, PHYSICAL_STORAGE_BUFFER},
+    {SpvDecorationCounterBuffer, "SPV_GOOGLE_hlsl_functionality1", NULL},
+    {SpvDecorationUserSemantic, "SPV_GOOGLE_hlsl_functionality1", NULL},
+};
+
+#define NEWER_LOOP_CONTROLS                                                                                   \
+    (SpvLoopControlMinIterationsMask | SpvLoopControlMaxIterationsMask | SpvLoopControlIterationMultipleMask | \
+     SpvLoopControlPeelCountMask | SpvLoopControlPartialCountMask)
+#define NEWER_IMAGE_OPERANDS \
+    (SpvImageOperandsSignExtendMask | SpvImageOperandsZeroExtendMask | SpvImageOperandsNontemporalMask)
+
+static bool declares_extension(const struct module *m, const char *name)
+{
+    if (!name)
+        return false;
+    size_t size = strlen(name) + 1;
+    for (size_t i = 5; i < m->first_declaration; i += LENGTH(m->w[i])) {
+        uint32_t length = LENGTH(m->w[i]);
+        if (OPCODE(m->w[i]) == SpvOpExtension && (length - 1) * sizeof(uint32_t) >= size &&
+            !memcmp(&m->w[i + 1], name, size))
+            return true;
+    }
+    return false;
+}
+
+static bool available_in_1_3(const struct module *m, const struct newer_feature *features, size_t count,
+                             uint32_t value)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (features[i].value == value)
+            return declares_extension(m, features[i].extension) || declares_extension(m, features[i].alternative);
+    }
+    return true;
+}
+
+#define AVAILABLE(m, table, value) available_in_1_3(m, table, sizeof(table) / sizeof(table[0]), value)
+
+static uint32_t image_operands_at(uint32_t op)
 {
     switch (op) {
-    case SpvOpCopyLogical:
-    case SpvOpPtrEqual:
-    case SpvOpPtrNotEqual:
-    case SpvOpPtrDiff:
-    case SpvOpDemoteToHelperInvocation:
+    case SpvOpImageWrite:
+        return 4;
+    case SpvOpImageSampleImplicitLod:
+    case SpvOpImageSampleExplicitLod:
+    case SpvOpImageSampleProjImplicitLod:
+    case SpvOpImageSampleProjExplicitLod:
+    case SpvOpImageFetch:
+    case SpvOpImageRead:
+    case SpvOpImageSparseSampleImplicitLod:
+    case SpvOpImageSparseSampleExplicitLod:
+    case SpvOpImageSparseSampleProjImplicitLod:
+    case SpvOpImageSparseSampleProjExplicitLod:
+    case SpvOpImageSparseFetch:
+    case SpvOpImageSparseRead:
+        return 5;
+    case SpvOpImageSampleDrefImplicitLod:
+    case SpvOpImageSampleDrefExplicitLod:
+    case SpvOpImageSampleProjDrefImplicitLod:
+    case SpvOpImageSampleProjDrefExplicitLod:
+    case SpvOpImageGather:
+    case SpvOpImageDrefGather:
+    case SpvOpImageSparseSampleDrefImplicitLod:
+    case SpvOpImageSparseSampleDrefExplicitLod:
+    case SpvOpImageSparseSampleProjDrefImplicitLod:
+    case SpvOpImageSparseSampleProjDrefExplicitLod:
+    case SpvOpImageSparseGather:
+    case SpvOpImageSparseDrefGather:
+        return 6;
+    default:
+        return 0;
+    }
+}
+
+static uint32_t memory_access_words(uint32_t mask)
+{
+    uint32_t words = 1;
+    if (mask & SpvMemoryAccessAlignedMask)
+        words++;
+    if (mask & SpvMemoryAccessMakePointerAvailableMask)
+        words++;
+    if (mask & SpvMemoryAccessMakePointerVisibleMask)
+        words++;
+    return words;
+}
+
+static bool selects_scalar_vector_or_pointer(const struct module *m, uint32_t type)
+{
+    size_t d = definition(m, type);
+    if (!d)
+        return false;
+    switch (OPCODE(m->w[d])) {
+    case SpvOpTypeBool:
+    case SpvOpTypeInt:
+    case SpvOpTypeFloat:
+    case SpvOpTypeVector:
+    case SpvOpTypePointer:
         return true;
     default:
         return false;
     }
 }
 
-static bool needs_newer_capability(uint32_t capability)
+static bool valid_in_1_3(const struct module *m, size_t i)
 {
-    switch (capability) {
-    case SpvCapabilityShaderLayer:
-    case SpvCapabilityShaderViewportIndex:
-    case SpvCapabilityUniformDecoration:
-        return true;
-    default:
+    uint32_t op = OPCODE(m->w[i]);
+    uint32_t length = LENGTH(m->w[i]);
+    if (!AVAILABLE(m, newer_opcodes, op))
         return false;
+    switch (op) {
+    case SpvOpMemoryModel:
+        return length >= 3 && m->w[i + 2] == SpvMemoryModelGLSL450;
+    case SpvOpCapability:
+        return length >= 2 && AVAILABLE(m, newer_capabilities, m->w[i + 1]);
+    case SpvOpExecutionModeId:
+        return length >= 3 && m->w[i + 2] != SpvExecutionModeLocalSizeId;
+    case SpvOpDecorate:
+    case SpvOpDecorateId:
+    case SpvOpDecorateString:
+        return length >= 3 && AVAILABLE(m, newer_decorations, m->w[i + 2]);
+    case SpvOpMemberDecorate:
+    case SpvOpMemberDecorateString:
+        return length >= 4 && AVAILABLE(m, newer_decorations, m->w[i + 3]);
+    case SpvOpLoopMerge:
+        return length >= 4 && !(m->w[i + 3] & NEWER_LOOP_CONTROLS);
+    case SpvOpSelect:
+        return length >= 6 && selects_scalar_vector_or_pointer(m, m->w[i + 1]);
+    case SpvOpCopyMemory:
+    case SpvOpCopyMemorySized: {
+        uint32_t at = op == SpvOpCopyMemory ? 3 : 4;
+        return length <= at || at + memory_access_words(m->w[i + at]) >= length;
+    }
+    default: {
+        uint32_t at = image_operands_at(op);
+        return !at || length <= at || !(m->w[i + at] & NEWER_IMAGE_OPERANDS);
+    }
     }
 }
 
@@ -901,21 +1077,7 @@ bool spirv_cap_version(const uint32_t *words, size_t count, struct spirv_code *o
     if (!load(&m, words, count))
         return false;
     for (size_t i = 5; i < m.count; i += LENGTH(m.w[i])) {
-        uint32_t op = OPCODE(m.w[i]);
-        uint32_t length = LENGTH(m.w[i]);
-        if (op == SpvOpMemoryModel && (length < 3 || m.w[i + 2] != SpvMemoryModelGLSL450)) {
-            unload(&m);
-            return false;
-        }
-        if (op == SpvOpCapability && (length < 2 || needs_newer_capability(m.w[i + 1]))) {
-            unload(&m);
-            return false;
-        }
-        if (op == SpvOpExecutionModeId && (length < 3 || m.w[i + 2] == SpvExecutionModeLocalSizeId)) {
-            unload(&m);
-            return false;
-        }
-        if (needs_newer_version(op)) {
+        if (!valid_in_1_3(&m, i)) {
             unload(&m);
             return false;
         }

@@ -593,6 +593,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     dev->handle = *device;
     dev->gdpa = gdpa;
     dev->emulated = requested;
+    dev->active = inst->active;
     pthread_mutex_init(&dev->lock, NULL);
 #define LOAD(name) \
     dev->name = (PFN_vk##name)gdpa(*device, "vk" #name); \
@@ -672,6 +673,7 @@ static const struct hook device_hooks[] = {
     HOOK_ALWAYS(CreateShaderModule),
     HOOK_ALWAYS(DestroyShaderModule),
     HOOK_ALWAYS(CreateGraphicsPipelines),
+    HOOK_ALWAYS(CreateComputePipelines),
     HOOK(CmdSetViewport, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetScissor, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetViewportWithCount, GAP_MULTI_VIEWPORT),
@@ -746,7 +748,8 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(VkDevice devic
     if (!next)
         return NULL;
     for (size_t i = 0; i < sizeof(device_hooks) / sizeof(device_hooks[0]); i++) {
-        if ((device_hooks[i].always || (dev->emulated & device_hooks[i].gaps)) && !strcmp(name, device_hooks[i].name))
+        bool installed = device_hooks[i].always ? dev->active : (dev->emulated & device_hooks[i].gaps) != 0;
+        if (installed && !strcmp(name, device_hooks[i].name))
             return device_hooks[i].function;
     }
     return next;

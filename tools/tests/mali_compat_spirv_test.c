@@ -71,6 +71,60 @@ static const uint32_t zinklike[] = {
 };
 static const size_t zinklike_count = sizeof(zinklike) / sizeof(uint32_t);
 
+static const uint32_t nonuniform[] = {
+    0x07230203, 0x00010600, 0x00070000, 0x00000009, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
+    0x000014b5, 0x0003000e, 0x00000000, 0x00000001, 0x0006000f, 0x00000004, 0x00000001, 0x6e69616d,
+    0x00000000, 0x00000002, 0x00030010, 0x00000001, 0x00000007, 0x00040047, 0x00000002, 0x0000001e,
+    0x00000000, 0x00020013, 0x00000003, 0x00030016, 0x00000004, 0x00000020, 0x00040020, 0x00000005,
+    0x00000003, 0x00000004, 0x0004003b, 0x00000005, 0x00000002, 0x00000003, 0x0004002b, 0x00000004,
+    0x00000006, 0x3f800000, 0x00030021, 0x00000007, 0x00000003, 0x00050036, 0x00000003, 0x00000001,
+    0x00000000, 0x00000007, 0x000200f8, 0x00000008, 0x0003003e, 0x00000002, 0x00000006, 0x000100fd,
+    0x00010038,
+};
+static const size_t nonuniform_count = sizeof(nonuniform) / sizeof(uint32_t);
+
+static const uint32_t nonuniform_extension[] = {
+    0x07230203, 0x00010600, 0x00070000, 0x00000009, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
+    0x000014b5, 0x0008000a, 0x5f565053, 0x5f545845, 0x63736564, 0x74706972, 0x695f726f, 0x7865646e,
+    0x00676e69, 0x0003000e, 0x00000000, 0x00000001, 0x0006000f, 0x00000004, 0x00000001, 0x6e69616d,
+    0x00000000, 0x00000002, 0x00030010, 0x00000001, 0x00000007, 0x00040047, 0x00000002, 0x0000001e,
+    0x00000000, 0x00020013, 0x00000003, 0x00030016, 0x00000004, 0x00000020, 0x00040020, 0x00000005,
+    0x00000003, 0x00000004, 0x0004003b, 0x00000005, 0x00000002, 0x00000003, 0x0004002b, 0x00000004,
+    0x00000006, 0x3f800000, 0x00030021, 0x00000007, 0x00000003, 0x00050036, 0x00000003, 0x00000001,
+    0x00000000, 0x00000007, 0x000200f8, 0x00000008, 0x0003003e, 0x00000002, 0x00000006, 0x000100fd,
+    0x00010038,
+};
+static const size_t nonuniform_extension_count = sizeof(nonuniform_extension) / sizeof(uint32_t);
+
+static const uint32_t select_struct[] = {
+    0x07230203, 0x00010600, 0x00070000, 0x00000011, 0x00000000, 0x00020011, 0x00000001, 0x0003000e,
+    0x00000000, 0x00000001, 0x0006000f, 0x00000004, 0x00000001, 0x6e69616d, 0x00000000, 0x00000002,
+    0x00030010, 0x00000001, 0x00000007, 0x00040047, 0x00000002, 0x0000001e, 0x00000000, 0x00020013,
+    0x00000003, 0x00020014, 0x00000004, 0x00030016, 0x00000005, 0x00000020, 0x0004001e, 0x00000006,
+    0x00000005, 0x00000005, 0x00040020, 0x00000007, 0x00000003, 0x00000005, 0x0004003b, 0x00000007,
+    0x00000002, 0x00000003, 0x0004002b, 0x00000005, 0x00000008, 0x3f800000, 0x0004002b, 0x00000005,
+    0x00000009, 0x00000000, 0x00030029, 0x00000004, 0x0000000a, 0x0005002c, 0x00000006, 0x0000000b,
+    0x00000008, 0x00000009, 0x0005002c, 0x00000006, 0x0000000c, 0x00000009, 0x00000008, 0x00030021,
+    0x0000000d, 0x00000003, 0x00050036, 0x00000003, 0x00000001, 0x00000000, 0x0000000d, 0x000200f8,
+    0x0000000e, 0x000600a9, 0x00000006, 0x0000000f, 0x0000000a, 0x0000000b, 0x0000000c, 0x00050051,
+    0x00000005, 0x00000010, 0x0000000f, 0x00000000, 0x0003003e, 0x00000002, 0x00000010, 0x000100fd,
+    0x00010038,
+};
+static const size_t select_struct_count = sizeof(select_struct) / sizeof(uint32_t);
+
+static const uint32_t select_scalar[] = {
+    0x07230203, 0x00010600, 0x00070000, 0x0000000d, 0x00000000, 0x00020011, 0x00000001, 0x0003000e,
+    0x00000000, 0x00000001, 0x0006000f, 0x00000004, 0x00000001, 0x6e69616d, 0x00000000, 0x00000002,
+    0x00030010, 0x00000001, 0x00000007, 0x00040047, 0x00000002, 0x0000001e, 0x00000000, 0x00020013,
+    0x00000003, 0x00020014, 0x00000004, 0x00030016, 0x00000005, 0x00000020, 0x00040020, 0x00000006,
+    0x00000003, 0x00000005, 0x0004003b, 0x00000006, 0x00000002, 0x00000003, 0x0004002b, 0x00000005,
+    0x00000007, 0x3f800000, 0x0004002b, 0x00000005, 0x00000008, 0x00000000, 0x00030029, 0x00000004,
+    0x00000009, 0x00030021, 0x0000000a, 0x00000003, 0x00050036, 0x00000003, 0x00000001, 0x00000000,
+    0x0000000a, 0x000200f8, 0x0000000b, 0x000600a9, 0x00000005, 0x0000000c, 0x00000009, 0x00000007,
+    0x00000008, 0x0003003e, 0x00000002, 0x0000000c, 0x000100fd, 0x00010038,
+};
+static const size_t select_scalar_count = sizeof(select_scalar) / sizeof(uint32_t);
+
 static int failures;
 
 static void check(int condition, const char *what)
@@ -144,6 +198,30 @@ int main(int argc, char **argv)
     check(!spirv_cap_version(capability, capability_count, &kept),
           "a module with a capability from SPIR-V 1.5 is left alone");
     check(!spirv_cap_version(memory, memory_count, &kept), "a module with the Vulkan memory model is left alone");
+    check(!spirv_cap_version(nonuniform, nonuniform_count, &kept),
+          "a module with ShaderNonUniform and no SPV_EXT_descriptor_indexing is left alone");
+    check(!spirv_cap_version(select_struct, select_struct_count, &kept),
+          "a module selecting a structure is left alone");
+    check(kept.words == NULL, "no rejected module is handed back");
+
+    struct spirv_code extension = {0};
+    check(spirv_cap_version(nonuniform_extension, nonuniform_extension_count, &extension),
+          "a module declaring SPV_EXT_descriptor_indexing for ShaderNonUniform is capped");
+    if (extension.words) {
+        check(extension.words[1] == 0x00010300u, "the module with the extension is SPIR-V 1.3");
+        if (argc > 3)
+            write_module(argv[3], &extension);
+        free(extension.words);
+    }
+
+    struct spirv_code scalar = {0};
+    check(spirv_cap_version(select_scalar, select_scalar_count, &scalar), "a module selecting a scalar is capped");
+    if (scalar.words) {
+        check(count_opcodes(scalar.words, scalar.count, SpvOpSelect) == 1, "the scalar select is kept");
+        if (argc > 4)
+            write_module(argv[4], &scalar);
+        free(scalar.words);
+    }
 
     struct spirv_code guest = {0};
     check(spirv_cap_version(zinklike, zinklike_count, &guest), "a guest module with a private global is capped");

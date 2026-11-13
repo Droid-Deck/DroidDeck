@@ -88,6 +88,7 @@ struct instance {
     X(CreateShaderModule) \
     X(DestroyShaderModule) \
     X(CreateGraphicsPipelines) \
+    X(CreateComputePipelines) \
     X(CmdSetViewport) \
     X(CmdSetScissor) \
     X(CmdSetViewportWithCount) \
@@ -143,6 +144,7 @@ struct device {
     void *key;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
+    bool active;
     /* The gaps the application enabled a made-up feature for. */
     uint32_t emulated;
     /* Locations a clip distance varying may use, from the vertex output and fragment input limits. */
@@ -211,6 +213,9 @@ VKAPI_ATTR void VKAPI_CALL DestroyShaderModule(VkDevice device, VkShaderModule m
 VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
                                                        const VkGraphicsPipelineCreateInfo *infos,
                                                        const VkAllocationCallbacks *allocator, VkPipeline *pipelines);
+VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
+                                                      const VkComputePipelineCreateInfo *infos,
+                                                      const VkAllocationCallbacks *allocator, VkPipeline *pipelines);
 VKAPI_ATTR void VKAPI_CALL CmdSetViewport(VkCommandBuffer cmd, uint32_t first, uint32_t count,
                                           const VkViewport *viewports);
 VKAPI_ATTR void VKAPI_CALL CmdSetScissor(VkCommandBuffer cmd, uint32_t first, uint32_t count,

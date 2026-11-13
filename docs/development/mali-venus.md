@@ -133,9 +133,15 @@ The SPIR-V version the driver gets:
   global variable, not only the input and output ones.
 - The layer therefore lowers every module to SPIR-V 1.3 before the driver sees it: the version
   word, the interface list (back to the input and output variables) and `OpTerminateInvocation`
-  (SPIR-V 1.6's name for `OpKill`). A module that uses something 1.3 cannot express (a
-  `ShaderViewportIndex` capability, the Vulkan memory model, `OpCopyLogical`) is left alone and
-  the layer says so in its log.
+  (SPIR-V 1.6's name for `OpKill`). This covers shader modules, and code given inline to
+  graphics and compute pipelines.
+- A module that uses something 1.3 cannot express is left alone and the layer says so in its
+  log: a `ShaderViewportIndex` capability, the Vulkan memory model, `OpCopyLogical`, an
+  `OpSelect` of a structure or array, the newer loop controls and image operands, or a
+  capability, decoration or instruction that became core later without the extension 1.3
+  needs for it (`ShaderNonUniform` without `SPV_EXT_descriptor_indexing`).
+- The version cap runs on every device the layer is active on; clip and cull distances are
+  only taken out where the layer emulates them. `DROIDDECK_MALI_COMPAT=0` turns both off.
 - This is what Dawn ("Disable SPIR-V 1.4 on Android ARM"), ANGLE (`supportsSPIRV14`) and naga
   (`AVOID_SPIRV_COPY_LOGICAL`) do for a proprietary compiler they cannot trust.
 
