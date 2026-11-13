@@ -258,6 +258,19 @@ object HomeApp {
     fun isActiveSteamSession(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM
 
+    fun showFrontEnd(context: Context, intent: Intent = Intent(context, FrontEndActivity::class.java)) {
+        val frontEnd = FrontEndActivity::class.java.name
+        val tasks = runCatching { context.getSystemService(android.app.ActivityManager::class.java)?.appTasks }.getOrNull().orEmpty()
+        val own = tasks.firstOrNull { task ->
+            runCatching { task.taskInfo.let { it.baseIntent.component?.className == frontEnd && it.topActivity?.className == frontEnd } }
+                .getOrDefault(false)
+        }
+        val launch = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (own != null && runCatching { own.startActivity(context, launch, null) }.isSuccess) return
+        // The session task shares the front end's affinity, so without MULTIPLE_TASK the front end lands inside the session's PiP window.
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+    }
+
     fun openSystemHomeSettings(context: Context) {
         try {
             context.startActivity(settingsIntent())

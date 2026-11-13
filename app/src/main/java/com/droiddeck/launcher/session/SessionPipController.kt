@@ -21,6 +21,7 @@ class SessionPipController(
         private set
     private var suppressAuto = false
     private var visit = false
+    private var requested = false
     private var lastParams = ""
     val floating get() = transitioning || activity.isInPictureInPictureMode
 
@@ -59,8 +60,10 @@ class SessionPipController(
             return
         }
         prepare()
+        requested = true
         val entered = runCatching { activity.enterPictureInPictureMode(params(bounds())) }.getOrDefault(false)
         if (!entered) {
+            requested = false
             restore()
             Toast.makeText(activity, R.string.pip_unavailable, Toast.LENGTH_SHORT).show()
         }
@@ -85,6 +88,8 @@ class SessionPipController(
             showPipUi(true)
             SessionService.beginPip(activity)
             SessionService.setActivityVisible(activity, true)
+            if (requested) runCatching { com.droiddeck.launcher.HomeApp.showFrontEnd(activity) }
+            requested = false
         } else restore()
         refresh(true)
     }
