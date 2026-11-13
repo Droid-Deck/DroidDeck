@@ -100,13 +100,13 @@ object AddedGames {
     fun candidates(folder: File, reuse: Boolean = false): List<File> = rank(folder, reuse).exes
 
     fun rank(folder: File, reuse: Boolean = false): GameExePicker.Ranking {
-        val stamp = declaredStamp(folder)
+        val declared = declaredExes(folder)
+        val stamp = declared.fold(0L) { hash, exe -> hash * 31 + exe.path.hashCode() }
         val key = "${folder.path}|${folder.lastModified()}|$stamp"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
         if (reuse) kept?.rank(folder, stamp)?.let { return it }
         val guessed = GameExePicker.rank(folder) { !skipExe(it.name) }
-        val declared = declaredExes(folder)
         val preferred = declared.map { it.path }.toSet()
         val result = if (declared.isEmpty()) guessed else GameExePicker.Ranking(
             declared + guessed.exes.filter { it.path !in preferred },
@@ -167,9 +167,6 @@ object AddedGames {
             .distinctBy { it.path }
             .toList()
     }
-
-    private fun declaredStamp(folder: File): Long =
-        DECLARED.fold(0L) { stamp, (file, _) -> File(folder, file).let { stamp * 31 + it.lastModified() + it.length() } }
 
     private val DECLARED = listOf(
         "MicrosoftGame.config" to Regex("<Executable\\b[^>]*?\\bName\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE),
