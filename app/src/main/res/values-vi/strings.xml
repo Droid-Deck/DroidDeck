@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Đang đặt lại đồ họa và mở lại SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck không thể tự khởi động lại. Hãy đóng hẳn ứng dụng rồi mở lại.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Lần chạy đầu tải Steam. Quá trình này có thể mất vài phút.</item>
-        <item>Theo mặc định, rời khỏi ứng dụng sẽ tạm dừng Steam; nó tiếp tục từ nơi bạn dừng lại khi bạn quay lại.</item>
-        <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Lần chạy đầu thiết lập desktop. Quá trình này có thể mất vài phút.</item>
-        <item>Theo mặc định, rời khỏi ứng dụng sẽ tạm dừng phiên; nó tiếp tục từ nơi bạn dừng lại khi bạn quay lại.</item>
-        <item>Chạm hoạt động như touchpad: kéo để di chuyển con trỏ, chạm để nhấp.</item>
-        <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
-    </string-array>
     <string name="session_channel">Phiên</string>
     <string name="session_channel_description">Hiển thị khi có phiên Steam hoặc desktop đang mở</string>
     <string name="session_notification">Steam đang chạy</string>
@@ -185,6 +174,7 @@
     <string name="session_powervr_missing">Không thể tải môi trường đồ họa PowerVR. Hãy kiểm tra kết nối rồi thử lại.</string>
     <string name="session_directaudio_missing">Không thể tải DirectAudio, nên âm thanh game dùng đường chậm hơn trong phiên này.</string>
     <string name="session_end_program">Chương trình này</string>
+    <string name="session_end_present_fault">Phiên không thể vẽ lên màn hình: %1$s. Màn hình này cho biết lý do thay vì màn hình đen; chi tiết nằm trong nhật ký phiên.</string>
     <string name="session_end_steam_download">Không thể tải xuống client Steam. Mạng hoặc VPN của bạn có thể đang chặn máy chủ Steam; hãy kiểm tra kết nối rồi thử lại.</string>
     <string name="session_end_steam_setup">Không thể thiết lập client Steam. Hãy kiểm tra kết nối và dung lượng trống rồi thử lại.</string>
     <string name="session_end_fex_missing">%1$s được build cho PC x86 và chạy qua FEX, hiện chưa được cài. Khởi động Steam một lần khi đã đăng nhập và để nó tải FEX cùng Steam Linux Runtime, sau đó khởi động lại ứng dụng này.</string>
@@ -386,6 +376,9 @@
     <string name="wincomp_unsupported">Chưa được hỗ trợ ở đây</string>
     <string name="wincomp_loading">Đang tải các thành phần…</string>
     <string name="wincomp_failed">Không thể cài: %1$s</string>
+    <string name="wincomp_repair_required">Bản tải xuống này cần được cập nhật.</string>
+    <string name="wincomp_repair_queued">Đã đưa bản cập nhật vào hàng đợi.</string>
+    <string name="wincomp_retry">Thử cập nhật lại</string>
     <string name="wincomp_downloaded">Đã tải</string>
     <string name="wincomp_downloading">Đang tải %1$s</string>
     <string name="wincomp_installing">Đang cài: %1$s</string>
@@ -416,6 +409,22 @@
     <string name="mode_storage_internal">Chỉ bộ nhớ trong</string>
     <string name="mode_storage_folder">Thư mục: %1$s</string>
     <string name="mode_second_library">Thư viện thứ hai</string>
+    <string name="libraries_title">Thêm thư viện Steam</string>
+    <string name="libraries_hint">Các thư mục để Steam cài đặt và chạy game, mỗi thư mục có tên riêng. Xóa một thư mục vẫn giữ game trên bộ nhớ.</string>
+    <string name="libraries_add">Thêm thư viện</string>
+    <string name="libraries_rename">Đổi tên</string>
+    <string name="libraries_rename_title">Tên thư viện</string>
+    <string name="libraries_pick">Chọn thư mục cho thư viện</string>
+    <string name="libraries_full">Tối đa %1$d thư viện được thêm</string>
+    <string name="libraries_overlap">Thư mục đó đã là thư viện hoặc nằm trong một thư viện</string>
+    <string name="libraries_missing">%1$s · không khả dụng</string>
+    <string name="libraries_applies_next">Có hiệu lực từ phiên Steam tiếp theo</string>
+    <string name="libraries_found_hint">Tìm thấy trên thiết bị này · %1$s · %2$s</string>
+    <string name="libraries_add_found">Thêm</string>
+    <string name="libraries_access_title">Tìm thư viện trên bộ nhớ trong</string>
+    <string name="libraries_access_hint">Cấp quyền truy cập tất cả tệp để DroidDeck thấy được các thư viện Steam do ứng dụng khác lưu trên bộ nhớ trong</string>
+    <string name="libraries_access_allow">Cho phép</string>
+    <string name="libraries_used_inner">Đã thêm %1$s, thư viện Steam nằm trong thư mục bạn chọn</string>
     <string name="mode_storage_note">Game truyền dữ liệu từ thẻ SD hoặc bộ nhớ dùng chung có thể bị giật.</string>
     <string name="mode_storage_diagnostics">Chẩn đoán lưu trữ</string>
     <string name="mode_storage_diagnostics_hint">Ghi lại kết quả cấp phát và thời gian lưu trữ mẫu vào Share logs. Có thể làm chậm cài đặt khi đang bật. Áp dụng từ phiên sau.</string>
@@ -603,7 +612,10 @@
     <string name="perf_xalia_hint">Tắt trình hỗ trợ điều hướng bằng tay cầm của Proton, vốn tốn CPU trong mọi game.</string>
     <string name="perf_seccomp">Chạy proot không có seccomp</string>
     <string name="perf_seccomp_hint">Có thể sửa lỗi thiếu syscall trên một số kernel. Có thể giảm hiệu năng.</string>
+    <string name="perf_native_userland">Chạy không dùng proot (thử nghiệm)</string>
+    <string name="perf_native_userland_hint">Khởi động phần Linux trực tiếp trên Android. Áp dụng từ phiên tiếp theo. Tắt nếu có thành phần không khởi động được.</string>
     <string name="perf_fastpath">Fast path của proot</string>
+    <string name="perf_fastpath_needs_proot">Không dùng khi chạy không có proot.</string>
     <string name="perf_fastpath_needs_seccomp">Cần bộ lọc seccomp của proot.</string>
     <string name="perf_fastpath_hint">Tra cứu tệp nhanh hơn và ít giật hơn. Tắt nếu một chương trình không tìm thấy tệp của nó.</string>
     <string name="perf_cursor_composite">Vẽ con trỏ bên trong gamescope</string>
@@ -812,6 +824,7 @@
     <string name="setup_gpu_supported">Thiết bị được hỗ trợ</string>
     <string name="setup_gpu_untested">GPU chưa được kiểm thử</string>
     <string name="setup_gpu_unsupported">GPU không được hỗ trợ</string>
+    <string name="setup_gpu_bridged">GPU qua cầu nối Mali</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen.</string>
@@ -841,15 +854,38 @@
     <string name="setup_session">Phiên</string>
     <string name="setup_logs">Log phiên</string>
     <string name="setup_logs_hint">Được lưu sau mỗi phiên</string>
+    <string name="setup_enhanced_diagnostics">Chẩn đoán nâng cao cho phiên tiếp theo</string>
+    <string name="setup_enhanced_diagnostics_hint">Ghi nhật ký chi tiết trong một phiên. Có thể làm giảm hiệu năng và tốn thêm dung lượng. Tự tắt khi phiên bắt đầu; hãy xem lại nhật ký trước khi chia sẻ.</string>
     <string name="setup_game_debug_logs">Nhật ký gỡ lỗi game</string>
     <string name="setup_game_debug_logs_hint">Thêm chẩn đoán Proton, Wine và đồ họa vào lần khởi chạy game tiếp theo. Có thể giảm hiệu năng và tốn thêm bộ nhớ.</string>
     <string name="setup_game_debug_logs_restart">Khởi động lại phiên này để lưu nhật ký gỡ lỗi game</string>
     <string name="setup_logging_update_failed">Không thể cập nhật ghi nhật ký. Hãy kiểm tra công tắc rồi thử lại.</string>
     <string name="setup_agent_commands">Công cụ gỡ lỗi</string>
+    <string name="setup_graphics_logs">Nhật ký đồ họa chi tiết</string>
+    <string name="setup_steam_gpu_drawing">Giao diện Steam: vẽ bằng GPU</string>
+    <string name="setup_steam_gpu_drawing_hint">Với cặp driver Xclipse, Steam vẽ các trang bằng phần mềm (vẽ bằng GPU làm vỡ các ô hiển thị). Bật để có giao diện Steam nhanh hơn nếu hình hiển thị đúng trên máy này.</string>
+    <string name="drivers_built_on">dựng ngày %1$s</string>
+    <string name="drivers_pair_updated">%1$s đã được cập nhật lên bản build mới nhất</string>
+    <string name="setup_gpu_bridge_fell_back">Cầu nối Mali không đạt bài tự kiểm tra trên %1$s ở phiên trước (hình ảnh hoặc lệnh vẽ), nên phiên đó đã dùng cặp driver PanVK thay thế.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">Cầu nối Mali không tìm được cách chia sẻ bộ nhớ với driver trên %1$s ở phiên trước, nên phiên đó đã dùng cặp driver PanVK thay thế. Cầu nối này không hoạt động được trên điện thoại này; tắt đi sẽ vẫn giữ cặp PanVK.</string>
+    <string name="setup_graphics_logs_hint">Nhật ký Proton, DXVK và driver của từng game có trong nhật ký của phiên. Luôn bật khi GPU không phải Adreno.</string>
     <string name="setup_latest_logs">Log phiên gần nhất</string>
     <string name="setup_saved_logs">Log phiên đã lưu</string>
     <string name="setup_saved_logs_hint">Giữ lại %1$d bản mới nhất</string>
     <string name="setup_clear_logs">Xóa log</string>
+    <string name="setup_log_sessions">Nhật ký phiên có sẵn</string>
+    <string name="setup_log_empty">Chưa có nhật ký phiên nào được lưu.</string>
+    <string name="setup_log_export_hint">Tệp ZIP chia sẻ và lưu đều bao gồm phiên đã chọn cùng dữ liệu chẩn đoán liên quan của Steam, cửa hàng, công cụ và Battle.net.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">Phiên hiện tại</string>
+    <string name="setup_log_share">Chia sẻ</string>
+    <string name="setup_log_save">Lưu vào thiết bị</string>
+    <string name="setup_log_delete">Xóa</string>
+    <string name="setup_log_delete_title">Xóa nhật ký phiên?</string>
+    <string name="setup_log_delete_message">Xóa %1$s? Thao tác này không thể hoàn tác.</string>
+    <string name="setup_log_export_saved">Đã lưu nhật ký phiên.</string>
+    <string name="setup_log_export_failed">Không thể lưu nhật ký phiên.</string>
+    <string name="setup_log_delete_failed">Không thể xóa nhật ký phiên.</string>
     <string name="setup_reset_settings">Đặt lại toàn bộ thiết lập</string>
     <string name="setup_reset_settings_hint">Đưa mọi thiết lập về giá trị mặc định</string>
     <string name="setup_reset_settings_button">Đặt lại</string>
@@ -889,10 +925,15 @@
     <string name="setup_fullscreen">Toàn màn hình</string>
     <string name="setup_fullscreen_on">Ẩn thanh trạng thái và thanh điều hướng của Android</string>
     <string name="setup_fullscreen_off">Hiện thanh trạng thái và thanh điều hướng của Android</string>
+    <string name="setup_dual_screen_launcher">Trình khởi chạy hai màn hình</string>
+    <string name="setup_dual_screen_launcher_hint">Tự động đưa các phần của trình khởi chạy (Steam, Thư viện, Cửa hàng và phần còn lại) lên màn hình thứ hai tích hợp của máy cầm tay. Bật dùng bất kỳ màn hình thứ hai nào. Tắt giữ trình khởi chạy trên một màn hình.</string>
+    <string name="setup_dual_screen_sessions">Phiên chơi hai màn hình</string>
+    <string name="setup_dual_screen_sessions_hint">Tự động gắn menu trong game lên màn hình thứ hai tích hợp thay vì dạng cửa sổ nổi. Bật dùng bất kỳ màn hình thứ hai nào. Tắt giữ menu trên màn hình chơi game; bạn vẫn có thể chọn màn hình thứ hai từ menu đó.</string>
     <string name="setup_dual_screen_auto">Tự động</string>
     <string name="setup_dual_screen_on">Bật</string>
     <string name="setup_dual_screen_off">Tắt</string>
     <string name="setup_dual_screen_controls">Điều khiển màn hình dưới khi chơi game</string>
+    <string name="setup_android_text_field_keyboard">Bàn phím Android cho ô nhập văn bản</string>
     <string name="setup_dual_screen_controls_hint">Mở bàn di chuột và bàn phím trên màn hình thứ hai khi phiên bắt đầu.</string>
     <string name="dual_typing_title">Đang nhập cho màn hình trên</string>
     <string name="dual_typing_done">Xong</string>
@@ -1012,6 +1053,124 @@
     <string name="upd_tests">Bản thử nghiệm</string>
     <string name="upd_tests_hint">Thử một bản sửa trước khi nó được phát hành</string>
     <string name="upd_tests_none">Hiện không có</string>
+    <string name="upd_lab">Bản build thử nghiệm</string>
+    <string name="lab_builds">Các bản build thử nghiệm</string>
+    <string name="lab_in_use">Đang dùng</string>
+    <string name="lab_paused_row">Đã tạm dừng sau khi Android tối ưu lại DroidDeck</string>
+    <string name="lab_not_loaded">Chưa tải: %1$s</string>
+    <string name="lab_waiting">Đang chờ khởi động lại</string>
+    <string name="lab_kept">Đã giữ lại</string>
+    <string name="lab_other_install">Dành cho phiên bản khác</string>
+    <string name="lab_rebuild">Tạo lại</string>
+    <string name="lab_delete_warning">Xóa bản build này khỏi thiết bị</string>
+    <string name="lab_restart">Khởi động lại bằng bản này</string>
+    <string name="lab_turn_off">Tắt</string>
+    <string name="lab_use">Dùng</string>
+    <string name="lab_delete">Xóa</string>
+    <string name="lab_delete_confirm">Xóa ngay</string>
+    <string name="lab_restart_failed">Không thể chuẩn bị thao tác khởi động lại: %1$s. Hãy ghép đôi gỡ lỗi không dây trong Cài đặt rồi thử lại.</string>
+    <string name="lab_installed_title">Đã cài bản build thử nghiệm</string>
+    <string name="lab_installed_text">DroidDeck đã khởi động lại trên %1$s</string>
+    <string name="lab_paused_title">Đã tạm dừng bản dựng thử nghiệm</string>
+    <string name="lab_paused_text">Android đã tối ưu hóa lại DroidDeck nên %1$s chưa được nạp. Mở Cập nhật để khởi động lại bằng bản dựng đó.</string>
+    <string name="lab_off_title">Đã tắt bản dựng thử nghiệm</string>
+    <string name="lab_off_other_install">Bản dựng này được tạo cho một phiên bản DroidDeck khác. Bản dựng vẫn được giữ trong Cập nhật.</string>
+    <string name="lab_off_did_not_start">DroidDeck đã không khởi động được bằng bản dựng này hai lần</string>
+    <string name="rail_agent">Trợ lý</string>
+    <string name="agent_channel_name">Trợ lý</string>
+    <string name="agent_working">Trợ lý đang xử lý</string>
+    <string name="agent_missing">Cài Claude Code trong môi trường người dùng Linux để sử dụng trợ lý.</string>
+    <string name="agent_hint">Hỏi về một trò chơi, một sự cố hoặc một thay đổi cho DroidDeck</string>
+    <string name="agent_send">Gửi</string>
+    <string name="agent_new">Cuộc hội thoại mới</string>
+    <string name="agent_stop">Dừng</string>
+    <string name="agent_storage_title">Bộ nhớ</string>
+    <string name="agent_storage_remove">Xóa</string>
+    <string name="agent_storage_confirm">Xóa ngay</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">Mã nguồn DroidDeck</string>
+    <string name="agent_storage_caches">Bộ nhớ đệm tải xuống</string>
+    <string name="agent_storage_source_warning">Các thay đổi chưa được đẩy sẽ bị mất</string>
+    <string name="agent_storage_caches_warning">Bản dựng sẽ tải lại các tệp này</string>
+    <string name="agent_storage_reinstall_warning">Thiết lập có thể cài lại; thông tin đăng nhập được giữ nguyên</string>
+    <string name="agent_resumed">DroidDeck đã khởi động lại bằng bản dựng thử nghiệm của bạn. Tiếp tục từ chỗ bạn đang dở.</string>
+    <string name="agent_empty">Hỏi tại sao một trò chơi không khởi động được, yêu cầu giải thích nhật ký, hoặc thay đổi DroidDeck và thử trên thiết bị này.</string>
+    <string name="agent_failed">Thất bại: %1$s</string>
+    <string name="agent_exited">%1$s đã kết thúc (mã thoát %2$d)</string>
+    <string name="agent_stopped">Đã dừng</string>
+    <string name="agent_no_reply">Kết thúc mà không có phản hồi</string>
+    <string name="agent_retry">Thử lại</string>
+    <string name="agent_setting_up">Đang thiết lập trợ lý</string>
+    <string name="agent_rebuild_lab">Dựng lại bản dựng thử nghiệm %1$s của tôi cho phiên bản DroidDeck đã cài và khởi động lại bằng bản dựng đó.</string>
+    <string name="agent_tokens">%1$s vào · %2$s ra</string>
+    <string name="agent_thinking">Đang suy nghĩ</string>
+    <string name="agent_thought">Suy nghĩ</string>
+    <string name="agent_thinking_for">Đang suy nghĩ · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">ĐẦU VÀO</string>
+    <string name="agent_tool_output">ĐẦU RA</string>
+    <string name="agent_tool_running">Đang chạy…</string>
+    <string name="agent_tool_no_result">Không có kết quả: lượt đã kết thúc trước</string>
+    <string name="agent_tool_empty">Không có đầu ra</string>
+    <string name="agent_hint_working">Nhập để xếp tin nhắn tiếp theo vào hàng đợi</string>
+    <string name="agent_queue">Xếp hàng</string>
+    <string name="agent_queued">Tiếp theo: %1$s</string>
+    <string name="agent_unqueue">Không gửi</string>
+    <string name="agent_attach">Đính kèm</string>
+    <string name="agent_remove_attachment">Xóa</string>
+    <string name="agent_model_default">Mặc định</string>
+    <string name="agent_plan">Lên kế hoạch trước</string>
+    <string name="agent_plan_short">Lên kế hoạch</string>
+    <string name="agent_plan_hint">Đề xuất kế hoạch mà không thay đổi gì</string>
+    <string name="agent_history">Cuộc hội thoại</string>
+    <string name="agent_history_empty">Chưa có cuộc hội thoại nào</string>
+    <string name="agent_just_now">Vừa xong</string>
+    <string name="agent_history_delete">Xóa</string>
+    <string name="agent_history_delete_warning">Xóa cuộc hội thoại và các tệp đính kèm</string>
+    <string name="agent_processes">Tiến trình</string>
+    <string name="agent_processes_empty">Không có gì đang chạy trong không gian người dùng Linux</string>
+    <string name="agent_process_agent">TÁC NHÂN</string>
+    <string name="agent_process_stop">Dừng</string>
+    <string name="agent_lab_building">Bản dựng Lab</string>
+    <string name="agent_lab_preparing">Đang chuẩn bị các bản dựng Lab</string>
+    <string name="agent_lab_progress">%1$d%% · còn khoảng %2$s</string>
+    <string name="agent_lab_left">còn khoảng %1$s</string>
+    <string name="agent_lab_cancel">Hủy</string>
+    <string name="agent_lab_cancel_confirm">Hủy bản dựng</string>
+    <string name="agent_lab_stage_starting">Đang khởi động</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">Đang đóng gói</string>
+    <string name="agent_lab_stage_restarting">Đang khởi động lại DroidDeck trên đó</string>
+    <string name="agent_lab_stage_ready">Hoàn tất</string>
+    <string name="agent_lab_stage_failed">Thất bại: %1$s</string>
+    <string name="agent_setup_title">Thiết lập tác nhân</string>
+    <string name="agent_setup_runtime">Hãy cài đặt môi trường chạy Linux trong phần Thiết lập trước.</string>
+    <string name="agent_setup_retry">Thử lại</string>
+    <string name="agent_setup_done">Bắt đầu trò chuyện</string>
+    <string name="agent_step_connection">Kết nối thiết bị</string>
+    <string name="agent_step_connection_hint">Gỡ lỗi không dây để tác nhân có thể quan sát và điều khiển DroidDeck</string>
+    <string name="agent_step_install">Cài đặt %1$s</string>
+    <string name="agent_step_install_hint">Vào môi trường người dùng Linux, với git, gh và adb</string>
+    <string name="agent_step_sign_in">Đăng nhập vào %1$s</string>
+    <string name="agent_step_sign_in_hint">Mở trình duyệt của bạn</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">Tùy chọn, để mở pull request</string>
+    <string name="agent_step_build">Công cụ build</string>
+    <string name="agent_step_build_hint">Tùy chọn, cho bản build Lab trên thiết bị này · khoảng 5 GB</string>
+    <string name="agent_summary_ready">Agent sẵn sàng</string>
+    <string name="agent_summary_not_ready">Hoàn tất thiết lập Agent</string>
+    <string name="agent_summary_signed_in">Đã đăng nhập vào %1$s</string>
+    <string name="agent_summary_lab">Bản build Lab</string>
+    <string name="agent_summary_fast">bản build nhanh</string>
+    <string name="agent_step_prepare">Bản build Lab nhanh</string>
+    <string name="agent_step_prepare_hint">Biên dịch sẵn phiên bản này để bản build Lab chỉ mất vài phút · khoảng 20 phút cho một lần</string>
+    <string name="agent_prepare_progress">Đang biên dịch · %1$d%% · còn khoảng %2$s</string>
+    <string name="agent_action_prepare">Chuẩn bị</string>
+    <string name="agent_connection_off">Không truy cập được gỡ lỗi không dây; Ghép đôi sẽ bật tính năng này</string>
+    <string name="agent_action_pair">Ghép đôi</string>
+    <string name="agent_action_install">Cài đặt</string>
+    <string name="agent_action_sign_in">Đăng nhập</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Không được build cho bản DroidDeck này</string>
     <string name="upd_updated">Đã cập nhật %1$s</string>
@@ -1268,6 +1427,15 @@
     <string name="proton_cancel_queued">Hủy hàng chờ</string>
     <string name="pckb_android">Bàn phím Android</string>
     <string name="pckb_hide">Ẩn  ✕</string>
+    <string name="pckb_size">Kích thước trên màn hình</string>
+    <string name="pckb_size_hint">Tỷ lệ màn hình mà bàn phím chiếm, bao gồm cả thanh tiêu đề.</string>
+    <string name="pckb_opacity">Độ mờ</string>
+    <string name="pckb_opacity_hint">Giảm giá trị này để thấy game phía sau bàn phím.</string>
+    <string name="pckb_hidden_keys">Phím ẩn</string>
+    <string name="pckb_hidden_keys_hint">Những phím ít dùng sẽ không xuất hiện trên bàn phím.</string>
+    <string name="pckb_group_function">Esc và hàng phím chức năng</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">Phím mũi tên</string>
     <string name="main_launch_named">Khởi chạy %1$s</string>
     <string name="main_choose_screen">Chọn một màn hình. Phụ: %1$s.</string>
     <string name="main_secondary_gone">Màn hình phụ không còn khả dụng.</string>
@@ -1323,7 +1491,6 @@
     <string name="game_file_folder">Chọn một thư mục cho các tệp game frontend</string>
     <string name="game_file_exported">Đã lưu tệp game vào %1$s</string>
     <string name="game_frontend_files">Tệp frontend</string>
-
     <string name="main_wait_runtime">Chờ hoạt động runtime hoàn tất</string>
     <string name="main_wait_proton_install">Chờ việc cài công cụ tương thích hoàn tất</string>
     <string name="load_compat_title">Đang chuẩn bị công cụ tương thích</string>
@@ -1404,7 +1571,6 @@
     <string name="main_removing_runtime">Đang gỡ runtime Linux</string>
     <string name="main_settings_main_screen">Không thể mở Settings trên màn hình dưới; đã mở nó trên màn hình chính.</string>
     <string name="main_open_dev_options">Mở Developer options trong Settings</string>
-
     <string name="upd_unknown_apps_failed">Không thể mở thiết lập \"Install unknown apps\" của Android</string>
     <string name="upd_couldnt_check">Không thể kiểm tra: %1$s</string>
     <string name="upd_no_download">Bản build này không có tệp tải cho bản DroidDeck này</string>
@@ -1414,12 +1580,10 @@
     <string name="upd_stage_confirm">Đang chờ bạn xác nhận</string>
     <string name="upd_failed">Cập nhật thất bại</string>
     <string name="upd_not_offered">Android không đề nghị cài bản cập nhật</string>
-
     <string name="decky_install_failed">Cài Decky thất bại: %1$s</string>
     <string name="decky_plugin_starting">Đang bắt đầu nhập plugin…</string>
     <string name="decky_plugin_failed">Nhập plugin thất bại: %1$s</string>
     <string name="decky_plugin_installed">Đã cài plugin. Khởi động lại Steam để tải nó.</string>
-
     <string name="drivers_not_checked">Chưa kiểm tra - nhấn làm mới để tìm driver mới</string>
     <string name="drivers_bundle_sets_display">Android + Linux: cùng đặt driver hiển thị</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: cùng đặt driver runtime</string>
@@ -1469,7 +1633,6 @@
     <string name="drivers_check_failed">kiểm tra thất bại</string>
     <string name="drivers_installed_pick_either">Đã cài %1$s - chọn nó ở một trong hai danh sách để đặt cả hai driver</string>
     <string name="drivers_installed_pick">Đã cài %1$s - chọn nó trong menu</string>
-
     <string name="session_wait_removal">Chờ việc gỡ runtime hoàn tất</string>
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1513,7 +1676,6 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">Log cho thấy %1$d lỗi \"Function not implemented\": khả năng tăng tốc seccomp của proot đang làm hỏng một helper trên thiết bị này. Hãy thử %2$s → \"%3$s\" (hoặc \"%4$s\") rồi khởi động lại.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Plugin</string>
     <string name="mode_decky_plugins_hint">Cài một tệp ZIP plugin cho phiên Steam kế tiếp.</string>
     <string name="mode_decky_plugin_downloading">Đang tải…</string>
@@ -1752,7 +1914,24 @@
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Grip + trackpad Deck</string>
     <string name="second_mode_dashboard">Bảng điều khiển</string>
+    <string name="second_mode_desktop">Máy tính để bàn</string>
+    <string name="bottom_desktop_start">Khởi động máy tính để bàn</string>
+    <string name="bottom_desktop_title">Máy tính để bàn · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">Bàn di chuột</string>
+    <string name="bottom_desktop_mode_touch">Chạm trực tiếp</string>
+    <string name="bottom_desktop_trackpad">Bàn di chuột. Nhấn để dùng chạm trực tiếp</string>
+    <string name="bottom_desktop_direct_touch">Chạm trực tiếp. Nhấn để dùng bàn di chuột</string>
+    <string name="bottom_desktop_starting">Đang khởi động máy tính để bàn KDE…</string>
+    <string name="bottom_desktop_ended">Máy tính để bàn đã đóng.</string>
+    <string name="bottom_desktop_failed">Máy tính để bàn không thể khởi động. Nhật ký nằm trong thư mục bottom-desktop của phiên này.</string>
+    <string name="bottom_desktop_off">Máy tính để bàn đã tắt.</string>
     <string name="bottom_dashboard_empty">Chưa có gì để hiển thị ở đây.</string>
+    <string name="swap_screens">Hoán đổi màn hình</string>
+    <string name="swap_screens_unavailable">Màn hình dưới hiện đang bận</string>
+    <string name="swap_game_screen_group">Màn hình trò chơi</string>
+    <string name="swap_game_screen">Hiển thị trò chơi trên</string>
+    <string name="swap_game_screen_top">Màn hình trên</string>
+    <string name="swap_game_screen_bottom">Màn hình dưới</string>
     <string name="bottom_page_downloads">Tải xuống</string>
     <string name="bottom_downloads_none">Không có lượt tải nào đang chạy.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1787,6 +1966,20 @@
     <string name="stats_fuel_t">Nhiên liệu, t</string>
     <string name="stats_fuel_main">Chính %1$s t</string>
     <string name="stats_fuel_reserve">Dự trữ %1$s t</string>
+    <string name="stats_hud_frametime">Thời gian khung hình</string>
+    <string name="stats_hud_last_seconds">%1$d giây qua</string>
+    <string name="stats_hud_avg_frame">khung hình trung bình</string>
+    <string name="stats_hud_low">1% thấp nhất</string>
+    <string name="stats_hud_slow_frames">khung hình trên 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / phút</string>
+    <string name="stats_hud_playing_for">Đã chơi %1$s</string>
+    <string name="stats_hud_core_group">%1$d nhân, tối đa %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d nhân</string>
+    <string name="stats_hud_game_cores">trò chơi</string>
+    <string name="stats_hud_fps_of">FPS tại %1$d Hz</string>
+    <string name="stats_hud_red_mark">Vạch đỏ là vị trí HUD hiển thị nhiệt độ bằng màu đỏ.</string>
+    <string name="stats_hud_whole_device">toàn thiết bị</string>
+    <string name="stats_hud_battery_temp">pin</string>
     <string name="bottom_telemetry_send_title">Gửi dữ liệu bảng đồng hồ</string>
     <string name="bottom_telemetry_send_auto">Tự động</string>
     <string name="bottom_telemetry_send_auto_hint">Bật cho mọi game trong danh sách này, kể cả game được tìm thấy sau này. Game bạn đã tắt sẽ vẫn tắt.</string>
@@ -1810,6 +2003,10 @@
     <string name="bottom_chat_mic_unavailable">Micro đang tắt cho game này. Để nói chuyện, hãy bật Micro trong thiết lập Steam của DroidDeck (Âm thanh) rồi khởi động lại game.</string>
     <string name="bottom_chat_volume">Âm lượng %1$d%%</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
+    <string name="bottom_hud_group">HUD màn hình dưới</string>
+    <string name="bottom_strip_tabs">Thanh trên mọi tab</string>
+    <string name="bottom_strip_lows" formatted="false">1% và 0,1% thấp nhất</string>
+    <string name="bottom_strip_cpu_temp">Nhiệt độ CPU</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1827,7 +2024,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Cổng %1$d đang nhận dữ liệu (%2$d gói, mỗi gói %3$d byte), nhưng ở định dạng mà trang này chưa đọc được.</string>
     <string name="bottom_telemetry_port_busy">Một chương trình khác đang dùng cổng %1$s, nên game đó không thể hiển thị ở đây.</string>
-
     <string name="rtinst_removing">Đang gỡ runtime Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Đang gỡ runtime Linux · %1$d mục</item>
@@ -1841,7 +2037,6 @@
     <string name="rtinst_channel_description">Hiển thị khi runtime Linux đang được cài hoặc gỡ</string>
     <string name="rtinst_title_installing">Đang cài runtime Linux</string>
     <string name="rtinst_title_removing">Đang gỡ runtime Linux</string>
-
     <string name="deskpkg_runtime_missing">Runtime Linux chưa được cài</string>
     <string name="deskpkg_no_checksum">Danh mục không có checksum cho %1$s</string>
     <string name="deskpkg_checksum_mismatch">Checksum không khớp - không có gì bị thay đổi</string>
@@ -1849,7 +2044,6 @@
     <string name="deskpkg_place_failed">Không thể đặt AppImage</string>
     <string name="deskpkg_extract_failed">Giải nén thất bại</string>
     <string name="deskpkg_install_failed">Cài thất bại</string>
-
     <string name="flatpakmgr_setup_failed">Thiết lập Flatpak thất bại (mã thoát %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Thiết lập Flatpak chưa hoàn tất</string>
     <string name="flatpakmgr_busy">Một tác vụ store khác đang chạy</string>
@@ -1868,7 +2062,6 @@
     <string name="flatpakmgr_ref_media_codecs">codec media</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
-
     <string name="appimg_too_small">Tệp này quá nhỏ để là một AppImage</string>
     <string name="appimg_unreadable">Không thể đọc tệp: %1$s</string>
     <string name="appimg_not_linux">Đây không phải AppImage (không phải chương trình Linux)</string>
@@ -1883,7 +2076,6 @@
     <string name="appimg_extracting">Đang giải nén %1$s</string>
     <string name="appimg_extract_failed">Không thể giải nén AppImage</string>
     <string name="appimg_extract_failed_detail">Không thể giải nén AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Dừng phiên đang hoạt động trước khi cài Decky Loader</string>
     <string name="deckymgr_download_failed">Tải Decky Loader thất bại</string>
     <string name="deckymgr_size_mismatch">Kích thước Decky Loader không khớp với metadata của bản phát hành</string>
@@ -1932,13 +2124,11 @@
     <string name="deckymgr_activate_failed">Không thể kích hoạt plugin đã nhập</string>
     <string name="deckymgr_settings_failed">Không thể cập nhật thiết lập plugin Decky</string>
     <string name="deckymgr_restore_failed">Không thể khôi phục plugin hiện có</string>
-
     <string name="adbfix_save_failed">Không thể lưu danh tính Gỡ lỗi qua mạng không dây</string>
     <string name="adbfix_command_failed">Lệnh ADB thất bại (%1$d)</string>
     <string name="adbfix_not_confirmed">Android không xác nhận giới hạn tiến trình con đã được đổi: %1$s</string>
     <string name="adbfix_no_pairing">Chưa có ghép nối Gỡ lỗi qua mạng không dây nào được lưu</string>
     <string name="adbfix_enter_address">Nhập địa chỉ IP &amp; cổng Gỡ lỗi qua mạng không dây hiện tại</string>
-
     <string name="adbpair_timed_out">Hết thời gian chờ cửa sổ bật lên ghép nối. Hãy thử lại từ DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Không thể tìm cửa sổ bật lên ghép nối (%1$d). Kiểm tra Wi-Fi đã bật.</string>
     <string name="adbpair_discovery_failed">Không thể tìm cửa sổ bật lên ghép nối: %1$s</string>
@@ -1964,7 +2154,6 @@
     <string name="adbpair_title_done">Steam đã sẵn sàng</string>
     <string name="adbpair_done_text">Nhấn để quay lại DroidDeck. Bạn có thể tắt Gỡ lỗi qua mạng không dây ngay bây giờ.</string>
     <string name="adbpair_title_failed">Thiết lập Gỡ lỗi qua mạng không dây đã dừng</string>
-
     <string name="selfinst_download_failed">Tải xuống thất bại</string>
     <string name="selfinst_size_mismatch">Kích thước tải xuống không khớp với APK đã phát hành và đã bị loại bỏ - hãy thử lại</string>
     <string name="selfinst_checksum_mismatch">Tệp tải xuống không khớp checksum và đã bị loại bỏ - hãy thử lại</string>
@@ -1977,12 +2166,11 @@
     <string name="selfinst_no_signing">APK đã tải xuống không có thông tin ký</string>
     <string name="selfinst_wrong_signer">APK đã tải xuống không được ký bằng khóa phát hành của DroidDeck</string>
     <string name="appupd_http">Danh mục cập nhật trả về HTTP %1$d</string>
-
     <string name="loadstate_starting">Đang khởi động phiên…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d đã trôi qua · vẫn đang xử lý</string>
     <string name="loadstate_steam_update">Đang tải bản cập nhật client Steam · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Đang áp dụng bản cập nhật ứng dụng Steam…</string>
     <string name="loadstate_steam_client">Đang tải client Steam · %1$s</string>
-
     <string name="pextra_busy">Một lượt cài công cụ tương thích đang chạy</string>
     <string name="pextra_stop_session">Dừng phiên đang hoạt động trước khi cài công cụ tương thích</string>
     <string name="pextra_no_release">Không tìm thấy bản phát hành ARM64 cho %1$s</string>
@@ -2002,7 +2190,6 @@
     <string name="pextra_install_failed">Cài %1$s thất bại (mã thoát %2$d)</string>
     <string name="pextra_could_not_install">Không thể cài %1$s</string>
     <string name="esync_fetching">Đang lấy pack droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">có trợ giúp Linux</string>
     <string name="cmgr_fex_dlls_only">chỉ DLL</string>
     <string name="cmgr_original_proton_updated">Gốc (Proton đã cập nhật từ lần thay gần nhất)</string>
@@ -2025,13 +2212,11 @@
     <string name="cmgr_nightly_replaced">Tải xuống thất bại: bản nightly này có thể đã được thay bằng bản mới hơn. Hãy làm mới danh sách và thử lại.</string>
     <string name="cmgr_list_predates_checksums">Danh sách gói này có trước checksum - hãy làm mới và thử lại</string>
     <string name="cmgr_checksum_mismatch">Checksum không khớp</string>
-
     <string name="sprefs_upscaler_linear">Tuyến tính</string>
     <string name="sprefs_upscaler_nearest">Gần nhất</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (chất lượng)</string>
     <string name="sprefs_upscaler_sharpen">Chỉ làm nét</string>
     <string name="sprefs_lod_bias_auto">Tự động (khớp tỷ lệ)</string>
-
     <string name="look_off_desc">Không áp dụng gì.</string>
     <string name="look_game_clarity">Rõ nét trò chơi</string>
     <string name="look_game_clarity_desc">Làm nét với một chút tương phản - lựa chọn hàng ngày.</string>
@@ -2055,14 +2240,30 @@
     <string name="look_pixel_clean_desc">Pixel sắc nét cho game 2D và các game cũ.</string>
     <string name="look_anime_edge">Viền anime</string>
     <string name="look_anime_edge_desc">Viền hoạt hình cộng làm nét.</string>
-
     <string name="gpuinfo_not_adreno">Không phải GPU Adreno</string>
+    <string name="gpuinfo_powervr">Trình điều khiển PowerVR của hệ thống: khả năng tương thích tùy thiết bị</string>
+    <string name="gpuinfo_xclipse">Thử nghiệm: RADV hoặc trình điều khiển Xclipse của hệ thống</string>
+    <string name="gpu_system_powervr">PowerVR hệ thống</string>
+    <string name="gpu_auto_system_hint">Sử dụng trình điều khiển tích hợp sẵn cho GPU này</string>
+    <string name="drivers_powervr_builtin">Trình điều khiển PowerVR của hệ thống được chọn cho runtime và hiển thị.</string>
+    <string name="drivers_mali_bridge_auto">Chưa có trình điều khiển mã nguồn mở nào hỗ trợ Mali này: cầu nối Mali đang bật.</string>
+    <string name="upd_block_non_adreno_test">Đây là bản thử nghiệm cho máy không dùng Snapdragon: các bản chính thức ở đây chỉ chạy trên Adreno, nên không được cài đè lên bản này. Các bản thử nghiệm mới có tại github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">Phiên chạy trước kết thúc vì Android đã đóng DroidDeck để giải phóng bộ nhớ, không phải do sự cố. Hãy đóng các ứng dụng khác hoặc giảm thiết lập texture của game, rồi thử lại.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">cầu nối Mali</string>
+    <string name="drivers_mali_no_pair_auto">Chưa có trình điều khiển mã nguồn mở nào hỗ trợ Mali này: dùng %1$s, trên trình điều khiển gốc của máy.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s chưa được phát hành: tạm dùng %2$s cho đến khi ra mắt.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s không khả dụng, và trình điều khiển gốc của máy báo Vulkan %2$s (Venus cần 1.2): cầu nối Mali được dùng.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s chưa được phát hành: cầu nối Mali đang bật cho đến khi ra mắt.</string>
+    <string name="cmgr_powervr_dxvk_queued">Đã xếp hàng: %1$s (đang đợi một trình điều khiển runtime khác)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK được cung cấp bởi runtime PowerVR của hệ thống. Các gói DXVK khác vẫn có thể được lưu nhưng không được áp dụng với trình điều khiển này.</string>
     <string name="gpuinfo_supported">Được hỗ trợ</string>
     <string name="gpuinfo_experimental">Thử nghiệm: driver của nó là bản build thử nghiệm</string>
     <string name="gpuinfo_a850_experimental">Hỗ trợ thử nghiệm Adreno 850: cần driver hiển thị và driver game thử nghiệm tương thích; chưa được xác minh trên thiết bị này</string>
     <string name="gpuinfo_below_tested">Dưới mức phần cứng đã kiểm thử (Adreno 725 và mới hơn): có thể không chạy được</string>
     <string name="gpuinfo_unsupported">Không được hỗ trợ: không có backend đồ họa tương thích cho GPU này</string>
-
+    <string name="gpuinfo_bridge">Chạy qua cầu nối Mali, trên trình điều khiển Vulkan gốc của máy</string>
+    <string name="gpuinfo_bridge_off">Không hỗ trợ khi tắt cầu nối Mali: Turnip cần GPU Adreno (Snapdragon)</string>
     <string name="turnip_rate_limited">Đã đạt giới hạn tốc độ của GitHub - hãy thử lại sau</string>
     <string name="turnip_github_http">GitHub trả về HTTP %1$d</string>
     <string name="turnip_download_failed">Tải xuống thất bại</string>
@@ -2083,16 +2284,12 @@
     <string name="bundle_no_manifest">Không phải gói driver: không có manifest.json ghi tên một driver android và một driver linux</string>
     <string name="bundle_entry_outside">Không phải gói driver: %1$s trỏ ra ngoài nó</string>
     <string name="bundle_too_large">Không phải gói driver: nó giải nén vượt quá %1$d MB</string>
-
     <string name="gstore_sd_card">Thẻ SD</string>
     <string name="gstore_folder">Thư mục</string>
-
     <string name="logshare_chooser">Chia sẻ log phiên</string>
-
     <string name="hdr_needs_android_10">cần Android 10 hoặc mới hơn (lớp hiển thị có không gian màu)</string>
     <string name="hdr_none">màn hình này báo không hỗ trợ HDR</string>
     <string name="hdr_not_hdr10">màn hình này hỗ trợ %1$s, không phải HDR10</string>
-
     <string name="gpu_this_gpu">GPU này</string>
     <string name="phantom_title_on">Giới hạn tiến trình con đang bật</string>
     <string name="phantom_title_unset">Giới hạn tiến trình con chưa được đặt</string>
@@ -2166,7 +2363,6 @@
     <string name="device_info_copied">Đã sao chép.</string>
     <string name="force_ssbs_title">Buộc SSBS</string>
     <string name="force_ssbs_hint">Giữ một thiết lập tốc độ CPU mà Wine liên tục tắt. Có thể giúp game Windows nhanh hơn trên Snapdragon 8 Elite; thay đổi ít thấy trên chip cũ hơn. Áp dụng vào lần game khởi động kế tiếp.</string>
-
     <string name="rail_stores">Cửa hàng game</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Tùy chỉnh</string>
@@ -2547,6 +2743,11 @@
     <string name="setup_tab_diagnostics">Nhà phát triển</string>
     <string name="setup_build_watermark">Hình mờ nhãn bản dựng</string>
     <string name="setup_build_watermark_hint">Hiển thị nhãn bản dựng thử nghiệm hoặc Lab trên màn hình. Được bật theo mặc định.</string>
+    <string name="diagnostics_share_title">Chia sẻ các gói chẩn đoán</string>
+    <string name="diagnostics_share_session">Phiên và thiết bị</string>
+    <string name="diagnostics_share_graphics">Đồ họa</string>
+    <string name="diagnostics_share_games">Game và khả năng tương thích</string>
+    <string name="diagnostics_share_all">Tất cả các gói</string>
     <string name="setup_ready">Sẵn sàng để chơi</string>
     <string name="setup_not_ready">Chưa sẵn sàng để chơi</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
@@ -2585,6 +2786,9 @@
     <string name="gog_achievements_enable_store">Bật thành tích GOG trong phần cài đặt Stores</string>
     <string name="gog_achievements_unavailable">Không có thành tích; hãy kiểm tra nhật ký phiên</string>
     <string name="achievement_unlocked">Đã mở khóa thành tích</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): tắt</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): bật</string>
+    <string name="setup_gpu_venus_host_too_old">Trình điều khiển trên %1$s báo Vulkan %2$s. Mali (Venus) cần Vulkan 1.2 trở lên (gamescope không khởi động trên bản cũ hơn), nên các phiên chạy bỏ qua Venus và dùng cặp trình điều khiển PanVK thay vào đó.</string>
     <string name="touch_paste">Dán</string>
     <string name="touch_left_stick">Cần analog trái</string>
     <string name="touch_right_stick">Cần analog phải</string>
@@ -2634,7 +2838,6 @@
     <string name="touch_icon_color">Màu biểu tượng</string>
     <string name="touch_button_color">Màu nút</string>
     <string name="touch_no_icon">Không có biểu tượng</string>
-
     <string name="stores_sync_sign_in">Đang kiểm tra đăng nhập…</string>
     <string name="stores_sync_library">Đang lấy thư viện của bạn…</string>
     <string name="stores_sync_game_list">Đang lấy danh sách trò chơi…</string>
@@ -2938,6 +3141,7 @@
     <string name="storage_tool_redist">Bộ cài VC++ và DirectX mà game cần</string>
     <string name="storage_tool_fex">Chạy game Linux x86</string>
     <string name="storage_tool_steam">Công cụ Steam</string>
+    <string name="storage_tool_anticheat">Steam tải mục này cho các game có anti-cheat, kể cả khi đang tắt. Xóa nó sẽ khiến quá trình cài đặt của các game đó bị kẹt ở 0%</string>
     <string name="storage_tool_old_runtime">DroidDeck chạy game mà không cần runtime này</string>
     <string name="storage_tool_x86_proton">Proton x86, DroidDeck không chạy được</string>
     <string name="storage_tool_custom_default">Mặc định cho mọi game</string>
@@ -3509,6 +3713,7 @@
     <string name="integration_shortcuts_service_description">Giữ Alt+Tab, phím Win và nút Trang chủ trong phiên DroidDeck đang dùng thay vì Android.</string>
     <string name="integration_brightness_needed">Bật Độ sáng trong Thiết lập → Tích hợp Steam</string>
     <string name="setup_gpu_bridge_off">Cầu Mali: tắt</string>
+    <string name="setup_gpu_bridge_unusable">%1$s không thể dùng cầu nối Mali (cần GPU Mali không có đường dẫn qua trình điều khiển hệ thống), nên công tắc này không có tác dụng ở đây.</string>
     <string name="setup_gpu_bridge_on">Cầu Mali: bật</string>
     <string name="setup_gpu_bridge_detail">%1$s không phải Adreno. Cầu Vulkan thử nghiệm đang bật: phiên vẽ qua trình điều khiển của chính điện thoại. Có thể gặp lỗi; hãy gửi nhật ký phiên.</string>
     <string name="setup_bridge_safe">Chế độ an toàn</string>
@@ -3665,9 +3870,8 @@
     <string name="input_reset_positions">Đặt lại vị trí</string>
     <string name="input_show_label">Hiện nhãn</string>
     <string name="input_layout_import_failed">Không thể nhập bố cục này</string>
-
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
-    
+    <string name="theme_white_red_detail">Bề mặt trắng với điểm nhấn màu đỏ.</string>
     <string name="rail_soundtracks">Nhạc nền</string>
     <string name="rail_music">Nhạc</string>
     <string name="soundtracks_options">Tùy chọn phát</string>
@@ -3730,4 +3934,6 @@
     <string name="soundtracks_repeat_one">Lặp lại một bài</string>
     <string name="soundtracks_volume">Âm lượng</string>
     <string name="soundtracks_no_tracks">Không có tệp âm thanh trong nhạc nền này</string>
+    <string name="setup_stores">Cửa hàng</string>
+    <string name="setup_agent_tab">Tab Agent</string>
 </resources>

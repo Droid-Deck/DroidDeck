@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Resetování grafiky a opětovné otevírání SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace Steam pozastaví; po návratu pokračuje, kde skončil.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>První spuštění připraví Plochu. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace relace pozastaví; po návratu pokračuje, kde skončila.</item>
-        <item>Dotyk funguje jako touchpad: tažením posouváte kurzor, dotykem klikáte.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
     <string name="session_channel">Relace</string>
     <string name="session_channel_description">Zobrazuje se, když je otevřená relace Steamu nebo Plochy</string>
     <string name="session_notification">Steam běží</string>
@@ -185,6 +174,7 @@
     <string name="session_powervr_missing">Grafické prostředí PowerVR se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
+    <string name="session_end_present_fault">Relaci se nepodařilo vykreslit na obrazovku: %1$s. Místo černé obrazovky je zde důvod; podrobnosti jsou v protokolech relace.</string>
     <string name="session_end_steam_download">Klienta Steam se nepodařilo stáhnout. Vaše síť nebo VPN možná blokuje servery Steamu; zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_end_steam_setup">Klienta Steam se nepodařilo nastavit. Zkontrolujte připojení a volné místo a zkuste to znovu.</string>
     <string name="session_end_fex_missing">%1$s je sestaven pro PC x86 a běží přes FEX, který ještě není nainstalován. Jednou spusťte přihlášený Steam a nechte ho stáhnout FEX a Steam Linux Runtime, pak to spusťte znovu.</string>
@@ -389,6 +379,9 @@
     <string name="wincomp_unsupported">Zde ještě nepodporováno</string>
     <string name="wincomp_loading">Načítání komponent…</string>
     <string name="wincomp_failed">Nepodařilo se nainstalovat: %1$s</string>
+    <string name="wincomp_repair_required">Tato stažená data vyžadují aktualizaci.</string>
+    <string name="wincomp_repair_queued">Aktualizace je ve frontě.</string>
+    <string name="wincomp_retry">Opakovat aktualizaci</string>
     <string name="wincomp_downloaded">Staženo</string>
     <string name="wincomp_downloading">Stahuje se %1$s</string>
     <string name="wincomp_installing">Instaluje se: %1$s</string>
@@ -419,6 +412,22 @@
     <string name="mode_storage_internal">Pouze interní</string>
     <string name="mode_storage_folder">Složka: %1$s</string>
     <string name="mode_second_library">Druhá knihovna</string>
+    <string name="libraries_title">Další knihovny Steam</string>
+    <string name="libraries_hint">Složky, do kterých může Steam instalovat hry a odkud je spouští, každá pod svým názvem. Po odebrání zůstanou její hry na disku.</string>
+    <string name="libraries_add">Přidat knihovnu</string>
+    <string name="libraries_rename">Přejmenovat</string>
+    <string name="libraries_rename_title">Název knihovny</string>
+    <string name="libraries_pick">Vyberte složku pro knihovnu</string>
+    <string name="libraries_full">Nejvýše %1$d přidaných knihoven</string>
+    <string name="libraries_overlap">Tato složka už je knihovnou nebo leží uvnitř jiné</string>
+    <string name="libraries_missing">%1$s · není k dispozici</string>
+    <string name="libraries_applies_next">Platí od další relace Steam</string>
+    <string name="libraries_found_hint">Nalezeno na tomto zařízení · %1$s · %2$s</string>
+    <string name="libraries_add_found">Přidat</string>
+    <string name="libraries_access_title">Najít knihovny v interním úložišti</string>
+    <string name="libraries_access_hint">Povolte přístup ke všem souborům, aby DroidDeck viděl knihovny Steam, které jiné aplikace uchovávají v interním úložišti</string>
+    <string name="libraries_access_allow">Povolit</string>
+    <string name="libraries_used_inner">Přidána %1$s, knihovna Steam uvnitř vybrané složky</string>
     <string name="mode_storage_note">Hry, které streamují data z karty SD nebo sdíleného úložiště, mohou trhat.</string>
     <string name="mode_storage_diagnostics">Diagnostika úložiště</string>
     <string name="mode_storage_diagnostics_hint">Zaznamenává výsledky alokace a vzorky časování úložiště do sdílených protokolů. Když je zapnuto, může zpomalit instalace. Použije se od příští relace.</string>
@@ -609,7 +618,10 @@
     <string name="perf_xalia_hint">Vypne pomocníka Protonu pro navigaci gamepadem, který stojí výkon CPU v každé hře.</string>
     <string name="perf_seccomp">Spustit proot bez seccomp</string>
     <string name="perf_seccomp_hint">Může opravit chyby s chybějícími systémovými voláními na některých jádrech. Může snížit výkon.</string>
+    <string name="perf_native_userland">Spustit bez proot (experimentální)</string>
+    <string name="perf_native_userland_hint">Spustí linuxovou část přímo na Androidu. Platí pro další relaci. Vypněte, pokud se něco nespustí.</string>
     <string name="perf_fastpath">Rychlá cesta proot</string>
+    <string name="perf_fastpath_needs_proot">Bez proot se nepoužije.</string>
     <string name="perf_fastpath_needs_seccomp">Vyžaduje filtr seccomp od proot.</string>
     <string name="perf_fastpath_hint">Rychlejší vyhledávání souborů a méně zadrhávání. Vypněte, pokud program nemůže najít své soubory.</string>
     <string name="perf_cursor_composite">Kreslit kurzor v gamescope</string>
@@ -821,6 +833,7 @@
     <string name="setup_gpu_supported">Zařízení podporováno</string>
     <string name="setup_gpu_untested">Neověřené GPU</string>
     <string name="setup_gpu_unsupported">GPU nepodporováno</string>
+    <string name="setup_gpu_bridged">GPU přes most Mali</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">Pro %1$s není k dispozici kompatibilní grafický backend. Steam může zobrazit černou obrazovku.</string>
@@ -850,15 +863,38 @@
     <string name="setup_session">Relace</string>
     <string name="setup_logs">Protokoly relace</string>
     <string name="setup_logs_hint">Uloženo po každé relaci</string>
+    <string name="setup_enhanced_diagnostics">Rozšířená diagnostika pro další relaci</string>
+    <string name="setup_enhanced_diagnostics_hint">Zachytává podrobné protokoly pro jednu relaci. Může snížit výkon a zabrat více místa. Po spuštění relace se sama vypne; protokoly před sdílením zkontrolujte.</string>
     <string name="setup_game_debug_logs">Ladicí protokoly her</string>
     <string name="setup_game_debug_logs_hint">Při dalším spuštění hry zahrnout diagnostiku Protonu, Wine a grafiky. Může snížit výkon a zabrat více úložiště.</string>
     <string name="setup_game_debug_logs_restart">Pro ukládání ladicích protokolů her restartujte tuto relaci</string>
     <string name="setup_logging_update_failed">Protokolování se nepodařilo změnit. Zkontrolujte přepínač a zkuste to znovu.</string>
     <string name="setup_agent_commands">Nástroje pro ladění</string>
+    <string name="setup_graphics_logs">Podrobné protokoly grafiky</string>
+    <string name="setup_steam_gpu_drawing">Rozhraní Steam: vykreslování na GPU</string>
+    <string name="setup_steam_gpu_drawing_hint">S párem ovladačů Xclipse vykresluje Steam své stránky softwarově (vykreslování na GPU zobrazovalo poškozené dlaždice). Pokud na tomto telefonu vypadá správně, zapněte tuto možnost pro rychlejší rozhraní Steam.</string>
+    <string name="drivers_built_on">sestaveno %1$s</string>
+    <string name="drivers_pair_updated">%1$s byl aktualizován na nejnovější sestavení</string>
+    <string name="setup_gpu_bridge_fell_back">Most Mali neprošel při poslední relaci na %1$s samotestem (obrázky nebo vykreslování), takže relace místo něj použila dvojici ovladačů PanVK.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">Most Mali při poslední relaci na %1$s nenašel způsob, jak sdílet paměť s ovladačem, takže relace použila dvojici ovladačů PanVK. Na tomto telefonu most fungovat nemůže; jeho vypnutí zachová dvojici ovladačů PanVK.</string>
+    <string name="setup_graphics_logs_hint">Logy Proton, DXVK a ovladačů každé hry jsou v lozích relace. Vždy zapnuto, pokud GPU není Adreno.</string>
     <string name="setup_latest_logs">Protokoly poslední relace</string>
     <string name="setup_saved_logs">Uložené protokoly relací</string>
     <string name="setup_saved_logs_hint">Uchovává nejnovějších %1$d</string>
     <string name="setup_clear_logs">Vymazat protokoly</string>
+    <string name="setup_log_sessions">Dostupné logy relací</string>
+    <string name="setup_log_empty">Zatím žádné uložené logy relací.</string>
+    <string name="setup_log_export_hint">Sdílené a uložené soubory ZIP obsahují vybranou relaci a související diagnostické údaje pro Steam, obchod, nástroje a Battle.net.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">Aktuální relace</string>
+    <string name="setup_log_share">Sdílet</string>
+    <string name="setup_log_save">Uložit do zařízení</string>
+    <string name="setup_log_delete">Smazat</string>
+    <string name="setup_log_delete_title">Smazat logy relace?</string>
+    <string name="setup_log_delete_message">Smazat %1$s? Akci nelze vrátit zpět.</string>
+    <string name="setup_log_export_saved">Logy relace byly uloženy.</string>
+    <string name="setup_log_export_failed">Logy relace se nepodařilo uložit.</string>
+    <string name="setup_log_delete_failed">Logy relace se nepodařilo smazat.</string>
     <string name="setup_reset_settings">Obnovit všechna nastavení</string>
     <string name="setup_reset_settings_hint">Vrátí každé nastavení na výchozí hodnotu</string>
     <string name="setup_reset_settings_button">Obnovit</string>
@@ -898,10 +934,15 @@
     <string name="setup_fullscreen">Celá obrazovka</string>
     <string name="setup_fullscreen_on">Skryje stavový a navigační panel Androidu</string>
     <string name="setup_fullscreen_off">Zobrazí stavový a navigační panel Androidu</string>
+    <string name="setup_dual_screen_launcher">Spouštěč na dvou obrazovkách</string>
+    <string name="setup_dual_screen_launcher_hint">Automaticky přesune sekce spouštěče (Steam, Knihovna, Obchody a ostatní) na druhou obrazovku handheldů, které ji mají vestavěnou. Zapnuto použije libovolný druhý displej. Vypnuto ponechá spouštěč na jedné obrazovce.</string>
+    <string name="setup_dual_screen_sessions">Relace na dvou obrazovkách</string>
+    <string name="setup_dual_screen_sessions_hint">Automaticky připne nabídku ve hře na vestavěnou druhou obrazovku místo překryvného okna. Zapnuto použije libovolný druhý displej. Vypnuto ponechá nabídku na obrazovce hry; druhou obrazovku z ní můžete stejně vybrat.</string>
     <string name="setup_dual_screen_auto">Automaticky</string>
     <string name="setup_dual_screen_on">Zapnuto</string>
     <string name="setup_dual_screen_off">Vypnuto</string>
     <string name="setup_dual_screen_controls">Ovládání na spodní obrazovce ve hrách</string>
+    <string name="setup_android_text_field_keyboard">Klávesnice systému Android pro textová pole</string>
     <string name="setup_dual_screen_controls_hint">Při spuštění relace otevře touchpad a klávesnici na druhé obrazovce.</string>
     <string name="dual_typing_title">Psaní pro horní obrazovku</string>
     <string name="dual_typing_done">Hotovo</string>
@@ -1021,6 +1062,124 @@
     <string name="upd_tests">Testovací sestavy</string>
     <string name="upd_tests_hint">Vyzkoušejte opravu před jejím vydáním</string>
     <string name="upd_tests_none">Momentálně žádné</string>
+    <string name="upd_lab">Laboratorní sestavení</string>
+    <string name="lab_builds">Laboratorní sestavení</string>
+    <string name="lab_in_use">Používá se</string>
+    <string name="lab_paused_row">Pozastaveno poté, co Android znovu optimalizoval DroidDeck</string>
+    <string name="lab_not_loaded">Nenačteno: %1$s</string>
+    <string name="lab_waiting">Čeká na restart</string>
+    <string name="lab_kept">Ponecháno</string>
+    <string name="lab_other_install">Pro jinou verzi</string>
+    <string name="lab_rebuild">Znovu sestavit</string>
+    <string name="lab_delete_warning">Smaže toto sestavení ze zařízení</string>
+    <string name="lab_restart">Restartovat na něm</string>
+    <string name="lab_turn_off">Vypnout</string>
+    <string name="lab_use">Použít</string>
+    <string name="lab_delete">Smazat</string>
+    <string name="lab_delete_confirm">Smazat nyní</string>
+    <string name="lab_restart_failed">Restart se nepodařilo připravit: %1$s. V Nastavení spárujte bezdrátové ladění a zkuste to znovu.</string>
+    <string name="lab_installed_title">Laboratorní sestavení nainstalováno</string>
+    <string name="lab_installed_text">DroidDeck se restartoval na %1$s</string>
+    <string name="lab_paused_title">Laboratorní sestavení pozastaveno</string>
+    <string name="lab_paused_text">Android znovu optimalizoval aplikaci DroidDeck, takže %1$s není načteno. Otevřete Aktualizace a znovu na něm spusťte DroidDeck.</string>
+    <string name="lab_off_title">Laboratorní sestavení vypnuto</string>
+    <string name="lab_off_other_install">Bylo vytvořeno pro jinou verzi aplikace DroidDeck. Zůstává v Aktualizacích.</string>
+    <string name="lab_off_did_not_start">DroidDeck se na něm dvakrát nespustil.</string>
+    <string name="rail_agent">Agent</string>
+    <string name="agent_channel_name">Agent</string>
+    <string name="agent_working">Agent pracuje</string>
+    <string name="agent_missing">Chcete-li používat agenta, nainstalujte Claude Code v uživatelském prostředí Linuxu.</string>
+    <string name="agent_hint">Zeptejte se na hru, pád nebo úpravu aplikace DroidDeck</string>
+    <string name="agent_send">Odeslat</string>
+    <string name="agent_new">Nová konverzace</string>
+    <string name="agent_stop">Zastavit</string>
+    <string name="agent_storage_title">Úložiště</string>
+    <string name="agent_storage_remove">Odebrat</string>
+    <string name="agent_storage_confirm">Odebrat nyní</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">Zdrojový kód DroidDeck</string>
+    <string name="agent_storage_caches">Mezipaměť stahování</string>
+    <string name="agent_storage_source_warning">Neodeslané změny se ztratí</string>
+    <string name="agent_storage_caches_warning">Sestavení je znovu stáhnou.</string>
+    <string name="agent_storage_reinstall_warning">Úvodní nastavení ho může znovu nainstalovat; přihlášení zůstanou zachována.</string>
+    <string name="agent_resumed">DroidDeck se znovu spustil na vašem laboratorním sestavení. Pokračujte tam, kde jste skončili.</string>
+    <string name="agent_empty">Zeptejte se, proč se hra nespustí, požádejte o vysvětlení logu nebo úpravu aplikace DroidDeck a nechte změnu otestovat na tomto zařízení.</string>
+    <string name="agent_failed">Chyba: %1$s</string>
+    <string name="agent_exited">%1$s skončil (kód %2$d)</string>
+    <string name="agent_stopped">Zastaveno</string>
+    <string name="agent_no_reply">Skončilo bez odpovědi</string>
+    <string name="agent_retry">Zkusit znovu</string>
+    <string name="agent_setting_up">Nastavování agenta</string>
+    <string name="agent_rebuild_lab">Znovu sestavte mé laboratorní sestavení %1$s pro nainstalovanou verzi aplikace DroidDeck a znovu na něm spusťte DroidDeck.</string>
+    <string name="agent_tokens">%1$s na vstupu · %2$s na výstupu</string>
+    <string name="agent_thinking">Přemýšlí</string>
+    <string name="agent_thought">Myšlenka</string>
+    <string name="agent_thinking_for">Přemýšlí · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">VSTUP</string>
+    <string name="agent_tool_output">VÝSTUP</string>
+    <string name="agent_tool_running">Probíhá…</string>
+    <string name="agent_tool_no_result">Žádný výsledek: kolo skončilo dříve</string>
+    <string name="agent_tool_empty">Žádný výstup</string>
+    <string name="agent_hint_working">Psaním zařadíte další zprávu do fronty</string>
+    <string name="agent_queue">Zařadit do fronty</string>
+    <string name="agent_queued">Další: %1$s</string>
+    <string name="agent_unqueue">Neposílat</string>
+    <string name="agent_attach">Přiložit</string>
+    <string name="agent_remove_attachment">Odebrat</string>
+    <string name="agent_model_default">Výchozí</string>
+    <string name="agent_plan">Nejprve plán</string>
+    <string name="agent_plan_short">Plán</string>
+    <string name="agent_plan_hint">Navrhne plán a nic nezmění</string>
+    <string name="agent_history">Konverzace</string>
+    <string name="agent_history_empty">Zatím žádné konverzace</string>
+    <string name="agent_just_now">Právě teď</string>
+    <string name="agent_history_delete">Smazat</string>
+    <string name="agent_history_delete_warning">Smaže ji i její přílohy</string>
+    <string name="agent_processes">Procesy</string>
+    <string name="agent_processes_empty">V uživatelském prostoru Linuxu nic neběží</string>
+    <string name="agent_process_agent">AGENT</string>
+    <string name="agent_process_stop">Zastavit</string>
+    <string name="agent_lab_building">Sestavení Labu</string>
+    <string name="agent_lab_preparing">Připravují se sestavení Labu</string>
+    <string name="agent_lab_progress">%1$d%% · zbývá asi %2$s</string>
+    <string name="agent_lab_left">zbývá asi %1$s</string>
+    <string name="agent_lab_cancel">Zrušit</string>
+    <string name="agent_lab_cancel_confirm">Zrušit sestavení</string>
+    <string name="agent_lab_stage_starting">Spouští se</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">Balí se</string>
+    <string name="agent_lab_stage_restarting">Restartuje se DroidDeck na něm</string>
+    <string name="agent_lab_stage_ready">Hotovo</string>
+    <string name="agent_lab_stage_failed">Selhalo: %1$s</string>
+    <string name="agent_setup_title">Nastavit agenta</string>
+    <string name="agent_setup_runtime">Nejprve v Nastavení nainstalujte běhové prostředí Linuxu.</string>
+    <string name="agent_setup_retry">Zkusit znovu</string>
+    <string name="agent_setup_done">Začít chatovat</string>
+    <string name="agent_step_connection">Připojení zařízení</string>
+    <string name="agent_step_connection_hint">Bezdrátové ladění, aby agent viděl a ovládal DroidDeck</string>
+    <string name="agent_step_install">Nainstalovat %1$s</string>
+    <string name="agent_step_install_hint">Do linuxového uživatelského prostoru, s git, gh a adb</string>
+    <string name="agent_step_sign_in">Přihlásit se k %1$s</string>
+    <string name="agent_step_sign_in_hint">Otevře prohlížeč</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">Volitelné, pro otevírání pull requestů</string>
+    <string name="agent_step_build">Nástroje pro sestavení</string>
+    <string name="agent_step_build_hint">Volitelné, pro sestavení Lab na tomto zařízení · asi 5 GB</string>
+    <string name="agent_summary_ready">Agent je připraven</string>
+    <string name="agent_summary_not_ready">Dokončete nastavení agenta</string>
+    <string name="agent_summary_signed_in">Přihlášeno k %1$s</string>
+    <string name="agent_summary_lab">Sestavení Lab</string>
+    <string name="agent_summary_fast">rychlá sestavení</string>
+    <string name="agent_step_prepare">Rychlá sestavení Lab</string>
+    <string name="agent_step_prepare_hint">Předem zkompiluje tuto verzi, takže sestavení Lab trvají minuty · asi 20 minut jednorázově</string>
+    <string name="agent_prepare_progress">Kompiluje se · %1$d%% · zbývá asi %2$s</string>
+    <string name="agent_action_prepare">Připravit</string>
+    <string name="agent_connection_off">Bezdrátové ladění není dostupné; Spárovat ho zapne</string>
+    <string name="agent_action_pair">Spárovat</string>
+    <string name="agent_action_install">Instalovat</string>
+    <string name="agent_action_sign_in">Přihlásit se</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Pro tuto kopii DroidDecku není sestavena</string>
     <string name="upd_updated">Aktualizováno %1$s</string>
@@ -1289,6 +1448,15 @@
     <string name="proton_cancel_queued">Zrušit čekající</string>
     <string name="pckb_android">Klávesnice Androidu</string>
     <string name="pckb_hide">Skrýt ✕</string>
+    <string name="pckb_size">Velikost na obrazovce</string>
+    <string name="pckb_size_hint">Podíl obrazovky, který klávesnice zabírá, včetně záhlaví.</string>
+    <string name="pckb_opacity">Neprůhlednost</string>
+    <string name="pckb_opacity_hint">Snižte ji, abyste viděli hru za klávesnicí.</string>
+    <string name="pckb_hidden_keys">Skryté klávesy</string>
+    <string name="pckb_hidden_keys_hint">Klávesy, které používáte zřídka, se na klávesnici nezobrazují.</string>
+    <string name="pckb_group_function">Esc a řada funkčních kláves</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">Klávesy se šipkami</string>
     <string name="main_launch_named">Spustit %1$s</string>
     <string name="main_choose_screen">Vyberte obrazovku. Druhá: %1$s.</string>
     <string name="main_secondary_gone">Druhá obrazovka už není dostupná.</string>
@@ -1344,7 +1512,6 @@
     <string name="game_file_folder">Vybrat složku pro soubory her frontendu</string>
     <string name="game_file_exported">Soubory hry uloženy do %1$s</string>
     <string name="game_frontend_files">Soubory frontendu</string>
-
     <string name="main_wait_runtime">Počkejte, až skončí operace s runtime</string>
     <string name="main_wait_proton_install">Počkejte, až skončí instalace nástroje kompatibility</string>
     <string name="load_compat_title">Příprava nástrojů kompatibility</string>
@@ -1440,7 +1607,6 @@
     <string name="main_removing_runtime">Odstraňování runtime Linuxu</string>
     <string name="main_settings_main_screen">Nepodařilo se otevřít Nastavení na spodní obrazovce; otevřelo se na hlavní obrazovce.</string>
     <string name="main_open_dev_options">Otevřít Možnosti pro vývojáře v Nastavení</string>
-
     <string name="upd_unknown_apps_failed">Nepodařilo se otevřít nastavení Androidu „Instalace neznámých aplikací“</string>
     <string name="upd_couldnt_check">Nepodařilo se zkontrolovat: %1$s</string>
     <string name="upd_no_download">Toto sestavení nemá stažení pro tuto kopii DroidDecku</string>
@@ -1450,12 +1616,10 @@
     <string name="upd_stage_confirm">Čeká na vaše potvrzení</string>
     <string name="upd_failed">Aktualizace se nezdařila</string>
     <string name="upd_not_offered">Android nenabídl instalaci aktualizace</string>
-
     <string name="decky_install_failed">Instalace Decky se nezdařila: %1$s</string>
     <string name="decky_plugin_starting">Spouštění importu pluginu…</string>
     <string name="decky_plugin_failed">Import pluginu se nezdařil: %1$s</string>
     <string name="decky_plugin_installed">Plugin nainstalován. Restartujte Steam, aby se načetl.</string>
-
     <string name="drivers_not_checked">Zatím nezkontrolováno - klepnutím na obnovit vyhledáte nové ovladače</string>
     <string name="drivers_bundle_sets_display">Android + Linux: zároveň nastaví ovladač zobrazení</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: zároveň nastaví ovladač runtime</string>
@@ -1514,7 +1678,6 @@
     <string name="drivers_check_failed">kontrola se nezdařila</string>
     <string name="drivers_installed_pick_either">Nainstalováno %1$s - vyberte ho v kterémkoli seznamu pro nastavení obou ovladačů</string>
     <string name="drivers_installed_pick">Nainstalováno %1$s - vyberte ho v nabídce</string>
-
     <string name="session_wait_removal">Počkejte, až skončí odstranění runtime</string>
     <string name="session_title_game">Hra</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1564,7 +1727,6 @@
         <item quantity="many">V logu je %1$d chyb „Function not implemented“: akcelerace seccomp v proot zde selhává u pomocné funkce na tomto zařízení. Zkuste %2$s → „%3$s“ (nebo „%4$s“) a spusťte to znovu.</item>
         <item quantity="other">V logu je %1$d chyb „Function not implemented“: akcelerace seccomp v proot zde selhává u pomocné funkce na tomto zařízení. Zkuste %2$s → „%3$s“ (nebo „%4$s“) a spusťte to znovu.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Pluginy</string>
     <string name="mode_decky_plugins_hint">Nainstalujte ZIP s pluginem pro další relaci Steamu.</string>
     <string name="mode_decky_plugin_downloading">Stahování…</string>
@@ -1824,7 +1986,24 @@
     <string name="second_mode_terminal">Terminál</string>
     <string name="second_mode_deck_controls">Rukojeti + trackpady Deck</string>
     <string name="second_mode_dashboard">Přehled</string>
+    <string name="second_mode_desktop">Plocha</string>
+    <string name="bottom_desktop_start">Spustit plochu</string>
+    <string name="bottom_desktop_title">Plocha · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">Touchpad</string>
+    <string name="bottom_desktop_mode_touch">Přímý dotyk</string>
+    <string name="bottom_desktop_trackpad">Touchpad. Klepnutím přepnete na přímý dotyk</string>
+    <string name="bottom_desktop_direct_touch">Přímý dotyk. Klepnutím přepnete na touchpad</string>
+    <string name="bottom_desktop_starting">Spouští se plocha KDE…</string>
+    <string name="bottom_desktop_ended">Plocha se zavřela.</string>
+    <string name="bottom_desktop_failed">Plochu se nepodařilo spustit. Její protokoly jsou ve složce bottom-desktop této relace.</string>
+    <string name="bottom_desktop_off">Plocha je zavřená.</string>
     <string name="bottom_dashboard_empty">Zatím tu není nic k zobrazení.</string>
+    <string name="swap_screens">Prohodit obrazovky</string>
+    <string name="swap_screens_unavailable">Spodní obrazovka teď není volná</string>
+    <string name="swap_game_screen_group">Herní obrazovka</string>
+    <string name="swap_game_screen">Zobrazit hru na</string>
+    <string name="swap_game_screen_top">Horní obrazovka</string>
+    <string name="swap_game_screen_bottom">Spodní obrazovka</string>
     <string name="bottom_page_downloads">Stahování</string>
     <string name="bottom_downloads_none">Neprobíhá žádné stahování.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1859,6 +2038,20 @@
     <string name="stats_fuel_t">Palivo, t</string>
     <string name="stats_fuel_main">Hlavní %1$s t</string>
     <string name="stats_fuel_reserve">Rezerva %1$s t</string>
+    <string name="stats_hud_frametime">Doba snímku</string>
+    <string name="stats_hud_last_seconds">posledních %1$d s</string>
+    <string name="stats_hud_avg_frame">průměrný snímek</string>
+    <string name="stats_hud_low">1% nejnižší hodnota</string>
+    <string name="stats_hud_slow_frames">snímky nad 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Hrajete %1$s</string>
+    <string name="stats_hud_core_group">%1$d jader, až %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d jader</string>
+    <string name="stats_hud_game_cores">hra</string>
+    <string name="stats_hud_fps_of">FPS z %1$d Hz</string>
+    <string name="stats_hud_red_mark">Červená značka označuje místo, kde HUD zobrazuje teplotu červeně.</string>
+    <string name="stats_hud_whole_device">celé zařízení</string>
+    <string name="stats_hud_battery_temp">baterie</string>
     <string name="bottom_telemetry_send_title">Odesílat data pro palubní desku</string>
     <string name="bottom_telemetry_send_auto">Automaticky</string>
     <string name="bottom_telemetry_send_auto_hint">Zapne to pro každou zde uvedenou hru, včetně her nalezených později. Hry, které vypnete, zůstanou vypnuté.</string>
@@ -1882,6 +2075,10 @@
     <string name="bottom_chat_mic_unavailable">Mikrofon je pro tuto hru vypnutý. Chcete-li mluvit, zapněte Mikrofon v nastavení Steamu v DroidDecku (Zvuk) a spusťte hru znovu.</string>
     <string name="bottom_chat_volume">Hlasitost %1$d%%</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
+    <string name="bottom_hud_group">HUD na spodní obrazovce</string>
+    <string name="bottom_strip_tabs">Lišta na každé kartě</string>
+    <string name="bottom_strip_lows" formatted="false">1% a 0,1% nejnižší hodnoty</string>
+    <string name="bottom_strip_cpu_temp">Teplota CPU</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1899,7 +2096,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d přijímá data (%2$d paketů po %3$d bajtech), ale ve formátu, který tato stránka zatím neumí přečíst.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s již používá jiný program, takže se zde tato hra nemůže zobrazit.</string>
-
     <string name="rtinst_removing">Odstraňování runtime Linuxu</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Odstraňování runtime Linuxu · %1$d položka</item>
@@ -1916,7 +2112,6 @@
     <string name="rtinst_channel_description">Zobrazuje se při instalaci nebo odstraňování runtime Linuxu</string>
     <string name="rtinst_title_installing">Instalace runtime Linuxu</string>
     <string name="rtinst_title_removing">Odstraňování runtime Linuxu</string>
-
     <string name="deskpkg_runtime_missing">Runtime Linuxu není nainstalován</string>
     <string name="deskpkg_no_checksum">Katalog neobsahuje kontrolní součet pro %1$s</string>
     <string name="deskpkg_checksum_mismatch">Neshoda kontrolního součtu - nic se nezměnilo</string>
@@ -1924,7 +2119,6 @@
     <string name="deskpkg_place_failed">Nepodařilo se umístit AppImage</string>
     <string name="deskpkg_extract_failed">Rozbalení se nezdařilo</string>
     <string name="deskpkg_install_failed">Instalace se nezdařila</string>
-
     <string name="flatpakmgr_setup_failed">Nastavení Flatpaku se nezdařilo (návratový kód %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Nastavení Flatpaku se nedokončilo</string>
     <string name="flatpakmgr_busy">Běží jiná úloha obchodu</string>
@@ -1943,7 +2137,6 @@
     <string name="flatpakmgr_ref_media_codecs">multimediální kodeky</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
-
     <string name="appimg_too_small">Soubor je příliš malý na to, aby byl AppImage</string>
     <string name="appimg_unreadable">Soubor nelze přečíst: %1$s</string>
     <string name="appimg_not_linux">Toto není AppImage (nejde o program pro Linux)</string>
@@ -1958,7 +2151,6 @@
     <string name="appimg_extracting">Rozbalování %1$s</string>
     <string name="appimg_extract_failed">AppImage se nepodařilo rozbalit</string>
     <string name="appimg_extract_failed_detail">AppImage se nepodařilo rozbalit: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Před instalací Decky Loader zastavte aktivní relaci</string>
     <string name="deckymgr_download_failed">Stažení Decky Loader se nezdařilo</string>
     <string name="deckymgr_size_mismatch">Velikost Decky Loader neodpovídala metadatům vydání</string>
@@ -2007,13 +2199,11 @@
     <string name="deckymgr_activate_failed">Nepodařilo se aktivovat importovaný plugin</string>
     <string name="deckymgr_settings_failed">Nepodařilo se aktualizovat nastavení pluginu Decky</string>
     <string name="deckymgr_restore_failed">Nepodařilo se obnovit stávající plugin</string>
-
     <string name="adbfix_save_failed">Nepodařilo se uložit identitu bezdrátového ladění</string>
     <string name="adbfix_command_failed">Příkaz ADB se nezdařil (%1$d)</string>
     <string name="adbfix_not_confirmed">Android nepotvrdil změnu limitu procesů potomků: %1$s</string>
     <string name="adbfix_no_pairing">Není uloženo žádné párování bezdrátového ladění</string>
     <string name="adbfix_enter_address">Zadejte aktuální IP adresu a port bezdrátového ladění</string>
-
     <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z DroidDecku.</string>
     <string name="adbpair_discovery_failed_code">Nepodařilo se vyhledat vyskakovací okno pro párování (%1$d). Zkontrolujte, že je zapnutá Wi-Fi.</string>
     <string name="adbpair_discovery_failed">Nepodařilo se vyhledat vyskakovací okno pro párování: %1$s</string>
@@ -2039,7 +2229,6 @@
     <string name="adbpair_title_done">Steam je připraven</string>
     <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
-
     <string name="selfinst_download_failed">Stahování selhalo</string>
     <string name="selfinst_size_mismatch">Velikost stahování neodpovídala zveřejněnému APK a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_checksum_mismatch">Stahování neodpovídalo svému kontrolnímu součtu a bylo zahozeno - zkuste to znovu</string>
@@ -2052,12 +2241,11 @@
     <string name="selfinst_no_signing">Stažené APK nemá žádné informace o podpisu</string>
     <string name="selfinst_wrong_signer">Stažené APK není podepsáno vydávacím klíčem DroidDecku</string>
     <string name="appupd_http">Katalog aktualizací odpověděl HTTP %1$d</string>
-
     <string name="loadstate_starting">Spouštění relace…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d uplynulo · stále pracuje</string>
     <string name="loadstate_steam_update">Stahování aktualizace klienta Steam · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Instaluje se aktualizace klienta Steam…</string>
     <string name="loadstate_steam_client">Stahování klienta Steam · %1$s</string>
-
     <string name="pextra_busy">Instalace nástroje kompatibility už běží</string>
     <string name="pextra_stop_session">Před instalací nástrojů kompatibility zastavte aktivní relaci</string>
     <string name="pextra_no_release">Nepodařilo se najít vydání ARM64 pro %1$s</string>
@@ -2077,7 +2265,6 @@
     <string name="pextra_install_failed">Instalace %1$s se nezdařila (návratový kód %2$d)</string>
     <string name="pextra_could_not_install">Nepodařilo se nainstalovat %1$s</string>
     <string name="esync_fetching">Stahování balíčku droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">s pomocnými nástroji pro Linux</string>
     <string name="cmgr_fex_dlls_only">Jen DLL</string>
     <string name="cmgr_original_proton_updated">Původní (Proton byl od posledního přepnutí aktualizován)</string>
@@ -2100,13 +2287,11 @@
     <string name="cmgr_nightly_replaced">Stažení selhalo: tento noční build mohl být nahrazen novějším. Obnovte seznam a zkuste to znovu.</string>
     <string name="cmgr_list_predates_checksums">Tento seznam balíčků předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="cmgr_checksum_mismatch">Neshoda kontrolního součtu</string>
-
     <string name="sprefs_upscaler_linear">Lineární</string>
     <string name="sprefs_upscaler_nearest">Nejbližší</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kvalita)</string>
     <string name="sprefs_upscaler_sharpen">Jen zaostření</string>
     <string name="sprefs_lod_bias_auto">Automaticky (podle škálování)</string>
-
     <string name="look_off_desc">Nic není použito.</string>
     <string name="look_game_clarity">Herní jasnost</string>
     <string name="look_game_clarity_desc">Zaostření s trochou kontrastu - ten každodenní.</string>
@@ -2130,14 +2315,30 @@
     <string name="look_pixel_clean_desc">Ostré pixely pro 2D a staré hry.</string>
     <string name="look_anime_edge">Anime hrany</string>
     <string name="look_anime_edge_desc">Kreslené obrysy plus zaostření.</string>
-
     <string name="gpuinfo_not_adreno">Není GPU Adreno</string>
+    <string name="gpuinfo_powervr">Systémový ovladač PowerVR: kompatibilita se liší podle zařízení</string>
+    <string name="gpuinfo_xclipse">Experimentální: RADV nebo systémový ovladač Xclipse</string>
+    <string name="gpu_system_powervr">Systémový PowerVR</string>
+    <string name="gpu_auto_system_hint">Používá vestavěné ovladače pro tuto GPU</string>
+    <string name="drivers_powervr_builtin">Pro běhové prostředí a zobrazení je vybrán systémový ovladač PowerVR.</string>
+    <string name="drivers_mali_bridge_auto">Žádný otevřený ovladač zatím tento Mali nepokrývá: most Mali je zapnutý.</string>
+    <string name="upd_block_non_adreno_test">Tohle je testovací sestavení pro zařízení, která nemají Snapdragon: oficiální sestavení tady běží jen na Adreno, proto se přes něj neinstalují. Nová testovací sestavení jsou k dispozici na github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">Poslední relace skončila, protože Android ukončil DroidDeck, aby uvolnil paměť, nešlo o pád. Zavřete ostatní aplikace nebo snižte nastavení textur hry a zkuste to znovu.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">most Mali</string>
+    <string name="drivers_mali_no_pair_auto">Žádný otevřený ovladač zatím tento Mali nepokrývá: použije se %1$s na vlastním ovladači telefonu.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s ještě nevyšel: do té doby se používá %2$s.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s není dostupný a ovladač tohoto telefonu hlásí Vulkan %2$s (Venus potřebuje 1.2): použije se most Mali.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s ještě nevyšel: do té doby je zapnutý most Mali.</string>
+    <string name="cmgr_powervr_dxvk_queued">Ve frontě: %1$s (čeká na jiný ovladač běhového prostředí)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK dodává systémové běhové prostředí PowerVR. Ostatní balíčky DXVK lze uložit, ale s tímto ovladačem se nepoužijí.</string>
     <string name="gpuinfo_supported">Podporováno</string>
     <string name="gpuinfo_experimental">Experimentální: jeho ovladače jsou testovací sestavení</string>
     <string name="gpuinfo_a850_experimental">Experimentální podpora Adreno 850: vyžaduje kompatibilní experimentální ovladače displeje a her; na tomto zařízení neověřeno</string>
     <string name="gpuinfo_below_tested">Pod testovaným hardwarem (Adreno 725 a novější): nemusí fungovat</string>
     <string name="gpuinfo_unsupported">Nepodporováno: pro tento GPU není k dispozici kompatibilní grafický backend</string>
-
+    <string name="gpuinfo_bridge">Běží přes most Mali na vlastním ovladači Vulkan telefonu</string>
+    <string name="gpuinfo_bridge_off">S vypnutým mostem Mali není podporováno: Turnip potřebuje GPU Adreno (Snapdragon)</string>
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
     <string name="turnip_download_failed">Stahování selhalo</string>
@@ -2158,16 +2359,12 @@
     <string name="bundle_no_manifest">Není balíček ovladačů: chybí manifest.json s názvy ovladače pro Android a Linux</string>
     <string name="bundle_entry_outside">Není balíček ovladačů: %1$s odkazuje mimo něj</string>
     <string name="bundle_too_large">Není balíček ovladačů: po rozbalení přesáhne %1$d MB</string>
-
     <string name="gstore_sd_card">SD karta</string>
     <string name="gstore_folder">Složka</string>
-
     <string name="logshare_chooser">Sdílet logy relace</string>
-
     <string name="hdr_needs_android_10">vyžaduje Android 10 nebo novější (vrstvy displeje s barevným prostorem)</string>
     <string name="hdr_none">tento displej neuvádí podporu HDR</string>
     <string name="hdr_not_hdr10">tento displej podporuje %1$s, ne HDR10</string>
-
     <string name="gpu_this_gpu">toto GPU</string>
     <string name="phantom_title_on">Limit procesů potomků je zapnutý</string>
     <string name="phantom_title_unset">Limit procesů potomků není nastavený</string>
@@ -2241,7 +2438,6 @@
     <string name="device_info_copied">Zkopírováno.</string>
     <string name="force_ssbs_title">Vynutit SSBS</string>
     <string name="force_ssbs_hint">Udržuje zapnuté nastavení rychlosti CPU, které Wine stále vypíná. Může zrychlit Windows hry na Snapdragonu 8 Elite; na starších čipech je rozdíl malý. Použije se při příštím spuštění hry.</string>
-
     <string name="rail_stores">Obchody</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Vlastní</string>
@@ -2628,6 +2824,11 @@
     <string name="setup_tab_diagnostics">Vývojář</string>
     <string name="setup_build_watermark">Vodoznak s označením sestavení</string>
     <string name="setup_build_watermark_hint">Zobrazit na obrazovce označení testovacího sestavení nebo sestavení Lab. Ve výchozím nastavení zapnuté.</string>
+    <string name="diagnostics_share_title">Sdílet diagnostické balíčky</string>
+    <string name="diagnostics_share_session">Relace a zařízení</string>
+    <string name="diagnostics_share_graphics">Grafika</string>
+    <string name="diagnostics_share_games">Hry a kompatibilita</string>
+    <string name="diagnostics_share_all">Všechny balíčky</string>
     <string name="setup_ready">Připraveno ke hraní</string>
     <string name="setup_not_ready">Ještě není připraveno ke hraní</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
@@ -2666,6 +2867,9 @@
     <string name="gog_achievements_enable_store">Zapněte achievementy GOG v nastavení obchodů</string>
     <string name="gog_achievements_unavailable">Achievementy nejsou k dispozici; zkontrolujte protokoly relace</string>
     <string name="achievement_unlocked">Achievement odemčen</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): vypnuto</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): zapnuto</string>
+    <string name="setup_gpu_venus_host_too_old">Ovladač na %1$s hlásí Vulkan %2$s. Mali (Venus) potřebuje Vulkan 1.2 nebo novější (na starších se gamescope nespustí), proto relace Venus přeskočí a použijí dvojici ovladačů PanVK.</string>
     <string name="touch_paste">Vložit</string>
     <string name="touch_left_stick">Levá páčka</string>
     <string name="touch_right_stick">Pravá páčka</string>
@@ -2718,7 +2922,6 @@
     <string name="touch_icon_color">Barva ikony</string>
     <string name="touch_button_color">Barva tlačítka</string>
     <string name="touch_no_icon">Bez ikony</string>
-
     <string name="stores_sync_sign_in">Ověřování přihlášení…</string>
     <string name="stores_sync_library">Načítání vaší knihovny…</string>
     <string name="stores_sync_game_list">Načítání seznamu her…</string>
@@ -3025,6 +3228,7 @@
     <string name="storage_tool_redist">Instalace VC++ a DirectX, které hry potřebují</string>
     <string name="storage_tool_fex">Spouští hry pro Linux x86</string>
     <string name="storage_tool_steam">Nástroj Steamu</string>
+    <string name="storage_tool_anticheat">Steam to stahuje pro hry s anti-cheatem, i když je vypnutý. Když ho odeberete, jejich instalace uvízne na 0 %</string>
     <string name="storage_tool_old_runtime">DroidDeck spouští hry bez tohoto prostředí</string>
     <string name="storage_tool_x86_proton">Proton x86, který DroidDeck nedokáže spustit</string>
     <string name="storage_tool_custom_default">Výchozí pro všechny hry</string>
@@ -3614,6 +3818,7 @@
     <string name="integration_shortcuts_service_description">Ponechá Alt+Tab, klávesu Win a tlačítko Domů v aktivní relaci DroidDeck místo Androidu.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="setup_gpu_bridge_off">Most Mali: vypnuto</string>
+    <string name="setup_gpu_bridge_unusable">%1$s nemůže použít most Mali (potřebuje GPU Mali bez trasy přes systémový ovladač), takže tento přepínač tady nemá žádný účinek.</string>
     <string name="setup_gpu_bridge_on">Most Mali: zapnuto</string>
     <string name="setup_gpu_bridge_detail">%1$s není Adreno. Experimentální most Vulkan je zapnutý: relace vykresluje přes vlastní ovladač telefonu. Počítejte s chybami; pošlete protokoly relace.</string>
     <string name="setup_bridge_safe">Bezpečný režim</string>
@@ -3773,9 +3978,8 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
-
     <string name="theme_white_red">Šarlatový sníh</string>
-    
+    <string name="theme_white_red_detail">Bílé povrchy s červenými akcenty.</string>
     <string name="rail_soundtracks">Soundtracky</string>
     <string name="rail_music">Hudba</string>
     <string name="soundtracks_options">Možnosti přehrávání</string>
@@ -3838,4 +4042,6 @@
     <string name="soundtracks_repeat_one">Opakovat jednu</string>
     <string name="soundtracks_volume">Hlasitost</string>
     <string name="soundtracks_no_tracks">V tomto soundtracku nejsou žádné zvukové soubory</string>
+    <string name="setup_stores">Obchody</string>
+    <string name="setup_agent_tab">Karta Agent</string>
 </resources>

@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">جارٍ إعادة ضبط الرسومات وإعادة فتح SteamVR…</string>
     <string name="steamvr_recovery_failed">تعذّر على DroidDeck إعادة التشغيل تلقائيًا. أغلق التطبيق تمامًا، ثم أعد فتحه.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>يُنزَّل Steam عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
-        <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف Steam مؤقتًا، ويُستأنف من حيث توقف عند عودتك.</item>
-        <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>يُعَدّ سطح المكتب عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
-        <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف الجلسة مؤقتًا، وتُستأنف من حيث توقفت عند عودتك.</item>
-        <item>يعمل اللمس كلوحة لمس: اسحب لتحريك المؤشر، وانقر لتنفيذ نقرة.</item>
-        <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
-    </string-array>
     <string name="session_channel">الجلسة</string>
     <string name="session_channel_description">يظهر أثناء فتح جلسة Steam أو جلسة سطح المكتب</string>
     <string name="session_notification">Steam قيد التشغيل</string>
@@ -185,6 +174,7 @@
     <string name="session_powervr_missing">تعذّر تنزيل بيئة رسومات PowerVR. تحقق من الاتصال وحاول مرة أخرى.</string>
     <string name="session_directaudio_missing">تعذّر تنزيل DirectAudio، لذا يستخدم صوت الألعاب المسار الأبطأ في هذه الجلسة.</string>
     <string name="session_end_program">هذا البرنامج</string>
+    <string name="session_end_present_fault">لم تتمكن الجلسة من الرسم على الشاشة: %1$s. تعرض هذه الشاشة السبب بدلًا من شاشة سوداء؛ والتفاصيل في سجلات الجلسة.</string>
     <string name="session_end_steam_download">تعذّر تنزيل عميل Steam. قد تكون شبكتك أو VPN تحظر خوادم Steam؛ تحقّق من الاتصال وحاول مرة أخرى.</string>
     <string name="session_end_steam_setup">تعذّر إعداد عميل Steam. تحقّق من الاتصال والمساحة الفارغة، ثم حاول مرة أخرى.</string>
     <string name="session_end_fex_missing">%1$s مبني لأجهزة كمبيوتر x86 ويعمل عبر FEX، الذي لم يتم تثبيته بعد. شغّل Steam مرة واحدة أثناء تسجيل الدخول ودعه يُنزّل FEX وSteam Linux Runtime، ثم شغّل هذا البرنامج مجددًا.</string>
@@ -391,6 +381,9 @@
     <string name="wincomp_unsupported">غير مدعوم هنا بعد</string>
     <string name="wincomp_loading">جارٍ تحميل المكوّنات…</string>
     <string name="wincomp_failed">تعذّر التثبيت: %1$s</string>
+    <string name="wincomp_repair_required">هذا التنزيل بحاجة إلى تحديث.</string>
+    <string name="wincomp_repair_queued">التحديث في قائمة الانتظار.</string>
+    <string name="wincomp_retry">إعادة محاولة التحديث</string>
     <string name="wincomp_downloaded">تم التنزيل</string>
     <string name="wincomp_downloading">جارٍ تنزيل %1$s</string>
     <string name="wincomp_installing">جارٍ التثبيت: %1$s</string>
@@ -421,6 +414,22 @@
     <string name="mode_storage_internal">مساحة التخزين الداخلية فقط</string>
     <string name="mode_storage_folder">المجلد: %1$s</string>
     <string name="mode_second_library">مكتبة ثانية</string>
+    <string name="libraries_title">مكتبات Steam إضافية</string>
+    <string name="libraries_hint">مجلدات يستطيع Steam تثبيت الألعاب فيها وتشغيلها منها، لكل منها اسمه. إزالة أحدها تبقي ألعابه على القرص.</string>
+    <string name="libraries_add">إضافة مكتبة</string>
+    <string name="libraries_rename">إعادة التسمية</string>
+    <string name="libraries_rename_title">اسم المكتبة</string>
+    <string name="libraries_pick">اختر مجلدًا للمكتبة</string>
+    <string name="libraries_full">الحد الأقصى للمكتبات المضافة: %1$d</string>
+    <string name="libraries_overlap">هذا المجلد مكتبة بالفعل أو داخل مكتبة أخرى</string>
+    <string name="libraries_missing">%1$s · غير متاح</string>
+    <string name="libraries_applies_next">يسري بدءًا من جلسة Steam التالية</string>
+    <string name="libraries_found_hint">تم العثور عليها على هذا الجهاز · %1$s · %2$s</string>
+    <string name="libraries_add_found">إضافة</string>
+    <string name="libraries_access_title">العثور على مكتبات في التخزين الداخلي</string>
+    <string name="libraries_access_hint">اسمح بالوصول إلى جميع الملفات ليتمكن DroidDeck من رؤية مكتبات Steam التي تحتفظ بها تطبيقات أخرى على التخزين الداخلي</string>
+    <string name="libraries_access_allow">السماح</string>
+    <string name="libraries_used_inner">تمت إضافة %1$s، مكتبة Steam الموجودة داخل المجلد الذي اخترته</string>
     <string name="mode_storage_note">قد تتقطع الألعاب التي تحمّل ملفاتها باستمرار من بطاقة SD أو من مساحة التخزين المشتركة.</string>
     <string name="mode_storage_diagnostics">تشخيص التخزين</string>
     <string name="mode_storage_diagnostics_hint">يسجّل نتائج تخصيص المساحة وعينات من توقيتات التخزين في «مشاركة السجلات». قد يبطئ عمليات التثبيت أثناء تفعيله. يُطبَّق في الجلسة التالية.</string>
@@ -613,7 +622,10 @@
     <string name="perf_xalia_hint">يعطّل مساعد التنقّل بوحدة التحكم في Proton، الذي يستهلك CPU في كل لعبة.</string>
     <string name="perf_seccomp">تشغيل proot بلا seccomp</string>
     <string name="perf_seccomp_hint">قد يُصلح أخطاء استدعاءات النظام (syscall) الناقصة على بعض الأنوية. قد يقلّل الأداء.</string>
+    <string name="perf_native_userland">التشغيل دون proot (تجريبي)</string>
+    <string name="perf_native_userland_hint">يبدأ تشغيل جانب Linux مباشرة على Android. يسري على الجلسة التالية. أوقفه إذا تعذر تشغيل أي شيء.</string>
     <string name="perf_fastpath">مسار proot السريع</string>
+    <string name="perf_fastpath_needs_proot">لا يُستخدم دون proot.</string>
     <string name="perf_fastpath_needs_seccomp">يحتاج إلى مرشّح seccomp في proot.</string>
     <string name="perf_fastpath_hint">عمليات بحث أسرع عن الملفات وتقطّع أقل. أوقفه إذا تعذّر على برنامج العثور على ملفاته.</string>
     <string name="perf_cursor_composite">رسم المؤشر داخل gamescope</string>
@@ -827,6 +839,7 @@
     <string name="setup_gpu_supported">الجهاز مدعوم</string>
     <string name="setup_gpu_untested">GPU غير مُختبَر</string>
     <string name="setup_gpu_unsupported">GPU غير مدعوم</string>
+    <string name="setup_gpu_bridged">GPU عبر جسر Mali</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">لا تتوفر واجهة رسومات متوافقة مع %1$s. قد يعرض Steam شاشة سوداء.</string>
@@ -856,15 +869,38 @@
     <string name="setup_session">الجلسة</string>
     <string name="setup_logs">سجلات الجلسة</string>
     <string name="setup_logs_hint">تُحفَظ بعد كل جلسة</string>
+    <string name="setup_enhanced_diagnostics">تشخيصات موسعة للجلسة التالية</string>
+    <string name="setup_enhanced_diagnostics_hint">يجمع سجلات مفصلة لجلسة واحدة. قد يقلل الأداء ويستهلك مساحة تخزين أكبر. يوقف نفسه عند بدء الجلسة؛ راجع السجلات قبل مشاركتها.</string>
     <string name="setup_game_debug_logs">سجلات تصحيح الألعاب</string>
     <string name="setup_game_debug_logs_hint">تضمين بيانات تشخيص Proton وWine والرسومات عند تشغيل اللعبة التالية. قد يقلّل الأداء ويستهلك مساحة تخزين أكبر.</string>
     <string name="setup_game_debug_logs_restart">أعِد تشغيل هذه الجلسة لحفظ سجلات تصحيح الألعاب</string>
     <string name="setup_logging_update_failed">تعذّر تحديث التسجيل. تحقّق من المفتاح وحاول مرة أخرى.</string>
     <string name="setup_agent_commands">أدوات تصحيح الأخطاء</string>
+    <string name="setup_graphics_logs">سجلات رسوميات مفصلة</string>
+    <string name="setup_steam_gpu_drawing">واجهة Steam: الرسم عبر GPU</string>
+    <string name="setup_steam_gpu_drawing_hint">مع زوج مشغّلات Xclipse، ترسم Steam صفحاتها برمجيًا (أظهر الرسم عبر GPU مربعات مشوهة). شغّله للحصول على واجهة Steam أسرع إذا بدت الصورة سليمة على هذا الهاتف.</string>
+    <string name="drivers_built_on">بُني في %1$s</string>
+    <string name="drivers_pair_updated">تم تحديث %1$s إلى أحدث إصدار</string>
+    <string name="setup_gpu_bridge_fell_back">فشل جسر Mali في اختباره الذاتي على %1$s خلال الجلسة الأخيرة (الصور أو عمليات الرسم)، لذا استخدمت الجلسة زوج برامج التشغيل PanVK بدلًا من ذلك.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">لم يجد جسر Mali أي طريقة لمشاركة الذاكرة مع برنامج التشغيل على %1$s خلال الجلسة الأخيرة، لذا استخدمت الجلسة زوج برامج التشغيل PanVK بدلًا من ذلك. لا يمكن للجسر العمل على هذا الهاتف؛ وإيقافه يُبقي زوج PanVK.</string>
+    <string name="setup_graphics_logs_hint">تُضاف سجلات Proton وDXVK وبرامج التشغيل لكل لعبة إلى سجلات الجلسة. تكون مفعّلة دائمًا عندما لا يكون معالج الرسوميات Adreno.</string>
     <string name="setup_latest_logs">أحدث سجلات الجلسة</string>
     <string name="setup_saved_logs">سجلات الجلسة المحفوظة</string>
     <string name="setup_saved_logs_hint">يحتفظ بأحدث %1$d</string>
     <string name="setup_clear_logs">مسح السجلات</string>
+    <string name="setup_log_sessions">سجلات الجلسات المتاحة</string>
+    <string name="setup_log_empty">لا توجد سجلات جلسات محفوظة بعد.</string>
+    <string name="setup_log_export_hint">تتضمن ملفات ZIP المشتركة والمحفوظة الجلسة المحددة، إضافةً إلى بيانات التشخيص ذات الصلة بـ Steam والمتجر والأدوات وBattle.net.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">الجلسة الحالية</string>
+    <string name="setup_log_share">مشاركة</string>
+    <string name="setup_log_save">الحفظ على الجهاز</string>
+    <string name="setup_log_delete">حذف</string>
+    <string name="setup_log_delete_title">حذف سجلات الجلسة؟</string>
+    <string name="setup_log_delete_message">حذف %1$s؟ لا يمكن التراجع عن هذا.</string>
+    <string name="setup_log_export_saved">تم حفظ سجلات الجلسة.</string>
+    <string name="setup_log_export_failed">تعذّر حفظ سجلات الجلسة.</string>
+    <string name="setup_log_delete_failed">تعذّر حذف سجلات الجلسة.</string>
     <string name="setup_reset_settings">إعادة تعيين كل الإعدادات</string>
     <string name="setup_reset_settings_hint">إرجاع كل إعداد إلى قيمته الافتراضية</string>
     <string name="setup_reset_settings_button">إعادة تعيين</string>
@@ -904,10 +940,15 @@
     <string name="setup_fullscreen">ملء الشاشة</string>
     <string name="setup_fullscreen_on">يخفي شريطي الحالة والتنقّل في Android</string>
     <string name="setup_fullscreen_off">يعرض شريطي الحالة والتنقّل في Android</string>
+    <string name="setup_dual_screen_launcher">المشغّل على شاشتين</string>
+    <string name="setup_dual_screen_launcher_hint">يضع الوضع «تلقائي» أقسام المشغّل (Steam والمكتبة والمتاجر وغيرها) على الشاشة الثانية في الأجهزة المحمولة المزوّدة بشاشة ثانية مدمجة. ويستخدم الوضع «تشغيل» أي شاشة ثانية. أما الوضع «إيقاف» فيُبقي المشغّل على شاشة واحدة.</string>
+    <string name="setup_dual_screen_sessions">الجلسات على شاشتين</string>
+    <string name="setup_dual_screen_sessions_hint">يثبّت الوضع «تلقائي» قائمة داخل اللعبة على الشاشة الثانية المدمجة بدلًا من النافذة المنبثقة. ويستخدم الوضع «تشغيل» أي شاشة ثانية. أما الوضع «إيقاف» فيُبقي القائمة على شاشة اللعبة، ويمكنك مع ذلك اختيار شاشة ثانية منها.</string>
     <string name="setup_dual_screen_auto">تلقائي</string>
     <string name="setup_dual_screen_on">تشغيل</string>
     <string name="setup_dual_screen_off">إيقاف</string>
     <string name="setup_dual_screen_controls">عناصر تحكم الشاشة السفلية في الألعاب</string>
+    <string name="setup_android_text_field_keyboard">لوحة مفاتيح Android لحقول النص</string>
     <string name="setup_dual_screen_controls_hint">يفتح لوحة اللمس ولوحة المفاتيح على الشاشة الثانية عند بدء الجلسة.</string>
     <string name="dual_typing_title">الكتابة على الشاشة العلوية</string>
     <string name="dual_typing_done">تم</string>
@@ -1027,6 +1068,124 @@
     <string name="upd_tests">إصدارات الاختبار</string>
     <string name="upd_tests_hint">جرّب إصلاحًا قبل إصداره رسميًا</string>
     <string name="upd_tests_none">لا شيء حاليًا</string>
+    <string name="upd_lab">إصدار المختبر</string>
+    <string name="lab_builds">إصدارات المختبر</string>
+    <string name="lab_in_use">قيد الاستخدام</string>
+    <string name="lab_paused_row">متوقف مؤقتًا بعد أن أعاد Android تحسين DroidDeck</string>
+    <string name="lab_not_loaded">غير مُحمّل: %1$s</string>
+    <string name="lab_waiting">بانتظار إعادة التشغيل</string>
+    <string name="lab_kept">تم الاحتفاظ بها</string>
+    <string name="lab_other_install">لإصدار آخر</string>
+    <string name="lab_rebuild">إعادة البناء</string>
+    <string name="lab_delete_warning">يحذف هذا الإصدار من الجهاز</string>
+    <string name="lab_restart">إعادة التشغيل به</string>
+    <string name="lab_turn_off">إيقاف</string>
+    <string name="lab_use">استخدام</string>
+    <string name="lab_delete">حذف</string>
+    <string name="lab_delete_confirm">حذف الآن</string>
+    <string name="lab_restart_failed">تعذّر تجهيز إعادة التشغيل: %1$s. قم بإقران تصحيح الأخطاء اللاسلكي في الإعداد، ثم حاول مجددًا.</string>
+    <string name="lab_installed_title">تم تثبيت إصدار المختبر</string>
+    <string name="lab_installed_text">أُعيد تشغيل DroidDeck على %1$s</string>
+    <string name="lab_paused_title">نسخة المختبر متوقفة مؤقتًا</string>
+    <string name="lab_paused_text">أعاد Android تحسين DroidDeck، لذا لم يتم تحميل %1$s. افتح التحديثات لإعادة التشغيل عليها.</string>
+    <string name="lab_off_title">تم إيقاف نسخة المختبر</string>
+    <string name="lab_off_other_install">بُنيت لإصدار آخر من DroidDeck. وهي محفوظة في التحديثات.</string>
+    <string name="lab_off_did_not_start">لم يبدأ DroidDeck عليها مرتين</string>
+    <string name="rail_agent">الوكيل</string>
+    <string name="agent_channel_name">الوكيل</string>
+    <string name="agent_working">الوكيل يعمل</string>
+    <string name="agent_missing">ثبّت Claude Code في بيئة مستخدم Linux لاستخدام الوكيل.</string>
+    <string name="agent_hint">اسأل عن لعبة، أو تعطّل، أو تغيير في DroidDeck</string>
+    <string name="agent_send">إرسال</string>
+    <string name="agent_new">محادثة جديدة</string>
+    <string name="agent_stop">إيقاف</string>
+    <string name="agent_storage_title">التخزين</string>
+    <string name="agent_storage_remove">إزالة</string>
+    <string name="agent_storage_confirm">إزالة الآن</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">الكود المصدري لـ DroidDeck</string>
+    <string name="agent_storage_caches">ذاكرات التنزيل المؤقتة</string>
+    <string name="agent_storage_source_warning">التغييرات التي لم تُرفع تُفقد</string>
+    <string name="agent_storage_caches_warning">تنزّلها عمليات البناء من جديد</string>
+    <string name="agent_storage_reinstall_warning">يمكن للإعداد تثبيتها مجددًا؛ تسجيلات الدخول محفوظة</string>
+    <string name="agent_resumed">عاد DroidDeck للعمل على نسخة المختبر. تابع من حيث توقفت.</string>
+    <string name="agent_empty">اسأله لماذا لا تبدأ لعبة، أو اطلب شرح سجل، أو غيّر DroidDeck وجرّب التغيير على هذا الجهاز.</string>
+    <string name="agent_failed">فشل: %1$s</string>
+    <string name="agent_exited">%1$s انتهى (رمز الخروج %2$d)</string>
+    <string name="agent_stopped">تم الإيقاف</string>
+    <string name="agent_no_reply">انتهى دون رد</string>
+    <string name="agent_retry">إعادة المحاولة</string>
+    <string name="agent_setting_up">جارٍ إعداد الوكيل</string>
+    <string name="agent_rebuild_lab">أعد بناء نسخة المختبر %1$s لإصدار DroidDeck المثبّت وأعد التشغيل عليها.</string>
+    <string name="agent_tokens">%1$s مدخلات · %2$s مخرجات</string>
+    <string name="agent_thinking">يفكّر</string>
+    <string name="agent_thought">فكّر</string>
+    <string name="agent_thinking_for">يفكّر · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">الإدخال</string>
+    <string name="agent_tool_output">الإخراج</string>
+    <string name="agent_tool_running">قيد التشغيل…</string>
+    <string name="agent_tool_no_result">لا توجد نتيجة: انتهت الجولة أولًا</string>
+    <string name="agent_tool_empty">لا مخرجات</string>
+    <string name="agent_hint_working">اكتب لإضافة الرسالة التالية إلى الانتظار</string>
+    <string name="agent_queue">إضافة إلى الانتظار</string>
+    <string name="agent_queued">التالي: %1$s</string>
+    <string name="agent_unqueue">لا تُرسل</string>
+    <string name="agent_attach">إرفاق</string>
+    <string name="agent_remove_attachment">إزالة</string>
+    <string name="agent_model_default">الافتراضي</string>
+    <string name="agent_plan">خطّط أولًا</string>
+    <string name="agent_plan_short">تخطيط</string>
+    <string name="agent_plan_hint">يقترح خطة دون تغيير أي شيء</string>
+    <string name="agent_history">المحادثات</string>
+    <string name="agent_history_empty">لا توجد محادثات بعد</string>
+    <string name="agent_just_now">الآن</string>
+    <string name="agent_history_delete">حذف</string>
+    <string name="agent_history_delete_warning">يحذفها ومرفقاتها</string>
+    <string name="agent_processes">العمليات</string>
+    <string name="agent_processes_empty">لا شيء يعمل في بيئة مستخدم Linux</string>
+    <string name="agent_process_agent">الوكيل</string>
+    <string name="agent_process_stop">إيقاف</string>
+    <string name="agent_lab_building">بناء المختبر</string>
+    <string name="agent_lab_preparing">جارٍ تجهيز إصدارات المختبر</string>
+    <string name="agent_lab_progress">%1$d%% · حوالي %2$s متبقٍ</string>
+    <string name="agent_lab_left">حوالي %1$s متبقٍ</string>
+    <string name="agent_lab_cancel">إلغاء</string>
+    <string name="agent_lab_cancel_confirm">إلغاء البناء</string>
+    <string name="agent_lab_stage_starting">جارٍ البدء</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">جارٍ التغليف</string>
+    <string name="agent_lab_stage_restarting">جارٍ إعادة تشغيل DroidDeck عليه</string>
+    <string name="agent_lab_stage_ready">تم</string>
+    <string name="agent_lab_stage_failed">فشل: %1$s</string>
+    <string name="agent_setup_title">إعداد الوكيل</string>
+    <string name="agent_setup_runtime">ثبّت وقت تشغيل Linux في الإعداد أولًا.</string>
+    <string name="agent_setup_retry">إعادة المحاولة</string>
+    <string name="agent_setup_done">ابدأ المحادثة</string>
+    <string name="agent_step_connection">اتصال الجهاز</string>
+    <string name="agent_step_connection_hint">التصحيح اللاسلكي، ليتمكّن الوكيل من رؤية DroidDeck والتحكم به</string>
+    <string name="agent_step_install">ثبّت %1$s</string>
+    <string name="agent_step_install_hint">داخل مساحة مستخدم Linux، مع git وgh وadb</string>
+    <string name="agent_step_sign_in">تسجيل الدخول إلى %1$s</string>
+    <string name="agent_step_sign_in_hint">يفتح متصفحك</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">اختياري، لفتح طلبات السحب</string>
+    <string name="agent_step_build">أدوات البناء</string>
+    <string name="agent_step_build_hint">اختياري، لبناءات Lab على هذا الجهاز · حوالي 5 GB</string>
+    <string name="agent_summary_ready">الوكيل جاهز</string>
+    <string name="agent_summary_not_ready">أكمل إعداد الوكيل</string>
+    <string name="agent_summary_signed_in">تم تسجيل الدخول إلى %1$s</string>
+    <string name="agent_summary_lab">بناءات Lab</string>
+    <string name="agent_summary_fast">بناءات سريعة</string>
+    <string name="agent_step_prepare">بناءات Lab سريعة</string>
+    <string name="agent_step_prepare_hint">يُجمّع هذا الإصدار مسبقًا، فتستغرق بناءات Lab دقائق · حوالي 20 دقيقة لمرة واحدة</string>
+    <string name="agent_prepare_progress">جارٍ التجميع · %1$d%% · حوالي %2$s متبقٍ</string>
+    <string name="agent_action_prepare">تحضير</string>
+    <string name="agent_connection_off">تعذّر الوصول إلى تصحيح الأخطاء اللاسلكي؛ زر الاقتران يشغّله</string>
+    <string name="agent_action_pair">اقتران</string>
+    <string name="agent_action_install">تثبيت</string>
+    <string name="agent_action_sign_in">تسجيل الدخول</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">لم يُبنَ لهذه النسخة من DroidDeck</string>
     <string name="upd_updated">تم التحديث %1$s</string>
@@ -1303,6 +1462,15 @@
     <string name="proton_cancel_queued">إلغاء الطلب المعلَّق</string>
     <string name="pckb_android">لوحة مفاتيح Android</string>
     <string name="pckb_hide">إخفاء  ✕</string>
+    <string name="pckb_size">الحجم على الشاشة</string>
+    <string name="pckb_size_hint">نسبة الشاشة التي تشغلها لوحة المفاتيح، بما في ذلك الشريط العلوي.</string>
+    <string name="pckb_opacity">العتامة</string>
+    <string name="pckb_opacity_hint">قلّلها لرؤية اللعبة خلف لوحة المفاتيح.</string>
+    <string name="pckb_hidden_keys">المفاتيح المخفية</string>
+    <string name="pckb_hidden_keys_hint">المفاتيح التي نادرًا ما تستخدمها لا تظهر على لوحة المفاتيح.</string>
+    <string name="pckb_group_function">صف Esc ومفاتيح الوظائف</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">مفاتيح الأسهم</string>
     <string name="main_launch_named">تشغيل %1$s</string>
     <string name="main_choose_screen">اختر شاشة. الشاشة الثانوية: %1$s.</string>
     <string name="main_secondary_gone">لم تعد الشاشة الثانوية متاحة.</string>
@@ -1358,7 +1526,6 @@
     <string name="game_file_folder">اختر مجلدًا لملفات الألعاب الخاصة بالواجهات الأمامية</string>
     <string name="game_file_exported">تم حفظ ملفات الألعاب في %1$s</string>
     <string name="game_frontend_files">ملفات الواجهة الأمامية</string>
-
     <string name="main_wait_runtime">انتظر حتى تنتهي عملية بيئة التشغيل</string>
     <string name="main_wait_proton_install">انتظر حتى ينتهي تثبيت أداة التوافق</string>
     <string name="load_compat_title">جارٍ تجهيز أدوات التوافق</string>
@@ -1464,7 +1631,6 @@
     <string name="main_removing_runtime">جارٍ إزالة بيئة تشغيل Linux</string>
     <string name="main_settings_main_screen">تعذّر فتح الإعدادات على الشاشة السفلية، لذا فُتحت على الشاشة الأساسية.</string>
     <string name="main_open_dev_options">افتح خيارات المطوّرين في الإعدادات</string>
-
     <string name="upd_unknown_apps_failed">تعذّر فتح إعداد «تثبيت التطبيقات غير المعروفة» في Android</string>
     <string name="upd_couldnt_check">تعذّر التحقّق: %1$s</string>
     <string name="upd_no_download">لا يتوفّر لهذا الإصدار ملف تنزيل لهذه النسخة من DroidDeck</string>
@@ -1474,12 +1640,10 @@
     <string name="upd_stage_confirm">في انتظار تأكيدك</string>
     <string name="upd_failed">فشل التحديث</string>
     <string name="upd_not_offered">لم يعرض Android تثبيت التحديث</string>
-
     <string name="decky_install_failed">فشل تثبيت Decky: %1$s</string>
     <string name="decky_plugin_starting">جارٍ بدء استيراد الإضافة…</string>
     <string name="decky_plugin_failed">فشل استيراد الإضافة: %1$s</string>
     <string name="decky_plugin_installed">تم تثبيت الإضافة. أعِد تشغيل Steam لتحميلها.</string>
-
     <string name="drivers_not_checked">لم يتم التحقّق بعد - انقر على «تحديث» للبحث عن برامج تشغيل جديدة</string>
     <string name="drivers_bundle_sets_display">Android + Linux: يضبط برنامج تشغيل العرض معه</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: يضبط برنامج تشغيل بيئة Linux معه</string>
@@ -1544,7 +1708,6 @@
     <string name="drivers_check_failed">فشل التحقّق</string>
     <string name="drivers_installed_pick_either">تم تثبيت %1$s - اختره من أيٍّ من القائمتين لضبط برنامجَي التشغيل معًا</string>
     <string name="drivers_installed_pick">تم تثبيت %1$s - اختره من القائمة</string>
-
     <string name="session_wait_removal">انتظر حتى تنتهي إزالة بيئة التشغيل</string>
     <string name="session_title_game">لعبة</string>
     <string name="session_touch_auto_touchpad">لوحة اللمس</string>
@@ -1598,7 +1761,6 @@
         <item quantity="many">يُظهر السجل %1$d خطأً من نوع «Function not implemented»: تسريع seccomp في proot يتسبّب في فشل أداة مساعدة على هذا الجهاز. جرِّب %2$s → «%3$s» (أو «%4$s») وابدأ من جديد.</item>
         <item quantity="other">يُظهر السجل %1$d خطأ من نوع «Function not implemented»: تسريع seccomp في proot يتسبّب في فشل أداة مساعدة على هذا الجهاز. جرِّب %2$s → «%3$s» (أو «%4$s») وابدأ من جديد.</item>
     </plurals>
-
     <string name="mode_decky_plugins">الإضافات</string>
     <string name="mode_decky_plugins_hint">ثبِّت ملف ZIP لإضافة في جلسة Steam التالية.</string>
     <string name="mode_decky_plugin_downloading">جارٍ التنزيل…</string>
@@ -1872,7 +2034,24 @@
     <string name="second_mode_terminal">الوحدة الطرفية</string>
     <string name="second_mode_deck_controls">مقابض Deck + لوحتا اللمس</string>
     <string name="second_mode_dashboard">لوحة المعلومات</string>
+    <string name="second_mode_desktop">سطح المكتب</string>
+    <string name="bottom_desktop_start">تشغيل سطح المكتب</string>
+    <string name="bottom_desktop_title">سطح المكتب · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">لوحة اللمس</string>
+    <string name="bottom_desktop_mode_touch">اللمس المباشر</string>
+    <string name="bottom_desktop_trackpad">لوحة اللمس. انقر للتبديل إلى اللمس المباشر</string>
+    <string name="bottom_desktop_direct_touch">اللمس المباشر. انقر للتبديل إلى لوحة اللمس</string>
+    <string name="bottom_desktop_starting">جارٍ تشغيل سطح مكتب KDE…</string>
+    <string name="bottom_desktop_ended">أُغلق سطح المكتب.</string>
+    <string name="bottom_desktop_failed">تعذّر تشغيل سطح المكتب. سجلاته في مجلد سطح المكتب السفلي لهذه الجلسة.</string>
+    <string name="bottom_desktop_off">سطح المكتب مغلق.</string>
     <string name="bottom_dashboard_empty">لا يوجد ما يُعرض هنا بعد.</string>
+    <string name="swap_screens">تبديل الشاشتين</string>
+    <string name="swap_screens_unavailable">الشاشة السفلية مشغولة حاليًا</string>
+    <string name="swap_game_screen_group">شاشة اللعبة</string>
+    <string name="swap_game_screen">عرض اللعبة على</string>
+    <string name="swap_game_screen_top">الشاشة العلوية</string>
+    <string name="swap_game_screen_bottom">الشاشة السفلية</string>
     <string name="bottom_page_downloads">التنزيلات</string>
     <string name="bottom_downloads_none">لا توجد تنزيلات جارية.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1907,6 +2086,20 @@
     <string name="stats_fuel_t">الوقود، t</string>
     <string name="stats_fuel_main">الرئيسي %1$s t</string>
     <string name="stats_fuel_reserve">الاحتياطي %1$s t</string>
+    <string name="stats_hud_frametime">زمن الإطار</string>
+    <string name="stats_hud_last_seconds">آخر %1$d ث</string>
+    <string name="stats_hud_avg_frame">متوسط زمن الإطار</string>
+    <string name="stats_hud_low">أدنى 1%</string>
+    <string name="stats_hud_slow_frames">إطارات تتجاوز 33 مللي ثانية</string>
+    <string name="stats_hud_per_minute">%1$d / دقيقة</string>
+    <string name="stats_hud_playing_for">مدة اللعب %1$s</string>
+    <string name="stats_hud_core_group">%1$d أنوية، حتى %2$s غيغاهرتز</string>
+    <string name="stats_hud_core_group_unknown">%1$d أنوية</string>
+    <string name="stats_hud_game_cores">اللعبة</string>
+    <string name="stats_hud_fps_of">إطار/ث من أصل %1$d هرتز</string>
+    <string name="stats_hud_red_mark">العلامة الحمراء هي النقطة التي تُظهر فيها المؤشرات درجة الحرارة باللون الأحمر.</string>
+    <string name="stats_hud_whole_device">الجهاز بالكامل</string>
+    <string name="stats_hud_battery_temp">البطارية</string>
     <string name="bottom_telemetry_send_title">إرسال بيانات لوحة العدادات</string>
     <string name="bottom_telemetry_send_auto">تلقائي</string>
     <string name="bottom_telemetry_send_auto_hint">يفعّلها لكل لعبة مدرجة هنا، بما في ذلك الألعاب التي يُعثر عليها لاحقًا. تبقى الألعاب التي توقفها متوقفة.</string>
@@ -1930,6 +2123,10 @@
     <string name="bottom_chat_mic_unavailable">الميكروفون متوقف لهذه اللعبة. للتحدث، فعِّل «الميكروفون» في إعدادات Steam في DroidDeck (الصوت) وابدأ اللعبة من جديد.</string>
     <string name="bottom_chat_volume">مستوى الصوت %1$d%%</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
+    <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
+    <string name="bottom_strip_tabs">شريط على كل تبويب</string>
+    <string name="bottom_strip_lows" formatted="false">أدنى 1% و0.1%</string>
+    <string name="bottom_strip_cpu_temp">درجة حرارة المعالج</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1947,7 +2144,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">يستقبل المنفذ %1$d بيانات (%2$d حزمة بحجم %3$d بايت)، لكن بتنسيق لا تستطيع هذه الصفحة قراءته بعد.</string>
     <string name="bottom_telemetry_port_busy">يستخدم برنامج آخر المنفذ %1$s بالفعل، لذا لا يمكن عرض تلك اللعبة هنا.</string>
-
     <string name="rtinst_removing">جارٍ إزالة بيئة تشغيل Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="zero">جارٍ إزالة بيئة تشغيل Linux · %1$d عنصر</item>
@@ -1966,7 +2162,6 @@
     <string name="rtinst_channel_description">يظهر أثناء تثبيت بيئة تشغيل Linux أو إزالتها</string>
     <string name="rtinst_title_installing">جارٍ تثبيت بيئة تشغيل Linux</string>
     <string name="rtinst_title_removing">جارٍ إزالة بيئة تشغيل Linux</string>
-
     <string name="deskpkg_runtime_missing">بيئة تشغيل Linux غير مثبَّتة</string>
     <string name="deskpkg_no_checksum">لا يتضمّن الكتالوج مجموعًا اختباريًا لـ %1$s</string>
     <string name="deskpkg_checksum_mismatch">المجموع الاختباري غير مطابق - لم يتم تغيير أي شيء</string>
@@ -1974,7 +2169,6 @@
     <string name="deskpkg_place_failed">تعذّر وضع ملف AppImage في مكانه</string>
     <string name="deskpkg_extract_failed">فشل الاستخراج</string>
     <string name="deskpkg_install_failed">فشل التثبيت</string>
-
     <string name="flatpakmgr_setup_failed">فشل إعداد Flatpak (رمز الخروج %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">لم يكتمل إعداد Flatpak</string>
     <string name="flatpakmgr_busy">هناك مهمة أخرى للمتجر قيد التشغيل</string>
@@ -1993,7 +2187,6 @@
     <string name="flatpakmgr_ref_media_codecs">برامج ترميز الوسائط</string>
     <string name="flatpakmgr_ref_runtime">بيئة تشغيل %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">بيئة تشغيل %1$s %2$s</string>
-
     <string name="appimg_too_small">الملف أصغر من أن يكون AppImage</string>
     <string name="appimg_unreadable">تتعذّر قراءة الملف: %1$s</string>
     <string name="appimg_not_linux">هذا ليس AppImage (ليس برنامج Linux)</string>
@@ -2008,7 +2201,6 @@
     <string name="appimg_extracting">جارٍ استخراج %1$s</string>
     <string name="appimg_extract_failed">تعذّر استخراج ملف AppImage</string>
     <string name="appimg_extract_failed_detail">تعذّر استخراج ملف AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">أوقِف الجلسة النشطة قبل تثبيت Decky Loader</string>
     <string name="deckymgr_download_failed">فشل تنزيل Decky Loader</string>
     <string name="deckymgr_size_mismatch">حجم Decky Loader غير مطابق لبيانات الإصدار الوصفية</string>
@@ -2057,13 +2249,11 @@
     <string name="deckymgr_activate_failed">تعذّر تفعيل الإضافة المستورَدة</string>
     <string name="deckymgr_settings_failed">تعذّر تحديث إعدادات إضافات Decky</string>
     <string name="deckymgr_restore_failed">تعذّر استعادة الإضافة الحالية</string>
-
     <string name="adbfix_save_failed">تعذّر حفظ هوية تصحيح الأخطاء اللاسلكي</string>
     <string name="adbfix_command_failed">فشل أمر ADB (%1$d)</string>
     <string name="adbfix_not_confirmed">لم يؤكّد Android تغيير حدّ العمليات الفرعية: %1$s</string>
     <string name="adbfix_no_pairing">لا يوجد إقران محفوظ لتصحيح الأخطاء اللاسلكي</string>
     <string name="adbfix_enter_address">أدخِل عنوان IP الحالي ورقم المنفذ لتصحيح الأخطاء اللاسلكي</string>
-
     <string name="adbpair_timed_out">انتهت مهلة انتظار النافذة المنبثقة للإقران. حاوِل مرة أخرى من DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">تعذّر البحث عن النافذة المنبثقة للإقران (%1$d). تحقَّق من تفعيل Wi-Fi.</string>
     <string name="adbpair_discovery_failed">تعذّر البحث عن النافذة المنبثقة للإقران: %1$s</string>
@@ -2089,7 +2279,6 @@
     <string name="adbpair_title_done">Steam جاهز</string>
     <string name="adbpair_done_text">اضغط للعودة إلى DroidDeck. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
     <string name="adbpair_title_failed">توقَّف إعداد تصحيح الأخطاء اللاسلكي</string>
-
     <string name="selfinst_download_failed">فشل التنزيل</string>
     <string name="selfinst_size_mismatch">حجم التنزيل غير مطابق لملف APK المنشور، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_checksum_mismatch">التنزيل غير مطابق لمجموعه الاختباري، وتم تجاهله - حاوِل مرة أخرى</string>
@@ -2102,12 +2291,11 @@
     <string name="selfinst_no_signing">ملف APK الذي تم تنزيله لا يحمل معلومات توقيع</string>
     <string name="selfinst_wrong_signer">ملف APK الذي تم تنزيله غير موقَّع بمفتاح إصدار DroidDeck</string>
     <string name="appupd_http">استجاب كتالوج التحديثات بـ HTTP %1$d</string>
-
     <string name="loadstate_starting">جارٍ بدء الجلسة…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d منقضية · لا تزال جارية</string>
     <string name="loadstate_steam_update">جارٍ تنزيل تحديث عميل Steam · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">جارٍ تطبيق تحديث عميل Steam…</string>
     <string name="loadstate_steam_client">جارٍ تنزيل عميل Steam · %1$s</string>
-
     <string name="pextra_busy">يوجد تثبيت لأداة توافق قيد التنفيذ بالفعل</string>
     <string name="pextra_stop_session">أوقِف الجلسة النشطة قبل تثبيت أدوات التوافق</string>
     <string name="pextra_no_release">تعذّر العثور على إصدار ARM64 لـ %1$s</string>
@@ -2127,7 +2315,6 @@
     <string name="pextra_install_failed">فشل تثبيت %1$s (حالة الخروج %2$d)</string>
     <string name="pextra_could_not_install">تعذّر تثبيت %1$s</string>
     <string name="esync_fetching">جارٍ جلب حزمة droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">مع أدوات Linux المساعدة</string>
     <string name="cmgr_fex_dlls_only">ملفات DLL فقط</string>
     <string name="cmgr_original_proton_updated">الأصلي (تم تحديث Proton منذ آخر تبديل)</string>
@@ -2150,13 +2337,11 @@
     <string name="cmgr_nightly_replaced">فشل التنزيل: ربما استُبدل هذا الإصدار الليلي بإصدار أحدث. حدّث القائمة وحاول مرة أخرى.</string>
     <string name="cmgr_list_predates_checksums">قائمة الحزم هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="cmgr_checksum_mismatch">عدم تطابق المجموع الاختباري</string>
-
     <string name="sprefs_upscaler_linear">خطي</string>
     <string name="sprefs_upscaler_nearest">الأقرب</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (جودة)</string>
     <string name="sprefs_upscaler_sharpen">زيادة الحدة فقط</string>
     <string name="sprefs_lod_bias_auto">تلقائي (يطابق التكبير)</string>
-
     <string name="look_off_desc">لا يُطبَّق أي شيء.</string>
     <string name="look_game_clarity">وضوح اللعبة</string>
     <string name="look_game_clarity_desc">زيادة حدّة مع لمسة من التباين - الخيار اليومي.</string>
@@ -2180,14 +2365,30 @@
     <string name="look_pixel_clean_desc">بكسلات واضحة للألعاب الثنائية الأبعاد والألعاب القديمة.</string>
     <string name="look_anime_edge">حافة الأنيمي</string>
     <string name="look_anime_edge_desc">حدود كرتونية مع زيادة الحدّة.</string>
-
     <string name="gpuinfo_not_adreno">وحدة GPU ليست من نوع Adreno</string>
+    <string name="gpuinfo_powervr">برنامج تشغيل PowerVR في النظام: يختلف التوافق باختلاف الجهاز</string>
+    <string name="gpuinfo_xclipse">تجريبي: RADV أو برنامج تشغيل Xclipse في النظام</string>
+    <string name="gpu_system_powervr">PowerVR في النظام</string>
+    <string name="gpu_auto_system_hint">يستخدم برامج التشغيل المدمجة لهذا المعالج الرسومي</string>
+    <string name="drivers_powervr_builtin">تم اختيار برنامج تشغيل PowerVR الخاص بالنظام لوقت التشغيل والعرض.</string>
+    <string name="drivers_mali_bridge_auto">لا يغطي أي برنامج تشغيل مفتوح جهاز Mali هذا بعد: جسر Mali مُفعّل.</string>
+    <string name="upd_block_non_adreno_test">هذه نسخة اختبار للأجهزة غير المزوّدة بـ Snapdragon: النسخ الرسمية هنا تعمل على Adreno فقط، لذا لا تُثبَّت فوقها. نسخ الاختبار الجديدة متاحة على github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">انتهت الجلسة الأخيرة لأن Android أغلق DroidDeck لتحرير الذاكرة، لا بسبب تعطّل. أغلق التطبيقات الأخرى أو قلّل إعدادات نسيج اللعبة، ثم حاول مجددًا.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">جسر Mali</string>
+    <string name="drivers_mali_no_pair_auto">لا يغطي أي برنامج تشغيل مفتوح جهاز Mali هذا بعد: يُستخدم %1$s على برنامج تشغيل الهاتف نفسه.</string>
+    <string name="drivers_mali_unpublished_auto">لم يُنشر %1$s بعد: يُستخدم %2$s حتى يُنشر.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s غير متاح، ويُبلّغ برنامج تشغيل هذا الهاتف عن Vulkan %2$s (يحتاج Venus إلى 1.2): يُستخدم جسر Mali.</string>
+    <string name="drivers_mali_bridge_fallback">لم يُنشر %1$s بعد: جسر Mali مُفعّل إلى أن يُنشر.</string>
+    <string name="cmgr_powervr_dxvk_queued">في قائمة الانتظار: %1$s (في انتظار برنامج تشغيل مختلف لوقت التشغيل)</string>
+    <string name="cmgr_powervr_dxvk_managed">توفّر بيئة تشغيل PowerVR الخاصة بالنظام حزمة DXVK. يمكن تخزين حزم DXVK الأخرى، لكنها لا تُطبَّق مع برنامج التشغيل هذا.</string>
     <string name="gpuinfo_supported">مدعوم</string>
     <string name="gpuinfo_experimental">تجريبي: برامج تشغيله إصدارات اختبارية</string>
     <string name="gpuinfo_a850_experimental">دعم تجريبي لـ Adreno 850: يتطلب برامج تشغيل تجريبية متوافقة للعرض والألعاب، ولم يُتحقَّق منه على هذا الجهاز</string>
     <string name="gpuinfo_below_tested">أقل من العتاد المُختبَر (Adreno 725 وأحدث): قد لا يعمل</string>
     <string name="gpuinfo_unsupported">غير مدعوم: لا تتوفر واجهة رسومات متوافقة مع وحدة معالجة الرسومات هذه</string>
-
+    <string name="gpuinfo_bridge">يعمل عبر جسر Mali، على برنامج تشغيل Vulkan الخاص بالهاتف</string>
+    <string name="gpuinfo_bridge_off">غير مدعوم عند إيقاف جسر Mali: يحتاج Turnip إلى معالج رسوميات Adreno (Snapdragon)</string>
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>
     <string name="turnip_download_failed">فشل التنزيل</string>
@@ -2208,16 +2409,12 @@
     <string name="bundle_no_manifest">ليست حزمة برامج تشغيل: لا يوجد manifest.json يذكر برنامج تشغيل لـ Android وآخر لـ Linux</string>
     <string name="bundle_entry_outside">ليست حزمة برامج تشغيل: %1$s يشير إلى خارجها</string>
     <string name="bundle_too_large">ليست حزمة برامج تشغيل: تتجاوز بعد الاستخراج %1$d MB</string>
-
     <string name="gstore_sd_card">بطاقة SD</string>
     <string name="gstore_folder">مجلد</string>
-
     <string name="logshare_chooser">مشاركة سجلات الجلسة</string>
-
     <string name="hdr_needs_android_10">يحتاج إلى Android 10 أو أحدث (طبقات عرض بمساحة ألوان)</string>
     <string name="hdr_none">لا تُعلن هذه الشاشة عن دعم HDR</string>
     <string name="hdr_not_hdr10">تدعم هذه الشاشة %1$s، وليس HDR10</string>
-
     <string name="gpu_this_gpu">وحدة GPU هذه</string>
     <string name="phantom_title_on">حدّ العمليات الفرعية مفعَّل</string>
     <string name="phantom_title_unset">حدّ العمليات الفرعية غير محدَّد</string>
@@ -2291,7 +2488,6 @@
     <string name="device_info_copied">تم النسخ.</string>
     <string name="force_ssbs_title">فرض SSBS</string>
     <string name="force_ssbs_hint">يحافظ على إعداد سرعة لوحدة المعالجة (CPU) يستمر Wine في إيقافه. قد يجعل ألعاب Windows أسرع على Snapdragon 8 Elite؛ مع تغيّر طفيف على الشرائح الأقدم. يُطبَّق عند تشغيل اللعبة في المرة التالية.</string>
-
     <string name="rail_stores">المتاجر</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">مخصَّص</string>
@@ -2682,6 +2878,11 @@
     <string name="setup_tab_diagnostics">المطوّر</string>
     <string name="setup_build_watermark">علامة مائية لاسم الإصدار</string>
     <string name="setup_build_watermark_hint">عرض اسم إصدار الاختبار أو Lab على الشاشة. مفعّل افتراضيًا.</string>
+    <string name="diagnostics_share_title">مشاركة حزم التشخيص</string>
+    <string name="diagnostics_share_session">الجلسة والجهاز</string>
+    <string name="diagnostics_share_graphics">الرسوميات</string>
+    <string name="diagnostics_share_games">الألعاب والتوافق</string>
+    <string name="diagnostics_share_all">جميع الحزم</string>
     <string name="setup_ready">جاهز للّعب</string>
     <string name="setup_not_ready">غير جاهز للّعب بعد</string>
     <string name="setup_ready_runtime">بيئة التشغيل %1$s</string>
@@ -2720,6 +2921,9 @@
     <string name="gog_achievements_enable_store">فعّل إنجازات GOG في إعدادات المتاجر</string>
     <string name="gog_achievements_unavailable">الإنجازات غير متوفرة؛ تحقّق من سجلات الجلسة</string>
     <string name="achievement_unlocked">تم فتح الإنجاز</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): مُعطَّل</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): مُفعَّل</string>
+    <string name="setup_gpu_venus_host_too_old">يُبلّغ برنامج التشغيل على %1$s عن Vulkan %2$s. يحتاج Mali (Venus) إلى Vulkan 1.2 أو أحدث (لا يبدأ gamescope على الإصدارات الأقدم)، لذا تتجاوز الجلسات Venus وتستخدم زوج برامج تشغيل PanVK بدلًا منه.</string>
     <string name="touch_paste">لصق</string>
     <string name="touch_left_stick">العصا اليسرى</string>
     <string name="touch_right_stick">العصا اليمنى</string>
@@ -2774,7 +2978,6 @@
     <string name="touch_icon_color">لون الأيقونة</string>
     <string name="touch_button_color">لون الزر</string>
     <string name="touch_no_icon">بلا أيقونة</string>
-
     <string name="stores_sync_sign_in">جارٍ التحقق من تسجيل الدخول…</string>
     <string name="stores_sync_library">جارٍ جلب مكتبتك…</string>
     <string name="stores_sync_game_list">جارٍ جلب قائمة الألعاب…</string>
@@ -3083,6 +3286,7 @@
     <string name="storage_tool_redist">تثبيتات VC++ وDirectX التي تحتاجها الألعاب</string>
     <string name="storage_tool_fex">يشغّل ألعاب Linux x86</string>
     <string name="storage_tool_steam">أداة Steam</string>
+    <string name="storage_tool_anticheat">يُنزّل Steam هذا للألعاب التي تأتي بنظام مكافحة الغش، حتى وهو مُعطَّل. إزالته تُعلّق تثبيتها عند 0%</string>
     <string name="storage_tool_old_runtime">يشغّل DroidDeck الألعاب دون بيئة التشغيل هذه</string>
     <string name="storage_tool_x86_proton">Proton x86، ولا يستطيع DroidDeck تشغيله</string>
     <string name="storage_tool_custom_default">الافتراضي لكل الألعاب</string>
@@ -3690,6 +3894,7 @@
     <string name="integration_shortcuts_service_description">إبقاء Alt+Tab ومفتاح Win وزر الرئيسية داخل جلسة DroidDeck النشطة بدلاً من Android.</string>
     <string name="integration_brightness_needed">فعّل «السطوع» من الإعداد → تكامل Steam</string>
     <string name="setup_gpu_bridge_off">جسر Mali: متوقف</string>
+    <string name="setup_gpu_bridge_unusable">لا يمكن لـ %1$s استخدام جسر Mali (يحتاج إلى معالج رسوميات Mali من دون مسار لبرنامج تشغيل النظام)، لذا ليس لهذا المفتاح أي تأثير هنا.</string>
     <string name="setup_gpu_bridge_on">جسر Mali: يعمل</string>
     <string name="setup_gpu_bridge_detail">%1$s ليس Adreno. جسر Vulkan التجريبي يعمل: تعرض الجلسة الرسومات عبر برنامج تشغيل الهاتف نفسه. توقّع وجود أخطاء؛ أرسل سجلات الجلسة.</string>
     <string name="setup_bridge_safe">الوضع الآمن</string>
@@ -3851,9 +4056,8 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
-
     <string name="theme_white_red">ثلج قرمزي</string>
-    
+    <string name="theme_white_red_detail">أسطح بيضاء مع لمسات حمراء.</string>
     <string name="rail_soundtracks">الموسيقى التصويرية</string>
     <string name="rail_music">الموسيقى</string>
     <string name="soundtracks_options">خيارات التشغيل</string>
@@ -3916,4 +4120,6 @@
     <string name="soundtracks_repeat_one">تكرار مقطع واحد</string>
     <string name="soundtracks_volume">مستوى الصوت</string>
     <string name="soundtracks_no_tracks">لا توجد ملفات صوتية في هذه الموسيقى التصويرية</string>
+    <string name="setup_stores">المتاجر</string>
+    <string name="setup_agent_tab">تبويب Agent</string>
 </resources>

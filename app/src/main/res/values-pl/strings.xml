@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Resetowanie grafiki i ponowne otwieranie SteamVR…</string>
     <string name="steamvr_recovery_failed">Nie udało się automatycznie uruchomić ponownie DroidDeck. Całkowicie zamknij aplikację, a potem otwórz ją ponownie.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Przy pierwszym uruchomieniu pobierany jest Steam. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje Steam; po powrocie wznowi on działanie tam, gdzie przerwał.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Przy pierwszym uruchomieniu konfigurowany jest pulpit. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje sesję; po powrocie wznowi się ona tam, gdzie została przerwana.</item>
-        <item>Ekran działa jak touchpad: przeciągnij, aby przesunąć kursor, dotknij, aby kliknąć.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
-    </string-array>
     <string name="session_channel">Sesja</string>
     <string name="session_channel_description">Widoczne, gdy otwarta jest sesja Steam lub pulpitu</string>
     <string name="session_notification">Steam działa</string>
@@ -185,6 +174,7 @@
     <string name="session_powervr_missing">Nie udało się pobrać środowiska graficznego PowerVR. Sprawdź połączenie i spróbuj ponownie.</string>
     <string name="session_directaudio_missing">Nie udało się pobrać DirectAudio, więc w tej sesji dźwięk gier używa wolniejszej ścieżki.</string>
     <string name="session_end_program">Ten program</string>
+    <string name="session_end_present_fault">Sesja nie mogła wyświetlić obrazu na ekranie: %1$s. Ten ekran pokazuje przyczynę zamiast czarnego obrazu; szczegóły znajdują się w logach sesji.</string>
     <string name="session_end_steam_download">Nie udało się pobrać klienta Steam. Twoja sieć lub VPN może blokować serwery Steam; sprawdź połączenie i spróbuj ponownie.</string>
     <string name="session_end_steam_setup">Nie udało się skonfigurować klienta Steam. Sprawdź połączenie i wolne miejsce, a potem spróbuj ponownie.</string>
     <string name="session_end_fex_missing">%1$s jest zbudowany dla komputerów x86 i działa przez FEX, który nie jest jeszcze zainstalowany. Uruchom raz Steam po zalogowaniu i pozwól mu pobrać FEX oraz Steam Linux Runtime, a potem uruchom program ponownie.</string>
@@ -389,6 +379,9 @@
     <string name="wincomp_unsupported">Tutaj jeszcze nieobsługiwane</string>
     <string name="wincomp_loading">Wczytywanie komponentów…</string>
     <string name="wincomp_failed">Nie udało się zainstalować: %1$s</string>
+    <string name="wincomp_repair_required">Pobrane pliki wymagają aktualizacji.</string>
+    <string name="wincomp_repair_queued">Aktualizacja w kolejce.</string>
+    <string name="wincomp_retry">Ponów aktualizację</string>
     <string name="wincomp_downloaded">Pobrano</string>
     <string name="wincomp_downloading">Pobieranie %1$s</string>
     <string name="wincomp_installing">Instalowanie: %1$s</string>
@@ -419,6 +412,22 @@
     <string name="mode_storage_internal">Tylko pamięć wewnętrzna</string>
     <string name="mode_storage_folder">Folder: %1$s</string>
     <string name="mode_second_library">Druga biblioteka</string>
+    <string name="libraries_title">Więcej bibliotek Steam</string>
+    <string name="libraries_hint">Foldery, do których Steam może instalować gry i z których może je uruchamiać, każdy pod własną nazwą. Usunięcie folderu zostawia jego gry na dysku.</string>
+    <string name="libraries_add">Dodaj bibliotekę</string>
+    <string name="libraries_rename">Zmień nazwę</string>
+    <string name="libraries_rename_title">Nazwa biblioteki</string>
+    <string name="libraries_pick">Wybierz folder dla biblioteki</string>
+    <string name="libraries_full">Maksymalnie %1$d dodanych bibliotek</string>
+    <string name="libraries_overlap">Ten folder jest już biblioteką lub znajduje się wewnątrz innej</string>
+    <string name="libraries_missing">%1$s · niedostępna</string>
+    <string name="libraries_applies_next">Zacznie obowiązywać od następnej sesji Steam</string>
+    <string name="libraries_found_hint">Znaleziono na tym urządzeniu · %1$s · %2$s</string>
+    <string name="libraries_add_found">Dodaj</string>
+    <string name="libraries_access_title">Znajdź biblioteki w pamięci wewnętrznej</string>
+    <string name="libraries_access_hint">Zezwól na dostęp do wszystkich plików, aby DroidDeck mógł widzieć biblioteki Steam, które inne aplikacje przechowują w pamięci wewnętrznej</string>
+    <string name="libraries_access_allow">Zezwól</string>
+    <string name="libraries_used_inner">Dodano %1$s, bibliotekę Steam znajdującą się w wybranym folderze</string>
     <string name="mode_storage_note">Gry, które strumieniują zasoby z karty SD lub pamięci współdzielonej, mogą się zacinać.</string>
     <string name="mode_storage_diagnostics">Diagnostyka pamięci</string>
     <string name="mode_storage_diagnostics_hint">Zapisuje wyniki alokacji i próbkowane czasy dostępu do pamięci w „Udostępnij logi”. Po włączeniu może spowalniać instalacje. Działa od następnej sesji.</string>
@@ -609,7 +618,10 @@
     <string name="perf_xalia_hint">Wyłącza pomocnika Proton do nawigacji kontrolerem, który zużywa CPU w każdej grze.</string>
     <string name="perf_seccomp">Uruchamiaj proot bez seccomp</string>
     <string name="perf_seccomp_hint">Może naprawić błędy brakujących wywołań systemowych na niektórych jądrach. Może obniżyć wydajność.</string>
+    <string name="perf_native_userland">Uruchom bez proot (eksperymentalne)</string>
+    <string name="perf_native_userland_hint">Uruchamia środowisko Linux bezpośrednio na Androidzie. Zacznie obowiązywać od następnej sesji. Wyłącz, jeśli coś nie chce się uruchomić.</string>
     <string name="perf_fastpath">Szybka ścieżka proot</string>
+    <string name="perf_fastpath_needs_proot">Nie jest używane bez proot.</string>
     <string name="perf_fastpath_needs_seccomp">Wymaga filtra seccomp proot.</string>
     <string name="perf_fastpath_hint">Szybsze wyszukiwanie plików i mniej przycięć. Wyłącz, jeśli program nie może znaleźć swoich plików.</string>
     <string name="perf_cursor_composite">Rysuj kursor w gamescope</string>
@@ -821,6 +833,7 @@
     <string name="setup_gpu_supported">Urządzenie obsługiwane</string>
     <string name="setup_gpu_untested">Nieprzetestowany GPU</string>
     <string name="setup_gpu_unsupported">GPU nieobsługiwany</string>
+    <string name="setup_gpu_bridged">GPU przez mostek Mali</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran.</string>
@@ -850,15 +863,38 @@
     <string name="setup_session">Sesja</string>
     <string name="setup_logs">Logi sesji</string>
     <string name="setup_logs_hint">Zapisywane po każdej sesji</string>
+    <string name="setup_enhanced_diagnostics">Rozszerzona diagnostyka dla następnej sesji</string>
+    <string name="setup_enhanced_diagnostics_hint">Zapisuje szczegółowe logi przez jedną sesję. Może obniżyć wydajność i zająć więcej miejsca. Wyłącza się sama w momencie uruchomienia sesji; przed udostępnieniem przejrzyj logi.</string>
     <string name="setup_game_debug_logs">Logi debugowania gier</string>
     <string name="setup_game_debug_logs_hint">Dołącz diagnostykę Proton, Wine i grafiki przy następnym uruchomieniu gry. Może obniżyć wydajność i zająć więcej miejsca.</string>
     <string name="setup_game_debug_logs_restart">Uruchom ponownie tę sesję, aby zapisywać logi debugowania gier</string>
     <string name="setup_logging_update_failed">Nie udało się zmienić logowania. Sprawdź przełącznik i spróbuj ponownie.</string>
     <string name="setup_agent_commands">Narzędzia debugowania</string>
+    <string name="setup_graphics_logs">Szczegółowe logi graficzne</string>
+    <string name="setup_steam_gpu_drawing">Interfejs Steam: rysowanie przez GPU</string>
+    <string name="setup_steam_gpu_drawing_hint">Z parą sterowników Xclipse Steam rysuje swoje strony programowo (rysowanie przez GPU dawało uszkodzone kafelki). Włącz, aby przyspieszyć interfejs Steam, jeśli na tym telefonie wygląda poprawnie.</string>
+    <string name="drivers_built_on">zbudowano %1$s</string>
+    <string name="drivers_pair_updated">%1$s zaktualizowano do najnowszej kompilacji</string>
+    <string name="setup_gpu_bridge_fell_back">Most Mali nie przeszedł autotestu na %1$s w poprzedniej sesji (obrazy lub rysowanie), więc zamiast niego użyto pary sterowników PanVK.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">Most Mali nie znalazł sposobu na współdzielenie pamięci ze sterownikiem na %1$s w poprzedniej sesji, więc zamiast niego użyto pary sterowników PanVK. Most nie może działać na tym telefonie; wyłączenie go pozostawia parę PanVK.</string>
+    <string name="setup_graphics_logs_hint">Dzienniki Proton, DXVK i sterowników każdej gry znajdują się w dziennikach sesji. Zawsze włączone, gdy GPU nie jest Adreno.</string>
     <string name="setup_latest_logs">Najnowsze logi sesji</string>
     <string name="setup_saved_logs">Zapisane logi sesji</string>
     <string name="setup_saved_logs_hint">Zachowuje najnowsze: %1$d</string>
     <string name="setup_clear_logs">Wyczyść logi</string>
+    <string name="setup_log_sessions">Dostępne dzienniki sesji</string>
+    <string name="setup_log_empty">Brak zapisanych dzienników sesji.</string>
+    <string name="setup_log_export_hint">Udostępniane i zapisywane archiwa ZIP zawierają wybraną sesję oraz powiązane dane diagnostyczne Steam, sklepu, narzędzi i Battle.net.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">Bieżąca sesja</string>
+    <string name="setup_log_share">Udostępnij</string>
+    <string name="setup_log_save">Zapisz na urządzeniu</string>
+    <string name="setup_log_delete">Usuń</string>
+    <string name="setup_log_delete_title">Usunąć dzienniki sesji?</string>
+    <string name="setup_log_delete_message">Usunąć %1$s? Tej operacji nie można cofnąć.</string>
+    <string name="setup_log_export_saved">Zapisano dzienniki sesji.</string>
+    <string name="setup_log_export_failed">Nie udało się zapisać dzienników sesji.</string>
+    <string name="setup_log_delete_failed">Nie udało się usunąć dzienników sesji.</string>
     <string name="setup_reset_settings">Zresetuj wszystkie ustawienia</string>
     <string name="setup_reset_settings_hint">Przywróć każde ustawienie do wartości domyślnej</string>
     <string name="setup_reset_settings_button">Resetuj</string>
@@ -898,10 +934,15 @@
     <string name="setup_fullscreen">Pełny ekran</string>
     <string name="setup_fullscreen_on">Ukrywa systemowe paski stanu i nawigacji</string>
     <string name="setup_fullscreen_off">Pokazuje systemowe paski stanu i nawigacji</string>
+    <string name="setup_dual_screen_launcher">Launcher na dwóch ekranach</string>
+    <string name="setup_dual_screen_launcher_hint">Automatycznie umieszcza sekcje launchera (Steam, Biblioteka, Sklepy i pozostałe) na wbudowanym drugim ekranie konsol przenośnych. Włączone używa dowolnego drugiego wyświetlacza. Wyłączone pozostawia launcher na jednym ekranie.</string>
+    <string name="setup_dual_screen_sessions">Sesje na dwóch ekranach</string>
+    <string name="setup_dual_screen_sessions_hint">Automatycznie przypina menu w grze do wbudowanego drugiego ekranu zamiast okna podręcznego. Włączone używa dowolnego drugiego wyświetlacza. Wyłączone pozostawia menu na ekranie gry; nadal można z poziomu menu wybrać drugi ekran.</string>
     <string name="setup_dual_screen_auto">Automatycznie</string>
     <string name="setup_dual_screen_on">Włączone</string>
     <string name="setup_dual_screen_off">Wyłączone</string>
     <string name="setup_dual_screen_controls">Sterowanie na dolnym ekranie w grach</string>
+    <string name="setup_android_text_field_keyboard">Klawiatura systemu Android do pól tekstowych</string>
     <string name="setup_dual_screen_controls_hint">Otwiera gładzik i klawiaturę na drugim ekranie po rozpoczęciu sesji.</string>
     <string name="dual_typing_title">Pisanie dla górnego ekranu</string>
     <string name="dual_typing_done">Gotowe</string>
@@ -1021,6 +1062,124 @@
     <string name="upd_tests">Kompilacje testowe</string>
     <string name="upd_tests_hint">Wypróbuj poprawkę przed jej wydaniem</string>
     <string name="upd_tests_none">Obecnie żadnych</string>
+    <string name="upd_lab">Kompilacja testowa</string>
+    <string name="lab_builds">Kompilacje testowe</string>
+    <string name="lab_in_use">W użyciu</string>
+    <string name="lab_paused_row">Wstrzymana po ponownej optymalizacji DroidDeck przez system Android</string>
+    <string name="lab_not_loaded">Nie wczytano: %1$s</string>
+    <string name="lab_waiting">Oczekiwanie na restart</string>
+    <string name="lab_kept">Zachowano</string>
+    <string name="lab_other_install">Dla innej wersji</string>
+    <string name="lab_rebuild">Przebuduj</string>
+    <string name="lab_delete_warning">Usuwa tę kompilację z urządzenia</string>
+    <string name="lab_restart">Uruchom ponownie na niej</string>
+    <string name="lab_turn_off">Wyłącz</string>
+    <string name="lab_use">Użyj</string>
+    <string name="lab_delete">Usuń</string>
+    <string name="lab_delete_confirm">Usuń teraz</string>
+    <string name="lab_restart_failed">Nie udało się przygotować restartu: %1$s. Sparuj debugowanie bezprzewodowe w Ustawieniach i spróbuj ponownie.</string>
+    <string name="lab_installed_title">Zainstalowano kompilację testową</string>
+    <string name="lab_installed_text">DroidDeck uruchomiono ponownie na %1$s</string>
+    <string name="lab_paused_title">Kompilacja Lab wstrzymana</string>
+    <string name="lab_paused_text">Android ponownie zoptymalizował DroidDeck, więc %1$s nie jest wczytana. Otwórz Aktualizacje, aby ponownie uruchomić na niej DroidDeck.</string>
+    <string name="lab_off_title">Kompilacja Lab wyłączona</string>
+    <string name="lab_off_other_install">Została zbudowana dla innej wersji DroidDeck. Znajduje się w Aktualizacjach.</string>
+    <string name="lab_off_did_not_start">DroidDeck dwukrotnie nie uruchomił się na niej.</string>
+    <string name="rail_agent">Agent</string>
+    <string name="agent_channel_name">Agent</string>
+    <string name="agent_working">Agent pracuje</string>
+    <string name="agent_missing">Zainstaluj Claude Code w przestrzeni użytkownika Linux, aby korzystać z agenta.</string>
+    <string name="agent_hint">Zapytaj o grę, awarię lub zmianę w DroidDeck</string>
+    <string name="agent_send">Wyślij</string>
+    <string name="agent_new">Nowa rozmowa</string>
+    <string name="agent_stop">Zatrzymaj</string>
+    <string name="agent_storage_title">Pamięć</string>
+    <string name="agent_storage_remove">Usuń</string>
+    <string name="agent_storage_confirm">Usuń teraz</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">Kod źródłowy DroidDeck</string>
+    <string name="agent_storage_caches">Pamięć podręczna pobrań</string>
+    <string name="agent_storage_source_warning">Zmiany, które nie zostały wypchnięte, zostaną utracone.</string>
+    <string name="agent_storage_caches_warning">Kompilacje pobiorą je ponownie.</string>
+    <string name="agent_storage_reinstall_warning">Konfiguracja może zainstalować to ponownie; dane logowania zostają zachowane.</string>
+    <string name="agent_resumed">DroidDeck uruchomił się ponownie na twojej kompilacji Lab. Kontynuuj tam, gdzie przerwałeś.</string>
+    <string name="agent_empty">Zapytaj, dlaczego gra nie chce się uruchomić, poproś o wyjaśnienie logu albo o zmianę w DroidDeck i wypróbowanie jej na tym urządzeniu.</string>
+    <string name="agent_failed">Nie udało się: %1$s</string>
+    <string name="agent_exited">%1$s zakończył działanie (kod wyjścia %2$d)</string>
+    <string name="agent_stopped">Zatrzymano</string>
+    <string name="agent_no_reply">Zakończyło się bez odpowiedzi</string>
+    <string name="agent_retry">Ponów</string>
+    <string name="agent_setting_up">Konfigurowanie agenta</string>
+    <string name="agent_rebuild_lab">Zbuduj ponownie moją kompilację Lab %1$s dla zainstalowanej wersji DroidDeck i uruchom na niej ponownie DroidDeck.</string>
+    <string name="agent_tokens">%1$s wej. · %2$s wyj.</string>
+    <string name="agent_thinking">Myślenie</string>
+    <string name="agent_thought">Myśl</string>
+    <string name="agent_thinking_for">Myślenie · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">WEJŚCIE</string>
+    <string name="agent_tool_output">WYJŚCIE</string>
+    <string name="agent_tool_running">Trwa…</string>
+    <string name="agent_tool_no_result">Brak wyniku: tura zakończyła się wcześniej</string>
+    <string name="agent_tool_empty">Brak danych wyjściowych</string>
+    <string name="agent_hint_working">Wpisz, aby zakolejkować następną wiadomość</string>
+    <string name="agent_queue">Zakolejkuj</string>
+    <string name="agent_queued">Następna: %1$s</string>
+    <string name="agent_unqueue">Nie wysyłaj</string>
+    <string name="agent_attach">Załącz</string>
+    <string name="agent_remove_attachment">Usuń</string>
+    <string name="agent_model_default">Domyślny</string>
+    <string name="agent_plan">Najpierw plan</string>
+    <string name="agent_plan_short">Plan</string>
+    <string name="agent_plan_hint">Proponuje plan bez wprowadzania zmian</string>
+    <string name="agent_history">Rozmowy</string>
+    <string name="agent_history_empty">Nie ma jeszcze rozmów</string>
+    <string name="agent_just_now">Przed chwilą</string>
+    <string name="agent_history_delete">Usuń</string>
+    <string name="agent_history_delete_warning">Usuwa rozmowę i jej załączniki</string>
+    <string name="agent_processes">Procesy</string>
+    <string name="agent_processes_empty">Nic nie działa w przestrzeni użytkownika Linux</string>
+    <string name="agent_process_agent">AGENT</string>
+    <string name="agent_process_stop">Zatrzymaj</string>
+    <string name="agent_lab_building">Kompilacja Lab</string>
+    <string name="agent_lab_preparing">Przygotowywanie kompilacji Lab</string>
+    <string name="agent_lab_progress">%1$d%% · pozostało około %2$s</string>
+    <string name="agent_lab_left">pozostało około %1$s</string>
+    <string name="agent_lab_cancel">Anuluj</string>
+    <string name="agent_lab_cancel_confirm">Anulować kompilację</string>
+    <string name="agent_lab_stage_starting">Rozpoczynanie</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">Pakowanie</string>
+    <string name="agent_lab_stage_restarting">Ponowne uruchamianie DroidDeck na nim</string>
+    <string name="agent_lab_stage_ready">Gotowe</string>
+    <string name="agent_lab_stage_failed">Nie udało się: %1$s</string>
+    <string name="agent_setup_title">Skonfiguruj agenta</string>
+    <string name="agent_setup_runtime">Najpierw zainstaluj środowisko uruchomieniowe Linux w ustawieniach.</string>
+    <string name="agent_setup_retry">Ponów</string>
+    <string name="agent_setup_done">Rozpocznij rozmowę</string>
+    <string name="agent_step_connection">Połączenie z urządzeniem</string>
+    <string name="agent_step_connection_hint">Debugowanie bezprzewodowe, aby agent mógł widzieć DroidDeck i sterować nim</string>
+    <string name="agent_step_install">Zainstaluj %1$s</string>
+    <string name="agent_step_install_hint">Do przestrzeni użytkownika Linuksa, z git, gh i adb</string>
+    <string name="agent_step_sign_in">Zaloguj się do %1$s</string>
+    <string name="agent_step_sign_in_hint">Otwiera przeglądarkę</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">Opcjonalnie, do tworzenia pull requestów</string>
+    <string name="agent_step_build">Narzędzia do kompilacji</string>
+    <string name="agent_step_build_hint">Opcjonalnie, do kompilacji Lab na tym urządzeniu · około 5 GB</string>
+    <string name="agent_summary_ready">Agent gotowy</string>
+    <string name="agent_summary_not_ready">Dokończ konfigurację agenta</string>
+    <string name="agent_summary_signed_in">Zalogowano do %1$s</string>
+    <string name="agent_summary_lab">Kompilacje Lab</string>
+    <string name="agent_summary_fast">szybkie kompilacje</string>
+    <string name="agent_step_prepare">Szybkie kompilacje Lab</string>
+    <string name="agent_step_prepare_hint">Kompiluje tę wersję z wyprzedzeniem, więc kompilacje Lab trwają minuty · jednorazowo około 20 minut</string>
+    <string name="agent_prepare_progress">Kompilowanie · %1$d%% · pozostało około %2$s</string>
+    <string name="agent_action_prepare">Przygotuj</string>
+    <string name="agent_connection_off">Debugowanie bezprzewodowe jest niedostępne; Paruj, aby je włączyć</string>
+    <string name="agent_action_pair">Paruj</string>
+    <string name="agent_action_install">Zainstaluj</string>
+    <string name="agent_action_sign_in">Zaloguj się</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Nie zbudowano dla tej kopii DroidDeck</string>
     <string name="upd_updated">Zaktualizowano %1$s</string>
@@ -1289,6 +1448,15 @@
     <string name="proton_cancel_queued">Anuluj oczekujące</string>
     <string name="pckb_android">Klawiatura Android</string>
     <string name="pckb_hide">Ukryj  ✕</string>
+    <string name="pckb_size">Rozmiar na ekranie</string>
+    <string name="pckb_size_hint">Część ekranu zajmowana przez klawiaturę, wliczając nagłówek.</string>
+    <string name="pckb_opacity">Krycie</string>
+    <string name="pckb_opacity_hint">Zmniejsz je, aby zobaczyć grę za klawiaturą.</string>
+    <string name="pckb_hidden_keys">Ukryte klawisze</string>
+    <string name="pckb_hidden_keys_hint">Klawisze, których rzadko używasz, nie pojawiają się na klawiaturze.</string>
+    <string name="pckb_group_function">Esc i rząd klawiszy funkcyjnych</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">Klawisze strzałek</string>
     <string name="main_launch_named">Uruchom %1$s</string>
     <string name="main_choose_screen">Wybierz ekran. Dodatkowy: %1$s.</string>
     <string name="main_secondary_gone">Dodatkowy wyświetlacz nie jest już dostępny.</string>
@@ -1344,7 +1512,6 @@
     <string name="game_file_folder">Wybierz folder na pliki gier dla frontendów</string>
     <string name="game_file_exported">Pliki gier zapisano w %1$s</string>
     <string name="game_frontend_files">Pliki frontendów</string>
-
     <string name="main_wait_runtime">Poczekaj na zakończenie operacji na środowisku</string>
     <string name="main_wait_proton_install">Poczekaj na zakończenie instalacji narzędzia zgodności</string>
     <string name="load_compat_title">Przygotowywanie narzędzi zgodności</string>
@@ -1440,7 +1607,6 @@
     <string name="main_removing_runtime">Usuwanie środowiska Linux</string>
     <string name="main_settings_main_screen">Nie udało się otworzyć Ustawień na dolnym ekranie; otwarto je na ekranie podstawowym.</string>
     <string name="main_open_dev_options">Otwórz Opcje programisty w Ustawieniach</string>
-
     <string name="upd_unknown_apps_failed">Nie udało się otworzyć ustawienia systemu Android „Instalowanie nieznanych aplikacji”</string>
     <string name="upd_couldnt_check">Nie udało się sprawdzić: %1$s</string>
     <string name="upd_no_download">Ta wersja nie ma pliku do pobrania dla tej kopii DroidDeck</string>
@@ -1450,12 +1616,10 @@
     <string name="upd_stage_confirm">Oczekiwanie na Twoje potwierdzenie</string>
     <string name="upd_failed">Aktualizacja nie powiodła się</string>
     <string name="upd_not_offered">Android nie zaproponował instalacji aktualizacji</string>
-
     <string name="decky_install_failed">Instalacja Decky nie powiodła się: %1$s</string>
     <string name="decky_plugin_starting">Rozpoczynanie importu wtyczki…</string>
     <string name="decky_plugin_failed">Import wtyczki nie powiódł się: %1$s</string>
     <string name="decky_plugin_installed">Zainstalowano wtyczkę. Uruchom ponownie Steam, aby ją wczytać.</string>
-
     <string name="drivers_not_checked">Jeszcze nie sprawdzono – dotknij odświeżania, aby poszukać nowych sterowników</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ustawia też sterownik wyświetlania</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: ustawia też sterownik środowiska</string>
@@ -1514,7 +1678,6 @@
     <string name="drivers_check_failed">błąd sprawdzania</string>
     <string name="drivers_installed_pick_either">Zainstalowano %1$s – wybierz go na dowolnej liście, aby ustawić oba sterowniki</string>
     <string name="drivers_installed_pick">Zainstalowano %1$s – wybierz go w menu</string>
-
     <string name="session_wait_removal">Poczekaj na zakończenie usuwania środowiska</string>
     <string name="session_title_game">Gra</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1564,7 +1727,6 @@
         <item quantity="many">Log zawiera %1$d błędów „Function not implemented”: przyspieszenie seccomp w proot zawodzi przy procesie pomocniczym na tym urządzeniu. Wybierz %2$s → „%3$s” (lub „%4$s”) i uruchom ponownie.</item>
         <item quantity="other">Log zawiera %1$d błędu „Function not implemented”: przyspieszenie seccomp w proot zawodzi przy procesie pomocniczym na tym urządzeniu. Wybierz %2$s → „%3$s” (lub „%4$s”) i uruchom ponownie.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Wtyczki</string>
     <string name="mode_decky_plugins_hint">Zainstaluj wtyczkę z pliku ZIP na następną sesję Steam.</string>
     <string name="mode_decky_plugin_downloading">Pobieranie…</string>
@@ -1824,7 +1986,24 @@
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Uchwyty Deck + trackpady</string>
     <string name="second_mode_dashboard">Panel</string>
+    <string name="second_mode_desktop">Pulpit</string>
+    <string name="bottom_desktop_start">Uruchom pulpit</string>
+    <string name="bottom_desktop_title">Pulpit · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">Gładzik</string>
+    <string name="bottom_desktop_mode_touch">Dotyk bezpośredni</string>
+    <string name="bottom_desktop_trackpad">Gładzik. Dotknij, aby przełączyć na dotyk bezpośredni</string>
+    <string name="bottom_desktop_direct_touch">Dotyk bezpośredni. Dotknij, aby przełączyć na gładzik</string>
+    <string name="bottom_desktop_starting">Uruchamianie pulpitu KDE…</string>
+    <string name="bottom_desktop_ended">Pulpit został zamknięty.</string>
+    <string name="bottom_desktop_failed">Nie udało się uruchomić pulpitu. Jego logi znajdują się w folderze bottom-desktop tej sesji.</string>
+    <string name="bottom_desktop_off">Pulpit jest zamknięty.</string>
     <string name="bottom_dashboard_empty">Na razie nie ma tu nic do pokazania.</string>
+    <string name="swap_screens">Zamień ekrany</string>
+    <string name="swap_screens_unavailable">Dolny ekran jest teraz zajęty</string>
+    <string name="swap_game_screen_group">Ekran gry</string>
+    <string name="swap_game_screen">Wyświetl grę na</string>
+    <string name="swap_game_screen_top">Górny ekran</string>
+    <string name="swap_game_screen_bottom">Dolny ekran</string>
     <string name="bottom_page_downloads">Pobieranie</string>
     <string name="bottom_downloads_none">Nic nie jest pobierane.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1859,6 +2038,20 @@
     <string name="stats_fuel_t">Paliwo, t</string>
     <string name="stats_fuel_main">Główne %1$s t</string>
     <string name="stats_fuel_reserve">Rezerwa %1$s t</string>
+    <string name="stats_hud_frametime">Czas klatki</string>
+    <string name="stats_hud_last_seconds">ostatnie %1$d s</string>
+    <string name="stats_hud_avg_frame">średni czas klatki</string>
+    <string name="stats_hud_low">najniższe 1%</string>
+    <string name="stats_hud_slow_frames">klatki powyżej 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Czas gry: %1$s</string>
+    <string name="stats_hud_core_group">%1$d rdzeni, do %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d rdzeni</string>
+    <string name="stats_hud_game_cores">gra</string>
+    <string name="stats_hud_fps_of">FPS przy %1$d Hz</string>
+    <string name="stats_hud_red_mark">Czerwony znacznik wskazuje temperaturę, od której HUD wyświetla ją na czerwono.</string>
+    <string name="stats_hud_whole_device">całe urządzenie</string>
+    <string name="stats_hud_battery_temp">bateria</string>
     <string name="bottom_telemetry_send_title">Wysyłaj dane do panelu</string>
     <string name="bottom_telemetry_send_auto">Automatycznie</string>
     <string name="bottom_telemetry_send_auto_hint">Włącza wysyłanie dla każdej gry z tej listy, także dla gier znalezionych później. Gry, które wyłączysz, pozostaną wyłączone.</string>
@@ -1882,6 +2075,10 @@
     <string name="bottom_chat_mic_unavailable">Mikrofon jest wyłączony dla tej gry. Aby rozmawiać, włącz Mikrofon w ustawieniach Steam w DroidDeck (Dźwięk) i uruchom grę ponownie.</string>
     <string name="bottom_chat_volume">Głośność %1$d%%</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
+    <string name="bottom_hud_group">HUD dolnego ekranu</string>
+    <string name="bottom_strip_tabs">Pasek na każdej karcie</string>
+    <string name="bottom_strip_lows" formatted="false">najniższe 1% i 0,1%</string>
+    <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1899,7 +2096,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d odbiera dane (%2$d pakietów po %3$d bajtów), ale w formacie, którego ta strona jeszcze nie odczytuje.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s jest już używany przez inny program, więc tej gry nie da się tu pokazać.</string>
-
     <string name="rtinst_removing">Usuwanie środowiska Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Usuwanie środowiska Linux · %1$d wpis</item>
@@ -1916,7 +2112,6 @@
     <string name="rtinst_channel_description">Wyświetlane podczas instalowania lub usuwania środowiska Linux</string>
     <string name="rtinst_title_installing">Instalowanie środowiska Linux</string>
     <string name="rtinst_title_removing">Usuwanie środowiska Linux</string>
-
     <string name="deskpkg_runtime_missing">Środowisko Linux nie jest zainstalowane</string>
     <string name="deskpkg_no_checksum">Katalog nie zawiera sumy kontrolnej dla %1$s</string>
     <string name="deskpkg_checksum_mismatch">Niezgodna suma kontrolna – niczego nie zmieniono</string>
@@ -1924,7 +2119,6 @@
     <string name="deskpkg_place_failed">Nie udało się umieścić pliku AppImage</string>
     <string name="deskpkg_extract_failed">Wypakowywanie nie powiodło się</string>
     <string name="deskpkg_install_failed">Instalacja nie powiodła się</string>
-
     <string name="flatpakmgr_setup_failed">Konfiguracja Flatpak nie powiodła się (kod %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Konfiguracja Flatpak nie została ukończona</string>
     <string name="flatpakmgr_busy">Trwa inne zadanie sklepu</string>
@@ -1943,7 +2137,6 @@
     <string name="flatpakmgr_ref_media_codecs">kodeków multimedialnych</string>
     <string name="flatpakmgr_ref_runtime">środowiska %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">środowiska %1$s %2$s</string>
-
     <string name="appimg_too_small">Plik jest za mały jak na AppImage</string>
     <string name="appimg_unreadable">Nie można odczytać pliku: %1$s</string>
     <string name="appimg_not_linux">To nie jest AppImage (to nie jest program dla systemu Linux)</string>
@@ -1958,7 +2151,6 @@
     <string name="appimg_extracting">Wypakowywanie %1$s</string>
     <string name="appimg_extract_failed">Nie udało się wypakować AppImage</string>
     <string name="appimg_extract_failed_detail">Nie udało się wypakować AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Zatrzymaj aktywną sesję przed instalacją Decky Loader</string>
     <string name="deckymgr_download_failed">Pobieranie Decky Loader nie powiodło się</string>
     <string name="deckymgr_size_mismatch">Rozmiar Decky Loader nie zgadza się z metadanymi wydania</string>
@@ -2007,13 +2199,11 @@
     <string name="deckymgr_activate_failed">Nie udało się aktywować zaimportowanej wtyczki</string>
     <string name="deckymgr_settings_failed">Nie udało się zaktualizować ustawień wtyczek Decky</string>
     <string name="deckymgr_restore_failed">Nie udało się przywrócić istniejącej wtyczki</string>
-
     <string name="adbfix_save_failed">Nie udało się zapisać tożsamości debugowania bezprzewodowego</string>
     <string name="adbfix_command_failed">Polecenie ADB nie powiodło się (%1$d)</string>
     <string name="adbfix_not_confirmed">Android nie potwierdził zmiany limitu procesów podrzędnych: %1$s</string>
     <string name="adbfix_no_pairing">Brak zapisanego parowania debugowania bezprzewodowego</string>
     <string name="adbfix_enter_address">Wpisz bieżący adres IP i port z ekranu Debugowanie bezprzewodowe</string>
-
     <string name="adbpair_timed_out">Upłynął limit czasu oczekiwania na okienko parowania. Spróbuj ponownie z poziomu DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Nie udało się wyszukać okienka parowania (%1$d). Sprawdź, czy Wi-Fi jest włączone.</string>
     <string name="adbpair_discovery_failed">Nie udało się wyszukać okienka parowania: %1$s</string>
@@ -2039,7 +2229,6 @@
     <string name="adbpair_title_done">Steam jest gotowy</string>
     <string name="adbpair_done_text">Dotknij, aby wrócić do DroidDeck. Możesz już wyłączyć debugowanie bezprzewodowe.</string>
     <string name="adbpair_title_failed">Konfiguracja debugowania bezprzewodowego została przerwana</string>
-
     <string name="selfinst_download_failed">Pobieranie nie powiodło się</string>
     <string name="selfinst_size_mismatch">Rozmiar pobranego pliku nie zgadzał się z opublikowanym APK, więc go odrzucono – spróbuj ponownie</string>
     <string name="selfinst_checksum_mismatch">Pobrany plik nie zgadzał się z sumą kontrolną, więc go odrzucono – spróbuj ponownie</string>
@@ -2052,12 +2241,11 @@
     <string name="selfinst_no_signing">Pobrany APK nie zawiera informacji o podpisie</string>
     <string name="selfinst_wrong_signer">Pobrany APK nie jest podpisany kluczem wydań DroidDeck</string>
     <string name="appupd_http">Katalog aktualizacji odpowiedział HTTP %1$d</string>
-
     <string name="loadstate_starting">Uruchamianie sesji…</string>
     <string name="loadstate_elapsed">Minęło %1$d:%2$02d · nadal trwa</string>
     <string name="loadstate_steam_update">Pobieranie aktualizacji klienta Steam · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Instalowanie aktualizacji klienta Steam…</string>
     <string name="loadstate_steam_client">Pobieranie klienta Steam · %1$s</string>
-
     <string name="pextra_busy">Instalacja narzędzia zgodności już trwa</string>
     <string name="pextra_stop_session">Zatrzymaj aktywną sesję przed instalacją narzędzi zgodności</string>
     <string name="pextra_no_release">Nie znaleziono wydania ARM64 dla %1$s</string>
@@ -2077,7 +2265,6 @@
     <string name="pextra_install_failed">Instalacja %1$s nie powiodła się (kod %2$d)</string>
     <string name="pextra_could_not_install">Nie udało się zainstalować %1$s</string>
     <string name="esync_fetching">Pobieranie pakietu droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">z modułami pomocniczymi Linux</string>
     <string name="cmgr_fex_dlls_only">tylko biblioteki DLL</string>
     <string name="cmgr_original_proton_updated">Oryginał (Proton zaktualizowany od ostatniej zamiany)</string>
@@ -2100,13 +2287,11 @@
     <string name="cmgr_nightly_replaced">Pobieranie nie powiodło się: ta wersja nightly mogła zostać zastąpiona nowszą. Odśwież listę i spróbuj ponownie.</string>
     <string name="cmgr_list_predates_checksums">Ta lista pakietów jest starsza niż sumy kontrolne – odśwież ją i spróbuj ponownie</string>
     <string name="cmgr_checksum_mismatch">Niezgodna suma kontrolna</string>
-
     <string name="sprefs_upscaler_linear">Liniowy</string>
     <string name="sprefs_upscaler_nearest">Najbliższy sąsiad</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (jakość)</string>
     <string name="sprefs_upscaler_sharpen">Tylko wyostrzanie</string>
     <string name="sprefs_lod_bias_auto">Auto (zgodnie ze skalowaniem)</string>
-
     <string name="look_off_desc">Bez efektów.</string>
     <string name="look_game_clarity">Wyrazistość</string>
     <string name="look_game_clarity_desc">Wyostrzenie z odrobiną kontrastu – na co dzień.</string>
@@ -2130,14 +2315,30 @@
     <string name="look_pixel_clean_desc">Ostre piksele dla gier 2D i starych tytułów.</string>
     <string name="look_anime_edge">Krawędzie anime</string>
     <string name="look_anime_edge_desc">Kreskówkowe kontury i wyostrzenie.</string>
-
     <string name="gpuinfo_not_adreno">To nie jest GPU Adreno</string>
+    <string name="gpuinfo_powervr">Systemowy sterownik PowerVR: kompatybilność zależy od urządzenia</string>
+    <string name="gpuinfo_xclipse">Eksperymentalne: RADV lub systemowy sterownik Xclipse</string>
+    <string name="gpu_system_powervr">Systemowy PowerVR</string>
+    <string name="gpu_auto_system_hint">Używa wbudowanych sterowników tego GPU</string>
+    <string name="drivers_powervr_builtin">Wybrano systemowy sterownik PowerVR dla środowiska uruchomieniowego i wyświetlania.</string>
+    <string name="drivers_mali_bridge_auto">Żaden otwarty sterownik nie obsługuje jeszcze tego Mali: mostek Mali jest włączony.</string>
+    <string name="upd_block_non_adreno_test">To testowa kompilacja dla urządzeń bez Snapdragona: oficjalne kompilacje tutaj działają tylko na Adreno, więc nie nadpisują jej. Nowe kompilacje testowe są na github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">Ostatnia sesja zakończyła się, bo Android zamknął DroidDeck, żeby zwolnić pamięć. To nie była awaria. Zamknij inne aplikacje lub obniż ustawienia tekstur gry i spróbuj ponownie.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">mostek Mali</string>
+    <string name="drivers_mali_no_pair_auto">Żaden otwarty sterownik nie obsługuje jeszcze tego Mali: używany jest %1$s na własnym sterowniku telefonu.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s nie został jeszcze opublikowany: do tego czasu używany jest %2$s.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s jest niedostępny, a sterownik tego telefonu zgłasza Vulkan %2$s (Venus wymaga 1.2): używany jest mostek Mali.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s nie został jeszcze opublikowany: do tego czasu mostek Mali jest włączony.</string>
+    <string name="cmgr_powervr_dxvk_queued">W kolejce: %1$s (oczekiwanie na inny sterownik środowiska uruchomieniowego)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK jest dostarczany przez systemowe środowisko uruchomieniowe PowerVR. Inne pakiety DXVK można przechowywać, ale nie są stosowane z tym sterownikiem.</string>
     <string name="gpuinfo_supported">Obsługiwany</string>
     <string name="gpuinfo_experimental">Eksperymentalny: jego sterowniki to wersje testowe</string>
     <string name="gpuinfo_a850_experimental">Eksperymentalna obsługa Adreno 850: wymaga zgodnych eksperymentalnych sterowników ekranu i gier; nie zweryfikowano na tym urządzeniu</string>
     <string name="gpuinfo_below_tested">Poniżej testowanego sprzętu (Adreno 725 i nowsze): może nie działać</string>
     <string name="gpuinfo_unsupported">Nieobsługiwany: brak zgodnego zaplecza graficznego dla tego GPU</string>
-
+    <string name="gpuinfo_bridge">Działa przez mostek Mali, na własnym sterowniku Vulkan telefonu</string>
+    <string name="gpuinfo_bridge_off">Nieobsługiwane przy wyłączonym moście Mali: Turnip wymaga GPU Adreno (Snapdragon)</string>
     <string name="turnip_rate_limited">Osiągnięto limit zapytań GitHub – spróbuj ponownie później</string>
     <string name="turnip_github_http">GitHub odpowiedział HTTP %1$d</string>
     <string name="turnip_download_failed">Pobieranie nie powiodło się</string>
@@ -2158,16 +2359,12 @@
     <string name="bundle_no_manifest">To nie jest pakiet sterowników: brak manifest.json wskazującego sterownik Android i Linux</string>
     <string name="bundle_entry_outside">To nie jest pakiet sterowników: %1$s wskazuje poza niego</string>
     <string name="bundle_too_large">To nie jest pakiet sterowników: po rozpakowaniu przekracza %1$d MB</string>
-
     <string name="gstore_sd_card">Karta SD</string>
     <string name="gstore_folder">Folder</string>
-
     <string name="logshare_chooser">Udostępnij logi sesji</string>
-
     <string name="hdr_needs_android_10">wymaga systemu Android 10 lub nowszego (warstwy wyświetlania z przestrzenią barw)</string>
     <string name="hdr_none">ten wyświetlacz nie zgłasza obsługi HDR</string>
     <string name="hdr_not_hdr10">ten wyświetlacz obsługuje %1$s, ale nie HDR10</string>
-
     <string name="gpu_this_gpu">ten GPU</string>
     <string name="phantom_title_on">Limit procesów podrzędnych jest włączony</string>
     <string name="phantom_title_unset">Limit procesów podrzędnych nie jest ustawiony</string>
@@ -2241,7 +2438,6 @@
     <string name="device_info_copied">Skopiowano.</string>
     <string name="force_ssbs_title">Wymuś SSBS</string>
     <string name="force_ssbs_hint">Utrzymuje ustawienie szybkości CPU, które Wine wciąż wyłącza. Może przyspieszyć gry Windows na Snapdragon 8 Elite; na starszych chipsetach niewielka różnica. Działa od następnego uruchomienia gry.</string>
-
     <string name="rail_stores">Sklepy</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Własna</string>
@@ -2628,6 +2824,11 @@
     <string name="setup_tab_diagnostics">Programista</string>
     <string name="setup_build_watermark">Znak wodny z etykietą kompilacji</string>
     <string name="setup_build_watermark_hint">Pokazuj na ekranie etykietę kompilacji testowej lub Lab. Domyślnie włączone.</string>
+    <string name="diagnostics_share_title">Udostępnij pakiety diagnostyczne</string>
+    <string name="diagnostics_share_session">Sesja i urządzenie</string>
+    <string name="diagnostics_share_graphics">Grafika</string>
+    <string name="diagnostics_share_games">Gry i zgodność</string>
+    <string name="diagnostics_share_all">Wszystkie pakiety</string>
     <string name="setup_ready">Gotowe do gry</string>
     <string name="setup_not_ready">Jeszcze nie gotowe do gry</string>
     <string name="setup_ready_runtime">środowisko %1$s</string>
@@ -2666,6 +2867,9 @@
     <string name="gog_achievements_enable_store">Włącz osiągnięcia GOG w ustawieniach Store</string>
     <string name="gog_achievements_unavailable">Osiągnięcia niedostępne; sprawdź dzienniki sesji</string>
     <string name="achievement_unlocked">Osiągnięcie odblokowane</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): wyłączone</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): włączone</string>
+    <string name="setup_gpu_venus_host_too_old">Sterownik na %1$s zgłasza Vulkan %2$s. Mali (Venus) wymaga Vulkan 1.2 lub nowszego (na starszych wersjach gamescope się nie uruchamia), więc sesje pomijają Venus i zamiast tego używają pary sterowników PanVK.</string>
     <string name="touch_paste">Wklej</string>
     <string name="touch_left_stick">Lewy drążek</string>
     <string name="touch_right_stick">Prawy drążek</string>
@@ -2718,7 +2922,6 @@
     <string name="touch_icon_color">Kolor ikony</string>
     <string name="touch_button_color">Kolor przycisku</string>
     <string name="touch_no_icon">Brak ikony</string>
-
     <string name="stores_sync_sign_in">Sprawdzanie logowania…</string>
     <string name="stores_sync_library">Pobieranie biblioteki…</string>
     <string name="stores_sync_game_list">Pobieranie listy gier…</string>
@@ -3025,6 +3228,7 @@
     <string name="storage_tool_redist">Instalacje VC++ i DirectX wymagane przez gry</string>
     <string name="storage_tool_fex">Uruchamia gry Linux x86</string>
     <string name="storage_tool_steam">Narzędzie Steam</string>
+    <string name="storage_tool_anticheat">Steam pobiera ten składnik dla gier z systemem antycheatowym nawet wtedy, gdy jest wyłączony. Jego usunięcie zatrzymuje ich instalację na 0%.</string>
     <string name="storage_tool_old_runtime">DroidDeck uruchamia gry bez tego środowiska</string>
     <string name="storage_tool_x86_proton">Proton x86, którego DroidDeck nie potrafi uruchomić</string>
     <string name="storage_tool_custom_default">Domyślne dla wszystkich gier</string>
@@ -3614,6 +3818,7 @@
     <string name="integration_shortcuts_service_description">Zatrzymuje Alt+Tab, klawisz Win i przycisk Home w aktywnej sesji DroidDeck zamiast w Androidzie.</string>
     <string name="integration_brightness_needed">Włącz Jasność w Konfiguracja → Integracja ze Steam</string>
     <string name="setup_gpu_bridge_off">Most Mali: wył.</string>
+    <string name="setup_gpu_bridge_unusable">%1$s nie może używać mostku Mali (wymaga GPU Mali bez ścieżki sterownika systemowego), więc ten przełącznik nic tu nie zmienia.</string>
     <string name="setup_gpu_bridge_on">Most Mali: wł.</string>
     <string name="setup_gpu_bridge_detail">%1$s to nie Adreno. Eksperymentalny most Vulkan jest włączony: sesja rysuje przez własny sterownik telefonu. Spodziewaj się błędów; wyślij logi sesji.</string>
     <string name="setup_bridge_safe">Tryb bezpieczny</string>
@@ -3773,9 +3978,8 @@
     <string name="input_reset_positions">Resetuj położenie</string>
     <string name="input_show_label">Pokaż etykietę</string>
     <string name="input_layout_import_failed">Nie można zaimportować tego układu</string>
-
     <string name="theme_white_red">Szkarłatny śnieg</string>
-    
+    <string name="theme_white_red_detail">Białe powierzchnie z czerwonymi akcentami.</string>
     <string name="rail_soundtracks">Ścieżki dźwiękowe</string>
     <string name="rail_music">Muzyka</string>
     <string name="soundtracks_options">Opcje odtwarzania</string>
@@ -3838,4 +4042,6 @@
     <string name="soundtracks_repeat_one">Powtarzaj jeden</string>
     <string name="soundtracks_volume">Głośność</string>
     <string name="soundtracks_no_tracks">Brak plików audio w tej ścieżce dźwiękowej</string>
+    <string name="setup_stores">Sklepy</string>
+    <string name="setup_agent_tab">Zakładka agenta</string>
 </resources>
