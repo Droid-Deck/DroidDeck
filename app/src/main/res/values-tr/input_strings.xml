@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Giriş profilleri</string>
+    <string name="input_profiles">Profiller</string>
+    <string name="input_physical">Fiziksel denetleyici</string>
+    <string name="input_primary">Ana ekran</string>
+    <string name="input_secondary">İkincil ekran</string>
+    <string name="input_native">Yerel / Steam Input</string>
+    <string name="input_native_target">Yerel: %1$s</string>
+    <string name="input_remap_native">Başka bir denetleyici denetimi gönder</string>
+    <string name="input_disabled">Devre dışı</string>
+    <string name="input_keys">Tuş veya tuş bileşimi</string>
+    <string name="input_direction_keys">Yön tuşları</string>
+    <string name="input_pointer">İşaretçiyi taşı</string>
+    <string name="input_pointer_speed">İşaretçi hızı: %1$d</string>
+    <string name="input_scroll">Kaydır</string>
+    <string name="input_scroll_vertical">Dikey kaydır</string>
+    <string name="input_mouse_left">Fare sol düğmesi</string>
+    <string name="input_mouse_right">Fare sağ düğmesi</string>
+    <string name="input_mouse_middle">Fare orta düğmesi</string>
+    <string name="input_command_menu">DroidDeck menüsünü aç</string>
+    <string name="input_command_keyboard">Klavyeyi göster</string>
+    <string name="input_command_steam">Steam menüsünü aç</string>
+    <string name="input_command_qam">Steam hızlı erişimini aç</string>
+    <string name="input_remove_element">Denetimi kaldır</string>
+    <string name="input_add_element">Denetim ekle</string>
+    <string name="input_extra_keys">Cihaza özel düğmeler</string>
+    <string name="input_capture">Fiziksel düğme ata</string>
+    <string name="input_capture_confirm">Düğmeyi bırakın, ardından Düzenle, Yeniden dene veya İptal seçin. B veya Geri, bıraktıktan sonra iptal eder.</string>
+    <string name="input_capture_retry">Yeniden dene</string>
+    <string name="input_capture_hint">Bir düğmeye basın; klavye tuşu olarak bildirilen Geri düğmesi de dahil. Ses ve Android sistem tuşları ayrılmıştır. Atama yalnızca bu cihaz için geçerlidir.</string>
+    <string name="input_remove_binding">Atamayı kaldır</string>
+    <string name="input_latency">Giriş tanılama</string>
+    <string name="input_measure">Giriş gönderme süresini kaydet</string>
+    <string name="input_read_timing">Ölçümleri oku</string>
+    <string name="input_latency_hint">Android\'den mevcut giriş aktarımına yayına kadar ölçer. Bluetooth varışı, konuk yoklaması, oluşturma ve ekran gecikmesi hariçtir. Kayıt varsayılan olarak kapalıdır.</string>
+    <string name="input_normal_binding">Normal giriş atamasını kullan</string>
+</resources>

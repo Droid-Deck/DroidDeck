@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Hồ sơ đầu vào</string>
+    <string name="input_profiles">Hồ sơ</string>
+    <string name="input_physical">Tay cầm vật lý</string>
+    <string name="input_primary">Màn hình chính</string>
+    <string name="input_secondary">Màn hình phụ</string>
+    <string name="input_native">Gốc / Steam Input</string>
+    <string name="input_native_target">Gốc: %1$s</string>
+    <string name="input_remap_native">Gửi điều khiển tay cầm khác</string>
+    <string name="input_disabled">Đã tắt</string>
+    <string name="input_keys">Phím hoặc tổ hợp phím</string>
+    <string name="input_direction_keys">Phím hướng</string>
+    <string name="input_pointer">Di chuyển con trỏ</string>
+    <string name="input_pointer_speed">Tốc độ con trỏ: %1$d</string>
+    <string name="input_scroll">Cuộn</string>
+    <string name="input_scroll_vertical">Cuộn dọc</string>
+    <string name="input_mouse_left">Nút chuột trái</string>
+    <string name="input_mouse_right">Nút chuột phải</string>
+    <string name="input_mouse_middle">Nút chuột giữa</string>
+    <string name="input_command_menu">Mở menu DroidDeck</string>
+    <string name="input_command_keyboard">Hiện bàn phím</string>
+    <string name="input_command_steam">Mở menu Steam</string>
+    <string name="input_command_qam">Mở truy cập nhanh Steam</string>
+    <string name="input_remove_element">Xóa điều khiển</string>
+    <string name="input_add_element">Thêm điều khiển</string>
+    <string name="input_extra_keys">Nút riêng cho thiết bị</string>
+    <string name="input_capture">Gán một nút vật lý</string>
+    <string name="input_capture_confirm">Nhả nút, sau đó chọn Sửa, Thử lại hoặc Hủy. B hoặc Quay lại sẽ hủy sau khi nhả.</string>
+    <string name="input_capture_retry">Thử lại</string>
+    <string name="input_capture_hint">Nhấn một nút, kể cả nút Quay lại được báo là phím. Các phím âm lượng và hệ thống Android được dành riêng. Việc gán chỉ áp dụng cho thiết bị này.</string>
+    <string name="input_remove_binding">Xóa gán</string>
+    <string name="input_latency">Chẩn đoán đầu vào</string>
+    <string name="input_measure">Ghi thời gian gửi đầu vào</string>
+    <string name="input_read_timing">Đọc số đo</string>
+    <string name="input_latency_hint">Đo quá trình gửi từ Android đến khi công bố vào kênh đầu vào hiện có. Không gồm việc đến qua Bluetooth, thăm dò khách, kết xuất và độ trễ màn hình. Ghi mặc định tắt.</string>
+    <string name="input_normal_binding">Dùng gán đầu vào thông thường</string>
+</resources>

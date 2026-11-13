@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Eingabeprofile</string>
+    <string name="input_profiles">Profile</string>
+    <string name="input_physical">Physischer Controller</string>
+    <string name="input_primary">Hauptbildschirm</string>
+    <string name="input_secondary">Zweitbildschirm</string>
+    <string name="input_native">Nativ / Steam Input</string>
+    <string name="input_native_target">Nativ: %1$s</string>
+    <string name="input_remap_native">Andere Controller-Steuerung senden</string>
+    <string name="input_disabled">Deaktiviert</string>
+    <string name="input_keys">Taste oder Tastenkombination</string>
+    <string name="input_direction_keys">Richtungstasten</string>
+    <string name="input_pointer">Zeiger bewegen</string>
+    <string name="input_pointer_speed">Zeigergeschwindigkeit: %1$d</string>
+    <string name="input_scroll">Scrollen</string>
+    <string name="input_scroll_vertical">Vertikal scrollen</string>
+    <string name="input_mouse_left">Linke Maustaste</string>
+    <string name="input_mouse_right">Rechte Maustaste</string>
+    <string name="input_mouse_middle">Mittlere Maustaste</string>
+    <string name="input_command_menu">DroidDeck-Menü öffnen</string>
+    <string name="input_command_keyboard">Tastatur anzeigen</string>
+    <string name="input_command_steam">Steam-Menü öffnen</string>
+    <string name="input_command_qam">Steam-Schnellzugriff öffnen</string>
+    <string name="input_remove_element">Steuerung entfernen</string>
+    <string name="input_add_element">Steuerung hinzufügen</string>
+    <string name="input_extra_keys">Gerätespezifische Tasten</string>
+    <string name="input_capture">Physische Taste zuweisen</string>
+    <string name="input_capture_confirm">Taste loslassen, dann Bearbeiten, Wiederholen oder Abbrechen wählen. B oder Zurück bricht nach dem Loslassen ab.</string>
+    <string name="input_capture_retry">Wiederholen</string>
+    <string name="input_capture_hint">Taste drücken, auch eine als Tastaturtaste gemeldete Zurück-Taste. Lautstärke- und Android-Systemtasten sind reserviert. Die Zuweisung gilt nur für dieses Gerät.</string>
+    <string name="input_remove_binding">Zuweisung entfernen</string>
+    <string name="input_latency">Eingabediagnose</string>
+    <string name="input_measure">Eingabe-Dispatch-Zeit aufzeichnen</string>
+    <string name="input_read_timing">Messwerte lesen</string>
+    <string name="input_latency_hint">Misst den Android-Dispatch bis zur Veröffentlichung im vorhandenen Eingabetransport. Bluetooth-Ankunft, Gast-Polling, Rendering und Anzeigelatenz sind ausgenommen. Die Aufzeichnung ist standardmäßig aus.</string>
+    <string name="input_normal_binding">Normale Eingabezuweisung verwenden</string>
+</resources>
