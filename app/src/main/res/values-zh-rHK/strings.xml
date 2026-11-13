@@ -3008,7 +3008,9 @@
     <string name="storage_unknown_prefix_detail">未配對到任何遊戲，因此保留</string>
     <string name="storage_remove_selected">移除所選 · %1$s</string>
     <string name="storage_uninstall_selected">解除安裝所選 · %1$s</string>
-    <string name="storage_bulk_confirm">刪除這些前綴和快取（%1$s）。其中的存檔和設定都會遺失；Steam Cloud 存檔仍保留在你的帳戶中。</string>
+    <string name="storage_bulk_prefixes">Wine 前綴</string>
+    <string name="storage_bulk_prefixes_detail">其中的存檔和設定都會遺失；Steam Cloud 存檔仍保留在你的帳戶中。</string>
+    <string name="storage_bulk_shaders">著色器快取</string>
     <string name="storage_components_packages">已下載的套件</string>
     <string name="storage_components_originals">已儲存的原始檔案</string>
     <string name="storage_components_none">沒有已下載的組件套件。</string>

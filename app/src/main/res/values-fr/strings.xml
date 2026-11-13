@@ -3073,7 +3073,9 @@
     <string name="storage_unknown_prefix_detail">Associé à aucun jeu, il est donc conservé</string>
     <string name="storage_remove_selected">Supprimer la sélection · %1$s</string>
     <string name="storage_uninstall_selected">Désinstaller la sélection · %1$s</string>
-    <string name="storage_bulk_confirm">Supprime ces préfixes et caches (%1$s). Les sauvegardes et paramètres qu\'ils contiennent sont perdus ; les sauvegardes Steam Cloud restent dans votre compte.</string>
+    <string name="storage_bulk_prefixes">Préfixes Wine</string>
+    <string name="storage_bulk_prefixes_detail">Les sauvegardes et paramètres qu\'ils contiennent sont perdus ; les sauvegardes Steam Cloud restent dans votre compte.</string>
+    <string name="storage_bulk_shaders">Caches de shaders</string>
     <string name="storage_components_packages">Paquets téléchargés</string>
     <string name="storage_components_originals">Originaux conservés</string>
     <string name="storage_components_none">Aucun paquet de composant téléchargé.</string>

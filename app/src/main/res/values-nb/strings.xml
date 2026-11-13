@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Ikke knyttet til et spill, så det beholdes</string>
     <string name="storage_remove_selected">Fjern valgte · %1$s</string>
     <string name="storage_uninstall_selected">Avinstaller valgte · %1$s</string>
-    <string name="storage_bulk_confirm">Sletter disse prefiksene og cachene (%1$s). Lagringer og innstillinger i dem går tapt; Steam Cloud-lagringer blir værende på kontoen din.</string>
+    <string name="storage_bulk_prefixes">Wine-prefikser</string>
+    <string name="storage_bulk_prefixes_detail">Lagringer og innstillinger i dem går tapt; Steam Cloud-lagringer blir værende på kontoen din.</string>
+    <string name="storage_bulk_shaders">Shadercacher</string>
     <string name="storage_components_packages">Nedlastede pakker</string>
     <string name="storage_components_originals">Beholdte originaler</string>
     <string name="storage_components_none">Ingen komponentpakker lastet ned.</string>

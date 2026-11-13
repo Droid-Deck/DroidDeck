@@ -3008,7 +3008,9 @@
     <string name="storage_unknown_prefix_detail">Không khớp với game nào nên được giữ lại</string>
     <string name="storage_remove_selected">Gỡ mục đã chọn · %1$s</string>
     <string name="storage_uninstall_selected">Gỡ cài đặt mục đã chọn · %1$s</string>
-    <string name="storage_bulk_confirm">Xóa các prefix và bộ nhớ đệm này (%1$s). Bản lưu và thiết lập bên trong sẽ mất; bản lưu Steam Cloud vẫn ở trong tài khoản của bạn.</string>
+    <string name="storage_bulk_prefixes">Prefix Wine</string>
+    <string name="storage_bulk_prefixes_detail">Bản lưu và thiết lập bên trong sẽ mất; bản lưu Steam Cloud vẫn ở trong tài khoản của bạn.</string>
+    <string name="storage_bulk_shaders">Bộ nhớ đệm shader</string>
     <string name="storage_components_packages">Gói đã tải</string>
     <string name="storage_components_originals">Bản gốc đã giữ</string>
     <string name="storage_components_none">Chưa tải gói thành phần nào.</string>

@@ -3181,7 +3181,9 @@
     <string name="storage_unknown_prefix_detail">غير مطابقة لأي لعبة، لذا يُحتفظ بها</string>
     <string name="storage_remove_selected">حذف المحدد · %1$s</string>
     <string name="storage_uninstall_selected">إلغاء تثبيت المحدد · %1$s</string>
-    <string name="storage_bulk_confirm">يحذف هذه البادئات وذاكرات التخزين المؤقت (%1$s). تُفقد الحفظات والإعدادات داخلها، وتبقى حفظات Steam Cloud في حسابك.</string>
+    <string name="storage_bulk_prefixes">بادئات Wine</string>
+    <string name="storage_bulk_prefixes_detail">تُفقد الحفظات والإعدادات داخلها، وتبقى حفظات Steam Cloud في حسابك.</string>
+    <string name="storage_bulk_shaders">ذاكرات الشيدرات المؤقتة</string>
     <string name="storage_components_packages">حزم منزّلة</string>
     <string name="storage_components_originals">أصول محفوظة</string>
     <string name="storage_components_none">لا حزم مكوّنات منزّلة.</string>

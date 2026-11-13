@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">किसी गेम से मेल नहीं खाता, इसलिए रखा जाता है</string>
     <string name="storage_remove_selected">चुने गए हटाएँ · %1$s</string>
     <string name="storage_uninstall_selected">चुने गए अनइंस्टॉल करें · %1$s</string>
-    <string name="storage_bulk_confirm">ये प्रीफ़िक्स और कैश डिलीट करता है (%1$s)। इनके अंदर के सेव और सेटिंग खो जाते हैं; Steam Cloud सेव आपके अकाउंट में रहते हैं।</string>
+    <string name="storage_bulk_prefixes">Wine प्रीफ़िक्स</string>
+    <string name="storage_bulk_prefixes_detail">इनके अंदर के सेव और सेटिंग खो जाते हैं; Steam Cloud सेव आपके अकाउंट में रहते हैं।</string>
+    <string name="storage_bulk_shaders">शेडर कैश</string>
     <string name="storage_components_packages">डाउनलोड किए पैकेज</string>
     <string name="storage_components_originals">रखे गए मूल</string>
     <string name="storage_components_none">कोई कॉम्पोनेंट पैकेज डाउनलोड नहीं है।</string>

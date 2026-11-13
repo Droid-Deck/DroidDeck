@@ -3468,7 +3468,9 @@
     <string name="storage_unknown_prefix_detail">Not matched to a game, so it is kept</string>
     <string name="storage_remove_selected">Remove selected · %1$s</string>
     <string name="storage_uninstall_selected">Uninstall selected · %1$s</string>
-    <string name="storage_bulk_confirm">Deletes these prefixes and caches (%1$s). Saves and settings inside them are lost; Steam Cloud saves stay in your account.</string>
+    <string name="storage_bulk_prefixes">Wine prefixes</string>
+    <string name="storage_bulk_prefixes_detail">Saves and settings inside them are lost; Steam Cloud saves stay in your account.</string>
+    <string name="storage_bulk_shaders">Shader caches</string>
     <string name="storage_components_packages">Downloaded packages</string>
     <string name="storage_components_originals">Saved originals</string>
     <string name="storage_components_none">No component packages downloaded.</string>

@@ -3008,7 +3008,9 @@
     <string name="storage_unknown_prefix_detail">Tidak sepadan dengan mana-mana permainan, jadi ia disimpan</string>
     <string name="storage_remove_selected">Alih keluar yang dipilih · %1$s</string>
     <string name="storage_uninstall_selected">Nyahpasang yang dipilih · %1$s</string>
-    <string name="storage_bulk_confirm">Memadam prefix dan cache ini (%1$s). Simpanan dan tetapan di dalamnya akan hilang; simpanan Steam Cloud kekal dalam akaun anda.</string>
+    <string name="storage_bulk_prefixes">Prefix Wine</string>
+    <string name="storage_bulk_prefixes_detail">Simpanan dan tetapan di dalamnya akan hilang; simpanan Steam Cloud kekal dalam akaun anda.</string>
+    <string name="storage_bulk_shaders">Cache shader</string>
     <string name="storage_components_packages">Pakej yang dimuat turun</string>
     <string name="storage_components_originals">Fail asal yang disimpan</string>
     <string name="storage_components_none">Tiada pakej komponen dimuat turun.</string>

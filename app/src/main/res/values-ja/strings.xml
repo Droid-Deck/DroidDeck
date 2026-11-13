@@ -3008,7 +3008,9 @@
     <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
     <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
     <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
-    <string name="storage_bulk_confirm">これらのプレフィックスとキャッシュ（%1$s）を削除します。その中のセーブデータと設定は失われます。Steam Cloudのセーブデータはアカウントに残ります。</string>
+    <string name="storage_bulk_prefixes">Wineプレフィックス</string>
+    <string name="storage_bulk_prefixes_detail">その中のセーブデータと設定は失われます。Steam Cloudのセーブデータはアカウントに残ります。</string>
+    <string name="storage_bulk_shaders">シェーダーキャッシュ</string>
     <string name="storage_components_packages">ダウンロード済みのパッケージ</string>
     <string name="storage_components_originals">保存済みの元ファイル</string>
     <string name="storage_components_none">ダウンロード済みのコンポーネントパッケージはありません。</string>

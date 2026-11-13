@@ -3109,7 +3109,9 @@
     <string name="storage_unknown_prefix_detail">Nie pasuje do żadnej gry, więc zostaje zachowany</string>
     <string name="storage_remove_selected">Usuń wybrane · %1$s</string>
     <string name="storage_uninstall_selected">Odinstaluj wybrane · %1$s</string>
-    <string name="storage_bulk_confirm">Usuwa te prefiksy i pamięci podręczne (%1$s). Zapisy i ustawienia w nich zostaną utracone; zapisy w Steam Cloud pozostają na Twoim koncie.</string>
+    <string name="storage_bulk_prefixes">Prefiksy Wine</string>
+    <string name="storage_bulk_prefixes_detail">Zapisy i ustawienia w nich zostaną utracone; zapisy w Steam Cloud pozostają na Twoim koncie.</string>
+    <string name="storage_bulk_shaders">Pamięci podręczne shaderów</string>
     <string name="storage_components_packages">Pobrane pakiety</string>
     <string name="storage_components_originals">Zachowane oryginały</string>
     <string name="storage_components_none">Nie pobrano żadnych pakietów komponentów.</string>

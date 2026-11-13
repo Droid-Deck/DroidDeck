@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Inte kopplat till något spel, så det behålls</string>
     <string name="storage_remove_selected">Ta bort valda · %1$s</string>
     <string name="storage_uninstall_selected">Avinstallera valda · %1$s</string>
-    <string name="storage_bulk_confirm">Raderar dessa prefix och cacheminnen (%1$s). Sparningar och inställningar i dem går förlorade; Steam Cloud-sparningar finns kvar på ditt konto.</string>
+    <string name="storage_bulk_prefixes">Wine-prefix</string>
+    <string name="storage_bulk_prefixes_detail">Sparningar och inställningar i dem går förlorade; Steam Cloud-sparningar finns kvar på ditt konto.</string>
+    <string name="storage_bulk_shaders">Shadercacheminnen</string>
     <string name="storage_components_packages">Hämtade paket</string>
     <string name="storage_components_originals">Behållna original</string>
     <string name="storage_components_none">Inga komponentpaket hämtade.</string>

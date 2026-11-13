@@ -175,7 +175,7 @@ object StorageState {
     }
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
-        val allowed = (fresh.games.mapNotNull { it.prefixDir } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
+        val allowed = (fresh.games.flatMap { listOfNotNull(it.prefixDir, it.shaderDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
             fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.map { it.dir }).mapTo(HashSet()) { it.path }
         val wanted = dirs.distinctBy { it.path }
         val targets = wanted.filter { it.path in allowed }

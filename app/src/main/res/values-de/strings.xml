@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Keinem Spiel zugeordnet, daher bleibt es erhalten</string>
     <string name="storage_remove_selected">Auswahl entfernen · %1$s</string>
     <string name="storage_uninstall_selected">Auswahl deinstallieren · %1$s</string>
-    <string name="storage_bulk_confirm">Löscht diese Präfixe und Caches (%1$s). Speicherstände und Einstellungen darin gehen verloren; Steam-Cloud-Speicherstände bleiben in deinem Konto.</string>
+    <string name="storage_bulk_prefixes">Wine-Präfixe</string>
+    <string name="storage_bulk_prefixes_detail">Speicherstände und Einstellungen darin gehen verloren; Steam-Cloud-Speicherstände bleiben in deinem Konto.</string>
+    <string name="storage_bulk_shaders">Shader-Caches</string>
     <string name="storage_components_packages">Geladene Pakete</string>
     <string name="storage_components_originals">Gesicherte Originale</string>
     <string name="storage_components_none">Keine geladenen Komponentenpakete.</string>

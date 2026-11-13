@@ -3008,7 +3008,9 @@
     <string name="storage_unknown_prefix_detail">일치하는 게임이 없어 유지됩니다</string>
     <string name="storage_remove_selected">선택 항목 제거 · %1$s</string>
     <string name="storage_uninstall_selected">선택 항목 제거 · %1$s</string>
-    <string name="storage_bulk_confirm">이 프리픽스와 캐시(%1$s)를 삭제합니다. 그 안의 저장 파일과 설정은 사라지며, Steam Cloud 저장 파일은 계정에 남아 있습니다.</string>
+    <string name="storage_bulk_prefixes">Wine 프리픽스</string>
+    <string name="storage_bulk_prefixes_detail">그 안의 저장 파일과 설정은 사라지며, Steam Cloud 저장 파일은 계정에 남아 있습니다.</string>
+    <string name="storage_bulk_shaders">셰이더 캐시</string>
     <string name="storage_components_packages">내려받은 패키지</string>
     <string name="storage_components_originals">저장된 원본 파일</string>
     <string name="storage_components_none">내려받은 구성 요소 패키지가 없습니다.</string>

@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Δεν αντιστοιχεί σε παιχνίδι, οπότε διατηρείται</string>
     <string name="storage_remove_selected">Αφαίρεση επιλεγμένων · %1$s</string>
     <string name="storage_uninstall_selected">Κατάργηση επιλεγμένων · %1$s</string>
-    <string name="storage_bulk_confirm">Διαγράφει αυτά τα prefix και τις προσωρινές μνήμες (%1$s). Οι αποθηκεύσεις και οι ρυθμίσεις μέσα τους χάνονται· οι αποθηκεύσεις Steam Cloud παραμένουν στον λογαριασμό σας.</string>
+    <string name="storage_bulk_prefixes">Prefix Wine</string>
+    <string name="storage_bulk_prefixes_detail">Οι αποθηκεύσεις και οι ρυθμίσεις μέσα τους χάνονται· οι αποθηκεύσεις Steam Cloud παραμένουν στον λογαριασμό σας.</string>
+    <string name="storage_bulk_shaders">Προσωρινές μνήμες shaders</string>
     <string name="storage_components_packages">Ληφθέντα πακέτα</string>
     <string name="storage_components_originals">Διατηρημένα αρχικά</string>
     <string name="storage_components_none">Δεν έχουν ληφθεί πακέτα στοιχείων.</string>

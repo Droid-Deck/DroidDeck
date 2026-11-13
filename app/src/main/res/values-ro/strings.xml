@@ -3073,7 +3073,9 @@
     <string name="storage_unknown_prefix_detail">Nu corespunde niciunui joc, deci este păstrat</string>
     <string name="storage_remove_selected">Elimină selecția · %1$s</string>
     <string name="storage_uninstall_selected">Dezinstalează selecția · %1$s</string>
-    <string name="storage_bulk_confirm">Șterge aceste prefixuri și cache-uri (%1$s). Salvările și setările din ele se pierd; salvările din Steam Cloud rămân în contul tău.</string>
+    <string name="storage_bulk_prefixes">Prefixuri Wine</string>
+    <string name="storage_bulk_prefixes_detail">Salvările și setările din ele se pierd; salvările din Steam Cloud rămân în contul tău.</string>
+    <string name="storage_bulk_shaders">Cache-uri de shadere</string>
     <string name="storage_components_packages">Pachete descărcate</string>
     <string name="storage_components_originals">Originale păstrate</string>
     <string name="storage_components_none">Niciun pachet de componente descărcat.</string>

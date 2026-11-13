@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
     <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
-    <string name="storage_bulk_confirm">Törli ezeket a prefixeket és gyorsítótárakat (%1$s). A bennük lévő mentések és beállítások elvesznek; a Steam Cloud-mentések a fiókjában maradnak.</string>
+    <string name="storage_bulk_prefixes">Wine-prefixek</string>
+    <string name="storage_bulk_prefixes_detail">A bennük lévő mentések és beállítások elvesznek; a Steam Cloud-mentések a fiókjában maradnak.</string>
+    <string name="storage_bulk_shaders">Shader-gyorsítótárak</string>
     <string name="storage_components_packages">Letöltött csomagok</string>
     <string name="storage_components_originals">Megtartott eredetiek</string>
     <string name="storage_components_none">Nincs letöltött összetevő-csomag.</string>

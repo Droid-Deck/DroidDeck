@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Bir oyunla eşleşmedi, bu yüzden korunuyor</string>
     <string name="storage_remove_selected">Seçilenleri kaldır · %1$s</string>
     <string name="storage_uninstall_selected">Seçilenlerin yüklemesini kaldır · %1$s</string>
-    <string name="storage_bulk_confirm">Bu önekleri ve önbellekleri (%1$s) siler. İçindeki kayıtlar ve ayarlar kaybolur; Steam Cloud kayıtları hesabınızda kalır.</string>
+    <string name="storage_bulk_prefixes">Wine önekleri</string>
+    <string name="storage_bulk_prefixes_detail">İçindeki kayıtlar ve ayarlar kaybolur; Steam Cloud kayıtları hesabınızda kalır.</string>
+    <string name="storage_bulk_shaders">Gölgelendirici önbellekleri</string>
     <string name="storage_components_packages">İndirilen paketler</string>
     <string name="storage_components_originals">Kaydedilen orijinaller</string>
     <string name="storage_components_none">İndirilmiş bileşen paketi yok.</string>

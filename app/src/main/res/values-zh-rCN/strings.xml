@@ -3012,7 +3012,9 @@
     <string name="storage_unknown_prefix_detail">未匹配到游戏，因此保留</string>
     <string name="storage_remove_selected">移除所选 · %1$s</string>
     <string name="storage_uninstall_selected">卸载所选 · %1$s</string>
-    <string name="storage_bulk_confirm">删除这些前缀和缓存（%1$s）。其中的存档和设置将丢失；Steam Cloud 存档仍保留在你的账户中。</string>
+    <string name="storage_bulk_prefixes">Wine 前缀</string>
+    <string name="storage_bulk_prefixes_detail">其中的存档和设置将丢失；Steam Cloud 存档仍保留在你的账户中。</string>
+    <string name="storage_bulk_shaders">着色器缓存</string>
     <string name="storage_components_packages">已下载的包</string>
     <string name="storage_components_originals">已保存的原始文件</string>
     <string name="storage_components_none">没有已下载的组件包。</string>

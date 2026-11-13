@@ -33,7 +33,7 @@ class ToolUsage(
     val games: Int, val isDefault: Boolean, val manifests: List<File>, val dirs: List<File>,
 )
 
-class Leftover(val appId: Long, val prefix: File?, val shaders: File?, val bytes: Long, val safe: Boolean, val shortcut: Boolean = false, val name: String? = null)
+class Leftover(val appId: Long, val prefix: File?, val shaders: File?, val bytes: Long, val safe: Boolean, val shortcut: Boolean = false, val name: String? = null, val prefixBytes: Long = 0)
 
 enum class PrefixOwner { SHARED, LAUNCHER, GAME, UNKNOWN }
 
@@ -225,12 +225,13 @@ object StorageScan {
             for (id in (prefixes.keys + caches.keys).sorted()) {
                 val prefix = prefixes[id]
                 val cache = caches[id]
-                val bytes = (prefix?.let { walker.measure(it) } ?: 0) + (cache?.let { walker.measure(it) } ?: 0)
+                val prefixBytes = prefix?.let { walker.measure(it) } ?: 0
+                val bytes = prefixBytes + (cache?.let { walker.measure(it) } ?: 0)
                 val safe = prefix == null || SteamStorage.isStubPrefix(prefix)
                 val name = if (safe) null else runCatching {
                     com.droiddeck.launcher.frontend.SteamAppInfo.info(context, id, File(if (lib.x64) x64Root ?: steamRoot else steamRoot, "appcache/appinfo.vdf"))?.name
                 }.getOrNull()?.ifEmpty { null }
-                leftovers.add(Leftover(id.toLong(), prefix, cache, bytes, safe, name = name))
+                leftovers.add(Leftover(id.toLong(), prefix, cache, bytes, safe, name = name, prefixBytes = prefixBytes))
             }
         }
 
@@ -284,7 +285,7 @@ object StorageScan {
                     id != null && ownersRead -> {
                         val cache = caches[id]
                         leftovers.add(Leftover(id, dir, cache, bytes + (cache?.let { walker.measure(it) } ?: 0), SteamStorage.isStubPrefix(dir),
-                            shortcut = true, name = folders[id]?.let { File(it).name } ?: SteamStorage.gameFolderHint(dir)))
+                            shortcut = true, name = folders[id]?.let { File(it).name } ?: SteamStorage.gameFolderHint(dir), prefixBytes = bytes))
                     }
                     else -> kept.add(KeptPrefix(dir, PrefixOwner.UNKNOWN, id?.toString() ?: dir.name, bytes, lib.label, lib.x64))
                 }

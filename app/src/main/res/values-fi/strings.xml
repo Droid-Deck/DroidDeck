@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Ei vastaa mitään peliä, joten se säilytetään</string>
     <string name="storage_remove_selected">Poista valitut · %1$s</string>
     <string name="storage_uninstall_selected">Poista valittujen asennus · %1$s</string>
-    <string name="storage_bulk_confirm">Poistaa nämä prefixit ja välimuistit (%1$s). Niiden sisällä olevat tallennukset ja asetukset menetetään; Steam Cloud -tallennukset säilyvät tililläsi.</string>
+    <string name="storage_bulk_prefixes">Wine-prefixit</string>
+    <string name="storage_bulk_prefixes_detail">Niiden sisällä olevat tallennukset ja asetukset menetetään; Steam Cloud -tallennukset säilyvät tililläsi.</string>
+    <string name="storage_bulk_shaders">Shadervälimuistit</string>
     <string name="storage_components_packages">Ladatut paketit</string>
     <string name="storage_components_originals">Säilytetyt alkuperäiset</string>
     <string name="storage_components_none">Komponenttipaketteja ei ole ladattu.</string>

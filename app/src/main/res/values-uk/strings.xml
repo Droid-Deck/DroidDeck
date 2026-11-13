@@ -3109,7 +3109,9 @@
     <string name="storage_unknown_prefix_detail">Не зіставлено з грою, тому зберігається</string>
     <string name="storage_remove_selected">Видалити вибрані · %1$s</string>
     <string name="storage_uninstall_selected">Видалити вибрані · %1$s</string>
-    <string name="storage_bulk_confirm">Видаляє ці префікси та кеші (%1$s). Збереження й налаштування в них буде втрачено; збереження Steam Cloud залишаються у вашому обліковому записі.</string>
+    <string name="storage_bulk_prefixes">Префікси Wine</string>
+    <string name="storage_bulk_prefixes_detail">Збереження й налаштування в них буде втрачено; збереження Steam Cloud залишаються у вашому обліковому записі.</string>
+    <string name="storage_bulk_shaders">Кеші шейдерів</string>
     <string name="storage_components_packages">Завантажені пакети</string>
     <string name="storage_components_originals">Збережені оригінали</string>
     <string name="storage_components_none">Жодного завантаженого пакета компонентів.</string>

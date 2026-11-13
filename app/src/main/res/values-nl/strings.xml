@@ -3037,7 +3037,9 @@
     <string name="storage_unknown_prefix_detail">Niet aan een game gekoppeld, dus het blijft bewaard</string>
     <string name="storage_remove_selected">Selectie verwijderen · %1$s</string>
     <string name="storage_uninstall_selected">Selectie verwijderen · %1$s</string>
-    <string name="storage_bulk_confirm">Verwijdert deze prefixen en caches (%1$s). Opgeslagen spellen en instellingen daarin gaan verloren; Steam Cloud-opslagen blijven in je account.</string>
+    <string name="storage_bulk_prefixes">Wine-prefixen</string>
+    <string name="storage_bulk_prefixes_detail">Opgeslagen spellen en instellingen daarin gaan verloren; Steam Cloud-opslagen blijven in je account.</string>
+    <string name="storage_bulk_shaders">Shadercaches</string>
     <string name="storage_components_packages">Gedownloade pakketten</string>
     <string name="storage_components_originals">Bewaarde originelen</string>
     <string name="storage_components_none">Geen componentpakketten gedownload.</string>

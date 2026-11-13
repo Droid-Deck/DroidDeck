@@ -3109,7 +3109,9 @@
     <string name="storage_unknown_prefix_detail">Nepatří k žádné hře, proto zůstává</string>
     <string name="storage_remove_selected">Odebrat vybrané · %1$s</string>
     <string name="storage_uninstall_selected">Odinstalovat vybrané · %1$s</string>
-    <string name="storage_bulk_confirm">Smaže tyto prefixy a mezipaměti (%1$s). Uložené hry a nastavení v nich budou ztraceny; uložení ve Steam Cloud zůstanou ve vašem účtu.</string>
+    <string name="storage_bulk_prefixes">Prefixy Wine</string>
+    <string name="storage_bulk_prefixes_detail">Uložené hry a nastavení v nich budou ztraceny; uložení ve Steam Cloud zůstanou ve vašem účtu.</string>
+    <string name="storage_bulk_shaders">Mezipaměti shaderů</string>
     <string name="storage_components_packages">Stažené balíky</string>
     <string name="storage_components_originals">Zachované originály</string>
     <string name="storage_components_none">Nejsou stažené žádné balíky komponent.</string>
