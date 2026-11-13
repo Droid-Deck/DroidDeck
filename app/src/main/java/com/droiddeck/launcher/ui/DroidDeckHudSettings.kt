@@ -60,12 +60,14 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
     val size = DroidDeckHudSize.from(cfg["hudSize"])
     val chips = size.supportedChips() + EXTRA[size].orEmpty()
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
-        ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
-            chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
         for (metric in METRICS) {
             if (metric.chip !in chips || metric.chip in HIDDEN[size].orEmpty()) continue
             ToggleRow(host, "hud-${metric.key}", stringResource(metric.label), null, on(metric.key),
                 chipModifier = track("hud-${metric.key}")) { a.onHudSetting(metric.key, flag(it)) }
+            if (metric.key == "showBattery") {
+                ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
+                    chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
+            }
         }
     }
 
