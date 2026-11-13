@@ -52,9 +52,12 @@ object StorageState {
 
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
-        if (scanning && force) refreshAgain = true
-        if (scanning || cleaning) return
+        if (scanning || cleaning) {
+            if (force) refreshAgain = true
+            return
+        }
         if (!force && current != null && System.currentTimeMillis() - current.at < FRESH_MS) return
+        refreshAgain = false
         val app = context.applicationContext
         scanning = true
         Thread({
@@ -63,10 +66,7 @@ object StorageState {
             main.post {
                 if (result != null) report = result
                 scanning = false
-                if (refreshAgain) {
-                    refreshAgain = false
-                    refresh(app, force = true)
-                }
+                if (refreshAgain) refresh(app, force = true)
             }
         }, "storage-scan").start()
     }
@@ -234,6 +234,7 @@ object StorageState {
             cleaning = false
             lastFreed = freed
             onDone(freed)
+            if (refreshAgain) refresh(app, force = true)
         }
     }
 

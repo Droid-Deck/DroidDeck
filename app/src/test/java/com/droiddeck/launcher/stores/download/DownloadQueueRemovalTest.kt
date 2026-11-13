@@ -18,4 +18,22 @@ class DownloadQueueRemovalTest {
         assertTrue(DownloadQueue.holdForRemoval(key))
         DownloadQueue.releaseRemoval(key)
     }
+
+    @Test fun cleanupCannotStartDuringARemovalHold() {
+        val key = "gog:hold-then-cleanup-test"
+        assertTrue(DownloadQueue.holdForRemoval(key))
+        assertFalse(DownloadQueue.beginCleanup(key))
+        DownloadQueue.releaseRemoval(key)
+        assertTrue(DownloadQueue.beginCleanup(key))
+        DownloadQueue.endCleanup(key)
+    }
+
+    @Test fun aRemovalHoldWaitsForCleanupToEnd() {
+        val key = "gog:cleanup-then-hold-test"
+        assertTrue(DownloadQueue.beginCleanup(key))
+        assertFalse(DownloadQueue.holdForRemoval(key))
+        DownloadQueue.endCleanup(key)
+        assertTrue(DownloadQueue.holdForRemoval(key))
+        DownloadQueue.releaseRemoval(key)
+    }
 }
