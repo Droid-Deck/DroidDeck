@@ -22,7 +22,7 @@ import kotlin.math.roundToInt
 class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
-    private val feed = GameFrameFeed(File(LinuxRuntime.rootDir(this.context), HudFrames.PATH))
+    private val feed = GameFrameFeed.forRoot(LinuxRuntime.rootDir(this.context))
     private val readings = MangoReadings(File(this.context.filesDir, "session"), LinuxRuntime.rootDir(this.context))
     private var view: DroidDeckHudView? = null
     private var parent: ViewGroup? = null
