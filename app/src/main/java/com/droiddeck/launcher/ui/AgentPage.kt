@@ -553,13 +553,16 @@ private fun AgentComposer(
                 modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
             ) { AgentActivity(labOpen) { labOpen = !labOpen } }
             AgentEditor(composer, draftState, inputModifier, panel, onPanel, onSetup, controlsOpen, { controlsOpen = it },
-                highlightControls = showControlsWithoutKeyboard && controlsOpen, send = send)
+                highlightControls = showControlsWithoutKeyboard, send = send)
         } else AgentReadingBar(composer, draft, inputModifier, labOpen, onLab = { labOpen = !labOpen }) {
-            controlsOpen = true
             if (showControlsWithoutKeyboard) {
+                controlsOpen = false
                 composer.typing = true
                 composer.opening = false
-            } else composer.open()
+            } else {
+                controlsOpen = true
+                composer.open()
+            }
         }
     }
 }
