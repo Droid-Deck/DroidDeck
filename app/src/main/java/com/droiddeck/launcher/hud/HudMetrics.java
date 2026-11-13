@@ -563,6 +563,7 @@ public class HudMetrics {
     }
 
     private final BatteryRuntimeEstimator batteryRuntimeEstimator = new BatteryRuntimeEstimator();
+    private Boolean lastBatteryDischarging = null;
 
     public Battery collectBattery() {
         BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
@@ -580,6 +581,12 @@ public class HudMetrics {
 
         int st = status.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN);
         boolean charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL;
+        boolean discharging = st == BatteryManager.BATTERY_STATUS_DISCHARGING
+                || st == BatteryManager.BATTERY_STATUS_NOT_CHARGING;
+        if (lastBatteryDischarging != null && lastBatteryDischarging.booleanValue() != discharging) {
+            batteryRuntimeEstimator.reset();
+        }
+        lastBatteryDischarging = discharging;
         if (st == BatteryManager.BATTERY_STATUS_UNKNOWN) {
             Boolean sysCharging = readChargingFromPowerSupply();
             if (sysCharging != null) charging = sysCharging;
@@ -605,7 +612,9 @@ public class HudMetrics {
             if (uw != null && uw != 0L) watts = (float) (Math.abs(uw) / 1_000_000.0);
         }
 
-        Double runtimeHours = batteryRuntimeEstimator.estimateHours(chargeCounter, Math.abs((double) currentMicroAmps));
+        Double runtimeHours = discharging
+                ? batteryRuntimeEstimator.estimateHours(chargeCounter, Math.abs((double) currentMicroAmps))
+                : null;
         String runtimeText;
         if (st == BatteryManager.BATTERY_STATUS_FULL || (percent != null && percent >= 100)) runtimeText = "Full";
         else if (charging) runtimeText = "Charging";

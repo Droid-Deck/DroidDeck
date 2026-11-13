@@ -8,8 +8,13 @@ class BatteryRuntimeEstimator {
     private val currentSamples = ArrayDeque<Double>()
 
     @Synchronized
+    fun reset() {
+        currentSamples.clear()
+    }
+
+    @Synchronized
     fun estimateHours(chargeNowUah: Double, currentSampleUa: Double): Double? {
-        if (currentSampleUa.isFinite()) {
+        if (currentSampleUa.isFinite() && currentSampleUa != 0.0) {
             currentSamples.addLast(abs(currentSampleUa))
             while (currentSamples.size > MAX_SAMPLES) currentSamples.removeFirst()
         }

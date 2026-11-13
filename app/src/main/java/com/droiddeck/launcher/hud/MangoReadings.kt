@@ -13,6 +13,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     class Battery(val percent: Int?, val watts: Float, val charging: Boolean, val runtimeText: String?)
 
     private val batteryRuntimeEstimator = BatteryRuntimeEstimator()
+    private var lastBatteryDischarging: Boolean? = null
 
     private val cpuTimes = HashMap<String, LongArray>()
     private val cpuPercents = HashMap<String, Int>()
@@ -129,7 +130,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
 
         for (dir in dirs) {
             val status = runCatching { File(dir, "status").readLines().firstOrNull() }.getOrNull()
-            val isDischarging = status == "Discharging"
+            val isDischarging = status == "Discharging" || status == "Not charging"
             if (isDischarging) anyDischarging = true
             if (status == "Charging" || status == "Unknown") anyChargingStatus = true
             if (status != "Full") allFull = false
@@ -202,7 +203,11 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
             perBatteryPercents.isNotEmpty() -> perBatteryPercents.average().roundToInt().coerceIn(0, 100)
             else -> null
         }
-        val estimatedHours = if (runtimeChargeComplete && currentComplete)
+        if (lastBatteryDischarging != null && lastBatteryDischarging != anyDischarging) {
+            batteryRuntimeEstimator.reset()
+        }
+        lastBatteryDischarging = anyDischarging
+        val estimatedHours = if (anyDischarging && runtimeChargeComplete && currentComplete)
             batteryRuntimeEstimator.estimateHours(runtimeChargeUah, aggregateCurrentUa) else null
         val runtimeHours = suppliedRuntimeSeconds?.let { it / 3600.0 } ?: estimatedHours
         val charging = !anyDischarging && anyChargingStatus

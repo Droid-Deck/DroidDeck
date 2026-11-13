@@ -65,10 +65,10 @@ class MangoReadingsTest {
         battery("Discharging", 2_000_000, 3_000_000, 2_000_000, 500_000)
         val second = File(tmp.root, "sys/power_supply/BAT2").apply { mkdirs() }
         File(second, "status").writeText("Discharging\n")
-        File(second, "charge_now").writeText("2_000_000\n")
-        File(second, "charge_full").writeText("3_000_000\n")
-        File(second, "power_now").writeText("2_000_000\n")
-        File(second, "current_now").writeText("500_000\n")
+        File(second, "charge_now").writeText("2000000\n")
+        File(second, "charge_full").writeText("3000000\n")
+        File(second, "power_now").writeText("2000000\n")
+        File(second, "current_now").writeText("500000\n")
         File(second, "voltage_now").writeText("4000000\n")
         val result = readings().battery()!!
         assertEquals(67, result.percent)
