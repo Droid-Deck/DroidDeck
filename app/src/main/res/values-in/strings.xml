@@ -2541,7 +2541,7 @@
     <string name="gpu_chip_restart">%1$s · perlu mulai ulang</string>
     <string name="comp_this_device">Perangkat ini</string>
     <string name="proton_remove_title">Hapus %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostik</string>
+    <string name="setup_tab_diagnostics">Developer</string>
     <string name="setup_build_watermark">Tanda air label build</string>
     <string name="setup_build_watermark_hint">Tampilkan label build pengujian atau Lab di layar. Aktif secara default.</string>
     <string name="setup_ready">Siap bermain</string>

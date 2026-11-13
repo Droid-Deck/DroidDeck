@@ -2595,7 +2595,7 @@
     <string name="gpu_chip_restart">%1$s · necesită repornire</string>
     <string name="comp_this_device">Acest dispozitiv</string>
     <string name="proton_remove_title">Elimini %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnosticare</string>
+    <string name="setup_tab_diagnostics">Dezvoltator</string>
     <string name="setup_build_watermark">Filigrană cu eticheta versiunii</string>
     <string name="setup_build_watermark_hint">Afișează pe ecran eticheta versiunii de testare sau Lab. Activată implicit.</string>
     <string name="setup_ready">Pregătit de joc</string>

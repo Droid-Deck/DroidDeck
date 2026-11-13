@@ -2541,7 +2541,7 @@
     <string name="gpu_chip_restart">%1$s · 再起動待ち</string>
     <string name="comp_this_device">このデバイス</string>
     <string name="proton_remove_title">%1$sを削除しますか？</string>
-    <string name="setup_tab_diagnostics">診断</string>
+    <string name="setup_tab_diagnostics">開発者</string>
     <string name="setup_build_watermark">ビルドラベルの透かし</string>
     <string name="setup_build_watermark_hint">テストビルドまたはLabビルドのラベルを画面に表示します。デフォルトで有効です。</string>
     <string name="setup_ready">プレイの準備完了</string>

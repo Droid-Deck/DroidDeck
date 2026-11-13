@@ -2991,7 +2991,7 @@
     <string name="gpu_chip_restart">%1$s · restart pending</string>
     <string name="comp_this_device">This device</string>
     <string name="proton_remove_title">Remove %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostics</string>
+    <string name="setup_tab_diagnostics">Developer</string>
     <string name="setup_tab_glasses">Smart glasses</string>
     <string name="setup_glasses_scope">Display and head-tracking settings are shared across DroidDeck menus, games and desktop sessions.</string>
     <string name="setup_glasses_connect">Connect smart glasses to change their display and tracking settings. Your saved settings are kept when you disconnect.</string>

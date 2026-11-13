@@ -2568,7 +2568,7 @@
     <string name="gpu_chip_restart">%1$s · रीस्टार्ट बाकी</string>
     <string name="comp_this_device">यह डिवाइस</string>
     <string name="proton_remove_title">%1$s हटाएं?</string>
-    <string name="setup_tab_diagnostics">डायग्नोस्टिक्स</string>
+    <string name="setup_tab_diagnostics">डेवलपर</string>
     <string name="setup_build_watermark">बिल्ड लेबल वॉटरमार्क</string>
     <string name="setup_build_watermark_hint">स्क्रीन पर टेस्ट या Lab बिल्ड लेबल दिखाएँ। डिफ़ॉल्ट रूप से चालू।</string>
     <string name="setup_ready">खेलने के लिए तैयार</string>

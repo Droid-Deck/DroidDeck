@@ -2568,7 +2568,7 @@
     <string name="gpu_chip_restart">%1$s · kræver genstart</string>
     <string name="comp_this_device">Denne enhed</string>
     <string name="proton_remove_title">Fjern %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostik</string>
+    <string name="setup_tab_diagnostics">Udvikler</string>
     <string name="setup_build_watermark">Vandmærke med buildmærkat</string>
     <string name="setup_build_watermark_hint">Vis mærkatet for test- eller Lab-builden på skærmen. Aktiveret som standard.</string>
     <string name="setup_ready">Klar til at spille</string>

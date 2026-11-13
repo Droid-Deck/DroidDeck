@@ -2622,7 +2622,7 @@
     <string name="gpu_chip_restart">%1$s · čeká na restart</string>
     <string name="comp_this_device">Toto zařízení</string>
     <string name="proton_remove_title">Odstranit %1$s?</string>
-    <string name="setup_tab_diagnostics">Diagnostika</string>
+    <string name="setup_tab_diagnostics">Vývojář</string>
     <string name="setup_build_watermark">Vodoznak s označením sestavení</string>
     <string name="setup_build_watermark_hint">Zobrazit na obrazovce označení testovacího sestavení nebo sestavení Lab. Ve výchozím nastavení zapnuté.</string>
     <string name="setup_ready">Připraveno ke hraní</string>
