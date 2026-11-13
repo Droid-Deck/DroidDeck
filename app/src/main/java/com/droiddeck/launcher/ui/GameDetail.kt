@@ -400,6 +400,7 @@ internal fun GameActions(
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
     val cloud = game?.library == Library.XBOX_CLOUD && installed == null
     val downloadBytes = catalogSize(item)
+    val launchSupported = store != Store.ROCKSTAR || com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(id)
     Actions {
         when {
             s.shortcutPicker && game != null -> {
@@ -411,8 +412,8 @@ internal fun GameActions(
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 val preparing = (game?.launchKey ?: storeKey)?.let { it in s.preparingGames } == true
                 PrimaryButton(
-                    stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
-                    enabled = !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
+                    stringResource(if (!launchSupported) R.string.stores_rockstar_launch_unavailable else if (preparing) R.string.store_starting else R.string.stores_play),
+                    enabled = launchSupported && !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
                     if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(store, id, s, a)

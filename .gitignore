@@ -36,3 +36,4 @@ __pycache__/
 app/src/main/assets/directaudio/
 app/src/main/assets/hybris/
 /tools/vr/out/
+app/src/main/resources/rockstar/helpers/
