@@ -91,6 +91,9 @@ class NativeHookMountTest(unittest.TestCase):
         (relinked / "drive_c/c.txt").write_text("drive c")
         os.symlink(os.path.relpath(cls.root, relinked / "dosdevices"), relinked / "dosdevices/z:")
         os.symlink("../drive_c", relinked / "dosdevices/c:")
+        copied = cls.root / "pfx/copied/dosdevices"
+        copied.mkdir(parents=True)
+        os.symlink("../" * 12 + "..", copied / "z:")
         elsewhere = tmp / "elsewhere"
         (elsewhere / "outside/pfx/dosdevices").mkdir(parents=True)
         (elsewhere / "mnt/library/Some Game").mkdir(parents=True)
@@ -166,6 +169,17 @@ class NativeHookMountTest(unittest.TestCase):
     def test_suffix_after_a_relative_link_is_not_collapsed(self):
         path = "/pfx/relinked/dosdevices/z:/mnt/library/missing/../Some Game/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["0", "-"])
+
+    def test_relative_drive_link_climbing_past_the_root_reaches_the_mount(self):
+        path = f"/pfx/copied/dosdevices/z:{GAME}/game.txt"
+        cd = f"cd:/pfx/copied/dosdevices/z:{GAME}/"
+        result = self.run_probe(path, cd)
+        self.assertEqual(result[path], ["1", "library"])
+        self.assertEqual(result[cd], [GAME])
+
+    def test_relative_link_climbing_past_the_root_stays_in_the_rootfs(self):
+        path = "/pfx/copied/dosdevices/z:/etc/hostname"
+        self.assertEqual(self.run_probe(path)[path], ["1", "rootfs"])
 
     def test_relative_link_is_resolved_from_its_real_directory(self):
         path = f"/pfx/outside/dosdevices/z:{GAME}/game.txt"
