@@ -612,7 +612,7 @@ public class HudMetrics {
             if (uw != null && uw != 0L) watts = (float) (Math.abs(uw) / 1_000_000.0);
         }
 
-        Double runtimeHours = discharging
+        Double runtimeHours = !charging
                 ? batteryRuntimeEstimator.estimateHours(chargeCounter, Math.abs((double) currentMicroAmps))
                 : null;
         String runtimeText;
