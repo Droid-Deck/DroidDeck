@@ -168,6 +168,26 @@ class DownloadQueueRemovalTest {
         assertFalse(folder.exists())
     }
 
+    @Test fun uninstallWaitsForACancelledUpdatesCleanupThenRemovesTheGame() {
+        val cleanup = BlockingCleanup()
+        val key = failedEntry("cancel-then-uninstall", cleanup)
+        val folder = File(app.filesDir, "cancel-then-uninstall").apply { mkdirs() }
+        File(folder, "game.bin").writeText("x")
+        val game = InstalledStoreGame(StoreGameSidecar(Store.GOG, "cancel-then-uninstall", "Cancelled", exe = "game.bin"), folder)
+        assertEquals(key, game.key)
+        DownloadQueue.cancel(app, key)
+        assertTrue(cleanup.started.await(5, TimeUnit.SECONDS))
+        val done = CountDownLatch(1)
+        StoresState.uninstall(app, game) { done.countDown() }
+        Thread.sleep(300)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(1L, done.count)
+        assertTrue(File(folder, "game.bin").isFile)
+        cleanup.release.countDown()
+        assertTrue(idleUntil { done.count == 0L })
+        assertFalse(folder.exists())
+    }
+
     private fun blockDiscards(): CountDownLatch {
         val release = CountDownLatch(1)
         StoreInstalls.beforeDiscard = { release.await(5, TimeUnit.SECONDS) }

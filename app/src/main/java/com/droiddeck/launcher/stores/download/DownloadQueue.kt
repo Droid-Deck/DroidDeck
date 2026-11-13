@@ -113,7 +113,18 @@ object DownloadQueue {
         true
     }
 
-    fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key) } }
+    fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key); (lock as Object).notifyAll() } }
+
+    fun holdForRemovalWhenFree(key: String): Boolean = synchronized(lock) {
+        while (true) {
+            val item = items[key]
+            if (item?.entry?.isActive == true || item?.job != null) return@synchronized false
+            if (key !in cleaningUp && key !in removing) break
+            (lock as Object).wait()
+        }
+        removing.add(key)
+        true
+    }
 
     private fun beginCleanup(key: String): Boolean = synchronized(lock) {
         if (key in removing) return@synchronized false
@@ -123,7 +134,12 @@ object DownloadQueue {
 
     private fun holdCleanup(key: String) { synchronized(lock) { cleaningUp.merge(key, 1, Int::plus) } }
 
-    private fun endCleanup(key: String) { synchronized(lock) { cleaningUp.computeIfPresent(key) { _, n -> (n - 1).takeIf { it > 0 } } } }
+    private fun endCleanup(key: String) {
+        synchronized(lock) {
+            cleaningUp.computeIfPresent(key) { _, n -> (n - 1).takeIf { it > 0 } }
+            (lock as Object).notifyAll()
+        }
+    }
 
     private fun cleanUpLater(context: Context, key: String, name: String, work: () -> Unit) {
         Thread({

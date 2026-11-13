@@ -312,13 +312,13 @@ object StoresState {
     fun uninstall(context: Context, game: InstalledStoreGame, onDone: () -> Unit = {}) {
         val app = context.applicationContext
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
-        if (!com.droiddeck.launcher.stores.download.DownloadQueue.holdForRemoval(key)) {
-            logLine("kept \"${game.sidecar.title}\": its download or update is still running")
-            main.post(onDone)
-            return
-        }
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
+            if (!com.droiddeck.launcher.stores.download.DownloadQueue.holdForRemovalWhenFree(key)) {
+                logLine("kept \"${game.sidecar.title}\": its download or update is still running")
+                main.post { uninstalling.remove(key); onDone() }
+                return@background
+            }
             try {
                 StoreInstalls.awaitDiscard(game.folder)
                 uninstallHeld(app, game, key, onDone)
