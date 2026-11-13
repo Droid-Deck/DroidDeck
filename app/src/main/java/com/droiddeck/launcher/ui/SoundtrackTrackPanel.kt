@@ -37,6 +37,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
@@ -133,6 +135,7 @@ internal fun TrackPanel(
         out
     }
     val state = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val drag = remember { DragState() }
     fun applyDrag() {
         drag.total = drag.total.coerceIn((drag.lo - drag.from) * drag.size, (drag.hi - drag.from) * drag.size)
@@ -148,7 +151,7 @@ internal fun TrackPanel(
                 val index = state.firstVisibleItemIndex
                 val offset = state.firstVisibleItemScrollOffset
                 working = moved
-                state.requestScrollToItem(index, offset)
+                scope.launch { state.scrollToItem(index, offset) }
                 onReorder?.invoke(moved.filterIsInstance<SoundRow.Item>().map { it.track.id })
             }
             dragId = null
@@ -201,7 +204,7 @@ internal fun TrackPanel(
             horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(stringResource(R.string.soundtracks_selected, picked.size), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 6.dp))
-            TextButton(onClick = { picked = shown.map { it.id }.toSet() }, modifier = Modifier.focusGlide(CircleShape).testTag("tracks-select-all")) {
+            TextButton(onClick = { picked = rowIds.toSet() }, modifier = Modifier.focusGlide(CircleShape).testTag("tracks-select-all")) {
                 Text(stringResource(R.string.soundtracks_select_all))
             }
             TextButton(onClick = { picked = emptySet() }, modifier = Modifier.focusGlide(CircleShape).testTag("tracks-deselect-all")) {
