@@ -99,16 +99,29 @@ object StoreInstalls {
         synchronized(discarding) { discarding.computeIfPresent(folder.absolutePath) { _, n -> (n - 1).takeIf { it > 0 } } }
     }
 
+    private val started = ThreadLocal<MutableList<Thread>?>()
+
+    fun collectingDiscards(block: () -> Unit): List<Thread> {
+        val previous = started.get()
+        val mine = ArrayList<Thread>()
+        started.set(mine)
+        try { block() } finally { started.set(previous) }
+        previous?.addAll(mine)
+        return mine
+    }
+
     fun discard(context: Context, folder: File, caches: List<File>) {
         val app = context.applicationContext
         beginDiscard(folder)
-        Thread({
+        val worker = Thread({
             try {
                 discardNow(app, folder, caches)
             } finally {
                 endDiscard(folder)
             }
-        }, "store-cancel-clean").start()
+        }, "store-cancel-clean")
+        started.get()?.add(worker)
+        worker.start()
     }
 
     private fun discardNow(app: Context, folder: File, caches: List<File>) {

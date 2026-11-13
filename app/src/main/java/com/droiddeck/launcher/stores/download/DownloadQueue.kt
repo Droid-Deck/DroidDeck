@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.download
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoresState
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -118,8 +119,15 @@ object DownloadQueue {
 
     private fun endCleanup(key: String) { synchronized(lock) { cleaningUp.remove(key) } }
 
-    private fun cleanUpLater(key: String, name: String, work: () -> Unit) {
-        Thread({ try { work() } finally { endCleanup(key) } }, name).start()
+    private fun cleanUpLater(context: Context, key: String, name: String, work: () -> Unit) {
+        Thread({
+            try {
+                StoreInstalls.collectingDiscards(work).forEach { it.join() }
+            } finally {
+                endCleanup(key)
+                advance(context)
+            }
+        }, name).start()
     }
 
     fun holdPaused(key: String) = synchronized(lock) { heldPaused.add(key) }
@@ -228,13 +236,15 @@ object DownloadQueue {
         val item: Item
         val wasRunning: Boolean
         var cleanup = false
+        var awaitDeletion: List<Thread> = emptyList()
         synchronized(lock) {
             item = items[key] ?: return
             if (!item.entry.interruptible) return
             wasRunning = item.entry.state == DownloadState.RUNNING
             if (wasRunning) {
                 item.cancelled.set(true)
-                item.job?.cancel(deleteFiles = true)
+                val deleting = StoreInstalls.collectingDiscards { item.job?.cancel(deleteFiles = true) }
+                if (deleting.isNotEmpty() && cleaningUp.add(key)) awaitDeletion = deleting
             }
             if (!wasRunning) {
                 cleanup = beginCleanup(key)
@@ -244,8 +254,9 @@ object DownloadQueue {
             }
         }
         if (cleanup) {
-            cleanUpLater(key, "store-dl-cancel") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
+            cleanUpLater(app, key, "store-dl-cancel") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
         }
+        if (awaitDeletion.isNotEmpty()) cleanUpLater(app, key, "store-dl-cancel-wait") { awaitDeletion.forEach { it.join() } }
         StoresState.logLine("cancelled \"${item.entry.name}\"")
         StoreDownloadService.finish(app, key)
         advance(app)
@@ -262,7 +273,7 @@ object DownloadQueue {
             items.remove(key)
             publishLocked()
         }
-        if (cleanup) cleanUpLater(key, "store-dl-clear") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
+        if (cleanup) cleanUpLater(context.applicationContext, key, "store-dl-clear") { runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }
         StoreDownloadService.finish(context.applicationContext, key)
     }
 
@@ -325,7 +336,7 @@ object DownloadQueue {
             val next: Item
             synchronized(lock) {
                 if (running >= parallel(context)) return
-                next = items.values.firstOrNull { it.entry.state == DownloadState.QUEUED } ?: return
+                next = items.values.firstOrNull { it.entry.state == DownloadState.QUEUED && it.entry.key !in cleaningUp } ?: return
                 running++
                 next.entry = next.entry.copy(state = DownloadState.RUNNING, stage = DownloadStage.MANIFEST, queuePosition = 0)
                 renumber()

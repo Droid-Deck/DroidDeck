@@ -111,6 +111,34 @@ class DownloadQueueRemovalTest {
         cancelled.release.countDown()
     }
 
+    @Test fun aReinstallWaitsForTheCancelledDownloadsCleanup() {
+        val cleanup = BlockingCleanup()
+        val key = failedEntry("reinstall-after-clear", cleanup)
+        DownloadQueue.clear(app, key)
+        assertTrue(cleanup.started.await(5, TimeUnit.SECONDS))
+        val ran = CountDownLatch(1)
+        DownloadQueue.enqueue(app, DownloadEntry(Store.GOG, "reinstall-after-clear", "again")) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? { ran.countDown(); return "/done" }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertFalse(ran.await(300, TimeUnit.MILLISECONDS))
+        assertEquals(DownloadState.QUEUED, DownloadQueue.entry(key)?.state)
+        cleanup.release.countDown()
+        assertTrue(ran.await(5, TimeUnit.SECONDS))
+    }
+
+    @Test fun cleanupCollectsTheDeletionWorkerAnInstallerStarts() {
+        val folder = File(app.filesDir, "collected-discard").apply { mkdirs() }
+        File(folder, "part.bin").writeText("x")
+        val workers = StoreInstalls.collectingDiscards { StoreInstalls.discard(app, folder, emptyList()) }
+        assertEquals(1, workers.size)
+        workers.forEach { it.join(5000) }
+        assertFalse(folder.exists())
+        assertFalse(StoreInstalls.isDiscarding(folder))
+    }
+
     @Test fun uninstallWaitsWhileAnInstallerIsStillDiscardingTheFolder() {
         val folder = File(app.filesDir, "discarding-game").apply { mkdirs() }
         File(folder, "game.bin").writeText("x")
