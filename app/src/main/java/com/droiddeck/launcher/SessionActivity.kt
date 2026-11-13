@@ -1091,6 +1091,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty(), drawerGameInventoryRevision) {
+                    val startingActiveEffectsProfileId =
+                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1113,18 +1115,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                             val id = AgentGuest.activeSteamAppId(
                                 this@SessionActivity, cachedIds + inventoryIds
                             )
-                            val name = id?.let { activeId ->
-                                games.firstOrNull { it.profileKey == activeId.toString() }?.name
+                            val activeGame = id?.let { activeId ->
+                                games.firstOrNull { it.profileKey == activeId.toString() }
                             }
-                            id to name
+                            id to activeGame
                         }
                         if (target.first != frameGenActiveGameId) {
                             val previousActiveGameId = frameGenActiveGameId
                             frameGenActiveGameId = target.first
-                            if (target.first != null || previousActiveGameId != null) {
+                            if ((target.first != null || previousActiveGameId != null) &&
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) ==
+                                    startingActiveEffectsProfileId
+                            ) {
                                 val activeEffectsProfileId = target.first?.let {
                                     SessionPrefs.screenEffectsProfileId(
-                                        SessionService.MODE_STEAM, it.toString(), null,
+                                        SessionService.MODE_STEAM,
+                                        target.second?.gameIdString ?: it.toString(),
+                                        null,
                                     )
                                 }
                                 SessionPrefs.setActiveScreenEffectsProfile(
@@ -1137,7 +1144,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                                 loadFrameGenFor(target.first)
                             }
                         }
-                        frameGenActiveGameName = target.second
+                        frameGenActiveGameName = target.second?.name
                     }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
@@ -2091,8 +2098,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun screenEffectsTargetOptions(): List<Pair<String, String>> {
-        val installed = drawerGameProfileRefresh.data?.profiles.orEmpty()
-            .associate { it.first.toULong().toString() to it.second }
+        val installed = LibraryCache.load(this)
+            .associate { it.gameIdString to it.name }
         val ids = linkedSetOf<String>()
         ids.addAll(installed.keys)
         SessionPrefs.screenEffectsProfileIds(this).forEach { saved ->
