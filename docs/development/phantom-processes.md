@@ -111,27 +111,42 @@ The mechanism above is source-verified. The probe below settles the two points a
 cannot: what a device actually does with detached children, and whether the app uid may write
 another cgroup's `cgroup.procs`. It needs a device with the guest running.
 
+Precondition: run the batches only after `settings_enable_monitor_phantom_procs` is disabled, or
+after `max_phantom_processes` is raised above the probe's process count. With the limit active at
+its default, starting 80 long-lived processes can trigger the platform trim and disrupt the guest
+session and processes of other apps.
+
+Run the `sleep` loops from the app's own shell so the children run under the app uid. Run each
+`dumpsys activity processes` snapshot from an authorized ADB shell, because the app uid normally
+cannot read that dump. After each batch, record the child PIDs and wait long enough for the
+platform to discover them before taking the snapshot.
+
 ```sh
-# from the app's own shell, with the session's guest tree running
-settings get global settings_enable_monitor_phantom_procs
-device_config get activity_manager max_phantom_processes
-dumpsys activity processes | grep -i -A 5 phantom
+# read the limit state, and disable or raise it before the batches
+adb shell settings get global settings_enable_monitor_phantom_procs
+adb shell device_config get activity_manager max_phantom_processes
 
-# attached children, then the same number of detached children
+# from the app's own shell: attached children
+for i in $(seq 1 40); do sleep 600 & echo $!; done
+# from an authorized ADB shell, after platform discovery
+adb shell 'dumpsys activity processes | grep -i -n -A 5 phantom'
+
+# from the app's own shell: detached children
 # (the middle process exits, so the child is reparented to init)
-for i in $(seq 1 40); do sleep 600 & done
-for i in $(seq 1 40); do ( setsid sleep 600 & ) ; done
+for i in $(seq 1 40); do ( setsid sleep 600 & echo $! ) ; done
+# from an authorized ADB shell, after platform discovery
+adb shell 'dumpsys activity processes | grep -i -n -A 5 phantom'
 
-# what the platform sees after each round
-dumpsys activity processes | grep -i -A 5 phantom
+# from the app's own shell
 cat /proc/<appPid>/cgroup
 
 # whether the uid may move a child out of the scanned cgroup
 echo <childPid> > /sys/fs/cgroup/uid_<uid>/cgroup.procs
 ```
 
-Expected from the source: both rounds are counted, the detached ones included, and the cgroup
-write fails (no unscanned group, or no permission).
+Compare the PIDs recorded for each batch with the phantom list in the snapshot taken after that
+batch. Expected from the source: both batches are counted, the detached ones included, and the
+cgroup write fails (no unscanned group, or no permission).
 
 ## References
 
