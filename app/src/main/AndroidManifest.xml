@@ -190,15 +190,19 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- The front end itself while DroidDeck is the Home app. Started by the Home intent, it lives in the Home task,
+             which the recents screen never shows; singleTask keeps one instance and hands each Home press to onNewIntent.
+             The component name stays .HomeActivity so the user's Home choice and its enabled state survive updates. -->
         <activity
             android:name=".HomeActivity"
             android:enabled="false"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:noHistory="true"
+            android:launchMode="singleTask"
             android:taskAffinity="${applicationId}.home"
             android:screenOrientation="user"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
+            <layout android:defaultWidth="1024dp" android:defaultHeight="640dp" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
