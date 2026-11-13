@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">켜짐</string>
     <string name="game_steam_with">Steam과 함께 시작</string>
     <string name="game_steam_without">Steam 없이 시작</string>
+    <string name="game_res_title">게임 해상도</string>
     <string name="game_settings_card">설정</string>
     <string name="game_settings_menu_title">%1$s 설정</string>
     <string name="game_settings_default">기본값</string>

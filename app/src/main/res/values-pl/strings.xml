@@ -484,6 +484,7 @@
     <string name="game_no_steam_on">Wł.</string>
     <string name="game_steam_with">Uruchamia się ze Steam</string>
     <string name="game_steam_without">Uruchamia się bez Steam</string>
+    <string name="game_res_title">Rozdzielczość gry</string>
     <string name="game_settings_card">Ustawienia</string>
     <string name="game_settings_menu_title">Ustawienia: %1$s</string>
     <string name="game_settings_default">Domyślne</string>

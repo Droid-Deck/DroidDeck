@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Be</string>
     <string name="game_steam_with">Steammel indul</string>
     <string name="game_steam_without">Steam nélkül indul</string>
+    <string name="game_res_title">Játék felbontása</string>
     <string name="game_settings_card">Beállítások</string>
     <string name="game_settings_menu_title">%1$s beállításai</string>
     <string name="game_settings_default">Alapértelmezett</string>

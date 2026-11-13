@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Päällä</string>
     <string name="game_steam_with">Käynnistyy Steamin kanssa</string>
     <string name="game_steam_without">Käynnistyy ilman Steamia</string>
+    <string name="game_res_title">Pelin resoluutio</string>
     <string name="game_settings_card">Asetukset</string>
     <string name="game_settings_menu_title">%1$s – asetukset</string>
     <string name="game_settings_default">Oletus</string>

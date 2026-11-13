@@ -478,6 +478,7 @@
     <string name="game_no_steam_on">開</string>
     <string name="game_steam_with">隨 Steam 啟動</string>
     <string name="game_steam_without">不經 Steam 啟動</string>
+    <string name="game_res_title">遊戲解像度</string>
     <string name="game_settings_card">設定</string>
     <string name="game_settings_menu_title">%1$s 設定</string>
     <string name="game_settings_default">預設</string>

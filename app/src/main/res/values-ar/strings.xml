@@ -488,6 +488,7 @@
     <string name="game_no_steam_on">تشغيل</string>
     <string name="game_steam_with">يبدأ مع Steam</string>
     <string name="game_steam_without">يبدأ بدون Steam</string>
+    <string name="game_res_title">دقة اللعبة</string>
     <string name="game_settings_card">الإعدادات</string>
     <string name="game_settings_menu_title">إعدادات %1$s</string>
     <string name="game_settings_default">الافتراضي</string>

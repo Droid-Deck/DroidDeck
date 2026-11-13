@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Açık</string>
     <string name="game_steam_with">Steam ile başlar</string>
     <string name="game_steam_without">Steam olmadan başlar</string>
+    <string name="game_res_title">Oyun çözünürlüğü</string>
     <string name="game_settings_card">Ayarlar</string>
     <string name="game_settings_menu_title">%1$s Ayarları</string>
     <string name="game_settings_default">Varsayılan</string>

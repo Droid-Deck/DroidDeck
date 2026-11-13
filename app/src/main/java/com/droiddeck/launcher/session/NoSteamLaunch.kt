@@ -30,6 +30,25 @@ object NoSteamLaunch {
         GameEnvironment.gameNoSteam(GameEnvironmentStore.read(context), (appId and 0xFFFFFFFFL).toString())
     }.getOrDefault(false)
 
+    fun scopeOf(program: String?, args: List<String>, battleNetTitle: (String) -> String? = { null }): String? = when (program) {
+        EPIC -> EpicClient.shortcutAppId.toString()
+        BATTLENET -> args.getOrNull(args.indexOf("launch") + 1)?.takeIf { args.contains("launch") }?.let(battleNetTitle)
+            ?: com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+        PROTON_RUN -> args.getOrNull(args.indexOf("--app") + 1)?.takeIf { args.contains("--app") }
+        else -> null
+    }?.takeIf { it.isNotEmpty() && GameEnvironment.validScope(it) }
+
+    fun battleNetTitleScope(context: Context, code: String): String? =
+        AddedGames.scan(context).firstOrNull { game ->
+            game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id &&
+                game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.code == code
+        }?.let { settingsId(it).toString() }
+
+    fun resolution(config: GameEnvironment.Config, scope: String?, output: Pair<Int, Int>): Pair<Int, Int>? {
+        val choice = scope?.let { GameEnvironment.gameResolution(config, it) } ?: return null
+        return com.droiddeck.launcher.core.GameResolution.resolve(choice, output)
+    }
+
     fun command(game: Library.SteamGame, added: AddedGames.Game?): Command? = when {
         game.library == Library.EPIC_LAUNCHER -> Command(EPIC, listOf("run"), game.name)
         game.library == Library.ADDED && game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id ->

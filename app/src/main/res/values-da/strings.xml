@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Til</string>
     <string name="game_steam_with">Starter med Steam</string>
     <string name="game_steam_without">Starter uden Steam</string>
+    <string name="game_res_title">Spilopløsning</string>
     <string name="game_settings_card">Indstillinger</string>
     <string name="game_settings_menu_title">Indstillinger for %1$s</string>
     <string name="game_settings_default">Standard</string>

@@ -503,6 +503,7 @@
     <string name="game_no_steam_on">Включено</string>
     <string name="game_steam_with">Запускается со Steam</string>
     <string name="game_steam_without">Запускается без Steam</string>
+    <string name="game_res_title">Разрешение игры</string>
     <string name="game_settings_card">Настройки</string>
     <string name="game_settings_menu_title">Настройки %1$s</string>
     <string name="game_settings_default">По умолчанию</string>

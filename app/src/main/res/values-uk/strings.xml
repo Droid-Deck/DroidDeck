@@ -484,6 +484,7 @@
     <string name="game_no_steam_on">Увімкнено</string>
     <string name="game_steam_with">Запускається зі Steam</string>
     <string name="game_steam_without">Запускається без Steam</string>
+    <string name="game_res_title">Роздільна здатність гри</string>
     <string name="game_settings_card">Налаштування</string>
     <string name="game_settings_menu_title">Налаштування %1$s</string>
     <string name="game_settings_default">За замовчуванням</string>

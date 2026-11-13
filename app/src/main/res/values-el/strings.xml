@@ -480,6 +480,7 @@
     <string name="game_no_steam_on">Ενεργό</string>
     <string name="game_steam_with">Ξεκινά με το Steam</string>
     <string name="game_steam_without">Ξεκινά χωρίς το Steam</string>
+    <string name="game_res_title">Ανάλυση παιχνιδιού</string>
     <string name="game_settings_card">Ρυθμίσεις</string>
     <string name="game_settings_menu_title">Ρυθμίσεις %1$s</string>
     <string name="game_settings_default">Προεπιλογή</string>

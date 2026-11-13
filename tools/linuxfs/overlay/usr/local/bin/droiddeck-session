@@ -511,6 +511,12 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
+  if [ "$mode" = run ] && [ "${BL_GAME_WIDTH:-0}" -gt 0 ] && [ "${BL_GAME_HEIGHT:-0}" -gt 0 ]; then
+    nested=$BL_GAME_WIDTH
+    nested_h=$BL_GAME_HEIGHT
+    game_size=1
+    echo "== gamescope: the game runs at ${nested}x${nested_h}, scaled to the ${width}x${height} output with its proportions kept"
+  fi
   backend=${BL_GAMESCOPE_BACKEND:-wayland}
   case "$backend" in
     wayland) ;;
@@ -528,7 +534,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     echo "== gamescope: composites every frame (Mali bridge: the Steam UI flickers on separate planes)"
   fi
   args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
-  if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
+  if [ "${game_size:-0}" != 1 ] && { [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; }; then
     args+=(-S stretch)
     export BL_STRETCHED=1
   fi
