@@ -113,4 +113,19 @@ class SteamTouchConfigFilesTest {
         assertEquals(1, entries.findAll(File(dir, "configset_controller_mobile_touch.vdf").readText()).count())
         assertEquals(0, entries.findAll(File(dir, "configset_MT-DROIDDECK0001.vdf").readText()).count())
     }
+
+    @Test fun savesLayoutWhenNoTouchConfigExistsOnDisk() {
+        val config = SteamTouchConfig.load(context, 413150)
+        assertEquals(null, config.file)
+        assertEquals(null, config.text)
+        val elements = listOf(SteamTouchConfig.Element(SteamTouchConfig.A, true, 0.5f, 0.6f))
+        val saved = SteamTouchConfig.saveLayouts(context, 413150, config, mapOf(1 to elements))
+        assertEquals(File(dir, "413150/controller_mobile_touch.vdf"), saved)
+        assertTrue(saved!!.readText().contains("\"touch_layout\""))
+        val loaded = SteamTouchConfig.load(context, 413150)
+        assertEquals(saved, loaded.file)
+        val a = SteamTouchConfig.elementsFor(loaded, 1, emptyList()).first { it.type == SteamTouchConfig.A }
+        assertEquals(0.5f, a.x, 0.002f)
+        assertEquals(0.6f, a.y, 0.002f)
+    }
 }
