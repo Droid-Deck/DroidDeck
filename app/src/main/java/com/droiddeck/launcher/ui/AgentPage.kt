@@ -639,14 +639,7 @@ private fun AgentEditor(
                 }
                 ContextRing("agent-usage", onClick = { onPanel(AgentPanel.USAGE) })
             }
-            HeaderAction(if (menu) Icons.Outlined.Close else Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), size = 32.dp, tag = "agent-menu") { onMenu(!menu) }
-        }
-        if (menu) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            ) {
+            if (menu) {
                 HeaderAction(Icons.Outlined.History, stringResource(R.string.agent_history), size = 32.dp, tag = "agent-history") { onMenu(false); onPanel(AgentPanel.HISTORY) }
                 HeaderAction(Icons.Outlined.Memory, stringResource(R.string.agent_processes), size = 32.dp, tag = "agent-processes") { onMenu(false); onPanel(AgentPanel.PROCESSES) }
                 HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty(), size = 32.dp, tag = "agent-new") {
@@ -661,6 +654,7 @@ private fun AgentEditor(
                     onSetup()
                 }
             }
+            HeaderAction(if (menu) Icons.Outlined.Close else Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), size = 32.dp, tag = "agent-menu") { onMenu(!menu) }
         }
         Row(verticalAlignment = Alignment.Bottom) {
             if (LocalActivityResultRegistryOwner.current != null) AttachButton()
