@@ -208,9 +208,11 @@ object AddedGames {
         }
     }
 
-    private fun cache(context: Context): AddedGamesCache {
+    private val keeping = Any()
+
+    private fun cache(context: Context): AddedGamesCache = synchronized(keeping) {
         val file = File(context.filesDir, AddedGamesCache.FILE)
-        return kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
+        kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
     }
 
     private fun scanAll(context: Context): List<Game> {
