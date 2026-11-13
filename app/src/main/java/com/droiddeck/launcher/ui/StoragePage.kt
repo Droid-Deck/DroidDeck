@@ -298,7 +298,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
         Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
         Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
-        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
+        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.busy, compact = true, onClick = onCleanUp)
     } }
     if (wide) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = summary) {
         usage(Modifier.weight(1f))
@@ -490,7 +490,7 @@ private fun CleanUpDialog(report: StorageReport, sessionRunning: Boolean, onDism
             }
         },
         confirmButton = {
-            if (picked.isNotEmpty() && !sessionRunning && !StorageState.cleaning) {
+            if (picked.isNotEmpty() && !sessionRunning && !StorageState.busy) {
                 FocusText(stringResource(R.string.storage_free_button, gb(total)), pal.signal) {
                     StorageState.clean(ctx, picked) { onDismiss() }
                 }
@@ -678,7 +678,7 @@ private fun ToolsView(report: StorageReport, sessionRunning: Boolean, onBack: ()
         stringResource(R.string.storage_tools_detail, gb(report.tools.sumOf { it.bytes }), gb(unused.sumOf { it.bytes })), onBack,
     ) {
         if (unused.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_unused, gb(unused.sumOf { it.bytes })), compact = true,
-            enabled = !sessionRunning && !StorageState.cleaning) { confirmAll = true }
+            enabled = !sessionRunning && !StorageState.busy) { confirmAll = true }
     }
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
     SectionTitle(stringResource(R.string.storage_in_use), null)
@@ -763,7 +763,7 @@ private fun ToolList(tools: List<ToolUsage>, sessionRunning: Boolean, onRemove: 
                     ToolState.UNUSED -> Pill(stringResource(R.string.storage_tag_not_used), AttentionAmber)
                 }
                 Text(gb(t.bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
-                if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.cleaning) { onRemove(t) }
+                if (t.state == ToolState.UNUSED) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !sessionRunning && !StorageState.busy) { onRemove(t) }
                 else Icon(Icons.Outlined.Lock, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
             }
             if (i < tools.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -898,7 +898,7 @@ private class DataTarget(val key: String, val label: String, val prefixes: List<
 @Composable
 private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
     var confirmPrefix by remember { mutableStateOf<com.droiddeck.launcher.storage.GameUsage?>(null) }
     var confirmKept by remember { mutableStateOf<KeptPrefix?>(null) }
@@ -915,7 +915,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val keptNames = kept.associate { it.dir.path to keptName(it) }
     val targets = buildList {
         games.forEach { g ->
-            add(DataTarget("game:${g.prefixDir?.path ?: g.appId}", gameNames[g.prefixDir?.path].orEmpty(),
+            add(DataTarget(gameKey(g), gameNames[g.prefixDir?.path].orEmpty(),
                 listOfNotNull(g.prefixDir?.let { it to g.prefix }), g.shaderDirs.takeIf { g.shaders > 0 }.orEmpty().mapIndexed { i, d -> d to if (i == 0) g.shaders else 0L }))
         }
         if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))
@@ -936,7 +936,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     ListCard {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
-            val key = "game:${g.prefixDir?.path ?: g.appId}"
+            val key = gameKey(g)
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
                 selected = key in picked, selectable = !busy && (g.prefixDir != null || g.shaders > 0), onSelect = { toggle(key) },
@@ -1073,6 +1073,8 @@ private fun BulkRemoveDialog(
     )
 }
 
+private fun gameKey(g: com.droiddeck.launcher.storage.GameUsage) = "game:${g.x64}:${g.appId}:${g.prefixDir?.path}"
+
 private fun leftoverKey(l: com.droiddeck.launcher.storage.Leftover) = l.prefix?.path ?: l.shaders?.path ?: l.appId.toString()
 
 @Composable
@@ -1096,11 +1098,11 @@ private fun leftoverName(l: com.droiddeck.launcher.storage.Leftover): String = w
 private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val uninstalling = com.droiddeck.launcher.stores.StoresState.uninstalling
-    val busy = sessionRunning || StorageState.cleaning || uninstalling.isNotEmpty()
+    val busy = sessionRunning || StorageState.busy || uninstalling.isNotEmpty()
     var confirm by remember { mutableStateOf<List<StoreGameUsage>>(emptyList()) }
     var picked by remember { mutableStateOf(emptySet<String>()) }
     val games = report.storeGames
-    val chosen = games.filter { it.game.folder.path in picked }
+    val chosen = games.filter { it.game.folder.path in picked && !com.droiddeck.launcher.stores.download.DownloadQueue.isActive(it.game.key) }
     SubHeader(stringResource(R.string.storage_stores),
         pluralStringResource(R.plurals.storage_games_installed, games.size, games.size) + " · " + gb(games.sumOf { it.bytes }), onBack) {
         if (chosen.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_uninstall_selected, gb(chosen.sumOf { it.bytes })), compact = true, enabled = !busy) { confirm = chosen }
@@ -1111,15 +1113,16 @@ private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBac
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
             val removing = g.game.key in uninstalling
+            val downloading = com.droiddeck.launcher.stores.download.DownloadQueue.isActive(g.game.key)
             val key = g.game.folder.path
             ItemRow(
                 g.game.sidecar.title,
                 if (g.internal) g.game.sidecar.store.label else g.game.sidecar.store.label + " · " + stringResource(R.string.fm_drive_sd),
                 g.bytes, i == games.lastIndex,
-                selected = key in picked, selectable = !busy, onSelect = { picked = if (key in picked) picked - key else picked + key },
+                selected = key in picked && !downloading, selectable = !busy && !downloading, onSelect = { picked = if (key in picked) picked - key else picked + key },
                 action = {
                     SecondaryButton(stringResource(if (removing) R.string.stores_uninstalling else R.string.storage_uninstall), compact = true,
-                        enabled = !busy) { confirm = listOf(g) }
+                        enabled = !busy && !downloading) { confirm = listOf(g) }
                 },
             )
         }
@@ -1141,7 +1144,7 @@ internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBa
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<ComponentUsage?>(null) }
     var confirmAll by remember { mutableStateOf(false) }
     val unused = report.unusedComponents
@@ -1199,7 +1202,7 @@ internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBa
 @Composable
 private fun DesktopView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val busy = sessionRunning || StorageState.cleaning
+    val busy = sessionRunning || StorageState.busy
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.FlatpakUsage?>(null) }
     var confirmPrune by remember { mutableStateOf(false) }
     SubHeader(stringResource(R.string.storage_desktop), stringResource(R.string.storage_desktop_detail, gb(report.flatpak)), onBack) {

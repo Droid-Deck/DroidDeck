@@ -255,21 +255,23 @@ object StorageScan {
         }.orEmpty()
 
         val added = runCatching { com.droiddeck.launcher.frontend.AddedGames.scan(context) }.onFailure { Log.w("StorageScan", "added games", it) }.getOrNull()
-        val shortcutNames = listOfNotNull(steamRoot, x64Root).map { SteamStorage.shortcutNames(it) }
-        val ownersRead = added != null && shortcutNames.all { it != null }
+        val shortcuts = listOfNotNull(steamRoot, x64Root).map { SteamStorage.shortcuts(it) }
+        val ownersRead = added != null && shortcuts.all { it != null }
         val live = HashMap<Long, String>()
-        shortcutNames.forEach { it?.let(live::putAll) }
+        shortcuts.forEach { it?.forEach { (id, s) -> live[id] = s.name } }
         added?.forEach { live[it.appId and 0xFFFFFFFFL] = it.name }
-        live[com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId] = Library.EPIC_LAUNCHER_NAME
         val folders = SessionPrefs.addedGameFolders(context)
         val launchers = mapOf(
             com.droiddeck.launcher.runtime.BattleNet.APP_ID to com.droiddeck.launcher.stores.Store.BATTLENET.label,
             com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.APP_ID to com.droiddeck.launcher.stores.Store.UBISOFT.label,
+            com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId to Library.EPIC_LAUNCHER_NAME,
         )
-        val users = HashMap<Long, MutableList<String>>()
-        added?.forEach { g ->
-            SteamStorage.sharedPrefixId(g.launchOptions)?.takeIf { it != (g.appId and 0xFFFFFFFFL) }?.let { users.getOrPut(it) { ArrayList() }.add(g.name) }
+        val users = HashMap<Long, MutableSet<String>>()
+        fun shares(own: Long, name: String, launchOptions: String) {
+            SteamStorage.sharedPrefixId(launchOptions)?.takeIf { it != own }?.let { users.getOrPut(it) { LinkedHashSet() }.add(name) }
         }
+        added?.forEach { shares(it.appId and 0xFFFFFFFFL, it.name, it.launchOptions) }
+        shortcuts.forEach { it?.forEach { (id, s) -> shares(id, s.name, s.launchOptions) } }
         val kept = ArrayList<KeptPrefix>()
         for (lib in libs) {
             val dirs = File(lib.data, "steamapps/compatdata").listFiles().orEmpty().filter { it.isDirectory && SteamStorage.leftoverId(it.name) == null }
@@ -281,7 +283,7 @@ object StorageScan {
                 when {
                     dir.name == "0" -> kept.add(KeptPrefix(dir, PrefixOwner.SHARED, null, bytes, lib.label, lib.x64))
                     id != null && (id in launchers || id in users) -> kept.add(KeptPrefix(dir, PrefixOwner.LAUNCHER,
-                        launchers[id] ?: live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64, users[id].orEmpty()))
+                        launchers[id] ?: live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64, users[id].orEmpty().toList()))
                     id != null && id in live -> kept.add(KeptPrefix(dir, PrefixOwner.GAME, live[id]?.ifEmpty { null }, bytes, lib.label, lib.x64))
                     id != null && ownersRead -> {
                         val cache = caches[id]
@@ -290,6 +292,12 @@ object StorageScan {
                     }
                     else -> kept.add(KeptPrefix(dir, PrefixOwner.UNKNOWN, id?.toString() ?: dir.name, bytes, lib.label, lib.x64))
                 }
+            }
+            if (!ownersRead) continue
+            val prefixIds = dirs.mapNotNullTo(HashSet()) { SteamStorage.shortcutId(it.name) }
+            for ((id, cache) in caches) {
+                if (id in prefixIds || id in live || id in launchers || id in users) continue
+                leftovers.add(Leftover(id, null, cache, walker.measure(cache), true, shortcut = true, name = folders[id]?.let { File(it).name }))
             }
         }
 

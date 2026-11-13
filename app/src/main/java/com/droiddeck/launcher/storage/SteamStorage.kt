@@ -158,9 +158,13 @@ object SteamStorage {
     fun shortcutId(name: String): Long? = name.toLongOrNull()
         ?.takeIf { it in Int.MIN_VALUE until 0 || it in (1L shl 31) until (1L shl 32) }?.and(0xFFFFFFFFL)
 
-    private val COMPAT_PATH = Regex("""STEAM_COMPAT_DATA_PATH=\S*/compatdata/(-?\d+)/?(\s|$)""")
+    private val COMPAT_PATH = Regex("""STEAM_COMPAT_DATA_PATH=(?:"([^"]*)"|'([^']*)'|(\S+))""")
+    private val COMPAT_ID = Regex("""/compatdata/(-?\d+)/*$""")
 
-    fun sharedPrefixId(launchOptions: String): Long? = COMPAT_PATH.find(launchOptions)?.groupValues?.get(1)?.let(::shortcutId)
+    fun sharedPrefixId(launchOptions: String): Long? {
+        val path = COMPAT_PATH.find(launchOptions)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() } ?: return null
+        return COMPAT_ID.find(path.trim())?.groupValues?.get(1)?.let(::shortcutId)
+    }
 
     private val GAME_FOLDER = Regex("""Z:\\\\(?:[^"\\]+\\\\)*?(?:steamapps\\\\common|Games\\\\Stores\\\\[^"\\]+)\\\\([^"\\]+)""")
 
@@ -170,13 +174,17 @@ object SteamStorage {
             .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
     }.getOrNull()
 
-    fun shortcutNames(root: File): Map<Long, String>? = runCatching {
-        File(root, "userdata").listFiles().orEmpty().mapNotNull { File(it, "config/shortcuts.vdf").takeIf(File::isFile) }.flatMap { file ->
+    class Shortcut(val name: String, val launchOptions: String)
+
+    fun shortcuts(root: File): Map<Long, Shortcut>? = runCatching {
+        val userdata = File(root, "userdata")
+        val users = if (userdata.exists()) userdata.listFiles() ?: return null else emptyArray()
+        users.mapNotNull { File(it, "config/shortcuts.vdf").takeIf(File::isFile) }.flatMap { file ->
             val vdf = com.droiddeck.launcher.frontend.SteamAppInfo.readMap(java.nio.ByteBuffer.wrap(file.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN), null)
             (vdf["shortcuts"] as? Map<*, *>)?.values?.filterIsInstance<Map<*, *>>()?.mapNotNull { s ->
                 fun value(key: String) = s.entries.firstOrNull { (it.key as? String).equals(key, ignoreCase = true) }?.value as? String
                 val id = value("appid")?.toLongOrNull()?.and(0xFFFFFFFFL) ?: return@mapNotNull null
-                id to (value("AppName") ?: value("appname") ?: "")
+                id to Shortcut(value("AppName") ?: "", value("LaunchOptions") ?: "")
             }.orEmpty()
         }.toMap()
     }.getOrNull()

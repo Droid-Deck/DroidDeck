@@ -195,6 +195,8 @@ class SteamStorageTest {
         assertEquals(2596113170L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=/x/compatdata/2596113170/ %command% --exec=\"launch WoW\""))
         assertNull(SteamStorage.sharedPrefixId("%command% -windowed"))
         assertNull(SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=/x/compatdata/0 %command%"))
+        assertEquals(3000000002L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH=\"/root/My Games/steamapps/compatdata/3000000002\" %command%"))
+        assertEquals(3000000002L, SteamStorage.sharedPrefixId("STEAM_COMPAT_DATA_PATH='/x/compatdata/3000000002/' %command%"))
     }
 
     @Test fun gameFolderHintReadsTheFolderWineRecorded() {

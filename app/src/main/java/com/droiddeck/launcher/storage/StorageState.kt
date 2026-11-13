@@ -27,6 +27,9 @@ object StorageState {
         private set
     var cleaning by mutableStateOf(false)
         private set
+    var storeBatch by mutableStateOf(false)
+        private set
+    val busy: Boolean get() = cleaning || storeBatch
     var lastFreed by mutableStateOf<Long?>(null)
     var progress by mutableStateOf<String?>(null)
         private set
@@ -84,7 +87,7 @@ object StorageState {
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
     fun clean(context: Context, items: Set<CleanItem>, onDone: (Long?) -> Unit) {
-        if (cleaning || SessionState.running) { onDone(null); return }
+        if (busy || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true
@@ -101,7 +104,7 @@ object StorageState {
     }
 
     fun removeTool(context: Context, tool: ToolUsage, onDone: (Long?) -> Unit) {
-        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running) { onDone(null); return }
+        if (tool.state != ToolState.UNUSED || busy || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
         cleaning = true
         Thread({
@@ -119,7 +122,7 @@ object StorageState {
     }
 
     private fun act(context: Context, name: String, action: (Context, StorageReport) -> Boolean, onDone: (Long?) -> Unit = {}) {
-        if (cleaning || SessionState.running) { onDone(null); return }
+        if (busy || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true
@@ -163,15 +166,21 @@ object StorageState {
     })
 
     fun uninstallStoreGames(context: Context, games: List<StoreGameUsage>) {
-        if (cleaning || SessionState.running || games.isEmpty()) return
-        val app = context.applicationContext
-        com.droiddeck.launcher.stores.StoresState.uninstall(app, games.first().game) {
-            if (games.size > 1 && !SessionState.running) uninstallStoreGames(app, games.drop(1))
-            else {
-                com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(app)
-                refresh(app, force = true)
-            }
+        if (busy || SessionState.running || games.isEmpty()) return
+        storeBatch = true
+        uninstallNext(context.applicationContext, games)
+    }
+
+    private fun uninstallNext(app: Context, games: List<StoreGameUsage>) {
+        val rest = games.dropWhile { com.droiddeck.launcher.stores.download.DownloadQueue.isActive(it.game.key) }
+        val next = rest.firstOrNull()
+        if (next == null || SessionState.running) {
+            storeBatch = false
+            com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(app)
+            refresh(app, force = true)
+            return
         }
+        com.droiddeck.launcher.stores.StoresState.uninstall(app, next.game) { uninstallNext(app, rest.drop(1)) }
     }
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
