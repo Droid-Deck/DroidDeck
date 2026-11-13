@@ -382,7 +382,7 @@ object AgentHost {
         val adb = AgentAdb.prepare(app)
         val env = listOf(
             "/usr/bin/env", "HOME=/root", "PATH=$GUEST_PATH", "LANG=C.UTF-8",
-            "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}",
+            "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}", "DROIDDECK_PACKAGE=${app.packageName}",
             "DD_AGENT=1", "DD_AGENT_INBOX=${File(app.filesDir, "agent").path}", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
         )
         val shell = listOf(
