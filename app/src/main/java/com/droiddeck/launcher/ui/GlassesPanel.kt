@@ -80,6 +80,7 @@ internal object GlassesTab {
     const val HARDWARE = "hardware"
     const val TRACKING = "tracking"
     const val CONTROLLERS = "controllers"
+    const val DEVICE = "device"
 }
 
 @Composable
@@ -115,6 +116,7 @@ internal fun glassesTabs(g: GlassesState): List<Pair<String, String>> = buildLis
     if (g.canControl) {
         add(GlassesTab.TRACKING to stringResource(R.string.glasses_tracking))
         if (g.hardwareControls) add(GlassesTab.HARDWARE to stringResource(R.string.glasses_hardware))
+        if (g.viture != null) add(GlassesTab.DEVICE to stringResource(R.string.viture_device_tab))
     }
 }
 
@@ -132,6 +134,7 @@ internal fun GlassesGroups(
     steamVr: @Composable () -> Unit = {},
 ) {
     val display = tab == null || tab == GlassesTab.DISPLAY
+    val deviceDisplay = g.viture?.supportsNative == true
     val vr = tab == null || tab == GlassesTab.VR
     val picture = GlassesRendering.picture(s, g.sbs, steamVrRunning)
     val usesGlasses = GlassesRendering.usesGlasses(g, outputActive, steamVrRunning)
@@ -148,6 +151,7 @@ internal fun GlassesGroups(
                 stringResource(R.string.cardboard_recenter_button), onRecenter)
         }
     }
+    VitureSdkImportControls(g, visible = display)
     if (display) SettingsGroup(g.model) {
         if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(
             if (g.supportsDisplayModeControl) R.string.glasses_xreal_experimental else R.string.glasses_pro2_experimental)) {}
@@ -169,7 +173,8 @@ internal fun GlassesGroups(
         ToggleRow(host, "glasses-game", stringResource(R.string.glasses_game_on), stringResource(R.string.glasses_game_on_hint),
             s.gameOnGlasses, chipModifier = track("glasses-game")) { Glasses.setGameOnGlasses(it) }
     }
-    if (display && g.canControl && g.supportsDisplayModeControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
+    if (display && deviceDisplay) SettingsRow(stringResource(R.string.glasses_display_mode), stringResource(R.string.viture_device_display_hint)) {}
+    if (display && !deviceDisplay && g.canControl && g.supportsDisplayModeControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
         SettingsGroup(stringResource(R.string.glasses_display_mode)) {
             if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
                 ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
@@ -178,7 +183,7 @@ internal fun GlassesGroups(
                 g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
         }
     }
-    if (display && g.canControl && g.supportsDisplayModeControl) {
+    if (display && !deviceDisplay && g.canControl && g.supportsDisplayModeControl) {
         val profiles = if (inSession) listOf(GlassesDisplayModes.profile(g.sbs, false))
             else listOf(GlassesDisplayProfile.TWO_D, GlassesDisplayProfile.THREE_D)
         for (profile in profiles) SettingsGroup(stringResource(if (profile == GlassesDisplayProfile.TWO_D)
@@ -251,9 +256,14 @@ internal fun GlassesGroups(
             modifier = track("glasses-brightness")) { Glasses.setBrightness(it) }
         if (g.volumeMax > 0) SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
             modifier = track("glasses-volume")) { Glasses.setVolume(it) }
-        if (g.hasSunblock) ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
+        if ((g.viture?.filmMax ?: 0) > 1 && g.viture?.filmLevel != null) SliderRow(stringResource(R.string.viture_tint), null,
+            g.viture.filmLevel!!, 0..g.viture.filmMax!!, enabled = !g.viture.busy,
+            modifier = track("viture-tint").testTag("viture-tint")) { Glasses.setVitureTint(it) }
+        else if (g.hasSunblock) ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
             g.sunblock, chipModifier = track("glasses-sunblock")) { Glasses.setSunblock(it) }
     }
+    if (tab == null || tab == GlassesTab.HARDWARE) VitureCameraControls(g)
+    if (tab == null || tab == GlassesTab.DEVICE) VitureDeviceControls(host, g, track)
     val context = androidx.compose.ui.platform.LocalContext.current
     val hands by HandTracking.settings.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { HandTracking.load(context) }

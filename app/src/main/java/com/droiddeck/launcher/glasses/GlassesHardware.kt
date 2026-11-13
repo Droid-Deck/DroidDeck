@@ -10,8 +10,10 @@ interface GlassesModel {
     val diagonalFovDeg: Float
     val sbs90: Boolean
     val rates2d: List<Int> get() = listOf(60, 90, 120)
+    val usesAndroidRefreshRates: Boolean get() = false
     val hasSunblock: Boolean get() = true
     val resolutions: List<GlassesResolution> get() = emptyList()
+    fun supportsSbs90(resolution: GlassesResolution?): Boolean = sbs90
     fun mode(hz: Int, sbs: Boolean, resolution: GlassesResolution?): Int = mode(hz, sbs)
     fun mode(hz: Int, sbs: Boolean): Int
     fun modeForStep(step: Int): Int?

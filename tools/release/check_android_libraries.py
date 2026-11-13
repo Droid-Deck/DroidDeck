@@ -16,6 +16,7 @@ EXPORTS = ['Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion',
            'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstall',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeCall',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeInstall']
+IMPORTED_VITURE_LIBRARIES = {'libglasses.so', 'libcarina_vio.so', 'libcloud_protocol.so'}
 
 
 def check(apk, readelf, stores=True):
@@ -23,6 +24,8 @@ def check(apk, readelf, stores=True):
     with tempfile.TemporaryDirectory() as temp, ZipFile(apk) as package:
         libraries = {}
         for name in package.namelist():
+            if Path(name).name in IMPORTED_VITURE_LIBRARIES:
+                errors.append('APK must not bundle the user-imported VITURE SDK: ' + name)
             if name.startswith('lib/arm64-v8a/') and name.endswith('.so'):
                 path = Path(temp) / Path(name).name
                 path.write_bytes(package.read(name))

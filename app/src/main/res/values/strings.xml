@@ -3998,4 +3998,18 @@
 
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
+    <string name="viture_sdk_title">VITURE SDK</string>
+    <string name="viture_sdk_required">Import the VITURE SDK to enable device controls and tracking.</string>
+    <string name="viture_sdk_import">Import VITURE SDK</string>
+    <string name="viture_sdk_import_hint">Select the VITURE Android C SDK ZIP to enable supported features, including Luma Ultra 6DoF.</string>
+    <string name="viture_sdk_ready">VITURE SDK loaded</string>
+    <string name="viture_sdk_ready_hint">Supported SDK features are available. On Luma Ultra, enable positional tracking in Tracking for 6DoF.</string>
+    <string name="viture_sdk_checking">Checking SDK files…</string>
+    <string name="viture_sdk_installing">Importing SDK and reconnecting glasses…</string>
+    <string name="viture_sdk_confirm_title">Import this VITURE SDK?</string>
+    <string name="viture_sdk_confirm_details">Android SDK %1$s · %2$s\nThe required Android libraries passed compatibility checks.</string>
+    <string name="viture_sdk_confirm_trust">Only import an SDK downloaded from VITURE that you trust. These checks do not verify the publisher. Importing allows the SDK to run in DroidDeck.</string>
+    <string name="viture_sdk_install">Import and enable</string>
+    <string name="viture_sdk_import_failed">Could not import VITURE SDK</string>
+    <string name="viture_sdk_unreadable">The selected file could not be opened. Select the SDK ZIP again.</string>
 </resources>

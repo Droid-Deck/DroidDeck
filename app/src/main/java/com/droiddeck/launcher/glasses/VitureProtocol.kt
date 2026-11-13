@@ -7,6 +7,8 @@ import kotlin.math.sqrt
 object VitureProtocol {
     const val VENDOR_ID = 0x35CA
     const val PRO2_PRODUCT_ID = 0x1301
+    const val BEAST_PRODUCT_ID = 0x1201
+    const val PHANTOM_PRODUCT_ID = 0x1221
     const val PACKET_SIZE = 64
     private const val HEADER = 0x12
 
@@ -38,6 +40,8 @@ object VitureProtocol {
         override val name: String,
         val family: Family,
         val needsSdk: Boolean = family == Family.ULTRA || family == Family.BEAST || family == Family.PRO2,
+        val lite: Boolean = false,
+        private val lumaProOptics: Boolean = false,
     ) : GlassesModel {
         override val controllable: Boolean get() = true
         private val directPro2: Boolean get() = family == Family.PRO2 && !needsSdk
@@ -45,13 +49,16 @@ object VitureProtocol {
         override val supportsDisplayModeControl: Boolean get() = !directPro2
         val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA || family == Family.BEAST
         override val sbs90: Boolean get() = family == Family.ULTRA
-        override val brightnessMax: Int get() = if (directPro2) 0 else 8
-        override val volumeMax: Int get() = if (directPro2) 0 else if (family == Family.BEAST) 15 else 8
-        override val hasSunblock: Boolean get() = family != Family.PRO2
+        override val rates2d: List<Int> get() = if (family == Family.ONE) listOf(60) else listOf(60, 90, 120)
+        override val brightnessMax: Int get() = when { directPro2 -> 0; family == Family.ONE -> 6; else -> 8 }
+        override val volumeMax: Int get() = when { directPro2 -> 0; family == Family.ONE -> 7; family == Family.BEAST -> 15; else -> 8 }
+        override val hasSunblock: Boolean get() = family != Family.PRO2 && !lite
         override val diagonalFovDeg: Float get() = when (family) {
             Family.ONE -> 43f
             Family.PRO -> 46f
-            Family.PRO2, Family.LUMA, Family.ULTRA -> 50f
+            Family.PRO2 -> 50f
+            Family.LUMA -> if (lumaProOptics) 52f else 50f
+            Family.ULTRA -> 52f
             Family.BEAST -> 58f
         }
 
@@ -63,20 +70,21 @@ object VitureProtocol {
         override fun mode(hz: Int, sbs: Boolean): Int = mode(hz, sbs, null)
 
         override fun mode(hz: Int, sbs: Boolean, resolution: GlassesResolution?): Int {
+            val rate = if (family == Family.ONE) 60 else hz
             val useTall = tall && (resolution == null || resolution !in resolutions || resolution.height == 1200)
             return when {
-                useTall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
-                useTall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
-                sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
-                else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
+                useTall && sbs -> if (rate >= 90 && sbs90) 0x45 else 0x42
+                useTall -> when { rate >= 120 -> 0x44; rate >= 90 -> 0x43; else -> 0x41 }
+                sbs -> if (rate >= 90 && sbs90) 0x35 else 0x32
+                else -> when { rate >= 120 -> 0x34; rate >= 90 -> 0x33; else -> 0x31 }
             }
         }
 
         override fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
-            1 -> 0x31
-            2 -> 0x33
-            3 -> 0x34
-            4 -> 0x32
+            1 -> mode(60, false)
+            2 -> mode(90, false)
+            3 -> mode(120, false)
+            4 -> mode(60, true)
             else -> null
         }
     }
@@ -88,11 +96,25 @@ object VitureProtocol {
             "Pro 2" -> Family.PRO2
             "Luma", "Luma Pro", "Luma Cyber" -> Family.LUMA
             "Luma Ultra" -> Family.ULTRA
-            "Beast" -> Family.BEAST
+            "Beast", "Phantom Beast" -> Family.BEAST
             else -> return null
         }
-        return Model("VITURE $marketName", family)
+        return Model("VITURE $marketName", family, lite = marketName == "Lite",
+            lumaProOptics = marketName == "Luma Pro" || marketName == "Luma Cyber")
     }
+
+    private val glassesProductName = Regex(
+        "VITURE\\s+(?:One(?:\\s+Lite)?|Lite|Pro(?:\\s+2)?|Luma(?:\\s+(?:Pro|Cyber|Ultra))?|Beast|Phantom(?:\\s+Beast)?)(?:\\s+XR)?(?:\\s+Glasses)?",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val lumaProProductName = Regex(
+        "VITURE\\s+Luma\\s+(?:Pro|Cyber)(?:\\s+XR)?(?:\\s+Glasses)?",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun isGlassesProductName(productName: String?): Boolean =
+        productName?.trim()?.let(glassesProductName::matches) == true
 
     fun model(productId: Int, productName: String?): Model? {
         if (productId == PRO2_PRODUCT_ID) return Model("VITURE Pro 2", Family.PRO2, needsSdk = false)
@@ -101,7 +123,7 @@ object VitureProtocol {
             0x1019, 0x101d -> Family.PRO
             0x1121, 0x1131, 0x1141, 0x1151 -> Family.LUMA
             0x1101, 0x1104 -> Family.ULTRA
-            0x1201, 0x1211 -> Family.BEAST
+            0x1201, 0x1211, PHANTOM_PRODUCT_ID -> Family.BEAST
             else -> return null
         }
         val fallback = when (productId) {
@@ -112,10 +134,13 @@ object VitureProtocol {
             0x1131 -> "VITURE Luma"
             0x1121, 0x1141, 0x1151 -> "VITURE Luma Pro"
             0x1101, 0x1104 -> "VITURE Luma Ultra"
+            PHANTOM_PRODUCT_ID -> "VITURE Phantom Beast"
             else -> "VITURE Beast"
         }
-        val name = productName?.trim()?.removeSuffix(" Glasses")?.takeIf { it.startsWith("VITURE", ignoreCase = true) } ?: fallback
-        return Model(name, family)
+        val name = if (productId == PHANTOM_PRODUCT_ID) fallback else
+            productName?.trim()?.removeSuffix(" Glasses")?.takeIf { it.startsWith("VITURE", ignoreCase = true) } ?: fallback
+        return Model(name, family, lite = productId == 0x1015 || productId == 0x101b,
+            lumaProOptics = family == Family.LUMA && productName?.trim()?.let(lumaProProductName::matches) == true)
     }
 
     private val CRC_TABLE = IntArray(256) { i ->

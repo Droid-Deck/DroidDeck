@@ -23,6 +23,23 @@ import org.robolectric.shadows.ShadowDisplayManager
 @Config(sdk = [31, 34], manifest = Config.NONE, shadows = [GlassesScreenTest.ModeDisplay::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class GlassesScreenTest {
+    @Test fun androidControlledRefreshChoicesFollowTheCurrentResolutionAndEyeLayout() {
+        val flat60 = mode(1, 1920, 1080, 59.94f)
+        val flat120 = mode(2, 1920, 1080, 119.98f)
+        val tall90 = mode(3, 1920, 1200, 90f)
+        val stereo90 = mode(4, 3840, 1080, 90f)
+        val (screen, panel) = screen(flat60, arrayOf(flat60, tall90, stereo90), 60)
+        val rayNeo = RayNeoModel.model(0x3941, 0xaf50, "RayNeo GT Max")!!
+        assertEquals(listOf(60), Glasses.displayRefreshRates(rayNeo, screen.display))
+        panel.supported += flat120
+        assertEquals(listOf(60, 120), Glasses.displayRefreshRates(rayNeo, screen.display))
+        panel.current = tall90
+        assertEquals(listOf(90), Glasses.displayRefreshRates(rayNeo, screen.display))
+        assertEquals(listOf(60, 90, 120), Glasses.displayRefreshRates(VitureProtocol.sdkModel("Pro"), screen.display))
+        assertEquals(listOf(60), Glasses.displayRefreshRates(VitureProtocol.sdkModel("One"), screen.display))
+        assertEquals(listOf(60, 120), Glasses.displayRefreshRates(rayNeo, null))
+    }
+
     @Test fun recoveryCoversTheExistingRenderSurfaceWithoutReplacingIt() {
         val flat=mode(1,1920,1200,60f)
         val (screen,_)=screen(flat,arrayOf(flat),60)
