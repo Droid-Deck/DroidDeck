@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">गेम कोर</string>
     <string name="perf_game_cores">गेम कोर</string>
     <string name="perf_game_cores_hint">गेम के लिए कोर। सभी चुने होने पर, Android खुद शेड्यूल करता है।</string>
+    <string name="perf_pace_cores">स्थिर गेम में बिजली बचाएँ</string>
+    <string name="perf_pace_cores_hint">जब तक गेम अपना फ़्रेम रेट बनाए रखता है, उसे धीमे कोर पर चलाता है, और पिछड़ते ही सभी कोर पर।</string>
     <string name="perf_client_ui">क्लाइंट इंटरफ़ेस</string>
     <string name="perf_glthread">थ्रेडेड GL</string>
     <string name="perf_glthread_hint">Steam मेनू को ज़्यादा रिस्पॉन्सिव बना सकता है।</string>

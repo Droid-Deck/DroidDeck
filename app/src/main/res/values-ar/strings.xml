@@ -576,6 +576,8 @@
     <string name="perf_game_cores_group">أنوية الألعاب</string>
     <string name="perf_game_cores">أنوية الألعاب</string>
     <string name="perf_game_cores_hint">الأنوية المخصّصة للألعاب. عند تحديدها جميعًا، يوزّع Android المهام بحرية.</string>
+    <string name="perf_pace_cores">توفير الطاقة في الألعاب الثابتة</string>
+    <string name="perf_pace_cores_hint">يشغّل اللعبة على الأنوية الأبطأ ما دامت تحافظ على معدل إطاراتها، وعلى كل الأنوية عندما تتأخر.</string>
     <string name="perf_client_ui">واجهة العميل</string>
     <string name="perf_glthread">GL متعدد مؤشرات الترابط</string>
     <string name="perf_glthread_hint">قد يجعل قوائم Steam أسرع استجابة.</string>

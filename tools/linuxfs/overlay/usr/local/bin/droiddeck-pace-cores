@@ -15,6 +15,8 @@ LATE = 1.5
 PACED_LATE_SHARE = 0.02
 RELEASE_LATE_SHARE = 0.05
 SLOWER = 1.04
+MAX_INTERVAL = 1e9 / 30
+SPREAD = 0.08
 BACKOFF = 30.0
 BACKOFF_MAX = 600.0
 
@@ -50,7 +52,7 @@ def efficient_cores(cpu=Path("/sys/devices/system/cpu"), own=None):
 
 
 class Frames:
-    """gamescope's per-frame feed for the HUD: frame intervals of the focused app, its pid and the refresh."""
+    """gamescope's per-frame feed for the HUD: frame intervals of the focused app, its pid and whether Steam is in front."""
 
     def __init__(self, path):
         self.path = Path(path)
@@ -65,12 +67,12 @@ class Frames:
             return None
         capacity, pid = struct.unpack_from("<II", data, 8)
         count, = struct.unpack_from("<Q", data, 16)
-        _, _, refresh_mhz, steam = struct.unpack_from("<IIII", data, 28)
+        steam, = struct.unpack_from("<I", data, 40)
         last = self.count if self.count is not None else count
         self.count = count
         first = max(last, count - capacity)
         intervals = [struct.unpack_from("<Q", data, HEADER + (i % capacity) * 16)[0] for i in range(first, count)]
-        return pid, refresh_mhz, bool(steam), intervals
+        return pid, bool(steam), intervals
 
 
 def median(values):
@@ -82,14 +84,15 @@ def late_share(intervals, period):
     return sum(1 for value in intervals if value > LATE * period) / len(intervals)
 
 
-def paced_interval(intervals, refresh_mhz):
-    """The interval a game holds when it keeps a fixed share of the refresh, else None."""
-    if not intervals or refresh_mhz <= 0:
+def paced_interval(intervals):
+    """The interval of a game a cap holds at 30 fps or more; a starved or uncapped game spreads."""
+    if len(intervals) < 2:
         return None
-    vblank = 1e12 / refresh_mhz
-    held = median(intervals)
-    steps = round(held / vblank)
-    if not 1 <= steps <= 4 or abs(held - steps * vblank) > 0.04 * vblank:
+    ordered = sorted(intervals)
+    held = ordered[len(ordered) // 2]
+    if held > 1.04 * MAX_INTERVAL:
+        return None
+    if ordered[len(ordered) // 10] < (1 - SPREAD) * held or ordered[len(ordered) * 9 // 10] > (1 + SPREAD) * held:
         return None
     if late_share(intervals, held) > PACED_LATE_SHARE:
         return None
@@ -179,7 +182,7 @@ class Governor:
         read = self.frames.read()
         if read is None:
             return
-        pid, refresh_mhz, steam, intervals = read
+        pid, steam, intervals = read
         now = self.clock()
         if steam or not pid or pid != self.pid:
             if self.parker.pid is not None:
@@ -192,18 +195,18 @@ class Governor:
             self.window, self.since = [], now
             return
         if self.parker.pid is None:
-            self.consider(now, refresh_mhz)
+            self.consider(now)
         else:
             self.watch(now)
 
-    def consider(self, now, refresh_mhz):
+    def consider(self, now):
         self.window = [entry for entry in self.window if entry[0] >= now - SETTLE]
         if now - self.since < SETTLE or now < self.blocked.get(self.pid, (0, 0))[0]:
             return
         intervals = [value for _, value in self.window]
         if sum(intervals) < 0.9 * SETTLE * 1e9:
             return
-        held = paced_interval(intervals, refresh_mhz)
+        held = paced_interval(intervals)
         if held is None:
             return
         self.held = held

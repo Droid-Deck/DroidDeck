@@ -43,9 +43,9 @@ class FeedWriter:
         self.data = bytearray(128 + CAPACITY * 16)
         struct.pack_into('<IIII', self.data, 0, 0x46484444, 1, CAPACITY, 0)
 
-    def focus(self, pid, steam=False, refresh_mhz=60000):
+    def focus(self, pid, steam=False):
         struct.pack_into('<I', self.data, 12, pid)
-        struct.pack_into('<IIII', self.data, 28, 1920, 1080, refresh_mhz, 1 if steam else 0)
+        struct.pack_into('<IIII', self.data, 28, 1920, 1080, 60000, 1 if steam else 0)
         self.flush()
 
     def frames(self, *intervals):
@@ -60,14 +60,20 @@ class FeedWriter:
 
 
 class PacedIntervalTest(unittest.TestCase):
-    def test_full_and_divided_refresh_are_paced(self):
-        self.assertAlmostEqual(paced_interval([VBLANK] * 60, 60000), VBLANK)
-        self.assertAlmostEqual(paced_interval([2 * VBLANK] * 30, 60000), 2 * VBLANK)
+    def test_a_steady_cap_at_30_fps_or_more_is_paced(self):
+        self.assertAlmostEqual(paced_interval([VBLANK] * 60), VBLANK)
+        self.assertAlmostEqual(paced_interval([1e9 / 30] * 30), 1e9 / 30)
+        jitter = [1e9 / 60 * (1 + 0.03 * (-1) ** i) for i in range(60)]
+        self.assertIsNotNone(paced_interval(jitter))
 
-    def test_missed_frames_or_off_cadence_are_not(self):
-        self.assertIsNone(paced_interval([VBLANK] * 50 + [2 * VBLANK] * 10, 60000))
-        self.assertIsNone(paced_interval([VBLANK * 0.7] * 60, 60000))
-        self.assertIsNone(paced_interval([], 60000))
+    def test_under_30_fps_is_not(self):
+        self.assertIsNone(paced_interval([1e9 / 24] * 24))
+        self.assertIsNone(paced_interval([1e9 / 15] * 15))
+
+    def test_a_spread_or_missed_frames_are_not(self):
+        self.assertIsNone(paced_interval([VBLANK] * 50 + [2 * VBLANK] * 10))
+        self.assertIsNone(paced_interval([VBLANK * (0.8 + 0.4 * (i % 5) / 4) for i in range(60)]))
+        self.assertIsNone(paced_interval([]))
 
 
 class EfficientCoresTest(unittest.TestCase):
@@ -131,7 +137,10 @@ class GovernorTest(unittest.TestCase):
         self.assertEqual(self.governor.parker.pid, self.PID)
 
     def test_struggling_game_stays_on_every_core(self):
-        self.run_for(10, 1.4 * VBLANK)
+        for step in range(20):
+            self.now += 0.5
+            self.feed.frames(*([VBLANK, 2 * VBLANK] * 10))
+            self.governor.tick()
         self.assertIsNone(self.governor.parker.pid)
         self.assertTrue(all(cpus == ALL for cpus in self.cores.state.values()))
 

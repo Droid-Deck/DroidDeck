@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">Spielkerne</string>
     <string name="perf_game_cores">Spielkerne</string>
     <string name="perf_game_cores_hint">Kerne für Spiele. Sind alle ausgewählt, verteilt Android frei.</string>
+    <string name="perf_pace_cores">Strom sparen bei stabilen Spielen</string>
+    <string name="perf_pace_cores_hint">Lässt ein Spiel auf den langsameren Kernen laufen, solange es seine Bildrate hält, und auf allen Kernen, sobald es zurückfällt.</string>
     <string name="perf_client_ui">Client-Oberfläche</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">Kann Steam-Menüs reaktionsschneller machen.</string>

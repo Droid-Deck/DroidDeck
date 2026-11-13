@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">Oyun çekirdekleri</string>
     <string name="perf_game_cores">Oyun çekirdekleri</string>
     <string name="perf_game_cores_hint">Oyunlar için çekirdekler. Tümü seçiliyse Android serbestçe zamanlar.</string>
+    <string name="perf_pace_cores">Kararlı oyunlarda güç tasarrufu</string>
+    <string name="perf_pace_cores_hint">Oyun kare hızını korurken onu yavaş çekirdeklerde, geride kalınca tüm çekirdeklerde çalıştırır.</string>
     <string name="perf_client_ui">İstemci arayüzü</string>
     <string name="perf_glthread">İş parçacıklı GL</string>
     <string name="perf_glthread_hint">Steam menülerinin daha hızlı tepki vermesini sağlayabilir.</string>
