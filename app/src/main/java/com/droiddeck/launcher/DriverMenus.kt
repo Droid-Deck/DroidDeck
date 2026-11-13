@@ -358,8 +358,13 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 when {
                     row?.active == true -> autoStatus = problem?.let { activity.getString(R.string.drivers_up_to_date_check_failed, it) }
                         ?: activity.getString(R.string.upd_current_status)
+                    gpu.family == GpuInfo.Family.POWERVR && (pair == null || !pair.complete) &&
+                        (problem != null || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
+                        SessionPrefs.ensurePowerVrAutoDrivers(activity)
+                        autoStatus = activity.getString(R.string.upd_couldnt_check, problem ?: TurnipReleases.NON_ADRENO_LABEL)
+                        refreshDrivers()
+                    }
                     gpu.family == GpuInfo.Family.POWERVR && (pair == null || !pair.complete) -> {
-                        // RADV is not published right now: the Xclipse falls back to the system route.
                         SessionPrefs.ensurePowerVrAutoDrivers(activity)
                         autoStatus = activity.getString(R.string.drivers_powervr_builtin)
                         refreshDrivers()
