@@ -547,8 +547,15 @@ object AgentHost {
             com.droiddeck.launcher.DeviceCodeActivity.close()
             return
         }
-        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay) && !openUrl(app, url)) {
-            runCatching { File(app.filesDir, "$DEVICE_CODE.failed").writeText("") }
+        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay)) deviceCodeOpened(app, openUrl(app, url))
+    }
+
+    /** Tells dd-gh-login whether the device page opened, so it can fall back to android-open. */
+    fun deviceCodeOpened(app: Context, opened: Boolean) {
+        runCatching {
+            val part = File(app.filesDir, "$DEVICE_CODE.result.part")
+            part.writeText(if (opened) "ok" else "failed")
+            part.renameTo(File(app.filesDir, "$DEVICE_CODE.result"))
         }
     }
 

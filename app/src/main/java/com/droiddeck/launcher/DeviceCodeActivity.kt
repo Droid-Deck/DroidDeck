@@ -112,10 +112,11 @@ class DeviceCodeActivity : ComponentActivity() {
         openPending = false
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val at = display
-        runCatching {
+        val opened = runCatching {
             if (at == null) startActivity(intent)
             else startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(at).toBundle())
-        }.recoverCatching { startActivity(intent) }
+        }.recoverCatching { startActivity(intent) }.isSuccess
+        com.droiddeck.launcher.agent.AgentHost.deviceCodeOpened(applicationContext, opened)
     }
 
     @androidx.compose.runtime.Composable

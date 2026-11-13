@@ -6,7 +6,7 @@ inbox=${DD_AGENT_INBOX:-}
 # DroidDeck takes $inbox/device-code within a few seconds when it can float the code.
 float_code() {
   [ -n "$inbox" ] && [ -d "$inbox" ] || return 1
-  rm -f "$inbox/device-code.failed"
+  rm -f "$inbox/device-code.result"
   printf '%s %s\n' "$1" "$url" > "$inbox/device-code.part" && mv -f "$inbox/device-code.part" "$inbox/device-code" || return 1
   i=0
   while [ $i -lt 40 ] && [ -e "$inbox/device-code" ]; do
@@ -17,10 +17,15 @@ float_code() {
     rm -f "$inbox/device-code"
     return 1
   fi
-  sleep 0.3
-  [ -e "$inbox/device-code.failed" ] || return 0
-  rm -f "$inbox/device-code.failed"
-  return 1
+  # DroidDeck writes "ok" or "failed" once it has tried to open the page; no answer counts as failed.
+  i=0
+  while [ $i -lt 50 ] && [ ! -e "$inbox/device-code.result" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  result=$(cat "$inbox/device-code.result" 2>/dev/null)
+  rm -f "$inbox/device-code.result"
+  [ "$result" = ok ]
 }
 
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
