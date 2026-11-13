@@ -41,7 +41,7 @@ object HomeApp {
         val userSerial: Long = 0L,
     ) {
         val component get() = ComponentName(packageName, className)
-        val key get() = "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+        val key get() = appKey(packageName, className, userSerial)
         val work get() = userSerial != 0L
     }
 
@@ -101,6 +101,9 @@ object HomeApp {
             ?: resolved.loadLabel(pm)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    private fun appKey(packageName: String, className: String, userSerial: Long) =
+        "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+
     fun roleRequestIntent(context: Context): Intent? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val roles = context.getSystemService(RoleManager::class.java) ?: return null
@@ -116,13 +119,25 @@ object HomeApp {
         val pm = context.packageManager
         val own = Process.myUserHandle()
         val iconPx = (ICON_DP * context.resources.displayMetrics.density).roundToInt()
+        val densityDpi = context.resources.displayMetrics.densityDpi
+        val pack = IconPack.active(context)
+        val appColors = IconPack.appColors(context)
+        HomeIcons.load(context)
+        val overrides = HomeIcons.overrides
         val apps = users.userProfiles.flatMap { user ->
             val serial = if (user == own) 0L else users.getSerialNumberForUser(user)
             runCatching { launcher.getActivityList(null, user) }.getOrDefault(emptyList()).mapNotNull { info ->
                 val component = info.componentName
                 if (component.packageName == context.packageName && user == own) return@mapNotNull null
                 val label = info.label?.toString()?.trim().orEmpty().ifEmpty { component.packageName }
-                val icon = runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
+                val icon = runCatching {
+                    (overrides[appKey(component.packageName, component.className, serial)]
+                        ?.let { IconPack.drawable(context, it.pack, it.drawable, densityDpi) }
+                        ?: pack?.icon(component, densityDpi)
+                        ?: pack?.plated(info.getIcon(0), iconPx, densityDpi, appColors))
+                        ?.let { pm.getUserBadgedIcon(it, user) }
+                        ?.toBitmap(iconPx, iconPx)
+                }.getOrNull() ?: runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
                 val app = info.applicationInfo
                 val updated = if (user == own) runCatching { pm.getPackageInfo(component.packageName, 0).lastUpdateTime }.getOrNull() else null
                 @Suppress("DEPRECATION")
@@ -242,6 +257,19 @@ object HomeApp {
 
     fun isActiveSteamSession(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM
+
+    fun showFrontEnd(context: Context, intent: Intent = Intent(context, FrontEndActivity::class.java)) {
+        val frontEnd = FrontEndActivity::class.java.name
+        val tasks = runCatching { context.getSystemService(android.app.ActivityManager::class.java)?.appTasks }.getOrNull().orEmpty()
+        val own = tasks.firstOrNull { task ->
+            runCatching { task.taskInfo.let { it.baseIntent.component?.className == frontEnd && it.topActivity?.className == frontEnd } }
+                .getOrDefault(false)
+        }
+        val launch = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (own != null && runCatching { own.startActivity(context, launch, null) }.isSuccess) return
+        // The session task shares the front end's affinity, so without MULTIPLE_TASK the front end lands inside the session's PiP window.
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+    }
 
     fun openSystemHomeSettings(context: Context) {
         try {

@@ -1,24 +1,52 @@
 #!/bin/bash
-# GitHub sign-in through Android's browser on the bottom screen, with the one-time code typed in.
-serial=${ADB_SERIAL:-127.0.0.1:5555}
-adb connect "$serial" >/dev/null 2>&1
+# Starts GitHub's device login, floats its code over Android's browser and opens the approval page.
+url=https://github.com/login/device
+inbox=${DD_AGENT_INBOX:-}
+
+# DroidDeck takes $inbox/device-code within a few seconds when it can float the code.
+float_code() {
+  [ -n "$inbox" ] && [ -d "$inbox" ] || return 1
+  rm -f "$inbox/device-code.result"
+  printf '%s %s\n' "$1" "$url" > "$inbox/device-code.part" && mv -f "$inbox/device-code.part" "$inbox/device-code" || return 1
+  i=0
+  while [ $i -lt 40 ] && [ -e "$inbox/device-code" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  if [ -e "$inbox/device-code" ]; then
+    rm -f "$inbox/device-code"
+    return 1
+  fi
+  # DroidDeck writes "ok" or "failed" once it has tried to open the page; no answer counts as failed.
+  i=0
+  while [ $i -lt 50 ] && [ ! -e "$inbox/device-code.result" ]; do
+    sleep 0.2
+    i=$((i + 1))
+  done
+  result=$(cat "$inbox/device-code.result" 2>/dev/null)
+  rm -f "$inbox/device-code.result"
+  [ "$result" = ok ]
+}
+
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
 gh_pid=$GH_PID
-typed=
-while IFS= read -r line <&"${GH[0]}"; do
-  printf '%s\n' "$line"
+exec {ghout}<&"${GH[0]}" {ghin}>&"${GH[1]}"
+shown=
+while IFS= read -r line <&"$ghout"; do
   code=$(grep -oE '[A-Z0-9]{4}-[A-Z0-9]{4}' <<<"$line" | head -1)
-  if [ -n "$code" ] && [ -z "$typed" ]; then
-    typed=1
-    echo >&"${GH[1]}"
-    adb -s "$serial" shell "am start --display 2 -a android.intent.action.VIEW -d https://github.com/login/device" >/dev/null 2>&1
-    # Chrome drops characters from `input text` and from fast key events on this page.
-    keys=
-    for ((i = 0; i < ${#code}; i++)); do
-      c=${code:i:1}
-      [ "$c" = - ] || keys+="input -d 2 keyevent KEYCODE_$c; sleep 0.4; "
-    done
-    (sleep 7; adb -s "$serial" shell "$keys" >/dev/null 2>&1) &
+  # gh's own prompts would push the code out of the one line the setup card shows.
+  case "$line" in
+    *"one-time code"* | *"Press Enter"* | *"Open this URL"*) ;;
+    *) printf '%s\n' "$line" ;;
+  esac
+  if [ -n "$code" ] && [ -z "$shown" ]; then
+    shown=1
+    echo >&"$ghin"
+    printf 'GitHub device code: %s · github.com/login/device\n' "$code"
+    float_code "$code" || android-open "$url"
   fi
 done
 wait "$gh_pid"
+status=$?
+[ -n "$shown" ] && [ -n "$inbox" ] && [ -d "$inbox" ] && : > "$inbox/device-code"
+exit $status

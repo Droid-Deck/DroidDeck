@@ -104,7 +104,7 @@ Run the batch/reference and work-budget regressions with
 
 ## Game debug logs
 
-Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
+Under **Setup > Developer**, enable **Session logs** and **Game debug logs**
 before reproducing a Windows game problem. Game debug logs is off by default and
 is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
 Valve or third-party Proton wrapper, including added games and store shortcuts.
@@ -142,7 +142,7 @@ that diagnostics were skipped instead of writing uncollected files elsewhere.
 
 ## Enhanced diagnostics
 
-Use **Setup > Diagnostics > Enhanced diagnostics for next session** when normal
+Use **Setup > Developer > Enhanced diagnostics for next session** when normal
 session logs are not enough. The setting is one-shot: DroidDeck creates and
 retains the next session's log directory, records the diagnostic profile, then
 turns the setting off. It also enables the existing game diagnostic environment

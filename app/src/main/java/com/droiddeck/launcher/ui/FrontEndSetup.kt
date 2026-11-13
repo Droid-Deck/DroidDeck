@@ -91,6 +91,7 @@ private const val LAUNCHER_TAB = 2
 
 internal object SetupTabs {
     var openLauncher = false
+    var focusTabs = false
     var openOverview = false
 }
 private const val GLASSES_TAB = 6
@@ -456,8 +457,9 @@ internal fun SetupPanel(
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
                                 LanguageRow(host, s.language, a.onLanguage)
-                                ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
+                                if (s.soundtracksEnabled) ToggleRow(host, "soundtracks-ingame", stringResource(R.string.setup_soundtracks_ingame), stringResource(R.string.setup_soundtracks_ingame_hint), s.soundtracksIngame, onChange = a.onSoundtracksIngame)
                             }
+                            TabsSettingsGroup(host, s, a)
                         }
                         val device: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_device)) {
@@ -468,6 +470,11 @@ internal fun SetupPanel(
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
                                     ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
+                                    ChoiceRow(
+                                        host, "home-page", stringResource(R.string.setup_home_page), stringResource(R.string.setup_home_page_hint),
+                                        com.droiddeck.launcher.core.AppUiPrefs.homePageOptions.map { (value, label) -> value to stringResource(label) },
+                                        s.homePage, onPick = a.onHomePage,
+                                    )
                                 }
                                 ChoiceRow(
                                     host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,
@@ -589,6 +596,16 @@ internal fun SetupPanel(
                             ) { a.onGameDebugLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
+                            if (com.droiddeck.launcher.agent.AgentHost.available) {
+                                val agentContext = androidx.compose.ui.platform.LocalContext.current
+                                ToggleRow(host, "agent-pet", stringResource(R.string.setup_agent_pet), stringResource(R.string.setup_agent_pet_hint), AgentPet.enabled) {
+                                    AgentPet.set(agentContext, it)
+                                }
+                                if (AgentPet.enabled && !AgentPet.allowed) ActionRow(
+                                    stringResource(R.string.setup_agent_pet_float), stringResource(R.string.setup_agent_pet_float_hint),
+                                    stringResource(R.string.setup_agent_pet_allow), onClick = { AgentPet.requestFloating(agentContext) },
+                                )
+                            }
                             ToggleRow(host, "graphics-logs", stringResource(R.string.setup_graphics_logs), stringResource(R.string.setup_graphics_logs_hint), s.graphicsLogs) { a.onGraphicsLogs() }
                             if (!s.adreno && com.droiddeck.launcher.session.SessionPrefs.steamGpuCompositingAllowed()) ToggleRow(host, "steam-gpu-drawing", stringResource(R.string.setup_steam_gpu_drawing), stringResource(R.string.setup_steam_gpu_drawing_hint), s.steamGpuDrawing) { a.onSteamGpuDrawing() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
@@ -739,6 +756,17 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val context = androidx.compose.ui.platform.LocalContext.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     val wincompKey = game?.takeIf { it.library == com.droiddeck.launcher.frontend.Library.ADDED || it.appId > 0 }?.profileKey
+    val frameGenProfileKey = game?.profileKey?.takeIf { it.isNotBlank() }
+    var gameFrameGenMode by remember(frameGenProfileKey) {
+        mutableStateOf(frameGenProfileKey?.let {
+            com.droiddeck.launcher.gpu.FrameGen.mode(context, it)
+        } ?: s.frameGen)
+    }
+    var gameFrameGenOverride by remember(frameGenProfileKey) {
+        mutableStateOf(frameGenProfileKey?.let {
+            com.droiddeck.launcher.gpu.FrameGen.hasGameOverride(context, it)
+        } ?: false)
+    }
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val steamScope = game?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
@@ -757,10 +785,42 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         }
         add { m ->
             Box(m) {
-                SettingCard(stringResource(R.string.frame_gen_title), s.frameGenLabel, "card:fg", Modifier.fillMaxSize()) {
+                SettingCard(
+                    stringResource(R.string.frame_gen_title),
+                    if (frameGenProfileKey != null)
+                        com.droiddeck.launcher.gpu.FrameGen.label(context, gameFrameGenMode)
+                    else s.frameGenLabel,
+                    "card:fg", Modifier.fillMaxSize()
+                ) {
                     host.open = if (host.open == "fg") null else "fg"
                 }
-                FrameGenMenu(s, a, host)
+                FrameGenMenu(
+                    host = host,
+                    mode = if (frameGenProfileKey != null) gameFrameGenMode else s.frameGen,
+                    lossless = s.lossless,
+                    onPick = { mode ->
+                        val key = frameGenProfileKey
+                        if (key == null) {
+                            a.onFrameGenPick(mode)
+                        } else {
+                            com.droiddeck.launcher.gpu.FrameGen.setForGame(context, key, mode)
+                            gameFrameGenMode = mode
+                            gameFrameGenOverride = true
+                        }
+                    },
+                    onImportLossless = a.onImportLossless,
+                    gameProfileId = frameGenProfileKey,
+                    hasGameOverride = gameFrameGenOverride,
+                    onResetGame = {
+                        val key = frameGenProfileKey
+                        if (key != null) {
+                            com.droiddeck.launcher.gpu.FrameGen.clearGame(context, key)
+                            gameFrameGenMode =
+                                com.droiddeck.launcher.gpu.FrameGen.mode(context)
+                            gameFrameGenOverride = false
+                        }
+                    }
+                )
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
@@ -857,12 +917,37 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
+    val resKey = "game-settings-res"
+    val resolution = current?.let { com.droiddeck.launcher.core.GameEnvironment.gameResolution(it, scope) }
+    val screen = remember { com.droiddeck.launcher.session.SessionDisplay.screenSize(com.droiddeck.launcher.session.SessionDisplay.panelSize(appContext)) }
+    val matchScreen = stringResource(R.string.display_match_screen, screen.first, screen.second)
+    val scaledLabels = com.droiddeck.launcher.core.GameResolution.scales.associateWith {
+        stringResource(R.string.display_follow_screen_scaled, com.droiddeck.launcher.core.GameResolution.formatScale(it))
+    }
+    fun sizeLabel(size: Pair<Int, Int>) = "${size.first}×${size.second} · ${com.droiddeck.launcher.core.GameResolution.aspectLabel(size.first, size.second)}"
+    fun resolutionLabel(choice: com.droiddeck.launcher.core.GameResolution.Choice?): String = when (choice) {
+        null -> matchScreen
+        is com.droiddeck.launcher.core.GameResolution.Scaled -> (scaledLabels[choice.scale]
+            ?: "÷" + com.droiddeck.launcher.core.GameResolution.formatScale(choice.scale)) +
+            " · " + sizeLabel(com.droiddeck.launcher.core.GameResolution.resolve(choice, screen))
+        is com.droiddeck.launcher.core.GameResolution.Fixed -> sizeLabel(choice.width to choice.height)
+    }
+    fun pickResolution(choice: com.droiddeck.launcher.core.GameResolution.Choice?) {
+        host.open = key
+        save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameResolution(it, scope, choice) }
+    }
+    var editResolution by remember(scope) { mutableStateOf(false) }
     AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = stringResource(R.string.game_settings_menu_title, game.name)) { first ->
         MenuItem(stringResource(R.string.game_no_steam_title), checked = noSteam, enabled = ready,
             detail = stringResource(R.string.game_no_steam_detail), focusRequester = first) {
             val on = !noSteam
             save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameNoSteam(it, scope, on) }
         }
+        if (noSteam) MenuItem(
+            stringResource(R.string.game_res_title), checked = false, enabled = ready,
+            detail = resolutionLabel(resolution),
+            trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+        ) { host.open = resKey }
         if (!launcher) {
             val chosen = com.droiddeck.launcher.core.FexPreset.all.firstOrNull { it.id == fex }
             MenuItem(
@@ -899,6 +984,45 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             }
         }
     }
+    AnchoredMenu(host.open == resKey, onDismiss = { if (host.open == resKey) host.open = null }, title = stringResource(R.string.game_res_title)) { first ->
+        MenuItem(matchScreen, checked = resolution == null, enabled = ready, focusRequester = first) { pickResolution(null) }
+        com.droiddeck.launcher.core.GameResolution.scales.forEach { scale ->
+            val choice = com.droiddeck.launcher.core.GameResolution.Scaled(scale)
+            MenuItem(scaledLabels.getValue(scale), checked = resolution == choice, enabled = ready,
+                detail = sizeLabel(com.droiddeck.launcher.core.GameResolution.resolve(choice, screen))) { pickResolution(choice) }
+        }
+        com.droiddeck.launcher.core.GameResolution.aspects.forEach { aspect ->
+            val sizes = com.droiddeck.launcher.core.GameResolution.sizesFor(aspect, screen)
+            MenuItem(aspect.label, checked = resolution in aspect.sizes, enabled = ready,
+                detail = sizes.joinToString(" · ") { "${it.width}×${it.height}" },
+                trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+            ) { host.open = "$resKey-${aspect.label}" }
+        }
+        val fixed = resolution as? com.droiddeck.launcher.core.GameResolution.Fixed
+        val customValue = fixed?.takeIf { f -> com.droiddeck.launcher.core.GameResolution.aspects.none { f in it.sizes } }
+        MenuItem(
+            if (customValue == null) stringResource(R.string.mode_res_custom) else stringResource(R.string.mode_res_custom_value, customValue.width, customValue.height),
+            checked = customValue != null, enabled = ready,
+            detail = customValue?.let { com.droiddeck.launcher.core.GameResolution.aspectLabel(it.width, it.height) },
+        ) { editResolution = true }
+    }
+    com.droiddeck.launcher.core.GameResolution.aspects.forEach { aspect ->
+        val aspectKey = "$resKey-${aspect.label}"
+        AnchoredMenu(host.open == aspectKey, onDismiss = { if (host.open == aspectKey) host.open = null }, title = aspect.label) { first ->
+            com.droiddeck.launcher.core.GameResolution.sizesFor(aspect, screen).forEachIndexed { index, size ->
+                MenuItem("${size.width}×${size.height}", checked = resolution == size, enabled = ready,
+                    focusRequester = if (index == 0) first else null) { pickResolution(size) }
+            }
+        }
+    }
+    if (editResolution) CustomResolutionDialog(
+        (resolution as? com.droiddeck.launcher.core.GameResolution.Fixed)?.let { it.width to it.height },
+        onSave = { value ->
+            editResolution = false
+            pickResolution(com.droiddeck.launcher.core.GameResolution.Fixed(value.first, value.second))
+        },
+        onDismiss = { editResolution = false },
+    )
     AnchoredMenu(host.open == fexKey, onDismiss = { if (host.open == fexKey) host.open = null }, title = stringResource(R.string.fex_preset_title)) { first ->
         MenuItem(useDefault, checked = fex == null, enabled = ready, detail = stringResource(generalFex.label), focusRequester = first) {
             host.open = key

@@ -93,6 +93,21 @@ class PortraitLayoutTest {
         compose.onNodeWithContentDescription("Resume Steam").assertIsDisplayed()
     }
 
+    @Test fun bottomBarFollowsSidebarLabelsSetting() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        RailLabels.set(context, false)
+        compose.setContent {
+            DroidDeckTheme { BottomBar(state, "steam", {}, {}, actions, Modifier.size(480.dp, 64.dp)) }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Library").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Library").assertIsDisplayed()
+        compose.runOnIdle { RailLabels.set(context, true) }
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Library").assertIsDisplayed()
+    }
+
     @Test fun compactHeaderKeepsAllActionsReachable() {
         compose.setContent {
             DroidDeckTheme {

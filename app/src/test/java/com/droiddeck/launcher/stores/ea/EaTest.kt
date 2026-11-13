@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores.ea
 
+import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
@@ -38,6 +39,43 @@ class EaTest {
         assertEquals("abc", String(EaCrypto.ecbDecrypt(EaCrypto.unhex(answer), EaCrypto.LSX_DEFAULT_KEY)))
         assertEquals((answer[0].code shl 8) or answer[1].code, EaCrypto.challengeSeed("3", answer))
         assertNull(EaCrypto.challengeSeed("9", answer))
+    }
+
+    @Test fun onlyTokenRejectionsAreRetried() {
+        val rejected = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"ea_eadmtoken\"/></error>".toByteArray(), emptyMap())
+        val notEntitled = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"NOT_ENTITLED\" field=\"userId\" value=\"1\"/></error>".toByteArray(), emptyMap())
+        var authCalls = 0
+        val success = EaReply(200, ByteArray(0), emptyMap())
+        val result = EaOoa.retryTokenRejected {
+            authCalls++
+            if (authCalls == 1) rejected else success
+        }
+        assertEquals(2, authCalls)
+        assertEquals(200, result.status)
+
+        var entitlementCalls = 0
+        val refused = EaOoa.retryTokenRejected {
+            entitlementCalls++
+            notEntitled
+        }
+        assertEquals(1, entitlementCalls)
+        assertEquals(409, refused.status)
+
+        val otherAuthFailure = EaReply(409, "<error code=\"VALIDATION_FAILED\"><failure cause=\"AUTHENTICATION_FAILED\" field=\"machineHash\"/></error>".toByteArray(), emptyMap())
+        var otherAuthCalls = 0
+        val otherRefused = EaOoa.retryTokenRejected {
+            otherAuthCalls++
+            otherAuthFailure
+        }
+        assertEquals(1, otherAuthCalls)
+        assertEquals(409, otherRefused.status)
+
+        var failedCalls = 0
+        EaOoa.retryTokenRejected {
+            failedCalls++
+            rejected
+        }
+        assertEquals(4, failedCalls)
     }
 
     @Test fun licenceRoundTripsThroughTheFileFormat() {
@@ -186,6 +224,61 @@ class EaTest {
         val list = listOf(owned("1", "game"), owned("2", "game-deluxe", base = "game"), owned("3", "other"), owned("4", "trial", trial = true), owned("5", "dlc", type = "EXTRA_CONTENT"))
         val picked = EaLibrary.pick(list, list.associate { it.offerId to offer(it.offerId) })
         assertEquals(listOf("1", "3"), picked.map { it.first.offerId })
+    }
+
+    @Test fun anOwnedProductWithoutAnActiveGameDownloadIsLeftOut() {
+        fun row(id: String, type: String, tag: String = type, status: String = "ACTIVE") =
+            JSONObject().put("productId", id).put("entitlementType", type).put("entitlementTag", tag).put("status", status)
+        val rows = listOf(
+            row("DR:106479900", "DEFAULT", "VALIDATED_ONLINE_ACCESS"),
+            row("DR:231813200", "ORIGIN_DOWNLOAD", status = "DISABLED"),
+            row("Origin.OFR.50.0003426", "ONLINE_ACCESS"),
+            row("Origin.OFR.50.0003426", "ORIGIN_DOWNLOAD"),
+            row("Origin.OFR.50.0005237", "ORIGIN_DOWNLOAD"),
+        )
+        assertEquals(setOf("DR:106479900", "DR:231813200"), EaLibrary.withoutGameDownload(rows).keys)
+        assertTrue(EaLibrary.withoutGameDownload(emptyList()).isEmpty())
+    }
+
+    @Test fun theStorePageNamesEachGameWithItsPrice() {
+        val game = { slug: String, title: String, date: String, price: String, sale: String, off: Int, free: Boolean ->
+            """{"slug":"$slug","title":"$title
+","isFreeToPlay":$free,"franchiseSlug":"f","tier":"Tier1","releaseDate":"$date",
+              "packArt":{"ar16X9":"https://img/$slug-wide","ar2X3":"https://img/$slug-tall"},"genres":[{"name":"RPG"}],
+              "price":{"displayTotal":"$price","displayTotalWithDiscount":"$sale","discountPercentage":$off,"currency":"USD"}}"""
+        }
+        val html = """<html><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"totalItems":40,"games":[""" +
+            game("ultima-7", "Ultima VII", "2026-11-05T18:00:00.000Z", "$4.99", "$2.49", 50, false) + "," +
+            game("redsec", "REDSEC", "2025-10-28T15:00:00.000Z", "$0.00", "$0.00", 0, true) + "," +
+            game("future", "Future", "2027-03-01T00:00:00.000Z", "$69.99", "$69.99", 0, false) + "]}}}</script></html>"
+        val (items, total) = EaStore.parsePage(html, "USD")
+        assertEquals("", EaStore.parsePage(html, "EUR").first.first().finalPrice)
+        assertEquals(40, total)
+        val ultima = items.first()
+        assertEquals("Ultima VII", ultima.title)
+        assertEquals("$2.49", ultima.finalPrice)
+        assertEquals("$4.99", ultima.originalPrice)
+        assertEquals(50, ultima.discountPercent)
+        assertEquals("https://www.ea.com/games/f/ultima-7", ultima.storeUrl)
+        assertTrue(items[1].isFree)
+        val shelves = EaStore.shelves(items, java.time.Instant.parse("2026-11-12T00:00:00Z"))
+        assertEquals(listOf("Ultima VII", "REDSEC"), shelves.whatsNew.map { it.title })
+        assertEquals(listOf("Ultima VII"), shelves.deals.map { it.title })
+        assertEquals(listOf("REDSEC"), shelves.free.map { it.title })
+        val owned = CatalogItem(Store.EA, "Origin.OFR.1", "Ultima™ VII", null, owned = true, extra = mapOf("slug" to "other"))
+        val marked = com.droiddeck.launcher.stores.StoreFront.markOwned(shelves, listOf(owned), EaStore::sameGame)
+        assertEquals("Origin.OFR.1", marked.deals.single().id)
+        assertEquals("https://img/ultima-7-wide", marked.deals.single().imageUrl)
+        val bf = CatalogItem(Store.EA, "Origin.OFR.50.0005511", "Battlefield™", null, owned = true, extra = mapOf("slug" to "glacier", "productName" to "Battlefield™ 6"))
+        assertTrue(EaStore.sameGame(CatalogItem(Store.EA, "ea-store:battlefield-6", "Battlefield™ 6", null, extra = mapOf("slug" to "battlefield-6")), bf))
+        assertFalse(EaStore.sameGame(CatalogItem(Store.EA, "ea-store:bf-2042", "Battlefield™ 2042", null), bf))
+    }
+
+    @Test fun titlesMatchAcrossMarksAndAccentsButNeverWhenEmpty() {
+        assertEquals("pokemon", com.droiddeck.launcher.stores.StoreFront.titleKey("Pokémon™"))
+        assertEquals("ファイナル 7", com.droiddeck.launcher.stores.StoreFront.titleKey("ファイナル® 7"))
+        val shelf = CatalogItem(Store.EA, "ea-store:a", "™", null)
+        assertFalse(EaStore.sameGame(shelf, CatalogItem(Store.EA, "Origin.OFR.2", "®", null, owned = true)))
     }
 
     @Test fun ownedPageParses() {

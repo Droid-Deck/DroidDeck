@@ -1,0 +1,23 @@
+mutation grantEntitlement($input: GrantEntitlementInput!) {
+  grantEntitlement(input: $input) {
+    success
+    entitledOfferIds
+    entitlementType
+    errors {
+      ... on GrantEntitlementOfferDoesNotExistError {
+        __typename
+      }
+      ... on GrantEntitlementNotQualifiedError {
+        __typename
+      }
+      ... on GrantEntitlementNotFreeOrNoAppropriateSubscriptionError {
+        __typename
+      }
+      ... on GrantEntitlementUpstreamConflictError {
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

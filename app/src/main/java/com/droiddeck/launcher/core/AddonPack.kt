@@ -3,6 +3,7 @@ package com.droiddeck.launcher.core
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.lab.LabOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +17,7 @@ import java.io.FileInputStream
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+    private val labBuild: Boolean = LabOverlay.active != null,
     private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
 ) {
     sealed interface State {
@@ -42,7 +44,8 @@ internal class AddonPack(
 
     fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
 
-    private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
+    private fun version(context: Context): String =
+        if (reuseDeviceCopy || labBuild) deviceCopy(context) ?: sha256 else sha256
 
     private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
         .filter { dir ->
