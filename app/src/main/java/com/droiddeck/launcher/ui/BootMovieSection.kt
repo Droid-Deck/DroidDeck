@@ -332,6 +332,7 @@ private fun ImportTab(s: ModeSettings, a: ModeSettingsActions) {
 @Composable
 private fun SoundTab(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
     val app = LocalContext.current.applicationContext
+    var skipBootMovie by remember { mutableStateOf(SessionPrefs.skipBootMovie(app)) }
     var volume by remember { mutableIntStateOf(SessionPrefs.bootMovieVolume(app)) }
     var seconds by remember { mutableIntStateOf(SessionPrefs.bootMovieSeconds(app)) }
     val duration by androidx.compose.runtime.produceState(0, s.bootMovie) {
@@ -341,6 +342,13 @@ private fun SoundTab(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
         host, "boot-movie-sound", stringResource(R.string.boot_movie_sound),
         stringResource(R.string.common_applies_next_session), s.bootMovieSound, onChange = a.onBootMovieSound,
     )
+    ToggleRow(
+        host, "boot-movie-skip", stringResource(R.string.boot_movie_skip),
+        stringResource(R.string.boot_movie_skip_hint), skipBootMovie,
+    ) { enabled ->
+        skipBootMovie = enabled
+        SessionPrefs.setSkipBootMovie(app, enabled)
+    }
     Box(Modifier.padding(horizontal = 6.dp)) {
         ValueSlider(
             volume, 0..100, 5, s.bootMovieSound, stringResource(R.string.boot_movie_volume), { "$it%" },

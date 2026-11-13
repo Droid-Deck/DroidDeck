@@ -1164,6 +1164,11 @@ object SessionPrefs {
     fun setBootMovieVolume(context: Context, percent: Int) { prefs(context).edit().putInt("bootMovieVolume", percent.coerceIn(0, 100)).apply() }
     fun bootMovieSeconds(context: Context): Int = prefs(context).getInt("bootMovieSeconds", 0).coerceAtLeast(0)
     fun setBootMovieSeconds(context: Context, seconds: Int) { prefs(context).edit().putInt("bootMovieSeconds", seconds.coerceAtLeast(0)).apply() }
+    fun skipBootMovie(context: Context): Boolean = prefs(context).getBoolean("skipBootMovie", false)
+    fun setSkipBootMovie(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("skipBootMovie", on).apply()
+        setBootMovieApplyNext(context, true)
+    }
     fun bootMovieApplyNext(context: Context): Boolean = prefs(context).getBoolean("bootMovieApplyNext", false)
     fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
     fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
