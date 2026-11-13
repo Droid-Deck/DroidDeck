@@ -358,8 +358,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 val pair = pairs.firstOrNull { it.key == key }
                 val row = pairRows.firstOrNull { it.key == key }
                 when {
-                    row?.active == true -> autoStatus = problem?.let { activity.getString(R.string.drivers_up_to_date_check_failed, it) }
-                        ?: activity.getString(R.string.upd_current_status)
+                    row?.active == true -> autoStatus = if (checkFailed || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true)
+                        activity.getString(R.string.drivers_up_to_date_check_failed, problem ?: TurnipReleases.NON_ADRENO_LABEL)
+                    else activity.getString(R.string.upd_current_status)
                     gpu.family == GpuInfo.Family.POWERVR && (pair == null || !pair.complete) &&
                         (checkFailed || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
                         SessionPrefs.ensurePowerVrAutoDrivers(activity)
