@@ -151,7 +151,7 @@ import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
-class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
+class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -159,6 +159,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private lateinit var pip: com.droiddeck.launcher.session.SessionPipController
     private var pipUi by mutableStateOf(false)
+
+    override val petBlocked: Boolean get() = drawerOpenState || pipUi || pcKeyboardOpen
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
@@ -2899,6 +2901,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
                 val steamVolume =

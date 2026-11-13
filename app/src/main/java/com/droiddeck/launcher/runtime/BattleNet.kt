@@ -374,7 +374,7 @@ object BattleNet {
         val guestPrefix = added.guestPath(context, prefix(context)) ?: return null
         val crc = java.util.zip.CRC32().apply { update("\"$guestExe\"${game.name}".toByteArray()) }.value
         val appId = com.droiddeck.launcher.session.SessionPrefs.addedGameAppId(context, game.folder.path, crc or 0x80000000L)
-        val exe = added.candidates(game.folder).firstOrNull() ?: client
+        val exe = added.candidates(game.folder, reuse = true).firstOrNull() ?: client
         return com.droiddeck.launcher.frontend.AddedGames.Game(
             game.folder, game.name, exe, guestExe, guestDir, appId, (appId shl 32) or 0x02000000L, listOf(exe),
             source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = game.uid,
