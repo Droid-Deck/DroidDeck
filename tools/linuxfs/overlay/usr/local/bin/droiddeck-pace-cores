@@ -114,6 +114,7 @@ class Parker:
         self.cores = cores or Cores()
         self.pid = None
         self.before = {}
+        self.present = None
 
     def tasks(self, pid):
         try:
@@ -123,8 +124,11 @@ class Parker:
 
     def park(self, pid):
         self.pid = pid
+        tids = self.tasks(pid)
+        if self.present is None:
+            self.present = set(tids)
         inherited = {frozenset(parked): before for before, parked in self.before.values()}
-        for tid in self.tasks(pid):
+        for tid in tids:
             if tid in self.before:
                 continue
             try:
@@ -133,7 +137,7 @@ class Parker:
                 if wanted and wanted != now:
                     self.cores.set(tid, wanted)
                     self.before[tid] = (now, wanted)
-                elif frozenset(now) in inherited:
+                elif tid not in self.present and frozenset(now) in inherited:
                     self.before[tid] = (inherited[frozenset(now)], now)
             except OSError:
                 continue
@@ -146,6 +150,7 @@ class Parker:
             except OSError:
                 continue
         self.pid = None
+        self.present = None
         self.before.clear()
 
 
@@ -198,7 +203,7 @@ class Governor:
             self.since = now
             log(f"pid {self.pid} holds {1e9 / held:.0f} fps, {len(self.parker.before)} thread(s) off the fastest cores")
         else:
-            self.parker.pid = None
+            self.parker.release()
 
     def watch(self, now):
         self.parker.park(self.pid)

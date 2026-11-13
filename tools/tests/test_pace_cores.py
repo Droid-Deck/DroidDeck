@@ -165,6 +165,14 @@ class GovernorTest(unittest.TestCase):
         self.run_for(2, 2 * VBLANK)
         self.assertEqual(self.cores.state[403], ALL)
 
+    def test_a_thread_already_on_efficient_cores_keeps_its_mask(self):
+        self.cores.state[402] = set(EFFICIENT)
+        self.run_for(4, VBLANK)
+        self.run_for(1, VBLANK)
+        self.run_for(2, 2 * VBLANK)
+        self.assertEqual(self.cores.state[402], EFFICIENT)
+        self.assertEqual(self.cores.state[400], ALL)
+
     def test_a_stalled_game_is_not_parked_on_old_frames(self):
         self.run_for(0.5, VBLANK)
         self.idle_for(3)
