@@ -1376,10 +1376,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 val target = effectsEditorTarget ?: screenEffectsTarget
                 val profileId = screenEffectsProfileIdForTarget(target)
                 SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
-                if (target == screenEffectsTarget && screenEffectsTargetAppliesToLiveOutput(target)) {
+                if (target == screenEffectsTarget) {
                     upscaler = m
-                    WaylandCompositor.nativeSetUpscaler(m)
-                    WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
+                    if (screenEffectsTargetAppliesToLiveOutput(target)) {
+                        WaylandCompositor.nativeSetUpscaler(m)
+                        WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
+                    }
                 }
             },
             onUpscaleSharpness = { pct ->
@@ -2497,9 +2499,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
-        WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
+        val activeProfileId = currentScreenEffectsProfileId()
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
+        val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
+        WaylandCompositor.nativeSetUpscaler(activeUpscaler)
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
-        SessionPrefs.screenEffects(this, currentScreenEffectsProfileId()).push(SessionPrefs.upscaler(this))
+        activeEffects.push(activeUpscaler)
         activeCardboard = effectiveCardboard(SessionPrefs.cardboard(this))
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
@@ -5237,12 +5242,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         val activeEffects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, observedScreenEffectsProfileId)
         if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
             effects = activeEffects
         } else {
             effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         }
-        if (CompositorHost.isStarted) activeEffects.push(upscaler)
+        if (CompositorHost.isStarted) activeEffects.push(activeUpscaler)
         refreshInputProfile()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()
