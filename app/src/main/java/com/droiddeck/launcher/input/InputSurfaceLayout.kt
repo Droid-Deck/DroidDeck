@@ -3,6 +3,7 @@ package com.droiddeck.launcher.input
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 
 enum class InputElementKind(val control: InputControl) {
     BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
@@ -35,12 +36,40 @@ data class InputSurfaceElement(
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
+    val builtIn: Boolean = isBuiltInId(id, control),
 ) {
+    val classicStyle get() = builtIn && (buttonShape == InputButtonShape.CIRCLE || buttonShape == InputButtonShape.PILL)
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
     fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
         width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
+
+internal fun isBuiltInId(id: String, control: InputControl) = id == "legacy:${control.id}" || id == "builtin:keyboard"
+
+private const val DUPLICATE_OFFSET = .04f
+private const val DUPLICATE_ATTEMPTS = 25
+private val DUPLICATE_DIRECTIONS = listOf(1 to 1, -1 to -1, 1 to -1, -1 to 1)
+
+internal fun InputSurfaceElement.duplicate(id: String, siblings: List<InputSurfaceElement>): InputSurfaceElement {
+    val base = name.replace(Regex("\\s+\\d+$"), "")
+    val taken = siblings.map { it.name }.toSet()
+    fun named(number: Int) = " $number".let { suffix -> base.take(80 - suffix.length).trimEnd() + suffix }
+    val number = generateSequence(2) { it + 1 }.first { named(it) !in taken }
+    fun place(start: Float, size: Float, steps: Int) = (start + steps * DUPLICATE_OFFSET).coerceIn(0f, (1f - size).coerceAtLeast(0f))
+    fun occupied(x: Float, y: Float) = siblings.any { abs(it.x - x) < .0001f && abs(it.y - y) < .0001f && abs(it.width - width) < .0001f && abs(it.height - height) < .0001f }
+    val spots = (1..DUPLICATE_ATTEMPTS).flatMap { k -> DUPLICATE_DIRECTIONS.map { (dx, dy) -> place(x, width, dx * k) to place(y, height, dy * k) } }
+    val (px, py) = spots.firstOrNull { (cx, cy) -> !occupied(cx, cy) } ?: spots.first()
+    return copy(id = id, control = kind.control, name = named(number), x = px, y = py).bounded()
+}
+
+private fun InputAction.carriedTo(source: InputSurfaceElement): InputAction =
+    if (this is InputAction.Native && target == null && source.id.startsWith("legacy:")) InputAction.Native(source.control) else this
+
+internal fun SavedInputBindings.withDuplicate(source: InputSurfaceElement, copy: InputSurfaceElement) = copy(
+    elements = elements + (copy.id to action(source).carriedTo(source)),
+    clicks = if (source.hasClick) clicks + (copy.id to clickAction(source)) else clicks,
+)
 
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
 

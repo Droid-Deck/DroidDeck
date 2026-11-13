@@ -3844,4 +3844,5 @@
 
     <string name="theme_white_red">Алый снег</string>
     
+    <string name="input_duplicate_element">Дублировать элемент</string>
 </resources>

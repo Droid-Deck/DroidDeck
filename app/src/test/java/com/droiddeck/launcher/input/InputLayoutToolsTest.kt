@@ -31,6 +31,31 @@ class InputLayoutToolsTest {
         assertEquals(elements.map { it.name }, bigger.map { it.name })
     }
 
+    @Test fun duplicateKeepsEverythingButIdNameAndPlacement() {
+        val source = InputSurfaceElement(InputControl.A, .4f, .4f, .2f, .2f, "a", name = "Jump", opacity = .5f, toggle = true, buttonShape = InputButtonShape.CIRCLE, image = "x.png")
+        val copy = source.duplicate("b", listOf(source))
+        assertEquals(source.copy(id = "b", name = "Jump 2", x = .44f, y = .44f), copy)
+    }
+
+    @Test fun duplicateNamesAreUniqueAndIgnoreExistingNumbers() {
+        val a = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "a", name = "Jump 2")
+        val b = a.copy(id = "b", name = "Jump")
+        val copy = a.duplicate("c", listOf(a, b, a.copy(id = "d", name = "Jump 3")))
+        assertEquals("Jump 4", copy.name)
+        assertEquals("Jump 2", b.duplicate("e", listOf(b)).name)
+    }
+
+    @Test fun duplicateStaysInsideTheScreenForEveryKind() {
+        for (kind in InputElementKind.entries) {
+            val edge = InputSurfaceElement(kind.control, .85f, .85f, .15f, .15f, "e", kind, "Edge")
+            val copy = edge.duplicate("f", listOf(edge))
+            assertEquals(kind, copy.kind)
+            assertEquals(copy, copy.bounded())
+            assertTrue(copy.x < edge.x && copy.y < edge.y)
+            assertNotEquals(edge.id, copy.id)
+        }
+    }
+
     @Test fun resetPositionsOnlyRestoresGeometryOfElementsTheDefaultsKnow() {
         val defaults = listOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "legacy:a"))
         val moved = listOf(defaults[0].copy(x = .5f, y = .6f, width = .3f, name = "Jump", opacity = .5f),
@@ -190,5 +215,101 @@ class InputLayoutToolsTest {
                 })
             }
         }
+    }
+
+    @Test fun duplicatingLegacyElementsKeepsTheirBehaviourAndSavesValidly() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.let { it.copy(elements = InputSurfaceLayout.defaults().filter { e -> e.control in listOf(InputControl.B, InputControl.RIGHT_PAD) }) }
+        val base = library.preset(library.profile("game").binding(InputRole.SECONDARY))
+        for (source in layout.elements) {
+            val copy = source.duplicate("copy", layout.elements)
+            assertEquals(copy.kind.control, copy.control)
+            val preset = base.copy(elements = base.elements.filterKeys { it == source.id }, clicks = base.clicks.filterKeys { it == source.id }).withDuplicate(source, copy)
+            library.withLayout(layout.copy(elements = layout.elements + copy)).withPreset(preset).validate()
+            assertEquals(InputAction.Native(source.control), preset.action(copy))
+            if (source.hasClick) assertEquals(base.clickAction(source), preset.clickAction(copy))
+        }
+    }
+
+    @Test fun duplicatingElementsWithExplicitBindingsCopiesThemAndLeavesOthersUntouched() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.let { it.copy(elements = InputSurfaceLayout.defaults().filter { e -> e.control in listOf(InputControl.B, InputControl.RIGHT_PAD) }) }
+        val base = library.preset(library.profile("game").binding(InputRole.SECONDARY))
+        val button = layout.elements.first { it.control == InputControl.B }
+        val pad = layout.elements.first { it.control == InputControl.RIGHT_PAD }
+        val custom = base.copy(
+            elements = mapOf(button.id to InputAction.Keys(listOf(30)), pad.id to InputAction.Pointer(500f)),
+            clicks = mapOf(pad.id to InputAction.MouseButton(273)),
+        )
+        val other = base.copy(id = "other", name = "Other", elements = mapOf(button.id to InputAction.Keys(listOf(31))))
+        val fixture = library.withLayout(layout).withPreset(custom).withPreset(other).validate()
+        var elements = layout.elements
+        var result = custom
+        for (source in listOf(button, pad)) {
+            val copy = source.duplicate("copy-${source.id}", elements)
+            result = result.withDuplicate(source, copy)
+            elements = elements + copy
+        }
+        val updated = fixture.withLayout(layout.copy(elements = elements)).withPreset(result).validate()
+        assertEquals(other, updated.preset(other.id))
+        assertEquals(InputAction.Keys(listOf(30)), result.action(elements.first { it.id == "copy-${button.id}" }))
+        assertEquals(InputAction.Pointer(500f), result.action(elements.first { it.id == "copy-${pad.id}" }))
+        assertEquals(InputAction.MouseButton(273), result.clickAction(elements.first { it.id == "copy-${pad.id}" }))
+        assertEquals(custom.action(button), result.action(button))
+        assertEquals(custom.action(pad), result.action(pad))
+        assertEquals(custom.clickAction(pad), result.clickAction(pad))
+        assertEquals(InputAction.Keys(listOf(31)), updated.preset(other.id).action(button))
+        assertEquals(base.action(pad), updated.preset(other.id).action(pad))
+    }
+
+    @Test fun duplicateNamesNeverExceedTheNameLimit() {
+        for (length in 70..80) {
+            val source = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "a", name = "x".repeat(length))
+            var siblings = listOf(source)
+            repeat(12) {
+                val copy = source.duplicate("c$it", siblings)
+                assertTrue("$length: ${copy.name.length}", copy.name.length <= 80)
+                assertTrue(copy.name.trim() == copy.name)
+                assertTrue(siblings.none { s -> s.name == copy.name })
+                siblings = siblings + copy
+            }
+        }
+    }
+
+    @Test fun repeatedDuplicationAtTheCornerNeverStacksElements() {
+        val source = InputSurfaceElement(InputControl.A, .75f, .75f, .25f, .25f, "a", name = "Jump")
+        var all = listOf(source)
+        repeat(10) {
+            val copy = all.last().duplicate("c$it", all)
+            assertEquals(copy, copy.bounded())
+            assertTrue(all.none { e -> e.x == copy.x && e.y == copy.y })
+            all = all + copy
+        }
+    }
+
+    @Test fun duplicateOfBuiltInControlKeepsClassicStyle() {
+        for ((control, shape) in listOf(InputControl.LS to InputButtonShape.CIRCLE, InputControl.SELECT to InputButtonShape.PILL, InputControl.A to InputButtonShape.CIRCLE)) {
+            val source = InputSurfaceElement(control, .3f, .3f, .2f, .2f, buttonShape = shape)
+            val copy = source.duplicate("copy", listOf(source))
+            assertTrue(source.classicStyle)
+            assertEquals(source.classicStyle, copy.classicStyle)
+            assertNotEquals(source.id, copy.id)
+        }
+    }
+
+    @Test fun customControlsAreNeverClassic() {
+        val custom = InputSurfaceElement(InputControl.A, .3f, .3f, .2f, .2f, "custom", buttonShape = InputButtonShape.CIRCLE)
+        assertFalse(custom.classicStyle)
+        assertFalse(custom.duplicate("copy", listOf(custom)).classicStyle)
+    }
+
+    @Test fun classicStyleSurvivesSavingAndRoundedShapesStayPlain() {
+        val source = InputSurfaceElement(InputControl.B, .3f, .3f, .2f, .2f, buttonShape = InputButtonShape.PILL)
+        val copy = source.duplicate("copy", listOf(source))
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.copy(elements = listOf(source, copy))
+        val restored = InputLibraries.decode(InputLibraries.encode(library.withLayout(layout)))!!.layout("game", InputRole.SECONDARY)!!.elements
+        assertEquals(listOf(true, true), restored.map { it.classicStyle })
+        assertFalse(source.copy(buttonShape = InputButtonShape.ROUNDED).duplicate("r", listOf(source)).classicStyle)
     }
 }
