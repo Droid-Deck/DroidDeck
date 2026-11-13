@@ -83,6 +83,19 @@ static int notify = -1;
 static int forked;
 static struct { dev_t dev; int fuse; } devs[8];
 static int ndevs;
+// Libraries preloaded after this one can call back in while a lock is held (the native userland
+// hook's inotify_add_watch calls mkdir() by name); such calls go straight to the next library.
+static __thread int holding;
+
+static void take(pthread_mutex_t *m) {
+  pthread_mutex_lock(m);
+  holding++;
+}
+
+static void give(pthread_mutex_t *m) {
+  holding--;
+  pthread_mutex_unlock(m);
+}
 
 static long long now_ns(void) {
   struct timespec t;
@@ -109,32 +122,32 @@ static int enabled(void) {
 }
 
 static int eligible(const char *path) {
-  if (path == NULL || path[0] != '/' || !enabled()) return 0;
+  if (holding || path == NULL || path[0] != '/' || !enabled()) return 0;
   const char *s = strstr(path, "/steamapps");
   return s && (s[10] == '/' || s[10] == 0);
 }
 
 static int on_fuse(dev_t dev, const char *path) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   for (int i = 0; i < ndevs; i++) {
     if (devs[i].dev == dev) {
       int fuse = devs[i].fuse;
-      pthread_mutex_unlock(&lock);
+      give(&lock);
       return fuse;
     }
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   struct statfs fs;
   int saved = errno;
   int fuse = statfs(path, &fs) == 0 && (unsigned long)fs.f_type == FUSE_MAGIC;
   errno = saved;
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (ndevs < 8) {
     devs[ndevs].dev = dev;
     devs[ndevs].fuse = fuse;
     ndevs++;
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return fuse;
 }
 
@@ -404,7 +417,7 @@ __attribute__((constructor)) static void resolve(void) {
 #pragma GCC diagnostic pop
 
 static DIR *hit(const struct stat *st, struct handle *h, long long now) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (!changing) pump(NULL, 0);
   int slot = find(st->st_dev, st->st_ino);
   if (slot >= 0 && same(table[slot], st) && now - table[slot]->filled < DIR_TTL_NS && records(table[slot]) == 0) {
@@ -413,7 +426,7 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
     h->snap->used = now;
     DIR *d = wrap(h);
     if (d) {
-      pthread_mutex_unlock(&lock);
+      give(&lock);
       return d;
     }
     unref(h->snap);
@@ -421,7 +434,7 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   } else if (slot >= 0) {
     drop(slot);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return NULL;
 }
 
@@ -462,11 +475,11 @@ static int above(struct handle *h, const char *path) {
 }
 
 static int track(struct handle *h, const char *path) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   h->wd = watch(path, WATCHED);
   DIR *d = h->wd >= 0 && above(h, path) ? wrap(h) : NULL;
   if (d == NULL) let_go(h->wd, h->up, h->nup);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return d != NULL;
 }
 
@@ -486,11 +499,11 @@ static void filling(struct handle *h, DIR *real, const struct stat *st, long lon
 }
 
 static void untrack(struct handle *h) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int i = registered((DIR *)h);
   if (i >= 0) __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
   let_go(h->wd, h->up, h->nup);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 DIR *opendir(const char *path) {
@@ -553,11 +566,11 @@ static void finish(struct handle *h) {
   h->fill = NULL;
   int current = stat(h->path, &st) == 0 && same(l, &st);
   if (current) l->folds = folds(h->path, &st);
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (!changing) pump(NULL, 0);
   if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
   else destroy(l);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 static struct dirent64 *entry(struct handle *h) {
@@ -624,7 +637,8 @@ int readdir_r(DIR *d, struct dirent *out, struct dirent **result) {
 
 int closedir(DIR *d) {
   NEXT(closedir);
-  pthread_mutex_lock(&lock);
+  if (holding && registered(d) < 0) return next_closedir(d);
+  take(&lock);
   int i = registered(d);
   struct handle *h = i >= 0 ? handles[i] : NULL;
   if (h) {
@@ -632,7 +646,7 @@ int closedir(DIR *d) {
     if (h->snap) unref(h->snap);
     let_go(h->wd, h->up, h->nup);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   if (h == NULL) return next_closedir(d);
   int r = 0;
   if (h->real) r = next_closedir(h->real);
@@ -704,10 +718,10 @@ static int watching(const char *path) {
 }
 
 static void begin(void) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   pump(NULL, 0);
   changing = 1;
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 static void before(struct side *s) {
@@ -796,10 +810,10 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
 }
 
 static void end(struct expect *x, int nx) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   pump(x, nx);
   changing = 0;
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
@@ -809,17 +823,17 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
   struct side s;
   if (!(flags & O_CREAT) || (dirfd != AT_FDCWD && (path == NULL || path[0] != '/')) || !watching(path) || !split(path, &s))
     return real(dirfd, path, flags, mode);
-  pthread_mutex_lock(&oplock);
+  take(&oplock);
   begin();
   before(&s);
   int fd = real(dirfd, path, flags, mode);
   int saved = errno;
   struct expect x;
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int nx = patch(&s, ADDED, IN_CREATE, fd >= 0, saved, path, &x);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   end(&x, nx);
-  pthread_mutex_unlock(&oplock);
+  give(&oplock);
   errno = saved;
   return fd;
 }
@@ -829,18 +843,18 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
     NEXT(name); \
     struct side s; \
     if (!watching(path) || !split(path, &s)) return call; \
-    pthread_mutex_lock(&oplock); \
+    take(&oplock); \
     begin(); \
     before(&s); \
     int r = call; \
     int saved = errno; \
     struct expect x; \
-    pthread_mutex_lock(&lock); \
+    take(&lock); \
     int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
     if (r == 0 && what == REMOVED) forget_below(path); \
-    pthread_mutex_unlock(&lock); \
+    give(&lock); \
     end(&x, nx); \
-    pthread_mutex_unlock(&oplock); \
+    give(&oplock); \
     errno = saved; \
     return r; \
   }
@@ -864,7 +878,7 @@ ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
     struct side a, b; \
     int track_a = gone && watching(from) && split(from, &a), track_b = watching(to) && split(to, &b); \
     if (!track_a && !track_b) return call(from, to); \
-    pthread_mutex_lock(&oplock); \
+    take(&oplock); \
     begin(); \
     if (track_a) before(&a); \
     if (track_b) before(&b); \
@@ -872,16 +886,16 @@ ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
     int saved = errno; \
     struct expect x[2]; \
     int nx = 0; \
-    pthread_mutex_lock(&lock); \
+    take(&lock); \
     if (track_a) nx += patch(&a, REMOVED, IN_MOVED_FROM, r == 0, saved, NULL, &x[nx]); \
     if (track_b) { \
       if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
       nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
     } \
     if (r == 0 && gone) { forget_below(from); forget_below(to); } \
-    pthread_mutex_unlock(&lock); \
+    give(&lock); \
     end(x, nx); \
-    pthread_mutex_unlock(&oplock); \
+    give(&oplock); \
     errno = saved; \
     return r; \
   }
@@ -931,13 +945,13 @@ int bl_dircache_absent(const char *path) {
   for (const char *c = s.name; *c; c++)
     if ((unsigned char)*c >= 0x80) return 0;
   long long now = now_ns();
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int absent = 0;
   if (!changing) {
     pump(NULL, 0);
     absent = listed_absent(s.dir, s.name, now);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return absent;
 }
 
