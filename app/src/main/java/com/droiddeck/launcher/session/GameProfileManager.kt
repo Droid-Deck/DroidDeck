@@ -20,6 +20,7 @@ object GameProfileManager {
         }
         clear("Proton") { ProtonDefault.requestGame(context, scope, null) }
         clear("component packages") { ComponentsManager.clearGameComponents(context, scope) }
+        clear("on-screen controls") { com.droiddeck.launcher.input.GameInputControls.set(context, scope, null) }
         clear("texture filtering") { SessionPrefs.clearGameTextureFiltering(context, scope) }
         clear("Windows components") { WinComponents.setPicks(context, scope, emptyList()) }
 

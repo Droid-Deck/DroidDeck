@@ -283,7 +283,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private lateinit var threeFingerTap: com.droiddeck.launcher.input.ThreeFingerTap
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
-    private var gestureGame: String? = null
+    private var gestureGame by mutableStateOf<String?>(null)
     private var gameStarts by mutableIntStateOf(0)
     private var gestureSettingsOpen by mutableStateOf(false)
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
@@ -1106,8 +1106,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
+                        val previousControls = com.droiddeck.launcher.input.GameInputControls.profile(this@SessionActivity, inputGameScope())
                         gestureGame = nextGame
                         refreshGestureConfig()
+                        if (previousControls != com.droiddeck.launcher.input.GameInputControls.profile(this@SessionActivity, inputGameScope())) {
+                            releasePads()
+                            refreshInputProfile()
+                        }
                     }
                     if (
                         SessionState.mode == SessionService.MODE_STEAM &&
@@ -3810,9 +3815,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (started && displayId !in inputWindowDisplays && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
+    fun inputGameScope(): String? = if (loadingMode() == SessionService.MODE_RUN) {
+        (if (SessionState.running) SessionState.gameId else null)
+            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID) ?: gestureGame
+    } else gestureGame
+
     private fun refreshInputProfile() {
-        val library = com.droiddeck.launcher.input.InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
+        val game = inputGameScope()
+        val library = com.droiddeck.launcher.input.GameInputControls.resolve(this,
+            com.droiddeck.launcher.input.InputLibraries.read(this), desktop, game)
         inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks

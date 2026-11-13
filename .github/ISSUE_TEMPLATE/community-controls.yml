@@ -1,0 +1,39 @@
+name: Community controls pack
+description: Submit on-screen controls for the community catalog.
+title: "[Controls]: "
+body:
+  - type: markdown
+    attributes:
+      value: Export a ZIP from Controller settings → Community controls. Attach the ZIP and a screenshot below. Submissions are reviewed before inclusion in the catalog.
+  - type: input
+    id: name
+    attributes:
+      label: Pack name and author
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game (optional)
+      description: Include the store and game ID if these controls target a specific game.
+  - type: textarea
+    id: files
+    attributes:
+      label: Controls ZIP and screenshot
+      description: Drag the exported .ddcontrols.zip and a preview screenshot here. Describe the screen orientation and bindings.
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License and artwork credits
+      description: Specify a license that permits redistribution, and credit any third-party artwork with its source and license.
+    validations:
+      required: true
+  - type: checkboxes
+    id: permission
+    attributes:
+      label: Distribution permission
+      options:
+        - label: I have permission to share this pack and all included artwork under the stated license.
+          required: true

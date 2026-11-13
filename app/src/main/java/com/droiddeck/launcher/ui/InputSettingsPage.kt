@@ -65,7 +65,7 @@ private fun InputSettingsPane(onBack: () -> Unit, onChanged: () -> Unit) {
     }
 }
 
-private enum class InputPage { HOME, PROFILE, SOURCE, LAYOUTS, REUSE }
+private enum class InputPage { HOME, PROFILE, SOURCE, LAYOUTS, REUSE, COMMUNITY }
 private data class InputBindingEdit(val preset: String, val control: InputControl, val element: InputSurfaceElement? = null, val key: PhysicalInputKey? = null, val click: Boolean = false)
 private data class InputNameRequest(val title: Int, val initial: String, val sources: List<Pair<String, String>> = emptyList(),
     val source: String = "", val offerSharing: Boolean = false, val save: (String, String, Boolean) -> Unit)
@@ -85,6 +85,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     val host = rememberMenuHost()
     var library by remember { mutableStateOf(InputLibraries.read(context)) }
     var page by remember { mutableStateOf(InputPage.HOME) }
+    var communityBack by remember { mutableStateOf(InputPage.HOME) }
     var bindingsTab by remember { mutableIntStateOf(0) }
     var profileId by remember { mutableStateOf(InputProfile.GAME) }
     var role by remember { mutableStateOf(InputRole.PHYSICAL) }
@@ -104,12 +105,13 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     var oscMode by remember { mutableStateOf(SessionPrefs.oscMode(context)) }
     fun update(change: (InputLibrary) -> InputLibrary): Boolean = runCatching { InputLibraries.update(context, change) }
         .onSuccess { library = it; onChanged() }.onFailure { error = it.message ?: context.getString(R.string.input_save_failed) }.isSuccess
-    fun go(next: InputPage) { page = next; host.open = null }
+    fun go(next: InputPage) { if (next == InputPage.COMMUNITY) communityBack = page; page = next; host.open = null }
     fun back() {
         when {
             edit != null -> edit = null
             page == InputPage.HOME -> onBack()
             page == InputPage.PROFILE -> go(InputPage.HOME)
+            page == InputPage.COMMUNITY -> go(communityBack)
             page == InputPage.SOURCE -> go(InputPage.PROFILE)
             else -> go(InputPage.SOURCE)
         }
@@ -191,6 +193,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             InputPage.SOURCE -> roleLabel(role)
             InputPage.LAYOUTS -> stringResource(R.string.input_saved_layouts)
             InputPage.REUSE -> stringResource(R.string.input_use_settings_from)
+            InputPage.COMMUNITY -> stringResource(R.string.community_title)
         }, eyebrow = when (page) {
                 InputPage.SOURCE -> profile.name
                 InputPage.LAYOUTS, InputPage.REUSE -> "${profile.name} · ${roleLabel(role)}"
@@ -198,7 +201,12 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             },
             onBack = ::back, showBack = !(embedded && page == InputPage.HOME), compactLayout = true) {
             when (page) {
+                InputPage.COMMUNITY -> InputCommunityPage(library, profileId, role) { installed -> library = installed; onChanged() }
                 InputPage.HOME -> {
+                    SettingsGroup(stringResource(R.string.community_title)) {
+                        InputNavigationRow(stringResource(R.string.community_title), stringResource(R.string.community_home_hint),
+                            Modifier.testTag("input-community")) { go(InputPage.COMMUNITY) }
+                    }
                     SettingsGroup(stringResource(R.string.input_default_profiles)) {
                         ChoiceRow(host, "auto-desktop", stringResource(R.string.input_desktop_mode), null,
                             library.profiles.map { it.id to it.name }, library.desktop) { id -> update { it.copy(desktop = id) } }
@@ -284,6 +292,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,
                                 button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
+                        InputNavigationRow(stringResource(R.string.community_title), stringResource(R.string.community_home_hint)) { go(InputPage.COMMUNITY) }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
                     }
                     SettingsGroup(stringResource(R.string.input_assign_actions)) {
@@ -449,7 +458,7 @@ private fun InputControlGrid(preset: SavedInputBindings, available: List<InputCo
 }
 
 @Composable
-private fun InputNavigationRow(title: String, detail: String?, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+internal fun InputNavigationRow(title: String, detail: String?, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     Row(modifier.fillMaxWidth().focusRow(RoundedCornerShape(0.dp), onClick = onClick).heightIn(min = 64.dp).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         leading?.invoke()
@@ -499,6 +508,6 @@ internal fun roleLabel(role: InputRole) = stringResource(when (role) {
 })
 
 @Composable
-private fun InputHint(text: String) {
+internal fun InputHint(text: String) {
     Text(text, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
