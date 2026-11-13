@@ -111,10 +111,14 @@ The mechanism above is source-verified. The probe below settles the two points a
 cannot: what a device actually does with detached children, and whether the app uid may write
 another cgroup's `cgroup.procs`. It needs a device with the guest running.
 
-Precondition: run the batches only after `settings_enable_monitor_phantom_procs` is disabled, or
-after `max_phantom_processes` is raised above the probe's process count. With the limit active at
-its default, starting 80 long-lived processes can trigger the platform trim and disrupt the guest
-session and processes of other apps.
+Precondition: on Android 12L (SDK 32) and later, run the batches only after
+`settings_enable_monitor_phantom_procs` is disabled. On Android 12.0 (SDK 31) that flag does not
+exist, so run them only after `max_phantom_processes` is raised. The limit counts phantom
+processes of every app on the device, not only the probe's, so set it above the device-wide
+phantom count read just before the batches, plus both batches (80), plus headroom for processes
+the guest and other apps start meanwhile. With the limit active at its default, starting 80
+long-lived processes can trigger the platform trim and disrupt the guest session and processes of
+other apps.
 
 Run the `sleep` loops from the app's own shell so the children run under the app uid. Run each
 `dumpsys activity processes` snapshot from an authorized ADB shell, because the app uid normally
