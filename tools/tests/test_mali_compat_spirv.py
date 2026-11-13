@@ -36,13 +36,14 @@ class MaliCompatSpirvTest(unittest.TestCase):
             guest = Path(tmp) / "guest.spv"
             extension = Path(tmp) / "extension.spv"
             scalar = Path(tmp) / "scalar.spv"
+            debug = Path(tmp) / "debug.spv"
             built = subprocess.run(
                 [compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-UNDEBUG",
-                 "-pthread", "-I", str(LAYER), "-I", str(vulkan), "-I", str(spirv),
-                 str(HARNESS), str(LAYER / "spirv.c"), "-o", str(program)],
+                 "-pthread", "-Dcalloc=test_calloc", "-I", str(LAYER), "-I", str(vulkan), "-I", str(spirv),
+                 str(HARNESS), str(LAYER / "spirv.c"), str(LAYER / "pipeline.c"), "-o", str(program)],
                 capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar)],
+            ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar), str(debug)],
                                  capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("mali compat spirv ok", ran.stdout)
@@ -50,10 +51,11 @@ class MaliCompatSpirvTest(unittest.TestCase):
             self.assertTrue(guest.is_file())
             self.assertTrue(extension.is_file())
             self.assertTrue(scalar.is_file())
+            self.assertTrue(debug.is_file())
             validator = shutil.which("spirv-val")
             if not validator:
                 return
-            for lowered in (module, guest, extension, scalar):
+            for lowered in (module, guest, extension, scalar, debug):
                 checked = subprocess.run([validator, "--target-env", "vulkan1.1", str(lowered)],
                                          capture_output=True, text=True)
                 self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)

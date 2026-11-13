@@ -5,6 +5,7 @@
 
 #define HANDLE(h) ((uint64_t)(uintptr_t)(h))
 #define MAX_STAGES 8
+#define MAX_LINKS 8
 
 static void log_spirv_version(const char *what, const uint32_t *words, size_t count)
 {
@@ -84,7 +85,7 @@ struct stage_code {
     const uint32_t *words;
     size_t count;
     /* The application's own, when the code comes inline in the stage. */
-    VkShaderModuleCreateInfo *inline_info;
+    const VkShaderModuleCreateInfo *inline_info;
     /* A module whose distances were already taken out at creation. */
     bool stripped_module;
     struct spirv_code capped;
@@ -95,7 +96,7 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
     memset(code, 0, sizeof(*code));
     for (const VkBaseInStructure *s = stage->pNext; s; s = s->pNext) {
         if (s->sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO) {
-            code->inline_info = (VkShaderModuleCreateInfo *)s;
+            code->inline_info = (const VkShaderModuleCreateInfo *)s;
             code->words = code->inline_info->pCode;
             code->count = code->inline_info->codeSize / sizeof(uint32_t);
             if (spirv_cap_version(code->words, code->count, &code->capped)) {
@@ -120,6 +121,15 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
     }
 }
 
+union stage_link {
+    VkBaseInStructure base;
+    VkDebugUtilsObjectNameInfoEXT name;
+    VkPipelineRobustnessCreateInfo robustness;
+    VkPipelineShaderStageModuleIdentifierCreateInfoEXT identifier;
+    VkPipelineShaderStageRequiredSubgroupSizeCreateInfo subgroup;
+    VkShaderModuleValidationCacheCreateInfoEXT validation_cache;
+};
+
 struct pipeline_rewrite {
     VkPipelineRasterizationStateCreateInfo rasterization;
     /* VK_EXT_depth_clip_enable's state, taken out of the application's chain for the call. */
@@ -129,27 +139,60 @@ struct pipeline_rewrite {
     VkShaderModuleCreateInfo modules[MAX_STAGES];
     struct spirv_code code[MAX_STAGES];
     VkShaderModule temporary[MAX_STAGES];
-    /* Rewritten where they are, when they are not first in their stage's chain. */
-    VkShaderModuleCreateInfo *in_place[MAX_STAGES];
-    const uint32_t *in_place_code[MAX_STAGES];
-    size_t in_place_size[MAX_STAGES];
+    union stage_link links[MAX_STAGES][MAX_LINKS];
 };
+
+static size_t link_size(VkStructureType type)
+{
+    switch (type) {
+    case VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT:
+        return sizeof(VkDebugUtilsObjectNameInfoEXT);
+    case VK_STRUCTURE_TYPE_PIPELINE_ROBUSTNESS_CREATE_INFO:
+        return sizeof(VkPipelineRobustnessCreateInfo);
+    case VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_MODULE_IDENTIFIER_CREATE_INFO_EXT:
+        return sizeof(VkPipelineShaderStageModuleIdentifierCreateInfoEXT);
+    case VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO:
+        return sizeof(VkPipelineShaderStageRequiredSubgroupSizeCreateInfo);
+    case VK_STRUCTURE_TYPE_SHADER_MODULE_VALIDATION_CACHE_CREATE_INFO_EXT:
+        return sizeof(VkShaderModuleValidationCacheCreateInfoEXT);
+    default:
+        return 0;
+    }
+}
+
+static bool link_inline_code(VkPipelineShaderStageCreateInfo *stage, struct pipeline_rewrite *rw,
+                             const struct stage_code *code, uint32_t i)
+{
+    union stage_link *links = rw->links[i];
+    const VkBaseInStructure **next = (const VkBaseInStructure **)&stage->pNext;
+    uint32_t used = 0;
+    for (const VkBaseInStructure *s = stage->pNext; s != (const VkBaseInStructure *)code->inline_info;
+         s = s->pNext) {
+        size_t size = link_size(s->sType);
+        if (!size || used == MAX_LINKS)
+            return false;
+        memcpy(&links[used], s, size);
+        *next = &links[used].base;
+        next = (const VkBaseInStructure **)&links[used].base.pNext;
+        used++;
+    }
+    rw->modules[i] = *code->inline_info;
+    rw->modules[i].pCode = rw->code[i].words;
+    rw->modules[i].codeSize = rw->code[i].count * sizeof(uint32_t);
+    *next = (const VkBaseInStructure *)&rw->modules[i];
+    return true;
+}
 
 static void use_stage_code(struct device *dev, VkPipelineShaderStageCreateInfo *stage, struct pipeline_rewrite *rw,
                            const struct stage_code *code, uint32_t i)
 {
     const struct spirv_code *out = &rw->code[i];
-    if (code->inline_info && stage->pNext == code->inline_info) {
-        rw->modules[i] = *code->inline_info;
-        rw->modules[i].pCode = out->words;
-        rw->modules[i].codeSize = out->count * sizeof(uint32_t);
-        stage->pNext = &rw->modules[i];
-    } else if (code->inline_info) {
-        rw->in_place[i] = code->inline_info;
-        rw->in_place_code[i] = code->inline_info->pCode;
-        rw->in_place_size[i] = code->inline_info->codeSize;
-        code->inline_info->pCode = out->words;
-        code->inline_info->codeSize = out->count * sizeof(uint32_t);
+    if (code->inline_info) {
+        const void *app_chain = stage->pNext;
+        if (!link_inline_code(stage, rw, code, i)) {
+            stage->pNext = app_chain;
+            layer_log("could not rewrite a pipeline stage's inline shader code");
+        }
     } else {
         VkShaderModuleCreateInfo module_info = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -296,10 +339,6 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
     if (rw->clip_prev)
         rw->clip_prev->pNext = rw->clip_node;
     for (uint32_t i = 0; i < MAX_STAGES; i++) {
-        if (rw->in_place[i]) {
-            rw->in_place[i]->pCode = rw->in_place_code[i];
-            rw->in_place[i]->codeSize = rw->in_place_size[i];
-        }
         if (rw->temporary[i] != VK_NULL_HANDLE)
             dev->DestroyShaderModule(dev->handle, rw->temporary[i], NULL);
         free(rw->code[i].words);
@@ -311,8 +350,13 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
                                                        const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
 {
     struct device *dev = device_from_handle(device);
-    VkGraphicsPipelineCreateInfo *copies = malloc(count * sizeof(*copies));
+    VkGraphicsPipelineCreateInfo *copies = calloc(count, sizeof(*copies));
     struct pipeline_rewrite *rewrites = calloc(count, sizeof(*rewrites));
+    if (count && (!copies || !rewrites)) {
+        free(copies);
+        free(rewrites);
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     for (uint32_t i = 0; i < count; i++) {
         copies[i] = infos[i];
         rewrite_pipeline(dev, &copies[i], &rewrites[i]);
@@ -330,8 +374,13 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(VkDevice device, VkPipelin
                                                       const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
 {
     struct device *dev = device_from_handle(device);
-    VkComputePipelineCreateInfo *copies = malloc(count * sizeof(*copies));
+    VkComputePipelineCreateInfo *copies = calloc(count, sizeof(*copies));
     struct pipeline_rewrite *rewrites = calloc(count, sizeof(*rewrites));
+    if (count && (!copies || !rewrites)) {
+        free(copies);
+        free(rewrites);
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     for (uint32_t i = 0; i < count; i++) {
         copies[i] = infos[i];
         struct stage_code code;

@@ -922,6 +922,12 @@ static bool declares_extension(const struct module *m, const char *name)
     return false;
 }
 
+static bool names_prefix(const uint32_t *words, uint32_t count, const char *prefix)
+{
+    size_t size = strlen(prefix);
+    return count * sizeof(uint32_t) > size && !memcmp(words, prefix, size);
+}
+
 static bool available_in_1_3(const struct module *m, const struct newer_feature *features, size_t count,
                              uint32_t value)
 {
@@ -1023,6 +1029,9 @@ static bool valid_in_1_3(const struct module *m, size_t i)
         return length >= 4 && !(m->w[i + 3] & NEWER_LOOP_CONTROLS);
     case SpvOpSelect:
         return length >= 6 && selects_scalar_vector_or_pointer(m, m->w[i + 1]);
+    case SpvOpExtInstImport:
+        return length >= 3 && (!names_prefix(&m->w[i + 2], length - 2, "NonSemantic.") ||
+                               declares_extension(m, "SPV_KHR_non_semantic_info"));
     case SpvOpCopyMemory:
     case SpvOpCopyMemorySized: {
         uint32_t at = op == SpvOpCopyMemory ? 3 : 4;
