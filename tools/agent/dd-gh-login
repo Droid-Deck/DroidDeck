@@ -2,13 +2,14 @@
 # Starts GitHub's device login and opens its approval page in Android.
 coproc GH { BROWSER=true gh auth login --hostname github.com --git-protocol https --web 2>&1; }
 gh_pid=$GH_PID
+exec {ghout}<&"${GH[0]}" {ghin}>&"${GH[1]}"
 shown=
-while IFS= read -r line <&"${GH[0]}"; do
+while IFS= read -r line <&"$ghout"; do
   printf '%s\n' "$line"
   code=$(grep -oE '[A-Z0-9]{4}-[A-Z0-9]{4}' <<<"$line" | head -1)
   if [ -n "$code" ] && [ -z "$shown" ]; then
     shown=1
-    echo >&"${GH[1]}"
+    echo >&"$ghin"
     printf 'GitHub device code: %s · github.com/login/device\n' "$code"
     android-open https://github.com/login/device
   fi
