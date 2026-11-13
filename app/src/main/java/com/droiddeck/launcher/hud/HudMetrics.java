@@ -564,6 +564,7 @@ public class HudMetrics {
 
     private final BatteryRuntimeEstimator batteryRuntimeEstimator = new BatteryRuntimeEstimator();
     private Boolean lastBatteryDischarging = null;
+    private Boolean lastBatteryCharging = null;
 
     public Battery collectBattery() {
         BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
@@ -591,6 +592,11 @@ public class HudMetrics {
             Boolean sysCharging = readChargingFromPowerSupply();
             if (sysCharging != null) charging = sysCharging;
         }
+        if (lastBatteryCharging != null
+                && lastBatteryCharging.booleanValue() != charging) {
+            batteryRuntimeEstimator.reset();
+        }
+        lastBatteryCharging = charging;
         long currentMicroAmps = BatteryRuntimeEstimator.toMicroamps(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW));
         long chargeCounter = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
         int voltageMv = status.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
