@@ -128,4 +128,18 @@ class SteamTouchConfigFilesTest {
         assertEquals(0.5f, a.x, 0.002f)
         assertEquals(0.6f, a.y, 0.002f)
     }
+
+    @Test fun savingDoesNotOverwriteUnreadableExistingTouchConfig() {
+        val file = File(dir, "413150/controller_mobile_touch.vdf").apply {
+            parentFile!!.mkdirs()
+            writeText("\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n\t\"touch_layout\"\t\t\"zz\"\n}\n")
+        }
+        val original = file.readBytes()
+        val config = SteamTouchConfig.load(context, 413150)
+        assertEquals(file, config.file)
+        assertEquals(null, config.text)
+        val saved = SteamTouchConfig.saveLayouts(context, 413150, config, emptyMap())
+        assertEquals(null, saved)
+        assertTrue(original.contentEquals(file.readBytes()))
+    }
 }
