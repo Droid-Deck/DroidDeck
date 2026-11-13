@@ -1,6 +1,31 @@
 #[cfg(windows)]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    use droiddeck_rockstar_launcher::{pipe::Pipe, sdk::Message};
+    use droiddeck_rockstar_launcher::{pipe::Pipe, sdk::Message, Frame, Length};
+    use std::io::{Read, Write};
+    for (path, framed) in [
+        (b"\\\\.\\pipe\\ProbeLauncherPipe\0".as_slice(), true),
+        (b"\\\\.\\pipe\\RawProbeLauncher_Pipe\0".as_slice(), false),
+    ] {
+        let name = std::str::from_utf8(&path[9..path.len() - 1])?;
+        let mut pipe = Pipe::connect(name, std::time::Duration::from_secs(10))?;
+        let request = b"INIT:fixture:42:";
+        if framed {
+            let mut bytes = (request.len() as u32).to_le_bytes().to_vec();
+            bytes.extend_from_slice(request);
+            pipe.write_all(&bytes)?;
+            let response = Frame::read(&mut pipe, Length::Body)?;
+            if response.tag != *b"TINI" || response.payload != b"launcher:fixture:42:" {
+                return Err("invalid framed launcher identity reply".into());
+            }
+        } else {
+            pipe.write_all(request)?;
+            let mut response = vec![0; b"TINI:launcher:fixture:42:".len()];
+            pipe.read_exact(&mut response)?;
+            if response != b"TINI:launcher:fixture:42:" {
+                return Err("invalid raw launcher identity reply".into());
+            }
+        }
+    }
     let args: Vec<_> = std::env::args().collect();
     let instance: u32 = args
         .iter()

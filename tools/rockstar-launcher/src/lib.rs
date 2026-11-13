@@ -3,6 +3,7 @@ use std::io::{self, Read, Write};
 #[cfg(windows)]
 pub mod pipe;
 
+pub mod identity;
 pub mod sdk;
 
 pub const MAX_FRAME_BYTES: usize = 64 * 1024;

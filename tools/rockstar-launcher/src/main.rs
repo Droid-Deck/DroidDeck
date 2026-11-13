@@ -28,7 +28,7 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         sdk::{Message, Session},
         wait_for_game, Frame, Length,
     };
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     let config_path = std::env::current_exe()?.with_file_name("launch.json");
@@ -145,6 +145,14 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     } else {
         None
     };
+    let mut identity_listeners = Vec::new();
+    if session.is_some() {
+        for name in
+            droiddeck_rockstar_launcher::identity::pipe_names(&mut std::fs::File::open(&exe)?)?
+        {
+            identity_listeners.push(Listener::new(&name, Duration::from_secs(90))?);
+        }
+    }
     log("launcher pipes created");
     let mut command = std::process::Command::new(exe);
     command.current_dir(workdir).args(args?);
@@ -154,6 +162,26 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut child = command.spawn()?;
     let pid = child.id();
     log("game process started");
+    for listener in identity_listeners {
+        std::thread::spawn(move || {
+            let serve = || -> std::io::Result<()> {
+                let mut pipe = listener.accept()?.with_deadline(Duration::from_secs(90));
+                if pipe.client_pid()? != pid {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "unexpected launcher identity client",
+                    ));
+                }
+                let reply = droiddeck_rockstar_launcher::identity::exchange(&mut pipe)?;
+                pipe.write_all(&reply)?;
+                log("launcher identity challenge complete");
+                Ok(())
+            };
+            if let Err(error) = serve() {
+                log(&format!("launcher identity exchange ended: {error}"));
+            }
+        });
+    }
     let (result, handshake) = std::sync::mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let serve = || -> std::io::Result<()> {
