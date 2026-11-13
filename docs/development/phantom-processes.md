@@ -116,13 +116,21 @@ another cgroup's `cgroup.procs`. It needs a device with the guest running.
 Precondition: keep `settings_enable_monitor_phantom_procs` enabled on Android 12L (SDK 32) and
 later, because disabling it also stops the cgroup scan, so no snapshot would discover either batch
 (`AppProfiler.java:1788-1829` at `android-12.1.0_r1`). Android 12.0 (SDK 31) has no such flag and
-scans unconditionally (`AppProfiler.java:1833-1834` at `android-12.0.0_r1`). On every version, run
-the batches only after `max_phantom_processes` is raised. The limit counts phantom
-processes of every app on the device, not only the probe's, so set it above the device-wide
-phantom count read just before the batches, plus both batches (80), plus headroom for processes
-the guest and other apps start meanwhile. With the limit active at its default, starting 80
-long-lived processes can trigger the platform trim and disrupt the guest session and processes of
-other apps.
+scans unconditionally (`AppProfiler.java:1833-1834` at `android-12.0.0_r1`). An enabled flag, and
+every 12.0 device, also keeps the backgrounded CPU group kill active, which can end the guest
+together with the app process (see "What the platform kills", item 2). Keep DroidDeck in the
+foreground and stop CPU-intensive guest programs before the probe.
+
+The limit counts phantom processes of every app on the device, not only the probe's, so raise it
+before anything can trim. Record the current flag and limit values first. Then raise
+`max_phantom_processes` well above any plausible device-wide count, and only after that enable the
+flag if it was disabled, because a flag enabled under the default limit of 32 can trim existing
+phantoms of every app at once. Wait for the platform to discover the existing phantoms, read the
+device-wide phantom count, and check that the limit is above that count, plus both batches (80),
+plus headroom for processes the guest and other apps start meanwhile; raise it again if not. With
+the limit at its default, starting 80 long-lived processes can trigger the platform trim and
+disrupt the guest session and processes of other apps. Restore the recorded values once the probe
+processes have exited.
 
 Run the `sleep` loops from the app's own shell so the children run under the app uid. Run each
 `dumpsys activity processes` snapshot from an authorized ADB shell, because the app uid normally
@@ -130,9 +138,15 @@ cannot read that dump. After each batch, record the child PIDs and wait long eno
 platform to discover them before taking the snapshot.
 
 ```sh
-# read the limit state, keep the flag enabled and raise the limit before the batches
+# record the current values
 adb shell settings get global settings_enable_monitor_phantom_procs
 adb shell device_config get activity_manager max_phantom_processes
+
+# raise the limit first, then enable the flag on SDK 32 and later
+adb shell device_config put activity_manager max_phantom_processes 1000
+adb shell settings put global settings_enable_monitor_phantom_procs true
+# after platform discovery: device-wide phantom count
+adb shell 'dumpsys activity processes | grep -i -n -A 5 phantom'
 
 # from the app's own shell: attached children
 for i in $(seq 1 40); do sleep 600 & echo $!; done
@@ -150,6 +164,15 @@ cat /proc/<appPid>/cgroup
 
 # whether the uid may move a child out of the scanned cgroup
 echo <childPid> > /sys/fs/cgroup/uid_<uid>/cgroup.procs
+
+# from the app's own shell: end the probe processes
+kill <childPids>
+# restore each recorded value that was set
+adb shell device_config put activity_manager max_phantom_processes <recordedLimit>
+adb shell settings put global settings_enable_monitor_phantom_procs <recordedFlag>
+# or delete each key whose recorded value was "null"
+adb shell device_config delete activity_manager max_phantom_processes
+adb shell settings delete global settings_enable_monitor_phantom_procs
 ```
 
 Compare the PIDs recorded for each batch with the phantom list in the snapshot taken after that
