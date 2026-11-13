@@ -252,6 +252,7 @@ private class ComposerState(typing: Boolean) {
     var typing by mutableStateOf(typing)
     var focusRequests by mutableIntStateOf(0)
         private set
+    private var consumedFocusRequests by mutableIntStateOf(0)
     /** Opened and waiting for the text field to take focus; focus passes through nothing on the way. */
     var opening = false
 
@@ -259,6 +260,12 @@ private class ComposerState(typing: Boolean) {
         typing = true
         opening = true
         focusRequests++
+    }
+
+    fun hasUnconsumedFocusRequest() = focusRequests > consumedFocusRequests
+
+    fun consumeFocusRequest() {
+        consumedFocusRequests = focusRequests
     }
 }
 
@@ -633,7 +640,7 @@ private fun AgentEditor(
     }
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
-    LaunchedEffect(composer.focusRequests) { if (composer.focusRequests > 0) runCatching { field.requestFocus() } }
+    LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
     Column(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
             .border(if (focused || highlightControls) 2.dp else 1.dp, if (focused || highlightControls) pal.primary else pal.line, Shape16).padding(6.dp),
@@ -681,7 +688,10 @@ private fun AgentEditor(
                     draft, { draft = it },
                     Modifier.fillMaxWidth().focusRequester(field).onFocusChanged {
                         focused = it.isFocused
-                        if (it.isFocused) composer.opening = false
+                        if (it.isFocused) {
+                            composer.consumeFocusRequest()
+                            composer.opening = false
+                        }
                     }.testTag("agent-input").then(inputModifier),
                     textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
                     cursorBrush = SolidColor(pal.primary),
