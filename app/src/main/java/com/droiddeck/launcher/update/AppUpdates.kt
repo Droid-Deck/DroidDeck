@@ -188,7 +188,7 @@ object AppUpdates {
     }
 
     fun isRunning(r: Release, me: Installed = installed()): Boolean {
-        if (me.commit.length < 7 || r.commit.length < 7 || r.pr != me.pr) return false
+        if (me.commit.length < 7 || r.commit.length < 7 || r.pr != me.pr || r.versionCode > me.versionCode) return false
         return me.commit.startsWith(r.commit, ignoreCase = true) ||
             r.commit.startsWith(me.commit, ignoreCase = true)
     }

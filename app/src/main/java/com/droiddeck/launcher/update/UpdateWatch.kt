@@ -63,7 +63,11 @@ class UpdateWatch : JobService() {
             if (follow.channel != AppUpdates.Channel.TEST) return
             val release = AppUpdates.release(catalog, follow) ?: return
             if (prefs(context).getString(KEY_SEEN, null) == key(release)) return
-            if (!AppUpdates.hasUpdate(catalog, follow)) return
+            val me = AppUpdates.installed()
+            val offer = AppUpdates.offer(catalog, follow, me)
+            if (!me.updatable || AppUpdates.installBlock(release, me) != null ||
+                (offer != AppUpdates.Offer.UPDATE && offer != AppUpdates.Offer.SWITCH)
+            ) return
             if (post(context, release)) seen(context, release)
         }
 
