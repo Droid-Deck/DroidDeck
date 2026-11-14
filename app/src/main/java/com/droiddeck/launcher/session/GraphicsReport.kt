@@ -161,8 +161,8 @@ object GraphicsReport {
     private fun read(path: String): String? = FileUtils.readString(File(path))?.trim()?.takeIf { it.isNotEmpty() }
 
     /** The compositor's driver lines from the app's own log. */
-    private val COMPOSITOR = Regex(
-        """vk_present|waylandcomp|vk_loader|compositor|vkCreateDevice|extension|adrenotools|TurnipDriver|""" +
+    internal val COMPOSITOR = Regex(
+        """vk_present|waylandcomp|vk_loader|compositor|vkCreateDevice|extension|adrenotools|hook_impl|TurnipDriver|""" +
             """graphics driver|display driver|DD_PRESENT_FAULT|SystemVulkan|vkbridge|VkBridge|mali_gralloc|panvk|PanVK|radv|MESA|native buffer|first frame|present|""" +
             """lsfg|FrameGen|device gates|AAudio|directaudio|pulse|gralloc|dma.?buf|modifier|import""",
         RegexOption.IGNORE_CASE,
