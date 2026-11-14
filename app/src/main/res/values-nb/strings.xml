@@ -4050,6 +4050,4 @@
     <string name="soundtracks_no_tracks">Ingen lydfiler i dette lydsporet</string>
     <string name="stores_rockstar_launch_unavailable">Start utilgjengelig</string>
     <string name="agent_browser_unavailable">Ingen nettleser er tilgjengelig for å åpne denne lenken.</string>
-    <string name="setup_stores">Butikker</string>
-    <string name="setup_agent_tab">Agent-fanen</string>
 </resources>

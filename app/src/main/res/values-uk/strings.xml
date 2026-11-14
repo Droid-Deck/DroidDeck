@@ -4130,6 +4130,4 @@
     <string name="soundtracks_no_tracks">У цьому саундтреку немає аудіофайлів</string>
     <string name="stores_rockstar_launch_unavailable">Запуск недоступний</string>
     <string name="agent_browser_unavailable">Немає веббраузера, щоб відкрити це посилання.</string>
-    <string name="setup_stores">Магазини</string>
-    <string name="setup_agent_tab">Вкладка агента</string>
 </resources>

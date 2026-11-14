@@ -4089,6 +4089,4 @@
     <string name="soundtracks_no_tracks">Nessun file audio in questa colonna sonora</string>
     <string name="stores_rockstar_launch_unavailable">Avvio non disponibile</string>
     <string name="agent_browser_unavailable">Non è disponibile alcun browser web per aprire questo link.</string>
-    <string name="setup_stores">Negozi</string>
-    <string name="setup_agent_tab">Scheda Agente</string>
 </resources>

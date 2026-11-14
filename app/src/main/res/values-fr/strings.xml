@@ -4089,6 +4089,4 @@
     <string name="soundtracks_no_tracks">Aucun fichier audio dans cette bande originale</string>
     <string name="stores_rockstar_launch_unavailable">Lancement indisponible</string>
     <string name="agent_browser_unavailable">Aucun navigateur Web n’est disponible pour ouvrir ce lien.</string>
-    <string name="setup_stores">Boutiques</string>
-    <string name="setup_agent_tab">Onglet Agent</string>
 </resources>

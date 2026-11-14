@@ -4020,6 +4020,4 @@
     <string name="soundtracks_no_tracks">Tiada fail audio dalam runut bunyi ini</string>
     <string name="stores_rockstar_launch_unavailable">Pelancaran tidak tersedia</string>
     <string name="agent_browser_unavailable">Tiada penyemak imbas web tersedia untuk membuka pautan ini.</string>
-    <string name="setup_stores">Kedai</string>
-    <string name="setup_agent_tab">Tab Ejen</string>
 </resources>

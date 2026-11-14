@@ -4050,6 +4050,4 @@
     <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Η εκκίνηση δεν είναι διαθέσιμη</string>
     <string name="agent_browser_unavailable">Δεν είναι διαθέσιμο πρόγραμμα περιήγησης ιστού για το άνοιγμα αυτού του συνδέσμου.</string>
-    <string name="setup_stores">Καταστήματα</string>
-    <string name="setup_agent_tab">Καρτέλα Agent</string>
 </resources>

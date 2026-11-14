@@ -4020,6 +4020,4 @@
     <string name="soundtracks_no_tracks">このサウンドトラックに音声ファイルがありません</string>
     <string name="stores_rockstar_launch_unavailable">起動できません</string>
     <string name="agent_browser_unavailable">このリンクを開けるウェブブラウザがありません。</string>
-    <string name="setup_stores">ストア</string>
-    <string name="setup_agent_tab">Agent タブ</string>
 </resources>

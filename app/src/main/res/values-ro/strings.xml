@@ -4090,6 +4090,4 @@
     <string name="soundtracks_no_tracks">Niciun fișier audio în această coloană sonoră</string>
     <string name="stores_rockstar_launch_unavailable">Lansare indisponibilă</string>
     <string name="agent_browser_unavailable">Nu este disponibil niciun browser web pentru a deschide acest link.</string>
-    <string name="setup_stores">Magazine</string>
-    <string name="setup_agent_tab">Fila Agent</string>
 </resources>

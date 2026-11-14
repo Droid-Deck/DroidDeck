@@ -4020,6 +4020,4 @@
     <string name="soundtracks_no_tracks">Tidak ada file audio di soundtrack ini</string>
     <string name="stores_rockstar_launch_unavailable">Peluncuran tidak tersedia</string>
     <string name="agent_browser_unavailable">Tidak ada browser web yang tersedia untuk membuka tautan ini.</string>
-    <string name="setup_stores">Toko</string>
-    <string name="setup_agent_tab">Tab Agen</string>
 </resources>

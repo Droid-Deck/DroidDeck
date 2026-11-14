@@ -4020,6 +4020,4 @@
     <string name="soundtracks_no_tracks">Không có tệp âm thanh trong nhạc nền này</string>
     <string name="stores_rockstar_launch_unavailable">Không thể khởi chạy</string>
     <string name="agent_browser_unavailable">Không có trình duyệt web nào để mở liên kết này.</string>
-    <string name="setup_stores">Cửa hàng</string>
-    <string name="setup_agent_tab">Tab Agent</string>
 </resources>

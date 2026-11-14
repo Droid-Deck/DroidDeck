@@ -4050,6 +4050,4 @@
     <string name="soundtracks_no_tracks">इस साउंडट्रैक में कोई ऑडियो फ़ाइल नहीं है</string>
     <string name="stores_rockstar_launch_unavailable">लॉन्च उपलब्ध नहीं</string>
     <string name="agent_browser_unavailable">इस लिंक को खोलने के लिए कोई वेब ब्राउज़र उपलब्ध नहीं है।</string>
-    <string name="setup_stores">स्टोर</string>
-    <string name="setup_agent_tab">एजेंट टैब</string>
 </resources>
