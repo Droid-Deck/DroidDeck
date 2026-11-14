@@ -1159,6 +1159,10 @@
     <string name="rail_agent">Agent</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent is working</string>
+    <plurals name="agent_subagent_steps">
+        <item quantity="one">%d step</item>
+        <item quantity="other">%d steps</item>
+    </plurals>
     <string name="agent_missing">Install Claude Code in the Linux userland to use the agent.</string>
     <string name="agent_hint">Ask about a game, a crash, or a change to DroidDeck</string>
     <string name="agent_send">Send</string>

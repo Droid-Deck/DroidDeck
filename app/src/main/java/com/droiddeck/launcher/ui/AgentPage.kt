@@ -356,7 +356,9 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, onRevise:
     val pal = LocalPalette.current
     val working = AgentHost.state == AgentHost.State.WORKING
     val atBottom by remember { derivedStateOf { !list.canScrollForward } }
-    val items = AgentHost.entries.size + (if (working) 1 else 0)
+    // A subagent's calls are shown inside the call that started it.
+    val shown = AgentHost.entries.indices.filter { (AgentHost.entries[it] as? Entry.Used)?.parent.isNullOrEmpty() }
+    val items = shown.size + (if (working) 1 else 0)
     LaunchedEffect(items) {
         if (items == 0) return@LaunchedEffect
         list.animateScrollToItem(items - 1)
@@ -375,10 +377,12 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, onRevise:
     }
     val start = AgentHost.entries.indexOfLast { it is Entry.Asked }
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(AgentHost.entries.size) { i ->
+        items(shown.size) { n ->
+            val i = shown[n]
             val entry = AgentHost.entries[i]
             AgentEntry(
                 entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex,
+                children = if (entry is Entry.Used) AgentHost.entries.filter { it is Entry.Used && it.parent == entry.id && entry.id.isNotEmpty() }.map { it as Entry.Used } else emptyList(),
                 changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null, onRevise = onRevise,
             )
         }

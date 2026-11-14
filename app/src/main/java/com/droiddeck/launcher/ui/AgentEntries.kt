@@ -55,7 +55,9 @@ import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 
 @Composable
-internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, onRevise: () -> Unit = {}) {
+internal fun AgentEntry(
+    entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, children: List<Entry.Used> = emptyList(), onRevise: () -> Unit = {},
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     when (entry) {
@@ -68,7 +70,7 @@ internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, c
         }
         is Entry.Said -> SelectionContainer { AgentMarkdown(entry.text, Modifier.widthIn(max = 760.dp).padding(horizontal = 4.dp)) }
         is Entry.Thought -> AgentThought(entry.text, live = false)
-        is Entry.Used -> if (entry.tool == "TodoWrite") AgentTodos(entry.input) else AgentToolCall(entry, running)
+        is Entry.Used -> if (entry.tool == "TodoWrite") AgentTodos(entry.input) else AgentToolCall(entry, running, children)
         is Entry.Result -> Unit
         is Entry.Finished -> when {
             last && AgentHost.answerless(AgentHost.entries) -> AgentNoReply()
@@ -216,7 +218,7 @@ private fun AgentTodos(list: String) {
 
 /** A tool call: one line with its status, opening to the full input and output, or to the diff of an edit. */
 @Composable
-private fun AgentToolCall(entry: Entry.Used, running: Boolean) {
+private fun AgentToolCall(entry: Entry.Used, running: Boolean, children: List<Entry.Used> = emptyList()) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var open by rememberSaveable(entry.id.ifEmpty { entry.detail }) { mutableStateOf(false) }
@@ -244,6 +246,17 @@ private fun AgentToolCall(entry: Entry.Used, running: Boolean) {
                 Text("\u2212${diff.removed}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.error, modifier = Modifier.padding(start = 6.dp, end = 4.dp))
             }
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        }
+        if (children.isNotEmpty()) {
+            val latest = children.last()
+            Text(
+                pluralStringResource(R.plurals.agent_subagent_steps, children.size, children.size) + " · " + latest.tool + " " + latest.detail,
+                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 8.dp),
+            )
+        }
+        if (open && children.isNotEmpty()) Column(Modifier.padding(start = 10.dp, end = 4.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (child in children) AgentToolCall(child, running && child.output == null)
         }
         if (open && diff != null) Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (diff.path.contains('/')) Text(diff.path, fontSize = 11.5.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
