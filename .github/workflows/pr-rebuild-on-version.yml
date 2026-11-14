@@ -62,18 +62,18 @@ jobs:
               jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
               head=$(jq -r .head.sha <<<"$pr")
               runs="repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=20"
-              latest() { gh api "$runs" --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at] | @tsv'; }
+              latest() { gh api "$runs" --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at, .created_at] | @tsv'; }
               run=$(latest)
               if [ -z "$run" ]; then
                 echo "PR #$number: no build of ${head:0:7} to rerun"
                 continue
               fi
-              IFS=$'\t' read -r id status started <<<"$run"
+              IFS=$'\t' read -r id status started created <<<"$run"
               for _ in $(seq 1 90); do
                 [ "$status" = completed ] && break
                 echo "PR #$number: waiting for build $id ($status)"
                 sleep 60
-                IFS=$'\t' read -r id status started <<<"$(latest)"
+                IFS=$'\t' read -r id status started created <<<"$(latest)"
               done
               if [ "$status" != completed ]; then
                 echo "::warning::PR #$number: build $id did not finish"
@@ -87,6 +87,9 @@ jobs:
                 echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
               else
                 echo "::warning::PR #$number: could not rerun build $id"
-                note "$number" || echo "::warning::PR #$number: could not leave a note"
+                # GitHub only re-runs a workflow within 30 days of its first run.
+                if [[ "$created" < "$(date -u -d '-30 days' +%Y-%m-%dT%H:%M:%SZ)" ]]; then
+                  note "$number" || echo "::warning::PR #$number: could not leave a note"
+                fi
               fi
             done
