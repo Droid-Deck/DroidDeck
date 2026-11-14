@@ -29,8 +29,11 @@ object AgentHost {
         data class Asked(val text: String, val files: List<String> = emptyList()) : Entry
         data class Said(val text: String) : Entry
         data class Thought(val text: String) : Entry
-        /** A tool call; [output] stays null until its result arrives. */
-        data class Used(val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false) : Entry
+        /** A tool call; [output] stays null until its result arrives. [parent] is the subagent call it was made under, if any. */
+        data class Used(
+            val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false,
+            val parent: String = "",
+        ) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
         /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
         data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null, val planned: Boolean = false) : Entry
@@ -516,7 +519,7 @@ object AgentHost {
     }
 
     /** The latest todo list the agent wrote in this conversation. */
-    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" }?.let { (it as Entry.Used).input }
+    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" && it.parent.isEmpty() }?.let { (it as Entry.Used).input }
 
     private fun tick() {
         now = SystemClock.elapsedRealtime()
