@@ -1,3 +1,5 @@
+import fcntl
+import mmap
 import os
 from pathlib import Path
 import shutil
@@ -5,6 +7,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 SOURCE = Path(__file__).resolve().parents[2] / "app/src/main/cpp/fakeinput_steam.cpp"
@@ -14,6 +18,14 @@ HEADER = 64
 EVENT = 24
 CAPACITY = 4096
 DESCRIPTION = 1824
+RING_SIZE = HEADER + CAPACITY * EVENT
+DECK_IMU = 64
+TRITON_BLOCK = 256
+TRITON_MAGIC = 0x4E525454
+TOUCH_MAGIC = 0x31484354
+TOUCH_RING_SIZE = 256
+PAD_TYPE_DECK = 0
+PAD_TYPE_STEAM = 1
 READER = r"""
 #include <fcntl.h>
 #include <linux/input.h>
@@ -215,6 +227,72 @@ int main(int argc, char **argv)
     return 0;
 }
 """
+HIDRAW_PROBE = r"""
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/hidraw.h>
+#include <poll.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+    int fd = open(argv[1], O_RDONLY | O_NONBLOCK);
+    if (fd < 0) {
+        puts(errno == ENOENT ? "refused" : "failed");
+        return 0;
+    }
+    struct hidraw_devinfo info;
+    if (ioctl(fd, HIDIOCGRAWINFO, &info) < 0)
+        return 1;
+    struct pollfd ready = {fd, POLLIN, 0};
+    unsigned char report[64];
+    if (poll(&ready, 1, 2000) != 1 || read(fd, report, sizeof(report)) <= 0)
+        return 2;
+    printf("%04hx:%04hx report %02x\n", info.vendor, info.product, report[0]);
+    return 0;
+}
+"""
+FEATURE_PROBE = r"""
+#include <fcntl.h>
+#include <linux/hidraw.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+
+int main(int argc, char **argv)
+{
+    unsigned char id = (unsigned char)strtoul(argv[1], NULL, 0);
+    int fd = open("/dev/hidraw18", O_RDWR);
+    if (fd < 0)
+        return 1;
+    int count = argc > 2 ? atoi(argv[2]) : 200, wrong = 0;
+    for (int i = 0; i < count; i++) {
+        unsigned char report[64] = {id};
+        if (ioctl(fd, HIDIOCGFEATURE(sizeof(report)), report) < 0 || report[0] != id || report[1] != id)
+            wrong++;
+    }
+    printf("%d wrong\n", wrong);
+    return 0;
+}
+"""
+IMU_MODE_PROBE = r"""
+#include <fcntl.h>
+#include <linux/hidraw.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+
+int main(int argc, char **argv)
+{
+    unsigned mode = (unsigned)strtoul(argv[1], NULL, 0);
+    int fd = open("/dev/hidraw16", O_RDWR);
+    if (fd < 0)
+        return 1;
+    unsigned char report[65] = {0x00, 0x87, 3, 48, mode & 0xff, mode >> 8};
+    return ioctl(fd, HIDIOCSFEATURE(sizeof(report)), report) < 0;
+}
+"""
 OVERLAY_READ = r"""
 #include <sys/uio.h>
 #include <unistd.h>
@@ -347,6 +425,117 @@ class FakeinputRingTest(unittest.TestCase):
                              env=dict(os.environ, LD_PRELOAD=str(library), FAKE_EVDEV_DIR=str(hooks)))
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, "JSIOCGNAME -1 EINVAL\n28de:11ff Microsoft X-Box 360 pad 0\n")
+
+    def pad_ring(self, pad_type, triton_connected=False):
+        hooks, ring = self.ring(virtual=False)
+        data = bytearray(ring.read_bytes()) + bytearray(DECK_IMU + TRITON_BLOCK)
+        struct.pack_into("<I", data, RING_SIZE + 44, 0x80000000 | pad_type)
+        struct.pack_into("<II", data, RING_SIZE + DECK_IMU, TRITON_MAGIC, 1 if triton_connected else 0)
+        ring.write_bytes(bytes(data))
+        env = dict(os.environ, FAKE_EVDEV_DIR=str(hooks), FAKE_EVDEV_DECK="1", FAKE_EVDEV_TRITON="1",
+                   FAKE_EVDEV_MEMFD_PATHS="0=" + str(ring))
+        return ring, env
+
+    def as_process(self, binary, name):
+        named = self.tmp / name
+        shutil.copy(binary, named)
+        return str(named)
+
+    def assert_opened_by_steam_and_remote_play_only(self, device, expected, env):
+        library, probe = self.build("-m64", HIDRAW_PROBE, "hidraw-probe")
+        env = dict(env, LD_PRELOAD=str(library))
+        for name, want in (("steam", expected), ("streaming_client", expected), ("game", "refused\n")):
+            with self.subTest(name=name):
+                run = subprocess.run([self.as_process(probe, name), device], capture_output=True, text=True,
+                                     timeout=10, env=env)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, want)
+
+    def test_the_deck_pad_opens_in_steam_and_its_remote_play_client_only(self):
+        _, env = self.pad_ring(PAD_TYPE_DECK)
+        self.assert_opened_by_steam_and_remote_play_only("/dev/hidraw16", "28de:1205 report 01\n", env)
+
+    def test_the_steam_controller_pad_opens_in_steam_and_its_remote_play_client_only(self):
+        _, env = self.pad_ring(PAD_TYPE_STEAM)
+        self.assert_opened_by_steam_and_remote_play_only("/dev/hidraw19", "28de:1302 report 42\n", env)
+
+    def test_the_touch_controller_opens_in_steam_and_its_remote_play_client_only(self):
+        _, env = self.pad_ring(PAD_TYPE_DECK)
+        touch = self.tmp / "touchctl"
+        data = bytearray(TOUCH_RING_SIZE)
+        struct.pack_into("<I", data, 0, TOUCH_MAGIC)
+        struct.pack_into("<I", data, 56, 1)
+        touch.write_bytes(bytes(data))
+        env["FAKE_TOUCHCTL_RING"] = str(touch)
+        self.assert_opened_by_steam_and_remote_play_only("/dev/hidraw17", "0000:11fb report 00\n", env)
+
+    def ask_paired_controller(self, probes, locks_unavailable=False, held=False, count=200):
+        library, probe = self.build("-m64", FEATURE_PROBE, "feature-probe")
+        ring, env = self.pad_ring(PAD_TYPE_DECK, triton_connected=True)
+        env["LD_PRELOAD"] = str(library)
+        lock = Path(env["FAKE_EVDEV_DIR"]) / ".triton-feature.lock"
+        if locks_unavailable:
+            lock.mkdir()
+        holder = open(lock, "w") if held else None
+        if holder:
+            self.addCleanup(holder.close)
+            fcntl.flock(holder, fcntl.LOCK_EX)
+        block = RING_SIZE + DECK_IMU
+        stop = threading.Event()
+
+        def controller():
+            with open(ring, "r+b") as f, mmap.mmap(f.fileno(), 0) as shared:
+                served = 0
+                while not stop.is_set():
+                    request = struct.unpack_from("<Q", shared, block + 168)[0]
+                    if request == served:
+                        time.sleep(0.0001)
+                        continue
+                    report_id = struct.unpack_from("<I", shared, block + 184)[0]
+                    struct.pack_into("<i", shared, block + 188, 2)
+                    struct.pack_into("<BB", shared, block + 192, report_id, report_id)
+                    struct.pack_into("<Q", shared, block + 176, request)
+                    served = request
+
+        thread = threading.Thread(target=controller)
+        thread.start()
+        try:
+            runs = [subprocess.Popen([self.as_process(probe, name), report_id, str(count)], stdout=subprocess.PIPE,
+                                     text=True, env=env)
+                    for name, report_id in probes]
+            outputs = [run.communicate(timeout=60)[0] for run in runs]
+        finally:
+            stop.set()
+            thread.join()
+        self.assertEqual([run.returncode for run in runs], [0] * len(probes))
+        return outputs
+
+    def test_steam_and_its_remote_play_client_take_turns_with_the_paired_controllers_features(self):
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")))
+        self.assertEqual(outputs, ["0 wrong\n", "0 wrong\n"])
+
+    def test_without_the_lock_only_steam_asks_the_paired_controller(self):
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")), locks_unavailable=True)
+        self.assertEqual(outputs, ["0 wrong\n", "200 wrong\n"])
+
+    def test_a_stopped_lock_holder_does_not_stall_steam_or_its_remote_play_client(self):
+        started = time.monotonic()
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")), held=True, count=3)
+        self.assertEqual(outputs, ["3 wrong\n", "3 wrong\n"])
+        self.assertLess(time.monotonic() - started, 20)
+
+    def test_steam_turning_motion_off_leaves_it_on_for_its_remote_play_client(self):
+        library, probe = self.build("-m64", IMU_MODE_PROBE, "imu-mode-probe")
+        ring, env = self.pad_ring(PAD_TYPE_DECK)
+        env["LD_PRELOAD"] = str(library)
+        pids = {}
+        for name, mode in (("steam", "0x18"), ("streaming_client", "0x18"), ("steam", "0x00")):
+            run = subprocess.Popen([self.as_process(probe, name), mode], env=env)
+            self.assertEqual(run.wait(timeout=10), 0)
+            pids[name] = run.pid
+        data = ring.read_bytes()
+        self.assertEqual(struct.unpack_from("<I", data, RING_SIZE + 4)[0], 0x80000000)
+        self.assertEqual(struct.unpack_from("<II", data, RING_SIZE + 52), (0x80000018, pids["streaming_client"]))
 
 
 if __name__ == "__main__":
