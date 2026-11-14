@@ -950,6 +950,22 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
+        gpu = MODULE["game_gpu"]
+        session = {"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "KEEP": "1"}
+        self.assertEqual(gpu(session), {"KEEP": "1"})
+        self.assertEqual(gpu(session, True), {"MESA_NO_ERROR": "1", "KEEP": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        both = gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})
+        self.assertEqual(both, {"TU_DEBUG": "nolrz"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "MESA_NO_ERROR": "1"}),
+                         {"MESA_NO_ERROR": "1"})
+        config = {"version": 1, "games": {"42": {"MESA_NO_ERROR": "1"}}}
+        env = gpu(session)
+        self.assertEqual(MODULE["apply_config"](env, config, "42")["MESA_NO_ERROR"], "1")
+        self.assertNotIn("MESA_NO_ERROR", MODULE["apply_config"](env, config, "43"))
+
     def test_a_chromium_app_keeps_the_sessions_turnip_debug(self):
         gpu = MODULE["game_gpu"]
         self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}, True),
@@ -993,8 +1009,10 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
         cap = MODULE["vram_cap"]
         self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192")
+        self.assertEqual(cap({"BL_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; d3d9.maxAvailableMemory = 4095")
         self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+                         "dxgi.maxDeviceMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
         for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
             self.assertNotIn("DXVK_CONFIG", cap(off))
             self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
@@ -1519,6 +1537,19 @@ class GameEnvironmentTest(unittest.TestCase):
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
+
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

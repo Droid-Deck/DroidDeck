@@ -85,6 +85,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.StoreLanguage
+import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue

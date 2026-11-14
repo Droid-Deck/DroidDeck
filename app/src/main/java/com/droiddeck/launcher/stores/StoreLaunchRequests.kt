@@ -76,6 +76,14 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
             }
+            "rockstar-launch" -> runCatching {
+                lastLaunched = Store.ROCKSTAR to request.optString("id")
+                com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
+            }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "rockstar-exited" -> {
+                if (lastLaunched == (Store.ROCKSTAR to request.optString("id"))) lastLaunched = null
+                JSONObject().put("ok", true)
+            }
             "ubisoft-launch" -> {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")

@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
@@ -61,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +94,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.Soundtrack
+import com.droiddeck.launcher.frontend.SoundtrackCollections
+import com.droiddeck.launcher.frontend.SoundtrackIndex
+import com.droiddeck.launcher.frontend.SoundtrackTracks
+import com.droiddeck.launcher.playback.SoundtrackController
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
@@ -156,7 +163,7 @@ internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = e
 
 internal const val LIBRARY_ALL = "all"
 internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet()): List<String> =
-    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
+    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION)
         .filter { source -> source in always || entries.any { it.source == source } }
 
 internal object LibraryDisplay {
@@ -215,14 +222,24 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
-    val stores = s.gameStoresEnabled && !s.shortcutPicker
+    val soundMode = selected == "soundtracks" || selected.startsWith("sound:")
+    val stores = s.gameStoresEnabled && !s.shortcutPicker && !soundMode
     val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
     val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
     val installedStore = StoresState.installed.map { it.key }.toSet()
     val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val cloudRows = rememberXboxCloudRows(s)
-    val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
+    remember { SoundtrackCollections.load(ctx) }
+    val savedSnapshot = SoundtrackCollections.snapshot
+    val favoritesLabel = stringResource(R.string.soundtracks_favorites)
+    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
+        if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
+            (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel))
+                .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
+        else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+    }
+    var addingSoundtrack by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
     var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
     var collectionShows by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
@@ -240,7 +257,10 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
-    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx), listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn }).toSet())
+    val sources = librarySources(
+        all, SessionPrefs.storesTabOrder(ctx),
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }).toSet(),
+    )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
@@ -265,6 +285,30 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
     val listUninstalled = if (collectionId == null) showUninstalled else collectionShows?.takeIf { it.first == collectionId }?.second ?: true
+    val trackHits by produceState<List<SoundtrackIndex.Hit>>(emptyList(), soundMode, q, source, s.soundtracks) {
+        if (!soundMode || q.isEmpty()) {
+            value = emptyList()
+            return@produceState
+        }
+        kotlinx.coroutines.delay(150)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            SoundtrackIndex.build(ctx, s.soundtracks)
+                .filter { (source == LIBRARY_ALL || it.game.source == source) && SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
+                .distinctBy { it.ref.path }
+                .sortedWith(compareBy({ SoundtrackTracks.rank(q, it.ref.title) }, { it.ref.title.lowercase() }))
+                .take(100)
+        }
+    }
+    val shownHits = trackHits.filter { source == LIBRARY_ALL || it.game.source == source }
+    val hitScope = rememberCoroutineScope()
+    val playHit: (SoundtrackIndex.Hit) -> Unit = { hit ->
+        val dir = hit.game.gameFiles
+        if (dir != null) hitScope.launch {
+            val album = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Soundtrack.load(ctx, dir, hit.game.art) }
+            SoundtrackController.play(ctx, album, hit.game.name, hit.ref.path, root = dir)
+        }
+    }
+    var savedDialog by remember { mutableStateOf(false) }
     val candidates = if (listUninstalled) matching else matching.filter { it.installed }
     val hiddenUninstalled = if (listUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
@@ -304,18 +348,20 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     var stable by remember { mutableStateOf(emptyList<LibraryEntry>()) }
     val ordered = if (sizesPending) retainOrder(candidates, stable) { it.key } else sorted
     SideEffect { if (!sizesPending) stable = sorted }
-    val visible = installedFirst(ordered)
+    val visible = installedFirst(ordered).let { list ->
+        if (soundMode && source == Library.SOURCE_COLLECTION) list.sortedBy { if (it.game?.appId == SoundtrackCollections.FAVORITES_ID) 0 else 1 } else list
+    }
     val split = visible.count { it.installed }.takeIf { it in 1 until visible.size } ?: 0
 
-    val open = selected.takeIf { it.startsWith("app:") }
-    val back = { onSelect("games") }
+    val open = selected.takeIf { it.startsWith(if (soundMode) "sound:" else "app:") }
+    val back = { onSelect(if (soundMode) "soundtracks" else "games") }
     BackHandler(enabled = open == null && LibraryView.query.isNotEmpty()) { LibraryView.query = "" }
     BackHandler(enabled = open != null) { back() }
     val lead = remember { FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
     var lastOpened by remember { mutableStateOf<String?>(null) }
     val wasOpen = remember { booleanArrayOf(false) }
-    val backLabel = stringResource(R.string.rail_games)
+    val backLabel = stringResource(if (soundMode) R.string.rail_soundtracks else R.string.rail_games)
     LaunchedEffect(open) {
         val closing = open == null && wasOpen[0]
         wasOpen[0] = open != null
@@ -349,7 +395,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
+    if (!soundMode && all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -385,9 +431,26 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
+                soundMode = soundMode,
+                emptyText = when {
+                    soundMode && all.isEmpty() -> R.string.soundtracks_empty
+                    soundMode && source == Library.SOURCE_COLLECTION && q.isEmpty() -> R.string.soundtracks_collections_empty
+                    else -> R.string.stores_nothing_matches
+                },
+                onAddSoundtrack = { addingSoundtrack = true },
+                onCollections = { savedDialog = true },
+                trackHits = shownHits, onPlayHit = playHit,
             )
         },
-    ) { key -> GameDetail(key, s, a, lead, backLabel, hopRail = "games", onBack = back) }
+    ) { key ->
+        if (soundMode || (!s.soundtracksEnabled && s.soundtracks.any { GameRef.key(it) == key })) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
+        else GameDetail(key, s, a, lead, backLabel, hopRail = "games", onBack = back)
+    }
+    if (savedDialog) SavedDialog(emptyList(), onOpen = { id -> onSelect("sound:$id") }) { savedDialog = false }
+    if (addingSoundtrack) SyncFolderPicker(stringResource(R.string.soundtracks_add_title), null, onDismiss = { addingSoundtrack = false }) { dir ->
+        addingSoundtrack = false
+        a.onSoundtrackAdded(dir)
+    }
 }
 
 @Composable
@@ -416,6 +479,8 @@ private fun LibraryGrid(
     sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
     showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, hiddenUninstalled: Int,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
+    soundMode: Boolean = false, emptyText: Int = R.string.stores_nothing_matches, onAddSoundtrack: () -> Unit = {},
+    onCollections: () -> Unit = {}, trackHits: List<SoundtrackIndex.Hit> = emptyList(), onPlayHit: (SoundtrackIndex.Hit) -> Unit = {},
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
@@ -438,7 +503,7 @@ private fun LibraryGrid(
             val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction, split)
             when {
                 direction == 0 || index < 0 -> false
-                next == null -> direction > 0
+                next == null -> direction > 0 && trackHits.isEmpty()
                 else -> {
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
@@ -470,7 +535,7 @@ private fun LibraryGrid(
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }) }
+            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
@@ -488,7 +553,7 @@ private fun LibraryGrid(
                 Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        val empty = R.string.stores_nothing_matches
+        val empty = emptyText
         if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
                 Text(stringResource(R.string.library_no_installed_matches), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -502,6 +567,40 @@ private fun LibraryGrid(
             item(key = "not-installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
             libraryGrid(visible.drop(split), empty, tile)
         }
+        if (trackHits.isNotEmpty()) {
+            item(key = "tracks-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.soundtracks_tracks_heading)) }
+            items(trackHits, key = { "track:${it.ref.path}" }, span = { GridItemSpan(maxLineSpan) }, contentType = { "track" }) { hit -> TrackHitRow(hit, onPlayHit) }
+        }
+    }
+}
+
+@Composable
+private fun TrackHitRow(hit: SoundtrackIndex.Hit, onPlay: (SoundtrackIndex.Hit) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(10.dp)
+    val cover = hit.ref.cover.takeIf { it.isNotEmpty() }?.let { java.io.File(it) }?.takeIf { it.isFile }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).paneItem("trackhit:${hit.ref.path}").testTag("track-hit")
+            .clip(shape).glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current) { onPlay(hit) }
+            .controllerConfirm { onPlay(hit) }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(artBrush(hueOf(hit.ref.album)))) {
+            if (cover != null) AsyncImage(model = cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(hit.ref.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(hit.ref.album, hit.ref.artist).filter { it.isNotBlank() }.joinToString(" · "),
+                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (hit.ref.durationMs > 0) Text(Soundtrack.formatLength(hit.ref.durationMs), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }
 
@@ -532,28 +631,31 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 private fun LibraryHeader(
     s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
     showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, collections: Store?,
+    soundMode: Boolean = false, onAddSoundtrack: () -> Unit = {}, onCollections: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
+    val heading = stringResource(if (soundMode) R.string.rail_soundtracks else R.string.rail_games)
     ModeHeader(
-        stringResource(R.string.rail_games), LibraryView.query, { LibraryView.query = it },
-        placeholder = stringResource(R.string.stores_search_library),
+        heading, LibraryView.query, { LibraryView.query = it },
+        placeholder = stringResource(if (soundMode) R.string.soundtracks_search else R.string.stores_search_library),
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
-                Text(stringResource(R.string.rail_games), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-                Text(pluralStringResource(R.plurals.mode_added_count, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+                Text(heading, fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+                Text(if (soundMode) total.toString() else pluralStringResource(R.plurals.mode_added_count, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
                 if (s.steamGamesX64 && !narrow) ClientTag()
             }
         },
     ) {
+        if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onCollections)
         DisplayButton()
-        if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
+        if (!soundMode && (showUninstalled != null || xbox)) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)
         SortButton(s, a)
         ViewButton(s, a)
-        GameFileFolderActions(s, a)
-        if (!s.shortcutPicker) AddGameButton { GamesDialogState.adding = true }
+        if (!soundMode) GameFileFolderActions(s, a)
+        if (!s.shortcutPicker) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
 }
@@ -570,7 +672,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             val store = Store.byId(src)
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                src == Library.SOURCE_STEAM -> sourceColours(src).dot
+                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
                 else -> null
             }
             SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }
@@ -649,7 +751,7 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
     }
     ArtCard(
         e.title, wide, tall, download, hot, capsule, chip,
-        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) else null,
+        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp), label = favoritesBadge(e), colours = favoritesColours(e)) }) else null,
     ) { LibrarySize(e) }
 }
 
@@ -786,7 +888,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SourceChip(e.source, small = true)
+                SourceChip(e.source, small = true, label = favoritesBadge(e), colours = favoritesColours(e))
                 Text(meta.joinToString("  ·  "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -1004,3 +1106,10 @@ private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
         "view",
     ) { a.onStoresView(next) }
 }
+
+@Composable
+private fun favoritesBadge(e: LibraryEntry): String? =
+    if (e.game?.appId == SoundtrackCollections.FAVORITES_ID && e.source == Library.SOURCE_COLLECTION) stringResource(R.string.soundtracks_favorites) else null
+
+private fun favoritesColours(e: LibraryEntry): SourceColours? =
+    if (e.game?.appId == SoundtrackCollections.FAVORITES_ID && e.source == Library.SOURCE_COLLECTION) FavoritesColours else null

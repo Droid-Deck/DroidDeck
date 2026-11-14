@@ -745,6 +745,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         "showBatteryTemp" -> "BAT.T" to colBat
         "showPower" -> "PWR" to colBat
         "showBattery" -> "BAT" to colBat
+        "showBatteryTime" -> "BAT TIME" to colBat
         "showVram" -> "VRAM" to colVram
         "showRAM" -> "RAM" to colRam
         "showSwap" -> "SWP" to colRam
@@ -778,6 +779,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             "showBatteryTemp" -> tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, valuePx, unitPx)
             "showPower" -> numUnit(if (s.battery.watts > 0f) fmt1(s.battery.watts) else null, "W", valuePx, unitPx)
             "showBattery" -> numUnit(s.battery.percent?.toString(), "%", valuePx, unitPx)
+            "showBatteryTime" -> valueUnit(s.battery.runtimeText ?: "—", valuePx, unitPx)
             "showVram" -> valueUnit(s.vramText() ?: "—", valuePx, unitPx)
             "showRAM" -> numUnit(s.ramPercent.roundToInt().toString(), "%", valuePx, unitPx)
             "showSwap" -> valueUnit(s.swapUsedText() ?: "—", valuePx, unitPx)

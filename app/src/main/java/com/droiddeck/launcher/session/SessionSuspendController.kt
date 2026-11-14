@@ -23,6 +23,7 @@ internal class SessionSuspendController(
     private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
     private val zramControl: File? = null,
     private val clockControl: File? = null,
+    private val mapClockControl: (File) -> Unit = {},
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
@@ -154,6 +155,7 @@ internal class SessionSuspendController(
         frozenSince = null
         val control = clockControl?.takeIf { it.isFile && it.length() >= Long.SIZE_BYTES } ?: return
         try {
+            mapClockControl(control)
             RandomAccessFile(control, "rw").use { file ->
                 val bytes = ByteArray(Long.SIZE_BYTES)
                 file.readFully(bytes)

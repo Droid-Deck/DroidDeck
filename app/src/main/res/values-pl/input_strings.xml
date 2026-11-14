@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profile wejścia</string>
+    <string name="input_profiles">Profile</string>
+    <string name="input_physical">Fizyczny kontroler</string>
+    <string name="input_primary">Główny ekran</string>
+    <string name="input_secondary">Dodatkowy ekran</string>
+    <string name="input_native">Natywny / Steam Input</string>
+    <string name="input_native_target">Natywny: %1$s</string>
+    <string name="input_remap_native">Wyślij inne sterowanie kontrolera</string>
+    <string name="input_disabled">Wyłączone</string>
+    <string name="input_keys">Klawisz lub kombinacja klawiszy</string>
+    <string name="input_direction_keys">Klawisze kierunkowe</string>
+    <string name="input_pointer">Przesuń wskaźnik</string>
+    <string name="input_pointer_speed">Szybkość wskaźnika: %1$d</string>
+    <string name="input_scroll">Przewiń</string>
+    <string name="input_scroll_vertical">Przewiń w pionie</string>
+    <string name="input_mouse_left">Lewy przycisk myszy</string>
+    <string name="input_mouse_right">Prawy przycisk myszy</string>
+    <string name="input_mouse_middle">Środkowy przycisk myszy</string>
+    <string name="input_command_menu">Otwórz menu DroidDeck</string>
+    <string name="input_command_keyboard">Pokaż klawiaturę</string>
+    <string name="input_command_steam">Otwórz menu Steam</string>
+    <string name="input_command_qam">Otwórz szybki dostęp Steam</string>
+    <string name="input_remove_element">Usuń element sterujący</string>
+    <string name="input_add_element">Dodaj element sterujący</string>
+    <string name="input_extra_keys">Przyciski specyficzne dla urządzenia</string>
+    <string name="input_capture">Przypisz przycisk fizyczny</string>
+    <string name="input_capture_confirm">Zwolnij przycisk, a następnie wybierz Edytuj, Ponów lub Anuluj. B lub Wstecz anuluje po zwolnieniu.</string>
+    <string name="input_capture_retry">Ponów</string>
+    <string name="input_capture_hint">Naciśnij przycisk, w tym przycisk Wstecz zgłaszany jako klawisz. Klawisze głośności i systemowe Android są zarezerwowane. Przypisanie dotyczy tylko tego urządzenia.</string>
+    <string name="input_remove_binding">Usuń przypisanie</string>
+    <string name="input_latency">Diagnostyka wejścia</string>
+    <string name="input_measure">Zapisuj czas wysyłania wejścia</string>
+    <string name="input_read_timing">Odczytaj pomiary</string>
+    <string name="input_latency_hint">Mierzy wysyłanie z Androida do publikacji w istniejącym transporcie wejścia. Nie obejmuje przybycia przez Bluetooth, odpytywania gościa, renderowania ani opóźnienia ekranu. Nagrywanie jest domyślnie wyłączone.</string>
+    <string name="input_normal_binding">Użyj normalnego przypisania wejścia</string>
+</resources>

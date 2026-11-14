@@ -37,7 +37,7 @@ class StorageComponentsBulkConfirmTest {
         components = components,
         flatpakApps = emptyList(),
         flatpakRuntimes = 0L,
-        otherPrefixes = 0L,
+        kept = emptyList(),
         leftoversChecked = true,
     )
 

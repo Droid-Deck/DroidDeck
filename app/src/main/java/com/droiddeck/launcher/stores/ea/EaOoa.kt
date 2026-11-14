@@ -175,13 +175,29 @@ object EaOoa {
         return head + EaCrypto.licenseEncrypt(licenseXml(l).toByteArray())
     }
 
+    private const val AUTH_ATTEMPTS = 4
+
+    internal fun tokenRejected(body: String) =
+        body.contains("cause=\"AUTHENTICATION_FAILED\"") && body.contains("field=\"ea_eadmtoken\"")
+
+    internal fun retryTokenRejected(request: () -> EaReply): EaReply {
+        var reply = request()
+        var attempt = 1
+        while (!reply.ok && attempt < AUTH_ATTEMPTS && tokenRejected(reply.text)) {
+            attempt++
+            reply = request()
+        }
+        return reply
+    }
+
     fun request(token: String, contentId: String, machineHash: String, requestToken: String? = null, requestType: String? = null): License {
         val nonce = EaCrypto.hex(ByteArray(4).also(SecureRandom()::nextBytes))
         val params = mutableListOf("contentId" to contentId, "machineHash" to machineHash, "nonce" to nonce, "ea_eadmtoken" to token)
         if (requestToken != null) params += "requestToken" to requestToken
         if (requestType != null) params += "requestType" to requestType
         val url = LICENSES + "?" + params.joinToString("&") { (k, v) -> k + "=" + URLEncoder.encode(v, "UTF-8") }
-        val reply = EaHttp.request(url, headers = mapOf("X-Requester-Id" to "Origin Online Activation", "User-Agent" to "EACTransaction"))
+        val headers = mapOf("X-Requester-Id" to "Origin Online Activation", "User-Agent" to "EACTransaction")
+        val reply = retryTokenRejected { EaHttp.request(url, headers = headers) }
         if (!reply.ok) throw IllegalStateException("EA refused the licence (${reply.status}): ${reply.text.replace(Regex("(eadmToken value=\")[^\"]*"), "$1<redacted>\"").take(600)}")
         val signature = reply.header("x-signature") ?: throw IllegalStateException("EA's licence had no signature")
         return parseLicense(String(EaCrypto.licenseDecrypt(reply.body), Charsets.UTF_8), signature)

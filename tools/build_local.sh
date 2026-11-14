@@ -133,6 +133,7 @@ docker run --rm --platform "${docker_platform}" \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+        bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
           -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
@@ -431,6 +432,13 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
         command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for the Ubisoft launcher service (droiddeck-upc.exe)." >&2; exit 1; }
         CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
         save_step ubisoft "${upc_key}" "${upc_out}"
+    fi
+    rockstar_out="${repo_root}/app/src/main/resources/rockstar/helpers"
+    rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
+    if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
+        command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        save_step rockstar "${rockstar_key}" "${rockstar_out}"
     fi
 fi
 python3 tools/powervr/fetch.py

@@ -23,11 +23,11 @@ PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'po
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
-                'tools/gpuload',
+                'tools/gpuload', 'app/src/main/resources/rockstar/legacy-cipher.bin',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
@@ -77,7 +77,7 @@ def required():
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]

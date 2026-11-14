@@ -178,6 +178,7 @@ private val METRICS = listOf(
     HudMetric("showRAM", R.string.hud_metric_ram),
     HudMetric("showSwap", R.string.hud_metric_swap),
     HudMetric("showBattery", R.string.hud_metric_battery),
+    HudMetric("showBatteryTime", R.string.hud_metric_battery_time),
     HudMetric("showPower", R.string.hud_metric_power),
     HudMetric("showFPS", R.string.drawer_hud_fps),
     HudMetric("showFPSGraph", R.string.hud_metric_graph),

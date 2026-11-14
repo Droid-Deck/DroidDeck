@@ -273,9 +273,12 @@ class SessionSuspendControllerTest {
         val fixture = fixture(17)
         fixture.clock.writeBytes(shift(5_000_000L))
         fixture.controller.freeze { assertTrue(it) }
+        fixture.clock.delete()
+        fixture.clock.writeBytes(shift(5_000_000L))
         fixture.now += 90_000L
         fixture.controller.resume { assertTrue(it) }
         val expected = 5_000_000L + 90_000L * 1_000_000L
+        assertEquals(5_000_000L, fixture.clockAtMapping)
         assertEquals(expected, fixture.clockAtContinue)
         assertEquals(expected, shift(fixture.clock))
         fixture.controller.resume { assertTrue(it) }
@@ -478,6 +481,7 @@ class SessionSuspendControllerTest {
         val control = File(tmp, ".bl-zram")
         val clock = File(tmp, ".bl-clock")
         var clockAtContinue: Long? = null
+        var clockAtMapping: Long? = null
         val pagedOut = mutableListOf<Triple<Int, Long, Long>>()
         val pagedIn = mutableListOf<Triple<Int, Long, Long>>()
         var availableKb = 8_000_000L
@@ -496,6 +500,7 @@ class SessionSuspendControllerTest {
             proc, ::signal, ::threadSignal, ::sleep, { now }, executor,
             zramControl = control,
             clockControl = clock,
+            mapClockControl = { clockAtMapping = ByteBuffer.wrap(it.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long },
             nowNanos = { now * 1_000_000L },
             pagedOut = { processes, unacknowledged, resident, swap, _, _ ->
                 pagedOut += Triple(processes, resident, swap)

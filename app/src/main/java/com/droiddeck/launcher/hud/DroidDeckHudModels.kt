@@ -73,27 +73,27 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
         val ROWS: Map<DroidDeckHudSize, List<String>> = mapOf(
             FULL to listOf(
                 "showFPS", "showFPSGraph", "showGpuModel", "showDisplay", "showHdr", "showGPULoad", "showGpuTemp",
-                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp",
+                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp", "showBatteryTime",
                 "showPower", "showLatency", "showAvg", "showLow1", "showLow01", "showLow001",
             ),
             TILES to listOf(
                 "showFPS", "showFPSGraph", "showLatency", "showGPULoad", "showGpuTemp", "showCPUUsage", "showTemp",
                 "showVram", "showRAM", "showEngine", "showDisplay", "showHdr", "showAvg", "showLow1",
-                "showLow01", "showLow001", "showGpuModel", "showBattery", "showBatteryTemp", "showPower",
+                "showLow01", "showLow001", "showGpuModel", "showBattery", "showBatteryTemp", "showBatteryTime", "showPower",
             ),
             PILL to listOf(
                 "showFPS", "showFPSGraph", "showGpuModel", "showGPULoad", "showGpuTemp", "showCPUUsage", "showTemp",
-                "showRAM", "showBattery", "showBatteryTemp", "showPower", "showLatency", "showDisplay",
+                "showRAM", "showBattery", "showBatteryTemp", "showBatteryTime", "showPower", "showLatency", "showDisplay",
                 "showVram", "showHdr",
             ),
             MINIMAL to listOf(
-                "showFPS", "showFPSGraph", "showLow1", "showLow01", "showLow001", "showAvg", "showLatency",
+                "showFPS", "showBatteryTime", "showFPSGraph", "showLow1", "showLow01", "showLow001", "showAvg", "showLatency",
                 "showEngine", "showDisplay", "showHdr",
             ),
             MEGA to DroidDeckHudConfig.ORDER.filter { it !in EXTRAS },
             STRIP to listOf(
                 "showFPS", "showFPSGraph", "showLow1", "showLow01", "showLow001", "showGPULoad", "showGpuTemp",
-                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp",
+                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp", "showBatteryTime",
                 "showPower", "showDisplay", "showHdr", "showGpuModel",
             ),
         )

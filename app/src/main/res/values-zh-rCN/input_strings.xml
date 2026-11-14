@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">输入配置</string>
+    <string name="input_profiles">配置</string>
+    <string name="input_physical">物理手柄</string>
+    <string name="input_primary">主屏</string>
+    <string name="input_secondary">副屏</string>
+    <string name="input_native">原生 / Steam Input</string>
+    <string name="input_native_target">原生：%1$s</string>
+    <string name="input_remap_native">发送另一个手柄按键</string>
+    <string name="input_disabled">已禁用</string>
+    <string name="input_keys">按键或组合键</string>
+    <string name="input_direction_keys">方向键</string>
+    <string name="input_pointer">移动指针</string>
+    <string name="input_pointer_speed">指针速度：%1$d</string>
+    <string name="input_scroll">滚动</string>
+    <string name="input_scroll_vertical">垂直滚动</string>
+    <string name="input_mouse_left">鼠标左键</string>
+    <string name="input_mouse_right">鼠标右键</string>
+    <string name="input_mouse_middle">鼠标中键</string>
+    <string name="input_command_menu">打开 DroidDeck 菜单</string>
+    <string name="input_command_keyboard">显示键盘</string>
+    <string name="input_command_steam">打开 Steam 菜单</string>
+    <string name="input_command_qam">打开 Steam 快捷菜单</string>
+    <string name="input_remove_element">移除控件</string>
+    <string name="input_add_element">添加控件</string>
+    <string name="input_extra_keys">本设备专用按键</string>
+    <string name="input_capture">指定物理按键</string>
+    <string name="input_capture_confirm">松开按键，然后选择编辑、重试或取消。松开后按 B 或返回可取消。</string>
+    <string name="input_capture_retry">重试</string>
+    <string name="input_capture_hint">按下任意按键，包括被识别为键盘按键的返回键。音量键和 Android 系统键保留。指定仅对本设备生效。</string>
+    <string name="input_remove_binding">移除指定</string>
+    <string name="input_latency">输入诊断</string>
+    <string name="input_measure">记录输入发送耗时</string>
+    <string name="input_read_timing">读取测量结果</string>
+    <string name="input_latency_hint">测量从 Android 派发到发送至现有输入通道的耗时。不含蓝牙接收、客户机轮询、渲染和显示延迟。默认不记录。</string>
+    <string name="input_normal_binding">使用普通输入绑定</string>
+</resources>
