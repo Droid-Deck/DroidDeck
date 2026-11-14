@@ -183,6 +183,14 @@ def wine(argv, source_env=None):
         if target.is_symlink():
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
+        # Earlier launches let the foreign-architecture check move this copy aside on every start.
+        # Drop only backups that are this same file; anything else stays for the user.
+        for stale in system.glob(name + '.foreign-arch*'):
+            try:
+                if stale.is_file() and not stale.is_symlink() and stale.read_bytes() == target.read_bytes():
+                    stale.unlink()
+            except OSError:
+                pass
     register_classes(command[0], prefix, env)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
@@ -195,6 +203,18 @@ def wine(argv, source_env=None):
                 drive.unlink()
             except OSError:
                 pass
+
+
+def runtime_dlls(command, env):
+    """system32 DLLs an Xbox launch installs itself, so the prefix check can leave them alone."""
+    if len(command) < 3 or command[1] != 'waitforexitandrun' or env.get('DROIDDECK_XBOX_ACTIVE') == '1':
+        return ()
+    try:
+        store = runpy.run_path(str(BIN / 'droiddeck-store-launch'))
+        found = store['find_store_game'](command[2:])
+    except Exception:
+        return ()
+    return DLLS if found is not None and found[1].get('store') == 'xbox' else ()
 
 
 def renew_lease(ask, channel, product, lease, stopped):

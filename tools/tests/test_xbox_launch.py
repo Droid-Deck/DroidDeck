@@ -136,6 +136,43 @@ class XboxLaunchTest(unittest.TestCase):
                     self.assertNotIn('DROIDDECK_XBOX_COMMAND_FILE', child_env)
                     self.assertEqual(child_env['XODUS_BRIDGE_KEY'], 'runtime-key')
 
+    def test_runtime_dlls_are_reported_only_for_xbox_games(self):
+        command = ['/proton', 'waitforexitandrun', '/Game.exe']
+        xbox_store = {'find_store_game': lambda argv: (Path('/game'), {'store': 'xbox', 'id': 'GAME'})}
+        gog_store = {'find_store_game': lambda argv: (Path('/game'), {'store': 'gog', 'id': '1'})}
+        with patch('runpy.run_path', return_value=xbox_store):
+            self.assertEqual(tuple(xbox['runtime_dlls'](command, {})), tuple(xbox['DLLS']))
+            self.assertEqual(tuple(xbox['runtime_dlls'](command, {'DROIDDECK_XBOX_ACTIVE': '1'})), ())
+            self.assertEqual(tuple(xbox['runtime_dlls'](['/proton', 'run', '/Game.exe'], {})), ())
+        with patch('runpy.run_path', return_value=gog_store):
+            self.assertEqual(tuple(xbox['runtime_dlls'](command, {})), ())
+        with patch('runpy.run_path', side_effect=RuntimeError('module initialization failed')):
+            self.assertEqual(tuple(xbox['runtime_dlls'](command, {})), ())
+
+    def test_wine_drops_only_backups_of_its_own_runtime_dlls(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            prefix = root / 'compat/pfx'
+            system = prefix / 'drive_c/windows/system32'
+            system.mkdir(parents=True)
+            (prefix / 'system.reg').write_text('')
+            runtime = root / 'runtime/windows'; runtime.mkdir(parents=True)
+            for name in xbox['DLLS']:
+                (runtime / name).write_bytes(b'MZ-' + name.encode())
+            (system / 'winhttp.dll.foreign-arch').write_bytes(b'MZ-winhttp.dll')
+            (system / 'winhttp.dll.foreign-arch.1').write_bytes(b'MZ-winhttp.dll')
+            (system / 'winhttp.dll.foreign-arch.2').write_bytes(b'MZ-someone-elses-winhttp')
+            command = root / 'command.json'
+            command.write_text(json.dumps(['/selected/proton', 'waitforexitandrun', '/encrypted/Game.exe']))
+            env = {'STEAM_COMPAT_DATA_PATH': str(prefix.parent), 'DROIDDECK_XBOX_COMMAND_FILE': str(command)}
+            with patch.dict(os.environ, env), patch.dict(xbox['wine'].__globals__, RUNTIME=runtime.parent, register_classes=lambda *args: None), \
+                 patch('subprocess.call', return_value=0):
+                self.assertEqual(xbox['wine'](['/private-view/Game.exe']), 0)
+            self.assertFalse((system / 'winhttp.dll.foreign-arch').exists())
+            self.assertFalse((system / 'winhttp.dll.foreign-arch.1').exists())
+            self.assertEqual((system / 'winhttp.dll.foreign-arch.2').read_bytes(), b'MZ-someone-elses-winhttp')
+            self.assertEqual((system / 'winhttp.dll').read_bytes(), b'MZ-winhttp.dll')
+
     def test_launch_view_runs_from_its_own_folder_on_a_short_drive_letter(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

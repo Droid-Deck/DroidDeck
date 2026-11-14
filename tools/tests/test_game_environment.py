@@ -2769,6 +2769,18 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
 
+    def test_xbox_runtime_dlls_the_launch_installs_are_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "winhttp.dll").write_bytes(pe_image(0xAA64))
+            (windows / "system32/WinHttp.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            fixed = MODULE["repair_foreign_system_dlls"](str(compat), str(proton), None, ("winhttp.dll",))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+            self.assertFalse((windows / "system32/WinHttp.dll").is_symlink())
+            self.assertFalse((windows / "system32/WinHttp.dll.foreign-arch").exists())
+
     def test_x64_visual_cpp_runtime_in_arm64_system32_is_kept(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)

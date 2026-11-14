@@ -897,12 +897,14 @@ PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
 pe_machine = PE["pe_machine"]
 
 
-def repair_foreign_system_dlls(prefix, proton, env=None):
+def repair_foreign_system_dlls(prefix, proton, env=None, keep=()):
+    """keep: system32 DLL names this launch installs itself (the Xbox runtime), left as they are."""
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
     machines_by_folder = PE["proton_pe_machines"](proton, env or {})
     if machines_by_folder is None:
         return []
+    keep = {name.lower() for name in keep}
     repaired = []
     for folder, (libdir, machines) in machines_by_folder.items():
         builtins = dist / libdir
@@ -919,6 +921,8 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             builtin_name = builtin_names.get(name.lower())
             source = builtins / builtin_name if builtin_name else builtins / name
             if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
+                continue
+            if folder == "system32" and name.lower() in keep:
                 continue
             machine = pe_machine(path)
             if machine is None or PE["machine_compatible"](path, machines, machine):
@@ -944,6 +948,15 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
                 continue
             repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
     return repaired
+
+
+def xbox_runtime_dlls(command, env):
+    """The x64 Xbox runtime DLLs droiddeck-xbox puts in system32 right after the check below."""
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+        return tuple(xbox["runtime_dlls"](command, env))
+    except Exception:
+        return ()
 
 
 def is_wine_dll_link(path):
@@ -1272,7 +1285,7 @@ def main():
         components = win_components(prefix_path, app_id, command[0], effective_env)
     if prefix_path and command:
         try:
-            fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
+            fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env, xbox_runtime_dlls(command, env))
         except OSError as error:
             fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
