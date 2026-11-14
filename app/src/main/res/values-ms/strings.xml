@@ -686,6 +686,7 @@
     <string name="hud_metric_vram">Memori grafik</string>
     <string name="hud_metric_swap">Memori swap</string>
     <string name="hud_metric_battery">Tahap bateri</string>
+    <string name="hud_metric_battery_time">Baki hayat bateri</string>
     <string name="hud_metric_power">Penggunaan kuasa</string>
     <string name="hud_metric_network">Rangkaian</string>
     <string name="hud_metric_resolution">Resolusi</string>

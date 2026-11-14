@@ -688,6 +688,7 @@
     <string name="hud_metric_vram">Grafikus memória</string>
     <string name="hud_metric_swap">Swap-memória</string>
     <string name="hud_metric_battery">Akkuszint</string>
+    <string name="hud_metric_battery_time">Hátralévő akkumulátor-üzemidő</string>
     <string name="hud_metric_power">Energiafelvétel</string>
     <string name="hud_metric_network">Hálózat</string>
     <string name="hud_metric_resolution">Felbontás</string>

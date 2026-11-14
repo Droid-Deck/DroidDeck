@@ -688,6 +688,7 @@
     <string name="hud_metric_vram">ग्राफ़िक्स मेमोरी</string>
     <string name="hud_metric_swap">स्वैप</string>
     <string name="hud_metric_battery">बैटरी लेवल</string>
+    <string name="hud_metric_battery_time">बैटरी का शेष समय</string>
     <string name="hud_metric_power">पावर खपत</string>
     <string name="hud_metric_network">नेटवर्क</string>
     <string name="hud_metric_resolution">रिज़ॉल्यूशन</string>

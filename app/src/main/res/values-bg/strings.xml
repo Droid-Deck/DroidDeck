@@ -688,6 +688,7 @@
     <string name="hud_metric_vram">Графична памет</string>
     <string name="hud_metric_swap">Swap памет</string>
     <string name="hud_metric_battery">Ниво на батерията</string>
+    <string name="hud_metric_battery_time">Оставащо време на батерията</string>
     <string name="hud_metric_power">Консумация на енергия</string>
     <string name="hud_metric_network">Мрежа</string>
     <string name="hud_metric_resolution">Разделителна способност</string>

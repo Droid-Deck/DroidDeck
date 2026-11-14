@@ -686,6 +686,7 @@
     <string name="hud_metric_vram">그래픽 메모리</string>
     <string name="hud_metric_swap">스왑</string>
     <string name="hud_metric_battery">배터리 잔량</string>
+    <string name="hud_metric_battery_time">남은 배터리 사용 시간</string>
     <string name="hud_metric_power">소비 전력</string>
     <string name="hud_metric_network">네트워크</string>
     <string name="hud_metric_resolution">해상도</string>
