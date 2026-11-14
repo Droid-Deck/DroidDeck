@@ -223,18 +223,7 @@ int main(int argc, char **argv) {
         if (current.tv_sec > deadline.tv_sec ||
             (current.tv_sec == deadline.tv_sec && current.tv_nsec >= deadline.tv_nsec)) break;
       }
-      char ack[256];
-      snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
-      for (int i = 0; i < 1200; i++) {
-        FILE *f = fopen(ack, "r");
-        int done = 0;
-        if (f) {
-          done = fgetc(f) == '1';
-          fclose(f);
-        }
-        if (done) break;
-        usleep(10000);
-      }
+      wait_ack();
       printf("gap %ld\n", max_gap);
       printf("out %ld\n", status("VmSwap:"));
     } else {
