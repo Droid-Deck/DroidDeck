@@ -13,6 +13,7 @@ object GamesFolderMigration {
 
     @Synchronized
     fun run(context: Context) {
+        repathInternalGuest(context)
         val dirs = SessionPrefs.addedGamesDirs(context)
         if (dirs.isEmpty()) return
         val roots = legacyRoots(SessionPrefs.gameFolderBinds(context).map { it.first } + dirs)
@@ -58,12 +59,30 @@ object GamesFolderMigration {
         SessionPrefs.setGamesFoldersMigrated(context)
     }
 
+    private fun repathInternalGuest(context: Context) {
+        val binds = SessionPrefs.gameFolderBinds(context)
+        if (binds.none { it.second == StoreInstallRoot.INTERNAL_GUEST }) return
+        val hosts = binds.map { it.first }
+        val roots = legacyRoots(hosts).associateBy { it.host.path }
+        val taken = binds.map { it.second }.filter { it != StoreInstallRoot.INTERNAL_GUEST }.toMutableSet()
+        SessionPrefs.setGameFolderBinds(context, binds.map { (host, guest) ->
+            if (guest != StoreInstallRoot.INTERNAL_GUEST) return@map host to guest
+            val base = roots.getValue(host).guest
+            var next = base
+            var n = 2
+            while (next in taken) next = "$base-${n++}"
+            taken.add(next)
+            host to next
+        })
+    }
+
     internal fun legacyRoots(paths: List<String>): List<AddedGames.Root> {
         val hosts = paths.distinct().map { File(it) }
         val names = hosts.groupingBy { it.name.lowercase() }.eachCount()
         return hosts.map { host ->
             val name = host.name.ifEmpty { "games" }
-            val guestName = if ((names[name.lowercase()] ?: 0) > 1) name + "-" + "%08x".format(CRC32().apply { update(host.path.toByteArray()) }.value).take(4) else name
+            val clash = (names[name.lowercase()] ?: 0) > 1 || "${AddedGames.GUEST_DIR}/$name" == StoreInstallRoot.INTERNAL_GUEST
+            val guestName = if (clash) name + "-" + "%08x".format(CRC32().apply { update(host.path.toByteArray()) }.value).take(4) else name
             AddedGames.Root(host, "${AddedGames.GUEST_DIR}/$guestName")
         }
     }

@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.Log;
 
 import com.droiddeck.launcher.frontend.AddedGames;
-import com.droiddeck.launcher.runtime.GuestCommand;
 import com.droiddeck.launcher.stores.StoreLanguage;
 import com.droiddeck.launcher.stores.StoreLog;
 import com.droiddeck.launcher.stores.download.StoreDownloadTier;
@@ -271,11 +270,10 @@ public final class GogDownloadManager {
             long planned = 0;
             boolean sized = true;
             for (InstallerPart part : parts) { planned += part.size; if (part.size <= 0) sized = false; }
-            if (sized) {
-                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
-                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(planned, usable)) {
-                    throw new InstallException("Not enough free space: need " + formatBytes(planned) + ", only " + formatBytes(usable) + " free");
-                }
+            long needed = installerBytesNeeded(sized ? planned : 0, GogLibrary.INSTANCE.sizeOf(ctx, game.gameId));
+            long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
+            if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(needed, usable)) {
+                throw new InstallException("Not enough free space: need " + formatBytes(needed) + ", only " + formatBytes(usable) + " free");
             }
             long total = 0;
             for (InstallerPart part : parts) {
@@ -327,16 +325,17 @@ public final class GogDownloadManager {
         cb.onProgress("Extracting installer…", 95);
         int rc;
         try {
-            rc = GuestCommand.INSTANCE.run(ctx, Arrays.asList(
-                    "/usr/local/bin/droiddeck-innoextract", "--gog", "--silent",
-                    "-d", guestDir, guestSetup),
-                    false, "gog-innoextract", null, null, false, cancelled,
+            rc = GogInnoextract.extract(ctx, guestSetup, guestDir, "gog-innoextract", cancelled,
                     line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
         } catch (Exception e) {
             throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());
         }
         if (cancelled.get()) return;
         if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
+    }
+
+    static long installerBytesNeeded(long downloadBytes, long installedBytes) {
+        return Math.max(0, downloadBytes) + Math.max(0, installedBytes);
     }
 
     static final class InstallerPart {

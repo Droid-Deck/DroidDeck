@@ -3,6 +3,7 @@ package com.droiddeck.launcher.frontend
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -180,6 +181,41 @@ class GamesFolderMigrationTest {
         assertEquals(binds, SessionPrefs.gameFolderBinds(app))
         assertEquals(before, AddedGames.scan(app).map { it.appId to it.guestExe })
         assertEquals(listOf(pc.path to AddedGames.GUEST_DIR + "/PC"), binds)
+    }
+
+    @Test fun aMigratedFolderNamedStoresDoesNotTakeTheInternalStoreGuest() {
+        val stores = File(tmp.newFolder("card"), "Stores").apply { exe(this, "One/One.exe") }
+        val pc = tmp.newFolder("PC").apply { exe(this, "Two/Two.exe") }
+        SessionPrefs.setAddedGamesDirs(app, listOf(stores.path, pc.path))
+        GamesFolderMigration.run(app)
+        val binds = SessionPrefs.gameFolderBinds(app).toMap()
+        assertTrue(binds.getValue(stores.path) != StoreInstallRoot.INTERNAL_GUEST)
+        assertEquals(AddedGames.GUEST_DIR + "/PC", binds.getValue(pc.path))
+        val games = AddedGames.scan(app).associateBy { it.name }
+        assertEquals(binds.getValue(stores.path) + "/One/One.exe", games.getValue("One").guestExe)
+    }
+
+    @Test fun aSavedBindAtTheInternalStoreGuestIsRepathed() {
+        val stores = File(tmp.newFolder("card"), "Stores").apply { exe(this, "One/One.exe") }
+        val pc = tmp.newFolder("PC").apply { exe(this, "Two/Two.exe") }
+        SessionPrefs.setGameFolderBinds(
+            app,
+            listOf(stores.path to StoreInstallRoot.INTERNAL_GUEST, pc.path to AddedGames.GUEST_DIR + "/PC"),
+        )
+        GamesFolderMigration.run(app)
+        val binds = SessionPrefs.gameFolderBinds(app).toMap()
+        assertTrue(binds.getValue(stores.path) != StoreInstallRoot.INTERNAL_GUEST)
+        assertTrue(binds.getValue(stores.path).startsWith("${AddedGames.GUEST_DIR}/Stores-"))
+        assertEquals(AddedGames.GUEST_DIR + "/PC", binds.getValue(pc.path))
+        assertTrue(binds.values.none { it == StoreInstallRoot.INTERNAL_GUEST })
+        assertEquals(binds.getValue(stores.path) + "/One/One.exe", AddedGames.guestPath(app, File(stores, "One/One.exe")))
+        val installer = File(stores, "GOG/Game/setup_1.exe").apply { parentFile?.mkdirs(); writeText("MZ") }
+        val guestInstaller = AddedGames.guestPath(app, installer)!!
+        val extractorBinds = StoreInstallRoot.guestBinds(app).map { it.substringBeforeLast(':') to it.substringAfterLast(':') }
+        val covering = extractorBinds.filter { (_, mount) -> guestInstaller.startsWith("$mount/") }.maxByOrNull { it.second.length }!!
+        assertEquals(installer.canonicalFile, File(covering.first + guestInstaller.removePrefix(covering.second)).canonicalFile)
+        val internalInstaller = "${StoreInstallRoot.INTERNAL_GUEST}/GOG/Game/setup_1.exe"
+        assertTrue(extractorBinds.none { (_, mount) -> internalInstaller == mount || internalInstaller.startsWith("$mount/") })
     }
 
     @Test fun twoFoldersOfOneNameKeepTheirOwnGuestPaths() {

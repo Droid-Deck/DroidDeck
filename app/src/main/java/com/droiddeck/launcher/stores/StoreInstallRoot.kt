@@ -3,8 +3,10 @@ package com.droiddeck.launcher.stores
 import android.content.Context
 import android.os.StatFs
 import android.os.storage.StorageManager
+import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SecondaryLibrary
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.zip.CRC32
@@ -12,6 +14,7 @@ import java.util.zip.CRC32
 object StoreInstallRoot {
     const val SPACE_UNKNOWN = -1L
     private const val INTERNAL = "root/Games/Stores"
+    const val INTERNAL_GUEST = "/$INTERNAL"
     private const val ON_VOLUME = "Games"
     const val GUEST_EXTERNAL = "/mnt/droiddeck-stores"
 
@@ -178,6 +181,24 @@ object StoreInstallRoot {
 
     fun externalBindSpecsForXodus(context: Context): List<String> =
         externalBindSpecs(externalRootsForXodus(context), LinuxRuntime.rootDir(context))
+
+    fun guestBinds(context: Context): List<String> {
+        val out = ArrayList<String>(externalBindSpecs(context))
+        val root = LinuxRuntime.rootDir(context)
+        GameStorage.effective(context)?.takeIf { File(it.path).isDirectory }?.let { library ->
+            val content = SecondaryLibrary.contentPath(File(library.path)).path
+            for (guest in SecondaryLibrary.CARD_GUESTS) {
+                File(root, guest.removePrefix("/")).mkdirs()
+                out += "$content:$guest"
+            }
+        }
+        for (folder in AddedGames.roots(context)) {
+            if (!folder.host.isDirectory || !folder.host.canRead()) continue
+            File(root, folder.guest.removePrefix("/")).mkdirs()
+            out += folder.host.path + ":" + folder.guest
+        }
+        return out
+    }
 
     internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
         roots.mapNotNull { (host, guest) ->
