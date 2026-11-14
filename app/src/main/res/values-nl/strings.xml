@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Muis</string>
     <string name="mode_pen_touch">Aanraken</string>
     <string name="mode_pen_button">Zijknop</string>
+    <string name="mode_pen_palm">Handpalmherkenning</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>

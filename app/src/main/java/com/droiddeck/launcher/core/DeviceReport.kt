@@ -298,6 +298,7 @@ object DeviceReport {
         k("Touch mode", SessionPrefs.touchMode(context))
         k("Pen mode", SessionPrefs.penMode(context))
         k("Pen side button", SessionPrefs.penButton(context))
+        k("Pen palm rejection", SessionPrefs.penPalm(context))
         k("Performance HUD", SessionPrefs.hudEnabled(context))
         k("Game storage", when (val g = SessionPrefs.gameStorage(context)) {
             "" -> "automatic (" + (com.droiddeck.launcher.session.GameStorage.effective(context)?.path ?: "no card present") + ")"

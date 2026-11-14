@@ -9,7 +9,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 @Composable
 internal fun PenSettingsGroup(
     host: MenuHost, pen: SessionPrefs.Pen, track: (String) -> Modifier = { Modifier },
-    onPick: (key: String, value: String) -> Unit,
+    onPick: (key: String, value: String) -> Unit, onPalm: (Boolean) -> Unit,
 ) {
     SettingsGroup(stringResource(R.string.mode_pen)) {
         ChoiceRow(host, "pen", stringResource(R.string.mode_pen), null,
@@ -21,5 +21,7 @@ internal fun PenSettingsGroup(
                 SessionPrefs.PEN_BUTTON_MIDDLE to stringResource(R.string.gesture_middle_click),
                 SessionPrefs.PEN_BUTTON_OFF to stringResource(R.string.widgets_off)),
             pen.button, chipModifier = track("pen-button")) { onPick("penButton", it) }
+        ToggleRow(host, "pen-palm", stringResource(R.string.mode_pen_palm), null, pen.palm,
+            chipModifier = track("pen-palm"), onChange = onPalm)
     }
 }

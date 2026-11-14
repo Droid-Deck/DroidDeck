@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Myš</string>
     <string name="mode_pen_touch">Dotyk</string>
     <string name="mode_pen_button">Boční tlačítko</string>
+    <string name="mode_pen_palm">Odmítání dlaně</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>

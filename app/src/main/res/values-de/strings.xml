@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Maus</string>
     <string name="mode_pen_touch">Touch</string>
     <string name="mode_pen_button">Seitentaste</string>
+    <string name="mode_pen_palm">Handballenerkennung</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>

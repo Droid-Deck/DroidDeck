@@ -38,39 +38,45 @@ class PenSettingsGroupTest {
 
     @Test fun theDrawerSavesPenPicks() {
         val picks = mutableListOf<Pair<String, String>>()
+        val palms = mutableListOf<Boolean>()
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen()) { k, v -> picks += k to v })
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen(), onPen = { k, v -> picks += k to v }, onPenPalm = { palms += it }))
             }
         }
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
+        compose.onNodeWithTag("setting-pen-palm").performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.mode_pen_touch)).performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "pen" to SessionPrefs.PEN_TOUCH), picks)
+            assertEquals(listOf(false), palms)
         }
     }
 
     @Test fun theSideButtonRowIsHiddenInTouchMode() {
         val pen = mutableStateOf(SessionPrefs.Pen())
-        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value) { _, _ -> } } } }
+        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, onPick = { _, _ -> }, onPalm = {}) } } }
         compose.onNodeWithTag("setting-pen-button").assertExists()
         compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH) }
         compose.onNodeWithTag("setting-pen").assertExists()
+        compose.onNodeWithTag("setting-pen-palm").assertExists()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
     }
 
     @Test fun theControlsTabShowsThePenGroupAfterTheTouchRowsOnceAPenIsKnown() {
         val pen = mutableStateOf<SessionPrefs.Pen?>(null)
         val picks = mutableListOf<Pair<String, String>>()
+        val palms = mutableListOf<Boolean>()
         compose.setContent {
             DroidDeckTheme {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     ModeSheetRows(ModeSettings(mode = SessionService.MODE_DESKTOP, resolution = "auto", hdr = false, hdrReason = null,
                         touchMode = "auto", pen = pen.value, suspendPolicy = "auto", oscMode = "auto", directAudio = null, mic = null),
                         ModeSettingsActions(onResolution = {}, onHdr = {}, onTouch = {}, onPen = { k, v -> picks += k to v },
-                            onSuspendPolicy = {}, onOsc = {}, onInputSettings = {}, onDirectAudio = {}, onMic = {}, onDismiss = {}),
+                            onPenPalm = { palms += it }, onSuspendPolicy = {}, onOsc = {}, onInputSettings = {}, onDirectAudio = {}, onMic = {},
+                            onDismiss = {}),
                         SheetTab.CONTROLS)
                 }
             }
@@ -83,14 +89,18 @@ class PenSettingsGroupTest {
             compose.onNodeWithTag("setting-pen").fetchSemanticsNode().positionInRoot.y)
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE), picks) }
+        compose.onNodeWithTag("setting-pen-palm").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE), picks)
+            assertEquals(listOf(false), palms)
+        }
     }
 
-    private fun actions(pen: SessionPrefs.Pen?, onPen: (String, String) -> Unit = { _, _ -> }) =
+    private fun actions(pen: SessionPrefs.Pen?, onPen: (String, String) -> Unit = { _, _ -> }, onPenPalm: (Boolean) -> Unit = {}) =
         DrawerActions(steam = false, desktop = true, isHomeApp = false, androidApps = emptyList(), hudOn = false,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
-            touchMode = "auto", touchAuto = "touchpad", pen = pen, onPen = onPen, fexPreset = "default",
+            touchMode = "auto", touchAuto = "touchpad", pen = pen, onPen = onPen, onPenPalm = onPenPalm, fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = emptyList(), selectedSecondScreenDisplay = 1,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},

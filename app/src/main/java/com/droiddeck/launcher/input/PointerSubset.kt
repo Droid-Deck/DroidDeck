@@ -2,7 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.view.MotionEvent
 
-internal fun MotionEvent.pointerSubset(pointerIdBits: Int): MotionEvent? {
+internal fun MotionEvent.pointerSubset(pointerIdBits: Int, downTime: Long = this.downTime): MotionEvent? {
     val indices = (0 until pointerCount).filter { index ->
         pointerIdBits and (1 shl getPointerId(index)) != 0
     }

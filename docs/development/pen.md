@@ -40,6 +40,25 @@ key is the side button when its device is external, keyboard-only and not alphab
 it, and it acts only while the pen is near: a key held when the pen comes back presses the button. Pause, focus
 loss, pointer-capture loss and removing its device forget it. In Touch it is an ordinary key.
 
+## Palm rejection
+
+`penPalm`: on (default) or off, in both modes. While a pen on the phone's screen hovers or touches, and for 400 ms
+after it leaves, a finger that goes down is ignored until it lifts, and so is every finger that joins its stream.
+Fingers already down when the pen comes near get one `ACTION_CANCEL`, and a pen that lands in a finger stream
+starts a stream of its own. An external drawing tablet does not count; a built-in pen that reports a mouse source
+does.
+
+`PalmFilter` sits in front of `dispatchTouchEvent` of the session window and of the lower-screen game, so it covers
+every finger route (touchpad, direct touch, gestures, scroll, the on-screen and Steam touch controls) and the app UI
+in those windows, such as the drawer. Pen and mouse pointers are never filtered, and without a pen near events pass
+unchanged. `PalmGate` keeps the pen's state for both windows. A hover that stops reporting counts as gone after 2 s,
+and everything that cancels touches counts as the pen leaving, as does removing its device. The log gets
+`palm: pen near, cancelled <n> finger(s)` and, once per stream, `palm: finger ignored`.
+
+Whatever the setting, a finger `POINTER_UP` with `FLAG_CANCELED`, which is how Android marks one of several touches
+it rejected, ends the finger stream without a click, and the rest of that stream is dropped: `wl_touch` cannot
+cancel a single touch point.
+
 ## Android capture
 
 - Pens are found by tool type (stylus or eraser), or by `SOURCE_STYLUS` when the tool type is unknown. External

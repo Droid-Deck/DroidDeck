@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Mus</string>
     <string name="mode_pen_touch">Pekskärm</string>
     <string name="mode_pen_button">Sidoknapp</string>
+    <string name="mode_pen_palm">Handflatsavvisning</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>

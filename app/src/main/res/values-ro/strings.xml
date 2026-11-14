@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Atingere</string>
     <string name="mode_pen_button">Buton lateral</string>
+    <string name="mode_pen_palm">Respingerea palmei</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>

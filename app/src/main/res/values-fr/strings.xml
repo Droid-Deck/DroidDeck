@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Souris</string>
     <string name="mode_pen_touch">Tactile</string>
     <string name="mode_pen_button">Bouton latéral</string>
+    <string name="mode_pen_palm">Rejet de la paume</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>
