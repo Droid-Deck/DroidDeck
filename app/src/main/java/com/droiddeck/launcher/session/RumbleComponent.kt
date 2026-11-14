@@ -42,6 +42,8 @@ class RumbleComponent : SessionPart() {
     internal var motorLooper: Looper? = null
     internal var processStart: (Int) -> String? = ::readProcessStart
     internal var gameRunning: () -> Boolean = { SteamGameProcess.running() }
+    private var gameCheckedAt = Long.MIN_VALUE
+    private var gameLastSeen = false
 
     @Synchronized private fun refreshEnabled() {
         enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
@@ -146,6 +148,15 @@ class RumbleComponent : SessionPart() {
         }
     }
 
+    private fun gameRecently(): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (gameCheckedAt == Long.MIN_VALUE || now - gameCheckedAt >= GAME_CHECK_MS) {
+            gameLastSeen = gameRunning()
+            gameCheckedAt = now
+        }
+        return gameLastSeen
+    }
+
     private fun forget(slot: Int) {
         effects.remove(slot)?.let { handler?.removeCallbacks(it) }
     }
@@ -188,23 +199,28 @@ class RumbleComponent : SessionPart() {
         private var playedMs = 0
         private var until = 0L
         var owner = 0
+        private var ownerSeen = false
         private var ownerStart: String? = null
-        private var duringGame: Boolean? = null
+        private var duringGame = false
         var armed = false
         val hold get() = ms == HOLD_MS
 
         fun claim(sender: Int) {
             owner = sender
-            ownerStart = if (sender > 0) processStart(sender)?.takeIf { it != UNKNOWN_START } else null
-            duringGame = null
+            val start = if (sender > 0) processStart(sender) else null
+            ownerSeen = start != null
+            ownerStart = start?.takeIf { it != UNKNOWN_START }
+            duringGame = gameRecently()
             armed = false
         }
 
         fun orphaned(): String? {
-            val start = ownerStart?.let { processStart(owner) }
-            if (ownerStart != null && start != UNKNOWN_START && start != ownerStart) return "process $owner that started it is gone"
-            val game = duringGame ?: gameRunning().also { duringGame = it }
-            return if (game && !gameRunning()) "the game it started in has exited" else null
+            if (ownerSeen) {
+                val start = processStart(owner)
+                if (start == null || (ownerStart != null && start != UNKNOWN_START && start != ownerStart))
+                    return "process $owner that started it is gone"
+            }
+            return if (duringGame && !gameRunning()) "the game it started in has exited" else null
         }
 
         fun want(strong: Int, weak: Int, ms: Int) { this.strong = strong; this.weak = weak; this.ms = ms }
@@ -291,6 +307,7 @@ class RumbleComponent : SessionPart() {
         const val HOLD_MS = 0xFFFF
         const val HOLD_EFFECT_MS = 2000L
         const val KEEPALIVE_MS = 1500L
+        const val GAME_CHECK_MS = 1000L
 
         private fun oneShot(vibrator: Vibrator, strength: Int, ms: Long): VibrationEffect {
             val amplitude = if (vibrator.hasAmplitudeControl()) (strength * 255L / 65535L).toInt().coerceIn(1, 255)

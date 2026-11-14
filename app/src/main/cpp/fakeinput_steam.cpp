@@ -413,6 +413,25 @@ __attribute__((visibility("hidden"))) static void send_ff_effect(const struct ff
     send_vibration(effect.u.periodic.magnitude, effect.u.periodic.magnitude, duration, slot);
 }
 
+static std::unordered_map<int, const FakeController *> &ff_players() {
+  static auto *players = new std::unordered_map<int, const FakeController *>();
+  return *players;
+}
+
+__attribute__((visibility("hidden"))) static void ff_played(FakeController &controller, int id) {
+  controller.playing_ff = id;
+  controller.owner = getpid();
+  ff_players()[controller.slot] = &controller;
+}
+
+__attribute__((visibility("hidden"))) static bool ff_release(FakeController &controller) {
+  auto player = ff_players().find(controller.slot);
+  bool current = player != ff_players().end() && player->second == &controller;
+  if (current) ff_players().erase(player);
+  controller.playing_ff = -1;
+  return current;
+}
+
 __attribute__((visibility("hidden"))) static void
 check_ff_event(const struct input_event *ev, FakeController &controller) {
   if (ev->type != EV_FF)
@@ -425,17 +444,16 @@ check_ff_event(const struct input_event *ev, FakeController &controller) {
     if (it == ff_effects().end())
       return;
     send_ff_effect(it->second, slot);
-    controller.playing_ff = id;
+    ff_played(controller, id);
   } else {
     send_vibration(0, 0, 0, slot);
-    controller.playing_ff = -1;
+    ff_release(controller);
   }
 }
 
 __attribute__((visibility("hidden"))) static void stop_ff(FakeController &controller) {
-  if (controller.playing_ff < 0 || controller.owner != getpid()) return;
-  send_vibration(0, 0, 0, static_cast<uint16_t>(controller.slot));
-  controller.playing_ff = -1;
+  bool playing = controller.playing_ff >= 0 && controller.owner == getpid();
+  if (ff_release(controller) && playing) send_vibration(0, 0, 0, static_cast<uint16_t>(controller.slot));
 }
 
 __attribute__((visibility("hidden"))) char *
@@ -3668,7 +3686,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
       effect->id = next_ff_id++;
     ff_effects()[effect->id] = *effect;
     send_ff_effect(*effect, static_cast<uint16_t>(event_number));
-    controller->second->playing_ff = effect->id;
+    ff_played(*controller->second, effect->id);
     return 0;
   } else if (type == 0x45 && number == 0x81) {
     int id = (intptr_t)argp;

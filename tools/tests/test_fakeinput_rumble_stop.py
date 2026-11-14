@@ -24,22 +24,46 @@ GAME = r"""
 #include <sys/wait.h>
 #include <unistd.h>
 
-int main(int argc, char **argv) {
-  int fd = open("/dev/input/event16", O_RDWR | O_NONBLOCK);
-  if (fd < 0) return 1;
+static int rumble(int fd, unsigned short strong) {
   struct ff_effect effect;
   memset(&effect, 0, sizeof(effect));
   effect.id = -1;
   effect.type = FF_RUMBLE;
-  effect.u.rumble.strong_magnitude = 40000;
+  effect.u.rumble.strong_magnitude = strong;
   effect.u.rumble.weak_magnitude = 20000;
-  if (ioctl(fd, EVIOCSFF, &effect) < 0) return 2;
+  if (ioctl(fd, EVIOCSFF, &effect) < 0) return -1;
   struct input_event play;
   memset(&play, 0, sizeof(play));
   play.type = EV_FF;
   play.code = effect.id;
   play.value = 1;
-  if (write(fd, &play, sizeof(play)) != sizeof(play)) return 3;
+  if (write(fd, &play, sizeof(play)) != sizeof(play)) return -1;
+  return effect.id;
+}
+
+int main(int argc, char **argv) {
+  int fd = open("/dev/input/event16", O_RDWR | O_NONBLOCK);
+  if (fd < 0) return 1;
+  if (argv[1][0] == 'p') {
+    int other = open("/dev/input/event16", O_RDWR | O_NONBLOCK);
+    if (other < 0 || rumble(fd, 40000) < 0 || rumble(other, 30000) < 0) return 2;
+    close(fd);
+    return 0;
+  }
+  if (argv[1][0] == 'k') {
+    pid_t child = fork();
+    if (child == 0) {
+      if (rumble(fd, 40000) < 0) _exit(2);
+      close(fd);
+      _exit(0);
+    }
+    int status = 0;
+    waitpid(child, &status, 0);
+    return WEXITSTATUS(status);
+  }
+  struct ff_effect effect;
+  effect.id = rumble(fd, 40000);
+  if (effect.id < 0) return 2;
   if (argv[1][0] == 'e') ioctl(fd, EVIOCRMFF, effect.id);
   else if (argv[1][0] == 'c') close(fd);
   else if (argv[1][0] == 'f') {
@@ -106,6 +130,12 @@ class FakeinputRumbleStopTest(unittest.TestCase):
 
     def test_a_forked_child_closing_its_copy_leaves_the_parents_rumble(self):
         self.assertEqual(self.packets("fork")[-1], (40000, 20000, 0xffff))
+
+    def test_a_child_that_plays_on_an_inherited_controller_stops_it_on_close(self):
+        self.assertEqual(self.packets("kid")[-1], (0, 0, 0))
+
+    def test_closing_an_older_handle_leaves_the_newer_rumble_on_the_slot(self):
+        self.assertEqual(self.packets("pair")[-1], (30000, 20000, 0xffff))
 
     def test_a_held_effect_still_plays_until_then(self):
         self.assertIn((40000, 20000, 0xffff), self.packets("keep"))

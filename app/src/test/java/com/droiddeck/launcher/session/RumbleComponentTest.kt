@@ -165,6 +165,33 @@ class RumbleComponentTest {
         assertNull(RumbleComponent.readProcessStart(Int.MAX_VALUE))
     }
 
+    @Test fun aGameThatExitsBeforeTheFirstKeepaliveStillStopsItsRumble() {
+        val pad = FakeMotors()
+        var game = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived a game that exited right away", pad.vibrating)
+    }
+
+    @Test fun aSenderFirstReadAsUnknownStillStopsItsRumbleWhenItExits() {
+        val pad = FakeMotors()
+        var start: String? = RumbleComponent.UNKNOWN_START
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { start }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        start = null
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived its sender", pad.vibrating)
+    }
+
     @Test fun anUnreadableButLiveProcessKeepsItsRumble() {
         val pad = FakeMotors()
         var start: String? = "1234"
