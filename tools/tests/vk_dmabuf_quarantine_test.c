@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,10 @@ static int64_t g_refresh_ns;
 static struct wl_list g_pending_releases, g_bufs;
 static void *g_display;
 static unsigned image_destroys, ahb_releases, source_removes;
+#ifdef HAS_AHB_BROKER
+static unsigned broker_releases;
+static int broker_release_completed;
+#endif
 static struct itimerspec last_timer;
 static const int wl_buffer_interface = 1, dbuf_buffer_impl = 2;
 #define TFD_TIMER_ABSTIME 1
@@ -61,6 +66,13 @@ static void perf_note_release(int64_t since) {}
 static int64_t now_ns(void) { return 1000000000LL; }
 static void vkp_image_destroy(struct vkp_image *img) { ++image_destroys; }
 static void AHardwareBuffer_release(AHardwareBuffer *ahb) { ++ahb_releases; }
+#ifdef HAS_AHB_BROKER
+static void ahb_broker_released(AHardwareBuffer *ahb, int completed) {
+    assert(ahb);
+    ++broker_releases;
+    broker_release_completed = completed;
+}
+#endif
 static int wl_event_source_remove(struct wl_event_source *src) { ++source_removes; return 0; }
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *r);
 int ahb_swapchain_defer_release(struct dmabuf_buffer *, struct wl_resource *, struct surface *, int);
@@ -144,6 +156,9 @@ static void test_ahb(int terminal, int lost) {
     struct ahb_buf *ab = calloc(1, sizeof(*ab)); assert(ab);
     AHardwareBuffer ahb;
     *ab = (struct ahb_buf){.b = b, .ahb = &ahb, .resource = &r, .on_layer = 1, .fence_fd = -1};
+#ifdef HAS_AHB_BROKER
+    ab->broker_inflight = 1;
+#endif
     b->ahb_state = ab; ++b->refs;
     ab->resource_destroy.notify = on_buffer_resource_destroyed;
     wl_resource_add_destroy_listener(&r, &ab->resource_destroy);
@@ -154,9 +169,14 @@ static void test_ahb(int terminal, int lost) {
     ahb_swapchain_surface_gone(&s); assert(!ab->surface);
     /* Actual event-loop callback after the display's fence becomes readable. */
     struct wl_event_source source; int fds[2]; assert(pipe(fds) == 0);
+    char signal = 1; assert(write(fds[1], &signal, sizeof(signal)) == sizeof(signal));
     ab->on_layer = 0; ab->fence_src = &source; ab->fence_fd = fds[0];
     on_fence_readable(fds[0], 0, ab); close(fds[1]);
     assert(source_removes == 1 && ab->fence_fd == -1 && !ab->fence_src);
+#ifdef HAS_AHB_BROKER
+    assert(broker_releases == (terminal ? 0u : 1u));
+    assert(broker_release_completed == !terminal && ab->broker_inflight == terminal);
+#endif
     assert(r.releases == (terminal ? 0u : 1u));
     assert(ab->release_pending == terminal && !ahb_releases);
     destroy_resource(&r);

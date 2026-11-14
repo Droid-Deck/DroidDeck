@@ -29,6 +29,7 @@ else
     "$P=$pkg" "$P.androidx-startup=$pkg.androidx-startup" "$P.logs=$pkg.logs" \
     "$P.pairingguide=$pkg.pairingguide" "$P.devicecode=$pkg.devicecode" "$P.pin=$pkg.pin" \
     "$P.documents=$pkg.documents" "$P.home=$pkg.home" "$P.agent=$pkg.agent" \
+    "$P.xr=$pkg.xr" "$P.linuxwindow=$pkg.linuxwindow" \
     "$P.vr_recovery=$pkg.vr_recovery" "$P.dualscreen=$pkg.dualscreen" "$P.typing=$pkg.typing" \
     "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$pkg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 fi

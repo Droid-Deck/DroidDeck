@@ -63,6 +63,8 @@ class VkDmabufQuarantineTest(unittest.TestCase):
                          'ahb_swapchain_surface_gone')]
         structs = re.search(r'struct pending_release \{.*?\n\};', comp, re.S).group() + '\n' + \
             re.search(r'struct ahb_buf \{.*?\n\};', ahb, re.S).group()
+        if 'broker_inflight' in structs:
+            structs = '#define HAS_AHB_BROKER 1\n' + structs
         harness = Path(__file__).with_name('vk_dmabuf_quarantine_test.c').read_text()
         harness = harness.replace('/* PRODUCTION_STRUCTS */', structs)
         harness = harness.replace('/* PRODUCTION_FUNCTIONS */', '\n'.join([query] + comp_functions + ahb_functions))
