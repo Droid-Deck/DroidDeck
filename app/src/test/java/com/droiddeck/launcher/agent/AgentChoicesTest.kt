@@ -59,4 +59,10 @@ class AgentChoicesTest {
         val reply = choices("~~~\ncode\n~~~\nPick:\n```choices\nA\nB\n```")
         assertEquals(listOf("A", "B"), reply.options)
     }
+
+    @Test fun aTildeChoicesBlockBecomesOptions() {
+        val reply = choices("Pick:\n~~~choices\nYes\nNo\n~~~")
+        assertEquals("Pick:", reply.text)
+        assertEquals(listOf("Yes", "No"), reply.options)
+    }
 }
