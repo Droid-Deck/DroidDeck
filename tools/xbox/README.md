@@ -41,6 +41,12 @@ app's credential socket (`NEXUS_CREDENTIAL_ERROR_V1 socket-refused`, `-denied`, 
 uses a keyed loopback port the app also listens on; some devices refuse the abstract socket
 from inside PRoot. The key is passed in the backend's environment only.
 
+`droiddeck-licensing-device-ticket.patch` sends a delegation-compact device ticket to content
+licensing and Store license tokens in the licensing wire form (`t=` or a bare compact JWE), as
+user tickets already are. A plain compact device ticket is sent unchanged. The rule follows
+[@domsvoboda](https://github.com/domsvoboda)'s nexus-backend commit `27c335e` and
+xodus-gaming/xodus#238.
+
 `droiddeck-credential-diagnostics.patch` names the step behind a `credential-io` failure: the
 session lock (`lock-dir-owner`, `lock-file-mode`, `lock-flock-<reason>`, ...), a socket or loopback
 exchange that broke after connecting (`socket-exchange-<reason>`), a malformed host reply, or a

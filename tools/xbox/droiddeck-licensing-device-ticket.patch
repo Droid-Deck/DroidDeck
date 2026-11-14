@@ -1,0 +1,136 @@
+diff --git a/crates/xodus-cli/src/license.rs b/crates/xodus-cli/src/license.rs
+index 4518c22..5a12753 100644
+--- a/crates/xodus-cli/src/license.rs
++++ b/crates/xodus-cli/src/license.rs
+@@ -58,6 +58,7 @@ pub async fn get_license(
+     let Token::Compact(ms_device_token) = ms_device_token else {
+         return Err("Unsupported token".to_string());
+     };
++    let ms_device_token = xodus::models::secrets::licensing_device_ticket(ms_device_token);
+ 
+     let user_token: Token = match user_token {
+         ExchangeUserTokenOutcome::Fault(_) => {
+diff --git a/crates/xodus-service/src/store_license.rs b/crates/xodus-service/src/store_license.rs
+index e6b4c58..abede2e 100644
+--- a/crates/xodus-service/src/store_license.rs
++++ b/crates/xodus-service/src/store_license.rs
+@@ -63,8 +63,7 @@ async fn issue(context: &SimpleContext, request: StoreLicenseTokenRequest) -> Re
+     let device_response = xodus::api::live::exchange_device_token(&context.client, device.clone(),
+         client_id.into(), "www.microsoft.com".into(), Some(soap::PolicyReference::mbi_ssl()))
+         .await.map_err(|_| FAIL)?;
+-    if device_response.token_type != "urn:passport:compact" { return Err(FAIL) }
+-    let Token::Compact(device_token) = Token::try_from(device_response).map_err(|_| FAIL)? else { return Err(FAIL) };
++    let device_token = device_license_ticket(device_response)?;
+     let user_response = xodus::api::live::exchange_user_token(&context.client, user_sts,
+         account.username, device, None, Some("Silent".into()), client_id.into(),
+         &[("www.microsoft.com".into(), Some(soap::PolicyReference::mbi_ssl()))])
+@@ -98,6 +97,13 @@ async fn issue(context: &SimpleContext, request: StoreLicenseTokenRequest) -> Re
+     Ok(response.license_token)
+ }
+ 
++fn device_license_ticket(response: soap::RequestSecurityTokenResponse) -> Result<String, u32> {
++    if !user_ticket_type(&response.token_type) { return Err(FAIL) }
++    let Token::Compact(ticket) = Token::try_from(response).map_err(|_| FAIL)? else { return Err(FAIL) };
++    if ticket.is_empty() || ticket == "d=" { return Err(FAIL) }
++    Ok(xodus::models::secrets::licensing_device_ticket(ticket))
++}
++
+ fn user_ticket_type(token_type: &str) -> bool {
+     matches!(token_type, "urn:passport:compact" | "urn:passport:delegationcompact")
+ }
+@@ -134,6 +140,45 @@ mod tests {
+         }
+     }
+ 
++    fn device_response(kind: &str, value: Option<&str>) -> soap::RequestSecurityTokenResponse {
++        soap::RequestSecurityTokenResponse {
++            token_type: kind.into(),
++            applies_to: soap::AppliesTo { endpoint_reference: soap::EndpointReference { address: "synthetic.invalid".into() } },
++            lifetime: soap::Timestamp { id: None, created: "2000-01-01T00:00:00Z".into(), expires: "2099-01-01T00:00:00Z".into() },
++            requested_security_token: soap::RequestedSecurityToken { encrypted_data: None,
++                binary_security_token: value.map(|value| soap::BinarySecurityTokenRes {
++                    id: "synthetic".into(), value: value.into(), value_type: None }) },
++            requested_proof_token: None,
++        }
++    }
++
++    #[test]
++    fn store_license_device_compact_tickets_are_sent_unchanged() {
++        let raw = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..aXY.Y2lwaGVy_dGV4dA.dGFn";
++        for value in ["t=opaque-device&p=", "opaque-device", raw] {
++            assert_eq!(device_license_ticket(device_response("urn:passport:compact", Some(value))), Ok(value.to_string()));
++        }
++    }
++
++    #[test]
++    fn store_license_device_delegation_tickets_use_the_licensing_wire_form() {
++        let raw = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..aXY.Y2lwaGVy_dGV4dA.dGFn";
++        assert_eq!(device_license_ticket(device_response("urn:passport:delegationcompact", Some(raw))), Ok(raw.to_string()));
++        assert_eq!(device_license_ticket(device_response("urn:passport:delegationcompact", Some("opaque-device"))),
++            Ok("t=opaque-device".to_string()));
++    }
++
++    #[test]
++    fn store_license_device_unknown_missing_and_empty_tickets_fail_closed() {
++        for kind in ["urn:passport:legacy", "urn:passport:unknown"] {
++            assert_eq!(device_license_ticket(device_response(kind, Some("opaque-device"))), Err(FAIL));
++        }
++        for kind in ["urn:passport:compact", "urn:passport:delegationcompact"] {
++            assert_eq!(device_license_ticket(device_response(kind, None)), Err(FAIL));
++            assert_eq!(device_license_ticket(device_response(kind, Some(""))), Err(FAIL));
++        }
++    }
++
+     fn request(ids: &[&str]) -> StoreLicenseTokenRequest {
+         StoreLicenseTokenRequest { parent_product_id: "9N4PT8HGCDHQ".into(),
+             product_ids: ids.iter().map(|s| s.to_string()).collect(), custom_developer_string: "nonce<&>".into() }
+diff --git a/crates/xodus/src/models/licensing_ticket_tests.rs b/crates/xodus/src/models/licensing_ticket_tests.rs
+index 10ff57e..6db9ff1 100644
+--- a/crates/xodus/src/models/licensing_ticket_tests.rs
++++ b/crates/xodus/src/models/licensing_ticket_tests.rs
+@@ -1,5 +1,5 @@
+ //! Public synthetic data only, no account, keyring or network access.
+-use super::{Token, licensing_ticket, store_ticket, xbox_ticket};
++use super::{Token, licensing_device_ticket, licensing_ticket, store_ticket, xbox_ticket};
+ use crate::models::soap;
+ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+ use serde_json::json;
+@@ -109,3 +109,23 @@ fn credential_xbox_ticket_opaque_and_malformed_tokens_are_preserved() {
+     }
+     for ticket in cases { assert_eq!(xbox_ticket(ticket.clone()), ticket); }
+ }
++
++#[test]
++fn credential_licensing_device_ticket_delegation_forms_use_the_licensing_wire_form() {
++    for raw in [
++        jwe(json!({"alg":"dir","enc":"A128CBC-HS256"}), ""),
++        jwe(json!({"alg":"RSA-OAEP-256","enc":"A256GCM"}), "a2V5"),
++    ] {
++        let Token::Compact(original) = delegation(&raw) else { panic!("fixture"); };
++        assert_eq!(licensing_device_ticket(original), raw);
++    }
++    assert_eq!(licensing_device_ticket("d=opaque-device".into()), "t=opaque-device");
++}
++
++#[test]
++fn credential_licensing_device_ticket_plain_compact_forms_stay_byte_exact() {
++    let raw = jwe(json!({"alg":"dir","enc":"A256GCM"}), "");
++    for ticket in ["t=opaque-device&p=".to_string(), "opaque-device".into(), "".into(), raw.clone(), format!("t={raw}")] {
++        assert_eq!(licensing_device_ticket(ticket.clone()), ticket);
++    }
++}
+diff --git a/crates/xodus/src/models/secrets.rs b/crates/xodus/src/models/secrets.rs
+index 1ad97be..9de6eea 100644
+--- a/crates/xodus/src/models/secrets.rs
++++ b/crates/xodus/src/models/secrets.rs
+@@ -102,6 +102,10 @@ pub fn licensing_ticket(ticket: String) -> String {
+     if is_compact_jwe(bare) { bare.to_string() } else { store_ticket(ticket) }
+ }
+ 
++pub fn licensing_device_ticket(ticket: String) -> String {
++    if ticket.starts_with("d=") { licensing_ticket(ticket) } else { ticket }
++}
++
+ // This recognizes wire encoding, not authenticity or entitlement. Microsoft
+ // still validates the entire ticket. Never decrypt, log or rewrite its payload.
+ fn is_compact_jwe(value: &str) -> bool {
