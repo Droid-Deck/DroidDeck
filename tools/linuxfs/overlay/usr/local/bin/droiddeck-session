@@ -1121,7 +1121,7 @@ case $mode in
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
         _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
-        _bl_client_pending=0 _bl_client_reserve=0 _bl_client_targets=()
+        _bl_client_pending=0 _bl_client_reserve=0 _bl_client_targets=() _bl_away=
         _bl_sample_at= _bl_sample_available=0 _bl_sample_gpu=0 _bl_sample_unevictable=0 _bl_sample_shmem=0
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
@@ -1155,6 +1155,7 @@ case $mode in
           bl_session_pressure
           bl_client_pressure_finish
           if [ "$_bl_game" = 1 ] && bl_game_focused; then
+            _bl_away=
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
               _bl_since=$SECONDS _bl_since_apps=$_bl_apps
             fi
@@ -1164,15 +1165,27 @@ case $mode in
               _bl_packed=$SECONDS
             fi
           elif [ "$_bl_game" != 1 ]; then
+            _bl_away=
             if [ "$_bl_packed" -ge 0 ]; then
               _bl_unpack=1
             fi
             _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
           else
             _bl_since=-1
+            [ -n "${_bl_away-}" ] || _bl_away=$SECONDS
+            if [ "$_bl_packed" -ge 0 ]; then
+              _bl_unpack=1
+            fi
           fi
-          if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ] && ! bl_over_cap && bl_client_can_readback; then
-            bl_zram_send 0 "memory recovered, reading the client back" client
+          if [ "$_bl_unpack" = 1 ] &&
+             { [ "$_bl_game" = 0 ] || { [ "${_bl_ram_cap:-0}" = 0 ] && [ -n "${_bl_away-}" ] && [ $((SECONDS - _bl_away)) -ge 5 ]; }; } &&
+             ! bl_over_cap && bl_client_can_readback; then
+            if [ "$_bl_game" = 0 ]; then
+              bl_zram_send 0 "memory recovered, reading the client back" client
+            else
+              bl_zram_send 0 "the client is in front of the game, reading it back" client
+              _bl_packed=-1
+            fi
             _bl_unpack=0
           fi
           bl_watch_nap

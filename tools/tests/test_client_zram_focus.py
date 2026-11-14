@@ -199,6 +199,76 @@ echo "restored:$_bl_unpack"
         self.assertEqual('', result.stderr)
         self.assertEqual(['send:1:client', 'deferred:1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
 
+    def test_client_in_front_of_a_running_game_is_read_back_and_compressed_again_later(self):
+        result = run_bash(self.monitor_harness() + '''
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+tick 25 1 0 0 0
+echo "away:$_bl_packed"
+tick 30 1 0 0 0
+echo "read:$_bl_packed:$_bl_unpack"
+tick 35 1 0 0 0
+tick 40 1 1 0 0
+tick 55 1 1 0 0
+tick 60 1 1 0 0
+echo "again:$_bl_packed"
+tick 65 0 0 0 0
+''')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'away:20', 'send:0:client', 'read:-1:0', 'send:1:client', 'again:60', 'send:0:client'],
+                         result.stdout.splitlines())
+
+    def test_a_short_look_at_the_client_keeps_it_compressed(self):
+        result = run_bash(self.monitor_harness() + '''
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+tick 25 1 0 0 0
+tick 28 1 1 0 0
+tick 30 1 0 0 0
+tick 34 1 0 0 0
+echo "packed:$_bl_packed"
+''')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'packed:20'], result.stdout.splitlines())
+
+    def test_client_in_front_waits_for_memory_and_a_ram_cap_keeps_it_compressed(self):
+        result = run_bash(self.monitor_harness() + '''
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+readback=0
+tick 25 1 0 0 0
+tick 35 1 0 0 0
+echo "tight:$_bl_packed"
+readback=1
+tick 40 1 0 0 0
+echo "eased:$_bl_packed"
+_bl_ram_cap=1048576
+tick 60 1 1 0 0
+tick 80 1 1 0 0
+tick 85 1 0 0 0
+tick 100 1 0 0 0
+echo "capped:$_bl_packed"
+tick 105 0 0 0 0
+''')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'tight:20', 'send:0:client', 'eased:-1', 'send:1:client', 'capped:80', 'send:0:client'],
+                         result.stdout.splitlines())
+
+    def test_client_in_front_without_compression_reads_nothing_back(self):
+        result = run_bash(self.monitor_harness() + '''
+BL_ZRAM_CLIENT=0
+tick 0 1 1 0 0
+tick 25 1 0 0 0
+tick 40 1 0 0 0
+tick 45 0 0 0 0
+''')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual('', result.stdout)
+
     def test_scan_keeps_the_running_game_and_ignores_steams_own_reaper(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
