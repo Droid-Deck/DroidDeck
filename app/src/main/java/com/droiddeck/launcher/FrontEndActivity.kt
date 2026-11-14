@@ -84,7 +84,7 @@ import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
-class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
+open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -834,7 +834,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val before = LauncherIcon.current(this)
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
-        if (launcherIcon == before) return false
+        // The Home task was not started from a launcher icon, so switching icons leaves it running.
+        if (launcherIcon == before || inHomeTask) return false
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
@@ -1130,8 +1131,36 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         finish()
     }
 
+    /** True for the instance in the Home task ([HomeActivity]). */
+    protected open val inHomeTask: Boolean get() = false
+
+    /**
+     * Runs first in onCreate; true means this instance finished itself and must not set up. While DroidDeck is the Home app,
+     * the Home task holds the one front end, so a launch that would open a second one hands its intent there.
+     */
+    protected open fun handOff(savedInstanceState: Bundle?): Boolean {
+        if (savedInstanceState != null || !forwardToHome(intent)) return false
+        finish()
+        @Suppress("DEPRECATION") overridePendingTransition(0, 0)
+        return true
+    }
+
+    private fun forwardToHome(request: Intent): Boolean {
+        if (inHomeTask || callingActivity != null || !HomeRoute.forwards(request) || !HomeRoute.isHomeApp(this)) return false
+        return try {
+            startActivityPlain(HomeRoute.forward(this, request))
+            true
+        } catch (_: android.content.ActivityNotFoundException) {
+            false
+        }
+    }
+
+    /** Starts [intent] without the session launch checks of [startActivity]. */
+    protected fun startActivityPlain(intent: Intent) = super.startActivity(intent)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (handOff(savedInstanceState)) return
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
@@ -1829,6 +1858,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (forwardToHome(intent)) return
         setIntent(intent)
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
