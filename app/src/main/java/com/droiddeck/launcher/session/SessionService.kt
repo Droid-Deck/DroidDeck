@@ -115,6 +115,7 @@ class SessionService : Service() {
     private var freezeCancelled = false
     private var pendingSteamGameId: String? = null
     private var pendingSteamPreviousGameId: String? = null
+    private var pendingSteamPreviousGamePending = false
     private var pendingSteamGameGeneration = -1
     private var pendingSteamGameExitWatchToken = -1
     @Volatile private var gameExitWatchToken = 0
@@ -1537,9 +1538,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
-        if (pendingSteamGameId == null) {
+        if (!pendingSteamPreviousGamePending) {
             pendingSteamPreviousGameId = SessionState.gameId
-        } else {
+            pendingSteamPreviousGamePending = true
+        }
+        if (pendingSteamGameId != null) {
             Log.i(TAG, "replacing queued game ${pendingSteamGameId} with $accepted")
         }
         pendingSteamGameExitWatchToken = ++gameExitWatchToken
@@ -1620,25 +1623,42 @@ class SessionService : Service() {
         previousGameId: String? = null
     ) {
         Thread({
-            val startBy = android.os.SystemClock.elapsedRealtime() + GAME_START_TIMEOUT_MS
+            var startupRemaining = GAME_START_TIMEOUT_MS
+            var lastStartupCheck = android.os.SystemClock.elapsedRealtime()
+            var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
+                val startupSuspended = SessionState.suspended || SessionState.suspending
+                if (!seen) {
+                    if (startupSuspended) {
+                        startupWasSuspended = true
+                        lastStartupCheck = now
+                    } else if (startupWasSuspended) {
+                        startupWasSuspended = false
+                        lastStartupCheck = now
+                    } else {
+                        startupRemaining -= (now - lastStartupCheck).coerceAtLeast(0L)
+                        lastStartupCheck = now
+                    }
+                }
                 if (steamGameRunning(gameId)) {
                     if (!seen) {
                         Log.i(TAG, "game $gameId started; tracking its exit")
                         mainHandler.post {
                             if (token == gameExitWatchToken && gen == sessionGen &&
+                                pendingSteamPreviousGamePending &&
                                 pendingSteamPreviousGameId == previousGameId) {
                                 pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
                             }
                         }
                     }
                     seen = true
                     goneSince = 0L
                 } else if (!seen) {
-                    if (now > startBy) {
+                    if (!startupSuspended && startupRemaining <= 0L) {
                         mainHandler.post {
                             if (token != gameExitWatchToken || gen != sessionGen ||
                                 !SessionState.running || SessionState.stopRequested) {
@@ -1658,10 +1678,12 @@ class SessionService : Service() {
                                         .push(SessionPrefs.screenEffectsUpscaler(this@SessionService, previousProfileId))
                                 }
                                 pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
                                 watchGameExit(previousGameId, gen, token)
                             } else {
                                 Log.i(TAG, "game $gameId did not start; clearing its screen effects profile")
                                 pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
                                 clearActiveScreenEffectsProfile(gameId, gen, token)
                             }
                         }
@@ -1750,6 +1772,7 @@ class SessionService : Service() {
         mainHandler.removeCallbacks(flushSteamGame)
         pendingSteamGameId = null
         pendingSteamPreviousGameId = null
+        pendingSteamPreviousGamePending = false
         pendingSteamGameGeneration = -1
         pendingSteamGameExitWatchToken = -1
         gameExitWatchToken++
