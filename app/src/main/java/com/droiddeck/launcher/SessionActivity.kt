@@ -1429,7 +1429,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
                 } else null
 
-                if (activeProfileId != null && activeProfileId != effectsEditorProfileId) {
+                if (target == SCREEN_EFFECTS_TARGET_AUTO &&
+                    activeProfileId != effectsEditorProfileId) {
                     Log.w(TAG, "Screen effects profile changed while editing; discarding stale upscaler edit")
                     observedScreenEffectsProfileId = activeProfileId
                     val activeEffects = SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
