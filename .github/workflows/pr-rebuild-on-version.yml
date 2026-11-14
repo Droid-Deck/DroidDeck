@@ -16,6 +16,7 @@ permissions:
 concurrency:
   group: pr-rebuild-on-version
   cancel-in-progress: false
+  queue: max
 
 jobs:
   rebuild:
@@ -53,43 +54,58 @@ jobs:
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" -f body="$marker
           Main is now at versionCode $now, so this PR's test build no longer installs over current DroidDeck, and its last build is too old for GitHub to re-run. Push a commit or merge main to get a new test build." >/dev/null
           }
-          gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
-            --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [.tag_name, ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv' |
-            while IFS=$'\t' read -r tag built; do
-              [ "$built" -lt "$now" ] || continue
-              number=${tag#pr-}
-              pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number") || continue
-              jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
-              head=$(jq -r .head.sha <<<"$pr")
-              runs="repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=20"
-              latest() { gh api "$runs" --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at, .created_at] | @tsv'; }
-              run=$(latest)
-              if [ -z "$run" ]; then
-                echo "PR #$number: no build of ${head:0:7} to rerun"
-                continue
+          latest() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$1&per_page=20" \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$1"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at, .created_at] | @tsv'
+          }
+          consider() {
+            local number=$1 head=$2 built=$3 id status started created
+            IFS=$'\t' read -r id status started created <<<"$4"
+            if [[ "$started" > "$bumped" ]]; then
+              echo "PR #$number: build $id started after the bump"
+            elif gh run rerun "$id" -R "$GITHUB_REPOSITORY"; then
+              echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
+            else
+              echo "::warning::PR #$number: could not rerun build $id"
+              # GitHub only re-runs a workflow within 30 days of its first run.
+              if [[ "$created" < "$(date -u -d '-30 days' +%Y-%m-%dT%H:%M:%SZ)" ]]; then
+                note "$number" || echo "::warning::PR #$number: could not leave a note"
               fi
-              IFS=$'\t' read -r id status started created <<<"$run"
-              for _ in $(seq 1 90); do
-                [ "$status" = completed ] && break
-                echo "PR #$number: waiting for build $id ($status)"
-                sleep 60
-                IFS=$'\t' read -r id status started created <<<"$(latest)"
-              done
-              if [ "$status" != completed ]; then
-                echo "::warning::PR #$number: build $id did not finish"
-                continue
-              fi
-              if [[ "$started" > "$bumped" ]]; then
-                echo "PR #$number: build $id started after the bump"
-                continue
-              fi
-              if gh run rerun "$id" -R "$GITHUB_REPOSITORY"; then
-                echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
+            fi
+          }
+          pending=()
+          while IFS=$'\t' read -r tag built; do
+            [ "$built" -lt "$now" ] || continue
+            number=${tag#pr-}
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number") || continue
+            jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
+            head=$(jq -r .head.sha <<<"$pr")
+            run=$(latest "$head")
+            if [ -z "$run" ]; then
+              echo "PR #$number: no build of ${head:0:7} to rerun"
+            elif [ "$(cut -f2 <<<"$run")" = completed ]; then
+              consider "$number" "$head" "$built" "$run"
+            else
+              pending+=("$number $head $built")
+            fi
+          done < <(gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
+            --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [.tag_name, ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv')
+          # Builds still running are polled together so one slow build cannot hold up the rest.
+          deadline=$((SECONDS + 150 * 60))
+          while [ ${#pending[@]} -gt 0 ] && [ "$SECONDS" -lt "$deadline" ]; do
+            sleep 60
+            left=()
+            for item in "${pending[@]}"; do
+              read -r number head built <<<"$item"
+              run=$(latest "$head")
+              if [ -n "$run" ] && [ "$(cut -f2 <<<"$run")" = completed ]; then
+                consider "$number" "$head" "$built" "$run"
               else
-                echo "::warning::PR #$number: could not rerun build $id"
-                # GitHub only re-runs a workflow within 30 days of its first run.
-                if [[ "$created" < "$(date -u -d '-30 days' +%Y-%m-%dT%H:%M:%SZ)" ]]; then
-                  note "$number" || echo "::warning::PR #$number: could not leave a note"
-                fi
+                left+=("$item")
               fi
             done
+            pending=(${left[@]+"${left[@]}"})
+          done
+          for item in ${pending[@]+"${pending[@]}"}; do
+            echo "::warning::PR #${item%% *}: its build did not finish in time"
+          done
