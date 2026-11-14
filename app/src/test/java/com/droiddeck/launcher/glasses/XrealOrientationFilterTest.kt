@@ -124,8 +124,26 @@ class XrealOrientationFilterTest {
         }
     }
 
+    @Test fun recordedProPlusTurnAxesStayOnYawAndRoll() {
+        // Principal gyro axes from separate wearer yaw and roll captures.
+        val recordedAxes = mapOf("yaw" to Vec3(0.052f, 0.867f, -0.496f), "roll" to Vec3(0.033f, 0.625f, 0.780f))
+        for ((label, gyro) in recordedAxes) {
+            val filter = XrealOrientationFilter(XrealModel.ONE_PRO_PLUS)
+            val first = matrix(filter.update(sample(1000000))!!)
+            var last = first
+            repeat(100) {
+                last = matrix(filter.update(sample((it + 2) * 1000000L, gyro, Vec3(0f, 0f, 0f)))!!)
+            }
+            val view = HeadPose.relative(HeadPose.recenter(first, centerView = true), last)
+            val axis = Vec3(view[7] - view[5], view[2] - view[6], view[3] - view[1]).normalized()
+            val projection = if (label == "yaw") -axis.y else -axis.z
+            assertTrue("Recorded $label axis should be within 10 degrees of the display axis",
+                projection > cos(Math.toRadians(10.0).toFloat()))
+        }
+    }
+
     private fun proPlusSample(sample: XrealProtocol.Sample): XrealProtocol.Sample {
-        val angle = Math.toRadians(35.0).toFloat()
+        val angle = Math.toRadians(-35.0).toFloat()
         fun mounted(v: Vec3) = Vec3(v.x, cos(angle) * v.y - sin(angle) * v.z, sin(angle) * v.y + cos(angle) * v.z)
         return XrealProtocol.Sample(sample.timeNs, mounted(sample.gyro), mounted(sample.accel))
     }

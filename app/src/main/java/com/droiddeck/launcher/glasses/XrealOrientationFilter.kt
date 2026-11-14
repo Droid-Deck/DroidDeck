@@ -4,9 +4,9 @@ import kotlin.math.abs
 
 internal class XrealOrientationFilter(model: XrealModel = XrealModel.ONE_S) {
     private val fusion = ImuFusion()
-    // Pro+ reports samples in an IMU frame pitched 35 degrees from the display frame.
+    // Pro+'s display-to-IMU mounting pitch must be inverted when mapping sensor samples.
     private val sensorToDisplay = if (model == XrealModel.ONE_PRO_PLUS)
-        Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.toRadians(-35.0).toFloat()) else null
+        Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.toRadians(35.0).toFloat()) else null
 
     fun update(sample: XrealProtocol.Sample): FloatArray? = fusion.update(sample.timeNs,
         map(sample.accel), map(sample.gyro))

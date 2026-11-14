@@ -261,8 +261,8 @@ Verified on the connected phone and glasses:
 | Control and IMU transport | Individually bound Android Ethernet sockets reach `169.254.2.1:52999` and `:52998` without replacing the default Internet network. |
 | Native display | `GET_DISPLAY` (`0x275e`) returns **9**, with Android reporting **1920×1080 at 60 Hz**. This profile preserves mode 9 for native 60 Hz instead of the 1S's mode 29. |
 | Legacy 60 Hz command | Setting mode **2** is rejected with status **10001**. A rejected command does not count as a successful display switch. |
-| Higher refresh commands | Setting modes **3** and **4** is accepted for the 90/120 Hz compatibility selections. Actual physical refresh through the app still needs verification. |
-| Full SBS | `SET_INPUT` (`0x2822`) with value **1** settles at display mode **5** and Android **3840×1080 at 60 Hz**. Value **0** returns directly to native mode **9**, completing the SBS round trip. |
+| Higher refresh commands | Setting modes **3** and **4** through DroidDeck selects physical **1920×1080 at 90/120 Hz**, confirmed through Android's active display mode. |
+| Full SBS | `SET_INPUT` (`0x2822`) with value **1** settles at display mode **5** and Android **3840×1080 at 60 Hz**. Value **0** restores native mode **9**; DroidDeck then restores the saved 90 Hz preference. Tracking resumed after both switches. |
 | IMU | Type **11** raw sensor reports arrive at approximately **1,000 Hz**, using the existing 128-byte body layout. |
 
 Mode 9 is an observed native display configuration, not a general mapping from
@@ -273,12 +273,21 @@ contains only modes 2–5. The independent
 also records mode 9 and mode-2 rejection status 10001 on other firmware. This
 supports keeping display mappings per model and confirming output through Android.
 
-The Pro+ profile applies a nominal **−35° rotation around X** to both gyro and
-acceleration before fusion, based on the inspected factory display-to-IMU
-transform. This is a model mounting correction, not a claim of individually
-calibrated tracking. Device calibration data and serial numbers are not stored in
-the repository. Directed yaw, pitch, and roll checks by the wearer remain pending;
-the existing 1S mapping and its earlier wearer validation remain separate.
+The Pro+ profile applies a nominal **+35° rotation around X** to both gyro and
+acceleration before fusion, inverting the factory display-to-IMU mounting
+direction. Directed wearer captures separately establish the sign: horizontal
+turns primarily rotate around corrected Y, and shoulder tilts around corrected Z.
+The initial opposite-sign correction mixed these axes; a stationary capture alone
+could not distinguish sensor mounting from the physical angle of the glasses.
+This is a model mounting correction, not individually calibrated tracking. Device
+calibration data and serial numbers are not stored in the repository. Final wearer
+confirmation remains pending; the existing 1S mapping stays unchanged.
+
+The initial APK build and 621 targeted glasses/UI tests completed with zero failures
+and one skipped test. Native dependency checks passed and the APK contains no vendor
+SDK libraries. On this phone, background network restrictions interrupted the
+glasses sockets while DroidDeck was away from the foreground; foreground operation
+recovered. Sustained background use needs separate validation.
 
 Brightness remains limited to the known protocol values **0–9**. XREAL's
 [display guide](https://tutorials.xreal.com/docs/glasses/pro-plus/display-sound/)
@@ -291,5 +300,5 @@ DroidDeck tracking, following the official
 [display-mode](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/display-modes/)
 and [Stabilizer](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/stabilizer-transparency/)
 descriptions. The built-in tracking must not be layered over host tracking.
-XREAL Eye, camera capture, and 6DoF are not implemented. Physical 90/120 Hz output,
-wearer movement, and long-session stability remain outstanding hardware checks.
+XREAL Eye, camera capture, and 6DoF are not implemented. Final wearer confirmation
+and long-session stability remain outstanding hardware checks.
