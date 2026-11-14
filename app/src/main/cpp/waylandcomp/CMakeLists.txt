@@ -17,6 +17,7 @@ add_library(droiddeckwayland SHARED
         src/wl_text_input.c
         src/wl_toplevel_icon.c
         src/wl_single_pixel.c
+        src/wl_tablet.c
         src/wl_color_mgmt.c
         src/hdr_compose.c
         src/blend_pass.c
@@ -34,6 +35,7 @@ add_library(droiddeckwayland SHARED
         generated/text-input-unstable-v3-protocol.c
         generated/xdg-toplevel-icon-v1-protocol.c
         generated/single-pixel-buffer-v1-protocol.c
+        generated/tablet-v2-protocol.c
         generated/banner-ahb-v1-protocol.c
         src/framegen_bridge.c
         src/framegen_jni.c

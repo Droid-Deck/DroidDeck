@@ -36,3 +36,27 @@ void text_input_host_delete(int before, int after);
 void toplevel_icon_init(struct wl_display *display);
 void single_pixel_init(struct wl_display *display);
 int single_pixel_buffer_get(struct wl_resource *buffer, uint8_t bgra[4]);
+
+enum { DROIDDECK_PEN_CAP_PRESSURE = 1 << 0, DROIDDECK_PEN_CAP_TILT = 1 << 1, DROIDDECK_PEN_CAP_DISTANCE = 1 << 2 };
+enum { DROIDDECK_PEN_RIGHT = 1 << 0, DROIDDECK_PEN_MIDDLE = 1 << 1 };
+
+struct droiddeck_pen {
+    int tool;
+    double x, y;
+    uint32_t pressure, distance;
+    int has_tilt;
+    double tilt_x, tilt_y;
+    int down;
+    uint32_t buttons;
+    uint32_t time_ms;
+};
+
+void tablet_init(struct wl_display *display);
+void droiddeck_tablet_set_capabilities(int caps);
+void droiddeck_tablet_ensure_tool(int tool);
+int droiddeck_tablet_client_has_tool(struct wl_client *client, int tool);
+int droiddeck_tablet_client_bound(struct wl_client *client);
+void droiddeck_tablet_frame(struct wl_resource *surface, const struct droiddeck_pen *pen);
+void droiddeck_tablet_out(uint32_t time_ms);
+void droiddeck_tablet_surface_gone(struct wl_resource *surface, uint32_t time_ms);
+void droiddeck_cursor_from_tool(struct wl_resource *surface);

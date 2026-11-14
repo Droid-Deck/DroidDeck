@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,16 +7,22 @@
 #define BTN_LEFT 0x110
 #define BTN_RIGHT 0x111
 #define BTN_MIDDLE 0x112
+#define BTN_TOOL_PEN 0x140
+#define BTN_TOOL_RUBBER 0x141
 #define INPUT_SPACE_W 1920
 #define INPUT_SPACE_H 1080
 #include "input_msg.inc"
 #include "pen_state.inc"
+#include "pen_api.inc"
 
 enum { MOTION, PRESS, RELEASE };
 struct event { int kind; uint32_t button; double x, y; int raw_valid; };
 struct constraint { int is_lock; };
 static struct constraint *g_active_constraint;
-static struct surface *g_grab;
+struct wl_client;
+struct wl_resource;
+struct surface { struct wl_resource *resource; int placed, x, y; };
+static struct surface *g_grab, *g_desktop;
 static int g_raw_valid;
 static struct event events[16];
 static int nevents, logs;
@@ -41,10 +48,23 @@ static void pointer_button(uint32_t button, int pressed) {
     events[nevents++] = (struct event){pressed ? PRESS : RELEASE, button, 0, 0, g_raw_valid};
 }
 static void pen_log_target(void) { logs++; }
+static void publish_query_state(void) {}
+static uint32_t now_ms(void) { return 0; }
+static struct surface *pen_target_at(double x, double y) { (void)x; (void)y; return NULL; }
+static int pen_tablet_refused(struct wl_client *client) { (void)client; return 0; }
+static struct wl_client *wl_resource_get_client(struct wl_resource *r) { (void)r; return NULL; }
+static void droiddeck_tablet_set_capabilities(int caps) { (void)caps; }
+static void droiddeck_tablet_ensure_tool(int tool) { (void)tool; }
+static int droiddeck_tablet_client_has_tool(struct wl_client *client, int tool) { (void)client; (void)tool; return 0; }
+static void droiddeck_tablet_frame(struct wl_resource *surface, const struct droiddeck_pen *pen) {
+    (void)surface; (void)pen;
+    assert(0);
+}
+static void droiddeck_tablet_out(uint32_t time_ms) { (void)time_ms; }
 #include "pen.inc"
 
 static void pen(int flags, double x, double y) {
-    struct input_msg m = {13, flags, (int)(x * 256), (int)(y * 256), 0};
+    struct input_msg m = {13, flags, (int)(x * 256), (int)(y * 256), 0, 0, 0, 0};
     nevents = 0;
     deliver_pen(&m);
 }
@@ -74,10 +94,10 @@ int main(int argc, char **argv) {
         expect(1, 0); motion(0, 201, 100.5);
         pen(PEN_IN, 2000, -4);
         expect(1, 0); motion(0, 3839, 0);
-        assert(g_pen.in && logs == 2);
+        assert(g_pen.route == PEN_ROUTE_POINTER && logs == 2);
         pen(0, 2000, -4);
         expect(0, 0);
-        assert(!g_pen.in && logs == 2);
+        assert(!g_pen.route && logs == 2);
     } else if (!strcmp(c, "tip")) {
         pen(PEN_IN, 10, 10);
         expect(1, 0);
@@ -87,8 +107,9 @@ int main(int argc, char **argv) {
         expect(1, L); motion(0, 22, 20);
         pen(PEN_IN, 12, 10);
         expect(2, 0); motion(0, 24, 20); button(1, RELEASE, BTN_LEFT);
-        pen(PEN_IN | PEN_TIP, 12, 10);
-        pen(PEN_IN, 12, 10);
+        pen(PEN_IN | PEN_ERASER | PEN_TIP, 12, 10);
+        expect(2, L); button(1, PRESS, BTN_LEFT);
+        pen(PEN_IN | PEN_ERASER, 12, 10);
         pen(0, 12, 10);
         expect(0, 0);
     } else if (!strcmp(c, "buttons")) {
@@ -110,7 +131,7 @@ int main(int argc, char **argv) {
         pen(PEN_TIP | PEN_RIGHT | PEN_MIDDLE, 30, 30);
         expect(3, 0);
         button(0, RELEASE, BTN_LEFT); button(1, RELEASE, BTN_RIGHT); button(2, RELEASE, BTN_MIDDLE);
-        assert(!g_pen.in && !g_pen.buttons);
+        assert(!g_pen.route && !g_pen.buttons);
         pen(0, 30, 30);
         expect(0, 0);
     } else if (!strcmp(c, "lock")) {
@@ -118,7 +139,7 @@ int main(int argc, char **argv) {
         g_active_constraint = &lock;
         pen(PEN_IN, 10, 10);
         expect(0, 0);
-        assert(g_pen.in && logs == 1);
+        assert(g_pen.route == PEN_ROUTE_POINTER && logs == 1);
         pen(PEN_IN | PEN_TIP, 11, 10);
         expect(1, L); button(0, PRESS, BTN_LEFT);
         pen(PEN_IN | PEN_TIP, 40, 10);

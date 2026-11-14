@@ -195,6 +195,9 @@ class PenStream(private val sink: Sink) {
         const val PEN_TIP = 1 shl 1
         const val PEN_RIGHT = 1 shl 2
         const val PEN_MIDDLE = 1 shl 3
+        const val PEN_ERASER = 1 shl 4
+        const val PEN_TABLET = 1 shl 5
+        const val PEN_TILT = 1 shl 6
         const val HOVER_TIMEOUT_MS = 2_000L
         const val EXIT_GRACE_MS = 50L
 
