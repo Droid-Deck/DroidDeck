@@ -452,7 +452,7 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
-        SessionPrefs.ensurePowerVrAutoDrivers(this)
+        SessionPrefs.ensurePowerVrAutoDriversAfterGpuQuery(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
             if (SessionPrefs.venus(this)) VenusComponent.hostVulkanTooOld(this)?.let {

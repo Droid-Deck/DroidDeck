@@ -118,9 +118,7 @@ data class GpuInfo(
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
                 name = when {
-                    family == Family.POWERVR -> SystemVulkanDriver.gpuName().let { gpu ->
-                        VulkanInfo.cachedOrNull()?.get("device")?.takeIf { it.contains(gpu, ignoreCase = true) } ?: gpu
-                    }
+                    family == Family.POWERVR -> systemDriverName(SystemVulkanDriver.gpuName(), VulkanInfo.cachedOrNull())
                     mali != null && mali.isNotEmpty() -> mali
                     !adreno -> Build.HARDWARE.ifBlank { UNNAMED }
                     model > 0 -> "Adreno $model"
@@ -133,6 +131,9 @@ data class GpuInfo(
                 verifiedDevice = adreno && verifiedOn(model, Build.MODEL),
             )
         }
+
+        fun systemDriverName(gpu: String, vulkan: Map<String, String>?): String =
+            vulkan?.get("device")?.takeIf { it.contains(gpu, ignoreCase = true) } ?: gpu
 
         internal fun verifiedOn(model: Int, device: String): Boolean =
             model == 722 && device.equals("Retroid Pocket Duo", ignoreCase = true)
