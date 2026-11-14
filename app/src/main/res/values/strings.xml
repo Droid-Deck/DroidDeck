@@ -1182,6 +1182,8 @@
     <string name="rail_agent">Agent</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent is working</string>
+    <string name="agent_drawer_inline">Compact chat in the session drawer</string>
+    <string name="agent_drawer_inline_hint">The model, usage and menu share the message row, leaving more room for the conversation</string>
     <string name="agent_tools">MCP servers and skills</string>
     <string name="agent_tools_servers">MCP servers</string>
     <string name="agent_tools_skills">Skills in ~/.claude/skills</string>
