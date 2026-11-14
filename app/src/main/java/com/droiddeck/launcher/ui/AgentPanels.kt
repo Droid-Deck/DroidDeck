@@ -50,6 +50,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.droiddeck.launcher.agent.AgentTools
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentChats
 import com.droiddeck.launcher.agent.AgentHarness
@@ -309,4 +312,119 @@ private fun resetTime(context: android.content.Context, epochSeconds: Long): Str
     val flags = if (ms - System.currentTimeMillis() < 20 * 3_600_000L) DateUtils.FORMAT_SHOW_TIME
     else DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY or DateUtils.FORMAT_SHOW_TIME
     return DateUtils.formatDateTime(context, ms, flags)
+}
+
+/** Claude Code's MCP servers, with a way to add and remove them, and the skills in its skills folder. */
+@Composable
+internal fun AgentToolsPanel(modifier: Modifier) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val scope = rememberCoroutineScope()
+    var version by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    val servers by produceState<List<AgentTools.Server>?>(null, version) {
+        loading = true
+        value = withContext(Dispatchers.IO) { AgentTools.servers(context) }
+        loading = false
+    }
+    val skills by produceState(emptyList<AgentTools.Skill>(), version) { value = withContext(Dispatchers.IO) { AgentTools.skills(context) } }
+    var name by rememberSaveable { mutableStateOf("") }
+    var target by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val act: (suspend () -> AgentTools.Result) -> Unit = { action ->
+        busy = true
+        message = null
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { action() }
+            busy = false
+            if (!result.ok) message = result.output.ifBlank { context.getString(R.string.agent_tools_failed) }
+            else {
+                name = ""
+                target = ""
+            }
+            version++
+        }
+    }
+    LazyColumn(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { ToolsHeading(stringResource(R.string.agent_tools_servers)) }
+        val list = servers
+        when {
+            loading && list == null -> item { Text(stringResource(R.string.agent_tools_loading), fontSize = 13.sp, color = pal.onSurfaceVariant) }
+            list == null -> item { Text(stringResource(R.string.agent_tools_failed), fontSize = 13.sp, color = AttentionAmber) }
+            list.isEmpty() -> item { Text(stringResource(R.string.agent_tools_no_servers), fontSize = 13.sp, color = pal.onSurfaceVariant) }
+            else -> items(list, key = { "mcp:" + it.name }) { server ->
+                var armed by remember(server.name) { mutableStateOf(false) }
+                ToolsRow(server.name, server.target + " · " + server.status) {
+                    if (!server.account) SecondaryButton(
+                        stringResource(if (armed) R.string.agent_storage_confirm else R.string.agent_tools_remove), compact = true, enabled = !busy,
+                    ) { if (armed) act { AgentTools.remove(context, server.name) } else armed = true }
+                }
+            }
+        }
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ToolsField(name, { name = it }, stringResource(R.string.agent_tools_name), "agent-tools-name")
+                ToolsField(target, { target = it }, stringResource(R.string.agent_tools_target), "agent-tools-target")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.agent_tools_add_hint), fontSize = 12.sp, color = pal.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    PrimaryButton(stringResource(R.string.agent_tools_add), enabled = !busy && name.isNotBlank() && target.isNotBlank(), compact = true) {
+                        act { AgentTools.add(context, name, target) }
+                    }
+                }
+                message?.let { Text(it, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AttentionAmber) }
+            }
+        }
+        item { ToolsHeading(stringResource(R.string.agent_tools_skills)) }
+        if (skills.isEmpty()) item { Text(stringResource(R.string.agent_tools_no_skills), fontSize = 13.sp, color = pal.onSurfaceVariant) }
+        items(skills, key = { "skill:" + it.name }) { skill ->
+            var armed by remember(skill.name) { mutableStateOf(false) }
+            ToolsRow(skill.name, skill.description) {
+                SecondaryButton(stringResource(if (armed) R.string.agent_storage_confirm else R.string.agent_history_delete), compact = true, enabled = !busy) {
+                    if (armed) {
+                        AgentTools.deleteSkill(context, skill.name)
+                        version++
+                    } else armed = true
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsHeading(text: String) {
+    Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = LocalPalette.current.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+}
+
+@Composable
+private fun ToolsRow(title: String, detail: String, action: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotBlank()) Text(detail, fontSize = 12.5.sp, color = pal.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        action()
+    }
+}
+
+@Composable
+private fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Box(Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        if (value.isEmpty()) Text(hint, fontSize = 14.sp, color = pal.onSurfaceVariant, maxLines = 1)
+        BasicTextField(
+            value, onValue, singleLine = true, textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, color = colors.onSurface),
+            cursorBrush = SolidColor(pal.primary), modifier = Modifier.fillMaxWidth().testTag(tag),
+        )
+    }
 }

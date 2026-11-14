@@ -43,6 +43,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.Mic
@@ -120,7 +121,7 @@ import com.droiddeck.launcher.agent.AgentHost.Entry
 import com.droiddeck.launcher.agent.AgentSetup
 import kotlinx.coroutines.launch
 
-internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES }
+internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES, TOOLS }
 
 /** Slash commands the app handles itself; others go to the CLI, which has its own. */
 private val LOCAL_COMMANDS = listOf("/new", "/model", "/plan", "/history", "/processes", "/stop")
@@ -187,7 +188,7 @@ private fun AgentPageContent(
         }
     }
     // A host with a title bar shows the top bar there.
-    val inSlot = menuSlot != null && panel != AgentPanel.HISTORY && panel != AgentPanel.PROCESSES
+    val inSlot = menuSlot != null && panel != AgentPanel.HISTORY && panel != AgentPanel.PROCESSES && panel != AgentPanel.TOOLS
     if (menuSlot != null) DisposableEffect(menuSlot, inSlot) {
         menuSlot.content = if (inSlot) topBar else null
         onDispose { menuSlot.content = null }
@@ -211,6 +212,10 @@ private fun AgentPageContent(
             AgentPanel.PROCESSES -> {
                 AgentPanelBar(stringResource(R.string.agent_processes)) { panel = AgentPanel.NONE }
                 AgentProcessList(Modifier.weight(1f))
+            }
+            AgentPanel.TOOLS -> {
+                AgentPanelBar(stringResource(R.string.agent_tools)) { panel = AgentPanel.NONE }
+                AgentToolsPanel(Modifier.weight(1f))
             }
             else -> {
                 if (menuSlot == null) Box(Modifier.padding(bottom = 6.dp)) { topBar() }
@@ -338,6 +343,9 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HeaderAction(Icons.Outlined.History, stringResource(R.string.agent_history), size = 36.dp, tag = "agent-history") { onOpen(false); onPanel(AgentPanel.HISTORY) }
                 HeaderAction(Icons.Outlined.Memory, stringResource(R.string.agent_processes), size = 36.dp, tag = "agent-processes") { onOpen(false); onPanel(AgentPanel.PROCESSES) }
+                if (AgentHost.harness == com.droiddeck.launcher.agent.ClaudeCode) HeaderAction(
+                    Icons.Outlined.Extension, stringResource(R.string.agent_tools), size = 36.dp, tag = "agent-tools",
+                ) { onOpen(false); onPanel(AgentPanel.TOOLS) }
                 HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty(), size = 36.dp, tag = "agent-new") {
                     onOpen(false)
                     AgentHost.forget(context)
