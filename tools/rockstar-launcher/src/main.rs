@@ -146,12 +146,21 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         None
     };
     let mut identity_listeners = Vec::new();
+    let mut identity_names = Vec::new();
     if session.is_some() {
-        for name in droiddeck_rockstar_launcher::identity::title_pipe_names(&exe)? {
-            identity_listeners.push(Listener::new(&name, Duration::from_secs(90))?);
+        identity_names = droiddeck_rockstar_launcher::identity::title_pipe_names(&exe)?;
+        for name in &identity_names {
+            identity_listeners.push(Listener::new(name, Duration::from_secs(90))?);
         }
     }
-    log("launcher pipes created");
+    log(&format!(
+        "launcher pipes created, identity: {}",
+        if identity_names.is_empty() {
+            "none".to_owned()
+        } else {
+            identity_names.join(", ")
+        }
+    ));
     let mut command = std::process::Command::new(exe);
     command.current_dir(workdir).args(args?);
     if session.is_some() {
@@ -254,7 +263,9 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
         }
         let _ = result.send(outcome);
     });
-    Ok(wait_for_game(&mut child, handshake)?.code().unwrap_or(1))
+    let code = wait_for_game(&mut child, handshake)?.code().unwrap_or(1);
+    log(&format!("game exited with code {code}"));
+    Ok(code)
 }
 
 fn main() {
