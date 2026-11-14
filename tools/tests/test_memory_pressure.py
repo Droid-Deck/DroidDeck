@@ -406,7 +406,7 @@ class ReclaimDispatchTest(unittest.TestCase):
             source = source.replace('/tmp/.bl-zram', str(root / 'ctl'))
             monitor = SCRIPT.read_text()
             start = monitor.index('          _bl_preserved_growth=$_bl_growth', monitor.index('while kill -0 $$'))
-            stop = monitor.index('          if [ "$_bl_game" = 1 ] && bl_game_focused', start)
+            stop = monitor.index('          _bl_focus=1\n', start)
             cycle = monitor[start:stop] if body is None else body
             script = f'''
 set -u

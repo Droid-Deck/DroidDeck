@@ -80,7 +80,7 @@ class ClientZramFocusTest(unittest.TestCase):
 
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
-        start = source.index('          if [ "$_bl_game" = 1 ] && bl_game_focused; then')
+        start = source.index('          _bl_focus=1\n')
         stop = source.index('          bl_watch_nap\n', start)
         body = source[start:stop]
         harness = '''
@@ -125,7 +125,7 @@ bl_client_pressure_finish() { :; }
 bl_session_pressure() { :; }
 bl_client_can_pageout() { return 0; }
 bl_client_can_readback() { [ "${readback:-1}" = 1 ]; }
-bl_game_focused() { [ "$focused" = 1 ]; }
+bl_game_focused() { [ "$focused" = 1 ] && return 0; [ "$focused" = 2 ] && return 2; return 1; }
 bl_cap_due() { [ "$cap_due" = 1 ]; }
 bl_over_cap() { [ "$over_cap" = 1 ]; }
 bl_zram_send() { echo "send:$1:$3"; }
@@ -219,6 +219,27 @@ tick 65 0 0 0 0
         self.assertEqual(['send:1:client', 'away:20', 'send:0:client', 'read:-1:0', 'send:1:client', 'again:60', 'send:0:client'],
                          result.stdout.splitlines())
 
+    def test_unknown_focus_keeps_the_client_compressed(self):
+        result = run_bash(self.monitor_harness() + '''
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+tick 25 1 2 0 0
+tick 40 1 2 0 0
+echo "unknown:$_bl_packed:$_bl_unpack"
+tick 45 1 0 0 0
+tick 48 1 2 0 0
+tick 52 1 0 0 0
+tick 56 1 0 0 0
+echo "flicker:$_bl_packed"
+tick 57 1 0 0 0
+echo "read:$_bl_packed"
+tick 60 0 2 0 0
+''')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'unknown:20:1', 'flicker:20', 'send:0:client', 'read:-1'],
+                         result.stdout.splitlines())
+
     def test_a_short_look_at_the_client_keeps_it_compressed(self):
         result = run_bash(self.monitor_harness() + '''
 tick 0 1 1 0 0
@@ -289,7 +310,8 @@ tick 45 0 0 0 0
 %s
 check() {
   BL_DESKTOP=$1 BL_LAUNCH_DIR=$2 _bl_apps=$3
-  if bl_game_focused; then echo yes; else echo no; fi
+  bl_game_focused
+  echo $?
 }
 check "" "$dir" " 413150"
 check "" "$dir" " 1245620"
@@ -297,7 +319,10 @@ printf '%%s\\n' '{"focusedApp": 999}' > "$dir/agent/focus.json"
 check "" "$dir" " 413150"
 printf '%%s\\n' '{"focusedApp": 769}' > "$dir/agent/focus.json"
 check "" "$dir" " 413150"
+printf '%%s\\n' '{"t": 2}' > "$dir/agent/focus.json"
+check "" "$dir" " 413150"
 rm -f "$dir/agent/focus.json"
+check "" "$dir" " 413150"
 check 1 "$dir" " 413150"
 check "" "" " 413150"
 ''' % focus
@@ -308,7 +333,7 @@ check "" "" " 413150"
         (launch / 'agent' / 'focus.json').write_text('{"t": 1, "focusedApp": 413150}\n')
         result = run_bash('dir=%s\n%s' % (launch, script))
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(['yes', 'no', 'no', 'no', 'yes', 'yes'], result.stdout.splitlines())
+        self.assertEqual(['0', '1', '1', '1', '2', '2', '0', '0'], result.stdout.splitlines())
 
     @staticmethod
     def write_cmd(root, pid, args):
