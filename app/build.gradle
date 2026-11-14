@@ -20,13 +20,7 @@ if (uvcDir) {
     }
 }
 if (vitureSdkDir) {
-    ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
-     'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
-     'android/LICENSE', 'android/NOTICE'].each { required ->
-        if (!new File(vitureSdkDir, required).isFile()) {
-            throw new GradleException("Incomplete VITURE Android SDK: missing ${required}")
-        }
-    }
+    throw new GradleException('VITURE SDK bundling is disabled. Clear vitureSdkDir/droiddeck.vitureSdk and import the SDK ZIP from glasses settings instead.')
 }
 
 def gitValue = { List<String> arguments ->
@@ -158,7 +152,6 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_shared'
-                arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
                 arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
             }
         }
@@ -254,16 +247,6 @@ androidComponents {
     beforeVariants(selector().all()) { it.androidTest.enable = false }
 }
 
-// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
-if (vitureSdkDir) {
-    android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
-    def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
-        from(new File(vitureSdkDir, 'android')) { include 'LICENSE', 'NOTICE' }
-        into(layout.buildDirectory.dir('vitureAssets/licenses/viture'))
-    }
-    tasks.named('preBuild').configure { dependsOn(stageVitureNotices) }
-}
-
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
         include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
@@ -283,7 +266,6 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
-if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
         from(new File(uvcDir, 'licenses'))

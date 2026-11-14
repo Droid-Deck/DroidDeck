@@ -44,6 +44,22 @@ class RokidProtocolTest {
         assertEquals(listOf(60), air.rates2d)
     }
 
+    @Test fun stereoRefreshCapabilityMatchesTheSelectedMode() {
+        val models = listOf(
+            RokidModel.model(0x04d2, 0x162f, "Rokid Max")!!,
+            RokidModel.model(0x04d2, 0x2002, "Rokid Max2")!!,
+        )
+        for (model in models) {
+            assertTrue(model.supportsSbs90(null))
+            assertTrue(model.supportsSbs90(GlassesResolution(1920, 1200)))
+            assertFalse(model.supportsSbs90(GlassesResolution(1920, 1080)))
+        }
+        val air = RokidModel.model(0x04d2, 0x162f, "Rokid Air")!!
+        for (resolution in listOf(null, GlassesResolution(1920, 1080), GlassesResolution(1920, 1200))) {
+            assertFalse(air.supportsSbs90(resolution))
+        }
+    }
+
     @Test fun max2UsesMaxModesAndParsesItsCapturedCombinedReport() {
         val max2 = RokidModel.model(0x04d2, 0x2002, "Rokid Max2")!!
         assertEquals(RokidModel.MODE_2D_120, max2.mode(120, false, null))

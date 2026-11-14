@@ -47,13 +47,58 @@ class VitureSdkTest {
         assertNull(VitureProtocol.sdkModel("Mobile Dock"))
     }
 
+    @Test fun everyDocumentedSdkMarketNameHasAnAppFamily() {
+        val families = mapOf(
+            "One" to VitureProtocol.Family.ONE,
+            "Lite" to VitureProtocol.Family.ONE,
+            "Pro" to VitureProtocol.Family.PRO,
+            "Pro 2" to VitureProtocol.Family.PRO2,
+            "Luma" to VitureProtocol.Family.LUMA,
+            "Luma Pro" to VitureProtocol.Family.LUMA,
+            "Luma Cyber" to VitureProtocol.Family.LUMA,
+            "Luma Ultra" to VitureProtocol.Family.ULTRA,
+            "Beast" to VitureProtocol.Family.BEAST,
+            "Phantom Beast" to VitureProtocol.Family.BEAST,
+        )
+        for ((name, family) in families) {
+            val model = VitureProtocol.sdkModel(name)!!
+            assertEquals(name, family, model.family)
+            assertEquals("VITURE $name", model.name)
+        }
+    }
+
+    @Test fun phantomBeastUsesBeastControlsWithoutClaimingUltraTracking() {
+        val model = VitureProtocol.sdkModel("Phantom Beast")!!
+        assertTrue(model.needsSdk)
+        assertEquals(VitureProtocol.Family.BEAST, model.family)
+        assertEquals(15, model.volumeMax)
+        assertTrue(model.hasSunblock)
+        assertEquals(58f, model.diagonalFovDeg, 0f)
+        assertEquals(0x44, model.mode(120, false))
+        assertEquals(0x42, model.mode(90, true))
+        assertFalse(model.sbs90)
+        assertNull(VitureProtocol.sdkModel("Phantom Beast Camera"))
+    }
+
     @Test fun otherGen2DevicesPreserveSdkNwuAxesAndChangeComponentOrder() {
         val a = sqrt(0.5f)
         assertArrayEquals(floatArrayOf(0f, 0f, a, a),
             VitureSdkPose.toGlasses(floatArrayOf(a, 0f, 0f, a), false), 0.00001f)
     }
 
-    @Test fun pro2AndCarinaSelectOpenGlButOtherGen2ModelsKeepTheirExistingBasis() {
+    @Test fun beastAndPhantomUseTheirUsbIdentityWithoutChangingOtherVariants() {
+        val beast = VitureProtocol.Family.BEAST
+        for (pid in listOf(VitureProtocol.BEAST_PRODUCT_ID, VitureProtocol.PHANTOM_PRODUCT_ID)) {
+            assertTrue(VitureSdkPose.usesOpenGlAxes(false, beast, pid))
+            assertTrue(VitureSdkPose.usesOpenGlAxes(false, null, pid))
+        }
+        for (pid in listOf(0x1200, 0x1202, 0x1211, 0x1220, 0x1222, 0x7fff)) {
+            assertFalse(VitureSdkPose.usesOpenGlAxes(false, beast, pid))
+        }
+        assertFalse(VitureSdkPose.usesOpenGlAxes(false, beast))
+    }
+
+    @Test fun pro2AndCarinaKeepTheirOpenGlBasis() {
         assertTrue(VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.Family.PRO2))
         assertTrue(VitureSdkPose.usesOpenGlAxes(true, VitureProtocol.Family.ULTRA))
         assertFalse(VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.Family.BEAST))
@@ -63,6 +108,42 @@ class VitureSdkTest {
 
     @Test fun pro2YawPitchAndRollReachTheCorrectRendererAxes() {
         val openGl = VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.sdkModel("Pro 2")!!.family)
+        assertOpenGlRendererAxes(openGl)
+    }
+
+    @Test fun phantomYawPitchAndRollReachTheCorrectRendererAxes() {
+        val pid = VitureProtocol.PHANTOM_PRODUCT_ID
+        val family = VitureProtocol.model(pid, null)!!.family
+        assertOpenGlRendererAxes(VitureSdkPose.usesOpenGlAxes(false, family, pid))
+    }
+
+    @Test fun beastYawPitchAndRollReachTheCorrectRendererAxes() {
+        val pid = VitureProtocol.BEAST_PRODUCT_ID
+        val family = VitureProtocol.model(pid, null)!!.family
+        assertOpenGlRendererAxes(VitureSdkPose.usesOpenGlAxes(false, family, pid))
+    }
+
+    @Test fun untestedBeastVariantRetainsItsNwuRendererAxes() {
+        val pid = 0x1211
+        val family = VitureProtocol.model(pid, null)!!.family
+        val openGl = VitureSdkPose.usesOpenGlAxes(false, family, pid)
+        fun screen(wxyz: FloatArray): FloatArray {
+            val q = VitureSdkPose.toGlasses(wxyz, openGl)!!
+            return HeadPose.fromGlasses(q[0], q[1], q[2], q[3])
+        }
+        val ref = HeadPose.recenter(screen(floatArrayOf(1f, 0f, 0f, 0f)))
+        val s = kotlin.math.sin(Math.PI / 12).toFloat()
+        val c = kotlin.math.cos(Math.PI / 12).toFloat()
+        for ((wxyz, direction, expected) in listOf(
+            Triple(floatArrayOf(c, 0f, 0f, -s), floatArrayOf(0f, 0f, -1f), floatArrayOf(0.5f, 0f, -0.8660254f)),
+            Triple(floatArrayOf(c, 0f, -s, 0f), floatArrayOf(0f, 0f, -1f), floatArrayOf(0f, 0.5f, -0.8660254f)),
+            Triple(floatArrayOf(c, s, 0f, 0f), floatArrayOf(0f, 1f, 0f), floatArrayOf(0.5f, 0.8660254f, 0f)),
+        )) {
+            assertArrayEquals(expected, HeadPose.apply(HeadPose.relative(ref, screen(wxyz)), direction), 0.001f)
+        }
+    }
+
+    private fun assertOpenGlRendererAxes(openGl: Boolean) {
         fun screen(wxyz: FloatArray): FloatArray {
             val q = VitureSdkPose.toGlasses(wxyz, openGl)!!
             return HeadPose.fromGlasses(q[0], q[1], q[2], q[3])

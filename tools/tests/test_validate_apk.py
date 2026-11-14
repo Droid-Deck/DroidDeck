@@ -28,13 +28,13 @@ class ValidateApkTest(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", "-C", self.root, *args], text=True).strip()
 
-    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write", fork=False):
+    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write", fork=False, draft=False):
         (self.root / filename).parent.mkdir(parents=True, exist_ok=True)
         (self.root / filename).write_text(message)
         self.git("add", filename)
         self.git("commit", "--allow-empty", "-qm", message)
         sha = self.git("rev-parse", "HEAD")
-        pr = {"number": 1, "state": "open", "head": {"sha": sha}, "user": {"login": "human", "type": "User"},
+        pr = {"number": 1, "state": "open", "draft": draft, "head": {"sha": sha}, "user": {"login": "human", "type": "User"},
               "title": "Source change", "body": body}
         event = {"number": 1, "pull_request": {"head": {"sha": "stale" if stale else sha}}}
         if completed:
@@ -56,7 +56,7 @@ class ValidateApkTest(unittest.TestCase):
             if path.endswith("/pulls?state=open&head=contributor%3Afix%2Fbranch"):
                 return [pr]
             if "workflows/build.yml/runs?" in path:
-                return {"workflow_runs": [{"id": 7, "head_sha": sha, "status": "completed", "html_url": "https://example.org/build"}]}
+                return {"workflow_runs": [{"id": 7, "head_sha": sha, "status": "completed", "conclusion": result, "html_url": "https://example.org/build"}]}
             if path.endswith("/jobs?per_page=100"):
                 return {"jobs": [{"name": "Compile and test APK", "status": "in_progress" if result == "pending" else "completed", "conclusion": result}]}
             raise AssertionError(path)
@@ -84,6 +84,29 @@ class ValidateApkTest(unittest.TestCase):
         for result in ("pending", "failure"):
             self.validate(result=result)
             self.assertEqual(self.statuses[-1]["state"], result)
+
+    def test_skipped_draft_build_waits_without_claiming_compilation(self):
+        for completed in (False, True):
+            with self.subTest(completed=completed):
+                self.validate(result="skipped", draft=True, completed=completed, fork=completed)
+                self.assertEqual(self.statuses[-1]["state"], "pending")
+                self.assertEqual(self.statuses[-1]["description"],
+                                 "Source validated; APK build deferred while PR is draft")
+
+    def test_failed_or_cancelled_draft_build_still_fails(self):
+        for result in ("failure", "cancelled", "timed_out"):
+            with self.subTest(result=result):
+                self.validate(result=result, draft=True)
+                self.assertEqual(self.statuses[-1]["state"], "failure")
+
+    def test_skipped_ready_pr_build_still_fails(self):
+        self.validate(result="skipped")
+        self.assertEqual(self.statuses[-1]["state"], "failure")
+
+    def test_draft_build_skip_cannot_hide_invalid_source(self):
+        with self.assertRaises(RuntimeError):
+            self.validate(result="skipped", draft=True, body="Co-authored-by: Claude <claude@example.org>")
+        self.assertEqual(self.statuses[-1]["state"], "failure")
 
     def test_superseded_event_cannot_replace_current_status(self):
         self.validate(stale=True)

@@ -2885,7 +2885,7 @@
     <string name="hand_camera_done">Готово</string>
     <string name="glasses_xreal_network_missing">Очікування з’єднання USB Ethernet від окулярів. Цей телефон може не надавати його додаткам.</string>
     <string name="glasses_xreal_connection_failed">З’єднання з XREAL перервалося або повернуло непідтримувану відповідь. Повторна спроба…</string>
-    <string name="glasses_xreal_experimental">Експериментальна підтримка 1S. Увімкніть режим Follow і вимкніть стабілізацію в меню окулярів. Напрямки відстеження й режими відображення ще потрібно перевірити на пристрої.</string>
+    <string name="glasses_xreal_experimental">Експериментальна підтримка XREAL. Увімкніть режим Follow і вимкніть стабілізацію в меню окулярів. Напрямки відстеження й режими відображення ще потрібно перевірити на пристрої.</string>
     <string name="glasses_pro2_experimental">Експериментальне відстеження рухів голови для Pro 2. Налаштування яскравості й гучності та перемикання режимів відображення ще не підтримуються.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>

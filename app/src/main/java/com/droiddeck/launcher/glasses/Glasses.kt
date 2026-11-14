@@ -21,9 +21,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import com.droiddeck.launcher.R
 import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 data class GlassesState(
     val present: Boolean = false,
@@ -58,6 +62,9 @@ data class GlassesState(
     val supportsSpatial: Boolean = false,
     val resolutions: List<GlassesResolution> = emptyList(),
     val vrActive: Boolean = false,
+    val vitureDetected: Boolean = false,
+    val vitureSdkAvailable: Boolean = false,
+    val viture: VitureDeviceState? = null,
 ) {
     val hasDisplay: Boolean get() = displayId != Display.INVALID_DISPLAY
     val usable: Boolean get() = hasDisplay && !noSignal
@@ -153,6 +160,8 @@ object Glasses {
     private val resumeSteamVrSpatial = Runnable { updateSpatialMode() }
     private var glassesMode = 0
     private var autoModeSent = false
+    private var nativeHostTracking: Boolean? = null
+    private var vrNativeDof: Int? = null
 
     @Volatile private var sink: PoseSink? = null
     private val poseObservers = java.util.concurrent.CopyOnWriteArraySet<PoseSink>()
@@ -172,6 +181,9 @@ object Glasses {
         calibrationStore = RayNeoCalibrationStore(app.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
         handler = Handler(HandlerThread("droiddeck-glasses").apply { start() }.looper)
         handler.post {
+            runCatching {
+                VitureSdkImport.installedDirectory(app)?.let(VitureSdk::loadImported)
+            }.onFailure { Log.w(TAG, "Could not restore imported VITURE SDK", it) }
             val filter = IntentFilter(ACTION_PERMISSION).apply {
                 addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
@@ -184,6 +196,30 @@ object Glasses {
     }
 
     fun rescan() = post { refresh() }
+
+    internal suspend fun installVitureSdk(prepared: VitureSdkImport.Prepared): Unit = suspendCoroutine { result ->
+        if (!::handler.isInitialized) {
+            result.resumeWithException(IllegalStateException("Glasses are not initialized"))
+        } else if (!handler.post {
+            try {
+                check(!VitureSdk.available) { "VITURE SDK is already active" }
+                prepared.install(VitureSdk::loadImported)
+                publish { it.copy(vitureSdkAvailable = true, controlError = null) }
+                runCatching {
+                    if (linkDevice?.vendorId == VitureProtocol.VENDOR_ID) closeLink()
+                    refresh()
+                }.onFailure {
+                    Log.w(TAG, "SDK imported but glasses reconnection failed", it)
+                    publish { state -> state.copy(controlError = app.getString(R.string.glasses_connection_failed)) }
+                }
+                result.resume(Unit)
+            } catch (error: Exception) {
+                result.resumeWithException(error)
+            }
+        }) {
+            result.resumeWithException(IllegalStateException("Glasses service is unavailable"))
+        }
+    }
 
     fun startCalibration() = post {
         val l = link as? RayNeoLink ?: return@post
@@ -226,13 +262,15 @@ object Glasses {
     fun setRefreshHz(hz: Int) = post {
         if (hz == 30 && (_state.value.sbs || !GlassesRendering.native30HzAvailable(_settings.value, _state.value))) return@post
         update { it.copy(refreshHz = if (hz == 30) 30 else hz.coerceIn(60, 120)) }
-        if (!_state.value.sbs) applyMode(force = true)
+        if (!_state.value.sbs) {
+            if (_state.value.viture?.supportsNative == true) sendMode(false, preserveDisplayShape = true) else applyMode(force = true)
+        }
     }
 
     fun setSbsHz(hz: Int) = post {
         if (hz == 30 && (!_state.value.sbs || !GlassesRendering.native30HzAvailable(_settings.value, _state.value))) return@post
         update { it.copy(sbsHz = when { hz == 30 -> 30; hz >= 90 -> 90; else -> 60 }) }
-        if (hz != 30 && _state.value.sbs && _state.value.can3d) sendMode(true)
+        if (hz != 30 && _state.value.sbs && _state.value.can3d) sendMode(true, preserveDisplayShape = true)
     }
 
     fun setResolution(profile: GlassesDisplayProfile, value: String) = post {
@@ -281,6 +319,10 @@ object Glasses {
 
     fun setVrActive(on: Boolean) = post {
         val s = _state.value
+        if (on && s.viture?.nativeTracking == true) {
+            if (!useHostTracking()) return@post
+            vrNativeDof = s.viture.nativeDof
+        }
         val trackingChanged = steamVrSpatialGate.setRunning(on, SystemClock.uptimeMillis())
         if (trackingChanged) {
             handler.removeCallbacks(resumeSteamVrSpatial)
@@ -295,6 +337,10 @@ object Glasses {
         }
         val previous = GlassesDisplayModes.selected(_settings.value, s)
         publish { it.copy(vrActive = on) }
+        if (!on) vrNativeDof?.let {
+            vrNativeDof = null
+            controlViture(VitureSdk.CONTROL_NATIVE_DOF, it.toFloat())
+        }
         val restore2d = !on && modeState.stopVr()
         val stereo = (s.sbs || modeState.pendingStereo) && !restore2d
         val selected = GlassesDisplayModes.selected(_settings.value, _state.value, stereo)
@@ -345,6 +391,127 @@ object Glasses {
         sendFilm(on)
     }
 
+    fun setVitureTint(level: Int) = post {
+        val maximum = _state.value.viture?.filmMax?.takeIf { it > 0 } ?: return@post
+        controlViture(VitureSdk.CONTROL_FILM, level.coerceIn(0, maximum).toFloat() / maximum)
+    }
+
+    internal fun setVitureControl(command: Int, value: Float = 0f, extra: Int = 0) = post {
+        controlViture(command, value, extra)
+    }
+
+    fun setVitureNativeMode(native: Boolean) = post {
+        val tall = _state.value.height == 1200
+        controlViture(VitureSdk.CONTROL_NATIVE_MODE, if (native) 1f else 0f,
+            if (native) { if (tall) 0x34 else 0x31 } else { if (tall) 0x41 else 0x31 })
+    }
+
+    fun setVitureDisplayMode(mode: Int) = post {
+        val current = _state.value.viture ?: return@post
+        if (current.displayModes.none { it.code == mode }) return@post
+        if (current.nativeMode == 1) controlViture(VitureSdk.CONTROL_NATIVE_DISPLAY, mode.toFloat())
+        else {
+            val sdk = link as? VitureSdkLink ?: return@post
+            val accepted = sdk.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte()))
+            if (accepted) {
+                modeState.manualDisplayAccepted()
+                readVitureDevice(sdk, current.copy(displaySelected = true, error = null))
+                refresh()
+            } else vitureError(-7)
+        }
+    }
+
+    fun saveVitureDefaultDisplay() = post {
+        val mode = (link as? VitureSdkLink)?.deviceDisplayMode() ?: return@post
+        if (mode >= 0) controlViture(VitureSdk.CONTROL_DEFAULT_DISPLAY, mode.toFloat()) else vitureError(mode)
+    }
+
+    private fun vitureError(code: Int) = publish {
+        it.copy(viture = it.viture?.copy(busy = false, error = app.getString(R.string.viture_control_failed, code)))
+    }
+
+    private fun controlViture(command: Int, value: Float, extra: Int = 0): Boolean {
+        val sdk = link as? VitureDeviceLink ?: return false
+        val old = _state.value.viture ?: return false
+        if (!value.isFinite()) return false
+        if (_state.value.vrActive && command == VitureSdk.CONTROL_NATIVE_DOF && value > 0) {
+            vitureError(-10)
+            return false
+        }
+        publish { it.copy(viture = old.copy(busy = true, error = null)) }
+        val originReset = command == VitureSdk.CONTROL_CARINA_RESET || command == VitureSdk.CONTROL_CARINA_RECENTER
+        val pause = originReset || command == VitureSdk.CONTROL_NATIVE_MODE || command == VitureSdk.CONTROL_NATIVE_DOF
+        if (pause && sdk.trackingEnabled) {
+            val paused = sdk.send(VitureProtocol.MSG_IMU, byteArrayOf(0))
+            publish { it.copy(tracking = sdk.trackingEnabled) }
+            if (!paused) {
+                readVitureDevice(sdk, old.copy(busy = false))
+                vitureError(-10)
+                return false
+            }
+        }
+        if (originReset) SpatialTracking.invalidateOrigin(_settings.value.eyeHeightCm / 100f)
+        var rc = sdk.deviceControl(command, value, extra)
+        if (rc == 0 && command == VitureSdk.CONTROL_NATIVE_MODE && value == 1f && !old.nativeTracking) {
+            rc = sdk.deviceControl(VitureSdk.CONTROL_NATIVE_DOF, 0f)
+        }
+        if (rc < 0 && pause && old.supportsNative && !old.nativeTracking &&
+            sdk.deviceValue(VitureSdk.VALUE_NATIVE_MODE) == 1f) {
+            sdk.deviceControl(VitureSdk.CONTROL_NATIVE_DOF, 0f)
+        }
+        if (rc == 0) {
+            if (command == VitureSdk.CONTROL_NATIVE_MODE && value == 0f) vrNativeDof = null
+            val next = when (command) {
+                VitureSdk.CONTROL_DISPLAY_BUTTON -> old.copy(displayButtonEnabled = value != 0f)
+                VitureSdk.CONTROL_DEFAULT_DISPLAY -> old.copy(defaultDisplay = value.toInt())
+                VitureSdk.CONTROL_CARINA_AUTO_EXPOSURE -> old.copy(automaticExposure = true)
+                VitureSdk.CONTROL_CARINA_MANUAL_EXPOSURE -> old.copy(automaticExposure = false,
+                    exposureMs = value.coerceIn(0.01f, 8f), exposureGain = extra.coerceIn(0, 15))
+                VitureSdk.CONTROL_NATIVE_MODE, VitureSdk.CONTROL_NATIVE_DISPLAY -> old.copy(displaySelected = true)
+                else -> old
+            }
+            readVitureDevice(sdk, next.copy(busy = false, error = null))
+            if (command == VitureSdk.CONTROL_FILM) update { it.copy(sunblock = null) }
+            if (originReset) SpatialTracking.recenter(false)
+            if (command == VitureSdk.CONTROL_NATIVE_MODE || command == VitureSdk.CONTROL_NATIVE_DISPLAY) {
+                modeState.manualDisplayAccepted()
+                refresh()
+            }
+        } else {
+            readVitureDevice(sdk, old.copy(busy = false))
+            vitureError(rc)
+        }
+        updateImu()
+        return rc == 0
+    }
+
+    private fun readVitureDevice(sdk: VitureDeviceLink, previous: VitureDeviceState? = _state.value.viture) {
+        val device = VitureDeviceState.read(sdk, previous, (model as? VitureProtocol.Model)?.family)
+        if (link !== sdk) return
+        publish { it.copy(viture = device, brightnessMax = device.brightnessMax ?: it.brightnessMax,
+            volumeMax = device.volumeMax ?: it.volumeMax, hasSunblock = (device.filmMax ?: 0) > 0,
+            sbs = isStereoDisplay(it.width, device),
+            sunblock = device.film?.let { voltage -> voltage > 0 } ?: it.sunblock) }
+        syncVitureTracking(device)
+    }
+
+    private fun syncVitureTracking(device: VitureDeviceState) {
+        if (!device.nativeTrackingKnown) return
+        if (device.nativeTracking) {
+            if (nativeHostTracking == null) nativeHostTracking = _settings.value.headTracking
+            if (_settings.value.headTracking) update { it.copy(headTracking = false) }
+        } else nativeHostTracking?.let { saved ->
+            nativeHostTracking = null
+            update { it.copy(headTracking = saved) }
+        }
+        updateImu()
+    }
+
+    private fun useHostTracking(): Boolean {
+        if (_state.value.viture?.nativeTracking != true) return true
+        return controlViture(VitureSdk.CONTROL_NATIVE_DOF, 0f)
+    }
+
     fun setSbsSupport(support: Int) = post {
         val s = support.coerceIn(GlassesState.SBS_FAILS, GlassesState.SBS_WORKS)
         markSbsFailed(linkDevice?.productId, s == GlassesState.SBS_FAILS)
@@ -366,6 +533,7 @@ object Glasses {
     }
     fun set3dof(on: Boolean) = post {
         if (!_state.value.supportsScreen3dof) return@post
+        if (on && !useHostTracking()) return@post
         update {
             it.copy(
                 gameOnGlasses = on || it.gameOnGlasses,
@@ -403,7 +571,11 @@ object Glasses {
         if (_state.value.spatialConnected && _settings.value.positionalTracking) { closeLink(); refresh() }
     }
 
-    fun setHeadTracking(on: Boolean) = post { update { it.copy(headTracking = on) } }
+    fun setHeadTracking(on: Boolean) = post {
+        if (on && !useHostTracking()) return@post
+        update { it.copy(headTracking = on) }
+        updateImu()
+    }
     fun setAuto3d(on: Boolean) = post { update { it.copy(auto3d = on) } }
     fun setPicture3d(picture: Int) = post { update { it.copy(picture3d = picture.coerceIn(0, 2)) } }
     fun setScreenWidthDm(dm: Int) = post { update { it.copy(screenWidthDm = dm.coerceIn(5, 200)) } }
@@ -411,7 +583,8 @@ object Glasses {
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
 
     fun outputHz(): Int = GlassesRendering.outputHz(_settings.value, _state.value)
-    fun outputResolution(): GlassesResolution? = GlassesDisplayModes.selected(_settings.value, _state.value)
+    fun outputResolution(): GlassesResolution? = _state.value.viture?.takeIf { it.supportsNative }
+        ?.selectedDisplayMode?.presentationResolution ?: GlassesDisplayModes.selected(_settings.value, _state.value)
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -473,6 +646,21 @@ object Glasses {
             .put("supportsScreen3dof", s.supportsScreen3dof)
             .put("supportsDisplayModeControl", s.supportsDisplayModeControl)
             .put("supportsSpatial", s.supportsSpatial)
+            .put("vitureDetected", s.vitureDetected).put("vitureSdkAvailable", s.vitureSdkAvailable)
+            .put("viture", s.viture?.let { device ->
+                JSONObject().put("capabilities", device.capabilities)
+                    .put("brightnessMax", device.brightnessMax ?: JSONObject.NULL)
+                    .put("volumeMax", device.volumeMax ?: JSONObject.NULL)
+                    .put("filmMax", device.filmMax ?: JSONObject.NULL).put("filmLevel", device.filmLevel ?: JSONObject.NULL)
+                    .put("dutyCycle", device.dutyCycle ?: JSONObject.NULL).put("worn", device.worn ?: JSONObject.NULL)
+                    .put("nativeMode", device.nativeMode ?: JSONObject.NULL).put("nativeDof", device.nativeDof ?: JSONObject.NULL)
+                    .put("displayMode", device.displayMode ?: JSONObject.NULL).put("ultrawide", device.ultrawide)
+                    .put("displayDistance", device.distance ?: JSONObject.NULL).put("displaySize", device.size ?: JSONObject.NULL)
+                    .put("sideMode", device.side ?: JSONObject.NULL).put("imuRate", device.imuRate ?: JSONObject.NULL)
+                    .put("imuRateMask", device.imuRateMask).put("cameraVid", device.cameraVid).put("cameraPid", device.cameraPid)
+                    .put("automaticExposure", device.automaticExposure).put("exposureMs", device.exposureMs.toDouble())
+                    .put("exposureGain", device.exposureGain).put("busy", device.busy).put("error", device.error ?: JSONObject.NULL)
+            } ?: JSONObject.NULL)
             .put("firmware", (link as? VitureSdkLink)?.firmware ?: JSONObject.NULL)
             .put("spatialSdk", (link as? VitureSdkLink)?.spatialDiagnostics()?.let {
                 JSONObject().put("status",it[0]).put("callbackAgeMs",it[1]).put("cameraPoseDeltaMs",it[2])
@@ -521,7 +709,7 @@ object Glasses {
     private fun update(transform: (GlassesSettings) -> GlassesSettings) {
         val next = transform(_settings.value)
         _settings.value = next
-        save(next)
+        save(next.copy(headTracking = nativeHostTracking ?: next.headTracking))
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -559,11 +747,15 @@ object Glasses {
         val known = devices.mapNotNull { device ->
             deviceModel(device)?.let { device to it }
         }
+        val namedViture = devices.firstOrNull { device ->
+            device.vendorId == VitureProtocol.VENDOR_ID &&
+                VitureProtocol.isGlassesProductName(runCatching { device.productName }.getOrNull())
+        }
         val selected = known.firstOrNull { canOpenModel(it.second) } ?: known.firstOrNull()
         val device = selected?.first
         val m = selected?.second
         val controllable = m?.let(::canOpenModel) == true
-        val permitted = controllable && device != null && (m === XrealModel || usb.hasPermission(device))
+        val permitted = controllable && device != null && (m is XrealModel || usb.hasPermission(device))
         val identity = device?.let {
             GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
         }
@@ -576,7 +768,9 @@ object Glasses {
         val mode = display?.mode
         val width = mode?.physicalWidth ?: 0
         val height = mode?.physicalHeight ?: 0
-        val sbsByDisplay = width >= 3000
+        if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
+        if (device != null && permitted && link == null) openLink(device)
+        val sbsByDisplay = isStereoDisplay(width, _state.value.viture)
         val noSignal = display != null && width in 1 until 1280
         when (modeState.observe(sbsByDisplay, SystemClock.uptimeMillis())) {
             GlassesModeState.Confirmation.FAILED -> {
@@ -590,12 +784,15 @@ object Glasses {
             markSbsFailed(device?.productId, false)
             rememberSbs(GlassesState.SBS_WORKS)
         }
-        if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
-        if (device != null && permitted && link == null) openLink(device)
         publish {
             it.copy(
-                present = device != null || display != null,
-                model = m?.name ?: display?.let(::displayName) ?: "VITURE",
+                present = device != null || display != null || namedViture != null,
+                vitureDetected = namedViture != null || known.any { it.first.vendorId == VitureProtocol.VENDOR_ID } ||
+                    display?.let { output -> output.name.contains("VITURE", ignoreCase = true) ||
+                        displayName(output)?.contains("VITURE", ignoreCase = true) == true } == true,
+                vitureSdkAvailable = VitureSdk.available,
+                model = m?.name ?: namedViture?.let { runCatching { it.productName }.getOrNull() }
+                    ?: display?.let(::displayName) ?: "VITURE",
                 controllable = controllable,
                 permission = when {
                     !controllable -> Permission.NONE
@@ -605,7 +802,7 @@ object Glasses {
                 },
                 connected = link?.ready == true,
                 controlError = when {
-                    m is VitureProtocol.Model && m.needsSdk && !VitureSdk.available -> app.getString(R.string.glasses_driver_missing)
+                    m is VitureProtocol.Model && m.needsSdk && !VitureSdk.available -> app.getString(R.string.viture_sdk_required)
                     device == null || link?.ready == true -> null
                     else -> it.controlError
                 },
@@ -613,18 +810,19 @@ object Glasses {
                 width = width, height = height, hz = mode?.refreshRate ?: 0f,
                 sbs = sbsByDisplay,
                 switching3d = modeState.pendingStereo,
-                brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
-                sunblock = if (m === XrealModel) it.sunblock else _settings.value.sunblock ?: it.sunblock,
+                brightnessMax = it.viture?.brightnessMax ?: m?.brightnessMax ?: 8,
+                volumeMax = it.viture?.volumeMax ?: m?.volumeMax ?: 8,
+                sunblock = if (m is XrealModel || it.viture != null) it.sunblock else _settings.value.sunblock ?: it.sunblock,
                 hardwareControls = m?.hardwareControls == true &&
-                    (device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel || m is RokidModel),
+                    (device?.vendorId == VitureProtocol.VENDOR_ID || m is XrealModel || m is RokidModel),
                 supportsDisplayModeControl = m?.supportsDisplayModeControl == true,
-                hasSunblock = m?.hasSunblock == true,
-                diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
+                hasSunblock = it.viture?.let { device -> (device.filmMax ?: 0) > 0 } ?: (m?.hasSunblock == true),
+                diagonalFovDeg = (link as? RayNeoLink)?.diagonalFovDeg ?: m?.diagonalFovDeg ?: 46f,
                 tracking = it.tracking && link != null,
                 noSignal = noSignal,
-                sbs90 = m?.sbs90 == true,
-                rates2d = m?.rates2d ?: listOf(60, 90, 120),
-                experimental = m === XrealModel || (m is VitureProtocol.Model && m.family == VitureProtocol.Family.PRO2 && !m.needsSdk),
+                sbs90 = m?.supportsSbs90(mode?.let { GlassesResolution(width / (if (sbsByDisplay) 2 else 1), height) }) == true,
+                rates2d = displayRefreshRates(m, display),
+                experimental = m is XrealModel || (m is VitureProtocol.Model && m.family == VitureProtocol.Family.PRO2 && !m.needsSdk),
                 supportsScreen3dof = link?.hasImu == true,
                 supports30Hz = display?.let(::supports30Hz) == true,
                 supportsSpatial = (link as? VitureSdkLink)?.isCarina == true,
@@ -642,6 +840,9 @@ object Glasses {
     internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid) ||
         vid == XrealModel.VENDOR_ID || vid == RokidModel.VENDOR_ID
 
+    internal fun isStereoDisplay(width: Int, device: VitureDeviceState?): Boolean = width >= 3000 &&
+        if (device?.supportsNative == true) device.selectedDisplayMode?.stereo == true else device?.ultrawide != true
+
     internal fun supports30Hz(display: Display): Boolean {
         val current = display.mode
         return display.supportedModes.any {
@@ -650,18 +851,27 @@ object Glasses {
         }
     }
 
+    internal fun displayRefreshRates(model: GlassesModel?, display: Display?): List<Int> {
+        val fallback = model?.rates2d ?: listOf(60, 90, 120)
+        if (model?.usesAndroidRefreshRates != true || display == null) return fallback
+        val current = display.mode
+        return display.supportedModes.filter {
+            it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight
+        }.mapNotNull { it.refreshRate.takeIf { rate -> rate.isFinite() && rate >= 59f }?.roundToInt() }
+            .distinct().sorted().ifEmpty { listOf(60) }
+    }
+
     private fun canOpenModel(m: GlassesModel): Boolean = m.controllable &&
         (m !is VitureProtocol.Model || !m.needsSdk || VitureSdk.available)
 
     internal fun deviceModel(device: UsbDevice): GlassesModel? {
         val name = runCatching { device.productName }.getOrNull()
         return if (device.vendorId == VitureProtocol.VENDOR_ID) {
-            if (device.productId == VitureProtocol.PRO2_PRODUCT_ID) VitureProtocol.model(device.productId, name)
-            else VitureSdk.marketName(device.productId)?.let(VitureProtocol::sdkModel)
+            VitureSdk.marketName(device.productId)?.let(VitureProtocol::sdkModel)
                 ?: VitureProtocol.model(device.productId, name)
         }
-        else if (XrealModel.matches(device.vendorId, device.productId)) XrealModel
-        else RokidModel.model(device.vendorId, device.productId, name)
+        else XrealModel.model(device.vendorId, device.productId)
+            ?: RokidModel.model(device.vendorId, device.productId, name)
             ?: RayNeoModel.model(device.vendorId, device.productId, name)
     }
 
@@ -722,15 +932,15 @@ object Glasses {
         calibrationKey = calibrationStore.key(device.vendorId, device.productId,
             runCatching { device.serialNumber }.getOrNull(), model?.name.orEmpty())
         val l = if (device.vendorId == VitureProtocol.VENDOR_ID) {
-            if (device.productId == VitureProtocol.PRO2_PRODUCT_ID) {
+            if (device.productId == VitureProtocol.PRO2_PRODUCT_ID && !VitureSdk.available) {
                 VitureV2Link.open(usb, device, v2Listener(generation))
-            } else if ((model as? VitureProtocol.Model)?.needsSdk == true) {
+            } else if (VitureSdk.available) {
                 Log.i(TAG, "opening VITURE SDK pid=0x%04X spatial=%s".format(device.productId, spatial))
                 VitureSdkLink.open(usb, device, File(app.noBackupFilesDir, "viture"), sdkListener(generation),
                     (model as? VitureProtocol.Model)?.family, spatial)
             } else VitureLink.open(usb, device, linkListener(generation))
-        } else if (model === XrealModel) {
-            XrealLink.open(app, xrealListener(generation))
+        } else if (model is XrealModel) {
+            XrealLink.open(app, xrealListener(generation), model as XrealModel)
         } else if (model is RokidModel) {
             RokidLink.open(usb, device, rokidListener(generation))
         } else {
@@ -760,15 +970,29 @@ object Glasses {
         autoModeSent = false
         Log.i(TAG, "opened ${model?.name} pid=0x%04X imu=%s".format(device.productId, opened.hasImu))
         publish { it.copy(connected = opened.ready, controlError = null) }
+        if (opened is VitureSdkLink) readVitureDevice(opened)
         listOf(VitureProtocol.MSG_GET_BRIGHTNESS, VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_GET_DISPLAY).forEachIndexed { i, msg ->
             handler.postDelayed({ if (link === opened) opened.send(msg) }, VitureLink.COMMAND_GAP_MS * (i + 1))
         }
         handler.postDelayed({
             if (link !== opened) return@postDelayed
             _settings.value.sunblock?.let { sendFilm(it) }
-            updateImu()
-            applyMode(force = false)
+            finishLinkInitialization(opened, 3)
         }, 300)
+    }
+
+    private fun finishLinkInitialization(opened: GlassesLink, attempts: Int) {
+        if (link !== opened) return
+        if (opened is VitureDeviceLink) {
+            readVitureDevice(opened)
+            val device = _state.value.viture
+            if (attempts > 1 && device != null && (!device.nativeTrackingKnown ||
+                    (device.supportsNative && device.selectedDisplayMode == null))) {
+                handler.postDelayed({ finishLinkInitialization(opened, attempts - 1) }, 300)
+            }
+        }
+        updateImu()
+        applyMode(force = false)
     }
 
     private fun xrealListener(generation: Long) = object : XrealLink.Listener {
@@ -828,6 +1052,39 @@ object Glasses {
     }
 
     private fun sdkListener(generation: Long) = object : VitureSdkLink.Listener {
+        override fun onDeviceState(id: Int, value: Int) = post {
+            if (generation != linkGeneration) return@post
+            val current = _state.value.viture ?: return@post
+            val sdk = link as? VitureSdkLink ?: return@post
+            val next = when (id) {
+                2 -> {
+                    val mode = sdk.deviceValue(VitureSdk.VALUE_NATIVE_MODE).toInt().takeIf { it >= 0 }
+                    val display = if (mode == 1) sdk.deviceValue(VitureSdk.VALUE_NATIVE_DISPLAY).toInt() else sdk.deviceDisplayMode()
+                    if (display < 0) return@post
+                    current.copy(nativeMode = mode, displayMode = display).retainingNativeTracking(current)
+                }
+                3 -> current.copy(film = value.toFloat() / (current.filmMax ?: 1).coerceAtLeast(1))
+                4 -> {
+                    val mode = sdk.deviceValue(VitureSdk.VALUE_NATIVE_MODE).toInt()
+                    if (mode !in 0..1) return@post
+                    val dof = if (mode == 1) sdk.deviceValue(VitureSdk.VALUE_NATIVE_DOF).toInt() else 0
+                    if (dof !in 0..2) return@post
+                    current.copy(nativeMode = mode, nativeDof = dof)
+                }
+                5 -> current.copy(worn = value != 0)
+                6 -> current.copy(distance = value)
+                7 -> current.copy(size = value)
+                else -> return@post
+            }
+            if (id == 4 && _state.value.vrActive && next.nativeTracking) {
+                vrNativeDof = next.nativeDof
+                controlViture(VitureSdk.CONTROL_NATIVE_DOF, 0f)
+                return@post
+            }
+            publish { it.copy(viture = next) }
+            if (id == 4) syncVitureTracking(next)
+            if (id == 2) refresh()
+        }
         override fun onSpatial(pose: FloatArray, timeNs: Long, valid: Boolean) {
             if (generation == linkGeneration) SpatialTracking.accept(pose, timeNs, generation, valid)
         }
@@ -896,6 +1153,7 @@ object Glasses {
             calibrationKey = RayNeoCalibrationStore.profileKey(base,
                 RayNeoProtocol.isGt(device.vendorId, device.productId), boardId)
             _calibration.value = _calibration.value.copy(saved = calibrationSaved)
+            (link as? RayNeoLink)?.diagonalFovDeg?.let { fov -> publish { it.copy(diagonalFovDeg = fov) } }
         }
         override fun onCalibration(revision: Long, phase: CalibrationPhase, progress: Int) = post {
             if (generation != linkGeneration || revision != calibrationRevision) return@post
@@ -939,7 +1197,10 @@ object Glasses {
         _calibration.value = GlassesCalibrationState(phase = if (_calibration.value.running) CalibrationPhase.FAILED else CalibrationPhase.IDLE)
         glassesMode = 0
         l.close()
-        publish { it.copy(connected = false, tracking = false, supportsScreen3dof = false, supportsSpatial = false) }
+        nativeHostTracking?.let { saved -> update { it.copy(headTracking = saved) } }
+        nativeHostTracking = null
+        vrNativeDof = null
+        publish { it.copy(connected = false, tracking = false, supportsScreen3dof = false, supportsSpatial = false, viture = null) }
         Log.i(TAG, "link closed")
     }
 
@@ -967,6 +1228,7 @@ object Glasses {
             sendMode(false)
             return
         }
+        if (s.viture?.supportsNative == true || s.viture?.displaySelected == true) return
         if (!s.usable || s.sbs || modeState.pendingStereo) return
         val hz = _settings.value.refreshHz
         if (hz == 30 && GlassesRendering.native30HzAvailable(_settings.value, s)) return
@@ -981,14 +1243,30 @@ object Glasses {
         sendMode(false)
     }
 
-    private fun sendMode(sbs: Boolean): Boolean {
+    private fun sendMode(sbs: Boolean, preserveDisplayShape: Boolean = false): Boolean {
         val m = model ?: return false
         if (!m.supportsDisplayModeControl) return false
         if (sbs && !_settings.value.gameOnGlasses) update { it.copy(gameOnGlasses = true) }
         val g = _settings.value
         val resolution = GlassesDisplayModes.selected(g, _state.value, sbs)
         val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs, resolution)
-        if (link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true) {
+        val device = _state.value.viture
+        val sdk = link as? VitureDeviceLink
+        val accepted = if (device?.supportsNative == true && sdk != null) {
+            val current = if (preserveDisplayShape) device.selectedDisplayMode ?: return false else null
+            val candidates = device.displayModes.filter { it.stereo == sbs && it.ultrawide == (current?.ultrawide == true) }
+            val sized = if (current != null) candidates.filter { it.width == current.width && it.height == current.height }
+                else candidates.filter { it.height == (resolution?.height ?: _state.value.height) }.ifEmpty { candidates }
+            val requestedHz = if (sbs) g.sbsHz else g.refreshHz
+            val selected = sized.filter { it.hz <= requestedHz }.maxByOrNull { it.hz } ?: sized.minByOrNull { it.hz }
+            if (selected == null) false else {
+                val success = if (device.nativeMode == 1) sdk.deviceControl(VitureSdk.CONTROL_NATIVE_DISPLAY, selected.code.toFloat()) == 0
+                    else sdk.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(selected.code.toByte()))
+                if (success) publish { it.copy(viture = device.copy(displayMode = selected.code, displaySelected = true)) }
+                success
+            }
+        } else link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true
+        if (accepted) {
             if (link is RayNeoLink) glassesMode = mode
             lastModeSentAt = SystemClock.uptimeMillis()
             modeState.sent(sbs, lastModeSentAt)
@@ -1015,7 +1293,9 @@ object Glasses {
     private fun updateImu() {
         val l = link ?: return
         if (!l.ready) return
-        val want = (sink != null || poseObservers.isNotEmpty() || probe != null || _calibration.value.running || SpatialTracking.enabled) && l.hasImu
+        if (_state.value.viture?.nativeTrackingKnown == false) return
+        val want = (sink != null || poseObservers.isNotEmpty() || probe != null || _calibration.value.running || SpatialTracking.enabled) &&
+            l.hasImu && _state.value.viture?.nativeTracking != true
         if (l !is VitureV2Link && want == _state.value.tracking) return
         val accepted = l.send(VitureProtocol.MSG_IMU, byteArrayOf(if (want) 1 else 0))
         if (want && !accepted) return

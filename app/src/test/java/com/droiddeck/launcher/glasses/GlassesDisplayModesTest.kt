@@ -46,10 +46,10 @@ class GlassesDisplayModesTest {
     }
 
     @Test fun olderModelsKeepTheirNativeResolutionAndStereoRateLimits() {
-        for (name in listOf("One", "Pro", "Pro 2")) {
+        for (name in listOf("One", "Lite", "Pro", "Pro 2")) {
             val model = VitureProtocol.sdkModel(name)!!
             assertEquals(listOf(fullHd), model.resolutions)
-            assertEquals(0x34, model.mode(120, false, tall))
+            assertEquals(if (name == "One" || name == "Lite") 0x31 else 0x34, model.mode(120, false, tall))
             assertEquals(0x32, model.mode(90, true, tall))
         }
         for (name in listOf("Luma", "Luma Pro", "Luma Ultra", "Beast")) {

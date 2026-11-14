@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="viture_camera_title">Glasses camera</string>
+    <string name="viture_camera_live_view">Live camera view</string>
+    <string name="viture_camera_hint">See through the glasses camera. The camera runs only while this preview is open.</string>
+    <string name="viture_camera_open">Open camera</string>
+    <string name="viture_camera_description">Live view from the glasses camera</string>
+    <string name="viture_camera_paused">Camera paused.</string>
+    <string name="viture_camera_permission">Allow camera access to show the glasses camera.</string>
+    <string name="viture_camera_usb_permission">Approve the USB camera connection to continue.</string>
+    <string name="viture_camera_usb_denied">USB camera access was not allowed. Try again to connect.</string>
+    <string name="viture_camera_starting">Starting the glasses camera…</string>
+    <string name="viture_camera_live">Live view. Closing this preview stops the camera.</string>
+    <string name="viture_camera_disconnected">The glasses camera is not connected. Check the USB connection.</string>
+    <string name="viture_camera_failed">The camera could not deliver a live image. Reconnect the glasses and try again.</string>
+    <string name="viture_camera_settings">Open app settings</string>
+    <string name="viture_camera_allow">Allow camera</string>
+    <string name="viture_camera_retry">Try again</string>
+</resources>

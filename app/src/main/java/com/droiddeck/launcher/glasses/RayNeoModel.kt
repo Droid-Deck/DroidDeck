@@ -2,6 +2,7 @@ package com.droiddeck.launcher.glasses
 
 object RayNeoModel {
     private val modelName = Regex("(?i)(ray\\s*neo|tcl).*\\b(air|gt)(?=\\b|[0-9])")
+    private val gtMaxName = Regex("(?i)(ray\\s*neo|tcl)\\s+gt\\s+max")
 
     fun isVendor(vid: Int) = vid == RayNeoProtocol.VENDOR_ID ||
         vid == RayNeoProtocol.GT_VENDOR_ID || vid == 0x22d9
@@ -29,8 +30,10 @@ object RayNeoModel {
         override val controllable = true
         override val brightnessMax = 0
         override val volumeMax = 0
-        override val diagonalFovDeg = 46f
+        override val diagonalFovDeg = if (gtMaxName.matches(name)) 59f else 46f
         override val sbs90 = false
+        override val rates2d = listOf(60, 120)
+        override val usesAndroidRefreshRates = true
         override fun mode(hz: Int, sbs: Boolean) =
             if (sbs) RayNeoProtocol.CMD_SWITCH_TO_3D else RayNeoProtocol.CMD_SWITCH_TO_2D
         override fun modeForStep(step: Int): Int? = null

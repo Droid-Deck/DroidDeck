@@ -64,8 +64,93 @@ class GlassesUsbTest {
         assertEquals(Glasses.Permission.ASKING, state.value.permission)
     }
 
+    @Test fun sdkDependentGlassesOfferImportBeforeUsbPermission() {
+        val ultra = device(0x1104)
+        manager.devices[ultra.deviceName] = ultra
+        refresh()
+        assertTrue(state.value.present)
+        assertTrue(state.value.vitureDetected)
+        assertFalse(state.value.vitureSdkAvailable)
+        assertFalse(state.value.supportsSpatial)
+        assertTrue(manager.requests.isEmpty())
+    }
+
+    @Test fun namedVitureWithUnknownPidOffersImportWithoutClaimingControl() {
+        for (name in listOf("VITURE Phantom Beast XR GLASSES", "VITURE Phantom XR Glasses")) {
+            val phantom = device(0x7fff, name = name)
+            manager.devices.clear()
+            manager.devices[phantom.deviceName] = phantom
+            state.value = GlassesState()
+            refresh()
+            assertTrue(state.value.present)
+            assertTrue(state.value.vitureDetected)
+            assertEquals(name, state.value.model)
+            assertFalse(state.value.controllable)
+            assertFalse(state.value.supportsSpatial)
+            assertTrue(manager.requests.isEmpty())
+        }
+    }
+
+    @Test fun verifiedPhantomOffersImportWithoutAdvertisingSdkFeaturesBeforeImport() {
+        val phantom = device(0x1221, name = "VITURE Phantom XR Glasses")
+        manager.devices[phantom.deviceName] = phantom
+        refresh(ask = true)
+        assertEquals("VITURE Phantom Beast", state.value.model)
+        assertTrue(state.value.present)
+        assertTrue(state.value.vitureDetected)
+        assertFalse(state.value.vitureSdkAvailable)
+        assertFalse(state.value.controllable)
+        assertFalse(state.value.connected)
+        assertFalse(state.value.supportsSpatial)
+        assertEquals(Glasses.Permission.NONE, state.value.permission)
+        assertTrue(manager.requests.isEmpty())
+    }
+
+    @Test fun legacyVitureAlsoOffersSdkImport() {
+        val pro = device(0x101d)
+        manager.devices[pro.deviceName] = pro
+        refresh()
+        assertTrue(state.value.vitureDetected)
+        assertTrue(state.value.controllable)
+    }
+
+    @Test fun docksAndOtherBrandsDoNotOfferVitureSdkImport() {
+        for (device in listOf(device(0x3011), device(0xaf50, 0x1bbb, "RayNeo Air 4 Pro"),
+            device(0x7fff, name = "VITURE Phantom Camera"), device(0x7ffe, name = "VITURE Phantom Microphone"))) {
+            manager.devices.clear()
+            manager.devices[device.deviceName] = device
+            refresh()
+            assertFalse(state.value.vitureDetected)
+        }
+    }
+
+    @Test fun unpluggingVitureClearsSdkImportVisibility() {
+        val ultra = device(0x1104)
+        manager.devices[ultra.deviceName] = ultra
+        refresh()
+        assertTrue(state.value.vitureDetected)
+        manager.devices.clear()
+        refresh()
+        assertFalse(state.value.vitureDetected)
+    }
+
+    @Test fun vitureDisplayOffersImportWithoutAUsbControlConnection() {
+        val hdmi = ReflectionHelpers.getStaticField<Int>(Display::class.java, "TYPE_HDMI")
+        val displayId = ShadowDisplayManager.addDisplay("w1920dp-h1080dp", hdmi)
+        val displays = RuntimeEnvironment.getApplication().getSystemService(DisplayManager::class.java)
+        shadowOf(displays.getDisplay(displayId)).apply {
+            setFlags(Display.FLAG_PRESENTATION)
+            setName("VITURE Luma Ultra")
+        }
+        refresh()
+        assertTrue(state.value.present)
+        assertTrue(state.value.vitureDetected)
+        assertFalse(state.value.controllable)
+        assertTrue(manager.requests.isEmpty())
+    }
+
     @Test fun unsupportedDevicesNeverRequestOrAdvertiseUsbPermission() {
-        for (pid in listOf(0x3011, 0xffff, 0x1201)) {
+        for (pid in listOf(0x3011, 0xffff, 0x1201, 0x1221)) {
             val device = device(pid)
             manager.devices.clear()
             manager.devices[device.deviceName] = device
@@ -78,7 +163,7 @@ class GlassesUsbTest {
             refresh(ask = true)
             assertTrue(manager.requests.isEmpty())
             assertEquals(Glasses.Permission.NONE, state.value.permission)
-            assertEquals(pid == 0x1201, state.value.present)
+            assertEquals(pid == 0x1201 || pid == 0x1221, state.value.present)
             assertFalse(state.value.controllable)
             assertFalse(state.value.connected)
         }
@@ -221,7 +306,8 @@ class GlassesUsbTest {
         val devices = listOf(device(0x1011), device(0x1019), device(0x1131),
             device(0xaf50, 0x1bbb, "RayNeo Air 4 Pro"),
             device(0xaf50, 0x3941, "RayNeo GT MAX"),
-            device(0x043e, 0x3318, "XREAL 1S"))
+            device(0x043e, 0x3318, "XREAL 1S"),
+            device(0x0444, 0x3318, "XREAL 1 Pro+"))
         try {
             for (device in devices) for (imu in listOf(false, true)) {
                 manager.devices.clear()
@@ -252,13 +338,44 @@ class GlassesUsbTest {
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
-    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
-        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+    @Test fun xrealUsesVerifiedIdentitiesAndExcludesOtherModelsAndRecoveryProducts() {
+        assertEquals(XrealModel.ONE_S, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+        assertEquals(XrealModel.ONE_PRO_PLUS, Glasses.deviceModel(device(0x0444, 0x3318, "XREAL 1 Pro+")))
         assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
-        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
-            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
+        assertTrue(Glasses.isGlassesDisplayName("XREAL 1 Pro+"))
+        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0437, 0x0438, 0x0424, 0xffff)) {
+            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1 Pro+")))
         }
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
+        assertEquals(null, Glasses.deviceModel(device(0x0444, 0x1234, "XREAL 1 Pro+")))
+    }
+
+    @Test fun xrealProPlusUsesEthernetPermissionAndItsOwnOptics() {
+        val pro = device(0x0444, 0x3318, "XREAL 1 Pro+")
+        manager.devices[pro.deviceName] = pro
+        field("linkDevice").set(null, pro)
+        field("link").set(null, object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray) = true
+            override fun close() {}
+        })
+        try {
+            refresh(ask = true)
+            assertEquals("XREAL 1 Pro+", state.value.model)
+            assertEquals(Glasses.Permission.GRANTED, state.value.permission)
+            assertTrue(manager.requests.isEmpty())
+            assertTrue(state.value.canControl)
+            assertTrue(state.value.hardwareControls)
+            assertTrue(state.value.supportsScreen3dof)
+            assertFalse(state.value.supportsSpatial)
+            assertEquals(57f, state.value.diagonalFovDeg, 0f)
+            assertEquals(9, state.value.brightnessMax)
+            assertEquals(0, state.value.volumeMax)
+        } finally {
+            field("link").set(null, null)
+            field("linkDevice").set(null, null)
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+        }
     }
 
     @Test fun rokidMaxRoutesThroughItsOwnModelAndSharedVendorIdNeedsTheName() {

@@ -2,12 +2,19 @@ package com.droiddeck.launcher.glasses
 
 import kotlin.math.abs
 
-internal class XrealOrientationFilter {
+internal class XrealOrientationFilter(model: XrealModel = XrealModel.ONE_S) {
     private val fusion = ImuFusion()
+    // Pro+'s display-to-IMU mounting pitch must be inverted when mapping sensor samples.
+    private val sensorToDisplay = if (model == XrealModel.ONE_PRO_PLUS)
+        Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.toRadians(35.0).toFloat()) else null
 
     fun update(sample: XrealProtocol.Sample): FloatArray? = fusion.update(sample.timeNs,
-        Vec3(sample.accel.x, -sample.accel.y, -sample.accel.z),
-        Vec3(sample.gyro.x, -sample.gyro.y, -sample.gyro.z))
+        map(sample.accel), map(sample.gyro))
+
+    private fun map(sample: Vec3): Vec3 {
+        val display = sensorToDisplay?.rotate(sample) ?: sample
+        return Vec3(display.x, -display.y, -display.z)
+    }
 }
 
 internal class ImuFusion {
