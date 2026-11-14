@@ -45,8 +45,8 @@ jobs:
               exit 0
             fi
           fi
-          # A PR build that started before this run may have pinned main from before the push.
-          bumped=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)
+          # This run is created right after the push, so a PR build that started earlier may have pinned the old main.
+          bumped=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
           note() {
             local number=$1
             local marker="<!-- droiddeck-rebuild-$now -->"
@@ -83,10 +83,16 @@ jobs:
               --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [(.tag_name | ltrimstr("pr-")), ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv'
             # A build that started before the bump and was still running at it may have pinned the old main,
             # including a PR's first build and fork builds, whose pull_requests list GitHub leaves empty.
-            since=$(date -u -d "$bumped - 6 hours" +%Y-%m-%dT%H:%M:%SZ)
-            gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
-              -f event=pull_request -f created=">=$since" -f per_page=100 \
-              --jq '.workflow_runs[] | select((.run_started_at // .created_at) < "'"$bumped"'" and (.status != "completed" or .updated_at >= "'"$bumped"'"))
+            # Unfinished runs are listed whatever their age; finished ones from the last day.
+            since=$(date -u -d "$bumped - 24 hours" +%Y-%m-%dT%H:%M:%SZ)
+            {
+              for status in queued in_progress waiting pending requested; do
+                gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+                  -f event=pull_request -f status=$status -f per_page=100 --jq '.workflow_runs[]'
+              done
+              gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+                -f event=pull_request -f status=completed -f created=">=$since" -f per_page=100 --jq '.workflow_runs[]'
+            } | jq -r 'select((.run_started_at // .created_at) < "'"$bumped"'" and (.status != "completed" or .updated_at >= "'"$bumped"'"))
                 | [(.pull_requests[0].number // 0 | tostring), .head_repository.full_name, .head_branch, .head_sha] | @tsv' |
               while IFS=$'\t' read -r number repo branch sha; do
                 if [ "$number" = 0 ]; then
