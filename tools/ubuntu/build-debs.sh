@@ -29,6 +29,14 @@ apt-get build-dep -y -qq ./ >/dev/null
 dpkg-buildpackage -b -uc -us >"$work/kwin.log" 2>&1 || { tail -80 "$work/kwin.log"; exit 1; }
 cd "$work"
 
+apt-get source -qq xwayland
+cd xwayland-*/
+for p in "$here"/patches/xwayland/*.patch; do patch -p1 --forward < "$p"; done
+dch -l +droiddeck -D resolute "Send tablet input and the window cursor to the X11 window under the pen."
+apt-get build-dep -y -qq ./ >/dev/null
+dpkg-buildpackage -b -uc -us >"$work/xwayland.log" 2>&1 || { tail -80 "$work/xwayland.log"; exit 1; }
+cd "$work"
+
 for deb in *.deb; do
   case $deb in *-dbgsym_*) continue ;; esac
   cp "$deb" "$out/"

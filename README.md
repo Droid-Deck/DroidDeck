@@ -81,6 +81,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - DiRT 3 and DiRT Showdown keep their telemetry socket the way RoccoC's DiRTTelemetryErrorFix (MIT) does, based on the fix by Carsten Gottschling.
 - Zink on PowerVR keeps colour textures in colour with Icenowy Zheng's upstream [Mesa](https://gitlab.freedesktop.org/mesa/mesa) fix d55418dae7 (MIT), carried as a runtime patch.
 - A pen stroke that leaves a subsurface such as Krita's canvas keeps drawing with a change based on Xaver Hugl's [KWin](https://invent.kde.org/plasma/kwin) merge request 9883 (GPL-2.0-or-later), carried as a runtime patch.
+- X11 apps get the pen in the desktop with Olivier Fourdan's upstream [Xwayland](https://gitlab.freedesktop.org/xorg/xserver) fixes 03228e00 and 0ca92fb4 (MIT), carried as runtime patches.
 - Games and AppImage, Flatpak and Snap programs such as emulators use `TU_DEBUG=sysmem` by default, as does the Steam client. Turnip sysmem rendering can be turned off in Performance settings, except with the Adreno 710/720 driver, which always uses it.
 - Black Ops III and Dark Souls Remastered start without [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) (BSD-2-Clause), whose `311210.py` and `570940.py` fail under ARM64 Proton.
 - [ReSkate](https://github.com/Dingo-Shenanigans/ReSkate) (GPL-3.0) by Dingo Shenanigans uses the launch option from its README and D3D12 feature level 12_1.

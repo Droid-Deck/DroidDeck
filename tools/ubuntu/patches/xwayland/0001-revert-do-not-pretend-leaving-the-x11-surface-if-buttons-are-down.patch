@@ -1,0 +1,42 @@
+From 03228e0020f2fffd9819df6231faefff404d999e Mon Sep 17 00:00:00 2001
+From: Olivier Fourdan <ofourdan@redhat.com>
+Date: Thu, 16 Apr 2026 16:39:33 +0200
+Subject: [PATCH] Revert "xwayland: Do not pretend leaving the X11 surface if
+ buttons are down"
+
+Kwin may send button events to Xwayland even when there is no Xwayland
+surface with input focus.
+
+With this change applied, that causes spurious input focus changes.
+
+Let's revert it for the stable Xwayland branch for now.
+
+This reverts commit d7745cca00bbd5a10664a1e2dcabbd0ee2fb1934.
+
+Closes: https://gitlab.freedesktop.org/xorg/xserver/-/work_items/1883
+Signed-off-by: Olivier Fourdan <ofourdan@redhat.com>
+Part-of: <https://gitlab.freedesktop.org/xorg/xserver/-/merge_requests/2179>
+---
+ hw/xwayland/xwayland-input.c | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/hw/xwayland/xwayland-input.c b/hw/xwayland/xwayland-input.c
+index b1fe0be..39bfa8b 100644
+--- a/hw/xwayland/xwayland-input.c
++++ b/hw/xwayland/xwayland-input.c
+@@ -3223,15 +3223,6 @@ sprite_check_lost_focus(SpritePtr sprite, WindowPtr window)
+     if (master->lastSlave != get_pointer_device(xwl_seat))
+         return !pointer_crossing;
+ 
+-    /* If we left the surface with a button down, it means the wayland compositor
+-     * has grabbed the pointer so we will not get button release events from the
+-     * compositor, so leave the window processing untouched, so that we do not
+-     * end up with the wrong cursor, for example, when processing events once
+-     * the pointer enters the X11 surface again.
+-     */
+-    if (master->button->buttonsDown)
+-        return FALSE;
+-
+     if (xwl_seat->focus_window != NULL &&
+         xwl_seat->cursor_confinement_window != NULL &&
+         xwl_seat->focus_window != xwl_seat->cursor_confinement_window)
