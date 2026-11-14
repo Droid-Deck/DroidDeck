@@ -147,6 +147,9 @@ object RockstarLibrary {
     internal fun owned(account: RockstarAccountApps): List<RockstarTitle> =
         account.packages.filter { !it.featured }.flatMap { RockstarTitles.forName(it.title) }.distinct()
 
+    internal fun owns(account: RockstarAccountApps, rosId: Int, id: String): Boolean =
+        owned(account).any { it.rosTitleId == rosId } || account.packages.any { !it.featured && it.title == id }
+
     internal fun games(account: RockstarAccountApps): List<CatalogItem> = owned(account).mapNotNull { t ->
         RockstarApps.deliverer(account.apps, t)?.let { RockstarTitles.item(t, owned = true, extra = mapOf("app" to it.name, "appId" to it.id)) }
     }.sortedBy { it.title.lowercase() }

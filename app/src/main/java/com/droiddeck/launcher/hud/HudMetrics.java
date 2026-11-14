@@ -14,6 +14,8 @@
 
 package com.droiddeck.launcher.hud;
 
+import com.droiddeck.launcher.session.BatteryRuntimeEstimator;
+
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
@@ -560,10 +562,9 @@ public class HudMetrics {
         return sawSignal;
     }
 
-    private Double smoothedBatteryRuntimeHours = null;
-    private static final double MAX_RUNTIME_HOURS = 72.0;
-    private static final double RUNTIME_SMOOTHING_OLD_WEIGHT = 0.65;
-    private static final double RUNTIME_SMOOTHING_NEW_WEIGHT = 0.35;
+    private final BatteryRuntimeEstimator batteryRuntimeEstimator = new BatteryRuntimeEstimator();
+    private Boolean lastBatteryDischarging = null;
+    private Boolean lastBatteryCharging = null;
 
     public Battery collectBattery() {
         BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
@@ -581,11 +582,22 @@ public class HudMetrics {
 
         int st = status.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN);
         boolean charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL;
+        boolean discharging = st == BatteryManager.BATTERY_STATUS_DISCHARGING
+                || st == BatteryManager.BATTERY_STATUS_NOT_CHARGING;
+        if (lastBatteryDischarging != null && lastBatteryDischarging.booleanValue() != discharging) {
+            batteryRuntimeEstimator.reset();
+        }
+        lastBatteryDischarging = discharging;
         if (st == BatteryManager.BATTERY_STATUS_UNKNOWN) {
             Boolean sysCharging = readChargingFromPowerSupply();
             if (sysCharging != null) charging = sysCharging;
         }
-        long currentMicroAmps = Math.abs(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW));
+        if (lastBatteryCharging != null
+                && lastBatteryCharging.booleanValue() != charging) {
+            batteryRuntimeEstimator.reset();
+        }
+        lastBatteryCharging = charging;
+        long currentMicroAmps = BatteryRuntimeEstimator.toMicroamps(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW));
         long chargeCounter = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
         int voltageMv = status.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
 
@@ -606,34 +618,14 @@ public class HudMetrics {
             if (uw != null && uw != 0L) watts = (float) (Math.abs(uw) / 1_000_000.0);
         }
 
+        Double runtimeHours = !charging
+                ? batteryRuntimeEstimator.estimateHours(chargeCounter, Math.abs((double) currentMicroAmps))
+                : null;
         String runtimeText;
-        if (charging) {
-            smoothedBatteryRuntimeHours = null;
-            runtimeText = "LEFT CHG";
-        } else if (currentMicroAmps <= 0L || chargeCounter <= 0L) {
-            runtimeText = null;
-        } else {
-            double rawHours = (double) chargeCounter / (double) currentMicroAmps;
-            if (!Double.isFinite(rawHours) || rawHours <= 0.0 || rawHours > MAX_RUNTIME_HOURS) {
-                runtimeText = null;
-            } else {
-                double smoothed = smoothedBatteryRuntimeHours == null ? rawHours
-                    : (smoothedBatteryRuntimeHours * RUNTIME_SMOOTHING_OLD_WEIGHT)
-                        + (rawHours * RUNTIME_SMOOTHING_NEW_WEIGHT);
-                smoothedBatteryRuntimeHours = smoothed;
-                runtimeText = "LEFT " + formatRuntimeHours(smoothed);
-            }
-        }
+        if (st == BatteryManager.BATTERY_STATUS_FULL || (percent != null && percent >= 100)) runtimeText = "Full";
+        else if (charging) runtimeText = "Charging";
+        else runtimeText = BatteryRuntimeEstimator.formatDuration(runtimeHours);
         return new Battery(watts, charging, percent, tempC, runtimeText);
-    }
-
-    private static String formatRuntimeHours(double hours) {
-        int totalMinutes = Math.max(1, (int) Math.round(hours * 60.0));
-        int wholeHours = totalMinutes / 60;
-        int minutes = totalMinutes % 60;
-        if (wholeHours > 0 && minutes > 0) return wholeHours + "h " + minutes + "m";
-        if (wholeHours > 0) return wholeHours + "h";
-        return minutes + "m";
     }
 
     private static float currentRawToAmps(long raw) {
@@ -651,15 +643,10 @@ public class HudMetrics {
         return currentRawToAmps(raw);
     }
 
-    public Integer getCpuClockMhz() {
-        int cores = Runtime.getRuntime().availableProcessors();
-        long maxKhz = 0;
-        for (int i = 0; i < cores; i++) {
-            Long cur = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_cur_freq");
-            if (cur != null && cur > maxKhz) maxKhz = cur;
-        }
-        if (maxKhz <= 0) return null;
-        return (int) (maxKhz / 1000L);
+    static Integer fastestCoreMhz(int[] perCoreMhz) {
+        int max = 0;
+        for (int mhz : perCoreMhz) max = Math.max(max, mhz);
+        return max > 0 ? max : null;
     }
 
     private List<String> gpuClockPathsCache = null;
@@ -809,7 +796,8 @@ public class HudMetrics {
         if (mango != null) return mangoSnapshot(mango);
         Integer cpu = getCpuUsagePercent();
         Integer gpu = getGpuUsagePercent();
-        Integer cpuClk = getCpuClockMhz();
+        int[] perCoreClk = getPerCoreClockMhz();
+        Integer cpuClk = fastestCoreMhz(perCoreClk);
         Integer gpuClk = getGpuClockMhz();
         Integer cpuTemp = getCpuTempC();
         Integer gpuTemp = getGpuTempC();
@@ -829,7 +817,6 @@ public class HudMetrics {
         Battery battery = collectBattery();
 
         int[] perCorePct = readPerCorePercent();
-        int[] perCoreClk = getPerCoreClockMhz();
         long[] swap = getSwapBytes();
         long[] net = readNetRateBps();
 
@@ -848,24 +835,63 @@ public class HudMetrics {
         Battery android = collectBattery();
         MangoReadings.Battery bat = m.battery();
         Battery battery = bat == null ? android : new Battery(bat.getWatts(), bat.getCharging(),
-            bat.getPercent() != null ? bat.getPercent() : android.percent, android.tempC, android.runtimeText);
+            bat.getPercent() != null ? bat.getPercent() : android.percent, android.tempC, bat.getRuntimeText());
         long[] net = readNetRateBps();
-        return new Snapshot(cpu != null ? cpu.getPercent() : null, m.gpuPercent(), getCpuClockMhz(), m.gpuClockMhz(),
+        int[] perCoreClk = getPerCoreClockMhz();
+        return new Snapshot(cpu != null ? cpu.getPercent() : null, m.gpuPercent(), fastestCoreMhz(perCoreClk), m.gpuClockMhz(),
             m.cpuTempC(), m.gpuTempC(), used, total, total > 0 ? used * 100f / total : 0f, m.vramBytes(), battery,
-            cpu != null ? cpu.getPerCore() : new int[0], getPerCoreClockMhz(),
+            cpu != null ? cpu.getPerCore() : new int[0], perCoreClk,
             mem != null && mem.getSwapTotalBytes() > 0 ? mem.getSwapUsedBytes() : null,
             mem != null && mem.getSwapTotalBytes() > 0 ? mem.getSwapTotalBytes() : null,
             net == null ? null : net[0], net == null ? null : net[1]);
     }
 
-    public int[] getPerCoreClockMhz() {
+    private final java.util.Map<Integer, long[][]> lastTimeInState = new java.util.HashMap<>();
+
+    public synchronized int[] getPerCoreClockMhz() {
         int cores = Runtime.getRuntime().availableProcessors();
         int[] out = new int[Math.max(0, cores)];
         for (int i = 0; i < out.length; i++) {
-            Long cur = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_cur_freq");
-            out[i] = (cur != null && cur > 0) ? (int) (cur / 1000L) : 0;
+            long[][] table = readTimeInState("/sys/devices/system/cpu/cpu" + i + "/cpufreq/stats/time_in_state");
+            long khz = table == null ? -1L : averageKhz(lastTimeInState.put(i, table), table);
+            if (khz <= 0L) {
+                Long cur = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_cur_freq");
+                khz = cur != null ? cur : 0L;
+            }
+            out[i] = khz > 0L ? (int) (khz / 1000L) : 0;
         }
         return out;
+    }
+
+    static long averageKhz(long[][] before, long[][] after) {
+        if (before == null || after == null || !java.util.Arrays.equals(before[0], after[0])) return -1L;
+        long weighted = 0L, time = 0L;
+        for (int i = 0; i < after[0].length; i++) {
+            long dt = after[1][i] - before[1][i];
+            if (dt <= 0L) continue;
+            weighted += after[0][i] * dt;
+            time += dt;
+        }
+        return time > 0L ? weighted / time : -1L;
+    }
+
+    private static long[][] readTimeInState(String path) {
+        List<long[]> rows = new ArrayList<>();
+        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length < 2) continue;
+                try { rows.add(new long[] { Long.parseLong(parts[0]), Long.parseLong(parts[1]) }); }
+                catch (NumberFormatException ignored) {}
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        if (rows.isEmpty()) return null;
+        long[][] table = new long[2][rows.size()];
+        for (int i = 0; i < rows.size(); i++) { table[0][i] = rows.get(i)[0]; table[1][i] = rows.get(i)[1]; }
+        return table;
     }
 
     private long[] lastCoreTotal = null;

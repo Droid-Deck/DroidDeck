@@ -314,21 +314,35 @@ object StoresState {
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
-            runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-            if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
+            if (!com.droiddeck.launcher.stores.download.DownloadQueue.holdForRemovalWhenFree(key)) {
+                logLine("kept \"${game.sidecar.title}\": its download or update is still running")
                 main.post { uninstalling.remove(key); onDone() }
                 return@background
             }
-            StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
-                main.post {
-                    installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
-                    uninstalling.remove(key)
-                    if (game.sidecar.store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchUpdates.applied(app, key)
-                    if (game.sidecar.store == Store.GAMEJOLT) com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates.applied(app, key)
-                }
-            })
-            main.post(onDone)
+            try {
+                StoreInstalls.awaitDiscard(game.folder)
+                uninstallHeld(app, game, key, onDone)
+            } finally {
+                com.droiddeck.launcher.stores.download.DownloadQueue.releaseRemoval(key)
+            }
         }
+    }
+
+    private fun uninstallHeld(app: Context, game: InstalledStoreGame, key: String, onDone: () -> Unit) {
+        runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
+        if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
+            main.post { uninstalling.remove(key); onDone() }
+            return
+        }
+        StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
+            main.post {
+                installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
+                uninstalling.remove(key)
+                if (game.sidecar.store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchUpdates.applied(app, key)
+                if (game.sidecar.store == Store.GAMEJOLT) com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates.applied(app, key)
+            }
+        })
+        main.post(onDone)
     }
 
     @Volatile var libraryListener: (() -> Unit)? = null

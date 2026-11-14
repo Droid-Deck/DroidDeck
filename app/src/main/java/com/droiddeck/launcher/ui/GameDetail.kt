@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -148,7 +150,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + rememberXboxCloudRows(s)
+    val games = s.steamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
@@ -165,6 +167,7 @@ internal fun GameDetail(
     if (nothing) return
     val source = game?.source ?: store?.id ?: Library.SOURCE_STEAM
     val title = game?.name ?: item?.title ?: installed?.sidecar?.title ?: id.orEmpty()
+    val favoriteKey = if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
     val scores = if (source != Library.ADDED) rememberGameScores(title.takeIf { it.isNotBlank() && it != id }) else null
     val achievements = remember(store, id, item?.accessible, installed) {
         when {
@@ -225,6 +228,7 @@ internal fun GameDetail(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
                             if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
+                            FavoriteButton(favoriteKey)
                             RemoveButton(title, game, installed, a)
                         }
                     }
@@ -280,7 +284,7 @@ internal fun GameDetail(
 }
 
 @Composable
-private fun SourceBadge(source: String) {
+internal fun SourceBadge(source: String) {
     val c = sourceColours(source)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -400,7 +404,6 @@ internal fun GameActions(
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
     val cloud = game?.library == Library.XBOX_CLOUD && installed == null
     val downloadBytes = catalogSize(item)
-    val launchSupported = store != Store.ROCKSTAR || com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(id)
     Actions {
         when {
             s.shortcutPicker && game != null -> {
@@ -412,8 +415,8 @@ internal fun GameActions(
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 val preparing = (game?.launchKey ?: storeKey)?.let { it in s.preparingGames } == true
                 PrimaryButton(
-                    stringResource(if (!launchSupported) R.string.stores_rockstar_launch_unavailable else if (preparing) R.string.store_starting else R.string.stores_play),
-                    enabled = launchSupported && !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
+                    stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
+                    enabled = !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
                     if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(store, id, s, a)
@@ -575,13 +578,13 @@ private fun buyLabel(item: CatalogItem): String = when {
 }
 
 @Composable
-private fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
+internal fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) } }
     game.protonPrefix?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) } }
 }
 
 @Composable
-private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
+internal fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     Box {
         SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { open = !open }
@@ -594,7 +597,7 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
+internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     val ctx = LocalContext.current
     val folder = g.gameFiles
     return when {
@@ -608,7 +611,7 @@ private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
 }
 
 @Composable
-private fun EditArtButton(g: Library.SteamGame) {
+internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
     IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
 }
@@ -633,7 +636,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, frosted: Boolean = false, onClick: () -> Unit) {
+internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, frosted: Boolean = false, tint: Color? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pill = LocalPillButtons.current
     val shape = if (pill) CircleShape else Shape12
@@ -658,14 +661,26 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
                 .controllerConfirm(enabled = enabled, onClick = onClick)
                 .semantics { contentDescription = label },
         ) {
-            Icon(icon, contentDescription = null, tint = if (danger && hot) colors.error else if (danger && !pill) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = tint ?: if (danger && hot) colors.error else if (danger && !pill) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
         }
     }
     if (frosted) Box(Modifier.glass(CircleShape)) { button() } else button()
 }
 
 @Composable
-private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
+internal fun FavoriteButton(key: String) {
+    val ctx = LocalContext.current
+    remember { LibraryFavorites.load(ctx) }
+    val on = key in LibraryFavorites.keys
+    IconAction(
+        if (on) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+        stringResource(if (on) R.string.fm_favorite_remove else R.string.fm_favorite_add),
+        "game:favorite", frosted = true, tint = if (on) FavoritesColours.dot else null,
+    ) { LibraryFavorites.toggle(ctx, key) }
+}
+
+@Composable
+internal fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id && installed?.sidecar?.id?.let(BattleNetInstall::product) == null) return

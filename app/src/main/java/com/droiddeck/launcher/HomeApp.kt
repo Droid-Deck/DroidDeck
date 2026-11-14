@@ -18,6 +18,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
+import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import kotlin.math.roundToInt
@@ -196,7 +197,10 @@ object HomeApp {
     }
 
     private fun syncRecents(activity: android.app.Activity) =
-        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+        keepOutOfRecents(
+            activity,
+            activity is FrontEndActivity && !SessionState.running && isDefault(activity) && AppUiPrefs.hideHomeFromRecents(activity),
+        )
 
     internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
 
@@ -257,6 +261,19 @@ object HomeApp {
 
     fun isActiveSteamSession(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM
+
+    fun showFrontEnd(context: Context, intent: Intent = Intent(context, FrontEndActivity::class.java)) {
+        val frontEnd = FrontEndActivity::class.java.name
+        val tasks = runCatching { context.getSystemService(android.app.ActivityManager::class.java)?.appTasks }.getOrNull().orEmpty()
+        val own = tasks.firstOrNull { task ->
+            runCatching { task.taskInfo.let { it.baseIntent.component?.className == frontEnd && it.topActivity?.className == frontEnd } }
+                .getOrDefault(false)
+        }
+        val launch = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (own != null && runCatching { own.startActivity(context, launch, null) }.isSuccess) return
+        // The session task shares the front end's affinity, so without MULTIPLE_TASK the front end lands inside the session's PiP window.
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+    }
 
     fun openSystemHomeSettings(context: Context) {
         try {

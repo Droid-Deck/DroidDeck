@@ -3,6 +3,9 @@ use std::io::{self, Read, Write};
 #[cfg(windows)]
 pub mod pipe;
 
+pub mod identity;
+pub mod sdk;
+
 pub const MAX_FRAME_BYTES: usize = 64 * 1024;
 const OVERHEAD: usize = 4 + 4 + 1;
 
@@ -111,6 +114,21 @@ impl Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launcher_era_reply_uses_total_length_and_a_terminator() {
+        let mut bytes = Vec::new();
+        Frame {
+            tag: *b"DUNN",
+            payload: vec![b'A'; 640],
+            nul_terminated: true,
+        }
+        .write(&mut bytes, Length::Total)
+        .unwrap();
+        assert_eq!(bytes.len(), 650);
+        assert_eq!(&bytes[..9], &[138, 2, 0, 0, b'D', b'U', b'N', b'N', b':']);
+        assert_eq!(bytes[649], 0);
+    }
     use std::io::Cursor;
 
     #[test]

@@ -104,6 +104,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-share" to "usr/local/bin/droiddeck-steam-share",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-launcher-cores" to "usr/local/bin/droiddeck-launcher-cores",
+            "usr/local/bin/droiddeck-pace-cores" to "usr/local/bin/droiddeck-pace-cores",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
@@ -354,7 +355,10 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            if (startsSession) disableIdleSleep(home)
+            if (startsSession) {
+                disableIdleSleep(home)
+                seedUserDefaults(home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
@@ -572,6 +576,85 @@ object SessionFiles {
             Log.w(TAG, "could not write Steam startup movie selection", e)
             false
         }
+    }
+
+    private const val USER_DEFAULTS_MARKER = "droiddeck-user-defaults-initialized"
+    private const val BATTERY_PREFERENCES = "CachedBatteryPreferences"
+    private const val UI_STATE = "UIStoreLocalSteamUIState"
+    private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
+    private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
+
+    /**
+     * Seeds opinionated first-run defaults into each Steam account's localconfig.vdf: battery percentage shown and
+     * download speeds in bytes rather than bits, and the library sorted by recently played. A value is written once per account and only when the key is
+     * absent, so a later choice made in Steam is never overridden. Runs while Steam is stopped, as it keeps the
+     * file in memory and rewrites it.
+     */
+    internal fun seedUserDefaults(steamHome: File) {
+        val users = File(steamHome, "userdata").listFiles { f -> f.isDirectory && f.name.all(Char::isDigit) && f.name != "0" } ?: return
+        for (user in users) {
+            val configDir = File(user, "config")
+            val marker = File(configDir, USER_DEFAULTS_MARKER)
+            val file = File(configDir, "localconfig.vdf")
+            if (marker.exists() || !file.isFile) continue
+            try {
+                val text = file.readText()
+                val updated = withUserDefaults(text) ?: continue
+                if (updated != text) {
+                    val staged = File(configDir, file.name + ".staged")
+                    staged.writeText(updated)
+                    if (!staged.renameTo(file)) { staged.delete(); continue }
+                }
+                marker.writeText("1\n")
+            } catch (e: Exception) {
+                Log.w(TAG, "could not seed Steam user defaults", e)
+            }
+        }
+    }
+
+    internal fun withUserDefaults(text: String): String? {
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return null
+        var out = text
+        val system = findObject(out, "system", root.open + 1, root.close)
+        if (system == null) {
+            out = insertInto(out, root, listOf("\"system\"", "{", "\t\"displayratesasbits\"\t\t\"0\"", "}"), newline)
+        } else if (!hasKey(out.substring(system.keyStart, system.close + 1), "displayratesasbits")) {
+            val block = out.substring(system.keyStart, system.close + 1)
+            out = out.replaceRange(system.keyStart, system.close + 1, setScalar(block, "displayratesasbits", "0", newline))
+        }
+        val reroot = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        val web = findObject(out, "WebStorage", reroot.open + 1, reroot.close)
+        if (web == null) {
+            out = insertInto(out, reroot, listOf("\"WebStorage\"", "{", "\t\"$BATTERY_PREFERENCES\"\t\t\"$BATTERY_PERCENT_ON\"", "}"), newline)
+        } else if (!hasKey(out.substring(web.keyStart, web.close + 1), BATTERY_PREFERENCES)) {
+            val block = out.substring(web.keyStart, web.close + 1)
+            out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
+        }
+        return seedRecentSort(out, newline)
+    }
+
+    // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
+    // so the first seed flips it once and the marker file keeps a later choice.
+    private fun seedRecentSort(text: String, newline: String): String {
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return text
+        val web = findObject(text, "WebStorage", root.open + 1, root.close) ?: return text
+        val block = text.substring(web.keyStart, web.close + 1)
+        if (!hasKey(block, UI_STATE)) {
+            return text.replaceRange(web.keyStart, web.close + 1,
+                setScalar(block, UI_STATE, "{\\\"nVersion\\\":1,$SORT_RECENT_ON}", newline))
+        }
+        return text.replaceRange(web.keyStart, web.close + 1, block.replace(SORT_RECENT_OFF, SORT_RECENT_ON))
+    }
+
+    private fun hasKey(block: String, key: String) = Regex("(?m)^[\\t ]*\"${Regex.escape(key)}\"[\\t ]").containsMatchIn(block)
+
+    private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
+        val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
+        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val section = lines.joinToString(newline) { indent + it } + newline
+        return text.substring(0, lineStart) + section + text.substring(lineStart)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")

@@ -25,6 +25,8 @@ internal const val FLATHUB = "flathub"
 
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
+internal val FavoritesColours = SourceColours(Color(0xFF3D1A26), Color(0xFFFFB3C8), Color(0xFFFF5C8A))
+
 internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.GOG.id -> SourceColours(Color(0xFF3A1A3C), Color(0xFFE6A3EA), Color(0xFFC25BC8))
     Store.EPIC.id -> SourceColours(Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFBDBDBD))
@@ -37,6 +39,7 @@ internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.EA.id -> SourceColours(Color(0xFF3A0E12), Color(0xFFFF9A9A), Color(0xFFFF4747))
     Store.ROCKSTAR.id -> SourceColours(Color(0xFF3A2A06), Color(0xFFFFD780), Color(0xFFFCAF17))
     Library.SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
+    Library.SOURCE_COLLECTION -> SourceColours(Color(0xFF2B1A3D), Color(0xFFD2A8FF), Color(0xFFA25BFF))
     FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
 }
@@ -44,6 +47,7 @@ internal fun sourceColours(source: String): SourceColours = when (source) {
 @Composable
 internal fun sourceLabel(source: String): String = when (source) {
     Library.SOURCE_STEAM -> stringResource(R.string.source_steam)
+    Library.SOURCE_COLLECTION -> stringResource(R.string.soundtracks_collections)
     Store.GOG.id -> Store.GOG.label
     Store.EPIC.id -> Store.EPIC.label
     Store.AMAZON.id -> Store.AMAZON.label
@@ -58,10 +62,10 @@ internal fun sourceLabel(source: String): String = when (source) {
 }
 
 @Composable
-internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier) {
-    val c = sourceColours(source)
+internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier, label: String? = null, colours: SourceColours? = null) {
+    val c = colours ?: sourceColours(source)
     Text(
-        sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
+        label ?: sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
         color = c.ink, maxLines = 1,
         modifier = modifier.clip(RoundedCornerShape(6.dp)).background(c.fill)
             .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),

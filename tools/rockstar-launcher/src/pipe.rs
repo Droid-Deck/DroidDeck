@@ -84,6 +84,7 @@ impl Drop for OwnedHandle {
 pub struct Pipe {
     handle: OwnedHandle,
     timeout: Duration,
+    deadline: Option<Instant>,
 }
 
 pub struct Listener(Pipe);
@@ -119,6 +120,7 @@ impl Listener {
         Ok(Self(Pipe {
             handle: OwnedHandle(handle),
             timeout,
+            deadline: None,
         }))
     }
 
@@ -174,6 +176,18 @@ impl Listener {
 }
 
 impl Pipe {
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self.deadline = None;
+        self
+    }
+
+    pub fn with_deadline(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self.deadline = Some(Instant::now() + timeout);
+        self
+    }
+
     pub fn client_pid(&self) -> io::Result<u32> {
         let mut pid = 0;
         if unsafe { GetNamedPipeClientProcessId(self.handle.0, &mut pid) } == 0 || pid == 0 {
@@ -210,6 +224,7 @@ impl Pipe {
                 return Ok(Self {
                     handle: OwnedHandle(handle),
                     timeout,
+                    deadline: None,
                 });
             }
             let error = io::Error::last_os_error();
@@ -233,6 +248,16 @@ impl Pipe {
     fn transfer(&self, buffer: *mut u8, size: usize, writing: bool) -> io::Result<usize> {
         if size == 0 {
             return Ok(0);
+        }
+        let timeout = self
+            .deadline
+            .map(|deadline| deadline.saturating_duration_since(Instant::now()))
+            .unwrap_or(self.timeout);
+        if timeout.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "Rockstar pipe deadline exceeded",
+            ));
         }
         let event = unsafe { CreateEventW(null(), 1, 0, null()) };
         if event.is_null() {
@@ -280,7 +305,7 @@ impl Pipe {
         let wait = unsafe {
             WaitForSingleObject(
                 event.0,
-                self.timeout.as_millis().min(u32::MAX as u128 - 1) as u32,
+                timeout.as_millis().min(u32::MAX as u128 - 1) as u32,
             )
         };
         if wait != 0 {
@@ -340,6 +365,28 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         )
+    }
+
+    #[test]
+    fn initialization_deadline_survives_partial_reads() {
+        let name = name();
+        let listener = Listener::new(&name, Duration::from_secs(2)).unwrap();
+        let worker = std::thread::spawn(move || {
+            let mut server = listener
+                .accept()
+                .unwrap()
+                .with_deadline(Duration::from_millis(150));
+            let mut byte = [0];
+            server.read_exact(&mut byte).unwrap();
+            std::thread::sleep(Duration::from_millis(180));
+            assert_eq!(
+                server.read(&mut byte).unwrap_err().kind(),
+                io::ErrorKind::TimedOut
+            );
+        });
+        let mut client = Pipe::connect(&name, Duration::from_secs(2)).unwrap();
+        client.write_all(&[1]).unwrap();
+        worker.join().unwrap();
     }
 
     #[test]

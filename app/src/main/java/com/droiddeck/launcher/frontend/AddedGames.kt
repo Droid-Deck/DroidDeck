@@ -100,12 +100,13 @@ object AddedGames {
     fun candidates(folder: File, reuse: Boolean = false): List<File> = rank(folder, reuse).exes
 
     fun rank(folder: File, reuse: Boolean = false): GameExePicker.Ranking {
-        val key = "${folder.path}|${folder.lastModified()}"
+        val declared = declaredExes(folder)
+        val stamp = declared.fold(0L) { hash, exe -> hash * 31 + exe.path.hashCode() }
+        val key = "${folder.path}|${folder.lastModified()}|$stamp"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
-        if (reuse) kept?.rank(folder)?.let { return it }
+        if (reuse) kept?.rank(folder, stamp)?.let { return it }
         val guessed = GameExePicker.rank(folder) { !skipExe(it.name) }
-        val declared = declaredExes(folder)
         val preferred = declared.map { it.path }.toSet()
         val result = if (declared.isEmpty()) guessed else GameExePicker.Ranking(
             declared + guessed.exes.filter { it.path !in preferred },
@@ -115,7 +116,7 @@ object AddedGames {
         )
         if (ranked.size > 256) ranked.clear()
         ranked[key] = now to result
-        kept?.keepRank(folder, result)
+        kept?.keepRank(folder, result, stamp)
         return result
     }
 
@@ -200,13 +201,19 @@ object AddedGames {
     private val scanning = Any()
 
     fun scan(context: Context): List<Game> = synchronized(scanning) {
-        val file = File(context.filesDir, AddedGamesCache.FILE)
-        val cache = kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
+        val cache = cache(context)
         try {
             scanAll(context)
         } finally {
             cache.save()
         }
+    }
+
+    private val keeping = Any()
+
+    private fun cache(context: Context): AddedGamesCache = synchronized(keeping) {
+        val file = File(context.filesDir, AddedGamesCache.FILE)
+        kept?.takeIf { it.file == file } ?: AddedGamesCache(file).also { kept = it }
     }
 
     private fun scanAll(context: Context): List<Game> {
@@ -241,11 +248,17 @@ object AddedGames {
         return out.distinctBy { it.folder.canonicalPath }
     }
 
-    fun single(context: Context, folderPath: String): Game? {
+    fun single(context: Context, folderPath: String, reuse: Boolean = false): Game? {
         val folder = File(folderPath)
         if (!folder.isDirectory || folderPath in SessionPrefs.removedAddedGames(context)) return null
         val out = ArrayList<Game>(1)
-        scanGame(context, folder, out, single = AddedExes.list(context).firstOrNull { it.folder == folderPath })
+        val entry = AddedExes.list(context).firstOrNull { it.folder == folderPath }
+        val cache = if (reuse) cache(context) else null
+        try {
+            scanGame(context, folder, out, single = entry, reuse = reuse)
+        } finally {
+            cache?.save()
+        }
         return out.firstOrNull()
     }
 
@@ -418,7 +431,7 @@ object AddedGames {
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>, single: AddedExes.Entry? = null, reuse: Boolean = false) {
         run {
             val sidecar = StoreGameSidecar.read(folder)?.let { com.droiddeck.launcher.stores.StoreLaunch.adopt(folder, it) }
-            if (sidecar?.store == Store.ROCKSTAR && (!com.droiddeck.launcher.stores.rockstar.RockstarLaunch.supports(sidecar.id) || sidecar.launcher != com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER)) return
+            if (sidecar?.store == Store.ROCKSTAR && sidecar.launcher != com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER) return
             sidecar?.takeIf { it.id.isNotEmpty() }?.let { SessionPrefs.followStoreGame(context, "${it.store.id}:${it.id}", folder.path) { old -> !File(old).exists() } }
             val ranking = rank(folder, reuse)
             val candidates = ranking.exes
@@ -528,6 +541,17 @@ object AddedGames {
             if (s.isNotEmpty() && s != a) adopt("StartDir", s) { SessionPrefs.setAddedGameStartIn(context, folder.path, if (it == exeDir) "" else it) }
         }
     }
+
+    class Listed(val appId: Long, val name: String, val launchOptions: String)
+
+    fun listed(context: Context): List<Listed>? = runCatching {
+        val file = File(context.filesDir, "session/added-games.json")
+        if (!file.isFile) return null
+        val entries = org.json.JSONArray(file.readText())
+        (0 until entries.length()).mapNotNull { i ->
+            entries.optJSONObject(i)?.takeIf { it.has("appid") }?.let { Listed(it.optLong("appid") and 0xFFFFFFFFL, it.optString("name"), it.optString("launch")) }
+        }
+    }.getOrNull()
 
     fun writeListing(context: Context, games: List<Game>,
         extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {

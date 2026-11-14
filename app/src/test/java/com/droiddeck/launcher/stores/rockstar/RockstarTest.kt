@@ -12,6 +12,54 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class RockstarTest {
+    @Test fun sdkTicketExportsOnlyTheShortLivedServerResponse() {
+        val root = RockstarRos.parse("""<Response><Status>1</Status><Result><Ticket>opaque-game-ticket</Ticket><PlayerAccountId>456</PlayerAccountId><SessionKey>session-key</SessionKey><SessionTicket>session-ticket</SessionTicket><Services Count="1"><Service Name="game"><Hosts Count="1"><Host>example.invalid</Host></Hosts></Service><ScAuthToken>service-refresh-secret</ScAuthToken></Services><ScAuthToken>refresh-secret</ScAuthToken><RockstarAccount><RockstarId>123</RockstarId><Nickname>Player</Nickname><Email>player@example.invalid</Email><ScAuthToken>nested-refresh-secret</ScAuthToken></RockstarAccount></Result></Response>""")
+        val sdk = RockstarRos.parse(RockstarAuth.sdkTicket(root))
+        assertEquals("opaque-game-ticket", RockstarRos.text(sdk, "Ticket"))
+        assertEquals("session-key", RockstarRos.text(sdk, "SessionKey"))
+        assertEquals("123", RockstarRos.text(sdk, "RockstarId"))
+        assertEquals("456", RockstarRos.text(sdk, "PlayerAccountId"))
+        assertEquals("1", RockstarRos.first(sdk, "Services")?.getAttribute("Count"))
+        assertEquals("example.invalid", RockstarRos.text(sdk, "Host"))
+        assertNull(RockstarRos.first(sdk, "ScAuthToken"))
+        assertFalse(RockstarAuth.sdkTicket(root).contains("refresh-secret"))
+    }
+
+    @Test fun sdkTitleStateRequiresAnOwnedPackageInsteadOfCatalogVisibility() {
+        val visible = RockstarApp("1", "future_title", "123", emptyList())
+        val featured = RockstarAccountApps(listOf(visible), listOf(RockstarPackage("future_title", true)))
+        assertFalse(RockstarLibrary.owns(featured, 123, "future_title"))
+        val owned = RockstarAccountApps(listOf(visible), listOf(RockstarPackage("future_title", false)))
+        assertTrue(RockstarLibrary.owns(owned, 123, "future_title"))
+        assertFalse(RockstarLibrary.owns(owned, 124, "other_title"))
+    }
+
+    @Test fun directLaunchPreservesArgumentsThroughTheWindowsBatchInterpreter() {
+        org.junit.Assume.assumeTrue(java.io.File.separatorChar == '\\')
+        val root = java.nio.file.Files.createTempDirectory("rockstar-batch").toFile()
+        try {
+            java.io.File(System.getenv("SystemRoot"), "System32/cscript.exe").copyTo(java.io.File(root, "Game.exe"))
+            java.io.File(root, "probe.vbs").writeText("""
+                Set output = CreateObject("Scripting.FileSystemObject").CreateTextFile("args.txt", True)
+                For Each arg In WScript.Arguments
+                    output.WriteLine(arg)
+                Next
+                output.Close
+            """.trimIndent())
+            val args = listOf("", "&literal", "one argument", "%PATH%", "!PATH!", "^&|<>()")
+            val game = com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR,
+                "future_title", "Game", "Game.exe", args = listOf("//nologo", "probe.vbs") + args)
+            com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(root, game)
+            val process = ProcessBuilder("cmd.exe", "/d", "/c", java.io.File(root, com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER).path)
+                .directory(root).redirectErrorStream(true).start()
+            assertTrue(process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(process.inputStream.bufferedReader().readText(), 0, process.exitValue())
+            assertEquals(args, java.io.File(root, "args.txt").readLines())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun launcherAdoptionDoesNotFollowSymbolicLinks() {
         val folder = java.nio.file.Files.createTempDirectory("rockstar-launch-link").toFile()
         val outside = java.io.File.createTempFile("rockstar-keep", ".txt").apply { writeText("keep") }
@@ -51,7 +99,7 @@ class RockstarTest {
         }
     }
 
-    @Test fun unsupportedGamesKeepTheirFilesWithoutRegisteringALauncher() {
+    @Test fun otherRockstarGamesRegisterAndLaunchTheirInstalledExecutable() {
         val app = org.robolectric.RuntimeEnvironment.getApplication()
         com.droiddeck.launcher.session.SessionPrefs.setGameStorage(app, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
         val folder = java.io.File(com.droiddeck.launcher.stores.StoreInstallRoot.storeDir(com.droiddeck.launcher.stores.StoreInstallRoot.installRoot(app), com.droiddeck.launcher.stores.Store.ROCKSTAR), "RDR2").apply { mkdirs() }
@@ -62,11 +110,27 @@ class RockstarTest {
             script.writeText("old launcher")
             val finished = com.droiddeck.launcher.stores.StoreLaunch.writeLauncher(folder, game)
             finished.write(folder)
-            assertFalse(RockstarLaunch.supports(game.id))
-            assertNull(finished.launcher)
-            assertFalse(script.exists())
+            assertFalse(RockstarLaunch.usesClassicLauncher(game.id))
+            assertEquals(com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER, finished.launcher)
+            assertTrue(script.readText().contains("\"%~dp0RDR2.exe\""))
+            assertTrue(script.readText().contains("if not exist \"C:\\Program Files\\Rockstar Games\\Launcher\\launch.json\" goto direct"))
             assertTrue(java.io.File(folder, game.exe).isFile)
-            assertNull(com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path))
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test fun otherRockstarGamesCanRegisterShortcuts() {
+        org.junit.Assume.assumeTrue(java.io.File.separatorChar == '/')
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(app, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
+        val folder = java.io.File(com.droiddeck.launcher.stores.StoreInstallRoot.storeDir(com.droiddeck.launcher.stores.StoreInstallRoot.installRoot(app), com.droiddeck.launcher.stores.Store.ROCKSTAR), "RDR2").apply { mkdirs() }
+        try {
+            java.io.File(folder, "RDR2.exe").writeText("installed game")
+            com.droiddeck.launcher.stores.StoreGameSidecar(com.droiddeck.launcher.stores.Store.ROCKSTAR, "rdr2", "RDR2", "RDR2.exe").write(folder)
+            val game = com.droiddeck.launcher.frontend.AddedGames.single(app, folder.path)
+            assertTrue(game != null)
+            assertTrue(game!!.guestExe.endsWith("/" + com.droiddeck.launcher.stores.StoreLaunch.LAUNCHER))
         } finally {
             folder.deleteRecursively()
         }
@@ -110,7 +174,8 @@ class RockstarTest {
     }
 
     @Test fun classicTitlesUseTheirObservedPipeNames() {
-        assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe"), RockstarLaunch.pipes)
+        assertEquals(mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe", "gta4" to "GTAIV_Pipe", "lanoire" to "LANOIRE_Pipe"), RockstarLaunch.pipes)
+        for (id in RockstarLaunch.pipes.keys) assertTrue(RockstarLaunch.usesClassicLauncher(id))
     }
 
     @Test fun signingOutClearsOwnedShelfCards() {
@@ -162,14 +227,15 @@ class RockstarTest {
     }
 
     @Test
-    fun classicGamesStartTheirParentLauncherWithoutEmbeddingCredentials() {
+    fun rockstarLaunchScriptsContainNoCredentials() {
         val sidecar = com.droiddeck.launcher.stores.StoreGameSidecar(
             com.droiddeck.launcher.stores.Store.ROCKSTAR, "gtavc", "Vice City", "gta-vc.exe",
         )
         val text = com.droiddeck.launcher.stores.StoreLaunch.launcherText(sidecar)
         assertTrue(text.contains("\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""))
         assertTrue(text.contains("exit /b %errorlevel%"))
-        assertFalse(text.contains("gta-vc.exe"))
+        assertTrue(text.contains("goto direct"))
+        assertTrue(text.contains("\"%~dp0gta-vc.exe\""))
         assertFalse(text.contains("ticket", true))
         assertFalse(text.contains("rem ", true))
     }
