@@ -61,7 +61,7 @@ private fun httpDate(s: String?): Long = try {
 
 private val SECRET_PARAM = Regex("(?i)(token|secret|code|password|authorization)([\"']?\\s*[:=]\\s*[\"']?)[^\\s&\"',;}]+")
 private val BEARER = Regex("(?i)bearer\\s+\\S+")
-private val URL_TEXT = Regex("(?i)https?://([^/\\s?#]+)[^\\s]*")
+private val URL_TEXT = Regex("(?i)https?://(?:[^/\\s?#@]*@)?([^/\\s?#@]+)[^\\s]*")
 private val LONG_TOKEN = Regex("[A-Za-z0-9._~+/=-]{32,}")
 private val SPACES = Regex("\\s+")
 private const val DETAIL_MAX = 400
@@ -85,9 +85,27 @@ internal fun cloudFailureDetail(e: Throwable): String {
     return parts.joinToString(" <- ").take(DETAIL_MAX)
 }
 
+private const val SNIPPET_READ_MAX = 4096
+private const val SNIPPET_MAX = 120
+
+internal fun cloudErrorSnippet(input: InputStream?): String {
+    if (input == null) return ""
+    val prefix = input.use { stream ->
+        val buffer = ByteArray(SNIPPET_READ_MAX + 1)
+        var read = 0
+        while (read < buffer.size) {
+            val n = stream.read(buffer, read, buffer.size - read)
+            if (n < 0) break
+            read += n
+        }
+        val text = buffer.decodeToString(0, minOf(read, SNIPPET_READ_MAX))
+        if (read > SNIPPET_READ_MAX) text.substring(0, text.indexOfLast { it.isWhitespace() }.coerceAtLeast(0)) else text
+    }
+    return scrubCloudText(prefix).take(SNIPPET_MAX)
+}
+
 private fun HttpURLConnection.errorSnippet(): String =
-    runCatching { errorStream?.use { it.readBytes() }?.decodeToString().orEmpty() }.getOrDefault("")
-        .let { scrubCloudText(it) }.take(120)
+    runCatching { cloudErrorSnippet(errorStream) }.getOrDefault("")
 
 private fun httpFailure(step: String, name: String?, code: Int, error: String): java.io.IOException =
     java.io.IOException(buildString {

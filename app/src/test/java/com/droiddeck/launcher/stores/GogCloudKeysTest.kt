@@ -130,6 +130,35 @@ class GogCloudKeysTest {
         assertEquals("IOException", cloudFailureDetail(java.io.IOException()))
     }
 
+    @Test fun urlCredentialsAreDroppedAndOnlyTheHostIsKept() {
+        val scrubbed = scrubCloudText("see https://alice:shortpass@example.com/private?x=1 and http://bob@gog.com:443/a")
+        assertEquals("see example.com and gog.com:443", scrubbed)
+        assertEquals("cloudstorage.gog.com", scrubCloudText("https://cloudstorage.gog.com/v1/user/saves"))
+    }
+
+    @Test fun errorSnippetReadsABoundedPrefixAndDropsATokenCutAtTheBoundary() {
+        val read = java.util.concurrent.atomic.AtomicLong()
+        val huge = object : java.io.InputStream() {
+            override fun read(): Int { read.incrementAndGet(); return 'a'.code }
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                val prefix = "invalid_grant "
+                for (i in 0 until len) {
+                    val at = read.getAndIncrement()
+                    b[off + i] = (if (at < prefix.length) prefix[at.toInt()] else 'q').code.toByte()
+                }
+                return len
+            }
+        }
+        val snippet = cloudErrorSnippet(huge)
+        assertTrue(read.get() <= 4097)
+        assertEquals("invalid_grant", snippet)
+        val cut = " ".repeat(4090) + "pw=shortsecretvalue-continues"
+        assertEquals("", cloudErrorSnippet(cut.byteInputStream()))
+        assertEquals("pw=shortsecretvalue-continues", cloudErrorSnippet((" ".repeat(10) + "pw=shortsecretvalue-continues").byteInputStream()))
+        assertEquals("forbidden", cloudErrorSnippet("forbidden".byteInputStream()))
+        assertEquals("", cloudErrorSnippet(null))
+    }
+
     @Test fun failedResultLineCarriesTheDetailAndOtherLinesAreUnchanged() {
         assertEquals("result=failed files=0 bytes=0 reason=IOException detail=\"IOException: x\"",
             CloudSaves.Result("failed", 0, 0, "IOException", detail = "IOException: x").line)
