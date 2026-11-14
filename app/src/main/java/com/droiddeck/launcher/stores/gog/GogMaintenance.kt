@@ -377,36 +377,30 @@ internal object GogMaintenance {
         val build = GogBuild.select(builds) ?: return null
         folder.mkdirs()
         val old = GogInstallRecord(game.gameId, "depot", language = language)
-        val target = GogContent.snapshot(old, build, GogContent.token(context))
+        var credentials: Pair<String, String>? = null
+        val target = GogContent.snapshot(old, build, GogContent.token(context), onManifest = { manifest ->
+            credentials = GogContent.clientCredentials(manifest)
+        })
         GogFiles.validate(target.files, folder)
         val bytes = target.files.objects().sumOf { it.optJSONArray("chunks")?.objects()?.sumOf { c -> c.optLong("compressedSize") }?.takeIf { n -> n > 0 } ?: it.optLong("size") }
         val disk = target.files.objects().sumOf { it.optLong("size") }
-        check(!StoreInstallRoot.insufficientSpace(disk, StoreInstallRoot.availableBytes(folder))) { "Not enough free space for GOG installation" }
+        val remaining = GogEstimate.calculate(folder, old, target, JSONArray(), reuseChunks = GogNative.isAvailable()).required
+        check(!StoreInstallRoot.insufficientSpace(remaining, StoreInstallRoot.availableBytes(folder))) { "Not enough free space for GOG installation" }
         callback.onSizes(bytes, disk)
         transfer(context, Proposal(folder, old, target, GogOperation.UPDATE, bytes, disk), null, cancelled, callback)
         if (cancelled.get()) return null
         target.write(folder)
-        val task = GogDownloadManager.pickTask(folder, game.gameId, null, game.title)
+        credentials?.let { (clientId, clientSecret) ->
+            GogPrefs.get(context).edit().putString("client_id_${game.gameId}", clientId)
+                .putString("client_secret_${game.gameId}", clientSecret).apply()
+        }
+        val task = GogDownloadManager.pickTask(folder, game.gameId, GogContent.tempExecutable(target.manifest), game.title)
         val result = GogDownloadManager.Result(task?.path ?: "", build.id, disk)
         result.workDir = task?.workDir
         result.language = target.language
         result.dependencies = target.manifest.optJSONArray("dependencies")?.strings().orEmpty()
         result.dependenciesRead = true
         return result
-    }
-
-    @JvmStatic
-    fun captureDepot(id: String, folder: File, build: String, buildsJson: String, manifest: JSONObject, depots: JSONArray, language: String) {
-        val selected = GogBuild.select(JSONObject(buildsJson), pinned = build)
-        val files = JSONArray()
-        for (depot in depots.strings()) for (item in JSONObject(depot).getJSONObject("depot").getJSONArray("items").objects()) {
-            val chunks = item.optJSONArray("chunks") ?: continue
-            files.put(JSONObject().put("path", item.getString("path").replace('\\', '/')).put("size", chunks.objects().sumOf { it.optLong("size") })
-                .put("md5", item.optString("md5")).put("chunks", chunks).put("product", id))
-        }
-        GogFiles.validate(files, folder)
-        GogInstallRecord(id, "depot", 2, build, selected?.version.orEmpty(), selected?.branch.orEmpty(), language,
-            manifest = GogContent.sanitize(manifest), files = files).write(folder)
     }
 
     @JvmStatic

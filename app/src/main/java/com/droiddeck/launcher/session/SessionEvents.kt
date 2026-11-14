@@ -14,6 +14,7 @@ object SessionEvents {
         SessionPaths.take()
         val dir = SessionPaths.beginOrCurrent(context, label ?: SessionPaths.label(mode, null))
         synchronized(SessionState) {
+            SessionState.clearRelaunch()
             SessionState.phase = SessionPhase.PREPARING
             SessionState.mode = mode
             SessionState.sessionId = dir.name
