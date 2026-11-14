@@ -33,6 +33,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
+          PUSHED_AT: ${{ github.event.repository.pushed_at }}
         run: |
           set -euo pipefail
           code() { sed -n 's/^[[:space:]]*versionCode[[:space:]][[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p'; }
@@ -47,8 +48,13 @@ jobs:
           fi
           # This run is created right after the push, so a PR build that started earlier may have pinned the old main.
           bumped=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
-          # A build can finish in the moments between the push and this run's creation.
-          pushed=$(date -u -d "$bumped - 10 minutes" +%Y-%m-%dT%H:%M:%SZ)
+          # A build can finish between the push and this run's creation; the push event carries the push time.
+          if [[ "${PUSHED_AT:-}" =~ ^[0-9]+$ ]]; then
+            pushed=$(date -u -d "@$PUSHED_AT" +%Y-%m-%dT%H:%M:%SZ)
+            [[ "$pushed" < "$bumped" ]] && bumped=$pushed
+          else
+            pushed=$(date -u -d "$bumped - 10 minutes" +%Y-%m-%dT%H:%M:%SZ)
+          fi
           note() {
             local number=$1
             local marker="<!-- droiddeck-rebuild-$now -->"
