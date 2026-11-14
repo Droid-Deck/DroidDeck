@@ -323,7 +323,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var penSeen by mutableStateOf(false)
     private var penRoute: PenRouter.Route? = null
     private var penDown = false
-    private val penStream = PenStream(WaylandCompositor::nativeSendPen)
+    private val penStream = PenStream { flags, x, y -> WaylandCompositor.nativeSendPen(flags, x, y, 0, 0, 0, 0) }
     private var keyboard: KeyboardHost? = null
     private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var lastUserPressMs = 0L

@@ -415,7 +415,9 @@ class SessionPenRoutingTest {
             val keys = mutableListOf<Pair<Int, Int>>()
             fun clear() { pens.clear(); touches.clear(); pointers.clear(); keys.clear() }
             @JvmStatic @Implementation fun __staticInitializer__() {}
-            @JvmStatic @Implementation fun nativeSendPen(flags: Int, x: Int, y: Int) { pens += Pen(flags, x, y) }
+            @JvmStatic @Implementation fun nativeSendPen(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) {
+                pens += Pen(flags, x, y)
+            }
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) { touches += Touch(action, id, x, y) }
             @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointers += Triple(action, x, y) }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
