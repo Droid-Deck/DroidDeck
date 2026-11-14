@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/statvfs.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #if defined(__aarch64__) || defined(NOEXEC_TEST)
@@ -35,13 +36,17 @@ __attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, i
 
 static int (*real_mprotect)(void *, size_t, int);
 
-static int private_range(uintptr_t start, uintptr_t end, int *readable) {
+struct span {
+  uintptr_t lo, hi;
+  int prot;
+};
+
+static size_t private_range(uintptr_t start, uintptr_t end, struct span *spans, size_t cap) {
   char buf[4096];
-  size_t used = 0;
+  size_t used = 0, count = 0;
   uintptr_t covered = start;
   int fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 0;
-  *readable = 1;
   for (;;) {
     if (used >= sizeof buf - 1) used = 0;
     ssize_t n = read(fd, buf + used, sizeof buf - 1 - used);
@@ -57,15 +62,17 @@ static int private_range(uintptr_t start, uintptr_t end, int *readable) {
       if (*p == ' ') memcpy(perms, p + 1, 4);
       line = nl + 1;
       if (hi <= covered || lo >= end) continue;
-      if (lo > covered || perms[3] != 'p') {
+      if (lo > covered || perms[3] != 'p' || count == cap) {
         close(fd);
         return 0;
       }
-      if (perms[0] != 'r') *readable = 0;
-      covered = hi;
+      spans[count].lo = covered;
+      spans[count].hi = hi < end ? hi : end;
+      spans[count].prot = (perms[0] == 'r' ? PROT_READ : 0) | (perms[1] == 'w' ? PROT_WRITE : 0) | (perms[2] == 'x' ? PROT_EXEC : 0);
+      covered = spans[count++].hi;
       if (covered >= end) {
         close(fd);
-        return 1;
+        return count;
       }
     }
     used = strlen(line);
@@ -75,24 +82,40 @@ static int private_range(uintptr_t start, uintptr_t end, int *readable) {
   return 0;
 }
 
+static void restore(const struct span *spans, size_t count) {
+  for (size_t i = 0; i < count; i++)
+    if (!(spans[i].prot & PROT_READ)) real_mprotect((void *)spans[i].lo, spans[i].hi - spans[i].lo, spans[i].prot);
+}
+
 static int copy_to_anonymous(void *addr, size_t len, int prot) {
   uintptr_t page = (uintptr_t)sysconf(_SC_PAGESIZE);
   uintptr_t start = (uintptr_t)addr, end = (start + len + page - 1) & ~(page - 1);
-  int readable;
-  if (start & (page - 1) || end <= start || !private_range(start, end, &readable)) return -1;
+  struct span spans[64];
+  size_t count = 0, opened = 0;
+  if (start & (page - 1) || end <= start || !(count = private_range(start, end, spans, sizeof spans / sizeof *spans))) return -1;
   size_t size = end - start;
   void *copy = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (copy == MAP_FAILED) return -1;
-  if (!readable && real_mprotect(addr, size, PROT_READ)) {
+  while (opened < count && ((spans[opened].prot & PROT_READ) ||
+                            !real_mprotect((void *)spans[opened].lo, spans[opened].hi - spans[opened].lo, spans[opened].prot | PROT_READ)))
+    opened++;
+  struct iovec local = {copy, size}, remote = {addr, size};
+  if (opened < count || process_vm_readv(getpid(), &local, 1, &remote, 1, 0) != (ssize_t)size || real_mprotect(copy, size, prot)) {
+    restore(spans, opened);
     munmap(copy, size);
     return -1;
   }
-  memcpy(copy, addr, size);
-  if (mremap(copy, size, size, MREMAP_MAYMOVE | MREMAP_FIXED, addr) == MAP_FAILED) {
-    munmap(copy, size);
-    return -1;
+  if (mremap(copy, size, size, MREMAP_MAYMOVE | MREMAP_FIXED, addr) != MAP_FAILED) return 0;
+  int result = -1;
+  if (!real_mprotect(copy, size, PROT_READ) &&
+      mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == addr) {
+    memcpy(addr, copy, size);
+    result = real_mprotect(addr, size, prot);
+  } else {
+    restore(spans, count);
   }
-  return real_mprotect(addr, size, prot);
+  munmap(copy, size);
+  return result;
 }
 
 __attribute__((constructor)) static void noexec_init(void) {
