@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">触摸</string>
     <string name="mode_pen_note">自动：在桌面中支持数位板的应用里作为数位板，其他情况作为鼠标。</string>
     <string name="mode_pen_button">侧键</string>
+    <string name="mode_pen_button_eraser">按住时为橡皮擦</string>
     <string name="mode_pen_pressure">压感</string>
     <string name="mode_pen_pressure_soft">偏软</string>
     <string name="mode_pen_pressure_normal">正常</string>

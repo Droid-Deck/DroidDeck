@@ -23,6 +23,7 @@ class PenStream(private val sink: Sink) {
     private var watching = false
     private var contact = false
     private var eraser = false
+    private var toolEraser = false
     private var barrel = 0
     private var keyDown = false
     private var keyDevice = Int.MIN_VALUE
@@ -66,6 +67,7 @@ class PenStream(private val sink: Sink) {
                 continueAt(time)
                 if (!inProximity) return true
                 barrel = event.buttonState
+                updateEraser()
                 samples(event, pointer, area, width, height)
             }
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> if (own) {
@@ -110,6 +112,7 @@ class PenStream(private val sink: Sink) {
             keyDevice = event.deviceId
             keyCode = event.keyCode
         }
+        updateEraser()
         if (state() == before) return true
         emit(state())
         return true
@@ -131,17 +134,25 @@ class PenStream(private val sink: Sink) {
         if (!keyDown || deviceId != keyDevice) return
         val before = state()
         keyDown = false
+        updateEraser()
         if (inProximity && state() != before) emit(state())
     }
 
     private fun enter(event: MotionEvent, pointer: Int) {
-        eraser = event.getToolType(pointer) == MotionEvent.TOOL_TYPE_ERASER
+        toolEraser = event.getToolType(pointer) == MotionEvent.TOOL_TYPE_ERASER
         barrel = event.buttonState
+        updateEraser()
         if (inProximity) return
         inProximity = true
         deviceId = event.deviceId
         readDevice(event)
     }
+
+    private fun updateEraser() {
+        if (!contact) eraser = toolEraser || (sideButton == SessionPrefs.PEN_BUTTON_ERASER && primaryHeld())
+    }
+
+    private fun primaryHeld(): Boolean = keyDown || barrel and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
 
     private fun continueAt(time: Long) {
         if (!exitPending) return
@@ -208,8 +219,8 @@ class PenStream(private val sink: Sink) {
 
     private fun state(): Int =
         PEN_IN or (if (contact) PEN_TIP else 0) or (if (eraser) PEN_ERASER else 0) or (if (tablet) PEN_TABLET else 0) or
-            (if (tilted) PEN_TILT else 0) or buttonFlags(keyDown || barrel and MotionEvent.BUTTON_STYLUS_PRIMARY != 0,
-            barrel and MotionEvent.BUTTON_STYLUS_SECONDARY != 0, sideButton)
+            (if (tilted) PEN_TILT else 0) or
+            buttonFlags(primaryHeld(), barrel and MotionEvent.BUTTON_STYLUS_SECONDARY != 0, sideButton)
 
     private fun readDevice(event: MotionEvent) {
         val device = event.device

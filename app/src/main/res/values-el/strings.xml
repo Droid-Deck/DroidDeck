@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Αφή</string>
     <string name="mode_pen_note">Αυτόματο: ταμπλέτα σχεδίασης στην Επιφάνεια εργασίας στις εφαρμογές που την υποστηρίζουν, ποντίκι αλλού.</string>
     <string name="mode_pen_button">Πλαϊνό κουμπί</string>
+    <string name="mode_pen_button_eraser">Γόμα όσο πατιέται</string>
     <string name="mode_pen_pressure">Πίεση</string>
     <string name="mode_pen_pressure_soft">Μαλακή</string>
     <string name="mode_pen_pressure_normal">Κανονική</string>

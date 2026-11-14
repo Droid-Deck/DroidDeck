@@ -2535,7 +2535,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val nextPen = SessionPrefs.pen(this)
         if (penSettings != nextPen) cancelPen()
         penSettings = nextPen
-        penStream.sideButton = nextPen.button
+        penStream.sideButton = nextPen.sideButton(SessionState.mode == SessionService.MODE_DESKTOP)
         penStream.pressureCurve = PenPressure.forPreset(nextPen.pressure)
         if (!penSeen && (SessionPrefs.penSeen(this) || PenStream.penConnected())) notePenSeen()
         val nextRoutedTouchMode = effectiveTouchMode()

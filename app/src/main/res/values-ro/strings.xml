@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Atingere</string>
     <string name="mode_pen_note">Automat: tabletă grafică pe Desktop în aplicațiile care o acceptă, mouse în rest.</string>
     <string name="mode_pen_button">Buton lateral</string>
+    <string name="mode_pen_button_eraser">Radieră cât e apăsat</string>
     <string name="mode_pen_pressure">Presiune</string>
     <string name="mode_pen_pressure_soft">Ușoară</string>
     <string name="mode_pen_pressure_normal">Normală</string>

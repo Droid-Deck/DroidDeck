@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Chạm</string>
     <string name="mode_pen_note">Tự động: bảng vẽ ở Desktop trong các ứng dụng hỗ trợ, chuột ở những nơi khác.</string>
     <string name="mode_pen_button">Nút bên</string>
+    <string name="mode_pen_button_eraser">Tẩy khi giữ</string>
     <string name="mode_pen_pressure">Lực nhấn</string>
     <string name="mode_pen_pressure_soft">Nhẹ</string>
     <string name="mode_pen_pressure_normal">Bình thường</string>

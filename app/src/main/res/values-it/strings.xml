@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Tocco</string>
     <string name="mode_pen_note">Auto: tavoletta grafica sul Desktop nelle app che la supportano, mouse altrove.</string>
     <string name="mode_pen_button">Tasto laterale</string>
+    <string name="mode_pen_button_eraser">Gomma finché premuto</string>
     <string name="mode_pen_pressure">Pressione</string>
     <string name="mode_pen_pressure_soft">Leggera</string>
     <string name="mode_pen_pressure_normal">Normale</string>

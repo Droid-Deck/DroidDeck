@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Érintés</string>
     <string name="mode_pen_note">Automatikus: rajztábla az Asztalon az ezt támogató alkalmazásokban, máshol egér.</string>
     <string name="mode_pen_button">Oldalsó gomb</string>
+    <string name="mode_pen_button_eraser">Radír nyomva tartva</string>
     <string name="mode_pen_pressure">Nyomás</string>
     <string name="mode_pen_pressure_soft">Lágy</string>
     <string name="mode_pen_pressure_normal">Normál</string>

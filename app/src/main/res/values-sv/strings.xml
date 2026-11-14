@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Pekskärm</string>
     <string name="mode_pen_note">Auto: ritplatta på skrivbordet i appar som stöder det, annars mus.</string>
     <string name="mode_pen_button">Sidoknapp</string>
+    <string name="mode_pen_button_eraser">Suddgummi medan knappen hålls</string>
     <string name="mode_pen_pressure">Tryck</string>
     <string name="mode_pen_pressure_soft">Mjukt</string>
     <string name="mode_pen_pressure_normal">Normalt</string>

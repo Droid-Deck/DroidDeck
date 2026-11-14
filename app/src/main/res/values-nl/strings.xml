@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">Aanraken</string>
     <string name="mode_pen_note">Automatisch: tekentablet op Desktop in apps die het ondersteunen, elders muis.</string>
     <string name="mode_pen_button">Zijknop</string>
+    <string name="mode_pen_button_eraser">Gum zolang ingedrukt</string>
     <string name="mode_pen_pressure">Druk</string>
     <string name="mode_pen_pressure_soft">Zacht</string>
     <string name="mode_pen_pressure_normal">Normaal</string>

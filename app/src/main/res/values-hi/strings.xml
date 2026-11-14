@@ -295,6 +295,7 @@
     <string name="mode_pen_touch">टच</string>
     <string name="mode_pen_note">ऑटो: डेस्कटॉप पर जिन ऐप्स में सपोर्ट है उनमें टैबलेट, बाकी जगह माउस।</string>
     <string name="mode_pen_button">साइड बटन</string>
+    <string name="mode_pen_button_eraser">दबाए रखने पर इरेज़र</string>
     <string name="mode_pen_pressure">दबाव</string>
     <string name="mode_pen_pressure_soft">हल्का</string>
     <string name="mode_pen_pressure_normal">सामान्य</string>
