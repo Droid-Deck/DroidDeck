@@ -40,6 +40,18 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
 data class SecondScreenDisplay(val id: Int, val label: String)
 
 object SecondScreenDisplays {
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean): Int =
+        if (selected in available || gameRequested && selected >= 0) selected else available.firstOrNull() ?: -1
+
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean, save: (Int) -> Unit): Int =
+        selection(selected, available, gameRequested).also { if (it != selected) save(it) }
+
+    fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>, visible: Boolean = true, taken: (Int) -> Boolean): Boolean =
+        visible && gameRequested && selected >= 0 && (selected !in available || taken(selected))
+
+    fun routeKeyboard(steam: Boolean, enabled: Boolean, panel: Boolean, dock: Boolean, primaryFallback: Boolean): Boolean =
+        steam && enabled && (panel || dock || primaryFallback)
+
     fun available(displayManager: DisplayManager, primaryDisplayId: Int = Display.DEFAULT_DISPLAY): List<SecondScreenDisplay> =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .asSequence()
