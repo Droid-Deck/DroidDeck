@@ -277,6 +277,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("libraryShowUninstalled", show).apply()
     }
 
+    fun libraryFavorites(context: Context): Set<String> = prefs(context).getStringSet("libraryFavorites", null)?.toSet().orEmpty()
+
+    fun setLibraryFavorites(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("libraryFavorites", keys.toSet()).apply()
+    }
+
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
