@@ -1524,6 +1524,10 @@ case $mode in
     # none); only the system-PowerVR path (BL_STEAM_GL_PRESENT=1) changes them.
     _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=${bl_steam_angle:-vulkan}")
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
+    if [ "${BL_STEAM_CEF_GPU:-1}" = 0 ]; then
+      _bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)
+      echo "== steam: browser UI in software (BL_STEAM_CEF_GPU=0)"
+    fi
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)
