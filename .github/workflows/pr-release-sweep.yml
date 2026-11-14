@@ -55,3 +55,9 @@ jobs:
             fi
           done
           exit "$failed"
+
+  catalog:
+    needs: sweep
+    if: ${{ always() }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit

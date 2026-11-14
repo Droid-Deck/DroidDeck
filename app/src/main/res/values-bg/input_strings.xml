@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Профили за вход</string>
+    <string name="input_profiles">Профили</string>
+    <string name="input_physical">Физически контролер</string>
+    <string name="input_primary">Основен екран</string>
+    <string name="input_secondary">Втори екран</string>
+    <string name="input_native">Собствен / Steam Input</string>
+    <string name="input_native_target">Собствен: %1$s</string>
+    <string name="input_remap_native">Изпращане на друга команда от контролера</string>
+    <string name="input_disabled">Изключено</string>
+    <string name="input_keys">Клавиш или комбинация от клавиши</string>
+    <string name="input_direction_keys">Клавиши за посока</string>
+    <string name="input_pointer">Движение на показалеца</string>
+    <string name="input_pointer_speed">Скорост на показалеца: %1$d</string>
+    <string name="input_scroll">Превъртане</string>
+    <string name="input_scroll_vertical">Вертикално превъртане</string>
+    <string name="input_mouse_left">Ляв бутон на мишката</string>
+    <string name="input_mouse_right">Десен бутон на мишката</string>
+    <string name="input_mouse_middle">Среден бутон на мишката</string>
+    <string name="input_command_menu">Отваряне на менюто на DroidDeck</string>
+    <string name="input_command_keyboard">Показване на клавиатурата</string>
+    <string name="input_command_steam">Отваряне на менюто на Steam</string>
+    <string name="input_command_qam">Отваряне на бързия достъп на Steam</string>
+    <string name="input_remove_element">Премахване на контрола</string>
+    <string name="input_add_element">Добавяне на контрол</string>
+    <string name="input_extra_keys">Бутони, специфични за устройството</string>
+    <string name="input_capture">Задаване на физически бутон</string>
+    <string name="input_capture_confirm">Отпуснете бутона, след което изберете Редакция, Повторение или Отказ. B или Назад отменя след отпускането.</string>
+    <string name="input_capture_retry">Повторение</string>
+    <string name="input_capture_hint">Натиснете бутон, включително бутон Назад, съобщен като клавиш. Клавишите за сила на звука и системните клавиши на Android са запазени. Задаването важи само за това устройство.</string>
+    <string name="input_remove_binding">Премахване на задаването</string>
+    <string name="input_latency">Диагностика на входа</string>
+    <string name="input_measure">Записване на времето за изпращане на входа</string>
+    <string name="input_read_timing">Прочитане на измерванията</string>
+    <string name="input_latency_hint">Измерва пътя от изпращането в Android до публикуването в съществуващия входен транспорт. Не включва пристигането по Bluetooth, запитването на госта, изобразяването и закъснението на екрана. Записът е изключен по подразбиране.</string>
+    <string name="input_normal_binding">Използване на обичайното задаване на вход</string>
+</resources>

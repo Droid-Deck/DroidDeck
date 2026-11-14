@@ -163,6 +163,108 @@ static long raw_readlinkat(int dirfd, const char *path, char *buf, size_t size) 
 
 static __thread int t_bind_link_depth = 0;
 
+static void normalize_path(char *path);
+
+#if defined(__aarch64__)
+static long raw_link_dir(const char *link, char *out, size_t size) {
+    const char *slash = strrchr(link, '/');
+    if (!slash || (size_t)(slash - link) >= PATH_MAX) return -1;
+    char dir[PATH_MAX];
+    size_t dlen = slash == link ? 1 : (size_t)(slash - link);
+    memcpy(dir, link, dlen);
+    dir[dlen] = '\0';
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)dir;
+    register long x2 __asm__("x2") = O_PATH | O_DIRECTORY | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    long fd = x0;
+    if (fd < 0) return -1;
+    char proc[32];
+    snprintf(proc, sizeof(proc), "/proc/self/fd/%ld", fd);
+    long n = raw_readlinkat(AT_FDCWD, proc, out, size - 1);
+    register long c8 __asm__("x8") = 57;
+    register long c0 __asm__("x0") = fd;
+    __asm__ volatile("svc #0" : "+r"(c0) : "r"(c8) : "memory");
+    if (n <= 0 || out[0] != '/') return -1;
+    out[n] = '\0';
+    return n;
+}
+
+static int climbs_past_root(const char *dir, const char *target) {
+    long depth = 0;
+    for (const char *p = dir; *p; p++)
+        if (*p != '/' && (p == dir || p[-1] == '/')) depth++;
+    for (const char *p = target; *p;) {
+        while (*p == '/') p++;
+        const char *end = p;
+        while (*end && *end != '/') end++;
+        size_t len = (size_t)(end - p);
+        if (len == 2 && p[0] == '.' && p[1] == '.') {
+            if (--depth < 0) return 1;
+        } else if (len > 0 && !(len == 1 && p[0] == '.')) {
+            depth++;
+        }
+        p = end;
+    }
+    return 0;
+}
+
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap, int *converted);
+
+static const char *guest_path_of_host_dir(const char *dir, char *out, size_t size) {
+    const char *sub = get_rootfs_subpath(dir);
+    if (sub) {
+        ddnatv_copy_cstr(out, size, sub[0] ? sub : "/");
+        return out;
+    }
+    if (dir[0] != '/') return NULL;
+    size_t len = ddnatv_copy_cstr(out, size, dir);
+    int converted = 0;
+    guest_path_of_mount_source(out, len, size, &converted);
+    if (converted) return out;
+    for (int i = 0; i < g_nbinds; i++) {
+        const struct ddnatv_bind *b = &g_binds[i];
+        if (b->identity && is_path_prefix(dir, b->dst, b->dst_len)) {
+            ddnatv_copy_cstr(out, size, dir);
+            return out;
+        }
+    }
+    return NULL;
+}
+
+static int join_into_bind(const char *dir, const char *target, const char *rest, char *out, size_t size) {
+    char guest_dir_buf[PATH_MAX];
+    const char *guest_dir = guest_path_of_host_dir(dir, guest_dir_buf, sizeof(guest_dir_buf));
+    if (!guest_dir) return 0;
+    char joined[PATH_MAX];
+    size_t used = ddnatv_append(joined, sizeof(joined), 0, guest_dir, strlen(guest_dir));
+    used = ddnatv_append(joined, sizeof(joined), used, "/", 1);
+    used = ddnatv_append(joined, sizeof(joined), used, target, strlen(target));
+    if (used + 1 >= sizeof(joined)) return 0;
+    normalize_path(joined);
+    used = ddnatv_append(out, size, 0, joined, strlen(joined));
+    if (used + 1 >= size) return 0;
+    if (rest[0] == '/' && used > 0 && out[used - 1] == '/') rest++;
+    size_t rest_len = strlen(rest);
+    if (used + rest_len + 1 >= size) return 0;
+    ddnatv_append(out, size, used, rest, rest_len);
+    return out[0] == '/';
+}
+
+static int relative_link_into_bind(const char *link, const char *target, const char *rest, char *out, size_t size) {
+    char dir[PATH_MAX];
+    if (raw_link_dir(link, dir, sizeof(dir)) >= 0) return join_into_bind(dir, target, rest, out, size);
+    const char *slash = strrchr(link, '/');
+    if (!slash) return 0;
+    size_t dlen = (size_t)(slash - link);
+    memcpy(dir, link, dlen);
+    dir[dlen] = '\0';
+    return join_into_bind(dir, target, rest, out, size);
+}
+#endif
+
 // A mount stand-in can hold symbolic links with absolute guest targets (/sys/class/hidraw/hidraw16 ->
 // /sys/devices/droiddeck/...): proot follows them inside the guest, the kernel on Android's own /sys.
 // A link met on the way to a deeper path is replaced by its target, mapped again; the last component is
@@ -180,10 +282,13 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
         long n = raw_readlinkat(AT_FDCWD, prefix, target, sizeof(target) - 1);
         if (n <= 0) continue;
         target[n] = '\0';
-        if (target[0] != '/') continue;
         char guest[PATH_MAX];
-        size_t used = ddnatv_append(guest, sizeof(guest), 0, target, (size_t)n);
-        ddnatv_append(guest, sizeof(guest), used, host + i, len - i);
+        if (target[0] != '/') {
+            if (!relative_link_into_bind(prefix, target, host + i, guest, sizeof(guest))) continue;
+        } else {
+            size_t used = ddnatv_append(guest, sizeof(guest), 0, target, (size_t)n);
+            ddnatv_append(guest, sizeof(guest), used, host + i, len - i);
+        }
         t_bind_link_depth++;
         const char *mapped = rewrite_path_in_root(guest, buffer, bufsize);
         if (mapped != buffer) ddnatv_copy_cstr(buffer, bufsize, mapped);
@@ -243,7 +348,21 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
     }
 
     // Already inside The native userland rootfs
-    if (get_rootfs_subpath(path) != NULL) {
+    const char *sub = get_rootfs_subpath(path);
+    if (sub != NULL) {
+        if (sub[0] == '/' && t_bind_link_depth < 8) {
+            for (int i = 0; i < g_nbinds; i++) {
+                const struct ddnatv_bind *b = &g_binds[i];
+                if (b->identity || sub[1] != b->dst[1] || !is_path_prefix(sub, b->dst, b->dst_len)) continue;
+                char guest[PATH_MAX];
+                ddnatv_copy_cstr(guest, sizeof(guest), sub);
+                t_bind_link_depth++;
+                const char *mapped = rewrite_path_in_root(guest, buffer, bufsize);
+                if (mapped != buffer) ddnatv_copy_cstr(buffer, bufsize, mapped);
+                t_bind_link_depth--;
+                return buffer;
+            }
+        }
         return resolve_drive_links(path, buffer, bufsize);
     }
 
@@ -446,7 +565,8 @@ static int is_proc_fd_link(const char *path) {
 // reports as its real place (getcwd(), /proc/self/cwd and fd links). Wine found no DOS drive for
 // Sekiro's folder on the SD card library ("starting in the Windows directory"), and the game quit.
 // Rewrites buf[0..len) in place when the guest path fits in cap; returns the new length.
-static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
+static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap, int *converted) {
+    if (converted) *converted = 0;
     const struct ddnatv_bind *best = NULL;
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
@@ -460,6 +580,7 @@ static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap) {
     memmove(buf + best->dst_len, buf + best->src_len, rest);
     memcpy(buf, best->dst, best->dst_len);
     buf[best->dst_len + rest] = '\0';
+    if (converted) *converted = 1;
     return best->dst_len + rest;
 }
 
@@ -469,7 +590,7 @@ static ssize_t postprocess_readlink(const char *linkpath, char *buf, ssize_t ret
         buf[ret] = '\0';
         ret = (ssize_t)link_root_guest_target(buf, (size_t)ret);
     }
-    ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz);
+    ret = (ssize_t)guest_path_of_mount_source(buf, (size_t)ret, bufsiz, NULL);
 
     // 1. Strip g_ddnatv_root if target starts with it
     if (g_ddnatv_root_len > 0 && !is_proc_fd_link(linkpath)) {

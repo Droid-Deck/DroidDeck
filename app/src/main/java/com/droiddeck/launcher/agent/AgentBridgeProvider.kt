@@ -288,6 +288,8 @@ class AgentBridgeProvider : ContentProvider() {
         return JSONObject()
             .put("schema", SCHEMA)
             .put("build", BuildConfig.BUILD_LABEL)
+            .put("apkCommit", com.droiddeck.launcher.lab.LabOverlay.apkCommit)
+            .put("lab", com.droiddeck.launcher.lab.LabOverlay.active?.label ?: JSONObject.NULL)
             .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             .put("runtime", JSONObject()
                 .put("installed", LinuxRuntime.isInstalled(context))

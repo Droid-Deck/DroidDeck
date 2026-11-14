@@ -50,6 +50,7 @@ public class HudLockController {
     private final Callbacks cb;
     private final GestureDetector detector;
     private final ScaleGestureDetector scaleDetector;
+    private final android.view.VelocityTracker velocity = android.view.VelocityTracker.obtain();
 
     private boolean locked = false;
 
@@ -86,8 +87,18 @@ public class HudLockController {
     public boolean onTouchEvent(MotionEvent event) {
         scaleDetector.onTouchEvent(event);
         detector.onTouchEvent(event);
+        // The HUD moves under the finger, so the throw is measured on the screen, not in the HUD.
+        MotionEvent onScreen = MotionEvent.obtain(event);
+        onScreen.setLocation(event.getRawX(), event.getRawY());
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) velocity.clear();
+        velocity.addMovement(onScreen);
+        onScreen.recycle();
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (dragging && !locked && !pinched && action == MotionEvent.ACTION_UP) {
+                velocity.computeCurrentVelocity(1000);
+                cb.onFlung(velocity.getXVelocity(), velocity.getYVelocity());
+            }
             if (dragging && !locked) cb.onMoved(view.getX(), view.getY());
             dragging = false;
         }
@@ -121,12 +132,6 @@ public class HudLockController {
             } else {
                 cb.onTap();
             }
-            return true;
-        }
-
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            if (dragging && !locked && !pinched) cb.onFlung(velocityX, velocityY);
             return true;
         }
 
