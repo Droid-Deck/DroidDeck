@@ -1,9 +1,13 @@
 package com.droiddeck.launcher.agent
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 
@@ -49,6 +53,18 @@ object AgentAttachments {
         val moved = File(dir, path.substringAfterLast('/'))
         if (host(context, path).renameTo(moved)) "$GUEST_DIR/$chat/${moved.name}" else path
     }
+
+    /** Copies the running game's frame; set while a session is open. */
+    var gameFrame by mutableStateOf<(((Bitmap?) -> Unit) -> Unit)?>(null)
+
+    /** Saves [frame] for [chat] (or a new conversation) on the calling thread; returns its guest path. */
+    fun saveFrame(context: Context, chat: String?, frame: Bitmap): String? = runCatching {
+        val folder = chat ?: NEW
+        val dir = File(hostDir(context), folder).apply { mkdirs() }
+        val target = File(dir, "game-${System.currentTimeMillis()}.jpg")
+        target.outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        "$GUEST_DIR/$folder/${target.name}"
+    }.getOrNull()
 
     /** Deletes copies that will not be sent. */
     fun discard(context: Context, files: List<String>) = files.forEach { host(context, it).delete() }

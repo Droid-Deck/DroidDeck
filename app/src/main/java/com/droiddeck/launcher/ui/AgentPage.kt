@@ -43,6 +43,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.MicOff
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.AttachFile
@@ -634,6 +637,9 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var draft by draftState
+    val voice = remember { AgentVoice(context.applicationContext) { draftState.value = it } }
+    val voiceAvailable = remember { AgentVoice.available(context) }
+    DisposableEffect(voice) { onDispose { voice.stop() } }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
         val matches = (LOCAL_COMMANDS + CLI_COMMANDS).filter { it.startsWith(draft) && it != draft }
@@ -662,6 +668,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             if (LocalActivityResultRegistryOwner.current != null) AttachButton()
+            if (AgentAttachments.gameFrame != null) GameFrameButton()
             Box(Modifier.weight(1f).padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
                 if (draft.isEmpty()) Text(
                     stringResource(if (working) R.string.agent_hint_working else R.string.agent_hint), fontSize = 16.sp,
@@ -686,10 +693,63 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                 AgentHost.stop(context)
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
-            RoundButton(
+            // An empty message has nothing to send, so the button there dictates one instead.
+            if ((!canSend || voice.listening) && voiceAvailable) VoiceButton(voice) { voice.start(draft) }
+            else RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
                 if (canSend) pal.primary else pal.surfaceVariant, if (canSend) pal.onPrimary else pal.onSurfaceVariant, "agent-send", enabled = canSend,
-            ) { send() }
+            ) {
+                voice.stop()
+                send()
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit) {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    val ask = if (LocalActivityResultRegistryOwner.current != null) rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) onStart() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+    } else null
+    RoundButton(
+        if (voice.listening) Icons.Outlined.MicOff else Icons.Outlined.Mic, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
+        if (voice.listening) pal.primary else pal.surfaceVariant, if (voice.listening) pal.onPrimary else pal.onBackground, "agent-voice",
+    ) {
+        when {
+            voice.listening -> voice.stop()
+            context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED -> onStart()
+            ask != null -> ask.launch(android.Manifest.permission.RECORD_AUDIO)
+            else -> android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/** Attaches what the running game shows, taken from its own surface so nothing drawn over it is in the picture. */
+@Composable
+private fun GameFrameButton() {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    RoundButton(Icons.Outlined.PhotoCamera, stringResource(R.string.agent_attach_game), pal.surfaceVariant, pal.onBackground, "agent-game-frame") {
+        val grab = AgentAttachments.gameFrame ?: return@RoundButton
+        val chat = AgentHost.chat
+        grab frame@{ frame ->
+            if (frame == null) {
+                android.widget.Toast.makeText(context, R.string.agent_attach_game_failed, android.widget.Toast.LENGTH_SHORT).show()
+                return@frame
+            }
+            Thread({
+                val path = AgentAttachments.saveFrame(context, chat, frame)
+                frame.recycle()
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    when {
+                        path == null -> android.widget.Toast.makeText(context, R.string.agent_attach_game_failed, android.widget.Toast.LENGTH_SHORT).show()
+                        AgentHost.chat == chat -> AgentAttachments.pending.add(path)
+                        else -> AgentAttachments.discard(context, listOf(path))
+                    }
+                }
+            }, "agent-game-frame").start()
         }
     }
 }
