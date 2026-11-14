@@ -91,8 +91,8 @@ class SessionService : Service() {
         suspendAttemptFailed = false
         updateSuspendPolicy()
     }
-    private val hasVisibleSurface get() = !SessionVisibilityPolicy.isHidden(
-        activityStarted = activityVisible || signInHold || browserHandoff.active(SystemClock.elapsedRealtime()),
+    private val hasVisibleSurface get() = browserHandoff.active(SystemClock.elapsedRealtime()) || !SessionVisibilityPolicy.isHidden(
+        activityStarted = activityVisible || signInHold,
         defaultDisplayOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn,
         activityOnDefaultDisplay = activityDisplayId == Display.DEFAULT_DISPLAY,
         activityDisplayOn = activityDisplayOn(),
