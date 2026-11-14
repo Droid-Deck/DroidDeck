@@ -130,7 +130,8 @@ device-wide phantom count, and check that the limit is above that count, plus bo
 plus headroom for processes the guest and other apps start meanwhile; raise it again if not. With
 the limit at its default, starting 80 long-lived processes can trigger the platform trim and
 disrupt the guest session and processes of other apps. Restore the recorded values once the probe
-processes have exited.
+processes have exited, in reverse order: the flag first, then the limit, because lowering the limit
+schedules a trim that is skipped only while the flag is disabled.
 
 Run the `sleep` loops from the app's own shell so the children run under the app uid. Run each
 `dumpsys activity processes` snapshot from an authorized ADB shell, because the app uid normally
@@ -168,11 +169,11 @@ echo <childPid> > /sys/fs/cgroup/uid_<uid>/cgroup.procs
 # from the app's own shell: end the probe processes
 kill <childPids>
 # restore each recorded value that was set
-adb shell device_config put activity_manager max_phantom_processes <recordedLimit>
 adb shell settings put global settings_enable_monitor_phantom_procs <recordedFlag>
-# or delete each key whose recorded value was "null"
-adb shell device_config delete activity_manager max_phantom_processes
+adb shell device_config put activity_manager max_phantom_processes <recordedLimit>
+# or delete each key whose recorded value was "null", in the same order
 adb shell settings delete global settings_enable_monitor_phantom_procs
+adb shell device_config delete activity_manager max_phantom_processes
 ```
 
 Compare the PIDs recorded for each batch with the phantom list in the snapshot taken after that
