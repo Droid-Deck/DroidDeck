@@ -4649,6 +4649,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
                 nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
                 nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
+
             }
             val scaleX = width.toFloat() / nativeWidth
             val scaleY = height.toFloat() / nativeHeight
