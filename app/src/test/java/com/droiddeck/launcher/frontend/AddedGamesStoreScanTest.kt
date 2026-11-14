@@ -18,12 +18,12 @@ import org.robolectric.annotation.Config
 class AddedGamesStoreScanTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
-    private fun install(store: Store, id: String, title: String, exe: String, launcher: Boolean = false): File {
+    private fun install(store: Store, id: String, title: String, exe: String, launcher: Boolean = false, workdir: String? = null): File {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.installRoot(app), store), StoreInstallRoot.folderName(title, id))
         File(folder, exe).apply { parentFile!!.mkdirs(); writeText("game") }
         File(folder, "unins000.exe").writeText("uninstaller")
-        var sidecar = StoreGameSidecar(store, id, title, exe, args = if (launcher) listOf("-EpicPortal") else emptyList())
+        var sidecar = StoreGameSidecar(store, id, title, exe, workdir = workdir, args = if (launcher) listOf("-EpicPortal") else emptyList())
         if (launcher) sidecar = StoreLaunch.writeLauncher(folder, sidecar)
         sidecar.write(folder)
         return folder
@@ -80,5 +80,40 @@ class AddedGamesStoreScanTest {
         assertTrue(listing.contains("\"name\":\"Celeste\""))
         assertTrue(listing.contains(StoreLaunch.LAUNCHER))
         assertTrue(listing.contains("\"store\":\"${Store.EPIC.id}\""))
+    }
+
+    // GOG runs a task from its declared working directory; the install root when it declares none.
+    @Test fun aTaskWorkingDirectoryBecomesTheShortcutsStartIn() {
+        val folder = install(Store.GOG, "1207658924", "Witcher Game", "System/witcher.exe", workdir = "System")
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertTrue(game.guestDir.endsWith("/Witcher Game/System"))
+    }
+
+    @Test fun anEmptyTaskWorkingDirectoryIsTheGameFolder() {
+        val folder = install(Store.GOG, "1207658924", "Witcher Game", "System/witcher.exe", workdir = "")
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("/root/Games/Stores/GOG/Witcher Game", game.guestDir)
+    }
+
+    @Test fun aSidecarWithoutATaskDirectoryStillStartsInTheExeFolder() {
+        val folder = install(Store.GOG, "7", "Old Game", "bin/old.exe")
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertTrue(game.guestDir.endsWith("/Old Game/bin"))
+    }
+
+    // A picked exe that is not the store's own keeps its own folder, not the task directory.
+    @Test fun aPickedExeOnAGogGameStartsInItsOwnFolder() {
+        val folder = install(Store.GOG, "1207658924", "Witcher Game", "System/witcher.exe", workdir = "")
+        val tool = File(folder, "Tools/Editor.exe").apply { parentFile!!.mkdirs(); writeText("tool") }
+        AddedExes.put(app, AddedExes.Entry(folder.path, tool.path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertTrue(game.guestDir.endsWith("/Witcher Game/Tools"))
+    }
+
+    @Test fun pickingTheStoresOwnExeKeepsTheTaskDirectory() {
+        val folder = install(Store.GOG, "1207658924", "Witcher Game", "System/witcher.exe", workdir = "")
+        AddedExes.put(app, AddedExes.Entry(folder.path, File(folder, "System/witcher.exe").path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("/root/Games/Stores/GOG/Witcher Game", game.guestDir)
     }
 }

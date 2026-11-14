@@ -111,10 +111,16 @@ typedef int (*accept4_fn)(int, struct sockaddr *, socklen_t *, int);
 static unsigned guarded_port(void);
 
 __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd);
+__attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
+                                                     socklen_t len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_connect(int fd, const struct sockaddr *addr,
+                                                        socklen_t len, int *rc);
 
 int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   static bind_fn real;
+  int nl_rc;
   if (!real) real = (bind_fn)dlsym(RTLD_NEXT, "bind");
+  if (bl_nl_bind(fd, addr, len, &nl_rc)) return nl_rc;
   if (bl_udevmon_stand_in(fd)) {
     if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
       errno = EINVAL;
@@ -223,6 +229,8 @@ static int guest_peer(int fd) {
 
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   static connect_fn real;
+  int nl_rc;
+  if (bl_nl_connect(fd, addr, len, &nl_rc)) return nl_rc;
   if (!real) real = (connect_fn)dlsym(RTLD_NEXT, "connect");
   bind_before_loopback_connect(fd, addr, len);
   unsigned peer = loopback_family(addr, len) ? addr_port(addr, len) : 0;
@@ -263,7 +271,8 @@ __attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, ch
 __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
 __attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
-__attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char *path, char *const argv[]);
+__attribute__((visibility("hidden")))
+char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real);
@@ -333,7 +342,7 @@ static char **web_helper_redirect(const char *path, char *const argv[], const ch
 }
 
 int execve(const char *path, char *const argv_in[], char *const envp[]) {
-  char *const *argv = bl_webhelper_argv(path, argv_in);
+  char *const *argv = bl_webhelper_argv(path, argv_in, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
@@ -364,7 +373,7 @@ static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pi
 }
 
 int execvp(const char *file, char *const argv_in[]) {
-  char *const *argv = bl_webhelper_argv(file, argv_in);
+  char *const *argv = bl_webhelper_argv(file, argv_in, environ);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
@@ -374,7 +383,7 @@ int execvp(const char *file, char *const argv_in[]) {
 }
 
 int execv(const char *path, char *const argv_in[]) {
-  char *const *argv = bl_webhelper_argv(path, argv_in);
+  char *const *argv = bl_webhelper_argv(path, argv_in, environ);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);
@@ -398,5 +407,6 @@ int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *
   }
   static spawn_fn real;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
-  return bl_binfmt_spawn(pid, path, fa, attr, argv, envp, real);
+  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
+  return bl_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, real);
 }

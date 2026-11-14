@@ -19,7 +19,6 @@ ALL = set(range(8))
 
 
 class FakeCores:
-    """Per-thread masks and priorities, with every change recorded."""
 
     def __init__(self):
         self.state = {}

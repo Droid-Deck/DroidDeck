@@ -66,6 +66,29 @@ class AddedGameArtLookupTest {
         assertEquals(SteamMatch.Certainty.NAME, match.certainty)
     }
 
+    @Test fun anEarlierBuildsSpacewarLookupIsNotAMatch() {
+        val dir = tmp.newFolder("Peak")
+        val exe = File(dir, "PEAK.exe").apply { writeText("x") }
+        val legacy = File(tmp.newFolder(), "steam-appid").apply { writeText("480") }
+        assertEquals(3527290, SteamMatch.resolve(app, dir.path, exe, "PEAK", legacy = legacy) { 3527290 }.appId)
+    }
+
+    @Test fun aSavedSpacewarMatchIsNotAMatch() {
+        val dir = tmp.newFolder("Peak")
+        val exe = File(dir, "PEAK.exe").apply { writeText("x") }
+        SteamMatch.put(app, dir.path, SteamMatch.Match(480, SteamMatch.Certainty.NAME, "store search", System.currentTimeMillis()))
+        assertNull(SteamMatch.resolve(app, dir.path, exe, "PEAK").appId)
+        assertEquals(3527290, SteamMatch.resolve(app, dir.path, exe, "PEAK") { 3527290 }.appId)
+    }
+
+    @Test fun aStoreSearchAnsweringSpacewarIsNoMatch() {
+        val dir = tmp.newFolder("Spacewar Fan Remake")
+        val exe = File(dir, "game.exe").apply { writeText("x") }
+        val match = SteamMatch.resolve(app, dir.path, exe, "Spacewar Fan Remake") { 480 }
+        assertNull(match.appId)
+        assertEquals(SteamMatch.Certainty.NONE, match.certainty)
+    }
+
     @Test fun aStoreResultIsTakenOnlyWhenItsNameMatches() {
         assertNull(AddedGameArt.pickStoreResult("My Obscure Game", listOf("10" to "Totally Different", "11" to "Another One")))
         assertEquals("20", AddedGameArt.pickStoreResult("Hades", listOf("19" to "Hades II Soundtrack Bundle Extra", "20" to "Hades")))
@@ -171,5 +194,10 @@ class AddedGameArtLookupTest {
         assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
         assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
         assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
+    }
+
+    @Test fun anExactLookupDoesNotTakeTheBaseGameForASubtitledOne() {
+        assertNull(SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft")))
+        assertEquals(2, SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft", 2 to "World of Warcraft: Forever")))
     }
 }

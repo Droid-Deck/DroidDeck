@@ -1086,7 +1086,8 @@ class LauncherTest(SyncTestCase):
                                                         (str(tool / "proton"), command)])
         self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
         self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
-                                               vblank_mode="0"))
+                                               vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
+                                               GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1"))
         self.assertIn("could not start (", said.getvalue())
 
     def test_generated_launchers_run_the_dist_proton(self):

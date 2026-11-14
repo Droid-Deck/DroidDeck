@@ -50,6 +50,10 @@ DroidDeck saves separate **2D resolution**, **3D resolution**, and **VR resoluti
 
 In **Automatic** picture mode, ordinary flat content is duplicated in full into both eyes on an SBS display. **Virtual screen** adds a configurable screen plane and tracking. **Side-by-side game** is for content that already contains separate eye images. SteamVR uses its direct stereo view and field-of-view control.
 
+With **game on glasses** the compositor draws the guest pointer into its own scene as the last blended draw and mirrors it into both eyes for a side-by-side picture, while the phone stops drawing its Compose cursor. Over the app's own UI — the drawer, the PC keyboard, the achievements panel, PiP controls and the phone panel shown while the glasses have the picture — Android's pointer returns instead, so those controls are still clickable with a mouse.
+
+The pointer is left out of the picture when it cannot be drawn where the game is: while a game holds the pointer lock (it draws its own), and for a game the compositor cannot import — an AHardwareBuffer-only surface, or HDR frames it has no texture for. Those games stay on their own display layer, because composing the scene would drop the game itself. An importable HDR game that would otherwise stay on its own layer is composed through the screen swapchain, so there the pointer does fit.
+
 ## Setup and app-wide behavior
 
 1. Connect the glasses through a compatible video/data connection. Accept USB access when requested. For XREAL 1S, Android must also expose the glasses' USB-Ethernet network; the app leaves Steam's Internet connection on its normal network.

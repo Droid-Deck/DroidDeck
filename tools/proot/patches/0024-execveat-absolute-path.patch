@@ -1,0 +1,44 @@
+From 968f450754f97907d72a756add5010f6be746b6a Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Fri, 30 Oct 2026 20:21:28 -0400
+Subject: [PATCH] syscall: run an execveat with an absolute path like execve
+
+The kernel ignores the directory descriptor of execveat when the path is
+absolute, so such a call is an execve with flags. FEX runs every child
+of an emulated program through execveat(fd, "/proc/self/exe"), which
+proot refused unless the descriptor was AT_FDCWD.
+---
+ src/syscall/enter.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/syscall/enter.c b/src/syscall/enter.c
+index f8ce2e7..98241bd 100644
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -129,8 +129,13 @@ int translate_syscall_enter(Tracee *tracee)
+ 		status = translate_execve_enter(tracee);
+ 		break;
+ 
+-	case PR_execveat:
+-		if ((int) peek_reg(tracee, CURRENT, SYSARG_1) == AT_FDCWD) {
++	case PR_execveat: {
++		word_t flags = peek_reg(tracee, CURRENT, SYSARG_5);
++		char first = '\0';
++		bool absolute = (flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW)) == 0
++			&& read_data(tracee, &first, peek_reg(tracee, CURRENT, SYSARG_2), 1) == 0
++			&& first == '/';
++		if ((int) peek_reg(tracee, CURRENT, SYSARG_1) == AT_FDCWD || absolute) {
+ 			set_sysnum(tracee, PR_execve);
+ 			poke_reg(tracee, SYSARG_1, peek_reg(tracee, CURRENT, SYSARG_2));
+ 			poke_reg(tracee, SYSARG_2, peek_reg(tracee, CURRENT, SYSARG_3));
+@@ -142,6 +147,7 @@ int translate_syscall_enter(Tracee *tracee)
+ 		}
+ 		status = translate_execve_enter(tracee);
+ 		break;
++	}
+ 
+ 	case PR_ptrace:
+ 		status = translate_ptrace_enter(tracee);
+-- 
+2.43.0
+

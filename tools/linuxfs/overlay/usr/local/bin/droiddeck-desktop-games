@@ -54,7 +54,6 @@ def icon_for(appid):
 
 
 def client_entries():
-    """App ids the client already wrote a menu entry for."""
     found = set()
     if not os.path.isdir(APPS_DIR):
         return found

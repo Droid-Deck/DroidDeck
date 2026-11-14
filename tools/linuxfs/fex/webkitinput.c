@@ -22,6 +22,7 @@ extern void webkit_web_view_run_javascript(void *view, const char *script, void 
 extern WebKitUserScript *webkit_user_script_new(const char *source, int frames, int time,
                                                 const char *const *allow, const char *const *block) __attribute__((weak));
 extern void webkit_user_script_unref(WebKitUserScript *script) __attribute__((weak));
+extern const char *g_getenv(const char *name) __attribute__((weak));
 
 static const char NAV_SCRIPT[] =
     "(()=>{let open=-1e9,arrowAt=-1e9,ringed=null,ringOutline='',ringOffset='',settleTimer=0,settling=false,redirecting=false;"
@@ -195,4 +196,46 @@ __attribute__((visibility("default"))) void webkit_user_content_manager_add_scri
         }
     }
     next(manager, script);
+}
+
+static int starts(const char *text, const char *prefix)
+{
+    while (*prefix)
+        if (*text++ != *prefix++)
+            return 0;
+    return 1;
+}
+
+static int fab_uri(const char *uri)
+{
+    if (!uri)
+        return 0;
+    if (starts(uri, "https://"))
+        uri += 8;
+    else if (starts(uri, "http://"))
+        uri += 7;
+    else
+        return 0;
+    if (starts(uri, "www."))
+        uri += 4;
+    if (!starts(uri, "fab.com"))
+        return 0;
+    uri += 7;
+    return !*uri || *uri == '/' || *uri == '?' || *uri == '#' || *uri == ':';
+}
+
+static int hidden_launcher(void)
+{
+    const char *hidden = g_getenv ? g_getenv("DROIDDECK_EPIC_HIDDEN") : 0;
+    return hidden && hidden[0] == '1' && !hidden[1];
+}
+
+__attribute__((visibility("default"))) void webkit_web_view_load_uri(void *view, const char *uri)
+{
+    static void (*next)(void *, const char *);
+    if (!next && dlsym)
+        next = (void (*)(void *, const char *))dlsym((void *)-1l, "webkit_web_view_load_uri");
+    if (!next)
+        return;
+    next(view, hidden_launcher() && fab_uri(uri) ? "about:blank" : uri);
 }

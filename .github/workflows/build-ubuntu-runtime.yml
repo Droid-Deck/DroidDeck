@@ -1,0 +1,95 @@
+name: Build Linux runtime (Ubuntu)
+
+on:
+  push:
+    paths:
+      - 'tools/ubuntu/**'
+      - '.github/workflows/build-ubuntu-runtime.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish as (e.g. ubuntu-r1); empty = artifact only'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  debs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build Mesa with KGSL and the patched KWin
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work ubuntu:26.04 bash tools/ubuntu/build-debs.sh /work/out/debs
+          sudo chown -R "$(id -u):$(id -g)" out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-runtime-debs
+          retention-days: 7
+          compression-level: 0
+          path: out/debs/
+  rootfs:
+    needs: debs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: ubuntu-runtime-debs
+          path: out/debs
+      - uses: actions/create-github-app-token@v2
+        id: components-token
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-Components
+      - name: Refuse a published tag
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+        run: |
+          if gh release view '${{ inputs.tag }}' -R Droid-Deck/DroidDeck-Components >/dev/null 2>&1; then
+            echo "::error::${{ inputs.tag }} is already published, and published tags are never replaced: use a new tag"
+            exit 1
+          fi
+      - name: Build
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd gpgv ubuntu-keyring >/dev/null
+          tag='${{ inputs.tag }}'
+          tools/ubuntu/build.sh out/debs out "${tag:-ubuntu-dev}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-runtime
+          retention-days: 7
+          compression-level: 0
+          path: |
+            out/*.tar.zst
+            out/*.sha256
+            out/*.packages.txt
+      - name: Publish
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+          GH_REPO: Droid-Deck/DroidDeck-Components
+        run: |
+          set -euo pipefail
+          TAG='${{ inputs.tag }}'
+          prerelease=false
+          case $TAG in *-rc*) prerelease=true ;; esac
+          gh release create "$TAG" --latest=false --prerelease="$prerelease" --title "$TAG" \
+            --notes "Ubuntu 26.04 LTS arm64 runtime for DroidDeck ($GITHUB_REPOSITORY tools/ubuntu, $GITHUB_SHA): size $(stat -c %s "out/$TAG.tar.zst"), sha256 $(cat "out/$TAG.sha256"). $TAG-desktop.tar.zst is the Kubuntu Plasma desktop built on top of it, holding only what the runtime does not already have: size $(stat -c %s "out/$TAG-desktop.tar.zst"), sha256 $(cat "out/$TAG-desktop.sha256"). The .packages.txt files list every installed package and version." \
+            "out/$TAG.tar.zst" "out/$TAG.sha256" "out/$TAG.packages.txt" \
+            "out/$TAG-desktop.tar.zst" "out/$TAG-desktop.sha256" "out/$TAG-desktop.packages.txt" out/debs/*.deb
+          gh release edit "$TAG" --latest=false --prerelease="$prerelease"

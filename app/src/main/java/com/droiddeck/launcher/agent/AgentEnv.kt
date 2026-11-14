@@ -18,7 +18,6 @@ object AgentEnv {
     private const val TAG = "AgentEnv"
     private const val FILE = "agent-env.json"
     private const val GUEST_BIN = "/opt/droiddeck-agent/bin"
-    private const val BASE_PATH = "/usr/local/bin:/usr/bin:/bin"
     private val NAME = Regex("[A-Za-z0-9._-]{1,64}")
     private val KEY = Regex("[A-Za-z_][A-Za-z0-9_]*")
     private val lock = Any()
@@ -160,7 +159,7 @@ object AgentEnv {
     }
 
     private fun pathOf(lines: List<String>) =
-        lines.lastOrNull { it.startsWith("PATH=") }?.substringAfter('=')?.takeIf { it.isNotBlank() } ?: BASE_PATH
+        lines.lastOrNull { it.startsWith("PATH=") }?.substringAfter('=')?.takeIf { it.isNotBlank() } ?: LinuxRuntime.GUEST_PATH
 
     private fun bin(context: Context): File {
         val root = LinuxRuntime.rootDir(context).canonicalFile.toPath()

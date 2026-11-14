@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Avahi VNC Server Browser
+Exec=/usr/bin/bvnc
+Icon=network-wired
+NoDisplay=true

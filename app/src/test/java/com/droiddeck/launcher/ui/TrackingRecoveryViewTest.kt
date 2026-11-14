@@ -78,7 +78,6 @@ class TrackingRecoveryViewTest {
                             difference+=abs(((actual ushr 16) and 255)-((reference ushr 16) and 255))
                         }
                     }
-                    // Native text rasterization can round a translated glyph edge differently.
                     assertTrue("Eye at x=$x changed $changed pixels",changed<pixels/1000)
                     assertTrue("Eye at x=$x has different content",difference.toDouble()/(pixels*3)<0.1)
                 }

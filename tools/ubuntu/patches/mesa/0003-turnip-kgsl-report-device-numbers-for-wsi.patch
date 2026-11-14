@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 15:00:00 -0400
+Subject: [PATCH] turnip/kgsl: report the KGSL device numbers for WSI
+
+Expose VK_EXT_physical_device_drm with the kgsl-3d0 device numbers so a
+nested compositor such as gamescope can advertise dma-buf feedback and
+Vulkan swapchains work without the software WSI. Ported from
+Droid-Deck/Drivers (patches/scripts/linux_kgsl_wsi.py).
+---
+--- a/src/freedreno/vulkan/tu_device.cc	2026-10-28 14:41:54.161481991 -0400
++++ b/src/freedreno/vulkan/tu_device.cc	2026-10-28 14:41:54.174757117 -0400
+@@ -312,7 +312,7 @@
+       .EXT_mutable_descriptor_type = true,
+       .EXT_nested_command_buffer = true,
+       .EXT_non_seamless_cube_map = true,
+-      .EXT_physical_device_drm = !is_kgsl(device->instance),
++      .EXT_physical_device_drm = !is_kgsl(device->instance) || device->has_local,
+       .EXT_pipeline_creation_cache_control = true,
+       .EXT_pipeline_creation_feedback = true,
+       .EXT_primitive_topology_list_restart = true,
+--- a/src/freedreno/vulkan/tu_knl_kgsl.cc	2026-10-28 14:41:54.159481934 -0400
++++ b/src/freedreno/vulkan/tu_knl_kgsl.cc	2026-10-28 14:41:54.174233883 -0400
+@@ -11,6 +11,8 @@
+ #include <stdint.h>
+ #include <sys/ioctl.h>
+ #include <sys/mman.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
+ #include <linux/dma-heap.h>
+ 
+ #define __user
+@@ -1907,6 +1909,13 @@
+ 
+    instance->knl = &kgsl_knl_funcs;
+ 
++   struct stat kgsl_st;
++   if (fstat(fd, &kgsl_st) == 0 && S_ISCHR(kgsl_st.st_mode)) {
++      device->has_local = device->has_master = true;
++      device->local_major = device->master_major = major(kgsl_st.st_rdev);
++      device->local_minor = device->master_minor = minor(kgsl_st.st_rdev);
++   }
++
+    result = tu_physical_device_init(device, instance);
+    if (result != VK_SUCCESS)
+       goto fail;

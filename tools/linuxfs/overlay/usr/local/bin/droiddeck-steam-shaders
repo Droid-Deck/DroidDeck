@@ -1,12 +1,4 @@
 #!/usr/bin/python3
-"""Sets the Steam client's shader pre-caching (Settings > Downloads), before the client starts.
-
-    droiddeck-steam-shaders <0|1> <steam root>...
-
-The client stores the toggle as InstallConfigStore/Software/Valve/Steam/ShaderCacheManager/
-DisableShaderCache in config/config.vdf: "1" when off, "0" when on. It keeps the setting in memory
-and writes config.vdf back on exit, so this runs only while the client is stopped. The launcher
-passes a value only after its own toggle changes; otherwise the client's toggle stays the user's."""
 from pathlib import Path
 import runpy
 import sys

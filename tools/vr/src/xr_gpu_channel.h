@@ -31,7 +31,6 @@ inline XrGpuFrameState xr_gpu_frame_state(const XrGpuFrame &frame, uint32_t widt
     return now - frame.header.captured_ns > 200000000LL ? XrGpuFrameState::Stale : XrGpuFrameState::Ready;
 }
 
-// SEQPACKET keeps descriptor transfer and its metadata in one indivisible message.
 inline bool xr_gpu_send(int socket, const void *data, size_t size, const int *fds = nullptr, unsigned count = 0) {
     if (count > XR_GPU_SLOTS) return false;
     iovec bytes{const_cast<void *>(data), size};

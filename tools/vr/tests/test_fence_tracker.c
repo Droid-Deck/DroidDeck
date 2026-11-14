@@ -66,8 +66,6 @@ static void saturated_pool_and_out_of_order_completion(void) {
     struct tracked *pool = NULL, *pending[130];
     VkDevice dev = (VkDevice)(uintptr_t)1;
     uint32_t issued = 0, done = 0;
-    /* These waits can all depend on a signal from a later queue submission.
-     * A fixed 64-slot pool blocks that signal before it reaches the driver. */
     for (unsigned i = 0; i < 130; i++) pending[i] = submit(&pool, dev, &issued);
     assert(issued == 130);
     assert(track_pool_reap(pool, issued, &done) && done == 0);
@@ -79,7 +77,6 @@ static void saturated_pool_and_out_of_order_completion(void) {
     unsigned before = created;
     struct tracked *signal = submit(&pool, dev, &issued);
     assert(signal == pending[129] && created == before && issued == 131);
-    /* Freeing the latest fence must not mark the older work as drawn. */
     for (unsigned i = 0; i < 129; i++) fake(pending[i]->fence)->result = VK_SUCCESS;
     assert(track_pool_reap(pool, issued, &done) && done == 130);
     fake(signal->fence)->result = VK_SUCCESS;

@@ -69,11 +69,10 @@ index 0aef598..1473148 100644
  gamescope::ConVar<bool> cv_commit_ready_check( "commit_ready_check", true, "Check a new commit's fence at import; a finished frame is marked done in the same pass instead of through the image waiter." );
  
  // Set when update_wayland_res marks a commit done itself, so the main loop handles it in the same pass.
-@@ -8519,6 +8522,16 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+@@ -8519,6 +8522,15 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
  			uMangoMsgType = pMangoFocus->externalOverlayWindow->uMangoappMsgType;
  	}
  
-+	// The commits the typed stream of connector 0 counts, whether or not a mangoapp runs.
 +	bool bDroidDeckHudFrame = false;
 +	if ( pUpscaleFocus && !w->isSteamStreamingClient )
 +		bDroidDeckHudFrame = pUpscaleFocus->ulVirtualFocusKey == 0;
@@ -86,7 +85,7 @@ index 0aef598..1473148 100644
  	bool bValidPreemptiveScale = reslistentry.pAcquirePoint && pUpscaleFocus && cv_upscale_preemptive;
  	bool bPreemptiveUpscale = bValidPreemptiveScale && newCommit->ShouldPreemptivelyUpscale( pUpscaleFocus->eUpscaleFilter, pUpscaleFocus->eUpscaleScaler );
  
-@@ -8650,7 +8663,7 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+@@ -8650,7 +8662,7 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
  
  	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
  	{
@@ -95,18 +94,10 @@ index 0aef598..1473148 100644
  		if ( bKnownReady )
  		{
  			newCommit->Signal();
-@@ -9865,6 +9878,109 @@ static void publish_mangoapp_connector_snapshots()
+@@ -9865,6 +9877,100 @@ static void publish_mangoapp_connector_snapshots()
  	}
  }
  
-+// DroidDeck's own HUD reads the frame times DroidDeck's mangoapp shows from a shared file named by
-+// DROIDDECK_HUD_FRAMES, also while no mangoapp runs. That mangoapp (Valve's 20260902.1 build) reads the
-+// field at byte 16 of each message as its frame time, which is app_frametime_ns here: one time per
-+// signalled commit of the connector's windows (mangoapp_nudge_app_frame). The file gets the same commits
-+// of connector 0. Little-endian: 0 magic, 4 version, 8 capacity, 12 pid, 16 frames written (u64),
-+// 24 info sequence (odd while the info is written), 28 output width, 32 height, 36 refresh mHz, 40 Steam
-+// focused, 44 engine (40 bytes), then from 128 one { frametime ns, monotonic time ns } pair per frame,
-+// a ring of capacity.
 +static constexpr uint32_t k_uDroidDeckHudFramesMagic = 0x46484444;
 +static constexpr uint32_t k_uDroidDeckHudFramesVersion = 1;
 +static constexpr uint32_t k_uDroidDeckHudFramesCapacity = 1024;
@@ -157,7 +148,6 @@ index 0aef598..1473148 100644
 +	return droiddeck_hud_frames_map() != nullptr;
 +}
 +
-+// Signal() runs on the image waiter thread or, for a frame finished at import, on steamcompmgr's.
 +void droiddeck_hud_app_frame( uint64_t ulNow )
 +{
 +	std::unique_lock lock( s_DroidDeckHudFramesMutex );
@@ -205,7 +195,7 @@ index 0aef598..1473148 100644
  // mangohudctl posts one control message for every instance to act on.
  static void relay_mangoapp_control()
  {
-@@ -10843,6 +10959,7 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10843,6 +10949,7 @@ steamcompmgr_main(int argc, char **argv)
  
  		publish_mangoapp_snapshot();
  		publish_mangoapp_connector_snapshots();

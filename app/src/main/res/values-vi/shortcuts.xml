@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Phím tắt nút vật lý</string>
+    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_capture">Gán: %1$s</string>
+    <string name="shortcuts_press">Nhấn và thả một nút. Gán nút được lưu tự động.</string>
+    <string name="shortcuts_release">Thả nút để tiếp tục.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Nút này đã được gán cho: %1$s</string>
+    <string name="shortcuts_save">Gán lại</string>
+    <string name="shortcuts_retry">Thử nút khác</string>
+    <string name="shortcuts_limitations">Nút Home và một số nút bổ sung có thể không khả dụng.</string>
+</resources>

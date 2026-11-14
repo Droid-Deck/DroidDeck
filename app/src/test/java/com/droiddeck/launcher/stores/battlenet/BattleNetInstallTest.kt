@@ -38,6 +38,11 @@ class BattleNetInstallTest {
         assertNull(BattleNetInstall.latestBuild("", "us"))
     }
 
+    @Test fun theVersionServiceIsBlizzardsChineseOneForChina() {
+        assertEquals("https://us.version.battle.net/v2/products/wow/versions", BattleNetInstall.versionsUrl("us", "wow"))
+        assertEquals("https://cn.version.battlenet.com.cn/v2/products/d3cn/versions", BattleNetInstall.versionsUrl("cn", "d3cn"))
+    }
+
     @Test fun theDeviceLanguagePicksABlizzardLocale() {
         assertEquals("enUS", BattleNetInstall.locale(Locale.US))
         assertEquals("enGB", BattleNetInstall.locale(Locale.UK))

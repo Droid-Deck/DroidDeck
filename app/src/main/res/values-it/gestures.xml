@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gesti</string>
     <string name="gesture_settings">Impostazioni dei gesti tattili</string>
-    <string name="gesture_settings_hint">Personalizza i gesti di mouse e tastiera. Seleziona Gesti come modalità tattile per usarli.</string>
     <string name="gesture_tap">Tocco</string>
     <string name="gesture_drag">Trascinamento con un dito</string>
     <string name="gesture_long_press">Pressione prolungata</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Pressione con tre dita</string>
     <string name="gesture_pinch">Pizzica per ingrandire</string>
     <string name="gesture_hold_button">Tieni premuto il pulsante</string>
+    <string name="gesture_hold_left">Tieni premuto il pulsante sinistro</string>
+    <string name="gesture_hold_right">Tieni premuto il pulsante destro</string>
     <string name="gesture_click_once">Clic singolo</string>
     <string name="gesture_hold_delay">Ritardo della pressione</string>
     <string name="gesture_double_delay">Intervallo del doppio tocco</string>

@@ -1,0 +1,32 @@
+#!/bin/bash
+login=0 command= shell=
+while [ $# -gt 0 ]; do
+  case $1 in
+    -|-l|--login) login=1; shift ;;
+    -c|--command) [ $# -ge 2 ] || { echo "su: option requires an argument -- 'c'" >&2; exit 1; }; command=$2; shift 2 ;;
+    --command=*) command=${1#*=}; shift ;;
+    -s|--shell) [ $# -ge 2 ] || { echo "su: option requires an argument -- 's'" >&2; exit 1; }; shell=$2; shift 2 ;;
+    --shell=*) shell=${1#*=}; shift ;;
+    -m|-p|--preserve-environment|-P|--pty|-f|--fast) shift ;;
+    -h|--help) echo "usage: su [-] [-c command] [-s shell] [root]"; exit 0 ;;
+    -V|--version) echo "DroidDeck su: runs a root shell inside the DroidDeck desktop"; exit 0 ;;
+    --) shift; break ;;
+    -*) echo "su: invalid option -- '${1#-}'" >&2; exit 1 ;;
+    *) break ;;
+  esac
+done
+user=${1:-root}
+[ $# -gt 0 ] && shift
+case $user in
+  root|0|"$(id -un 2>/dev/null)") ;;
+  *) echo "su: user $user does not exist or the user entry does not contain all the required fields" >&2; exit 1 ;;
+esac
+args=()
+[ "$login" = 1 ] && args+=(-i)
+if [ -n "$shell" ]; then
+  if [ -n "$command" ]; then exec /usr/local/bin/sudo "${args[@]}" "$shell" -c "$command" "$@"; fi
+  exec /usr/local/bin/sudo "${args[@]}" "$shell" "$@"
+fi
+if [ -n "$command" ]; then exec /usr/local/bin/sudo "${args[@]}" -s "$command"; fi
+[ "$login" = 1 ] && exec /usr/local/bin/sudo -i
+exec /usr/local/bin/sudo -s

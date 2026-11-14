@@ -1,0 +1,12 @@
+--- a/src/dxvk/hud/shaders/hud_frame_time_eval.comp
++++ b/src/dxvk/hud/shaders/hud_frame_time_eval.comp
+@@ -41,7 +41,8 @@
+   draw_info_t draw_infos[];
+ };
+ 
+-layout(binding = 3)
++// The bound text view is VK_FORMAT_R8_UINT; do not require formatless writes.
++layout(binding = 3, r8ui)
+ uniform writeonly uimageBuffer text_buffer;
+ 
+ layout(push_constant)

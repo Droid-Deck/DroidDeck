@@ -74,11 +74,14 @@ long fp_svc_dispatch(const long *r) {
   int saved_errno = errno;
   long result = svc_blocked(r);
   uintptr_t frame = (uintptr_t)r;
-  if (result == FP_SLOW && (!svc_busy || frame >= svc_busy)) {
+  if (result == FP_SLOW && __atomic_load_n(&fp_on, __ATOMIC_RELAXED) && (!svc_busy || frame >= svc_busy)) {
     uintptr_t previous = svc_busy;
     svc_busy = frame;
-    if (svc_stack_room(frame)) { result = svc_path_call(r); svc_busy = 0; }
-    else svc_busy = previous;
+    if (svc_stack_room(frame)) {
+      result = svc_path_call(r);
+      if (refused()) result = FP_SLOW;
+      svc_busy = 0;
+    } else svc_busy = previous;
   }
   if (result == FP_SLOW) {
     __atomic_fetch_add(&svc_slow, 1, __ATOMIC_RELAXED);
@@ -89,7 +92,6 @@ long fp_svc_dispatch(const long *r) {
 }
 
 void fp_svc_entry(void) __attribute__((visibility("hidden")));
-/* A replaced svc may have live values in every register, including NZCV and SIMD. */
 __asm__(
   ".text\n.p2align 4\n.hidden fp_svc_entry\n.type fp_svc_entry,%function\nfp_svc_entry:\n"
   ".cfi_startproc\n.cfi_def_cfa sp, 16\n.cfi_return_column 16\n"
@@ -144,11 +146,11 @@ static int svc_emit(uint32_t *code, uint32_t *site, uint32_t *branch) {
   uint32_t back;
   if (!svc_branch((uintptr_t)site, (uintptr_t)code, branch) ||
       !svc_branch((uintptr_t)(code + 5), (uintptr_t)(site + 1), &back)) return 0;
-  code[0] = 0xa9bf47f0U; /* stp x16, x17, [sp, #-16]! */
-  code[1] = 0x580000f0U; /* ldr x16, literal at +32 */
-  code[2] = 0x10000051U; /* adr x17, +8 */
-  code[3] = 0xd61f0200U; /* br x16 */
-  code[4] = 0xa8c147f0U; /* ldp x16, x17, [sp], #16 */
+  code[0] = 0xa9bf47f0U;
+  code[1] = 0x580000f0U;
+  code[2] = 0x10000051U;
+  code[3] = 0xd61f0200U;
+  code[4] = 0xa8c147f0U;
   code[5] = back;
   uintptr_t entry = (uintptr_t)fp_svc_entry;
   uintptr_t resume = (uintptr_t)(site + 1);

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Bundles the cloud player page script with esbuild 0.24.0 (ESBUILD=/path/to/esbuild, default: esbuild on PATH).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)

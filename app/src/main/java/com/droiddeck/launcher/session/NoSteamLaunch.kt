@@ -30,9 +30,33 @@ object NoSteamLaunch {
         GameEnvironment.gameNoSteam(GameEnvironmentStore.read(context), (appId and 0xFFFFFFFFL).toString())
     }.getOrDefault(false)
 
+    fun scopeOf(program: String?, args: List<String>, battleNetTitle: (String) -> String? = { null }): String? = when (program) {
+        EPIC -> EpicClient.shortcutAppId.toString()
+        BATTLENET -> args.getOrNull(args.indexOf("launch") + 1)?.takeIf { args.contains("launch") }?.let(battleNetTitle)
+            ?: com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+        PROTON_RUN -> args.getOrNull(args.indexOf("--app") + 1)?.takeIf { args.contains("--app") }
+        else -> null
+    }?.takeIf { it.isNotEmpty() && GameEnvironment.validScope(it) }
+
+    fun battleNetTitleScope(context: Context, code: String): String? =
+        AddedGames.scan(context).firstOrNull { game ->
+            game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id &&
+                game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.code == code
+        }?.let { settingsId(it).toString() }
+
+    fun resolution(config: GameEnvironment.Config, scope: String?, output: Pair<Int, Int>): Pair<Int, Int>? {
+        val choice = scope?.let { GameEnvironment.gameResolution(config, it) } ?: return null
+        return com.droiddeck.launcher.core.GameResolution.resolve(choice, output)
+    }
+
+    fun needsAddedGame(game: Library.SteamGame): Boolean = game.library == Library.ADDED && !viaBattleNet(game)
+
+    private fun viaBattleNet(game: Library.SteamGame): Boolean =
+        game.library == Library.ADDED && game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id
+
     fun command(game: Library.SteamGame, added: AddedGames.Game?): Command? = when {
         game.library == Library.EPIC_LAUNCHER -> Command(EPIC, listOf("run"), game.name)
-        game.library == Library.ADDED && game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id ->
+        viaBattleNet(game) ->
             game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.let { Command(BATTLENET, listOf("launch", it.code), game.name) }
         game.library == Library.ADDED -> added?.let { a -> a.steamAppId?.let { Command(PROTON_RUN, listOf("--app", it.toString()), a.name) } ?: addedCommand(a) }
         game.appId > 0 -> Command(PROTON_RUN, listOf("--app", game.appId.toString()), game.name)
@@ -51,7 +75,7 @@ object NoSteamLaunch {
 
     fun addedGame(context: Context, game: Library.SteamGame): AddedGames.Game? {
         val id = game.appId.toLong() and 0xFFFFFFFFL
-        val one = game.gameFiles?.let { AddedGames.single(context, it.path) }
+        val one = game.gameFiles?.let { AddedGames.single(context, it.path, reuse = true) }
         return one?.takeIf { settingsId(it) == id } ?: AddedGames.scan(context).firstOrNull { settingsId(it) == id }
     }
 

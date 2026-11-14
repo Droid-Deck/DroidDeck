@@ -39,7 +39,7 @@ static int svc_cache_name(const struct dl_phdr_info *info, char *path, size_t si
           id[2 * j + 1] = hex[b & 15];
         }
         id[2 * h.n_descsz] = 0;
-        int n = snprintf(path, size, "/tmp/.droiddeck-svc-v2-%d-%s", svc_android_api, id);
+        int n = snprintf(path, size, "/tmp/.droiddeck-svc-v3-%d-%s", svc_android_api, id);
         return n > 0 && (size_t)n < size;
       }
       at += name + desc;

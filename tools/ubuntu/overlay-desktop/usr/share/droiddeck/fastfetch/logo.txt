@@ -1,0 +1,18 @@
+$1MMMMMMMMMMMMMM   MMMMM            
+$1MddddddddddddM   MdddMMMMM        
+$1MddddddddddMMM   MMMdddddMMM      
+$1MddddddMMMMM       MMMMMdddMMM    
+$1MddddMMM       $2o       $1MMMdddMMM  
+$1MdddMM    $2ooooooooooo    $1MMddddMM 
+$1MddMM   $2oooyyyyyyyyyooo   $1MMddddM 
+$1MddM   $2ooyyyyyyyyyyyyyoo   $1MddddMM
+$1MddM   $2oyyyyyyyyyyyyyyyoo  $1MdddddM
+$1MddM   $2oyyyyyyyyyyyyyyyoo  $1MdddddM
+$1MddM   $2ooyyyyyyyyyyyyyoo   $1MddddMM
+$1MddMM   $2oooyyyyyyyyyooo   $1MMddddM 
+$1MdddMM    $2ooooooooooo    $1MMddddMM 
+$1MddddMMM       $2o       $1MMMdddMMM  
+$1MddddddMMMMM       MMMMMdddMMM    
+$1MddddddddddMMM   MMMdddddMMM      
+$1MddddddddddddM   MdddMMMMM        
+$1MMMMMMMMMMMMMM   MMMMM            

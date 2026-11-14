@@ -74,13 +74,8 @@ public final class RuntimeFileTree {
             throw new IOException("Cannot make directory removable: " + dir);
     }
 
-    /**
-     * Paths in a runtime tree that belong to the user: the home folder, imported AppImages and script apps, and catalog
-     * AppImages with their menu entries and markers. Tar-kind catalog packages (the desktop) unpack over /usr and cannot
-     * be carried.
-     */
     static java.util.List<String> userPaths(File tree) throws IOException {
-        java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps"));
+        java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps", "opt/droiddeck/wincomponents"));
         for (String n : children(new File(tree, "usr/local/share/applications"))) {
             if (n.endsWith(".desktop") && (n.startsWith("droiddeck-app-") || n.startsWith("droiddeck-appimage-")))
                 paths.add("usr/local/share/applications/" + n);
@@ -109,8 +104,37 @@ public final class RuntimeFileTree {
 
     static java.util.List<String> existingUserPaths(File from, File to) throws IOException {
         java.util.List<String> paths = new java.util.ArrayList<>();
-        for (String rel : userPaths(from, to)) if (exists(safePath(from, rel).toPath())) paths.add(rel);
+        for (String rel : userPaths(from, to)) {
+            if (!exists(safePath(from, rel).toPath())) continue;
+            if (rel.startsWith("usr/share/applications/") && exists(safePath(to, rel).toPath())) continue;
+            paths.add(rel);
+        }
         return paths;
+    }
+
+    private static final String[] STALE_HOME_STATE = {
+        ".local/share/droiddeck/pacman", ".cache/droiddeck/pacman-restore.log",
+        ".cache/appstream", ".cache/discover", ".cache/fontconfig", ".cache/kwin", ".cache/ksplash",
+        ".cache/ksvg-elements", ".cache/plasmashell", ".cache/kwinsession.kcache", ".cache/icon-cache.kcache",
+    };
+    private static final String[] STALE_HOME_CACHE_PREFIXES = {
+        "mesa_shader_cache", "ksycoca", "plasma_theme_", "qtshadercache", "event-sound-cache.tdb.",
+    };
+
+    static void dropStaleState(File runtimeRoot) throws IOException {
+        File home = new File(runtimeRoot, "root");
+        java.util.List<String> stale = new java.util.ArrayList<>(java.util.Arrays.asList(STALE_HOME_STATE));
+        for (String n : children(new File(home, ".cache"))) {
+            for (String prefix : STALE_HOME_CACHE_PREFIXES) {
+                if (n.startsWith(prefix)) { stale.add(".cache/" + n); break; }
+            }
+        }
+        IOException failed = null;
+        for (String rel : stale) {
+            try { delete(safePath(home, rel), null); }
+            catch (IOException e) { if (failed == null) failed = e; else failed.addSuppressed(e); }
+        }
+        if (failed != null) throw failed;
     }
 
     private static java.util.List<String> children(File dir) throws IOException {
@@ -139,13 +163,6 @@ public final class RuntimeFileTree {
         return false;
     }
 
-    /**
-     * Moves each user path that exists in {@code from} into {@code to}, replacing what {@code to} ships there. With
-     * {@code onlyMissing}, a path already present in {@code to} is left alone. On failure the paths already moved go back
-     * before the exception is thrown. Rollback failures are suppressed on that exception; callers must retain the source
-     * of any incomplete rollback.
-     * Returns the moved paths.
-     */
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing) throws IOException {
         return carryUserData(from, to, onlyMissing, new java.util.ArrayList<>(userPaths(from, to)));
     }
@@ -171,7 +188,6 @@ public final class RuntimeFileTree {
         return moved;
     }
 
-    /** Puts the given paths back from {@code from} into {@code to}; failures are collected, not stopped on. */
     static void carryBack(File from, File to, java.util.List<String> paths) throws IOException {
         IOException failed = null;
         for (int i = paths.size() - 1; i >= 0; i--) {

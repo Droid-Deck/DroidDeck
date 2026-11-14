@@ -3,14 +3,31 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <queries>
+        <package android:name="cn.nubia.gamelauncher" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.SECONDARY_HOME" />
+        </intent>
+        <intent>
+            <action android:name="org.adw.launcher.THEMES" />
+        </intent>
+        <intent>
+            <action android:name="com.novalauncher.THEME" />
+        </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -59,6 +76,19 @@
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
+        <service android:name=".wallpaper.SteamWallService"
+            android:label="@string/steam_wall_label"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/steam_wall_wallpaper" />
+        </service>
+        <activity android:name=".wallpaper.WallpaperSettingsActivity"
+            android:label="@string/steam_wall_label"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="true" />
         <service android:name=".input.HomeButtonService"
             android:label="@string/integration_shortcuts_service"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -68,6 +98,12 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
         </service>
+        <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
+            android:process=":shortcuts_sync">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
         <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
             android:permission="android.permission.DUMP"
@@ -81,6 +117,17 @@
                 <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".DeviceCodeActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.devicecode"
+            android:excludeFromRecents="true"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation"
+            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".PairingGuideActivity"
@@ -98,12 +145,14 @@
             android:exported="true"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
+            <layout android:defaultWidth="1024dp" android:defaultHeight="640dp" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
                 <data android:scheme="droiddeck" android:host="game" />
+                <data android:scheme="droiddeck" android:host="soundtrack" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
@@ -157,7 +206,6 @@
             </intent-filter>
         </activity>
 
-
         <activity
             android:name=".PinRequestActivity"
             android:exported="true"
@@ -170,13 +218,13 @@
             </intent-filter>
         </activity>
 
+
         <activity
-            android:name=".input.ControllerEditorActivity"
+            android:name=".sync.SyncthingWebActivity"
             android:exported="false"
-            android:theme="@style/SessionTheme"
             android:screenOrientation="sensorLandscape"
-            android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".files.FileManagerActivity"
@@ -229,6 +277,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity="${applicationId}.agent"
             android:permission="android.permission.DUMP"
             android:theme="@style/SessionTheme" />
 
@@ -244,6 +293,26 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
         <activity
+            android:name=".ui.DualScreenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="${applicationId}.dualscreen"
+            android:theme="@style/SessionTheme"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+
+        <activity
+            android:name=".ui.SessionTypingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="${applicationId}.typing"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustNothing"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+
+        <activity
             android:name=".gpu.SteamVrRestartActivity"
             android:exported="false"
             android:process=":vr_recovery"
@@ -253,10 +322,16 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
             android:theme="@style/SessionTheme" />
 
+        <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />
+        <!-- The compositor's native state is one per process, so the bottom-screen desktop's compositor runs in its own. -->
+        <service
+            android:name=".wayland.BottomDesktopCompositorService"
+            android:process=":bottom_desktop"
+            android:exported="false" />
         <service
             android:name=".runtime.RuntimeInstallService"
             android:exported="false" />
@@ -267,6 +342,18 @@
             android:name=".stores.download.StoreDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".sync.SyncthingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".playback.SoundtrackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.logs"
@@ -286,6 +373,14 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <receiver
+            android:name=".agent.AgentCallReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="${applicationId}.AGENT_CALL" />
+            </intent-filter>
+        </receiver>
         <provider
             android:name=".agent.AgentBridgeProvider"
             android:authorities="${applicationId}.agent"

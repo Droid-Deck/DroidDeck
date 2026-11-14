@@ -10,17 +10,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Source games state VAC-secure or insecure only in their console, which reaches a file (console.log in the
- * mod folder) only with -condebug. The report quotes the lines it found and says inconclusive rather than guessing.
- */
 object VacDiagnostics {
     private const val TAG = "VacDiagnostics"
 
-    /**
-     * Checked by the launch wrapper. Lines: session start (epoch seconds), the Steam client it ran, then
-     * "length<tab>canonical path" for each console.log already there.
-     */
     private const val MARKER = "root/.droiddeck-vac-diagnostics"
 
     private const val LAUNCHES = "root/.droiddeck-vac-launches"
@@ -30,7 +22,6 @@ object VacDiagnostics {
     private const val MAX_QUOTED = 40
 
     private val INSECURE = Regex("insecure mode", RegexOption.IGNORE_CASE)
-    // "Connecting to" is only an attempt: L4D2 refuses a VAC server with a dialog that never reaches the console.
     private val CONNECTED = Regex("^Connected to", RegexOption.IGNORE_CASE)
     private val ATTEMPTED = Regex("^Connecting to", RegexOption.IGNORE_CASE)
     private val NOTABLE = Regex("\\bVAC\\b|secure|Connected to|Connecting to|Disconnect|challenge|game coordinator", RegexOption.IGNORE_CASE)
@@ -45,7 +36,6 @@ object VacDiagnostics {
             File(root, LAUNCHES).delete()
             if (enabled(context)) {
                 val arch = SessionPrefs.steamClientArch(context)
-                // -condebug appends, so each console.log's length now is where this session's lines start.
                 val sizes = consoleLogs(context, arch).joinToString("") { "${it.length()}\t${canonical(it)}\n" }
                 marker.writeText("${System.currentTimeMillis() / 1000}\n$arch\n$sizes")
             } else marker.delete()
@@ -57,7 +47,6 @@ object VacDiagnostics {
     private const val SNAPSHOT_MARKER = ".vac-marker"
     private const val SNAPSHOT_LAUNCHES = ".vac-launches"
 
-    /** Call when a session stops, before the next [arm] replaces its marker and launch list. */
     fun snapshot(context: Context, dir: File) {
         val root = LinuxRuntime.rootDir(context)
         try {
@@ -145,7 +134,6 @@ object VacDiagnostics {
             "Inconclusive - the game never connected to a server. Join a VAC-secured server, then check again."
     }
 
-    /** Source writes <game>/<mod>/console.log, Source 2 <game>/game/<mod>/console.log. */
     private fun consoleLogs(context: Context, arch: String): List<File> {
         val found = LinkedHashMap<String, File>()
         for (library in libraryRoots(context, arch)) {
@@ -176,7 +164,6 @@ object VacDiagnostics {
         return roots.filter { it.isDirectory }.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.path) }
     }
 
-    /** Two libraries can hold the same game and mod folder; a repeated name takes a tag from the log's path. */
     internal fun consoleNames(logs: List<File>): List<String> {
         val used = HashSet<String>()
         return logs.map { log ->

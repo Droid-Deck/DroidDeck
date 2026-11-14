@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Checking for files other DroidDeck software needs...
+When = PreTransaction
+Exec = /usr/share/droiddeck/pacman/shared
+NeedsTargets
+AbortOnFail

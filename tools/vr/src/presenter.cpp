@@ -606,7 +606,6 @@ private:
         im.height = p.height;
         im.producerPid = p.producerPid;
         im.format = (VkFormat)p.format;
-        // Dedicated OPAQUE_FD imports must match SteamVR's exported image description.
         SharedEyeImage description(im.format, p.width, p.height);
         VkResult r = vk_.CreateImage(dev_, &description.info, nullptr, &im.image);
         if (r != VK_SUCCESS) { Log("presenter: import image %d", r); close(p.fd); return; }

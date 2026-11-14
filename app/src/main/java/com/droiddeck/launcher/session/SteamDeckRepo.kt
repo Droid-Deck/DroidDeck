@@ -7,12 +7,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/** steamdeckrepo.com's public boot video list, the same one its website and its own manager app read. */
 object SteamDeckRepo {
     private const val TAG = "SteamDeckRepo"
     const val BASE = "https://steamdeckrepo.com"
 
-    /** The site shows twelve movies a page. */
     const val PAGE_SIZE = 12
     const val MAX_DOWNLOAD_BYTES = 120L shl 20
     private const val MAX_JSON_BYTES = 1 shl 20
@@ -23,7 +21,6 @@ object SteamDeckRepo {
         TRENDING("trending"), DOWNLOADS("downloads-desc"), LIKES("likes-desc"), NEWEST("created_at-desc"),
     }
 
-    /** `null` is every device. */
     val DEVICES = listOf("steam_deck", "steam_machine")
 
     class Post(
@@ -36,7 +33,6 @@ object SteamDeckRepo {
         object Failed : Page()
     }
 
-    /** The text of [key], empty when it is missing or JSON null, which `optString` would turn into the word "null". */
     private fun JSONObject.text(key: String): String = if (isNull(key)) "" else optString(key)
 
     fun parse(json: String): List<Post>? {
@@ -83,10 +79,6 @@ object SteamDeckRepo {
         return result
     }
 
-    /**
-     * The number of the last page for a search, found by asking for pages: the site does not say how many there are, but a
-     * page past the end is empty and the last one is short. Null when the site cannot be reached.
-     */
     fun lastPage(sort: Sort, device: String?, search: String, cap: Int = 512, count: (Int) -> Int? = { p ->
         (fetch(sort, device, search, p) as? Page.Ok)?.posts?.size
     }): Int? {
@@ -111,7 +103,6 @@ object SteamDeckRepo {
         return good
     }
 
-    /** Reads [input] to its end, or null as soon as it holds more than [limit] bytes, so a huge answer is never kept whole. */
     internal fun readLimited(input: java.io.InputStream, limit: Int): ByteArray? {
         val out = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(16 * 1024)
@@ -142,7 +133,6 @@ object SteamDeckRepo {
         }
     }
 
-    /** Fetches a small picture such as a cover; null when it cannot be had. */
     fun bytes(url: String, limit: Int = 4 shl 20): ByteArray? {
         if (!url.startsWith("https://")) return null
         var connection: HttpURLConnection? = null
@@ -161,10 +151,6 @@ object SteamDeckRepo {
         }
     }
 
-    /**
-     * Downloads a movie to [target] through the site's own download address, so the site counts it like a download from
-     * its website, and falls back to the video's address. True when a file was saved.
-     */
     fun download(post: Post, target: File, onProgress: (Int) -> Unit = {}): Boolean {
         for (url in listOf("$BASE/post/download/${post.id}", post.video)) {
             if (save(url, target, onProgress)) return true

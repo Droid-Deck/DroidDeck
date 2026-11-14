@@ -1,0 +1,12 @@
+[org.kde.kdecoration2]
+library=org.kde.breeze
+
+[WindowSwitcher]
+LayoutName=org.kde.breeze.desktop
+
+[DesktopSwitcher]
+LayoutName=org.kde.breeze.desktop
+
+[Plugins]
+blurEnabled=false
+contrastEnabled=false

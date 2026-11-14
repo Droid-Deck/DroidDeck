@@ -1,4 +1,3 @@
-"""The guest agent: its request files, exec, errors and the DevTools client, without a session."""
 import base64
 import hashlib
 import importlib.machinery
@@ -26,7 +25,6 @@ loader.exec_module(agent)
 
 
 class FakeDevTools(threading.Thread):
-    """GET /json lists one target; its WebSocket answers Runtime.evaluate the way Chromium does."""
 
     def __init__(self, answer):
         super().__init__(daemon=True)
@@ -459,6 +457,26 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(1, agent.main(["--steam-shortcut-state", game_id]))
             self.assertEqual(2, agent.main(["--steam-shortcut-state"]))
 
+    def test_steam_ready_uses_steams_initialized_store(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": True}) as evaluate:
+            self.assertTrue(agent.steam_ready(self.dir))
+        self.assertIn("m_bIsInitialized", evaluate.call_args.args[1])
+        with patch.object(agent, "cdp_eval", return_value={"value": False}):
+            self.assertFalse(agent.steam_ready(self.dir))
+
+    def test_pending_interstitial_is_continued_by_steam(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": True}) as evaluate:
+            self.assertTrue(agent.steam_clear_pending_interstitial(self.dir, "3551182975"))
+        expression = evaluate.call_args.args[1]
+        self.assertIn("ContinueGameAction", expression)
+        self.assertIn("ShowInterstitials", expression)
+        self.assertIn('"3551182975"', expression)
+        self.assertIn("await apps.GetActiveGameActions()", expression)
+        with patch.object(agent, "cdp_eval", return_value={"value": False}):
+            self.assertFalse(agent.steam_clear_pending_interstitial(self.dir, "3551182975"))
+        with self.assertRaises(agent.AgentError):
+            agent.steam_clear_pending_interstitial(self.dir, "0")
+
     def test_asleep_command_reports_steams_own_sleep_state(self):
         with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
@@ -635,6 +653,165 @@ class SteamKeyboardTest(unittest.TestCase):
         self.assertFalse(watcher.attached)
         self.assertEqual(3, log.call_count)
 
+    def test_requests_and_route_files(self):
+        watcher = agent.KeyboardWatcher(self.dir)
+        watcher.request()
+        watcher.request()
+        self.assertEqual({"seq": 2}, json.loads((self.dir / "keyboard-request.json").read_text()))
+        self.assertFalse(watcher.wanted_route())
+        (self.dir / "keyboard-route").write_text("bottom")
+        self.assertTrue(watcher.wanted_route())
+        (self.dir / "keyboard-route").write_text("top")
+        self.assertFalse(watcher.wanted_route())
+        watcher.event({"method": "Runtime.bindingCalled", "params": {"name": agent.KEYBOARD_BINDING, "payload": "request"}})
+        self.assertEqual({"seq": 3}, json.loads((self.dir / "keyboard-request.json").read_text()))
+        self.assertIsNone(self.state())
+
+    def test_dismissals_are_written_for_the_app(self):
+        watcher = agent.KeyboardWatcher(self.dir)
+        watcher.event({"method": "Runtime.bindingCalled", "params": {"name": agent.KEYBOARD_BINDING, "payload": "dismiss"}})
+        watcher.event({"method": "Runtime.bindingCalled", "params": {"name": agent.KEYBOARD_BINDING, "payload": "dismiss"}})
+        self.assertEqual({"seq": 2}, json.loads((self.dir / "keyboard-dismiss.json").read_text()))
+        self.assertFalse((self.dir / "keyboard-request.json").exists())
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_page_script_reports_when_the_routed_field_loses_focus(self):
+        harness = r"""
+const assert = require('assert');
+globalThis.window = globalThis;
+const fs = require('fs');
+const script = fs.readFileSync(process.argv[2], 'utf8');
+const route = fs.readFileSync(process.argv[3], 'utf8');
+const calls = [];
+window.droiddeckSteamKeyboard = value => calls.push(value);
+const open = { m_currentValue: false };
+const vkm = {
+  m_currentVirtualKeyboardRef: null,
+  IsShowingVirtualKeyboard: { m_currentValue: false },
+  m_bIsInlineVirtualKeyboardOpen: open,
+  m_bIsVirtualKeyboardModal: { m_currentValue: false },
+  BUseVRKeyboard: () => false,
+  m_Instance: { IsDesktopOverlayWindow: () => false },
+  SetActiveVirtualKeyboardTarget(ref, props) { this.m_currentVirtualKeyboardRef = ref; },
+  SetVirtualKeyboardHidden() { open.m_currentValue = false; this.m_currentVirtualKeyboardRef = null; },
+  ShowVirtualKeyboard(ref, props, modal) { this.m_currentVirtualKeyboardRef = ref; open.m_currentValue = true; },
+};
+globalThis.SteamUIStore = { WindowStore: { SteamUIWindows: [{ VirtualKeyboardManager: vkm }] } };
+eval(script);
+vkm.ShowVirtualKeyboard('a', {}, false);
+eval(route.replace('__ROUTE__', 'true'));
+assert.strictEqual(open.m_currentValue, false);
+assert.strictEqual(vkm.m_currentVirtualKeyboardRef, 'a');
+const wait = ms => new Promise(done => setTimeout(done, ms));
+(async () => {
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), []);
+  vkm.m_currentVirtualKeyboardRef = null;
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss']);
+  vkm.ShowVirtualKeyboard('b', {}, false);
+  assert.strictEqual(open.m_currentValue, false);
+  vkm.m_currentVirtualKeyboardRef = null;
+  await wait(160);
+  vkm.ShowVirtualKeyboard('c', {}, false);
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss']);
+  vkm.m_currentVirtualKeyboardRef = null;
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss']);
+  let focused = false;
+  vkm.ShowVirtualKeyboard({ BIsElementValidForInput: () => focused }, {}, false);
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss']);
+  focused = true;
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss']);
+  focused = false;
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss', 'dismiss']);
+  const doc = { activeElement: { tagName: 'INPUT', type: 'text' } };
+  vkm.m_ownerWindow = { document: doc };
+  vkm.ShowVirtualKeyboard({ BIsElementValidForInput: () => false }, {}, false);
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss', 'dismiss']);
+  doc.activeElement = { tagName: 'DIV' };
+  await wait(500);
+  assert.deepStrictEqual(calls.filter(c => c === 'dismiss'), ['dismiss', 'dismiss', 'dismiss', 'dismiss']);
+  clearInterval(window.__droiddeckKeyboard.timer);
+})().catch(e => { console.error(e); process.exit(1); });
+"""
+        (self.dir / "keyboard.js").write_text(agent.KEYBOARD_JS)
+        (self.dir / "route.js").write_text(agent.KEYBOARD_ROUTE_JS)
+        (self.dir / "harness.js").write_text(harness)
+        result = subprocess.run(["node", str(self.dir / "harness.js"), str(self.dir / "keyboard.js"), str(self.dir / "route.js")],
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_route_is_applied_once_per_change(self):
+        watcher = agent.KeyboardWatcher(self.dir)
+        sent = []
+        with patch.object(watcher, "call", side_effect=lambda ws, method, params: sent.append(params["expression"]) or {}):
+            watcher.apply_route(None)
+            watcher.apply_route(None)
+            (self.dir / "keyboard-route").write_text("bottom")
+            watcher.apply_route(None)
+            watcher.apply_route(None, force=True)
+        self.assertEqual(3, len(sent))
+        self.assertTrue(sent[0].rstrip().endswith("(false)"))
+        self.assertTrue(sent[1].rstrip().endswith("(true)"))
+        self.assertNotIn("__ROUTE__", sent[2])
+        self.assertNotIn("__BINDING__", sent[2])
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_page_script_routes_the_keyboard_to_the_app(self):
+        harness = r"""
+const assert = require('assert');
+globalThis.window = globalThis;
+const fs = require('fs');
+const script = fs.readFileSync(process.argv[2], 'utf8');
+const route = fs.readFileSync(process.argv[3], 'utf8');
+const calls = [];
+window.droiddeckSteamKeyboard = value => calls.push(value);
+const shown = [], targets = [];
+const open = { m_currentValue: false };
+const vkm = {
+  IsShowingVirtualKeyboard: { m_currentValue: false },
+  m_bIsInlineVirtualKeyboardOpen: open,
+  m_bIsVirtualKeyboardModal: { m_currentValue: false },
+  BUseVRKeyboard: () => false,
+  m_Instance: { IsDesktopOverlayWindow: () => false },
+  SetActiveVirtualKeyboardTarget(ref, props) { targets.push(ref); },
+  SetVirtualKeyboardHidden() { open.m_currentValue = false; },
+  ShowVirtualKeyboard(ref, props, modal) { shown.push(ref); open.m_currentValue = true; },
+};
+globalThis.SteamUIStore = { WindowStore: { SteamUIWindows: [{ VirtualKeyboardManager: vkm }] } };
+eval(script);
+vkm.ShowVirtualKeyboard('a', {}, false);
+assert.deepStrictEqual(shown, ['a']);
+assert.strictEqual(eval(route.replace('__ROUTE__', 'true')), true);
+assert.strictEqual(open.m_currentValue, false);
+assert.deepStrictEqual(calls.filter(c => c === 'request'), ['request']);
+vkm.ShowVirtualKeyboard('b', {}, false);
+assert.deepStrictEqual(shown, ['a']);
+assert.deepStrictEqual(targets, ['b']);
+assert.deepStrictEqual(calls.filter(c => c === 'request'), ['request', 'request']);
+vkm.ShowVirtualKeyboard('c', {}, true);
+assert.deepStrictEqual(shown, ['a', 'c']);
+eval(script);
+vkm.ShowVirtualKeyboard('d', {}, false);
+assert.deepStrictEqual(targets, ['b', 'd']);
+eval(route.replace('__ROUTE__', 'false'));
+vkm.ShowVirtualKeyboard('e', {}, false);
+assert.deepStrictEqual(shown, ['a', 'c', 'e']);
+clearInterval(window.__droiddeckKeyboard.timer);
+"""
+        (self.dir / "keyboard.js").write_text(agent.KEYBOARD_JS)
+        (self.dir / "route.js").write_text(agent.KEYBOARD_ROUTE_JS)
+        (self.dir / "harness.js").write_text(harness)
+        result = subprocess.run(["node", str(self.dir / "harness.js"), str(self.dir / "keyboard.js"), str(self.dir / "route.js")],
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_no_shared_context_yet(self):
         with patch.object(agent, "cdp_targets", return_value=[{"title": "Steam", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}]):
             with self.assertRaises(agent.AgentError) as caught:
@@ -698,7 +875,6 @@ class VrFocusTest(unittest.TestCase):
         self.assertEqual(focus.order([42, 9, 7], [7, 42], None), [9, 7])
         self.assertIsNone(focus.order([9, 7], [7], 42))
         self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
-        # Do not overwrite a different focus order installed after our last write.
         self.assertIsNone(focus.order([123, 7], [7, 42], None))
 
     def test_scene_requires_live_server_and_game_environment(self):

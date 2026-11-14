@@ -43,3 +43,10 @@ class SessionAssetsTest(unittest.TestCase):
                          assets.check_extraction(self.overlay, ''))
         mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1"'
         self.assertEqual([], assets.check_extraction(self.overlay, mapping))
+
+    def test_helper_extracted_under_another_name_counts(self):
+        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/login1"'
+        self.assertEqual([], assets.check_extraction(self.overlay, mapping))
+        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/sub/login1"'
+        self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
+                         assets.check_extraction(self.overlay, mapping))

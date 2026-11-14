@@ -1,0 +1,541 @@
+diff --git a/src/virtio/vulkan/vn_device.c b/src/virtio/vulkan/vn_device.c
+index f42b9f9..6ed3051 100644
+--- a/src/virtio/vulkan/vn_device.c
++++ b/src/virtio/vulkan/vn_device.c
+@@ -45,6 +45,7 @@ vn_queue_fini(struct vn_queue *queue)
+    if (queue->wait_fence != VK_NULL_HANDLE) {
+       vn_DestroyFence(dev_handle, queue->wait_fence, NULL);
+    }
++   simple_mtx_destroy(&queue->submit_mutex);
+    vn_cached_storage_fini(&queue->storage);
+    vn_queue_base_fini(&queue->base);
+ }
+@@ -65,6 +66,7 @@ vn_queue_init(struct vn_device *dev,
+    queue->index = array_index;
+ 
+    vn_cached_storage_init(&queue->storage, &dev->base.vk.alloc);
++   simple_mtx_init(&queue->submit_mutex, mtx_plain);
+ 
+    if (dev->physical_device->emulate_second_queue ==
+           queue_info->queueFamilyIndex &&
+diff --git a/src/virtio/vulkan/vn_device_memory.c b/src/virtio/vulkan/vn_device_memory.c
+index 8b6eb4c..be146b6 100644
+--- a/src/virtio/vulkan/vn_device_memory.c
++++ b/src/virtio/vulkan/vn_device_memory.c
+@@ -93,11 +93,12 @@ vn_device_memory_bo_init(struct vn_device *dev, struct vn_device_memory *mem)
+    }
+ 
+    const struct vk_device_memory *mem_vk = &mem->base.vk;
+-   const VkMemoryType *mem_type = &dev->physical_device->memory_properties
+-                                      .memoryTypes[mem_vk->memory_type_index];
++   /* The renderer's flags: WSI maps a type the app sees as not mappable. */
++   const VkMemoryPropertyFlags flags =
++      dev->physical_device->renderer_memory_flags[mem_vk->memory_type_index];
+    return vn_renderer_bo_create_from_device_memory(
+-      dev->renderer, batch, mem_vk->size, mem->base.id,
+-      mem_type->propertyFlags, mem_vk->export_handle_types, &mem->base_bo);
++      dev->renderer, batch, mem_vk->size, mem->base.id, flags,
++      mem_vk->export_handle_types, &mem->base_bo);
+ }
+ 
+ static inline void
+@@ -374,6 +375,14 @@ vn_AllocateMemory(VkDevice device,
+ {
+    struct vn_device *dev = vn_device_from_handle(device);
+ 
++   VkMemoryAllocateInfo local_alloc_info;
++   const uint32_t type_index = vn_wsi_memory_type_index(dev, pAllocateInfo);
++   if (type_index != pAllocateInfo->memoryTypeIndex) {
++      local_alloc_info = *pAllocateInfo;
++      local_alloc_info.memoryTypeIndex = type_index;
++      pAllocateInfo = &local_alloc_info;
++   }
++
+    struct vn_device_memory *mem = vk_device_memory_create(
+       &dev->base.vk, pAllocateInfo, pAllocator, sizeof(*mem));
+    if (!mem)
+diff --git a/src/virtio/vulkan/vn_physical_device.c b/src/virtio/vulkan/vn_physical_device.c
+index f3581aa..c9c50e5 100644
+--- a/src/virtio/vulkan/vn_physical_device.c
++++ b/src/virtio/vulkan/vn_physical_device.c
+@@ -982,6 +982,7 @@ vn_physical_device_init_memory_properties(
+       ring, vn_physical_device_to_handle(physical_dev), &props2);
+ 
+    physical_dev->memory_properties = props2.memoryProperties;
++   physical_dev->wsi_readback_memory_type = -1;
+ 
+    /* Kernel makes every mapping coherent. If a memory type is truly
+     * incoherent, it's better to remove the host-visible flag than silently
+@@ -996,12 +997,18 @@ vn_physical_device_init_memory_properties(
+       VkMemoryPropertyFlags *flags = &props->memoryTypes[i].propertyFlags;
+       const bool coherent = *flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+       const bool cached = *flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
++      physical_dev->renderer_memory_flags[i] = *flags;
+       if (coherent) {
+          if (first_coherent == VK_MAX_MEMORY_TYPES)
+             first_coherent = i;
+          if (cached)
+             has_coherent_cached = true;
+       } else if (cached) {
++         /* vtest maps the renderer's dma-buf itself and can sync the CPU
++          * cache around a read, which WSI does before copying a frame out.
++          */
++         if (VN_DEBUG(VTEST) && physical_dev->wsi_readback_memory_type < 0)
++            physical_dev->wsi_readback_memory_type = i;
+          *flags &= ~(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                      VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+       }
+@@ -1060,7 +1067,9 @@ vn_physical_device_init_external_fence_handles(
+ {
+    physical_dev->external_fence_handles = 0;
+ 
+-   if (physical_dev->instance->renderer->info.has_external_sync) {
++   /* Over vtest an export waits on the CPU and returns -1 (vn_sync.c). */
++   if (physical_dev->instance->renderer->info.has_external_sync ||
++       VN_DEBUG(VTEST)) {
+ #if !DETECT_OS_WINDOWS
+       physical_dev->external_fence_handles =
+          VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT;
+@@ -1095,7 +1104,8 @@ vn_physical_device_init_external_semaphore_handles(
+    physical_dev->external_binary_semaphore_handles = 0;
+    physical_dev->external_timeline_semaphore_handles = 0;
+ 
+-   if (physical_dev->instance->renderer->info.has_external_sync) {
++   if (physical_dev->instance->renderer->info.has_external_sync ||
++       VN_DEBUG(VTEST)) {
+ #if !DETECT_OS_WINDOWS
+       physical_dev->external_binary_semaphore_handles =
+          VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+@@ -1173,7 +1183,8 @@ vn_physical_device_get_native_extensions(
+    exts->KHR_map_memory2 = true;
+ #if !DETECT_OS_WINDOWS
+    exts->EXT_map_memory_placed = true;
+-   exts->EXT_physical_device_drm = true;
++   /* Over vtest there is no DRM device behind Venus. */
++   exts->EXT_physical_device_drm = !VN_DEBUG(VTEST);
+ #endif
+    /* use common implementation */
+    exts->EXT_tooling_info = true;
+diff --git a/src/virtio/vulkan/vn_physical_device.h b/src/virtio/vulkan/vn_physical_device.h
+index 2c2f4a9..c002a84 100644
+--- a/src/virtio/vulkan/vn_physical_device.h
++++ b/src/virtio/vulkan/vn_physical_device.h
+@@ -112,6 +112,12 @@ struct vn_physical_device {
+    int emulate_second_queue;
+ 
+    VkPhysicalDeviceMemoryProperties memory_properties;
++   /* The renderer's flags, before memory_properties hides the host-visible
++    * bit of cached types that are not coherent.
++    */
++   VkMemoryPropertyFlags renderer_memory_flags[VK_MAX_MEMORY_TYPES];
++   /* A hidden cached type for the CPU copy of WSI images, or -1. */
++   int wsi_readback_memory_type;
+ 
+    struct {
+       VkExternalMemoryHandleTypeFlagBits renderer_handle_type;
+diff --git a/src/virtio/vulkan/vn_queue.c b/src/virtio/vulkan/vn_queue.c
+index 057842a..dee1244 100644
+--- a/src/virtio/vulkan/vn_queue.c
++++ b/src/virtio/vulkan/vn_queue.c
+@@ -1049,11 +1049,16 @@ vn_queue_submission_init_syncs(struct vn_queue_submission *submit)
+       assert(fence->payload->type == VN_SYNC_TYPE_SYNC);
+ 
+       submit->temp.syncs[sync_index] = fence->payload->sync;
+-      submit->temp.sync_vals[sync_index] = 1;
++      submit->temp.sync_vals[sync_index++] = 1;
+ 
+       /* fence is backed by renderer sync without renderer object */
+       submit->fence_handle = VK_NULL_HANDLE;
+    }
++
++   /* A signal semaphore counted for an imported sync_file has no renderer
++    * sync to fill in, and the slot would hand vtest stale storage.
++    */
++   submit->sync_count = sync_index;
+ }
+ 
+ static VkResult
+@@ -1248,9 +1253,13 @@ vn_queue_submit(struct vn_queue_submission *submit)
+    struct vn_device *dev = vn_device_from_vk(queue->base.vk.base.device);
+    VkResult result;
+ 
++   simple_mtx_lock(&queue->submit_mutex);
++
+    result = vn_queue_submission_prepare_submit(submit);
+-   if (result != VK_SUCCESS)
++   if (result != VK_SUCCESS) {
++      simple_mtx_unlock(&queue->submit_mutex);
+       return vn_error(dev->instance, result);
++   }
+ 
+    result = vn_queue_submission_do_submit(submit);
+    if (result != VK_SUCCESS)
+@@ -1260,6 +1269,7 @@ vn_queue_submit(struct vn_queue_submission *submit)
+ 
+ out_cleanup:
+    vn_queue_submission_cleanup(submit);
++   simple_mtx_unlock(&queue->submit_mutex);
+    return vn_result(dev->instance, result);
+ }
+ 
+diff --git a/src/virtio/vulkan/vn_queue.h b/src/virtio/vulkan/vn_queue.h
+index 3ea6d9d..4160e56 100644
+--- a/src/virtio/vulkan/vn_queue.h
++++ b/src/virtio/vulkan/vn_queue.h
+@@ -52,6 +52,11 @@ struct vn_queue {
+    /* for vn_queue_submission storage */
+    struct vn_cached_storage storage;
+ 
++   /* Serializes submissions. The async present thread submits to this queue
++    * while the application does, after vn_wsi_fence_wait drops queue_mutex.
++    */
++   simple_mtx_t submit_mutex;
++
+    /* for async queue present */
+    struct {
+       /* Protects VkQueue host access except async present states. */
+diff --git a/src/virtio/vulkan/vn_renderer_vtest.c b/src/virtio/vulkan/vn_renderer_vtest.c
+index fc59d32..c7b20f5 100644
+--- a/src/virtio/vulkan/vn_renderer_vtest.c
++++ b/src/virtio/vulkan/vn_renderer_vtest.c
+@@ -13,9 +13,11 @@
+ #include <sys/mman.h>
+ #include <sys/socket.h>
+ #include <sys/types.h>
++#include <sys/ioctl.h>
+ #include <sys/un.h>
+ #include <unistd.h>
+ 
++#include "drm-uapi/dma-buf.h"
+ #include "drm-uapi/virtgpu_drm.h"
+ #include "util/os_file.h"
+ #include "util/os_misc.h"
+@@ -38,8 +40,10 @@ struct vtest_bo {
+    struct vn_renderer_bo base;
+ 
+    uint32_t blob_flags;
+-   /* might be closed after mmap */
++   /* might be closed after mmap, but not when the memory is incoherent */
+    int res_fd;
++   /* the CPU cache is synced through the dma-buf on flush and invalidate */
++   bool incoherent;
+ };
+ 
+ struct vtest_sync {
+@@ -607,13 +611,35 @@ vtest_sync_create(struct vn_renderer *renderer,
+    return VK_SUCCESS;
+ }
+ 
++/* The guest maps the renderer's dma-buf, so a CPU cache sync on it covers the
++ * mapping. Coherent memory needs none.
++ */
++static void
++vtest_bo_sync_cpu_cache(struct vtest *vtest,
++                        struct vtest_bo *bo,
++                        uint64_t direction)
++{
++   if (!bo->incoherent || bo->res_fd < 0)
++      return;
++
++   struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_START | direction };
++   int ret = ioctl(bo->res_fd, DMA_BUF_IOCTL_SYNC, &sync);
++   if (!ret) {
++      sync.flags = DMA_BUF_SYNC_END | direction;
++      ret = ioctl(bo->res_fd, DMA_BUF_IOCTL_SYNC, &sync);
++   }
++   if (ret)
++      vn_log(vtest->instance, "dma-buf cache sync failed: %s", strerror(errno));
++}
++
+ static void
+ vtest_bo_invalidate(struct vn_renderer *renderer,
+                     struct vn_renderer_bo *bo,
+                     VkDeviceSize offset,
+                     VkDeviceSize size)
+ {
+-   /* nop */
++   vtest_bo_sync_cpu_cache((struct vtest *)renderer, (struct vtest_bo *)bo,
++                           DMA_BUF_SYNC_READ);
+ }
+ 
+ static void
+@@ -622,7 +648,8 @@ vtest_bo_flush(struct vn_renderer *renderer,
+                VkDeviceSize offset,
+                VkDeviceSize size)
+ {
+-   /* nop */
++   vtest_bo_sync_cpu_cache((struct vtest *)renderer, (struct vtest_bo *)bo,
++                           DMA_BUF_SYNC_WRITE);
+ }
+ 
+ static void *
+@@ -651,7 +678,7 @@ vtest_bo_map(struct vn_renderer *renderer,
+       } else {
+          bo->base.mmap_ptr = ptr;
+          /* we don't need the fd anymore */
+-         if (!shareable) {
++         if (!shareable && !bo->incoherent) {
+             close(bo->res_fd);
+             bo->res_fd = -1;
+          }
+@@ -735,6 +762,8 @@ vtest_bo_create_from_device_memory(
+       },
+       .res_fd = res_fd,
+       .blob_flags = blob_flags,
++      .incoherent = (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
++                    !(flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+    };
+ 
+    *out_bo = &bo->base;
+diff --git a/src/virtio/vulkan/vn_sync.c b/src/virtio/vulkan/vn_sync.c
+index ee0a539..4687520 100644
+--- a/src/virtio/vulkan/vn_sync.c
++++ b/src/virtio/vulkan/vn_sync.c
+@@ -26,7 +26,8 @@ vn_sync_payload_release_internal(struct vn_device *dev,
+       vn_renderer_sync_destroy(dev->renderer, payload->sync);
+       break;
+    case VN_SYNC_TYPE_TIMELINE_SYNC:
+-      for (uint32_t i = 0; i < dev->queue_count; i++)
++      /* One sync per queue plus one for host signals. */
++      for (uint32_t i = 0; i <= dev->queue_count; i++)
+          vn_renderer_sync_destroy(dev->renderer, payload->syncs[i]);
+       vk_free2(&dev->base.vk.alloc, alloc, payload->syncs);
+       break;
+@@ -49,6 +50,24 @@ vn_sync_payload_release(struct vn_device *dev,
+    vn_sync_payload_release_internal(dev, payload, NULL);
+ }
+ 
++/* vtest cannot export a sync_file: wait for the payload on the CPU and
++ * return -1, the sync fd that stands for an already signaled payload.
++ */
++static int
++vn_sync_export_signaled(struct vn_device *dev, struct vn_renderer_sync *sync)
++{
++   uint64_t val = 1;
++   const struct vn_renderer_wait wait = {
++      .timeout = UINT64_MAX,
++      .syncs = &sync,
++      .sync_values = &val,
++      .sync_count = 1,
++   };
++   vn_renderer_wait(dev->renderer, &wait);
++   vn_renderer_sync_reset(dev->renderer, sync);
++   return -1;
++}
++
+ /* fence commands */
+ 
+ static VkResult
+@@ -298,7 +317,10 @@ vn_GetFenceFdKHR(VkDevice device,
+    assert(sync_file);
+ 
+    int fd = -1;
+-   if (payload->type == VN_SYNC_TYPE_SYNC) {
++   if (payload->type == VN_SYNC_TYPE_SYNC &&
++       !dev->renderer->info.has_external_sync) {
++      fd = vn_sync_export_signaled(dev, payload->sync);
++   } else if (payload->type == VN_SYNC_TYPE_SYNC) {
+       fd = vn_renderer_sync_export_syncobj(dev->renderer,
+                                            fence->payload->sync, sync_file);
+       vn_renderer_sync_reset(dev->renderer, fence->payload->sync);
+@@ -830,7 +852,11 @@ vn_GetSemaphoreFdKHR(VkDevice device,
+    assert(sync_file);
+ 
+    int fd = -1;
+-   if (payload->type == VN_SYNC_TYPE_SYNC) {
++   if (payload->type == VN_SYNC_TYPE_SYNC &&
++       !dev->renderer->info.has_external_sync) {
++      assert(sem->sync_fd_export);
++      fd = vn_sync_export_signaled(dev, payload->sync);
++   } else if (payload->type == VN_SYNC_TYPE_SYNC) {
+       assert(sem->sync_fd_export);
+       fd = vn_renderer_sync_export_syncobj(dev->renderer, payload->sync,
+                                            sync_file);
+diff --git a/src/virtio/vulkan/vn_wsi.c b/src/virtio/vulkan/vn_wsi.c
+index e73ab48..f0b41b1 100644
+--- a/src/virtio/vulkan/vn_wsi.c
++++ b/src/virtio/vulkan/vn_wsi.c
+@@ -287,6 +287,53 @@ vn_wsi_memory_info_init(struct vn_device_memory *mem,
+    }
+ }
+ 
++/* The buffer WSI copies each frame into for the CPU (software presentation)
++ * gets the hidden cached type: on vtest the host-visible type the app sees is
++ * uncached, and reading a frame from it took most of a present. WSI
++ * invalidates the buffer before each read.
++ */
++uint32_t
++vn_wsi_memory_type_index(const struct vn_device *dev,
++                         const VkMemoryAllocateInfo *alloc_info)
++{
++   const struct vn_physical_device *physical_dev = dev->physical_device;
++   const int readback_type = physical_dev->wsi_readback_memory_type;
++   if (readback_type < 0 || !physical_dev->wsi_device.sw)
++      return alloc_info->memoryTypeIndex;
++
++   const VkMemoryDedicatedAllocateInfo *dedicated_info = NULL;
++   bool wsi = false;
++   vk_foreach_struct_const(pnext, alloc_info->pNext) {
++      switch ((uint32_t)pnext->sType) {
++      case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO:
++         dedicated_info = (const void *)pnext;
++         break;
++      case VK_STRUCTURE_TYPE_WSI_MEMORY_ALLOCATE_INFO_MESA:
++         wsi = true;
++         break;
++      case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
++      case VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT:
++         return alloc_info->memoryTypeIndex;
++      default:
++         break;
++      }
++   }
++   if (!wsi || !dedicated_info || dedicated_info->buffer == VK_NULL_HANDLE)
++      return alloc_info->memoryTypeIndex;
++
++   const VkMemoryPropertyFlags flags =
++      physical_dev->memory_properties.memoryTypes[alloc_info->memoryTypeIndex]
++         .propertyFlags;
++   const struct vn_buffer *buf = vn_buffer_from_handle(dedicated_info->buffer);
++   const uint32_t type_bits =
++      buf->requirements.memory.memoryRequirements.memoryTypeBits;
++   if (!(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ||
++       !(type_bits & BITFIELD_BIT(readback_type)))
++      return alloc_info->memoryTypeIndex;
++
++   return readback_type;
++}
++
+ static uint32_t
+ vn_modifier_plane_count(struct vn_physical_device *physical_dev,
+                         VkFormat format,
+diff --git a/src/virtio/vulkan/vn_wsi.h b/src/virtio/vulkan/vn_wsi.h
+index 2231556..1429feb 100644
+--- a/src/virtio/vulkan/vn_wsi.h
++++ b/src/virtio/vulkan/vn_wsi.h
+@@ -34,6 +34,10 @@ void
+ vn_wsi_memory_info_init(struct vn_device_memory *mem,
+                         const VkMemoryAllocateInfo *alloc_info);
+ 
++uint32_t
++vn_wsi_memory_type_index(const struct vn_device *dev,
++                         const VkMemoryAllocateInfo *alloc_info);
++
+ bool
+ vn_wsi_validate_image_format_info(
+    struct vn_physical_device *physical_dev,
+@@ -77,6 +81,13 @@ vn_wsi_memory_info_init(struct vn_device_memory *mem,
+ {
+ }
+ 
++static inline uint32_t
++vn_wsi_memory_type_index(const struct vn_device *dev,
++                         const VkMemoryAllocateInfo *alloc_info)
++{
++   return alloc_info->memoryTypeIndex;
++}
++
+ static inline bool
+ vn_wsi_validate_image_format_info(struct vn_physical_device *physical_dev,
+                                   const VkPhysicalDeviceImageFormatInfo2 *info)
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 411ee3e..ae38115 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -235,6 +235,7 @@ wsi_device_init(struct wsi_device *wsi,
+    WSI_GET_CB(WaitForFences);
+    WSI_GET_CB(MapMemory);
+    WSI_GET_CB(UnmapMemory);
++   WSI_GET_CB(InvalidateMappedMemoryRanges);
+    if (wsi->has_present_wait)
+       WSI_GET_CB(WaitSemaphores);
+ #undef WSI_GET_CB
+@@ -3577,6 +3578,22 @@ wsi_create_cpu_linear_image_mem(const struct wsi_swapchain *chain,
+    return VK_SUCCESS;
+ }
+ 
++void
++wsi_image_invalidate_cpu_map(const struct wsi_swapchain *chain,
++                             const struct wsi_image *image)
++{
++   /* A driver may back the CPU image with cached memory that is not
++    * coherent; for coherent memory this does nothing.
++    */
++   const VkMappedMemoryRange range = {
++      .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
++      .memory = image->blit.memory != VK_NULL_HANDLE ? image->blit.memory
++                                                      : image->memory,
++      .size = VK_WHOLE_SIZE,
++   };
++   chain->wsi->InvalidateMappedMemoryRanges(chain->device, 1, &range);
++}
++
+ static VkResult
+ wsi_create_cpu_buffer_image_mem(const struct wsi_swapchain *chain,
+                                 const struct wsi_image_info *info,
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index 803d140..432ba43 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -247,6 +247,7 @@ struct wsi_device {
+    WSI_CB(WaitForFences);
+    WSI_CB(MapMemory);
+    WSI_CB(UnmapMemory);
++   WSI_CB(InvalidateMappedMemoryRanges);
+    WSI_CB(WaitSemaphores);
+ #undef WSI_CB
+ 
+diff --git a/src/vulkan/wsi/wsi_common_drm.c b/src/vulkan/wsi/wsi_common_drm.c
+index dbf65b2..2a6b701 100644
+--- a/src/vulkan/wsi/wsi_common_drm.c
++++ b/src/vulkan/wsi/wsi_common_drm.c
+@@ -204,6 +204,10 @@ wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *chain,
+    if (result != VK_SUCCESS)
+       return result;
+ 
++   /* -1 is an already signaled payload: there is nothing to attach. */
++   if (sync_file_fd < 0)
++      return VK_SUCCESS;
++
+    result = wsi_dma_buf_import_sync_file(image->dma_buf_fd, sync_file_fd);
+    close(sync_file_fd);
+    return result;
+diff --git a/src/vulkan/wsi/wsi_common_private.h b/src/vulkan/wsi/wsi_common_private.h
+index 3d2cd7d..e469414 100644
+--- a/src/vulkan/wsi/wsi_common_private.h
++++ b/src/vulkan/wsi/wsi_common_private.h
+@@ -410,6 +410,10 @@ wsi_configure_cpu_image(const struct wsi_swapchain *chain,
+                         const struct wsi_cpu_image_params *params,
+                         struct wsi_image_info *info);
+ 
++void
++wsi_image_invalidate_cpu_map(const struct wsi_swapchain *chain,
++                             const struct wsi_image *image);
++
+ VkResult
+ wsi_create_buffer_blit_context(const struct wsi_swapchain *chain,
+                                const struct wsi_image_info *info,
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index 33a4059..047c8b3 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -3314,6 +3314,7 @@ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+ 
+    if (chain->buffer_type == WSI_WL_BUFFER_SHM_MEMCPY) {
+       struct wsi_wl_image *image = &chain->images[image_index];
++      wsi_image_invalidate_cpu_map(&chain->base, &image->base);
+       memcpy(image->shm_ptr, image->base.cpu_map,
+              image->base.row_pitches[0] * chain->extent.height);
+    }
+diff --git a/src/vulkan/wsi/wsi_common_x11.c b/src/vulkan/wsi/wsi_common_x11.c
+index a077afe..579ba13 100644
+--- a/src/vulkan/wsi/wsi_common_x11.c
++++ b/src/vulkan/wsi/wsi_common_x11.c
+@@ -1854,6 +1854,7 @@ x11_present_to_x11_sw(struct x11_swapchain *chain, uint32_t image_index)
+    xcb_get_geometry_cookie_t geom_cookie = xcb_get_geometry(chain->conn, chain->window);
+ 
+    xcb_void_cookie_t cookie;
++   wsi_image_invalidate_cpu_map(&chain->base, &image->base);
+    void *myptr = image->base.cpu_map;
+    size_t hdr_len = sizeof(xcb_put_image_request_t);
+    int stride_b = image->base.row_pitches[0];

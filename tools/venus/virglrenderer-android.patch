@@ -1,0 +1,322 @@
+diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
+index ffe621b..01cd811 100644
+--- a/src/venus/vkr_device_memory.c
++++ b/src/venus/vkr_device_memory.c
+@@ -227,6 +227,136 @@ vkr_gbm_get_fd_info_from_allocation_info(UNUSED struct vkr_physical_device *phys
+ 
+ #endif /* ENABLE_GBM_ALLOCATION */
+ 
++#ifdef __ANDROID__
++#include <android/hardware_buffer.h>
++#include <fcntl.h>
++#include <linux/dma-heap.h>
++#include <sys/ioctl.h>
++#include <sys/socket.h>
++
++static int vkr_dma_heap_fd = -1;
++static int vkr_dma_heap_cached_fd = -1;
++
++/* Uncached for coherent memory types: nobody brackets CPU access with
++ * DMA_BUF_IOCTL_SYNC (the guest maps the memory as host-coherent), so on a
++ * cached heap the CPU and the GPU see each other's writes torn at cache-line
++ * granularity. Cached for cached types, which are not coherent: whoever maps
++ * them syncs the CPU cache through the dma-buf.
++ */
++static void
++vkr_dma_heap_init_once(void)
++{
++   vkr_dma_heap_cached_fd = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
++   vkr_dma_heap_fd = open("/dev/dma_heap/system-uncached", O_RDONLY | O_CLOEXEC);
++   if (vkr_dma_heap_fd < 0) {
++      vkr_log("no uncached dma-buf heap (%s): using the cached one", strerror(errno));
++      vkr_dma_heap_fd = vkr_dma_heap_cached_fd;
++   }
++   if (vkr_dma_heap_fd < 0)
++      vkr_log("no dma-buf heap (%s): allocating AHardwareBuffers", strerror(errno));
++}
++
++/* An AHardwareBuffer's dma-buf: the first fd of its native handle, which the
++ * NDK hands out only through a unix socket.
++ */
++static int
++vkr_ahb_alloc_dma_buf(size_t size)
++{
++   const AHardwareBuffer_Desc desc = {
++      .width = (uint32_t)size,
++      .height = 1,
++      .layers = 1,
++      .format = AHARDWAREBUFFER_FORMAT_BLOB,
++      .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
++               AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER,
++   };
++   AHardwareBuffer *ahb = NULL;
++   if (AHardwareBuffer_allocate(&desc, &ahb)) {
++      vkr_log("AHardwareBuffer_allocate of %zu failed", size);
++      return -1;
++   }
++
++   int fd = -1;
++   int sv[2];
++   if (!socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv)) {
++      if (!AHardwareBuffer_sendHandleToUnixSocket(ahb, sv[0])) {
++         char data[4096];
++         char control[CMSG_SPACE(sizeof(int) * 16)];
++         struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
++         struct msghdr msg = {
++            .msg_iov = &iov,
++            .msg_iovlen = 1,
++            .msg_control = control,
++            .msg_controllen = sizeof(control),
++         };
++         if (recvmsg(sv[1], &msg, MSG_CMSG_CLOEXEC) > 0) {
++            struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
++            if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
++               const int count = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
++               const int *fds = (const int *)CMSG_DATA(cmsg);
++               for (int i = 0; i < count; i++) {
++                  if (i == 0)
++                     fd = fds[i];
++                  else
++                     close(fds[i]);
++               }
++            }
++         }
++      }
++      close(sv[0]);
++      close(sv[1]);
++   }
++   AHardwareBuffer_release(ahb);
++   if (fd < 0)
++      vkr_log("could not get the dma-buf of an AHardwareBuffer");
++   return fd;
++}
++
++static VkResult
++vkr_android_get_fd_info_from_allocation_info(const VkMemoryAllocateInfo *alloc_info,
++                                             bool cached,
++                                             int *out_dma_buf_fd,
++                                             VkImportMemoryFdInfoKHR *out_fd_info)
++{
++   static once_flag dma_heap_once_flag = ONCE_FLAG_INIT;
++   call_once(&dma_heap_once_flag, vkr_dma_heap_init_once);
++
++   const size_t size = align(alloc_info->allocationSize, getpagesize());
++   const int heap_fd =
++      cached && vkr_dma_heap_cached_fd >= 0 ? vkr_dma_heap_cached_fd : vkr_dma_heap_fd;
++   int dma_buf_fd = -1;
++   if (heap_fd >= 0) {
++      struct dma_heap_allocation_data data = {
++         .len = size,
++         .fd_flags = O_RDWR | O_CLOEXEC,
++      };
++      if (!ioctl(heap_fd, DMA_HEAP_IOCTL_ALLOC, &data))
++         dma_buf_fd = data.fd;
++      else
++         vkr_log("dma-buf heap allocation of %zu failed (%s)", size, strerror(errno));
++   }
++   if (dma_buf_fd < 0)
++      dma_buf_fd = vkr_ahb_alloc_dma_buf(size);
++   if (dma_buf_fd < 0)
++      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++
++   const int fd = os_dupfd_cloexec(dma_buf_fd);
++   if (fd < 0) {
++      close(dma_buf_fd);
++      return VK_ERROR_OUT_OF_HOST_MEMORY;
++   }
++
++   *out_dma_buf_fd = dma_buf_fd;
++   *out_fd_info = (VkImportMemoryFdInfoKHR){
++      .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
++      .pNext = alloc_info->pNext,
++      .fd = fd,
++      .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
++   };
++   return VK_SUCCESS;
++}
++#endif /* __ANDROID__ */
++
+ static void
+ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+                               struct vn_command_vkAllocateMemory *args)
+@@ -281,7 +411,14 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+    int udmabuf_fd = -1;
+    void *gbm_bo = NULL;
+    VkExportMemoryAllocateInfo local_export_info;
+-   if ((property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) && !res_info) {
++   /* Android without driver export: a dma-buf export of any memory type is
++    * served by a dma-buf the server allocates and imports.
++    */
++   const bool android_export =
++      physical_dev->android_dma_buf_import && export_info &&
++      (export_info->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
++   if (((property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) || android_export) &&
++       !res_info) {
+       /* An implementation can support dma_buf import along with opaque fd export/import.
+        * If the client driver is using external memory and requesting dma_buf, without
+        * dma_buf fd export support, we must use gbm bo import path instead of forcing
+@@ -346,6 +483,13 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+              */
+             args->ret = vkr_udmabuf_get_fd_info_from_allocation_info(
+                physical_dev, alloc_info, &udmabuf_fd, &local_import_info);
++#ifdef __ANDROID__
++         } else if (physical_dev->android_dma_buf_import) {
++            /* Kept in udmabuf_fd: exported and closed the same way. */
++            args->ret = vkr_android_get_fd_info_from_allocation_info(
++               alloc_info, property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
++               &udmabuf_fd, &local_import_info);
++#endif
+          } else {
+             args->ret = vkr_gbm_get_fd_info_from_allocation_info(
+                physical_dev, alloc_info, &gbm_bo, &local_import_info);
+@@ -367,6 +511,12 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
+ 
+    struct vkr_device_memory *mem = vkr_device_memory_create_and_add(ctx, args);
+    if (!mem) {
++      vkr_log("vkAllocateMemory failed (%d): type %u flags 0x%x size %" PRIu64 "%s",
++              args->ret, mem_type_index, property_flags,
++              (uint64_t)alloc_info->allocationSize,
++              udmabuf_fd >= 0 ? ", imported dma-buf" : "");
++      if (udmabuf_fd >= 0)
++         close(udmabuf_fd);
+       if (local_import_info.fd >= 0)
+          close(local_import_info.fd);
+       if (gbm_bo)
+diff --git a/src/venus/vkr_physical_device.c b/src/venus/vkr_physical_device.c
+index e2c3baa..69ec875 100644
+--- a/src/venus/vkr_physical_device.c
++++ b/src/venus/vkr_physical_device.c
+@@ -207,31 +207,54 @@ vkr_physical_device_init_memory_properties(struct vkr_physical_device *physical_
+       .sType = VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES,
+    };
+ 
++   /* Exportable and compatible with itself is enough. Requiring the type in
++    * exportFromImportedHandleTypes as well rules out drivers (Mali on Android)
++    * that export fine but do not re-export imported memory.
++    */
+    if (physical_dev->EXT_external_memory_dma_buf) {
+       info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+       vk->GetPhysicalDeviceExternalBufferProperties(handle, &info, &props);
++      const VkExternalMemoryProperties *p = &props.externalMemoryProperties;
++      vkr_log("dma_buf buffer: features 0x%x exportFrom 0x%x compatible 0x%x",
++              p->externalMemoryFeatures, p->exportFromImportedHandleTypes,
++              p->compatibleHandleTypes);
+       physical_dev->is_dma_buf_fd_export_supported =
+-         (props.externalMemoryProperties.externalMemoryFeatures &
+-          VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
+-         (props.externalMemoryProperties.exportFromImportedHandleTypes &
++         (p->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
++         ((p->exportFromImportedHandleTypes | p->compatibleHandleTypes) &
+           VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+    }
+ 
+    if (physical_dev->KHR_external_memory_fd) {
+       info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+       vk->GetPhysicalDeviceExternalBufferProperties(handle, &info, &props);
++      const VkExternalMemoryProperties *p = &props.externalMemoryProperties;
++      vkr_log("opaque_fd buffer: features 0x%x exportFrom 0x%x compatible 0x%x",
++              p->externalMemoryFeatures, p->exportFromImportedHandleTypes,
++              p->compatibleHandleTypes);
+       physical_dev->is_opaque_fd_export_supported =
+-         (props.externalMemoryProperties.externalMemoryFeatures &
+-          VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
+-         (props.externalMemoryProperties.exportFromImportedHandleTypes &
++         (p->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
++         ((p->exportFromImportedHandleTypes | p->compatibleHandleTypes) &
+           VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT);
+    }
++   vkr_log("memory export: dma_buf %d opaque_fd %d",
++           physical_dev->is_dma_buf_fd_export_supported,
++           physical_dev->is_opaque_fd_export_supported);
+ 
+    /* fallback to gbm allocation with dma-buf import */
++   physical_dev->android_dma_buf_import = false;
++#ifdef __ANDROID__
++   if (!physical_dev->is_dma_buf_fd_export_supported &&
++       !physical_dev->is_opaque_fd_export_supported &&
++       physical_dev->EXT_external_memory_dma_buf) {
++      physical_dev->android_dma_buf_import = true;
++      vkr_log("memory export: none; allocating dma-bufs and importing them");
++   }
++#else
+    if (!physical_dev->is_dma_buf_fd_export_supported &&
+        !physical_dev->is_opaque_fd_export_supported &&
+        physical_dev->EXT_external_memory_dma_buf)
+       physical_dev->gbm_device = vkr_physical_device_get_gbm_device();
++#endif
+ 
+    physical_dev->udmabuf_dev_fd = -1;
+    if (VKR_DEBUG(UDMABUF)) {
+@@ -703,6 +726,25 @@ vkr_dispatch_vkGetPhysicalDeviceFormatProperties2(
+                                           args->pFormatProperties);
+ }
+ 
++/* Android without driver export: the server allocates a dma-buf and imports
++ * it (vkr_device_memory.c), so a dma-buf the driver can import, the guest
++ * can export.
++ */
++static void
++vkr_android_dma_buf_export_fixup(const struct vkr_physical_device *physical_dev,
++                                 VkExternalMemoryHandleTypeFlagBits handle_type,
++                                 VkExternalMemoryProperties *props)
++{
++   if (!physical_dev->android_dma_buf_import ||
++       handle_type != VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT ||
++       !(props->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT))
++      return;
++
++   props->externalMemoryFeatures |= VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT;
++   props->exportFromImportedHandleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++   props->compatibleHandleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++}
++
+ static void
+ vkr_dispatch_vkGetPhysicalDeviceImageFormatProperties2(
+    UNUSED struct vn_dispatch_context *dispatch,
+@@ -715,6 +757,20 @@ vkr_dispatch_vkGetPhysicalDeviceImageFormatProperties2(
+    vn_replace_vkGetPhysicalDeviceImageFormatProperties2_args_handle(args);
+    args->ret = vk->GetPhysicalDeviceImageFormatProperties2(
+       args->physicalDevice, args->pImageFormatInfo, args->pImageFormatProperties);
++
++   const VkPhysicalDeviceExternalImageFormatInfo *external_info = vkr_find_struct(
++      args->pImageFormatInfo->pNext,
++      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO);
++   VkExternalImageFormatProperties *external_props = vkr_find_struct(
++      args->pImageFormatProperties->pNext, VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES);
++   if (physical_dev->android_dma_buf_import && external_info && external_props) {
++      if (args->ret == VK_SUCCESS)
++         vkr_android_dma_buf_export_fixup(physical_dev, external_info->handleType,
++                                          &external_props->externalMemoryProperties);
++      else
++         vkr_log("image format %d tiling %d: no external memory (%d)",
++                 args->pImageFormatInfo->format, args->pImageFormatInfo->tiling, args->ret);
++   }
+ }
+ 
+ static void
+@@ -743,6 +799,10 @@ vkr_dispatch_vkGetPhysicalDeviceExternalBufferProperties(
+    vn_replace_vkGetPhysicalDeviceExternalBufferProperties_args_handle(args);
+    vk->GetPhysicalDeviceExternalBufferProperties(
+       args->physicalDevice, args->pExternalBufferInfo, args->pExternalBufferProperties);
++
++   vkr_android_dma_buf_export_fixup(
++      physical_dev, args->pExternalBufferInfo->handleType,
++      &args->pExternalBufferProperties->externalMemoryProperties);
+ }
+ 
+ static void
+diff --git a/src/venus/vkr_physical_device.h b/src/venus/vkr_physical_device.h
+index b0b6691..28ba0b7 100644
+--- a/src/venus/vkr_physical_device.h
++++ b/src/venus/vkr_physical_device.h
+@@ -33,6 +33,10 @@ struct vkr_physical_device {
+    bool is_opaque_fd_export_supported;
+    void *gbm_device;
+    int udmabuf_dev_fd;
++   /* Android: host-visible memory is a dma-buf the server allocates (dma-buf
++    * heap, else AHardwareBuffer) and imports, since the driver cannot export.
++    */
++   bool android_dma_buf_import;
+ 
+    VkQueueFamilyProperties *queue_family_properties;
+    uint32_t queue_family_property_count;

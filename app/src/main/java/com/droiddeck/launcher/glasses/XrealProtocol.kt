@@ -6,7 +6,6 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Independent implementation of the One-family wire format; see xreal-investigation.md. */
 internal object XrealProtocol {
     const val HOST = "169.254.2.1"
     const val REPORT_PORT = 52998
@@ -46,7 +45,7 @@ internal object XrealProtocol {
     fun sample(frame: Frame): Sample? {
         if (frame.command != REPORT || frame.body.size != 128) return null
         val b = ByteBuffer.wrap(frame.body).order(ByteOrder.LITTLE_ENDIAN)
-        if (b.getInt(24) != 11) return null // Magnetometer reports are a different type.
+        if (b.getInt(24) != 11) return null
         val time = b.getLong(8)
         val gyro = Vec3(b.getFloat(28), b.getFloat(32), b.getFloat(36))
         val accel = Vec3(b.getFloat(40), b.getFloat(44), b.getFloat(48))
@@ -64,7 +63,6 @@ internal object XrealProtocol {
             .putInt(4 + payload.size).putInt(transaction or Int.MIN_VALUE).put(payload).array()
     }
 
-    /** No acknowledgement is inferred from a write; match both command and transaction. */
     fun response(frame: Frame, command: Int, transaction: Int): ByteArray? {
         if (frame.command != command || frame.body.size < 4 ||
             ByteBuffer.wrap(frame.body).int != transaction) return null

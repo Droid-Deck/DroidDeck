@@ -1,2 +1,3 @@
 desktop-kde-r1
 desktop-kde-r2
+desktop-kde-r3

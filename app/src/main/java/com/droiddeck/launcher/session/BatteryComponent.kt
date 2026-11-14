@@ -11,6 +11,8 @@ import kotlin.math.abs
 class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
+    private val runtimeEstimator = BatteryRuntimeEstimator()
+    private var lastDischarging: Boolean? = null
 
     override fun start() {
         File(dir, "BAT0").deleteRecursively()
@@ -49,14 +51,19 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val currentAvgUa = toMicroamps(bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)?.takeIf { it != Long.MIN_VALUE && it != 0L } ?: 0L)
                 .takeIf { it != 0L } ?: currentNowUa
             val discharging = status == BatteryManager.BATTERY_STATUS_DISCHARGING || status == BatteryManager.BATTERY_STATUS_NOT_CHARGING
+            if (lastDischarging != null && lastDischarging != discharging) runtimeEstimator.reset()
+            lastDischarging = discharging
+            val currentForRuntimeUa = currentNowUa.takeIf { it != 0L } ?: currentAvgUa
             val chargeFullUah = if (chargeNowUah > 0 && pct > 0) chargeNowUah * 100 / pct else 0L
             val energyNowUwh = chargeNowUah * voltageUv / 1_000_000L
             val energyFullUwh = chargeFullUah * voltageUv / 1_000_000L
             val powerNowUw = abs(currentNowUa) * voltageUv / 1_000_000L
-            val timeToEmptyS = if (discharging && chargeNowUah > 0 && abs(currentAvgUa) > 0) chargeNowUah * 3600L / abs(currentAvgUa) else 0L
+            val runtimeHours = if (discharging)
+                runtimeEstimator.estimateHours(chargeNowUah.toDouble(), currentForRuntimeUa.toDouble())
+            else null
+            val timeToEmptyS = BatteryRuntimeEstimator.secondsFromHours(runtimeHours)
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING
             val timeToFullS = if (charging && chargeFullUah > chargeNowUah && abs(currentAvgUa) > 0) (chargeFullUah - chargeNowUah) * 3600L / abs(currentAvgUa) else 0L
-            // Android can keep reporting charging at 100%; Linux reports Full there, and Steam shows 99% until it does.
             val statusText = when (status) {
                 BatteryManager.BATTERY_STATUS_CHARGING -> if (pct >= 100) "Full" else "Charging"
                 BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
@@ -127,12 +134,7 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
 
     companion object {
         private const val TAG = "SessionService"
-        // CURRENT_NOW/CURRENT_AVERAGE are documented as µA, but Samsung and other vendors report mA,
-        // which made every lifetime estimate 1000x too long. No real µA reading under load is below 10 mA,
-        // and no mA reading is above 10 A, so anything smaller than 10_000 is taken as mA.
-        private const val MILLIAMP_CEILING = 10_000L
-
-        internal fun toMicroamps(raw: Long): Long = if (abs(raw) < MILLIAMP_CEILING) raw * 1000L else raw
+        internal fun toMicroamps(raw: Long): Long = BatteryRuntimeEstimator.toMicroamps(raw)
         private const val PERIOD_MS = 5_000L
         private val VPOWER_FILES = listOf(
             "ac_status", "battery_percent", "battery_status",

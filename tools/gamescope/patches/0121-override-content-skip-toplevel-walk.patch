@@ -11,12 +11,10 @@ index 9a027a2..e6d8e31 100644
  };
  
  std::mutex g_wlserver_xdg_shell_windows_lock;
-@@ -800,6 +802,20 @@ static void gamescope_swapchain_destroy_co( struct wl_resource *resource );
+@@ -800,6 +802,18 @@ static void gamescope_swapchain_destroy_co( struct wl_resource *resource );
  
  void gamescope_xwayland_server_t::handle_override_window_content( struct wl_client *client, struct wl_resource *gamescope_swapchain_resource, struct wlr_surface *surface, uint32_t x11_window )
  {
-+	// The WSI layer sends this on every present. Finding the top level walks the X tree with a
-+	// round trip per level, so a swapchain repeating the same window skips it for 100 ms.
 +	const uint64_t ulNow = get_time_in_nanos();
 +	if ( gamescope_swapchain_resource )
 +	{
@@ -32,7 +30,7 @@ index 9a027a2..e6d8e31 100644
  	x11_window = x11_find_toplevel_for_xid( this->ctx->dpy, x11_window );
  
  	wlserver_x11_surface_info *x11_surface = lookup_x11_surface_info_from_xid( this, x11_window );
-@@ -813,7 +829,11 @@ void gamescope_xwayland_server_t::handle_override_window_content( struct wl_clie
+@@ -813,7 +827,11 @@ void gamescope_xwayland_server_t::handle_override_window_content( struct wl_clie
  
  	if ( content_overrides.count( x11_window ) ) {
  		if ( content_overrides[x11_window]->gamescope_swapchain == gamescope_swapchain_resource )
@@ -44,7 +42,7 @@ index 9a027a2..e6d8e31 100644
  #ifdef GAMESCOPE_SWAPCHAIN_DEBUG
  		wl_log.infof( "handle_override_window_content: (2) DESTROYING x11_window: 0x%x old_swapchain: %p new_swapchain: %p", x11_window, content_overrides[x11_window]->gamescope_swapchain, gamescope_swapchain_resource );
  #endif
-@@ -830,6 +850,8 @@ void gamescope_xwayland_server_t::handle_override_window_content( struct wl_clie
+@@ -830,6 +848,8 @@ void gamescope_xwayland_server_t::handle_override_window_content( struct wl_clie
  	co->surface = surface;
  	co->x11_window = x11_window;
  	co->gamescope_swapchain = gamescope_swapchain_resource;

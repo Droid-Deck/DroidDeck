@@ -132,6 +132,17 @@ class StoreAccountsCipherTest {
         assertEquals("test@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
     }
 
+    @Test fun rockstarNeverFallsBackToPlaintextWhenKeystoreFails() {
+        StoreAccounts.keys = broken
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            StoreAccounts.write(app, Store.ROCKSTAR, JSONObject().put("access_token", "synthetic-secret"))
+        }
+        assertFalse(file(Store.ROCKSTAR).exists())
+        StoreAccounts.keys = fake
+        StoreAccounts.write(app, Store.ROCKSTAR, creds)
+        assertTrue(CredentialCipher.isEnvelope(JSONObject(file(Store.ROCKSTAR).readText())))
+    }
+
     @Test fun xboxShowsTheGamertagElseAMaskedEmail() {
         StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player@example.test"))
         assertEquals("p•••@example.test", StoreAccounts.displayName(app, Store.XBOX))

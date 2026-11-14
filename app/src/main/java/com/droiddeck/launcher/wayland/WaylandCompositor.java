@@ -45,9 +45,8 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
-    private static volatile long gameFrames; // written by the compositor thread only
+    private static volatile long gameFrames;
 
-    /** Frames the game has presented since the app started; the rate is the difference over time. */
     public static long gameFrameCount() { return gameFrames; }
 
     public static long recentFrameIntervalMs() {
@@ -148,6 +147,10 @@ public final class WaylandCompositor {
 
     public static native void nativeStart(String xdgRuntimeDir);
 
+    /** Nanoseconds of the compositor's own GPU work while timing is on, or -1 when it is not timed. */
+    public static native long nativeGpuBusyNs();
+    public static native void nativeSetGpuTiming(boolean on);
+
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
                                                      String nativeLibDir);
@@ -163,13 +166,43 @@ public final class WaylandCompositor {
 
     public static native int nativeCursorSerial();
 
+    public static native void nativeSetCursorComposite(boolean on);
+
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);
 
+    public static native boolean nativeFocusTakesTouch();
+
+    public static native boolean nativeCursorInputPos(int[] out);
+
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeSetClockControl(String path);
+
     public static native int nativeCompositorTid();
+
+    private static native String nativeCompositorFault();
+
+    private static native String nativeDisplayDriver();
+
+    /** Why the compositor cannot present, or "" while it can (or before the library is loaded). */
+    public static String compositorFault() {
+        try {
+            return nativeCompositorFault();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** The driver that answered for the display, as it reports itself; "" when not known yet. */
+    public static String displayDriver() {
+        try {
+            return nativeDisplayDriver();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
 
     public static native void nativeSetHideShell(boolean hide);
 
@@ -307,11 +340,11 @@ public final class WaylandCompositor {
     public static native int nativeFrameGenProblem();
     public static native String nativeFrameGenCapsReason();
 
+    public static native boolean nativeFrameGenActive();
     public static native float[] nativeFrameGenStats();
 
     public static native long nativeHudFrameTimes(float[] out);
 
-    /** Stream mode: the scene is the Xbox Cloud Gaming native player's picture, handed over frame by frame. */
     public static native void nativeStreamMode(boolean on);
 
     public static native void nativeStreamFrame(android.hardware.HardwareBuffer buffer);
@@ -323,9 +356,16 @@ public final class WaylandCompositor {
         nativeSendSceneInput(6, dx * 256, dy * 256);
     }
 
+    private static float pendingDeltaX, pendingDeltaY;
+
     public static void sendPointerDelta(float dx, float dy) {
-        int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
+        pendingDeltaX += dx * 256f;
+        pendingDeltaY += dy * 256f;
+        int x = (int) Math.floor(pendingDeltaX);
+        int y = (int) Math.floor(pendingDeltaY);
         if (x == 0 && y == 0) return;
+        pendingDeltaX -= x;
+        pendingDeltaY -= y;
         nativeSendSceneInput(6, x, y);
     }
 }

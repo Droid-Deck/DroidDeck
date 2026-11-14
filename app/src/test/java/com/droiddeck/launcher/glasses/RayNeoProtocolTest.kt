@@ -116,7 +116,7 @@ class RayNeoProtocolTest {
     @Test fun tickWrapDoesNotIntroduceOrientationJump() {
         val filter = RayNeoOrientationFilter(0f)
         filter.update(sample(0xfffffff0L, 90f))
-        val q = filter.update(sample(84, 90f)) // 100 ticks = 10ms across uint32 rollover.
+        val q = filter.update(sample(84, 90f))
         assertEquals(kotlin.math.sin(Math.PI * 0.005).toFloat(), q[2], 1e-4f)
     }
 }

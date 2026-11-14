@@ -33,7 +33,9 @@ static PFN_vkGetInstanceProcAddr g_gipa;
 static VkPhysicalDevice g_pd;
 static VkQueue g_queue;
 static uint32_t g_qfam;
-static int g_dev_ready, g_dev_lost, g_features_enabled;
+static _Atomic int g_dev_ready, g_dev_lost;
+static int g_features_enabled;
+static _Atomic int g_caps_lsfg_ok, g_caps_ddfg_ok;
 static VkPhysicalDeviceMemoryProperties g_memprops;
 static struct {
     PFN_vkCreateImage CreateImage;
@@ -141,9 +143,12 @@ static void mark_failed(int kind) {
 }
 
 int vkp_framegen_problem(void) {
-    if (!g_dev_ready) return -1;
+    if (!atomic_load(&g_dev_ready)) return -1;
     int kind = atomic_load(&g_kind);
-    if (!fge_caps_ok(kind)) return 1;
+    int caps_ok = kind == VKP_FG_ENGINE_DDFG
+        ? atomic_load(&g_caps_ddfg_ok)
+        : atomic_load(&g_caps_lsfg_ok);
+    if (!caps_ok) return 1;
     if (start_failed_for(kind)) return 2;
     if (g_engine_ok && g_engine_kind == kind && fge_unavailable()) return 2;
     return 0;
@@ -179,13 +184,17 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
 #undef R
     g_vk.GetPhysicalDeviceMemoryProperties(g_pd, &g_memprops);
     fge_device_ready(g_gipa, g_inst, g_pd, dev, queue, qfam, features_enabled);
-    g_dev_ready = vk.CreateImage && vk.CreateImageView && vk.CmdPipelineBarrier;
+    atomic_store(&g_caps_lsfg_ok, fge_caps_ok(VKP_FG_ENGINE_LSFG));
+    atomic_store(&g_caps_ddfg_ok, fge_caps_ok(VKP_FG_ENGINE_DDFG));
+    atomic_store(&g_dev_lost, 0);
+    atomic_store(&g_dev_ready,
+        vk.CreateImage && vk.CreateImageView && vk.CmdPipelineBarrier);
     FGLOG("engines ready on the compositor's device: LSFG Native %s (%s), DD-FG Native %s",
           fge_caps_ok(VKP_FG_ENGINE_LSFG) ? "available" : "unavailable", fge_caps_reason(),
           fge_caps_ok(VKP_FG_ENGINE_DDFG) ? "available" : "unavailable");
 }
 
-void vkp_framegen_device_lost(void) { g_dev_lost = 1; }
+void vkp_framegen_device_lost(void) { atomic_store(&g_dev_lost, 1); }
 
 
 static void destroy_ring(void) {
@@ -244,7 +253,12 @@ static int ensure_ring(uint32_t w, uint32_t h, VkFormat fmt, uint32_t n) {
 
 static int engine_usable(void) {
     int kind = atomic_load(&g_kind);
-    return g_dev_ready && !g_dev_lost && fge_caps_ok(kind) && !start_failed_for(kind);
+    int ready = atomic_load(&g_dev_ready);
+    int lost = atomic_load(&g_dev_lost);
+    int caps_ok = kind == VKP_FG_ENGINE_DDFG
+        ? atomic_load(&g_caps_ddfg_ok)
+        : atomic_load(&g_caps_lsfg_ok);
+    return ready && !lost && caps_ok && !start_failed_for(kind);
 }
 
 int vkp_framegen_format_ok(VkFormat fmt) {
@@ -374,16 +388,11 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
         mark_failed(kind);
         return 0;
     }
-    /* The ring and the engine's images are new on this frame. Dispatching into them now
-     * null-dereferenced Turnip (vkp_framegen_run, first Steam frame, 2560x1440 to the panel).
-     * Show this frame as it is; generation starts once the size has settled. */
     if (size_changed || ring == 2) {
         FGLOG("frame generation catches up at %dx%d; this frame is shown as it is", w, h);
         return 0;
     }
 
-    /* The pacer's source rate must be the game's, not this loop's: a loop slowed by its own
-     * generations would otherwise read as a slower game and justify even more generations. */
     ++g_source_frames;
     const uint64_t game_frames = droiddeck_game_frames();
     uint32_t n_gen = fge_plan(g_ring_n, game_frames ? game_frames : g_source_frames, g_presented_rate);

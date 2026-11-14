@@ -100,6 +100,10 @@ CLIENT_ENV = {
     "JSC_useDFGJIT": "0",
     "JSC_useFTLJIT": "0",
 }
+HIDDEN_ENV = {
+    "DROIDDECK_EPIC_HIDDEN": "1",
+    "EGL_DISABLE_STORE_PREWARM": "1",
+}
 KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "BL_LAUNCH_DIR")
 LAUNCH_VERBS = ("waitforexitandrun", "run", "runinprefix")
 EPIC_ARGS = ("-auth_", "-epic")
@@ -725,7 +729,7 @@ def fex_environment(fex, files, env):
     return result
 
 
-def client_environment(base, fex, files, display, bus, broker, a11y=None):
+def client_environment(base, fex, files, display, bus, broker, a11y=None, hidden=False):
     env = {name: base[name] for name in KEPT_ENV if base.get(name)}
     env.setdefault("HOME", HOME)
     env.setdefault("LANG", "C.UTF-8")
@@ -734,6 +738,8 @@ def client_environment(base, fex, files, display, bus, broker, a11y=None):
     env["DBUS_SESSION_BUS_ADDRESS"] = bus
     env[BROKER_ENV] = broker
     env.update(CLIENT_ENV)
+    if hidden:
+        env.update(HIDDEN_ENV)
     if a11y:
         for name in A11Y_OFF:
             env.pop(name, None)
@@ -1248,7 +1254,7 @@ class Session:
         path = broker_path()
         self.broker = Broker(path, self.mode, base)
         write_json(instance_file(), {"pid": os.getpid(), "mode": self.mode, "bus": bus, "broker": path})
-        env = client_environment(base, fex, files, display, bus, path, self.a11y)
+        env = client_environment(base, fex, files, display, bus, path, self.a11y, hidden=self.mode == "hidden")
         self.command = [fex["bin"], os.path.join(app_dir, "AppRun")]
         self.env = env
         say("starting the Epic Games Launcher %s (%s, display %s)" % (current.get("app"), self.mode, display))

@@ -32,6 +32,8 @@ static int64_t g_hold_missed_ns;
 static int64_t g_refresh_ns = 16666667;
 volatile int g_render_on_commit = 1;
 volatile int g_release_unpaced = 1;
+volatile int g_fps_limit;
+static int64_t g_scene_due_ns;
 static atomic_int g_stream_on;
 static struct { unsigned ticks, ticks_late_2ms, commit_renders; int64_t tick_late_ns, tick_late_max_ns; } g_pace;
 static struct { unsigned ticks; } g_perf;
@@ -204,7 +206,7 @@ class RenderOnCommitTest(unittest.TestCase):
         render = extract_function(source, 'render_scene')
         self.assertIn('g_rendered_tick_ns = g_tick_vsync_ns;', render)
         self.assertIn('g_tick_held = 0;', render)
-        functions = ('commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle', 'on_vsync')
+        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle', 'on_vsync')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-render-on-commit-') as folder:
             path = Path(folder)

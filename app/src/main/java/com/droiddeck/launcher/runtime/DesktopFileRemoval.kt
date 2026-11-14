@@ -73,10 +73,42 @@ internal object DesktopFileRemoval {
         }
     }
 
+    private val RECORD = Regex("[A-Za-z0-9@._+:-]+")
+
+    fun desktopRecords(root: File): Set<String> {
+        val list = safeFile(root, "usr/share/droiddeck/pacman/desktop-packages.txt") ?: return emptySet()
+        if (!Files.isRegularFile(list.toPath(), NOFOLLOW_LINKS)) return emptySet()
+        return list.readLines().mapNotNull { line ->
+            line.split(' ').takeIf { it.size == 2 }?.let { "${it[0]}-${it[1]}" }?.takeIf { RECORD.matches(it) && it != "." && it != ".." }
+        }.toSet()
+    }
+
+    fun removeRecords(root: File, records: Set<String>) {
+        val lib = File(root, "var/lib/pacman")
+        if (Files.isSymbolicLink(File(root, "var").toPath()) || Files.isSymbolicLink(lib.toPath())) return
+        val local = File(lib, "local")
+        if (!local.isDirectory || Files.isSymbolicLink(local.toPath())) return
+        for (record in records) {
+            if (!RECORD.matches(record) || record == "." || record == "..") continue
+            val dir = File(local, record)
+            if (Files.isSymbolicLink(dir.toPath()) || !dir.isDirectory) continue
+            for (file in dir.listFiles().orEmpty()) {
+                if (Files.isSymbolicLink(file.toPath()) || file.isFile) Files.delete(file.toPath())
+            }
+            if (!dir.delete()) throw IOException("Cannot remove $dir")
+        }
+        for (name in listOf("sync/droiddeck.db", "droiddeck-desktop")) {
+            val file = File(lib, name)
+            if (Files.isSymbolicLink(file.toPath()) || file.isFile) Files.delete(file.toPath())
+        }
+    }
+
     fun runtimeFiles(root: File): Set<String> = buildSet {
         val database = File(root, "var/lib/pacman/local")
         if (!database.isDirectory || Files.isSymbolicLink(database.toPath())) throw IOException("Runtime package database missing")
+        val desktop = desktopRecords(root)
         for (pkg in database.listFiles().orEmpty()) {
+            if (pkg.name in desktop) continue
             val files = File(pkg, "files")
             if (!pkg.isDirectory || Files.isSymbolicLink(pkg.toPath()) || !files.isFile || Files.isSymbolicLink(files.toPath())) continue
             var inFiles = false

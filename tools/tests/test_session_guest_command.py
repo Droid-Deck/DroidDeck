@@ -1,9 +1,3 @@
-"""Exercise the literal launch prefix from SessionService without an Android runtime.
-
-This is a focused source/exec regression check, not a Kotlin or PRoot integration
-test. PRoot executes the first guest argument directly; KEY=VALUE is meaningful
-only after /usr/bin/env. Read the production prefix rather than duplicate it.
-"""
 import json
 from pathlib import Path
 import re

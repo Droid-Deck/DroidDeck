@@ -1,0 +1,96 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 41294f7..42b2ec6 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -435,6 +435,9 @@ bool CVulkanDevice::selectPhysDev(VkSurfaceKHR surface)
+ 	return true;
+ }
+ 
++// Stands in for VK_NULL_HANDLE in descriptor slots when the device has no nullDescriptor.
++static gamescope::OwningRc<CVulkanTexture> s_nullDescriptorFallback;
++
+ bool CVulkanDevice::createDevice()
+ {
+ 	uint32_t supportedExtensionCount;
+@@ -459,6 +462,9 @@ bool CVulkanDevice::createDevice()
+ 		if ( strcmp(ext.extensionName, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) == 0 )
+ 			m_bSupportsModifiers = true;
+ 
++		if ( strcmp(ext.extensionName, VK_EXT_ROBUSTNESS_2_EXTENSION_NAME) == 0 )
++			m_bSupportsNullDescriptor = true;
++
+ 		if ( strcmp(ext.extensionName, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME) == 0 )
+ 			supportsForeignQueue = true;
+ 
+@@ -622,7 +628,10 @@ bool CVulkanDevice::createDevice()
+ 
+ 	enabledExtensions.push_back( VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME );
+ 
+-	enabledExtensions.push_back( VK_EXT_ROBUSTNESS_2_EXTENSION_NAME );
++	if ( m_bSupportsNullDescriptor )
++		enabledExtensions.push_back( VK_EXT_ROBUSTNESS_2_EXTENSION_NAME );
++	else
++		vk_log.infof( "no VK_EXT_robustness2: unused descriptor slots use a 1x1 texture" );
+ #if 0
+ 	enabledExtensions.push_back( VK_KHR_MAINTENANCE_5_EXTENSION_NAME );
+ #endif
+@@ -711,9 +720,10 @@ bool CVulkanDevice::createDevice()
+ 
+ 	VkPhysicalDeviceRobustness2FeaturesEXT robustness2Features = {
+ 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT,
+-		.pNext = std::exchange(features2.pNext, &robustness2Features),
+ 		.nullDescriptor = VK_TRUE,
+ 	};
++	if ( m_bSupportsNullDescriptor )
++		robustness2Features.pNext = std::exchange(features2.pNext, &robustness2Features);
+ 
+ 	VkResult res = vk.CreateDevice(physDev(), &deviceCreateInfo, nullptr, &m_device);
+ 	if ( res == VK_ERROR_NOT_PERMITTED_KHR && useRealtimeVulkanQueue )
+@@ -1861,6 +1871,15 @@ void CVulkanCmdBuffer::dispatch(uint32_t x, uint32_t y, uint32_t z)
+ 		lut3DDescriptor[i].imageView = m_lut3D[i] ? m_lut3D[i]->srgbView() : VK_NULL_HANDLE;
+ 	}
+ 
++	if ( !m_device->supportsNullDescriptor() && s_nullDescriptorFallback != nullptr )
++	{
++		VkImageView fallback = s_nullDescriptorFallback->srgbView();
++		for (auto &d : imageDescriptors) if (d.imageView == VK_NULL_HANDLE) d.imageView = fallback;
++		for (auto &d : ycbcrImageDescriptors) if (d.imageView == VK_NULL_HANDLE) d.imageView = fallback;
++		for (auto &d : shaperLutDescriptor) if (d.imageView == VK_NULL_HANDLE) d.imageView = fallback;
++		for (auto &d : lut3DDescriptor) if (d.imageView == VK_NULL_HANDLE) d.imageView = fallback;
++	}
++
+ 	if (!m_target->isYcbcr())
+ 	{
+ 		targetDescriptors[0].imageView = m_target->srgbView();
+@@ -3546,6 +3565,9 @@ static bool vulkan_make_output_images( VulkanOutput_t *pOutput )
+ 	// Oh no.
+ 	pOutput->temporaryHackyBlankImage = vulkan_create_debug_blank_texture();
+ 
++	if ( !g_device.supportsNullDescriptor() && s_nullDescriptorFallback == nullptr )
++		s_nullDescriptorFallback = vulkan_create_flat_texture( 1, 1, 0, 0, 0, 0 );
++
+ 	if ( pOutput->uOutputFormatOverlay != VK_FORMAT_UNDEFINED && !kDisablePartialComposition )
+ 	{
+ 		uint32_t uPartialDRMFormat = pOutput->uOutputFormatOverlay;
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+index 5ffec4a..901e6a6 100644
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -866,6 +866,9 @@ public:
+ 	inline VkPipelineLayout pipelineLayout() {return m_pipelineLayout;}
+ 	inline int drmRenderFd() {return m_drmRendererFd;}
+ 	inline bool supportsModifiers() {return m_bSupportsModifiers;}
++	// VK_EXT_robustness2's nullDescriptor. A Mali driver through Venus has no robustness2: unused
++	// descriptor slots then point at a 1x1 texture instead of VK_NULL_HANDLE.
++	inline bool supportsNullDescriptor() {return m_bSupportsNullDescriptor;}
+ 	inline uint32_t vendorID() const {return m_uVendorID;}
+ 	inline const VkPhysicalDeviceMemoryProperties &memoryProperties() const {return m_memoryProperties;}
+ 	inline bool supportsMutableSwapchain() {return m_bSupportsMutableSwapchain;}
+@@ -938,6 +941,7 @@ protected:
+ 	uint32_t m_uVendorID = 0;
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
++	bool m_bSupportsNullDescriptor = false;
+ 	bool m_bSupportsMutableSwapchain = false;
+ 	bool m_bSupportsPresentWait = false;
+ 	bool m_bInitialized = false;

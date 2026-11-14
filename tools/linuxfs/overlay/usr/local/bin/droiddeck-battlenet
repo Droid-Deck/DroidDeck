@@ -31,6 +31,9 @@ WALLPAPER_DIR = ("users", "steamuser", "AppData", "Local", "DroidDeck")
 DESKTOP_KEY = "[Control Panel\\\\Desktop]"
 COLORS_KEY = "[Control Panel\\\\Colors]"
 WALLPAPER_EDGE = (4, 6, 11)
+USER_PREFERENCES = "UserPreferencesMask"
+WINE_USER_PREFERENCES = bytes((0x10, 0x00, 0x00, 0x80, 0x12, 0x00, 0x00, 0x00))
+CLIENT_AREA_ANIMATION = (4, 0x02)
 WALLPAPER_MAX = (1280, 720)
 FEX_REQUEST = "battlenet-fex.request"
 FEX_RESULT = "battlenet-fex.result"
@@ -38,6 +41,9 @@ FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
+DRIVES = "defghijklmnopqruvwxy"
+PRODUCT_DB = ("ProgramData", "Battle.net", "Agent", "product.db")
+INSTALL_FOLDER = (1, 3, 1)
 CLOSE_GRACE = 15
 HANDOFF_WAIT = 120
 GAME_SETTLE = 20
@@ -52,7 +58,7 @@ CLIENT_WAIT = 300
 GAME_GRACE = 15
 LAUNCH_WAIT = 15
 LAUNCH_ASKS = 3
-CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)|programdata)\\battle\.net\\")
+CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)\\battle\.net\\([^\\]+$|battle\.net\.\d+\\)|programdata\\battle\.net\\)")
 IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "lsass.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
 NOT_GAME = IDLE | {"rundll32.exe", "wineboot.exe", "winemenubuilder.exe"}
@@ -113,12 +119,14 @@ function field(text, name) {
 }
 
 function install() {
-  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
+  // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
+  var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
+  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + patch + ':1119/' +
     product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
   save(".form", form);
   if (form.indexOf('"' + lang + '"') < 0) lang = "enUS";
   var locale = lang.toLowerCase();
-  call("POST", "/install/" + uid, '{"account_country":"' + country + '","finalized":true,"game_dir":"' + dir + '","geo_ip_country":"' +
+  call("POST", "/install/" + uid, '{"account_country":"' + country + '","finalized":true,"game_dir":"' + dir.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '","geo_ip_country":"' +
     region + '","language":["' + locale + '"],"selected_asset_locale":"' + locale + '","selected_locale":"' + locale +
     '","shortcut":"none","tome_torrent":""}');
   watch("/install/" + uid);
@@ -221,8 +229,72 @@ def installed(root):
     return os.path.isfile(launcher(root))
 
 
-def install_path(library):
-    return "Z:" + library.rstrip("/")
+def dosdevices(root):
+    return os.path.join(prefix(root), "pfx", "dosdevices")
+
+
+def volume_root(path):
+    device = os.stat(path).st_dev
+    while path != "/":
+        parent = os.path.dirname(path)
+        if os.stat(parent).st_dev != device:
+            break
+        path = parent
+    return path
+
+
+def inside(path, folder):
+    return path == folder or path.startswith(folder.rstrip("/") + "/")
+
+
+def mapped_drive(root, path, volume):
+    folder = dosdevices(root)
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return None
+    for name in names:
+        link = os.path.join(folder, name)
+        if len(name) == 2 and name[0].lower() in DRIVES and name[1] == ":" and os.path.islink(link):
+            target = os.path.realpath(link)
+            if inside(target, volume) and inside(path, target):
+                return name[0].lower(), target
+    return None
+
+
+def map_drive(root, volume):
+    folder = dosdevices(root)
+    for letter in DRIVES:
+        link = os.path.join(folder, letter + ":")
+        if not os.path.lexists(link):
+            try:
+                os.makedirs(folder, exist_ok=True)
+                os.symlink(volume, link)
+            except OSError as error:
+                say("%s not mapped to a Wine drive: %s" % (volume, error))
+                return None
+            say("Wine drive %s: is %s" % (letter.upper(), volume))
+            return letter, volume
+    say("%s not mapped to a Wine drive: every letter is taken" % volume)
+    return None
+
+
+def install_path(root, library):
+    library = library.rstrip("/") or "/"
+    try:
+        path = os.path.realpath(library)
+        volume = volume_root(path)
+    except OSError:
+        return "Z:" + library
+    if volume == "/":
+        return "Z:" + library
+    drive = mapped_drive(root, path, volume)
+    if drive is None and not wine_processes(os.path.join(prefix(root), "pfx")):
+        drive = map_drive(root, volume)
+    if drive is None:
+        return "Z:" + library
+    letter, target = drive
+    return letter.upper() + ":\\" + path[len(target):].strip("/").replace("/", "\\")
 
 
 def write_config(root, library=None):
@@ -249,8 +321,8 @@ def write_config(root, library=None):
         client["HardwareAcceleration"] = "false"
         changes.append("acceleration")
     if library and isinstance(client.setdefault("Install", {}), dict) \
-            and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(library):
-        client["Install"]["DefaultInstallPath"] = install_path(library)
+            and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(root, library).rstrip("\\"):
+        client["Install"]["DefaultInstallPath"] = install_path(root, library)
         changes.append("library")
     games = config.setdefault("Games", {})
     for uid in CLIENT_32_BIT if isinstance(games, dict) else ():
@@ -322,21 +394,51 @@ def wallpaper_bmp(width, height):
 
 
 def reg_value(reg, key, name, value):
-    line = '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"'))
-    try:
-        with open(reg, encoding="utf-8", errors="replace") as f:
-            rows = f.read().splitlines()
-    except OSError:
-        return False
+    return reg_line(reg, key, name, '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"')))
+
+
+def reg_dword(reg, key, name, number):
+    return reg_line(reg, key, name, '"%s"=dword:%08x' % (name, number))
+
+
+def reg_read(reg, key, name):
+    with open(reg, encoding="utf-8", errors="replace") as f:
+        rows = f.read().splitlines()
     inside, last = False, None
     for row in rows:
         if row.startswith("["):
             inside = row.startswith(key + " ") or row == key
         elif inside and row.startswith('"%s"=' % name):
             last = row
+    return last
+
+
+def reg_line(reg, key, name, line):
+    try:
+        last = reg_read(reg, key, name)
+    except OSError:
+        return False
     if last != line:
         with open(reg, "a", encoding="utf-8") as out:
             out.write("\n%s %d\n%s\n" % (key, int(time.time()), line))
+    return True
+
+
+def still_pages(root):
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    if not os.path.isfile(reg):
+        return False
+    row = reg_read(reg, DESKTOP_KEY, USER_PREFERENCES)
+    found = re.fullmatch(r'"%s"=hex:([0-9a-fA-F]{2}(?:,[0-9a-fA-F]{2})*)' % USER_PREFERENCES, row or "")
+    mask = bytearray(bytes.fromhex(found.group(1).replace(",", "")) if found else WINE_USER_PREFERENCES)
+    at, bit = CLIENT_AREA_ANIMATION
+    if len(mask) <= at or not mask[at] & bit:
+        return False
+    mask[at] &= ~bit
+    if wine_processes(os.path.join(prefix(root), "pfx")):
+        say("Battle.net's prefix is in use; Windows animations go off the next time it starts on its own")
+        return False
+    reg_line(reg, DESKTOP_KEY, USER_PREFERENCES, '"%s"=hex:%s' % (USER_PREFERENCES, ",".join("%02x" % b for b in mask)))
     return True
 
 
@@ -345,6 +447,16 @@ def desktop_size():
     if width.isdigit() and height.isdigit() and 0 < int(width) <= 7680 and 0 < int(height) <= 4320:
         return int(width), int(height)
     return 1280, 720
+
+
+def desktop_dpi():
+    width, height = desktop_size()
+    return 96 * max(4, int(min(width / 1920.0, height / 1080.0) * 4)) // 4
+
+
+def dpi(root):
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    return os.path.isfile(reg) and reg_dword(reg, DESKTOP_KEY, "LogPixels", desktop_dpi())
 
 
 def wallpaper(root):
@@ -372,13 +484,106 @@ def wallpaper(root):
 
 
 def windows_path(root, path):
-    found = re.match(r"(?i)^([cz]):[\\/](.*)$", path.strip())
+    found = re.match(r"(?i)^([a-z]):[\\/](.*)$", path.strip())
     if not found:
         return None
     parts = [part for part in re.split(r"[\\/]+", found.group(2)) if part]
-    if not parts or ".." in parts:
+    if ".." in parts:
         return None
-    return os.path.join(drive_c(root) if found.group(1).lower() == "c" else "/", *parts)
+    letter = found.group(1).lower()
+    link = os.path.join(dosdevices(root), letter + ":")
+    if letter == "c":
+        target = drive_c(root)
+    elif os.path.islink(link):
+        target = os.path.realpath(link)
+    elif letter == "z":
+        target = "/"
+    else:
+        return None
+    return os.path.join(target, *parts)
+
+
+def varint(data, at):
+    value = shift = 0
+    while at < len(data) and shift < 64:
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, at
+        shift += 7
+    raise ValueError("varint")
+
+
+def encode_varint(value):
+    out = bytearray()
+    while value > 0x7F:
+        out.append(value & 0x7F | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+
+def rewrite_field(data, path, change):
+    out, at = bytearray(), 0
+    while at < len(data):
+        start = at
+        tag, at = varint(data, at)
+        kind = tag & 7
+        if kind == 0:
+            at = varint(data, at)[1]
+        elif kind == 1:
+            at += 8
+        elif kind == 5:
+            at += 4
+        elif kind == 2:
+            size, body = varint(data, at)
+            at = body + size
+        else:
+            raise ValueError("wire type")
+        if at > len(data):
+            raise ValueError("length")
+        if kind == 2 and tag >> 3 == path[0]:
+            value = data[body:at]
+            value = change(value) if len(path) == 1 else rewrite_field(value, path[1:], change)
+            out += encode_varint(tag) + encode_varint(len(value)) + value
+        else:
+            out += data[start:at]
+    return bytes(out)
+
+
+def drive_folder(root, value):
+    try:
+        text = value.decode("utf-8")
+    except UnicodeDecodeError:
+        return value
+    if not re.match(r"(?i)^z:[\\/]", text):
+        return value
+    folder = windows_path(root, text)
+    if not folder or not os.path.isdir(folder):
+        return value
+    moved = install_path(root, folder)
+    return value if moved.startswith("Z:") else moved.replace("\\", "/").encode("utf-8")
+
+
+def move_installs(root):
+    path = os.path.join(drive_c(root), *PRODUCT_DB)
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        moved = rewrite_field(data, INSTALL_FOLDER, lambda value: drive_folder(root, value))
+        if moved == data or wine_processes(os.path.join(prefix(root), "pfx")):
+            return False
+        with open(path, "rb") as f:
+            if f.read() != data:
+                return False
+    except (OSError, ValueError):
+        return False
+    with open(path + ".tmp", "wb") as f:
+        f.write(moved)
+    shutil.copymode(path, path + ".tmp")
+    os.replace(path + ".tmp", path)
+    return True
 
 
 def wow_folders(root):
@@ -489,9 +694,23 @@ def configure(root, library=None):
         say("Battle.net's config not written: %s" % error)
         return
     try:
+        if move_installs(root):
+            say("Battle.net's installed games on a mapped volume now use its Wine drive")
+    except OSError as error:
+        say("Battle.net's installed games not moved to their Wine drive: %s" % error)
+    try:
         wallpaper(root)
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
+    try:
+        dpi(root)
+    except OSError as error:
+        say("Battle.net's desktop scale not set: %s" % error)
+    try:
+        if still_pages(root):
+            say("Battle.net's desktop: Windows animations off, so its pages do not play videos the CPU has to draw")
+    except OSError as error:
+        say("Battle.net's desktop animations not set: %s" % error)
     wow_settings(root)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game, "
@@ -1173,7 +1392,6 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             say("%s not made: %s" % (folder, error))
             emit("ERROR", "folder")
             return 2
-        windows = "Z:" + folder
     told = None
     while True:
         processes = wine_processes(pfx)
@@ -1190,6 +1408,8 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         time.sleep(POLL if poll is None else poll)
     with lock:
         stop_leftovers(pfx)
+        if action == "install":
+            windows = install_path(root, folder)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
         for suffix in (".json", ".game", ".form", ".error"):

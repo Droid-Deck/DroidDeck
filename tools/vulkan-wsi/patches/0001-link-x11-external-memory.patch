@@ -1,0 +1,16 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -421,6 +421,13 @@
+    cp ${PROJECT_SOURCE_DIR}/layer/VkLayer_window_system_integration.json ${CMAKE_CURRENT_BINARY_DIR}
+    ${JSON_COMMANDS})
+ 
++# X11 DRI3 uses these shared sources even when Wayland and display are disabled.
++if(BUILD_WSI_X11 AND NOT BUILD_WSI_WAYLAND AND NOT BUILD_WSI_DISPLAY)
++   target_sources(${PROJECT_NAME} PRIVATE
++      wsi/extensions/external_memory_extension.cpp
++      wsi/image_backing_memory_external.cpp)
++endif()
++
+ # Install the layer and its manifest into a Vulkan implicit layer directory. Upstream leaves this to
+ # manual copying; the fork adds install rules so the Debian package picks up the .so and JSON.
+ install(TARGETS ${PROJECT_NAME} DESTINATION share/vulkan/implicit_layer.d/)

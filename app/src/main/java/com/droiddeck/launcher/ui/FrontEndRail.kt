@@ -47,9 +47,11 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -66,6 +68,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.droiddeck.launcher.session.SessionPrefs
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,13 +106,16 @@ internal fun BottomBar(
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
     val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val barContext = LocalContext.current
+    remember { RailLabels.load(barContext) }
+    val iconOnly = !RailLabels.shown
     Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
             Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
                 if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
-                    NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
+                    NavigationItems(s, shown, compact = true, iconOnly = iconOnly, height = if (iconOnly) 48.dp else 56.dp, width = itemWidth,
                         place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
@@ -118,12 +125,20 @@ internal fun BottomBar(
     }
 }
 
-internal fun navigationKeys(s: FrontEndState) = buildList {
-    add("steam"); add("games")
-    if (s.gameStoresEnabled) add("stores")
-    add("desktop"); add("components")
-    if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
+internal fun navigationKeys(s: FrontEndState) = NavTabs.bar(s)
+
+internal object RailLabels {
+    var shown by mutableStateOf(true)
+        private set
+
+    fun load(context: android.content.Context) {
+        shown = SessionPrefs.railLabels(context)
+    }
+
+    fun set(context: android.content.Context, show: Boolean) {
+        shown = show
+        SessionPrefs.setRailLabels(context, show)
+    }
 }
 
 @Composable
@@ -133,12 +148,14 @@ internal fun SideRail(
 ) {
     val colors = MaterialTheme.colorScheme
     val compact = LocalConfiguration.current.screenHeightDp < 420
-    val iconOnly = isNarrowScreen()
+    val railContext = LocalContext.current
+    remember { RailLabels.load(railContext) }
+    val iconOnly = isNarrowScreen() || !RailLabels.shown
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
     ) {
-        val count = 6 + (if (s.gameStoresEnabled) 1 else 0) + (if (s.isHomeApp) 1 else 0)
+        val count = navigationKeys(s).size
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val fit = (maxHeight / count - 4.dp).coerceIn(44.dp, if (iconOnly) 48.dp else if (compact) 52.dp else 60.dp)
         val shown = Hops.railPreview ?: selected
@@ -173,28 +190,48 @@ internal fun SideRail(
     }
 }
 
+internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
+    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
+    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "soundtracks" -> R.string.rail_music to SoundtrackIcon
+    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
+    "components" -> R.string.rail_components to Icons.Outlined.Layers
+    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
+    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
+    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
+    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+}
+
+internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+
+internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boolean = setupNeedsAttention(s)): Boolean = when (key) {
+    "setup" -> setupNeedsAttention
+    "updates" -> s.updates.hasUpdate
+    NavTabs.MORE -> NavTabs.more(s).any { it != NavTabs.MORE && railBadge(s, it, setupNeedsAttention) }
+    else -> false
+}
+
+internal fun railCount(s: FrontEndState, key: String): Int = when (key) {
+    "stores" -> s.storeDownloadsActive
+    NavTabs.MORE -> if ("stores" in NavTabs.more(s)) s.storeDownloadsActive else 0
+    else -> 0
+}
+
 @Composable
 private fun NavigationItems(
     s: FrontEndState, shown: String, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
-    val setupNeedsAttention = !s.ready || (s.available != null && s.available != s.installed) ||
-        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+    val setupNeedsAttention = setupNeedsAttention(s)
     for (key in navigationKeys(s)) {
-        val (label, icon) = when (key) {
-            "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-            "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-            "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-            "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
-            "components" -> R.string.rail_components to Icons.Outlined.Layers
-            "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-            "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-            else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
-        }
+        val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
-                badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == "stores") s.storeDownloadsActive else 0,
+                badge = railBadge(s, key, setupNeedsAttention),
+                count = railCount(s, key),
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }

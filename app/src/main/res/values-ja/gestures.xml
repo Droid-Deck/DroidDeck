@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">ジェスチャー</string>
     <string name="gesture_settings">タッチジェスチャーの設定</string>
-    <string name="gesture_settings_hint">マウスとキーボードのジェスチャーを設定します。使用するにはタッチモードで「ジェスチャー」を選択してください。</string>
     <string name="gesture_tap">タップ</string>
     <string name="gesture_drag">1本指でドラッグ</string>
     <string name="gesture_long_press">長押し</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">3本指で長押し</string>
     <string name="gesture_pinch">ピンチで拡大・縮小</string>
     <string name="gesture_hold_button">ボタンを押したままにする</string>
+    <string name="gesture_hold_left">左ボタンを押したままにする</string>
+    <string name="gesture_hold_right">右ボタンを押したままにする</string>
     <string name="gesture_click_once">1回クリック</string>
     <string name="gesture_hold_delay">長押しの待ち時間</string>
     <string name="gesture_double_delay">ダブルタップの間隔</string>

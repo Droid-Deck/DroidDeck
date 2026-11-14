@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Genvägar för fysiska knappar</string>
+    <string name="shortcuts_dd_menu">DroidDeck-meny</string>
+    <string name="shortcuts_capture">Tilldela: %1$s</string>
+    <string name="shortcuts_press">Tryck på en knapp och släpp den. Tilldelningen sparas automatiskt.</string>
+    <string name="shortcuts_release">Släpp knappen för att fortsätta.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Den här knappen är redan tilldelad: %1$s</string>
+    <string name="shortcuts_save">Tilldela igen</string>
+    <string name="shortcuts_retry">Prova en annan knapp</string>
+    <string name="shortcuts_limitations">Hemknappen och vissa extraknappar kanske inte är tillgängliga.</string>
+</resources>

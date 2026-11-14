@@ -1,5 +1,3 @@
-/* In Deck mode (-steamos3) the x86-64 client's SteamOS audio manager passes libpulse the NULL operation of a
- * failed request, and libpulse aborts on it ("Assertion 'o' failed ... pa_operation_get_state()"). */
 #if defined(__x86_64__) || defined(__i386__)
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -9,7 +7,6 @@ typedef struct pa_operation pa_operation;
 
 #define PA_OPERATION_CANCELLED 2
 
-/* A libpulse loaded with RTLD_LOCAL (Wine's winepulse.so) is not in RTLD_NEXT's scope. */
 static void *libpulse(const char *name) {
     void *fn = dlsym(RTLD_NEXT, name);
     if (!fn) {
