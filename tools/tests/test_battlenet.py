@@ -1518,6 +1518,8 @@ class AgentJobTest(Harness):
 
             def poll(self):
                 self.polls += 1
+                if self.polls > 10:
+                    raise AssertionError("the stall timeout never ended the job")
                 clock[0] += 10
                 with open(self.base + ".json", "wb") as f:
                     f.write(json.dumps({"state": 1003, "download_current": [4, 0, 0], "download_total": [9, 0, 0],
