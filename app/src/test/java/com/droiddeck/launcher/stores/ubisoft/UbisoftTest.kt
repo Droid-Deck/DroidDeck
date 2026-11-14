@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores.ubisoft
 
+import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
@@ -20,18 +21,58 @@ class UbisoftTest {
     private val steamConfig = "version: 2.0\r\nroot:\r\n  name: Assassin's Creed Syndicate\r\n  start_game:\r\n    steam:\r\n      steam_app_id: 368500\r\n" +
         "  third_party_platform:\r\n    name: Steam\r\n    override_uplayid: 1875\r\n"
 
-    @Test fun aProductUbisoftDeliversThroughSteamNamesItsSteamApp() {
-        assertEquals("368500", UbisoftLibrary.steamApp(steamConfig))
-        assertNull(UbisoftLibrary.steamApp("root:\n  start_game:\n    online:\n      executables:\n        - path:\n            relative: bin/game.exe\n"))
+    private fun listed(space: String, name: String) = CatalogItem(Store.UBISOFT, space, name, null, owned = true, extra = mapOf("spaceId" to space))
+
+    private val owned = JSONObject().put("games", JSONArray()
+        .put(JSONObject().put("productId", 1957).put("spaceId", "space-s").put("productType", 0).put("owned", true).put("configuration", steamConfig))
+        .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", "root: {}"))
+        .put(JSONObject().put("productId", 1961).put("spaceId", "space-addon").put("productType", 1).put("owned", true).put("manifest", "CD").put("configuration", steamConfig))
+        .put(JSONObject().put("productId", 720).put("spaceId", "space-plus").put("productType", 0).put("owned", false).put("manifest", "EF").put("configuration", "root: {}"))
+        .put(JSONObject().put("productId", 3539).put("spaceId", "space-o").put("productType", 0).put("owned", true).put("configuration", "root: {}")))
+
+    @Test fun onlyGamesConnectDeliversAreInTheLibrary() {
+        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-s", "Syndicate"), listed("space-plus", "Ubisoft+ Game"), listed("space-gone", "Free Weekend"), listed("space-o", "Origins"))
+        val games = UbisoftLibrary.assemble(profile, owned)
+        assertEquals(listOf("space-o", "space-sc"), games.map { it.id })
+        assertEquals(listOf("3539", "109"), games.map { it.extra["productId"] })
+        assertEquals(null, games.first().extra["manifest"])
+        assertEquals("Steam", UbisoftLibrary.thirdParty(steamConfig))
     }
 
-    @Test fun steamOwnedGamesAreKeyedByTheirSpace() {
-        val owned = JSONObject().put("games", JSONArray()
-            .put(JSONObject().put("productId", 1957).put("spaceId", "space-s").put("productType", 0).put("owned", true).put("configuration", steamConfig))
-            .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", "root: {}"))
-            .put(JSONObject().put("productId", 1961).put("spaceId", "space-addon").put("productType", 1).put("owned", true).put("configuration", steamConfig)))
-        assertEquals(mapOf("space-s" to "368500"), UbisoftLibrary.steamBySpace(owned))
-        assertEquals(setOf("space-sc"), UbisoftLibrary.ownedBySpace(owned).keys)
+    @Test fun withoutAnOwnershipAnswerTheProfileListStays() {
+        val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-gone", "Free Weekend"))
+        assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, JSONObject().put("error", "demux closed")).map { it.id })
+        assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, null).map { it.id })
+    }
+
+    @Test fun theStoreSearchNamesEachGameWithItsPrice() {
+        fun hit(id: String, title: String, price: Double, base: Double, off: String, date: String, free: String = "") = JSONObject()
+            .put("objectID", id).put("title", title).put("price", JSONObject().put("USD", price)).put("default_price", JSONObject().put("USD", base))
+            .put("promotion_percentage", off).put("release_date", date).put("Free_offer", free).put("link", "https://store.ubisoft.com/us/$id.html")
+            .put("image_link", "https://img/$id.jpg?sw=300").put("productLauncherIDString", id.takeLast(3)).put("Rating", "esrb-m")
+        val answer = JSONObject().put("hits", JSONArray()
+            .put(hit("p-109", "Far Cry® 6", 15.0, 60.0, "75", "2021-10-07T00:00:00.000Z"))
+            .put(hit("p-110", "Far Cry® 6 - Gold Edition", 30.0, 100.0, "70", "2021-10-07T00:00:00.000Z"))
+            .put(hit("p-111", "Some Demo", 0.0, 0.0, "", "2021-10-07T00:00:00.000Z", free = "demo"))
+            .put(hit("p-112", "Next Year", 70.0, 70.0, "", "2030-01-01T00:00:00.000Z")))
+        val items = UbisoftStore.parse(answer, "USD", java.time.Instant.parse("2026-11-12T00:00:00Z"))
+        assertEquals(listOf("Far Cry® 6"), items.map { it.title })
+        val game = items.single()
+        assertEquals("$15.00", game.finalPrice)
+        assertEquals("$60.00", game.originalPrice)
+        assertEquals(75, game.discountPercent)
+        assertEquals("https://img/p-109.jpg", game.imageUrl)
+        assertTrue(game.mature)
+        val owned = CatalogItem(Store.UBISOFT, "space-fc6", "Far Cry 6", null, owned = true, extra = mapOf("productId" to "5266"))
+        val ezio = CatalogItem(Store.UBISOFT, "ubisoft-store:x", "Assassin's Creed® The Ezio Collection", null)
+        assertTrue(UbisoftStore.sameGame(game, owned))
+        assertTrue(!UbisoftStore.sameGame(ezio, CatalogItem(Store.UBISOFT, "space-ac", "Assassin's Creed™", null, owned = true)))
+    }
+
+    @Test fun theBaseEditionStandsForItsGameWhicheverComesFirst() {
+        fun hit(id: String, title: String) = JSONObject().put("objectID", id).put("title", title).put("price", JSONObject().put("USD", 10.0))
+        val answer = JSONObject().put("hits", JSONArray().put(hit("gold", "Far Cry® 6 - Gold Edition")).put(hit("base", "Far Cry® 6")))
+        assertEquals(listOf("ubisoft-store:base"), UbisoftStore.parse(answer, "USD").map { it.id })
     }
 
     @Test fun theEntitlementNamesTheGamesApplication() {

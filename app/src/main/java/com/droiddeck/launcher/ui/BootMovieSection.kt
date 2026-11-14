@@ -142,18 +142,29 @@ private fun TabChip(label: String, selected: Boolean, modifier: Modifier = Modif
 @Composable
 internal fun BootMovieGroup(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
     var tab by rememberSaveable { mutableStateOf(MovieTab.INSTALLED) }
+    val app = LocalContext.current.applicationContext
+    var skipBootMovie by remember { mutableStateOf(SessionPrefs.skipBootMovie(app)) }
     SettingsGroup(stringResource(R.string.boot_movie)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp)) {
-            TabChip(stringResource(R.string.boot_movie_tab_installed), tab == MovieTab.INSTALLED, Modifier.weight(1f)) { tab = MovieTab.INSTALLED }
-            TabChip(stringResource(R.string.boot_movie_tab_import), tab == MovieTab.IMPORT, Modifier.weight(1f)) { tab = MovieTab.IMPORT }
-            TabChip(stringResource(R.string.boot_movie_tab_repo), tab == MovieTab.REPO, Modifier.weight(1f)) { tab = MovieTab.REPO }
-            TabChip(stringResource(R.string.boot_movie_tab_sound), tab == MovieTab.SOUND, Modifier.weight(1f)) { tab = MovieTab.SOUND }
+        ToggleRow(
+            host, "boot-movie-skip", stringResource(R.string.boot_movie_skip),
+            stringResource(R.string.boot_movie_skip_hint), skipBootMovie,
+        ) { enabled ->
+            skipBootMovie = enabled
+            SessionPrefs.setSkipBootMovie(app, enabled)
         }
-        when (tab) {
-            MovieTab.INSTALLED -> InstalledTab(a)
-            MovieTab.IMPORT -> ImportTab(s, a)
-            MovieTab.REPO -> RepoTab(a)
-            MovieTab.SOUND -> SoundTab(s, a, host)
+        if (!skipBootMovie) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp)) {
+                TabChip(stringResource(R.string.boot_movie_tab_installed), tab == MovieTab.INSTALLED, Modifier.weight(1f)) { tab = MovieTab.INSTALLED }
+                TabChip(stringResource(R.string.boot_movie_tab_import), tab == MovieTab.IMPORT, Modifier.weight(1f)) { tab = MovieTab.IMPORT }
+                TabChip(stringResource(R.string.boot_movie_tab_repo), tab == MovieTab.REPO, Modifier.weight(1f)) { tab = MovieTab.REPO }
+                TabChip(stringResource(R.string.boot_movie_tab_sound), tab == MovieTab.SOUND, Modifier.weight(1f)) { tab = MovieTab.SOUND }
+            }
+            when (tab) {
+                MovieTab.INSTALLED -> InstalledTab(a)
+                MovieTab.IMPORT -> ImportTab(s, a)
+                MovieTab.REPO -> RepoTab(a)
+                MovieTab.SOUND -> SoundTab(s, a, host)
+            }
         }
     }
 }

@@ -104,7 +104,7 @@ Run the batch/reference and work-budget regressions with
 
 ## Game debug logs
 
-Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
+Under **Setup > Developer**, enable **Session logs** and **Game debug logs**
 before reproducing a Windows game problem. Game debug logs is off by default and
 is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
 Valve or third-party Proton wrapper, including added games and store shortcuts.
@@ -142,7 +142,7 @@ that diagnostics were skipped instead of writing uncollected files elsewhere.
 
 ## Enhanced diagnostics
 
-Use **Setup > Diagnostics > Enhanced diagnostics for next session** when normal
+Use **Setup > Developer > Enhanced diagnostics for next session** when normal
 session logs are not enough. The setting is one-shot: DroidDeck creates and
 retains the next session's log directory, records the diagnostic profile, then
 turns the setting off. It also enables the existing game diagnostic environment
@@ -254,6 +254,14 @@ The former feature-level rules for Caravan SandWitch, RoboCop: Rogue City,
 ReSkate and Cyberpunk 2077 compensated for the global `12_2` override and are
 removed. Stellar Blade also uses automatic detection. The separate Deep Rock
 Galactic GDK ray-tracing opt-out and Mali bridge capability cap remain.
+
+"Skip GL error checks" (under "Client interface") sets `MESA_NO_ERROR=1` for the client
+interface and Chromium apps only. Games keep Mesa's GL error checks: with
+`MESA_NO_ERROR`, an invalid call such as `glBufferData` with no buffer bound reads
+a NULL buffer object instead of returning `GL_INVALID_OPERATION`, and the game's
+render thread stops. A game profile entry, or `MESA_NO_ERROR` in the session's own
+environment, still applies to games.
+
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,

@@ -41,6 +41,7 @@ object WirelessAdbFix {
         writeAtomically(context, key, identity.second)
     }
 
+    @Synchronized
     private fun writeAtomically(context: Context, destination: File, contents: ByteArray) {
         val temporary = File(destination.parentFile, "${destination.name}.tmp")
         temporary.writeBytes(contents)
@@ -70,6 +71,52 @@ object WirelessAdbFix {
         "$host:${saved.port ?: ""}"
     }
 
+    /**
+     * The saved pairing's connect address, looked up again when it no longer answers: Wireless
+     * debugging moves to another port whenever it restarts.
+     */
+    fun liveConnectAddress(context: Context): String? {
+        val app = context.applicationContext
+        val saved = savedConnection(app) ?: return null
+        val host = if (':' in saved.host) "[${saved.host}]" else saved.host
+        saved.port?.takeIf { answers(saved.host, it) }?.let { return "$host:$it" }
+        val loopback = runCatching { InetAddress.getByName(saved.host).isLoopbackAddress }.getOrDefault(false)
+        val port = if (loopback) loopbackAdbPort(app) else findConnectPort(app, saved.host, accept = { answers(saved.host, it) })
+        port ?: return null
+        saveConnection(app, saved.host, port)
+        return "$host:$port"
+    }
+
+    /**
+     * Wireless debugging's port on this device. Apps can read neither service.adb.tls.port nor the
+     * socket table, and mDNS often advertises nothing, so the ephemeral range Linux gives adbd is
+     * scanned on loopback (closed ports refuse at once) and the open ports are tried with our key.
+     */
+    private fun loopbackAdbPort(app: Context): Int? {
+        val open = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+        val workers = 32
+        val range = EPHEMERAL_PORTS
+        (0 until workers).map { worker ->
+            Thread {
+                var port = range.first + worker
+                while (port <= range.last) {
+                    if (answers(LOOPBACK, port, 150)) open += port
+                    port += workers
+                }
+            }.apply { start() }
+        }.forEach { it.join() }
+        loadOrCreateIdentity(app)
+        return open.sorted().firstOrNull { port ->
+            runCatching { Kadb.create(LOOPBACK, port, 1_000, 3_000).use { it.shell("true").exitCode == 0 } }.getOrDefault(false)
+        }
+    }
+
+    private val EPHEMERAL_PORTS = 32768..60999
+
+    private fun answers(host: String, port: Int, timeoutMs: Int = 500) = runCatching {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), timeoutMs) }
+    }.isSuccess
+
     private fun saveConnection(context: Context, host: String, port: Int) {
         writeAtomically(
             context,
@@ -94,7 +141,8 @@ object WirelessAdbFix {
             .invoke(null, "service.adb.tls.port") as? String
     }.getOrNull()?.trim()?.toIntOrNull()?.takeIf { it in 1..65535 }
 
-    fun findConnectPort(context: Context, pairedHost: String, timeoutSeconds: Long = 12): Int? {
+    /** [accept] can pass over stale services that still advertise a port Wireless debugging left. */
+    fun findConnectPort(context: Context, pairedHost: String, timeoutSeconds: Long = 12, accept: (Int) -> Boolean = { true }): Int? {
         val manager = context.applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
         val paired = runCatching { InetAddress.getByName(pairedHost) }.getOrNull() ?: return null
         val matches: (InetAddress) -> Boolean =
@@ -122,7 +170,7 @@ object WirelessAdbFix {
 
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                         val address = serviceInfo.host
-                        if (address != null && matches(address) && finished.compareAndSet(false, true)) {
+                        if (address != null && matches(address) && accept(serviceInfo.port) && finished.compareAndSet(false, true)) {
                             resolvedPort.set(serviceInfo.port)
                             latch.countDown()
                         } else {
