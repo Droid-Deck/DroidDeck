@@ -25,9 +25,11 @@ object CloudSaves {
     private const val PARALLEL = 6
     private const val CLOUD_LAYOUT = 2
 
-    class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0) {
+    class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0, val detail: String = "") {
         val ok: Boolean get() = result != "failed"
-        val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" + if (conflicts > 0) " conflicts=$conflicts" else ""
+        val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" +
+            (if (conflicts > 0) " conflicts=$conflicts" else "") +
+            if (detail.isNotEmpty()) " detail=\"$detail\"" else ""
     }
 
     class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
@@ -126,7 +128,7 @@ object CloudSaves {
             )
             if (picked == null) GogConfig("", "") else GogConfig(picked.name, picked.template)
         } catch (e: Exception) {
-            Log.w(TAG, "gog remote-config: ${e.javaClass.simpleName}")
+            Log.w(TAG, "gog remote-config: ${cloudFailureDetail(e)}")
             null
         }
     }
@@ -166,7 +168,7 @@ object CloudSaves {
             val galaxy = GogAuth.validToken(context)
             val clientId = gogClientId(context, id, folder)
             if (userId.isEmpty() || galaxy == null || clientId == null) null
-            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy, gogLocationName(context, id, folder))
+            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy, gogLocationName(context, id, folder), tempDir = context.cacheDir)
         }
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context)
@@ -312,7 +314,7 @@ object CloudSaves {
             rememberNoCloud(prefs(context, store), id)
             Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
-            Result("failed", 0, 0, e.javaClass.simpleName)
+            Result("failed", 0, 0, e.javaClass.simpleName, detail = cloudFailureDetail(e))
         }
         return done(store, id, way, result)
     }
