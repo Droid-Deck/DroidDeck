@@ -30,6 +30,118 @@ import kotlin.math.sqrt
 @Config(sdk = [33], qualifiers = "xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DroidDeckHudPanelTest {
+    @Test fun pillFitsLongGeneratedReadingsInsideItsFpsColumn() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "pill")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        fun field(name: String) = DroidDeckHudView::class.java.getDeclaredField(name).apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val measure = DroidDeckHudView::class.java.getDeclaredMethod("measure", String::class.java, Float::class.javaPrimitiveType).apply { isAccessible = true }
+        var expectedWidth: Float? = null
+        for (presented in listOf(120f, 12000f, 1200000f)) {
+            field("fpsNow").setFloat(view, 60f)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            val width = field("contentW").getFloat(view)
+            expectedWidth?.let { assertEquals(it, width, 0.01f) }
+            expectedWidth = width
+            val divider = field("pillDivider").get(view) as RectF
+            val glyphs = field("glyphs").get(view) as List<*>
+            val line = glyphs.filterNotNull().filter { glyph ->
+                glyph.javaClass.getDeclaredField("glow").apply { isAccessible = true }.getBoolean(glyph)
+            }
+            assertEquals(2, line.size)
+            for (glyph in line) {
+                fun value(name: String) = glyph.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(glyph)
+                val right = (value("x") as Float) + (measure.invoke(view, value("text"), value("sizePx")) as Float)
+                assertTrue("FPS text must stay before the divider", right <= divider.left)
+            }
+            assertTrue(view.linesForTest().any { it.contains(presented.toInt().toString()) })
+        }
+    }
+
+    @Test fun tilesOutlineKeepsItsWidthWithMaximumFrametimeAndGeneratedFps() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "tiles")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val fps = DroidDeckHudView::class.java.getDeclaredField("fpsNow").apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val width = DroidDeckHudView::class.java.getDeclaredField("contentW").apply { isAccessible = true }
+        val widths = listOf(0f to 0f, 49f to 98f, 500f to 1000f).map { (rendered, presented) ->
+            fps.setFloat(view, rendered)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            width.getFloat(view)
+        }
+        widths.forEach { assertEquals(widths.first(), it, 0.01f) }
+    }
+
+    @Test fun fullOutlineKeepsItsWidthWithMaximumFrametimeAndGeneratedFps() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val fps = DroidDeckHudView::class.java.getDeclaredField("fpsNow").apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val width = DroidDeckHudView::class.java.getDeclaredField("contentW").apply { isAccessible = true }
+        val widths = listOf(0f to 0f, 49f to 98f, 500f to 1000f).map { (rendered, presented) ->
+            fps.setFloat(view, rendered)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            width.getFloat(view)
+        }
+        widths.forEach { assertEquals(widths.first(), it, 0.01f) }
+    }
+
+    @Test fun megaOutlineKeepsItsWidthWithMaximumFrametimeAndGeneratedFps() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "mega")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val fps = DroidDeckHudView::class.java.getDeclaredField("fpsNow").apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val width = DroidDeckHudView::class.java.getDeclaredField("contentW").apply { isAccessible = true }
+        val widths = listOf(0f to 0f, 49f to 98f, 500f to 1000f).map { (rendered, presented) ->
+            fps.setFloat(view, rendered)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            val lines = view.linesForTest()
+            assertTrue(lines.any { it.contains("FT") && it.contains("ms") && !it.contains("FPS") })
+            width.getFloat(view)
+        }
+        widths.forEach { assertEquals(widths.first(), it, 0.01f) }
+    }
+
+    @Test fun megaOutlineKeepsItsWidthAsGpuClockChangesDigitCount() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "mega")))
+        val width = DroidDeckHudView::class.java.getDeclaredField("contentW").apply { isAccessible = true }
+        val widths = listOf(9, 99, 999, 1000, 1500).map { clock ->
+            val snapshot = HudMetrics.Snapshot(64, 52, 3302, clock, 89, 79,
+                10_800_000_000L, 16_000_000_000L, 67f, 1_800_000_000L,
+                HudMetrics.Battery(16f, false, 79, 34, null),
+                intArrayOf(91, 48), intArrayOf(2265, 3148),
+                2_700_000_000L, 6_400_000_000L, 31_000L, 9_000L)
+            view.showForTest(snapshot, "DXVK", 0L)
+            width.getFloat(view)
+        }
+        widths.forEach { assertEquals(widths.first(), it, 0.01f) }
+    }
+
+    @Test fun pillOutlineKeepsItsWidthWhenGeneratedFpsReachesTripleDigits() {
+        val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "pill")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val fps = DroidDeckHudView::class.java.getDeclaredField("fpsNow").apply { isAccessible = true }
+        val rebuild = DroidDeckHudView::class.java.getDeclaredMethod("rebuild").apply { isAccessible = true }
+        val width = DroidDeckHudView::class.java.getDeclaredField("contentW").apply { isAccessible = true }
+        val widths = listOf(49f to 98f, 50f to 100f, 60f to 120f).map { (rendered, presented) ->
+            fps.setFloat(view, rendered)
+            view.setPresentedFps(presented)
+            rebuild.invoke(view)
+            width.getFloat(view)
+        }
+        widths.forEach { assertEquals(widths.first(), it, 0.01f) }
+    }
+
     @Test fun minimalIsTheSizeTheHudStartsWith() {
         assertEquals(DroidDeckHudSize.MINIMAL, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
     }
@@ -239,12 +351,13 @@ class DroidDeckHudPanelTest {
             return view.linesForTest()
         }
         val all = pill("showBattery" to "1")
+        val ramLabel = Regex("\\bRAM\\b")
         assertTrue(all.toString(), all.any { "BAT 79% · 34°C · 16.0W" in it })
         assertEquals(all.toString(), 1, all.count { "BAT" in it })
-        assertFalse(all.toString(), all.single { "RAM" in it }.contains("BAT"))
+        assertFalse(all.toString(), all.single { ramLabel.containsMatchIn(it) }.contains("BAT"))
 
         val noMemory = pill("showBattery" to "1", "showRAM" to "0")
-        assertTrue(noMemory.toString(), noMemory.none { "RAM" in it })
+        assertTrue(noMemory.toString(), noMemory.none { ramLabel.containsMatchIn(it) })
         assertTrue(noMemory.toString(), noMemory.any { "BAT 79% · 34°C · 16.0W" in it })
 
         val defaults = pill()
