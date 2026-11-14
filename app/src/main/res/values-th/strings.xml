@@ -1164,7 +1164,6 @@
     <string name="agent_plan_untouched">ยังไม่มีการเปลี่ยนแปลง</string>
     <string name="agent_plan_go_message">ดำเนินการตามแผนได้เลย</string>
     <string name="agent_send_now">ส่งตอนนี้</string>
-    <string name="agent_message">ข้อความ</string>
     <string name="agent_more">เพิ่มเติม</string>
     <string name="agent_close">ปิด</string>
     <string name="agent_latest">ล่าสุด</string>
@@ -2554,7 +2553,6 @@
     <string name="setup_agent_pet_float">เหนือแอปอื่น</string>
     <string name="setup_agent_pet_float_hint">ให้ DeeDee ลอยเหนือทุกแอปและเปิดแชทได้จากตรงนั้น</string>
     <string name="setup_agent_pet_allow">อนุญาต</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">แชทกับ DeeDee</string>
     <string name="library_display">การแสดงผล</string>
     <string name="library_display_larger">การ์ดใหญ่ขึ้น</string>

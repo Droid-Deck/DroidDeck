@@ -1167,7 +1167,6 @@
     <string name="agent_plan_untouched">Δεν έχει αλλάξει τίποτα ακόμη</string>
     <string name="agent_plan_go_message">Προχώρησε με το σχέδιο.</string>
     <string name="agent_send_now">Αποστολή τώρα</string>
-    <string name="agent_message">Μήνυμα</string>
     <string name="agent_more">Περισσότερα</string>
     <string name="agent_close">Κλείσιμο</string>
     <string name="agent_latest">Πιο πρόσφατο</string>
@@ -2579,7 +2578,6 @@
     <string name="setup_agent_pet_float">Πάνω από άλλες εφαρμογές</string>
     <string name="setup_agent_pet_float_hint">Αφήστε το DeeDee να εμφανίζεται πάνω από κάθε εφαρμογή και να ανοίγει εκεί τη συνομιλία</string>
     <string name="setup_agent_pet_allow">Να επιτρέπεται</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Συνομιλία με DeeDee</string>
     <string name="library_display">Προβολή</string>
     <string name="library_display_larger">Μεγαλύτερες κάρτες</string>

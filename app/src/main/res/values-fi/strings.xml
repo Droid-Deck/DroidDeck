@@ -1167,7 +1167,6 @@
     <string name="agent_plan_untouched">Ei muutoksia vielä</string>
     <string name="agent_plan_go_message">Aloita suunnitelman toteutus.</string>
     <string name="agent_send_now">Lähetä nyt</string>
-    <string name="agent_message">Viesti</string>
     <string name="agent_more">Lisää</string>
     <string name="agent_close">Sulje</string>
     <string name="agent_latest">Uusin</string>
@@ -2579,7 +2578,6 @@
     <string name="setup_agent_pet_float">Muiden sovellusten päällä</string>
     <string name="setup_agent_pet_float_hint">Anna DeeDee:n leijua kaikkien sovellusten päällä ja avata keskustelunsa siellä</string>
     <string name="setup_agent_pet_allow">Salli</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Keskustele DeeDee:n kanssa</string>
     <string name="library_display">Näkymä</string>
     <string name="library_display_larger">Suuremmat kortit</string>

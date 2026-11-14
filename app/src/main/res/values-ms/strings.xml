@@ -1164,7 +1164,6 @@
     <string name="agent_plan_untouched">Belum ada perubahan</string>
     <string name="agent_plan_go_message">Teruskan dengan pelan ini.</string>
     <string name="agent_send_now">Hantar sekarang</string>
-    <string name="agent_message">Mesej</string>
     <string name="agent_more">Lagi</string>
     <string name="agent_close">Tutup</string>
     <string name="agent_latest">Terkini</string>
@@ -2554,7 +2553,6 @@
     <string name="setup_agent_pet_float">Di atas apl lain</string>
     <string name="setup_agent_pet_float_hint">Benarkan DeeDee terapung di atas setiap apl dan buka sembangnya di situ</string>
     <string name="setup_agent_pet_allow">Benarkan</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Sembang dengan DeeDee</string>
     <string name="library_display">Paparan</string>
     <string name="library_display_larger">Kad lebih besar</string>

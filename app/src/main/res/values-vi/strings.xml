@@ -1164,7 +1164,6 @@
     <string name="agent_plan_untouched">Chưa có thay đổi nào</string>
     <string name="agent_plan_go_message">Hãy tiến hành kế hoạch.</string>
     <string name="agent_send_now">Gửi ngay</string>
-    <string name="agent_message">Tin nhắn</string>
     <string name="agent_more">Khác</string>
     <string name="agent_close">Đóng</string>
     <string name="agent_latest">Mới nhất</string>
@@ -2554,7 +2553,6 @@
     <string name="setup_agent_pet_float">Trên các ứng dụng khác</string>
     <string name="setup_agent_pet_float_hint">Cho DeeDee nổi trên mọi ứng dụng và mở khung trò chuyện của DeeDee ngay tại đó</string>
     <string name="setup_agent_pet_allow">Cho phép</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Trò chuyện với DeeDee</string>
     <string name="library_display">Hiển thị</string>
     <string name="library_display_larger">Thẻ lớn hơn</string>

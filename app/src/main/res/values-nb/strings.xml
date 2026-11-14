@@ -1167,7 +1167,6 @@
     <string name="agent_plan_untouched">Ingen endringer ennå</string>
     <string name="agent_plan_go_message">Gå videre med planen.</string>
     <string name="agent_send_now">Send nå</string>
-    <string name="agent_message">Melding</string>
     <string name="agent_more">Mer</string>
     <string name="agent_close">Lukk</string>
     <string name="agent_latest">Nyeste</string>
@@ -2579,7 +2578,6 @@
     <string name="setup_agent_pet_float">Over andre apper</string>
     <string name="setup_agent_pet_float_hint">La DeeDee flyte over alle apper og åpne chatten sin der</string>
     <string name="setup_agent_pet_allow">Tillat</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chat med DeeDee</string>
     <string name="library_display">Visning</string>
     <string name="library_display_larger">Større kort</string>
