@@ -66,6 +66,7 @@ class StoreLoginActivity : ComponentActivity() {
         val pageScript: String get() = "(function(){ try { return document.body.innerText; } catch(e){ return ''; } })()"
         fun pageReady(result: String): Boolean = true
         fun forgetSignIn(done: () -> Unit) = done()
+        fun pageFinished(view: WebView, url: String) {}
     }
 
     private var store: Store? = null
@@ -283,6 +284,7 @@ class StoreLoginActivity : ComponentActivity() {
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
+            if (!isPopup && url != null && view != null) flow?.pageFinished(view, url)
             if (url != null && view != null && flow?.readsPage == true && flow?.isRedirect(url) == true) complete(view, url)
         }
 

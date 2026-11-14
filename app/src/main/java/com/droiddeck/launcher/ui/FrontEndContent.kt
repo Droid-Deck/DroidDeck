@@ -115,6 +115,7 @@ internal fun Pane(
             s.pageKey != null && page != null -> null
             selected.startsWith("app:") -> s.steamGames.firstOrNull { "app:${it.appId}" == selected }?.art
             selected == "games" -> s.steamGames.maxByOrNull { it.lastPlayed }?.art
+            selected.startsWith("sound:") -> s.soundtracks.firstOrNull { "sound:${it.appId}" == selected }?.let { it.hero ?: it.art }
             selected.startsWith("rom:") -> romFor(s, selected)?.second?.art
             else -> null
         }
@@ -124,10 +125,12 @@ internal fun Pane(
         val origins = remember { HashMap<String, Origin>() }
         val paneAt = remember { arrayOf(Offset.Zero) }
         val livePage by rememberUpdatedState(s.pageKey)
-        val railContent = if (selected.startsWith("app:")) "games" else selected
+        val railContent = if (selected.startsWith("app:")) "games" else if (selected.startsWith("sound:")) "soundtracks" else selected
         val target = if (page != null && s.pageKey != null) s.pageKey else railContent
         val gameShown = remember { arrayOf("games") }
         if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
+        val soundShown = remember { arrayOf("soundtracks") }
+        if (selected == "soundtracks" || selected.startsWith("sound:")) soundShown[0] = selected
         val before = remember { arrayOf(target) }
         if (page != null && s.pageKey != null) {
             pages[s.pageKey] = page
@@ -171,7 +174,7 @@ internal fun Pane(
             label = "pane",
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
-                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
+                ?: { Content(s, if (key == "games") gameShown[0] else if (key == "soundtracks") soundShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -262,12 +265,16 @@ private fun Content(
         StoresPage(s, a, modifier)
         return
     }
-    if (selected == "games" || selected.startsWith("app:")) {
+    if (selected == "games" || selected.startsWith("app:") || selected == "soundtracks" || selected.startsWith("sound:")) {
         LibraryPage(s, a, selected, onSelect, modifier)
         return
     }
     if (selected == "desktop") {
         DesktopPage(s, a, modifier, onSelect)
+        return
+    }
+    if (selected == NavTabs.MORE) {
+        MorePage(s, a, onSelect, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
     if (selected == "agent") {

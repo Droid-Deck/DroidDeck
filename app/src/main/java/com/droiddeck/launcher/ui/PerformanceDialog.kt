@@ -36,6 +36,7 @@ fun PerformancePage(
     clientOverride: Boolean,
     clientCores: Set<Int>,
     gameCores: Set<Int>,
+    paceCores: Boolean,
     tuSysmem: Boolean,
     zinkLazy: Boolean,
     glThread: Boolean,
@@ -59,6 +60,7 @@ fun PerformancePage(
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
+    onPaceCores: (Boolean) -> Unit,
     onTuSysmem: (Boolean) -> Unit,
     onZinkLazy: (Boolean) -> Unit,
     onGlThread: (Boolean) -> Unit,
@@ -106,6 +108,11 @@ fun PerformancePage(
                 host, "gameCores", stringResource(R.string.perf_game_cores),
                 stringResource(R.string.perf_game_cores_hint),
                 coreItems, gameCores, onToggle = onGameCore,
+            )
+            ToggleRow(
+                host, "paceCores", stringResource(R.string.perf_pace_cores),
+                stringResource(R.string.perf_pace_cores_hint),
+                paceCores, onChange = onPaceCores,
             )
         }
         SettingsGroup(stringResource(R.string.perf_client_ui)) {

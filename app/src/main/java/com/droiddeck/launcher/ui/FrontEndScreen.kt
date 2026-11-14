@@ -181,6 +181,10 @@ class FrontEndState(
     val lowStorageWarning: Boolean = true,
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val gameStoresEnabled: Boolean = true,
+    val soundtracksEnabled: Boolean = true,
+    val soundtracksIngame: Boolean = false,
+    val soundtracks: List<Library.SteamGame> = emptyList(),
+    val soundtracksLoaded: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
@@ -285,6 +289,11 @@ class FrontEndActions(
     val onDownloadPrefix: (String) -> Unit = {},
     val onDownloadProxy: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
+    val onSoundtracksEnabled: (Boolean) -> Unit = {},
+    val onSoundtracksIngame: (Boolean) -> Unit = {},
+    val onSoundtrackAdded: (java.io.File) -> Unit = {},
+    val onSoundtracksChanged: () -> Unit = {},
+    val onSoundtrackRemoved: (Library.SteamGame) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
@@ -459,7 +468,9 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
-    var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
+    var selected by rememberSaveable {
+        mutableStateOf(if (s.shortcutPicker) "games" else if (NavTabs.place(s, "steam") == TabPlace.HIDDEN) navigationKeys(s).first { it != "components" } else "steam")
+    }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
@@ -566,20 +577,32 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
+    val backToMore = s.pageKey == null && Hops.origin == null && selected in NavTabs.more(s)
+    BackHandler(enabled = !processSettingsPageVisible && backToMore) {
+        selected = NavTabs.MORE
+    }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
-    LaunchedEffect(s.steamGames.isEmpty()) {
-        if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
+    LaunchedEffect(s.soundtracksEnabled) {
+        if (!s.soundtracksEnabled && (selected == "soundtracks" || selected.startsWith("sound:"))) selected = "games"
+    }
+    LaunchedEffect(s.steamGames.isEmpty(), s.soundtracks, s.soundtracksLoaded) {
+        if (s.steamGames.isEmpty() && selected.startsWith("app:")) {
+            val id = GameRef.parse(selected).appId
+            if (id != null && s.soundtracks.none { it.appId == id } && s.soundtracksLoaded) selected = "games"
+        }
     }
     remember { Motion.refresh(ctx); true }
 
-    val railSelection = when {
+    val openTab = when {
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
         s.pageKey == "performance" -> "steam"
         s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
+        selected.startsWith("sound:") -> "soundtracks"
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
+    val railSelection = if (openTab in NavTabs.more(s)) NavTabs.MORE else openTab
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
@@ -688,14 +711,14 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             val r = Hops.restore ?: return@LaunchedEffect
             if (r.surface == HOP_SURFACE_SHEET) return@LaunchedEffect
             Hops.restore = null
-            if (r.rail != selected && !(r.rail == "games" && selected.startsWith("app:"))) selected = r.rail
+            if (r.rail != selected && !(r.rail == "games" && selected.startsWith("app:")) && !(r.rail == "soundtracks" && selected.startsWith("sound:"))) selected = r.rail
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
             frontFocus.last = r.control
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
-        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, openTab, { key ->
             if (processSettingsPageVisible) return@DualPanelPublisher
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
             focusManager.clearFocus(force = true)
@@ -818,7 +841,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             )
         }
     }
-    val hasBackTarget = (s.pageKey != null && page != null) ||
+    val hasBackTarget = backToMore || (s.pageKey != null && page != null) ||
         (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))

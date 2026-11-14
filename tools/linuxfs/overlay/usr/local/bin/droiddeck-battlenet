@@ -88,6 +88,8 @@ COUNTRY = re.compile(r"[A-Z]{3}")
 REGION = re.compile(r"[A-Z]{2}")
 REPORT = "BNET"
 ETA_LIMIT = 30 * 86400
+STALL = 600
+MOVING = ("download_current", "download_total", "progress", "playable_progress", "state", "phase", "paused", "error")
 DONE_STATE = 1004
 REPORTED = ("progress", "playable_progress", "download_rate", "download_remaining", "estimated_time_in_sec", "state",
             "playable", "paused", "download_complete", "installed", "error")
@@ -118,6 +120,12 @@ function field(text, name) {
   return m ? m[1] : "";
 }
 
+function job(text) {
+  if (/"error"\s*:\s*[1-9]/.test(text)) return false;
+  var bare = text.replace(/"extended_status"\s*:\s*\{[^}]*\}/, "");
+  return /"state"\s*:\s*\d+/.test(bare) || /"download_current"\s*:/.test(bare);
+}
+
 function install() {
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
@@ -140,7 +148,7 @@ function watch(path) {
     if (/"error"\s*:\s*[1-9]/.test(s)) break;
     var state = /"state"\s*:\s*(\d+)/.exec(s.replace(/"extended_status"\s*:\s*\{[^}]*\}/, "")), complete = /"download_complete"\s*:\s*true/.test(s);
     state = state ? +state[1] : 0;
-    if (state == 1000 || state == 1003 || !complete) started = true;
+    if (state == 1000 || state == 1003 || job(s) && !complete) started = true;
     if (started && (state == 1004 || complete && /"playable"\s*:\s*true/.test(s))) break;
     if (!started && state == 1004 && i >= 20) break;
     if (!started && i >= 180) {
@@ -1376,7 +1384,7 @@ def summary(status):
     return out
 
 
-def agent_job(root, action, uid, product="", folder="", locale="enUS", country="USA", region="US", poll=None, wait=None):
+def agent_job(root, action, uid, product="", folder="", locale="enUS", country="USA", region="US", poll=None, wait=None, stall=None):
     pfx = os.path.join(prefix(root), "pfx")
     if not installed(root) or agent_exe(root) is None:
         emit("ERROR", "client")
@@ -1432,6 +1440,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 os.replace(output, output + ".1")
         except OSError:
             pass
+        before = {pid for pid, _ in wine_processes(pfx)}
         with open(output, "ab") as log:
             try:
                 child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
@@ -1439,6 +1448,9 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 emit("ERROR", "stopped gamescope: %s" % error)
                 return 1
         seen = None
+        mark = None
+        moved = time.monotonic()
+        stalled = False
         while True:
             done = child.poll() is not None
             status = read_status(base + ".json")
@@ -1447,12 +1459,27 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 if brief != seen:
                     emit("PROGRESS", json.dumps(brief, sort_keys=True))
                     seen = brief
+                signature = tuple(brief.get(key) for key in MOVING)
+                if signature != mark:
+                    mark = signature
+                    moved = time.monotonic()
             if done:
+                break
+            if action != "uninstall" and time.monotonic() - moved > (STALL if stall is None else stall):
+                say("the %s of %s made no progress for %d s; stopping it" % (action, uid, STALL if stall is None else stall))
+                stalled = True
+                child.kill()
+                child.wait()
                 break
             time.sleep(POLL if poll is None else poll)
         leftovers = wine_processes(pfx)
         if leftovers and idle(leftovers):
             stop(leftovers)
+        elif stalled:
+            stop([(pid, argv) for pid, argv in leftovers if pid not in before and program(argv) == AGENT])
+        if stalled:
+            emit("ERROR", "stalled")
+            return 6
         answer = read_status(base + ".game")
         game = answer or {}
         status = read_status(base + ".json") or {}

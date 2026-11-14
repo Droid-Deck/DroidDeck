@@ -700,7 +700,7 @@ char *getcwd(char *buf, size_t size) {
     char *res = orig_getcwd ? orig_getcwd(buf, size) : NULL;
     if (res) {
         size_t len = strlen(res);
-        guest_path_of_mount_source(res, len, buf ? size : len + 1);
+        guest_path_of_mount_source(res, len, buf ? size : len + 1, NULL);
     }
     return res;
 }
@@ -749,7 +749,7 @@ char *realpath(const char *path, char *resolved_path) {
             }
         }
     }
-    if (res) guest_path_of_mount_source(res, strlen(res), resolved_path ? PATH_MAX : strlen(res) + 1);
+    if (res) guest_path_of_mount_source(res, strlen(res), resolved_path ? PATH_MAX : strlen(res) + 1, NULL);
     return res;
 }
 

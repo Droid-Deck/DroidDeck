@@ -77,6 +77,9 @@ class AgentHostService : Service() {
         private fun describe(context: Context): String {
             val lab = AgentHost.lab?.takeIf { it.running }
             if (lab != null) return context.getString(R.string.agent_lab_progress, lab.permille / 10, minutes(lab.etaSeconds.toLong().coerceAtLeast(0)))
+            AgentSetup.detail[AgentSetup.Step.GITHUB]?.takeIf {
+                AgentSetup.status[AgentSetup.Step.GITHUB] == AgentSetup.Status.WORKING && it.startsWith("GitHub device code:")
+            }?.let { return it }
             if (AgentHost.state != AgentHost.State.WORKING) return context.getString(R.string.agent_setting_up)
             val tool = AgentHost.running()
             val elapsed = minutes((SystemClock.elapsedRealtime() - AgentHost.turnStarted) / 1000)
