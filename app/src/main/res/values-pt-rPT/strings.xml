@@ -1162,7 +1162,6 @@
     <string name="agent_plan_untouched">Ainda nada mudou</string>
     <string name="agent_plan_go_message">Avançar com o plano.</string>
     <string name="agent_send_now">Enviar agora</string>
-    <string name="agent_message">Mensagem</string>
     <string name="agent_more">Mais</string>
     <string name="agent_close">Fechar</string>
     <string name="agent_latest">Mais recente</string>
@@ -2596,7 +2595,6 @@
     <string name="setup_agent_pet_float">Sobre outras aplicações</string>
     <string name="setup_agent_pet_float_hint">Permitir que a DeeDee flutue sobre todas as aplicações e abra aí a conversa</string>
     <string name="setup_agent_pet_allow">Permitir</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Conversar com a DeeDee</string>
     <string name="library_display">Apresentação</string>
     <string name="library_display_larger">Cartões maiores</string>

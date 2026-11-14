@@ -1173,7 +1173,6 @@
     <string name="agent_plan_untouched">Поки нічого не змінено</string>
     <string name="agent_plan_go_message">Виконайте план.</string>
     <string name="agent_send_now">Надіслати зараз</string>
-    <string name="agent_message">Повідомлення</string>
     <string name="agent_more">Ще</string>
     <string name="agent_close">Закрити</string>
     <string name="agent_latest">Найновіше</string>
@@ -2631,7 +2630,6 @@
     <string name="setup_agent_pet_float">Поверх інших застосунків</string>
     <string name="setup_agent_pet_float_hint">Дозволити DeeDee відображатися поверх усіх застосунків і відкривати там чат</string>
     <string name="setup_agent_pet_allow">Дозволити</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Чат з DeeDee</string>
     <string name="library_display">Вигляд</string>
     <string name="library_display_larger">Великі картки</string>

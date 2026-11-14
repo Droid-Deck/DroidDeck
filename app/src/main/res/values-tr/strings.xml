@@ -1159,7 +1159,6 @@
     <string name="agent_plan_untouched">Henüz bir şey değişmedi</string>
     <string name="agent_plan_go_message">Planla devam et.</string>
     <string name="agent_send_now">Şimdi gönder</string>
-    <string name="agent_message">Mesaj</string>
     <string name="agent_more">Diğer</string>
     <string name="agent_close">Kapat</string>
     <string name="agent_latest">En son</string>
@@ -2571,7 +2570,6 @@
     <string name="setup_agent_pet_float">Diğer uygulamaların üzerinde</string>
     <string name="setup_agent_pet_float_hint">DeeDee\'nin her uygulamanın üzerinde görünmesine ve sohbetini orada açmasına izin ver</string>
     <string name="setup_agent_pet_allow">İzin ver</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">DeeDee ile sohbet et</string>
     <string name="library_display">Görünüm</string>
     <string name="library_display_larger">Daha büyük kartlar</string>

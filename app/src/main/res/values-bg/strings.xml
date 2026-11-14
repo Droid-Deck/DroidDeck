@@ -1167,7 +1167,6 @@
     <string name="agent_plan_untouched">Още нищо не е променено</string>
     <string name="agent_plan_go_message">Изпълни плана.</string>
     <string name="agent_send_now">Изпрати сега</string>
-    <string name="agent_message">Съобщение</string>
     <string name="agent_more">Още</string>
     <string name="agent_close">Затвори</string>
     <string name="agent_latest">Най-новото</string>
@@ -2579,7 +2578,6 @@
     <string name="setup_agent_pet_float">Над други приложения</string>
     <string name="setup_agent_pet_float_hint">Позволи на DeeDee да се показва над всяко приложение и да отваря чата си там</string>
     <string name="setup_agent_pet_allow">Разреши</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Чат с DeeDee</string>
     <string name="library_display">Изглед</string>
     <string name="library_display_larger">По-големи карти</string>

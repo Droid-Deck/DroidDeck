@@ -694,6 +694,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AgentGuest.readyListener = agentReadyListener
+        com.droiddeck.launcher.agent.AgentAttachments.gameFrame = gameFrame
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -3764,37 +3765,46 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         runningGame = { gestureGame },
     ))
 
-    private fun captureScreenshot(onDone: (Boolean) -> Unit) {
+    private fun captureScreenshot(onDone: (Boolean) -> Unit) = copyGameFrame { bitmap ->
+        if (bitmap == null) {
+            onDone(false)
+            return@copyGameFrame
+        }
+        Thread {
+            val saved = com.droiddeck.launcher.session.BottomScreenshots.save(applicationContext, bitmap)
+            bitmap.recycle()
+            runOnUiThread { onDone(saved) }
+        }.start()
+    }
+
+    private val gameFrame: ((android.graphics.Bitmap?) -> Unit) -> Unit = { copyGameFrame(it) }
+
+    /** The game's own surface, without anything DroidDeck draws over it; the caller recycles the bitmap. */
+    private fun copyGameFrame(onFrame: (android.graphics.Bitmap?) -> Unit) {
         val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
             else if (::surfaceView.isInitialized) surfaceView else null
         val width = source?.width ?: 0
         val height = source?.height ?: 0
         if (source == null || width <= 0 || height <= 0 || source.holder.surface?.isValid != true) {
-            onDone(false)
+            onFrame(null)
             return
         }
         val bitmap = try {
             android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
         } catch (_: OutOfMemoryError) {
-            onDone(false)
+            onFrame(null)
             return
         }
         try {
             android.view.PixelCopy.request(source, bitmap, { result ->
                 if (result != android.view.PixelCopy.SUCCESS) {
                     bitmap.recycle()
-                    onDone(false)
-                    return@request
-                }
-                Thread {
-                    val saved = com.droiddeck.launcher.session.BottomScreenshots.save(applicationContext, bitmap)
-                    bitmap.recycle()
-                    runOnUiThread { onDone(saved) }
-                }.start()
+                    onFrame(null)
+                } else onFrame(bitmap)
             }, uiHandler)
         } catch (_: IllegalArgumentException) {
             bitmap.recycle()
-            onDone(false)
+            onFrame(null)
         }
     }
 
@@ -5670,6 +5680,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             frameGenRequests.incrementAndGet()
         }
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
+        if (com.droiddeck.launcher.agent.AgentAttachments.gameFrame === gameFrame) com.droiddeck.launcher.agent.AgentAttachments.gameFrame = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()

@@ -1164,7 +1164,6 @@
     <string name="agent_plan_untouched">Belum ada perubahan</string>
     <string name="agent_plan_go_message">Jalankan rencana ini.</string>
     <string name="agent_send_now">Kirim sekarang</string>
-    <string name="agent_message">Pesan</string>
     <string name="agent_more">Lainnya</string>
     <string name="agent_close">Tutup</string>
     <string name="agent_latest">Terbaru</string>
@@ -2554,7 +2553,6 @@
     <string name="setup_agent_pet_float">Di atas aplikasi lain</string>
     <string name="setup_agent_pet_float_hint">Izinkan DeeDee melayang di atas semua aplikasi dan membuka obrolannya di sana</string>
     <string name="setup_agent_pet_allow">Izinkan</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chat dengan DeeDee</string>
     <string name="library_display">Tampilan</string>
     <string name="library_display_larger">Kartu lebih besar</string>
