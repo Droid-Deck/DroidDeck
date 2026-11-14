@@ -157,7 +157,7 @@ class RumbleComponentTest {
     }
 
     @Test fun aProcessStartTimeIsReadForALiveProcessOnly() {
-        val self = ProcessHandle.current().pid().toInt()
+        val self = java.io.File("/proc/self").canonicalFile.name.toInt()
         val start = RumbleComponent.readProcessStart(self)
         assertNotNull(start)
         assertNotEquals(RumbleComponent.UNKNOWN_START, start)
