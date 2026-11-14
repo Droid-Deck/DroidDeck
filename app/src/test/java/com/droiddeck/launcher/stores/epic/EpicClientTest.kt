@@ -225,8 +225,9 @@ class EpicClientTest {
     }
 
     @Test fun launcherVersionComesFromTheRedirect() {
-        val location = "https://content-download-egs.distro.on.epicgames.com/Builds/EGLv2/0.95.2%2Bgfa9ad49/Linux/EpicGamesLauncher-x86_64.AppImage?launcherfilename=EpicGamesLauncher-x86_64.AppImage"
-        assertEquals("0.95.2+gfa9ad49", EpicClientSources.launcherVersion(location))
+        val location = "https://content-download-egs.distro.on.epicgames.com/Builds/EGLv2/0.113.0%2Bg2164614/Linux/EpicGamesLauncher-x86_64.deb?launcherfilename=EpicGamesLauncher-x86_64.deb"
+        assertEquals("0.113.0+g2164614", EpicClientSources.launcherVersion(location))
+        assertTrue(EpicClientSources.LAUNCHER_URL.endsWith("/" + EpicClientSources.LAUNCHER_FILE))
         assertNull(EpicClientSources.launcherVersion("http://content-download-egs.distro.on.epicgames.com/Builds/EGLv2/1.0/Linux/a"))
         assertNull(EpicClientSources.launcherVersion("https://example.com/Builds/EGLv2/..%2F..%2Fetc/Linux/a"))
         assertNull(EpicClientSources.launcherVersion("https://example.com/other/path"))
@@ -256,11 +257,33 @@ class EpicClientTest {
         assertEquals(true, EpicClientSources.etagMatches(file, hex(md5(data))))
     }
 
-    @Test fun appImageMagicIsRequired() {
-        val good = File(tmp.root, "a").apply { writeBytes(byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), 2, 1, 1, 0, 'A'.code.toByte(), 'I'.code.toByte(), 2, 0)) }
-        val bad = File(tmp.root, "b").apply { writeBytes(ByteArray(16)) }
-        assertTrue(EpicClientSources.isAppImage(good))
-        assertFalse(EpicClientSources.isAppImage(bad))
+    @Test fun debianPackageMagicIsRequired() {
+        val good = File(tmp.root, "a").apply { writeBytes("!<arch>\ndebian-binary/   0           0     0     100644  4         `\n2.0\n".toByteArray()) }
+        val plainAr = File(tmp.root, "b").apply { writeBytes("!<arch>\ndata.tar.gz/".toByteArray()) }
+        val appImage = File(tmp.root, "c").apply { writeBytes(byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), 2, 1, 1, 0, 'A'.code.toByte(), 'I'.code.toByte(), 2, 0)) }
+        val short = File(tmp.root, "d").apply { writeBytes("!<arch>".toByteArray()) }
+        assertTrue(EpicClientSources.isDeb(good))
+        assertFalse(EpicClientSources.isDeb(plainAr))
+        assertFalse(EpicClientSources.isDeb(appImage))
+        assertFalse(EpicClientSources.isDeb(short))
+        assertFalse(EpicClientSources.isDeb(File(tmp.root, "missing")))
+    }
+
+    @Test fun desktopPackagesArePinnedWithAFallbackMirror() {
+        val packages = EpicClientSources.DESKTOP
+        assertTrue(packages.isNotEmpty())
+        assertEquals(packages.size, packages.map { it.file }.toSet().size)
+        assertTrue(packages.any { it.file.startsWith("libwebkit2gtk-4.1-0_") })
+        assertTrue(packages.any { it.file.startsWith("libjavascriptcoregtk-4.1-0_") })
+        assertTrue(packages.any { it.file.startsWith("libgtk-3-0t64_") })
+        packages.forEach { p ->
+            assertTrue(p.path, Regex("^pool/main/[a-z0-9]+/[^/]+/[^/]+_amd64\\.deb$").matches(p.path))
+            assertTrue(p.path, Regex("^[0-9a-f]{64}$").matches(p.sha256))
+            assertTrue(p.path, p.size > 0)
+            assertEquals(listOf(EpicClientSources.DEBIAN + p.path, EpicClientSources.SNAPSHOT + p.path), p.urls)
+            assertTrue(p.urls.all { it.startsWith("https://") && it.endsWith("/" + p.file) })
+        }
+        assertTrue(EpicClientSources.GLES_FILE !in packages.map { it.file })
     }
 
     @Test fun signInUrlsMustRedirectToLoopback() {
