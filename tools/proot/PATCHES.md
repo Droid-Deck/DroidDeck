@@ -167,6 +167,52 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   with the same call number and invalid arguments. A trap answers `ENOSYS` again and the fast path
   stops for the process; any other error means the call reached the kernel, so only that one call
   is repeated through a plain `svc` and the fast path stays on.
+- `0028-guest-seccomp-keep-sigsys-unblocked.patch` - a seccomp trap that fires while `SIGSYS` is
+  blocked makes the kernel reset the `SIGSYS` handler to `SIG_DFL` (`force_sig_seccomp`), even
+  though PRoot answers the call and swallows the signal. glibc starts every thread with all signals
+  blocked and calls `set_robust_list`, which Android's policy traps, so a process with a filter of
+  its own lost its handler to a new thread, and the next trap of that filter killed it with signal
+  31. Firefox's content processes died this way soon after `Sandbox: using seccomp tsync`. Two
+  changes keep `SIGSYS` unblocked:
+  - A new thread starts with `SIGSYS` unblocked: at its first stop PRoot clears it from the
+    thread's mask (`PTRACE_GETSIGMASK`/`PTRACE_SETSIGMASK`), and glibc then restores the mask the
+    thread is meant to have. Firefox sets its handler before its filter, so a thread started in
+    between, or started before either, still reset it, and Firefox stopped at its own check that
+    the handler is still set (`SIGSYS not already set to a siginfo handler?`, signal 11). A thread a
+    debugger in the guest holds at that stop is unblocked too. Forked processes are left alone,
+    since no restore follows. This adds two `ptrace` calls per thread and
+    no stop; 2000 thread starts measured the same before and after (62.5 us each, median of 9).
+  - When the guest installs a filter (`seccomp(SECCOMP_SET_MODE_FILTER)` or `prctl(PR_SET_SECCOMP)`,
+    the only cases the filter now traces), PRoot first installs one through the same call, on the
+    same threads and with `TSYNC` when the guest asks for it, that traces `rt_sigprocmask` with
+    `SIG_BLOCK` or `SIG_SETMASK` and a set, and drops `SIGSYS` from those masks. Firefox's content
+    filter allows `rt_sigprocmask`, so the guard keeps firing after the install. The guest's call
+    then runs as a chained syscall. Its flag is committed only if the call succeeds: a filter the
+    kernel rejects, or a `TSYNC` that cannot sync a thread (it returns that thread's ID), leaves no
+    flag, and the guard's stops then change nothing. PRoot installs its own filter before the first
+    `execve`, so installs before it are skipped, and a guest install is tracked even when PRoot's
+    own one failed. A call without a filter, such as the probes Firefox's `SandboxInfo` makes in
+    every process, is left alone. Tasks without a filter of their own take no new stops; with one,
+    a thread start takes four, and a headless Firefox screenshot takes 68 in all. Without PRoot's
+    own filter the masks are filtered at the stops it already takes.
+
+  Not covered: a handler whose `sa_mask` blocks `SIGSYS` making an Android-refused call, masks set
+  through raw syscalls in processes without a filter, 32-bit guests (the guard matches the native
+  ABI only), and on Android 14 and older a process's first thread created between its handler and
+  its filter, since glibc then tries `clone3` once with every signal blocked. An outer wrapper that
+  installs a filter of its own, such as a test harness trapping `set_robust_list`, is guarded too,
+  which hides the races on a host unless the harness sits outside the guard.
+  `bench/guest-trap.c` starts a thread between two trapped opens under a filter shaped like
+  Firefox's. `bench/guest-trap-race.c` runs Firefox's order (handler, a wait until workers have started
+  threads, a check that the handler is still set, a `TSYNC` filter, trapped opens) in 20
+  processes; under the guest's own `strace -f` it covers a debugger holding new threads. `bench/guest-trap-tsync.c`, `bench/guest-trap-exec.c` and
+  `bench/guest-seccomp-install.c` cover a `TSYNC` install with threads already running, survival
+  across `execve`, empty-filter probes, rejected filters and a `TSYNC` that cannot sync. On an
+  x86_64 host build with a `set_robust_list` trap outside the guard, `guest-trap-race.c` passes
+  20/20, and fails 20/20 at the handler check with only the guard. Firefox 158's headless
+  screenshot with the content sandbox on renders exactly as without PRoot, with and without the
+  fast path. With `PROOT_NO_SECCOMP=1` on x86_64 a content process stops at Firefox's
+  `Illegal mixing of system call ABIs` check instead, a check arm64 does not have.
 
 Old kernel fixes:
 
