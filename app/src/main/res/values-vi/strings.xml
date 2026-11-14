@@ -1447,11 +1447,6 @@
     <string name="rail_more">Khác</string>
     <string name="more_edit_tabs">Chỉnh sửa thẻ</string>
     <string name="setup_group_tabs">Thẻ</string>
-    <string name="tabs_place_bar">Hiển thị</string>
-    <string name="tabs_place_more">Trong mục Khác</string>
-    <string name="tabs_place_hidden">Ẩn</string>
-    <string name="tabs_move_up">Chuyển %1$s lên</string>
-    <string name="tabs_move_down">Chuyển %1$s xuống</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Tiếp tục %1$s</string>
     <string name="roms_text">Hiển thị như /root/ROMs trong mỗi phiên. Bộ nhớ trong ở /root/Storage.</string>

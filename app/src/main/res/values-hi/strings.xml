@@ -1454,11 +1454,6 @@
     <string name="rail_more">अधिक</string>
     <string name="more_edit_tabs">टैब्स संपादित करें</string>
     <string name="setup_group_tabs">टैब्स</string>
-    <string name="tabs_place_bar">दिखाया जाए</string>
-    <string name="tabs_place_more">अधिक में</string>
-    <string name="tabs_place_hidden">छिपाया जाए</string>
-    <string name="tabs_move_up">%1$s को ऊपर ले जाएँ</string>
-    <string name="tabs_move_down">%1$s को नीचे ले जाएँ</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s फिर से शुरू करें</string>
     <string name="roms_text">हर सेशन में /root/ROMs के रूप में दिखता है। इंटरनल स्टोरेज /root/Storage पर है।</string>

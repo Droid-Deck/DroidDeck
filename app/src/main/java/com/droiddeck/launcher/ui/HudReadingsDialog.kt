@@ -108,7 +108,7 @@ private fun HudKeyHints(grabbed: String?, resetFill: Float) {
 }
 
 @Composable
-private fun KeyHint(key: String, label: String, fill: Float = 0f) {
+internal fun KeyHint(key: String, label: String, fill: Float = 0f) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(HINT_GAP),

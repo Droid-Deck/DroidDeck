@@ -1453,11 +1453,6 @@
     <string name="rail_more">Altro</string>
     <string name="more_edit_tabs">Modifica schede</string>
     <string name="setup_group_tabs">Schede</string>
-    <string name="tabs_place_bar">Visibile</string>
-    <string name="tabs_place_more">Nella sezione Altro</string>
-    <string name="tabs_place_hidden">Nascosta</string>
-    <string name="tabs_move_up">Sposta %1$s in alto</string>
-    <string name="tabs_move_down">Sposta %1$s in basso</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Riprendi %1$s</string>
     <string name="roms_text">Appare come /root/ROMs in ogni sessione. La memoria interna si trova in /root/Storage.</string>

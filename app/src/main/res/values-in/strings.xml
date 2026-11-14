@@ -1447,11 +1447,6 @@
     <string name="rail_more">Lainnya</string>
     <string name="more_edit_tabs">Edit tab</string>
     <string name="setup_group_tabs">Tab</string>
-    <string name="tabs_place_bar">Ditampilkan</string>
-    <string name="tabs_place_more">Di Lainnya</string>
-    <string name="tabs_place_hidden">Disembunyikan</string>
-    <string name="tabs_move_up">Pindahkan %1$s ke atas</string>
-    <string name="tabs_move_down">Pindahkan %1$s ke bawah</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Lanjutkan %1$s</string>
     <string name="roms_text">Muncul sebagai /root/ROMs di setiap sesi. Penyimpanan internal berada di /root/Storage.</string>

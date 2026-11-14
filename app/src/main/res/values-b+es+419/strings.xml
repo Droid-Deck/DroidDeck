@@ -1532,11 +1532,6 @@
     <string name="rail_more">Más</string>
     <string name="more_edit_tabs">Editar pestañas</string>
     <string name="setup_group_tabs">Pestañas</string>
-    <string name="tabs_place_bar">Mostrada</string>
-    <string name="tabs_place_more">En Más</string>
-    <string name="tabs_place_hidden">Oculta</string>
-    <string name="tabs_move_up">Mover %1$s hacia arriba</string>
-    <string name="tabs_move_down">Mover %1$s hacia abajo</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reanudar %1$s</string>
     <string name="roms_text">Aparece como /root/ROMs en cada sesión. El almacenamiento interno está en /root/Storage.</string>
