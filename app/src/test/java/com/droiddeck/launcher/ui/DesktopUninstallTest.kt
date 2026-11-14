@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
@@ -61,7 +62,10 @@ class DesktopUninstallTest {
         show()
         compose.onNodeWithText("Uninstall").performClick()
         settle()
-        compose.runOnIdle { runtimeBlocked = true }
+        compose.runOnIdle {
+            runtimeBlocked = true
+            Snapshot.sendApplyNotifications()
+        }
         settle()
         compose.onAllNodesWithText("Uninstall").onLast().assertIsNotEnabled()
         assertEquals(0, removals)
