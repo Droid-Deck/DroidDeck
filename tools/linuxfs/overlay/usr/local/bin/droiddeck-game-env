@@ -187,6 +187,21 @@ def little_nightmares_threads(game):
         return {"PROTONFIXES_DISABLE": "1"}, [], "Little Nightmares: umu-protonfixes off (its -onethread puts the game and renderer on one thread)"
 
 
+def names_module(overrides, names):
+    for entry in (overrides or "").split(";"):
+        if names & {name.strip().lower() for name in entry.split("=", 1)[0].split(",")}:
+            return True
+    return False
+
+
+def keyboard_helper_off(env):
+    if env.get("SteamDeck") == "1" or names_module(env.get("WINEDLLOVERRIDES"), {"tabtip", "tabtip.exe"}):
+        return None
+    own = env.get("WINEDLLOVERRIDES")
+    env["WINEDLLOVERRIDES"] = own + ";tabtip.exe=d" if own else "tabtip.exe=d"
+    return "tabtip.exe off (it only opens Steam's keyboard with SteamDeck=1, and its UI Automation calls crash games)"
+
+
 def skip_red_launcher(command):
     if len(command) > 2 and os.path.basename(command[2]).lower() == "redprelauncher.exe":
         game = os.path.join(os.path.dirname(command[2]), "bin", "x64", "Cyberpunk2077.exe")
@@ -1316,6 +1331,9 @@ def main():
                 if "vblank_mode" in config.get("shared", {}):
                     fixes.pop("vblank_mode", None)
                 env = apply_config(env, launch_config, app_id, fixes)
+            note = keyboard_helper_off(env)
+            if note:
+                print("droiddeck-game-env: " + note, file=sys.stderr)
         else:
             path = Path.home() / ".config/droiddeck/game-environment.json"
             try:
