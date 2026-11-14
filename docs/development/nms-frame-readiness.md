@@ -61,16 +61,29 @@ Before a release can expose this fix:
    The build script now includes `present_ready` in its required tests.
 3. Publish a **new** Gamescope component tag and record the resulting archive's
    actual SHA-256 in `tools/gamescope/release.env`. Existing published tags must
-   not be overwritten. This draft intentionally retains the existing p22 pin.
+   not be overwritten. This review branch retains the existing p23 pin until a real replacement
+   component is published.
 4. Rebuild the runtime component/APK so the server and WSI layer both update.
    Confirm their runtime library and symbol requirements remain compatible.
 5. Enable the game environment variable, stop the old session, and start a new
    session. Verify asynchronous per-image readiness and explicit acquire-fence
    counts in the log. A CPU fallback marker means the async path is not in use.
 
-Maintainer component publication and a new device test of this current-main
-port are still required before treating the draft as release-ready. Do not
-claim that rebuilding an APK with the unchanged p22 pin includes this fix.
+The regular PR APK workflow downloads the published component; it does not
+build this Gamescope patch automatically. Marking this PR ready for review
+unblocks that workflow but does not put the fix into its APK by itself. The
+maintainer test build must contain the rebuilt pair and the environment
+activation above. Component publication is a maintainer integration step, not
+an unverified tag or checksum to add to this PR.
+
+For a local build, `tools/build_local.sh` also restores the published component.
+Stage the rebuilt `usr/local/bin/gamescope` and
+`usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so` into the matching paths under
+`app/src/main/assets/linuxfs` after runtime preparation, before recording the
+runtime manifest and assembling the APK. Verify both hashes in the final APK.
+Publishing a component and updating release.env makes this manual staging
+unnecessary. No APK using only the unchanged p23 component is claimed to contain
+this fix.
 
 ## Device evidence
 
@@ -84,8 +97,7 @@ The successful test build also had `renderOnCommit=false`, compressed buffer
 advertisement enabled, and imported-image ownership handoff changes. Current
 main already has its own external-image synchronization implementation; those
 earlier experiments are not duplicated by this patch. The contribution keeps
-the successful readiness mechanism isolated for review. Latest-main behavior
-with its default render scheduling has not been device-validated.
+the successful readiness mechanism isolated for review. The latest-main default render scheduling has not been device-validated.
 
 The supplied post-fix report gives:
 
@@ -138,19 +150,76 @@ These identify the earlier tested build, not a device test of the current-main
 source port.
 
 
+## Updated-main device validation
+
+The November 13 custom APK carries the same readiness patch on upstream
+`d058bab64fface8d35d2ee174e94e911496a0fd4`. It includes the p23-era Gamescope
+patch stack, custom rebuilt server and WSI layer, `DROIDDECK_ASYNC_PRESENT=1`,
+and the tested `renderOnCommit=false` setting. Its APK SHA-256 is
+`a8d3babe080f4119cf706fdb96410282033861e985126ae1f8ff0cc84c15ba8e`.
+The compiled server SHA-256 is
+`0cd835b3461681c69864583f90707853ffa94f0c25aaf9372bd6742cb0487992`;
+the WSI layer SHA-256 is
+`058dfe87239add81724d4683dd1c96e5d4442eadc1a3ea221b5c876dc8d22e69`.
+
+The November 14 RP6 session identifies that APK's source
+`68a7097d4cdf5dc8bcda3fce3b304826af065ccb`. Both driver halves still identify
+DD-Turnip v0.4.0. PRoot and its fast path are enabled; frame generation and
+native userland are off. The tester confirms unchanged game graphics settings.
+
+| Observation | November 14 session |
+| --- | ---: |
+| Explicit acquire fences already ready | 256 |
+| Explicit acquire fences waited for | 9,840 |
+| Worker frames across periodic reports | 10,168 |
+| Reported main-thread fence-reuse waits | 0 |
+| Readiness error/fallback diagnostics | 0 |
+| Compositor pool drops | 0 |
+| Recording-window ten-second FPS mean / median | 28.65 / 28.85 |
+| Lowest sampled available RAM | 749 MB |
+| Highest sampled GPU allocation | 4,387 MB |
+
+These counters support healthy operation of the async path on the newer app
+base; they cannot rule out every visual anomaly. The video often reads near
+30 FPS, with short dips into the low 20s and occasionally the high teens.
+A selected space segment averages about 29 FPS versus about 30 in the earlier
+recording, but the routes and views differ. Neither a steady 30 FPS claim nor
+a controlled regression percentage is supported. Available memory remains low,
+as it was in earlier builds. Clock samples show GPU 680 MHz and thermal status
+0 throughout the recording window, not GPU utilization or proof that every
+short thermal event is absent.
+
+The custom APK deliberately kept `SessionPrefs.renderOnCommit()` default false
+and `g_render_on_commit=0`. They are local test settings, not changes made by
+this opt-in Gamescope contribution. The in-game 30 FPS cap and graphics settings
+are also separate from the readiness mechanism. A maintainer reproducing this
+baseline should retain those settings; upstream's default render scheduling
+still needs a separate device comparison.
+
+The experimental no-proot mode subsequently failed to start Steam in a manual
+RP6 trial. No diagnostic archive was available for that attempt, so no cause is
+assigned. It is not a prerequisite for this fix. The tester later reported
+smoother gameplay after installing newer DD drivers, but the exact version and
+new-driver readiness logs are not available. That report does not extend the
+verified driver constraints above.
+
 ## Current-main port validation
 
-The source port is based on DroidDeck
-`5b2f7a9a6d9fd5cc966719c11e9c20e9dc6f34fa` and Gamescope tag 3.16.29
-(`8f212644c46460549035971ab914421180f61a7c`). It applies after the entire
-current patch stack as 0936. The new patch applies with GNU patch fuzz zero
-and reproduces all ten modified source/test files byte for byte. Existing
-upstream patches 0924 and 0925 require their existing fuzz allowances; they
-are unchanged by this contribution.
+The review branch is updated against DroidDeck
+`d8b3c66b9579c33050462647b054801f7be7a970` and Gamescope tag 3.16.29
+(`8f212644c46460549035971ab914421180f61a7c`). The patch applies after the complete
+current stack as 0936. A new RP6 test of this exact November 15 main base remains
+pending; the November 13/14 hardware result above is recorded separately.
 
-The current-main server and WSI layer compile as native AArch64 in the local
-Ubuntu 26.04 build environment. All 12 Gamescope project tests pass, including
-`present_ready`; the descriptor ownership regression test and build-script
-shell syntax check pass. The worker test also passes with exceptions disabled
-and warnings treated as errors. Native tests cannot replace the pending device
-validation of this port. No latest-main APK is claimed tested on hardware.
+The Python regression test compiles the production descriptor owner and, on
+Linux with Vulkan headers, the production worker's own C++ test fixture directly
+from the patch. It covers unsignaled readiness, guarded reuse, native errors,
+device loss, allocation failure and bounded shutdown. The worker check uses
+warnings as errors, assertions enabled and exceptions disabled. It runs through
+`tools/ci/run-python-tests.sh`, so PR checks exercise the worker without waiting
+for a published Gamescope component.
+
+The Gamescope build script also runs the `present_ready` Meson test alongside
+its existing checks. Final source-application, build and test results are
+recorded in the PR description. Native checks do not replace the pending device
+comparison of the exact current-main default scheduling and driver combinations.

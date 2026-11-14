@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -10,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[2]
 HEADER = 'src/Utils/AcquireFence.h'
 
 
-def production_header():
+def production_source(path):
     source = os.environ.get('GAMESCOPE_SOURCE')
     if source:
-        return (Path(source) / HEADER).read_text()
+        return (Path(source) / path).read_text()
     for patch in sorted((ROOT / 'tools/gamescope/patches').glob('*.patch')):
         lines = patch.read_text().splitlines()
-        marker = '+++ b/' + HEADER
+        marker = '+++ b/' + path
         if marker not in lines:
             continue
         added = []
@@ -26,7 +27,7 @@ def production_header():
             if line.startswith('+'):
                 added.append(line[1:])
         return '\n'.join(added) + '\n'
-    return (ROOT / 'build/gamescope-test9/src' / HEADER).read_text()
+    raise FileNotFoundError('Gamescope patch does not contain ' + path)
 
 
 HARNESS = r'''
@@ -110,7 +111,7 @@ class GamescopeAcquireFenceTest(unittest.TestCase):
     def test_descriptor_lifetime_across_commit_handoff(self):
         with tempfile.TemporaryDirectory() as folder:
             work = Path(folder)
-            (work / 'AcquireFence.h').write_text(production_header())
+            (work / 'AcquireFence.h').write_text(production_source(HEADER))
             (work / 'check.cpp').write_text(HARNESS)
             binary = work / 'check'
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
@@ -118,6 +119,23 @@ class GamescopeAcquireFenceTest(unittest.TestCase):
                            check=True, capture_output=True, text=True)
             result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'needs Linux eventfd and Vulkan headers')
+    def test_present_worker_with_production_fixture(self):
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            for name in ['layer/present_ready.hpp', 'tests/present_ready_test.cpp']:
+                target = work / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(production_source(name))
+            binary = work / 'present-ready'
+            subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                            '-fno-exceptions', '-UNDEBUG', '-pthread',
+                            str(work / 'tests/present_ready_test.cpp'), '-o', str(binary)],
+                           check=True, capture_output=True, text=True)
+            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('present-ready tests passed', result.stdout)
 
 
 if __name__ == '__main__':
