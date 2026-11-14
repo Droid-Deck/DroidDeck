@@ -39,6 +39,7 @@ import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
@@ -56,6 +57,7 @@ class InputSurfaceView(
     private val elementSources = ArrayList<InputSurfaceSource>()
     private var customCanvas: ViewGroup? = null
     private val owners = HashMap<Int, View>()
+    private val partners = HashMap<Int, HoldButton>()
     private var requestedLayout = customLayout
     init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
@@ -91,10 +93,16 @@ class InputSurfaceView(
         val pointer = event.getPointerId(index)
         var taken = true
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
-            val target = elementAt(event.getX(index), event.getY(index))
+            val x = event.getX(index)
+            val y = event.getY(index)
+            val target = elementAt(x, y)
             taken = target != null
             when {
-                target is HoldButton -> { owners[pointer] = target; target.press(pointer, true) }
+                target is HoldButton -> {
+                    owners[pointer] = target
+                    target.press(pointer, true)
+                    comboPartner(target, x, y)?.let { partner -> partners[pointer] = partner; partner.press(pointer, true) }
+                }
                 target != null && !(target is StickView && target in owners.values) -> owners[pointer] = target
             }
         }
@@ -108,7 +116,9 @@ class InputSurfaceView(
             }
         }
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
-            (owners.remove(pointer) as? HoldButton)?.press(pointer, false, event.flags and MotionEvent.FLAG_CANCELED != 0)
+            val cancelled = event.flags and MotionEvent.FLAG_CANCELED != 0
+            (owners.remove(pointer) as? HoldButton)?.press(pointer, false, cancelled)
+            partners.remove(pointer)?.press(pointer, false, cancelled)
         }
         return taken
     }
@@ -117,15 +127,41 @@ class InputSurfaceView(
         val owner = owners[pointer]
         if (owner != null && owner !is HoldButton) return
         val over = elementAt(x, y) as? HoldButton
-        if (over === owner) return
-        (owner as? HoldButton)?.press(pointer, false, cancelled = true)
-        if (over == null) owners.remove(pointer) else { owners[pointer] = over; over.press(pointer, true) }
+        val overPartner = over?.let { comboPartner(it, x, y) }
+        val partner = partners[pointer]
+        if (over === owner && overPartner === partner) return
+        val before = listOfNotNull(owner as? HoldButton, partner)
+        val after = listOfNotNull(over, overPartner)
+        for (button in before) if (button !in after) button.press(pointer, false, cancelled = true)
+        if (over == null) owners.remove(pointer) else owners[pointer] = over
+        if (overPartner == null) partners.remove(pointer) else partners[pointer] = overPartner
+        for (button in after) if (button !in before) button.press(pointer, true)
     }
+
+    private fun comboPartner(button: HoldButton, x: Float, y: Float): HoldButton? {
+        val neighbours = COMBO_NEIGHBOURS[button.control] ?: return null
+        val canvas = customCanvas ?: return null
+        return (0 until canvas.childCount).map(canvas::getChildAt)
+            .filter { it is HoldButton && it !== button && it.visibility == VISIBLE && it.control in neighbours && inComboZone(button, it, x, y) }
+            .minByOrNull { distance(it, x, y) } as HoldButton?
+    }
+
+    private fun inComboZone(a: View, b: View, x: Float, y: Float): Boolean {
+        val ra = min(a.width, a.height) / 2f
+        val rb = min(b.width, b.height) / 2f
+        val da = distance(a, x, y)
+        val db = distance(b, x, y)
+        return da <= ra * COMBO_REACH && db <= rb * COMBO_REACH && abs(da - db) <= min(ra, rb) * COMBO_BAND
+    }
+
+    private fun comboAt(views: List<View>, x: Float, y: Float): View? =
+        views.filter { it is HoldButton && comboPartner(it, x, y) != null }.minByOrNull { distance(it, x, y) }
 
     private fun cancelOwners(event: MotionEvent) {
         if (owners.isEmpty()) return
-        val views = owners.values.distinct()
+        val views = (owners.values + partners.values).distinct()
         owners.clear()
+        partners.clear()
         for (view in views) {
             if (view is HoldButton) { view.cancel(); continue }
             val cancel = MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
@@ -154,7 +190,7 @@ class InputSurfaceView(
         customLayout = layout
         if (sameElements) customCanvas?.requestLayout() else {
             elementSources.forEach { it.close() }; elementSources.clear()
-            owners.clear(); content.removeAllViews(); renderCustom(pad)
+            owners.clear(); partners.clear(); content.removeAllViews(); renderCustom(pad)
         }
     }
 
@@ -208,7 +244,7 @@ class InputSurfaceView(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (pad != null && elementSources.isEmpty()) {
-            owners.clear(); content.removeAllViews()
+            owners.clear(); partners.clear(); content.removeAllViews()
             renderCustom(pad)
         }
     }
@@ -227,6 +263,7 @@ class InputSurfaceView(
         val views = (canvas.childCount - 1 downTo 0).map(canvas::getChildAt).filter { it.visibility == VISIBLE }
         views.firstOrNull { !(it is StickView && it.adaptive) && hits(it, x, y, 0f) }?.let { return it }
         views.filter { it is HoldButton && hits(it, x, y, slack(it)) }.minByOrNull { distance(it, x, y) }?.let { return it }
+        comboAt(views, x, y)?.let { return it }
         if (views.any { it is HoldButton && hits(it, x, y, slack(it) + ADAPTIVE_CLEARANCE_PX) }) return null
         return views.filter { it is StickView && it.adaptive && it !in owners.values && (hits(it, x, y, 0f) || it.captures(x - originX(it), y - originY(it))) }
             .minByOrNull { distance(it, x, y) }
@@ -329,6 +366,7 @@ class InputSurfaceView(
     private inner class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
         private var down = false
         private val pointers = HashSet<Int>()
+        val control get() = element.control
         val round get() = element.buttonShape == InputButtonShape.CIRCLE
         val gamepad get() = round || element.buttonShape == InputButtonShape.PILL
         private val symbol = InputButtonIcons.drawable(context, element.icon)
@@ -646,21 +684,30 @@ class InputSurfaceView(
             if (element.showLabel) drawDirectionLabels(canvas, source, true, cx, cy, (half + thick) / 2f, thick * 1.7f, label)
         }
 
+        private val fingers = HashMap<Int, Int>()
+
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            val bits = when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    val dx = event.getX(0) - width / 2f
-                    val dy = event.getY(0) - height / 2f
-                    if (hypot(dx, dy) < min(width, height) * 0.08f) 0 else {
-                        val sector = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 360 + 22.5) % 360 / 45).toInt()
-                        intArrayOf(2, 2 or 4, 4, 4 or 8, 8, 8 or 1, 1, 1 or 2)[sector]
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_POINTER_UP -> {
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) fingers.clear()
+                    val lifted = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP) event.actionIndex else -1
+                    for (i in 0 until event.pointerCount) {
+                        if (i == lifted) fingers.remove(event.getPointerId(i)) else fingers[event.getPointerId(i)] = direction(event.getX(i), event.getY(i))
                     }
                 }
-                else -> 0
+                else -> fingers.clear()
             }
-            set(bits)
+            set(fingers.values.fold(0) { bits, finger -> bits or finger })
             return true
+        }
+
+        private fun direction(x: Float, y: Float): Int {
+            val dx = x - width / 2f
+            val dy = y - height / 2f
+            if (hypot(dx, dy) < min(width, height) * 0.08f) return 0
+            val sector = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 360 + 22.5) % 360 / 45).toInt()
+            return intArrayOf(2, 2 or 4, 4, 4 or 8, 8, 8 or 1, 1, 1 or 2)[sector]
         }
 
         private fun set(bits: Int) {
@@ -674,6 +721,7 @@ class InputSurfaceView(
         }
 
         override fun onDetachedFromWindow() {
+            fingers.clear()
             set(0)
             super.onDetachedFromWindow()
         }
@@ -685,6 +733,18 @@ class InputSurfaceView(
         private const val CLASSIC_REACH = 0.5f
         private const val PANEL_REACH = 0.30f
         private const val HIT_SLACK = 0.25f
+        private const val COMBO_REACH = 1.6f
+        private const val COMBO_BAND = 0.5f
+        private val COMBO_NEIGHBOURS = mapOf(
+            InputControl.UP to setOf(InputControl.LEFT, InputControl.RIGHT),
+            InputControl.RIGHT to setOf(InputControl.UP, InputControl.DOWN),
+            InputControl.DOWN to setOf(InputControl.RIGHT, InputControl.LEFT),
+            InputControl.LEFT to setOf(InputControl.DOWN, InputControl.UP),
+            InputControl.Y to setOf(InputControl.X, InputControl.B),
+            InputControl.B to setOf(InputControl.Y, InputControl.A),
+            InputControl.A to setOf(InputControl.B, InputControl.X),
+            InputControl.X to setOf(InputControl.A, InputControl.Y),
+        )
         private const val ADAPTIVE_CLEARANCE_PX = 5f
         private val ADAPTIVE_REACH = 1.4f * kotlin.math.sqrt(1.5f)
 
