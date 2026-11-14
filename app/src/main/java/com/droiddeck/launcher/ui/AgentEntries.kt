@@ -63,7 +63,7 @@ import com.droiddeck.launcher.agent.choices
 @Composable
 internal fun AgentEntry(
     entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, answerable: Boolean = false,
-    children: List<Entry.Used> = emptyList(), turn: List<Entry> = emptyList(), onRevise: () -> Unit = {},
+    children: List<Entry.Used> = emptyList(), turn: List<Entry> = emptyList(), onRevise: () -> Unit = {}, onSent: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -79,7 +79,7 @@ internal fun AgentEntry(
             val reply = remember(entry.text) { choices(entry.text) }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (reply.text.isNotBlank()) SelectionContainer { AgentMarkdown(reply.text, Modifier.widthIn(max = 760.dp).padding(horizontal = 4.dp)) }
-                if (reply.options.isNotEmpty()) AgentChoices(reply.options, answerable)
+                if (reply.options.isNotEmpty()) AgentChoices(reply.options, answerable, onSent)
             }
         }
         is Entry.Thought -> AgentThought(entry.text, live = false)
@@ -89,7 +89,7 @@ internal fun AgentEntry(
             last && AgentHost.answerless(AgentHost.entries) -> AgentNoReply()
             last && entry.planned -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AgentTurnEnd(entry, changes, turn)
-                AgentPlanActions(onRevise)
+                AgentPlanActions(onRevise, onSent)
             }
             else -> AgentTurnEnd(entry, changes, turn)
         }
@@ -99,18 +99,19 @@ internal fun AgentEntry(
 /** The options a reply ends with; picking one sends it, while the reply is still the latest. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AgentChoices(options: List<String>, answerable: Boolean) {
+private fun AgentChoices(options: List<String>, answerable: Boolean, onSent: () -> Unit) {
     val context = LocalContext.current
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
         for (option in options) SecondaryButton(option, enabled = answerable, compact = true, modifier = Modifier.testTag("agent-choice")) {
             AgentHost.send(context, option)
+            onSent()
         }
     }
 }
 
 /** A plan turn changed nothing; Go carries the plan out with plan mode off, Revise asks for another. */
 @Composable
-private fun AgentPlanActions(onRevise: () -> Unit) {
+private fun AgentPlanActions(onRevise: () -> Unit, onSent: () -> Unit) {
     val context = LocalContext.current
     val pal = LocalPalette.current
     val go = stringResource(R.string.agent_plan_go_message)
@@ -118,6 +119,7 @@ private fun AgentPlanActions(onRevise: () -> Unit) {
         PrimaryButton(stringResource(R.string.agent_plan_go), compact = true, modifier = Modifier.testTag("agent-plan-go")) {
             AgentHost.choosePlan(context, false)
             AgentHost.send(context, go)
+            onSent()
         }
         SecondaryButton(stringResource(R.string.agent_plan_revise), compact = true, modifier = Modifier.testTag("agent-plan-revise")) {
             AgentHost.choosePlan(context, true)
@@ -165,7 +167,7 @@ private fun AgentTurnEnd(entry: Entry.Finished, changes: Changes?, turn: List<En
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var open by rememberSaveable { mutableStateOf(false) }
-    val reply = remember(turn.size) { turnReply(turn) }
+    val reply = turnReply(turn)
     val text = when {
         entry.stopped -> stringResource(R.string.agent_stopped)
         entry.error != null -> stringResource(R.string.agent_failed, entry.error)

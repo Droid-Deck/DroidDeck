@@ -62,7 +62,11 @@ object AgentAttachments {
         val folder = chat ?: NEW
         val dir = File(hostDir(context), folder).apply { mkdirs() }
         val target = File(dir, "game-${System.currentTimeMillis()}.jpg")
-        target.outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        val written = target.outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        if (!written) {
+            target.delete()
+            return@runCatching null
+        }
         "$GUEST_DIR/$folder/${target.name}"
     }.getOrNull()
 

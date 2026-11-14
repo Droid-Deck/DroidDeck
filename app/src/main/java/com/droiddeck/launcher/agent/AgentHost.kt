@@ -667,7 +667,7 @@ object AgentHost {
 /** A reply split into its text and the options of a trailing choices block. */
 internal data class Choices(val text: String, val options: List<String>)
 
-private val CHOICES = Regex("""\n?```choices[ \t]*\n(.*?)\n?```\s*$""", RegexOption.DOT_MATCHES_ALL)
+private val CHOICES = Regex("""\n?```choices[ \t]*\n((?:(?!```).)*?)\n?```\s*$""", RegexOption.DOT_MATCHES_ALL)
 
 internal fun choices(reply: String): Choices {
     val match = CHOICES.find(reply) ?: return Choices(reply, emptyList())

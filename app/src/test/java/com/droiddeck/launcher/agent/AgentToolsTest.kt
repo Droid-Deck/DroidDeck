@@ -23,6 +23,24 @@ class AgentToolsTest {
             AgentTools.addCommand("files", "npx  -y server /root").drop(1))
     }
 
+    @Test fun aCommandKeepsItsQuotedArguments() {
+        assertEquals(listOf("python", "/root/My Tools/server.py", "--name", "it's", "a b"),
+            AgentTools.words("""python "/root/My Tools/server.py" --name "it's" a\ b"""))
+        assertEquals(listOf("sh", "-c", "echo \"hi\""), AgentTools.words("""sh -c 'echo "hi"'"""))
+    }
+
+    @Test fun deletingASkillLeavesWhatItsLinksPointTo() {
+        val outside = Files.createTempDirectory("outside").toFile()
+        File(outside, "keep.txt").writeText("keep")
+        val skill = Files.createTempDirectory("skill").toFile()
+        File(skill, "SKILL.md").writeText("x")
+        Files.createSymbolicLink(File(skill, "resources").toPath(), outside.toPath())
+        assertTrue(AgentTools.deleteTree(skill.toPath()))
+        assertTrue(!skill.exists())
+        assertTrue(File(outside, "keep.txt").isFile)
+        outside.deleteRecursively()
+    }
+
     @Test fun aSkillsDescriptionComesFromItsFrontMatter() {
         val file = Files.createTempFile("skill", ".md").toFile()
         file.writeText("---\nname: deploy\ndescription: \"Ship the build\"\n---\nBody\n")

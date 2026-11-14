@@ -165,8 +165,16 @@ private fun AgentPageContent(
     }
     remember { AgentHost.refresh(context) }
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
-    DisposableEffect(visible, hidesPet) {
-        val counts = visible && hidesPet
+    // A stopped activity keeps its composition; the page is only on screen while its host is started.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    var started by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) }
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ -> started = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    DisposableEffect(visible, hidesPet, started) {
+        val counts = visible && hidesPet && started
         if (counts) AgentPet.agentOnScreen++
         onDispose { if (counts) AgentPet.agentOnScreen-- }
     }
@@ -260,7 +268,7 @@ private fun AgentPageContent(
                                 if (composer.focused) focusManager.clearFocus()
                             }
                         },
-                        list, following = !readingBack, onRevise = { composer.open() },
+                        list, following = !readingBack, onRevise = { composer.open() }, onSent = toLatest,
                     )
                     androidx.compose.animation.AnimatedVisibility(
                         hidden, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
@@ -269,7 +277,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
@@ -392,7 +400,7 @@ internal fun HeaderAction(
 }
 
 @Composable
-private fun AgentConversation(modifier: Modifier, list: LazyListState, following: Boolean, onRevise: () -> Unit) {
+private fun AgentConversation(modifier: Modifier, list: LazyListState, following: Boolean, onRevise: () -> Unit, onSent: () -> Unit) {
     val pal = LocalPalette.current
     val working = AgentHost.state == AgentHost.State.WORKING
     // A subagent's calls are shown inside the call that started it.
@@ -425,7 +433,7 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, following
                 children = if (entry is Entry.Used) AgentHost.entries.filter { it is Entry.Used && it.parent == entry.id && entry.id.isNotEmpty() }.map { it as Entry.Used } else emptyList(),
                 changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null,
                 turn = if (entry is Entry.Finished) AgentHost.entries.subList(AgentHost.entries.subList(0, i).indexOfLast { it is Entry.Asked } + 1, i) else emptyList(),
-                answerable = !working && i > start && AgentHost.queue.isEmpty(), onRevise = onRevise,
+                answerable = !working && i > start && AgentHost.queue.isEmpty(), onRevise = onRevise, onSent = onSent,
             )
         }
         if (working) item { AgentLive() }
@@ -610,7 +618,7 @@ internal fun usagePercent(): Int? {
 internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.resetsAt * 1000 < System.currentTimeMillis()) 0 else limit.usedPercent
 
 @Composable
-private fun AgentComposer(composer: ComposerState, draftState: MutableState<String>, onPanel: (AgentPanel) -> Unit, onSent: () -> Unit) {
+private fun AgentComposer(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, onPanel: (AgentPanel) -> Unit, onSent: () -> Unit) {
     val context = LocalContext.current
     var draft by draftState
     var labOpen by rememberSaveable { mutableStateOf(false) }
@@ -640,13 +648,13 @@ private fun AgentComposer(composer: ComposerState, draftState: MutableState<Stri
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
         ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-        AgentEditor(composer, draftState, send)
+        AgentEditor(composer, draftState, visible, send)
     }
 }
 
 /** The text with attach, stop and send beside it. */
 @Composable
-private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, send: () -> Unit) {
+private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, send: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -654,6 +662,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     val voice = remember { AgentVoice(context.applicationContext) { draftState.value = it } }
     val voiceAvailable = remember { AgentVoice.available(context) }
     DisposableEffect(voice) { onDispose { voice.stop() } }
+    LaunchedEffect(visible) { if (!visible) voice.stop() }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
         val matches = (LOCAL_COMMANDS + CLI_COMMANDS).filter { it.startsWith(draft) && it != draft }
@@ -698,7 +707,10 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
                     cursorBrush = SolidColor(pal.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { send() }),
+                    keyboardActions = KeyboardActions(onSend = {
+                        voice.stop()
+                        send()
+                    }),
                     minLines = 1,
                     maxLines = 8,
                 )
@@ -732,7 +744,7 @@ private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit) {
         if (voice.listening) pal.primary else pal.surfaceVariant, if (voice.listening) pal.onPrimary else pal.onBackground, "agent-voice",
     ) {
         when {
-            voice.listening -> voice.stop()
+            voice.listening -> voice.finish()
             context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED -> onStart()
             ask != null -> ask.launch(android.Manifest.permission.RECORD_AUDIO)
             else -> android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()

@@ -333,14 +333,14 @@ internal fun AgentToolsPanel(modifier: Modifier) {
     var target by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val act: (suspend () -> AgentTools.Result) -> Unit = { action ->
+    fun act(added: Boolean = false, action: suspend () -> AgentTools.Result) {
         busy = true
         message = null
         scope.launch {
             val result = withContext(Dispatchers.IO) { action() }
             busy = false
             if (!result.ok) message = result.output.ifBlank { context.getString(R.string.agent_tools_failed) }
-            else {
+            else if (added) {
                 name = ""
                 target = ""
             }
@@ -373,7 +373,7 @@ internal fun AgentToolsPanel(modifier: Modifier) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.agent_tools_add_hint), fontSize = 12.sp, color = pal.onSurfaceVariant, modifier = Modifier.weight(1f))
                     PrimaryButton(stringResource(R.string.agent_tools_add), enabled = !busy && name.isNotBlank() && target.isNotBlank(), compact = true) {
-                        act { AgentTools.add(context, name, target) }
+                        act(added = true) { AgentTools.add(context, name, target) }
                     }
                 }
                 message?.let { Text(it, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AttentionAmber) }
@@ -385,9 +385,8 @@ internal fun AgentToolsPanel(modifier: Modifier) {
             var armed by remember(skill.name) { mutableStateOf(false) }
             ToolsRow(skill.name, skill.description) {
                 SecondaryButton(stringResource(if (armed) R.string.agent_storage_confirm else R.string.agent_history_delete), compact = true, enabled = !busy) {
-                    if (armed) {
-                        AgentTools.deleteSkill(context, skill.name)
-                        version++
+                    if (armed) act {
+                        AgentTools.Result(AgentTools.deleteSkill(context, skill.name), "")
                     } else armed = true
                 }
             }

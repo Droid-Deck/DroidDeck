@@ -19,6 +19,11 @@ class AgentChoicesTest {
         assertEquals(Choices(text, emptyList()), choices(text))
     }
 
+    @Test fun aChoicesBlockFollowedByAnotherFenceIsNotAQuestion() {
+        val text = "```choices\nA\nB\n```\nExplanation.\n```kotlin\nval x = 1\n```"
+        assertEquals(Choices(text, emptyList()), choices(text))
+    }
+
     @Test fun aChoicesBlockFollowedByTextIsNotAQuestion() {
         val text = "```choices\nA\nB\n```\nMore after it."
         assertEquals(Choices(text, emptyList()), choices(text))

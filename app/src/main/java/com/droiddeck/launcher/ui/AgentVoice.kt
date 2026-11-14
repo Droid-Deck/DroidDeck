@@ -49,6 +49,13 @@ internal class AgentVoice(private val context: Context, private val onText: (Str
         onText(base + spoken)
     }
 
+    /** Ends listening but keeps the recognizer until its final result arrives. */
+    fun finish() {
+        val speech = recognizer ?: return
+        listening = false
+        runCatching { speech.stopListening() }.onFailure { stop() }
+    }
+
     fun stop() {
         listening = false
         val speech = recognizer ?: return
