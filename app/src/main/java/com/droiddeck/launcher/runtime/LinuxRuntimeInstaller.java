@@ -79,7 +79,7 @@ public final class LinuxRuntimeInstaller {
     private static final Object JOB_LOCK = new Object();
     private static Job running;
     private static volatile String removalError;
-    private static volatile Job lastInstallJob;
+    private static final ThreadLocal<Job> LAST_INSTALL = new ThreadLocal<>();
     private static final ThreadLocal<Job> CURRENT_INSTALL = new ThreadLocal<>();
     private static final ThreadLocal<String> CATALOG_ERROR = new ThreadLocal<>();
 
@@ -149,7 +149,7 @@ public final class LinuxRuntimeInstaller {
                 Job rejected = new Job(false, null);
                 rejected.failure = running.removal ? "Runtime busy: removal in progress" : "Runtime busy: maintenance in progress";
                 Log.w(TAG, rejected.failure);
-                lastInstallJob = rejected;
+                LAST_INSTALL.set(rejected);
                 return false;
             }
             owner = running == null;
@@ -157,7 +157,17 @@ public final class LinuxRuntimeInstaller {
             job = running;
             if (listener != null) job.listeners.add(listener);
         }
-        if (!owner) return join(job, listener);
+        if (!owner) {
+            boolean ok = join(job, listener);
+            if (job.done.getCount() == 0) {
+                LAST_INSTALL.set(job);
+            } else {
+                Job interrupted = new Job(false, null);
+                interrupted.failure = "Runtime install interrupted while waiting for the running install";
+                LAST_INSTALL.set(interrupted);
+            }
+            return ok;
+        }
         CURRENT_INSTALL.set(job);
         try {
             Context app = context.getApplicationContext();
@@ -183,10 +193,8 @@ public final class LinuxRuntimeInstaller {
             return job.ok;
         } finally {
             CURRENT_INSTALL.remove();
-            synchronized (JOB_LOCK) {
-                lastInstallJob = job;
-                running = null;
-            }
+            LAST_INSTALL.set(job);
+            synchronized (JOB_LOCK) { running = null; }
             if (listener != null) job.listeners.remove(listener);
             job.done.countDown();
         }
@@ -277,7 +285,7 @@ public final class LinuxRuntimeInstaller {
     public static String removalError() { return removalError; }
 
     public static String installError() {
-        Job job = lastInstallJob;
+        Job job = LAST_INSTALL.get();
         return job == null ? null : job.failure;
     }
 

@@ -185,9 +185,11 @@ class RuntimeInstallRollbackTest {
                 }
             }
         }.apply { isDaemon = true; start() }
+        var secondReason: String? = null
         val second = Thread {
             LinuxRuntimeInstaller.install(context,
                 LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", "a".repeat(64), 1L), null)
+            secondReason = LinuxRuntimeInstaller.installError()
         }.apply { isDaemon = true; start() }
         try {
             assertTrue(accepted.await(10, java.util.concurrent.TimeUnit.SECONDS))
@@ -199,7 +201,8 @@ class RuntimeInstallRollbackTest {
             server.close()
             stall.join(1000)
         }
-        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", LinuxRuntimeInstaller.installError())
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", secondReason)
+        assertEquals(first, LinuxRuntimeInstaller.installError())
     }
 
     @Test fun anInstallRejectedDuringMaintenanceReportsItsOwnReason() {
@@ -216,6 +219,68 @@ class RuntimeInstallRollbackTest {
         assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", failedInstall(context, "HTTP/1.1 404 Not Found"))
     }
 
+    @Test fun aRejectedInstallKeepsItsBusyReasonAfterALaterInstallCompletes() {
+        val context = packedContext()
+        val maintenance = LinuxRuntimeInstaller.beginMaintenance(context, "maintenance")!!
+        try {
+            assertFalse(LinuxRuntimeInstaller.install(context,
+                LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:1/runtime.tar.zst", "a".repeat(64), 1L), null))
+        } finally {
+            assertTrue(maintenance.run(null) { null })
+        }
+        var later: String? = null
+        Thread { later = failedInstall(context, "HTTP/1.1 404 Not Found") }.apply { start(); join(10000) }
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", later)
+        assertEquals("Runtime busy: maintenance in progress", LinuxRuntimeInstaller.installError())
+    }
+
+    @Test fun aJoinedInstallReportsTheReasonOfTheInstallItJoined() {
+        val context = packedContext()
+        val server = ServerSocket(0)
+        val accepted = java.util.concurrent.CountDownLatch(1)
+        val answer = java.util.concurrent.CountDownLatch(1)
+        val attached = java.util.concurrent.CountDownLatch(1)
+        val joinedDone = java.util.concurrent.CountDownLatch(1)
+        val readNow = java.util.concurrent.CountDownLatch(1)
+        val stall = Thread {
+            runCatching {
+                server.accept().use { socket ->
+                    accepted.countDown()
+                    answer.await()
+                    socket.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                }
+            }
+        }.apply { isDaemon = true; start() }
+        val release = LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", "a".repeat(64), 1L)
+        val owner = Thread { LinuxRuntimeInstaller.install(context, release, null) }.apply { isDaemon = true; start() }
+        var joinedResult = true
+        var joinedReason: String? = null
+        val joiner = Thread {
+            joinedResult = LinuxRuntimeInstaller.install(context, release) { _, _ -> attached.countDown() }
+            joinedDone.countDown()
+            readNow.await()
+            joinedReason = LinuxRuntimeInstaller.installError()
+        }
+        try {
+            assertTrue(accepted.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            joiner.apply { isDaemon = true; start() }
+            assertTrue(attached.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            answer.countDown()
+            assertTrue(joinedDone.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            owner.join(10000)
+            assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 403", failedInstall(context, "HTTP/1.1 403 Forbidden"))
+            readNow.countDown()
+            joiner.join(10000)
+        } finally {
+            answer.countDown()
+            readNow.countDown()
+            server.close()
+            stall.join(1000)
+        }
+        assertFalse(joinedResult)
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", joinedReason)
+    }
+
     @Test fun aFinishedInstallKeepsNoReferenceToItsListener() {
         val context = packedContext()
         val server = ServerSocket(0)
@@ -227,7 +292,7 @@ class RuntimeInstallRollbackTest {
             server.close()
             thread.join(1000)
         }
-        val job = LinuxRuntimeInstaller::class.java.getDeclaredField("lastInstallJob").apply { isAccessible = true }.get(null)!!
+        val job = (LinuxRuntimeInstaller::class.java.getDeclaredField("LAST_INSTALL").apply { isAccessible = true }.get(null) as ThreadLocal<*>).get()!!
         val listeners = job.javaClass.getDeclaredField("listeners").apply { isAccessible = true }.get(job) as Collection<*>
         assertTrue(listeners.isEmpty())
     }
