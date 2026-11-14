@@ -196,6 +196,20 @@ class RumbleComponentTest {
         assertFalse("a stale no-game result left the hold unwatched", pad.vibrating)
     }
 
+    @Test fun anotherProcessClosingItsOlderRumbleLeavesTheNewerOneOnTheSlot() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.MIN_GAP_MS)
+        effectFrom(OTHER_SENDER, strong = 30000, ms = RumbleComponent.HOLD_MS)
+        effectFrom(SENDER, strong = 0, weak = 0)
+        assertTrue("an older process's stop cancelled newer rumble", pad.vibrating)
+        effectFrom(OTHER_SENDER, strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+    }
+
     @Test fun aSenderOfOurOwnUserThatExitedBeforeItsFirstLookupStopsItsRumble() {
         val pad = FakeMotors()
         rumble.controllerMotors = { pad }
@@ -428,6 +442,7 @@ class RumbleComponentTest {
         const val PAD_ID = 7
         const val SECOND_PAD_ID = 8
         const val SENDER = 4242
+        const val OTHER_SENDER = 4343
     }
 
     @Implements(LocalServerSocket::class)

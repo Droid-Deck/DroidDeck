@@ -114,11 +114,18 @@ class RumbleComponent : SessionPart() {
             target?.let { Log.i(TAG, "rumble: slot $slot playing on ${it.name}") }
         }
         if (target == null) return
-        if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); forget(slot); return }
+        if ((strong == 0 && weak == 0) || ms == 0) {
+            val from = effects[slot]?.from ?: 0
+            if (sender > 0 && from > 0 && from != sender) return
+            target.cancel()
+            forget(slot)
+            return
+        }
         val handler = handler ?: return
         val effect = effects.getOrPut(slot) { Effect(slot) }
         val held = effect.hold
         effect.want(strong, weak, ms)
+        effect.from = sender
         if (effect.hold && (!held || effect.owner != sender)) effect.claim(sender, ownUser)
         val now = SystemClock.uptimeMillis()
         if (effect.playing(now)) return
@@ -200,6 +207,7 @@ class RumbleComponent : SessionPart() {
         private var playedMs = 0
         private var until = 0L
         var owner = 0
+        var from = 0
         private var ownerSeen = false
         private var ownerStart: String? = null
         private var duringGame = false
