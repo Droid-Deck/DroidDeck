@@ -277,7 +277,7 @@ wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
 Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. A game launch
 adds `tabtip.exe=d` to `WINEDLLOVERRIDES` unless the launch has `SteamDeck=1`
-or the overrides already name `tabtip`: Proton's tabtip only opens Steam's
+or the overrides already set `tabtip.exe`: Proton's tabtip only opens Steam's
 keyboard with `SteamDeck=1`, but it always runs UI Automation queries inside the
 focused game, which crash games that answer them (Godot 4.5 AccessKit). Malformed
 configuration falls back to the inherited environment without evaluating its

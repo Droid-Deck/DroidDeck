@@ -189,13 +189,13 @@ def little_nightmares_threads(game):
 
 def names_module(overrides, names):
     for entry in (overrides or "").split(";"):
-        if names & {name.lower() for name in re.split(r"[, \t]", entry.split("=", 1)[0])}:
+        if "=" in entry and names & {name.lower() for name in re.split(r"[, \t]", entry.split("=", 1)[0])}:
             return True
     return False
 
 
 def keyboard_helper_off(env):
-    if env.get("SteamDeck") == "1" or names_module(env.get("WINEDLLOVERRIDES"), {"tabtip", "tabtip.exe"}):
+    if env.get("SteamDeck") == "1" or names_module(env.get("WINEDLLOVERRIDES"), {"tabtip.exe"}):
         return None
     own = env.get("WINEDLLOVERRIDES")
     env["WINEDLLOVERRIDES"] = own + ";tabtip.exe=d" if own else "tabtip.exe=d"

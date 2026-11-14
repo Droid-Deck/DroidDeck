@@ -765,10 +765,14 @@ class GameEnvironmentTest(unittest.TestCase):
             ({"SteamDeck": "1"}, None),
             ({"SteamDeck": "1", "WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n"),
             ({"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
-            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip=n,b"}, "dxgi=n; TabTip=n,b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip.EXE=n,b"}, "dxgi=n; TabTip.EXE=n,b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip=n,b"}, "dxgi=n; TabTip=n,b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe"}, "d3d11 tabtip.exe;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe;dxgi=n"}, "tabtip.exe;dxgi=n;tabtip.exe=d"),
             ({"WINEDLLOVERRIDES": "d3d11,tabtip.exe=b"}, "d3d11,tabtip.exe=b"),
             ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe=b"}, "d3d11 tabtip.exe=b"),
-            ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip.exe=b"}, "d3d11\ttabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b;tabtip.exe=d"),
             ({"WINEDLLOVERRIDES": "d3d11 dxgi=n"}, "d3d11 dxgi=n;tabtip.exe=d"),
         )
         for before, overrides in cases:
