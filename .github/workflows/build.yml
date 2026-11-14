@@ -724,6 +724,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -732,6 +733,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -930,7 +932,7 @@ jobs:
       pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
-      KEEP: 10
+      KEEP_DAYS: 14
     steps:
       - uses: actions/checkout@v4
         with:

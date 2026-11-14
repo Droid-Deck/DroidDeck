@@ -17,8 +17,9 @@ $(cat signed/SHA256SUMS.txt)
 gh release delete "$tag" -R "$CI_REPO" --yes --cleanup-tag 2>/dev/null || true
 gh release create "$tag" -R "$CI_REPO" --target main --prerelease \
   --title "main ${GITHUB_SHA::7}" --notes "$notes" signed/*
-gh release list -R "$CI_REPO" -L 200 --json tagName,publishedAt \
-  --jq '[.[] | select(.tagName | startswith("main-"))] | sort_by(.publishedAt) | reverse | .['"$KEEP"':][] | .tagName' |
+cutoff=$(date -u -d "-${KEEP_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+gh release list -R "$CI_REPO" -L 1000 --json tagName,publishedAt \
+  --jq '.[] | select((.tagName | startswith("main-")) and .publishedAt < "'"$cutoff"'") | .tagName' |
   while IFS= read -r old; do
     if [ "$old" = "$tag" ]; then
       continue

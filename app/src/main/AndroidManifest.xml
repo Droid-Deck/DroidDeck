@@ -324,6 +324,10 @@
 
         <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
+            android:name=".update.UpdateWatch"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+        <service
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />

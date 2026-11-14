@@ -17,6 +17,7 @@ import com.droiddeck.launcher.ui.UpdatesActions
 import com.droiddeck.launcher.ui.UpdatesState
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
+import com.droiddeck.launcher.update.UpdateWatch
 
 internal class UpdatesMenu(private val activity: Activity, private val ui: Handler) {
     var catalog by mutableStateOf<AppUpdates.Catalog?>(null)
@@ -70,6 +71,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                     catalog = it
                     follow = AppUpdates.follow(activity, it)
                     error = null
+                    if (follow.channel == AppUpdates.Channel.TEST) AppUpdates.release(it, follow)?.let { r -> UpdateWatch.seen(activity, r) }
                 }.onFailure { if (force) error = activity.getString(R.string.upd_couldnt_check, it.message ?: it.javaClass.simpleName) }
             }
         }, "app-updates").start()
@@ -77,6 +79,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     private fun choose(f: AppUpdates.Follow) {
         AppUpdates.setFollow(activity, f)
+        UpdateWatch.sync(activity, f, catalog?.let { AppUpdates.release(it, f) })
         follow = f
         error = null
     }

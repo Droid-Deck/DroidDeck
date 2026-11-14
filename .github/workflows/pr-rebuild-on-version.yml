@@ -1,0 +1,71 @@
+name: PR Rebuild On Version Bump
+run-name: rebuild test builds below versionCode on main
+
+on:
+  push:
+    branches: [main]
+    paths: [app/build.gradle]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-rebuild-on-version
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Rebuild open PRs whose test build Android would refuse over main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          code() { sed -n 's/^[[:space:]]*versionCode[[:space:]][[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p'; }
+          now=$(code < app/build.gradle)
+          [[ "$now" =~ ^[0-9]+$ ]] || { echo "::error::No numeric versionCode on main"; exit 1; }
+          if [ "$EVENT_NAME" = push ]; then
+            was=$(git show "$BEFORE:app/build.gradle" 2>/dev/null | code || true)
+            if [[ "$was" =~ ^[0-9]+$ ]] && [ "$was" -ge "$now" ]; then
+              echo "versionCode stayed at $now"
+              exit 0
+            fi
+          fi
+          gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
+            --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [.tag_name, ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv' |
+            while IFS=$'\t' read -r tag built; do
+              [ "$built" -lt "$now" ] || continue
+              number=${tag#pr-}
+              pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number") || continue
+              jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
+              head=$(jq -r .head.sha <<<"$pr")
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=20" \
+                --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status] | @tsv')
+              if [ -z "$run" ]; then
+                echo "PR #$number: no build of ${head:0:7} to rerun"
+                continue
+              fi
+              id=${run%%$'\t'*}
+              status=${run##*$'\t'}
+              if [ "$status" != completed ]; then
+                echo "PR #$number: build $id is $status"
+                continue
+              fi
+              if gh run rerun "$id" -R "$GITHUB_REPOSITORY"; then
+                echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
+              else
+                echo "::warning::PR #$number: could not rerun build $id"
+              fi
+            done

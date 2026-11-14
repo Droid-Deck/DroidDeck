@@ -18,7 +18,7 @@ object AppUpdates {
     private const val TAG = "AppUpdates"
     private const val REPO = "Droid-Deck/DroidDeck"
     private const val CI_REPO = "Droid-Deck/DroidDeck-CI"
-    private const val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/main/catalog.json"
+    private val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/${BuildConfig.UPDATE_CATALOG_BRANCH}/catalog.json"
     private const val PREFS = "app_updates"
     private const val KEY_CATALOG = "catalog"
     private const val KEY_CHANNEL = "channel"
@@ -49,7 +49,19 @@ object AppUpdates {
         val publishedAt: Long,
         val url: String,
         val apk: Apk?,
-    )
+        val author: String = "",
+        val committedAt: Long = 0L,
+        /** The PR a Preview build merged, 0 for a direct push. Test builds use [pr]. */
+        val mergedPr: Int = 0,
+        /** The PR's newest commit when the catalog was made; differs from [commit] while a rebuild is pending. */
+        val headCommit: String = "",
+    ) {
+        val linkedPr: Int get() = if (pr > 0) pr else mergedPr
+        val shortCommit: String get() = commit.take(7)
+        val newerCommitPushed: Boolean get() =
+            headCommit.length >= 7 && !headCommit.startsWith(commit, ignoreCase = true) &&
+                !commit.startsWith(headCommit, ignoreCase = true)
+    }
 
     class PreviewChange(
         val commit: String,
@@ -64,7 +76,11 @@ object AppUpdates {
         val tests: List<Release>,
         val checkedAt: Long,
         val recentPreviews: List<PreviewChange> = emptyList(),
-    )
+        val previews: List<Release> = emptyList(),
+    ) {
+        /** Every published Preview build, newest commit first; older catalogs only name the newest. */
+        val previewBuilds: List<Release> get() = previews.ifEmpty { listOfNotNull(preview) }
+    }
 
     class Installed(
         val commit: String,
@@ -88,6 +104,8 @@ object AppUpdates {
         val kind: PreviewHistoryKind,
         val buildsBehind: Int,
         val changes: List<PreviewChange>,
+        val builds: List<Release> = emptyList(),
+        val installedIndex: Int = -1,
     )
 
     enum class Offer {
@@ -149,7 +167,13 @@ object AppUpdates {
                 compareVersions(r.version ?: "", me.version) > 0 -> Offer.UPDATE
                 else -> Offer.AHEAD
             }
-            Channel.NIGHTLY -> if (me.pr != 0) Offer.SWITCH else Offer.UPDATE
+            Channel.NIGHTLY -> when {
+                me.pr != 0 -> Offer.SWITCH
+                previewIndex(catalog, me) > 0 -> Offer.UPDATE
+                previewIndex(catalog, me) < 0 && me.committedAt > 0 && r.committedAt > 0 &&
+                    me.committedAt > r.committedAt -> Offer.AHEAD
+                else -> Offer.UPDATE
+            }
             Channel.TEST -> if (me.pr == r.pr) Offer.UPDATE else Offer.SWITCH
         }
     }
@@ -167,7 +191,32 @@ object AppUpdates {
             r.commit.startsWith(me.commit, ignoreCase = true)
     }
 
+    /** Where the installed build sits in [Catalog.previewBuilds], or -1 when it is not one of them. */
+    fun previewIndex(catalog: Catalog, me: Installed = installed()): Int {
+        if (me.pr != 0) return -1
+        val builds = catalog.previewBuilds
+        val matching = builds.indices.filter { matchesInstalledCommit(builds[it].commit, me.commit) }
+        return matching.singleOrNull() ?: -1
+    }
+
+    /** How many Preview builds landed on main after this test build was made. */
+    fun previewsSince(catalog: Catalog, test: Release): Int =
+        catalog.previews.count { (it.committedAt.takeIf { at -> at > 0 } ?: it.publishedAt) > test.publishedAt }
+
+    fun installable(r: Release, me: Installed = installed()): Boolean =
+        me.updatable && installBlock(r, me) == null && !isRunning(r, me)
+
     fun previewHistory(catalog: Catalog, me: Installed = installed()): PreviewHistory? {
+        if (catalog.previews.isNotEmpty()) {
+            val builds = catalog.previews
+            val index = previewIndex(catalog, me)
+            val kind = when {
+                index == 0 -> PreviewHistoryKind.CURRENT
+                index > 0 -> PreviewHistoryKind.BEHIND
+                else -> PreviewHistoryKind.RECENT
+            }
+            return PreviewHistory(kind, maxOf(index, 0), emptyList(), builds, index)
+        }
         if (!me.ciBuild || catalog.recentPreviews.isEmpty()) return null
         val stable = catalog.stable
         if (
@@ -237,7 +286,7 @@ object AppUpdates {
         prefs(context).edit().putString(KEY_CHANNEL, value).apply()
     }
 
-    private fun stored(context: Context): Follow? {
+    fun stored(context: Context): Follow? {
         val v = prefs(context).getString(KEY_CHANNEL, null) ?: return null
         return when {
             v == "stable" -> Follow(Channel.STABLE)
@@ -281,6 +330,7 @@ object AppUpdates {
         }
         val tests = root.optJSONArray("tests") ?: JSONArray()
         val recentPreviews = root.optJSONArray("recentPreviews") ?: JSONArray()
+        val previews = root.optJSONArray("previews") ?: JSONArray()
         return Catalog(
             root.optJSONObject("stable")?.let { readPublishedRelease(it, packageName) },
             root.optJSONObject("preview")?.let { readPublishedRelease(it, packageName) },
@@ -294,6 +344,10 @@ object AppUpdates {
                 .sortedByDescending { it.publishedAt }
                 .distinctBy { it.commit.lowercase() }
                 .take(10),
+            (0 until previews.length())
+                .map { readPublishedRelease(previews.getJSONObject(it), packageName) }
+                .filter { it.pr == 0 }
+                .distinctBy { it.commit.lowercase() },
         )
     }
 
@@ -327,6 +381,10 @@ object AppUpdates {
             o.optLong("publishedAt"),
             o.optString("url"),
             apk,
+            o.optString("author").takeIf { Regex("^[A-Za-z0-9-]{1,39}(\\[bot\\])?$").matches(it) }.orEmpty(),
+            o.optLong("committedAt"),
+            o.optInt("mergedPr").coerceAtLeast(0),
+            o.optString("headCommit").takeIf { Regex("^[0-9a-fA-F]{7,40}$").matches(it) }.orEmpty(),
         )
     }
 
@@ -425,6 +483,10 @@ object AppUpdates {
         .put("publishedAt", r.publishedAt)
         .put("url", r.url)
         .put("apk", r.apk?.let(::writeApk))
+        .put("author", r.author)
+        .put("committedAt", r.committedAt)
+        .put("mergedPr", r.mergedPr)
+        .put("headCommit", r.headCommit)
 
     private fun readCachedRelease(o: JSONObject): Release = Release(
         o.getString("tag"),
@@ -447,6 +509,10 @@ object AppUpdates {
                 it.getString("signerSha256"),
             )
         },
+        o.optString("author"),
+        o.optLong("committedAt"),
+        o.optInt("mergedPr"),
+        o.optString("headCommit"),
     )
 
     internal fun writeCatalog(c: Catalog): JSONObject = JSONObject()
@@ -454,6 +520,7 @@ object AppUpdates {
         .put("preview", c.preview?.let(::writeRelease))
         .put("tests", JSONArray().apply { c.tests.forEach { put(writeRelease(it)) } })
         .put("recentPreviews", JSONArray().apply { c.recentPreviews.forEach { put(writePreviewChange(it)) } })
+        .put("previews", JSONArray().apply { c.previews.forEach { put(writeRelease(it)) } })
         .put("checkedAt", c.checkedAt)
 
     private fun writePreviewChange(c: PreviewChange): JSONObject = JSONObject()
@@ -466,6 +533,7 @@ object AppUpdates {
         val tests = o.optJSONArray("tests") ?: JSONArray()
         val preview = o.optJSONObject("preview") ?: o.optJSONObject("nightly")
         val recentPreviews = o.optJSONArray("recentPreviews") ?: JSONArray()
+        val previews = o.optJSONArray("previews") ?: JSONArray()
         return Catalog(
             o.optJSONObject("stable")?.let(::readCachedRelease),
             preview?.let(::readCachedRelease),
@@ -476,6 +544,7 @@ object AppUpdates {
                 .sortedByDescending { it.publishedAt }
                 .distinctBy { it.commit.lowercase() }
                 .take(10),
+            (0 until previews.length()).map { readCachedRelease(previews.getJSONObject(it)) },
         )
     }
 
