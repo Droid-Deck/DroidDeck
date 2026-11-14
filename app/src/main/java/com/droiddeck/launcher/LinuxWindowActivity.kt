@@ -26,6 +26,7 @@ import com.droiddeck.launcher.session.LinuxWindowEditor
 import com.droiddeck.launcher.session.LinuxWindowSize
 import com.droiddeck.launcher.session.LinuxWindowPresentation
 import com.droiddeck.launcher.session.LinuxWindows
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.CompositorHost
@@ -143,7 +144,7 @@ class LinuxWindowActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         editor = current
-        if (!isFinishing && window.decorView.hasWindowFocus() &&
+        if (SessionPrefs.desktopAutoKeyboard(this) && !isFinishing && window.decorView.hasWindowFocus() &&
             SystemClock.uptimeMillis() - lastTapAt < 1500) keyboard.show()
     }
 
