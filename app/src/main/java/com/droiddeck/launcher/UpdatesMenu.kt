@@ -17,6 +17,7 @@ import com.droiddeck.launcher.ui.UpdatesActions
 import com.droiddeck.launcher.ui.UpdatesState
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
+import com.droiddeck.launcher.update.UpdateWatch
 
 internal class UpdatesMenu(private val activity: Activity, private val ui: Handler) {
     var catalog by mutableStateOf<AppUpdates.Catalog?>(null)
@@ -43,6 +44,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                 .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
         },
         onDismissPermission = { askPermission = false; pending = null },
+        onSeen = { r -> UpdateWatch.seen(activity, r) },
     )
 
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
@@ -77,6 +79,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     private fun choose(f: AppUpdates.Follow) {
         AppUpdates.setFollow(activity, f)
+        UpdateWatch.sync(activity, f, catalog?.let { AppUpdates.release(it, f) })
         follow = f
         error = null
     }

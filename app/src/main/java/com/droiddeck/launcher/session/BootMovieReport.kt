@@ -67,7 +67,7 @@ object BootMovieReport {
         line("== DroidDeck state")
         line("choice=${BootMovie.choice(context)}  saved choice=${SessionPrefs.bootMovie(context)}  pending pick=${SessionPrefs.bootMovieApplyNext(context)}")
         line("last Steam path seen=${SessionPrefs.bootMovieSteamSeen(context)}")
-        line("sound=${SessionPrefs.bootMovieSound(context)}  volume=${SessionPrefs.bootMovieVolume(context)}  seconds=${SessionPrefs.bootMovieSeconds(context)}")
+        line("sound=${SessionPrefs.bootMovieSound(context)}  volume=${SessionPrefs.bootMovieVolume(context)}  seconds=${SessionPrefs.bootMovieSeconds(context)}  skip=${SessionPrefs.skipBootMovie(context)}")
         line("session running=${SessionState.running}")
         line()
         line("== The movie list as shown")

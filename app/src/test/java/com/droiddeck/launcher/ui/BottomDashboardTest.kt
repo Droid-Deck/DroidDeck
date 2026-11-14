@@ -16,7 +16,7 @@ class BottomDashboardTest {
     }
 
     @Test fun withNothingPickedTheStatsOpen() {
-        val ids = listOf("telemetry", "downloads", "notifications", "screenshots", "chat")
+        val ids = listOf("telemetry", "downloads", "screenshots", "chat")
         assertEquals("telemetry", pickBottomPage(null, ids))
         assertEquals("telemetry", pickBottomPage("gone", ids))
         assertEquals("chat", pickBottomPage("chat", ids))
