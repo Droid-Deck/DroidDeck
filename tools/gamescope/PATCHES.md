@@ -350,3 +350,14 @@ motion while the seat is locked) with how the X pointer moves. A hinted constrai
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+
+## 0936 No Man's Sky asynchronous frame readiness
+
+Opt-in producer readiness for No Man's Sky (Steam app 275850) on the tested
+KGSL Turnip WSI path. A per-image present fence supplies a pollable readiness
+descriptor for the matching surface commit. A background worker signals it
+after the driver's rendering/presentation work completes, and Gamescope's
+image waiter gates sampling on that signal. Application present semaphores
+are preserved. Enable with `DROIDDECK_ASYNC_PRESENT=1` after rebuilding both
+Gamescope and its WSI layer. See `docs/development/nms-frame-readiness.md` for
+driver constraints, component integration, device results and limitations.

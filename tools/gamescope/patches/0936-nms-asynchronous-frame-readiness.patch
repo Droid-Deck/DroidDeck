@@ -1,0 +1,877 @@
+diff --git a/layer/VkLayer_FROG_gamescope_wsi.cpp b/layer/VkLayer_FROG_gamescope_wsi.cpp
+--- a/layer/VkLayer_FROG_gamescope_wsi.cpp
++++ b/layer/VkLayer_FROG_gamescope_wsi.cpp
+@@ -32,6 +32,7 @@
+ #include <unistd.h>
+ 
+ #include "../src/messagey.h"
++#include "present_ready.hpp"
+ 
+ using namespace std::literals;
+ 
+@@ -98,6 +99,11 @@
+       return 0;
+ 
+     return atoi(appid);
++  }
++
++  static bool asyncPresentEnabled() {
++    const char *value = getenv("DROIDDECK_ASYNC_PRESENT");
++    return clientAppId() == 275850 && value && strcmp(value, "1") == 0;
+   }
+ 
+   static const char* gamescopeWaylandSocket() {
+@@ -438,7 +444,7 @@
+           wl_registry_bind(registry, name, &wl_compositor_interface, version));
+       } else if (interface == "gamescope_swapchain_factory_v2"sv) {
+         objects->gamescopeSwapchainFactory = reinterpret_cast<gamescope_swapchain_factory_v2 *>(
+-          wl_registry_bind(registry, name, &gamescope_swapchain_factory_v2_interface, version));
++          wl_registry_bind(registry, name, &gamescope_swapchain_factory_v2_interface, std::min(version, uint32_t(gamescope_swapchain_factory_v2_interface.version))));
+       } else if (interface == "gamescope_limiter"sv) {
+         objects->limiterState = std::make_shared<GamescopeLimiterState>();
+         // Cap at our version, binding higher is a fatal protocol error.
+@@ -637,6 +643,9 @@
+     uint32_t serverId = 0;
+     bool isHdrColorspace = false;
+     bool retired = false;
++
++    std::shared_ptr<PresentReady> presentReady;
++    std::unique_ptr<std::mutex> presentMutex = std::make_unique<std::mutex>();
+ 
+     std::unique_ptr<std::mutex> presentTimingMutex = std::make_unique<std::mutex>();
+     std::vector<VkPastPresentationTimingGOOGLE> pastPresentTimings;
+@@ -1215,6 +1224,29 @@
+ 
+   class VkDeviceOverrides {
+   public:
++    static VkResult SynchronizePresent(
++      const vkroots::VkDeviceDispatch *pDispatch, VkQueue queue, VkPresentInfoKHR &info) {
++      static std::atomic<bool> announced = false;
++      if (!announced.exchange(true))
++        fprintf(stderr, "[Gamescope WSI] NMS frame readiness: CPU completion fallback active for unsupported present path\n");
++      std::vector<VkPipelineStageFlags> stages(info.waitSemaphoreCount, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
++      VkSubmitInfo submit = {
++        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
++        .waitSemaphoreCount = info.waitSemaphoreCount,
++        .pWaitSemaphores = info.pWaitSemaphores,
++        .pWaitDstStageMask = stages.data(),
++      };
++      VkResult result = pDispatch->QueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
++      if (result != VK_SUCCESS)
++        return result;
++      result = pDispatch->QueueWaitIdle(queue);
++      if (result != VK_SUCCESS)
++        return VK_ERROR_DEVICE_LOST;
++      info.waitSemaphoreCount = 0;
++      info.pWaitSemaphores = nullptr;
++      return VK_SUCCESS;
++    }
++
+     static void DestroySwapchainKHR(
+       const vkroots::VkDeviceDispatch* pDispatch,
+             VkDevice                   device,
+@@ -1391,6 +1423,18 @@
+ 
+       uint32_t imageCount = 0;
+       pDispatch->GetSwapchainImagesKHR(device, *pSwapchain, &imageCount, nullptr);
++
++      if (asyncPresentEnabled() && canBypass && imageCount > 0 &&
++          wl_proxy_get_version(reinterpret_cast<wl_proxy *>(gamescopeSwapchainObject)) >= 2) {
++        auto state = GamescopeSwapchain::get(*pSwapchain);
++        state->presentReady = std::make_shared<PresentReady>(device, imageCount, PresentReadyApi {
++          .create = pDispatch->CreateFence,
++          .reset = pDispatch->ResetFences,
++          .wait = pDispatch->WaitForFences,
++          .destroy = pDispatch->DestroyFence,
++        });
++        fprintf(stderr, "[Gamescope WSI] NMS frame readiness: asynchronous per-image readiness enabled (%u images); original present semaphores preserved\n", imageCount);
++      }
+ 
+       fprintf(stderr, "[Gamescope WSI] Created swapchain for xid: 0x%0x swapchain: %p - imageCount: %u\n",
+         gamescopeSurface->window,
+@@ -1495,6 +1539,11 @@
+             VkQueue                    queue,
+       const VkPresentInfoKHR*          pPresentInfo) {
+       VkPresentInfoKHR presentInfo = *pPresentInfo;
++      std::unique_lock<std::mutex> presentLock;
++      if (asyncPresentEnabled() && presentInfo.swapchainCount == 1) {
++        if (auto swapchain = GamescopeSwapchain::get(presentInfo.pSwapchains[0]))
++          presentLock = std::unique_lock(*swapchain->presentMutex);
++      }
+ 
+       auto pPresentTimes = vkroots::FindInChain<const VkPresentTimesInfoGOOGLE>(&presentInfo);
+ 
+@@ -1600,7 +1649,58 @@
+         }
+       }
+ 
++      std::shared_ptr<PresentReady> ready;
++      gamescope_swapchain *readyObject = nullptr;
++      uint32_t readyIndex = 0;
++      bool cpuSynchronized = false;
++      VkSwapchainPresentFenceInfoEXT readyFenceInfo = {
++        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT,
++      };
++      VkFence readyFence = VK_NULL_HANDLE;
++      if (asyncPresentEnabled()) {
++        if (presentInfo.swapchainCount == 1 &&
++            !vkroots::FindInChain<VkSwapchainPresentFenceInfoEXT>(&presentInfo)) {
++          if (auto swapchain = GamescopeSwapchain::get(presentInfo.pSwapchains[0])) {
++            if (swapchain->presentReady && (swapchain->isWayland || swapchain->isBypassingXWayland)) {
++              readyIndex = presentInfo.pImageIndices[0];
++              if (swapchain->presentReady->Prepare(readyIndex)) {
++                ready = swapchain->presentReady;
++                readyObject = swapchain->object;
++                readyFence = ready->GetFence(readyIndex);
++                // Mesa signals the present fence after its semaphore waits and presentation blits.
++                readyFenceInfo.pNext = presentInfo.pNext;
++                readyFenceInfo.swapchainCount = 1;
++                readyFenceInfo.pFences = &readyFence;
++                presentInfo.pNext = &readyFenceInfo;
++                gamescope_swapchain_set_acquire_fence(readyObject, ready->GetEventFd(readyIndex));
++              }
++            }
++          }
++        }
++        if (!ready) {
++          VkResult syncResult = SynchronizePresent(pDispatch, queue, presentInfo);
++          if (syncResult != VK_SUCCESS)
++            return syncResult;
++          cpuSynchronized = true;
++        }
++      }
++
+       VkResult result = pDispatch->QueuePresentKHR(queue, &presentInfo);
++      if (ready) {
++        VkResult completionResult = result;
++        if (presentInfo.pResults && result != VK_ERROR_OUT_OF_HOST_MEMORY &&
++            result != VK_ERROR_OUT_OF_DEVICE_MEMORY && result != VK_ERROR_DEVICE_LOST)
++          completionResult = presentInfo.pResults[0];
++        ready->Complete(readyIndex, completionResult);
++        gamescope_swapchain_clear_acquire_fence(readyObject);
++        wl_display_flush(display);
++      }
++      if (cpuSynchronized && (result == VK_ERROR_OUT_OF_HOST_MEMORY || result == VK_ERROR_OUT_OF_DEVICE_MEMORY)) {
++        result = VK_ERROR_DEVICE_LOST;
++        if (presentInfo.pResults)
++          for (uint32_t i = 0; i < presentInfo.swapchainCount; i++)
++            presentInfo.pResults[i] = VK_ERROR_DEVICE_LOST;
++      }
+ 
+       for (uint32_t i = 0; i < presentInfo.swapchainCount; i++) {
+         VkSwapchainKHR swapchain = presentInfo.pSwapchains[i];
+diff --git a/layer/present_ready.hpp b/layer/present_ready.hpp
+new file mode 100644
+--- /dev/null
++++ b/layer/present_ready.hpp
+@@ -0,0 +1,222 @@
++#pragma once
++
++#include <vulkan/vulkan.h>
++
++#include <cerrno>
++#include <chrono>
++#include <condition_variable>
++#include <cstdint>
++#include <cstdio>
++#include <mutex>
++#include <vector>
++#include <pthread.h>
++#include <sys/eventfd.h>
++#include <unistd.h>
++
++namespace GamescopeWSILayer {
++
++struct PresentReadyApi {
++  PFN_vkCreateFence create;
++  PFN_vkResetFences reset;
++  PFN_vkWaitForFences wait;
++  PFN_vkDestroyFence destroy;
++};
++
++class PresentReady {
++ public:
++  PresentReady(VkDevice device, uint32_t imageCount, PresentReadyApi api)
++      : device_(device), api_(api), images_(imageCount), jobs_(imageCount),
++        statsTime_(Clock::now()) {}
++
++  PresentReady(const PresentReady &) = delete;
++  PresentReady &operator=(const PresentReady &) = delete;
++
++  ~PresentReady() {
++    {
++      std::lock_guard<std::mutex> lock(mutex_);
++      stopping_ = true;
++    }
++    changed_.notify_all();
++    if (workerStarted_) pthread_join(worker_, nullptr);
++    for (auto &image : images_) {
++      CloseEvent(image);
++      if (!image.fence) continue;
++      bool safe = !image.pending && !image.unsafe;
++      if (!safe) {
++        VkResult result = api_.wait(device_, 1, &image.fence, VK_TRUE, 0);
++        safe = result == VK_SUCCESS || result == VK_ERROR_DEVICE_LOST;
++      }
++      if (safe) api_.destroy(device_, image.fence, nullptr);
++      else std::fprintf(stderr, "[Gamescope WSI] Present-ready: retaining a GPU-pending fence until device teardown.\n");
++    }
++  }
++
++  bool Prepare(uint32_t index) {
++    std::unique_lock<std::mutex> lock(mutex_);
++    if (index >= images_.size() || stopping_ || failed_) return false;
++    auto &image = images_[index];
++    if (image.pending) {
++      ++reuseWaits_;
++      changed_.wait(lock, [&] { return !image.pending || stopping_ || failed_; });
++    }
++    if (stopping_ || failed_ || image.prepared) return false;
++    if (image.unsafe) {
++      VkResult result = api_.wait(device_, 1, &image.fence, VK_TRUE, 0);
++      if (result != VK_SUCCESS) return false;
++      image.unsafe = false;
++    }
++    if (!image.fence) {
++      const VkFenceCreateInfo info{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
++      if (api_.create(device_, &info, nullptr, &image.fence) != VK_SUCCESS) return false;
++    }
++    int fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
++    if (fd < 0) return false;
++    if (api_.reset(device_, 1, &image.fence) != VK_SUCCESS) {
++      close(fd);
++      return false;
++    }
++    if (!workerStarted_) {
++      if (pthread_create(&worker_, nullptr, WorkerEntry, this) != 0) {
++        close(fd);
++        return false;
++      }
++      workerStarted_ = true;
++    }
++    image.event = fd;
++    image.prepared = true;
++    return true;
++  }
++
++  VkFence GetFence(uint32_t index) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    return index < images_.size() ? images_[index].fence : VK_NULL_HANDLE;
++  }
++
++  int GetEventFd(uint32_t index) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    return index < images_.size() ? images_[index].event : -1;
++  }
++
++  void Complete(uint32_t index, VkResult nativeResult) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    if (index >= images_.size()) return;
++    auto &image = images_[index];
++    if (!image.prepared) return;
++    image.prepared = false;
++    if (nativeResult != VK_SUCCESS && nativeResult != VK_SUBOPTIMAL_KHR) {
++      image.unsafe = nativeResult != VK_ERROR_OUT_OF_HOST_MEMORY &&
++                     nativeResult != VK_ERROR_OUT_OF_DEVICE_MEMORY &&
++                     nativeResult != VK_ERROR_DEVICE_LOST;
++      CloseEvent(image);
++      std::fprintf(stderr, "[Gamescope WSI] Present-ready: native present failed (%d); readiness remains unsignaled.\n", nativeResult);
++      return;
++    }
++    image.pending = true;
++    jobs_[(jobHead_ + jobCount_) % jobs_.size()] = index;
++    ++jobCount_;
++    changed_.notify_all();
++  }
++
++  void Cancel(uint32_t index) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    if (index >= images_.size() || !images_[index].prepared) return;
++    images_[index].prepared = false;
++    CloseEvent(images_[index]);
++  }
++
++ private:
++  using Clock = std::chrono::steady_clock;
++  struct Image {
++    VkFence fence = VK_NULL_HANDLE;
++    int event = -1;
++    bool prepared = false;
++    bool pending = false;
++    bool unsafe = false;
++  };
++
++  static void CloseEvent(Image &image) {
++    if (image.event >= 0) close(image.event);
++    image.event = -1;
++  }
++
++  static void *WorkerEntry(void *data) {
++    static_cast<PresentReady *>(data)->Run();
++    return nullptr;
++  }
++
++  void Run() {
++    for (;;) {
++      uint32_t index;
++      {
++        std::unique_lock<std::mutex> lock(mutex_);
++        changed_.wait(lock, [&] { return stopping_ || jobCount_ != 0; });
++        if (jobCount_ == 0) return;
++        index = jobs_[jobHead_];
++        jobHead_ = (jobHead_ + 1) % jobs_.size();
++        --jobCount_;
++      }
++
++      const auto start = Clock::now();
++      VkResult result;
++      for (;;) {
++        result = api_.wait(device_, 1, &images_[index].fence, VK_TRUE, 100000000);
++        if (result != VK_TIMEOUT) break;
++        std::lock_guard<std::mutex> lock(mutex_);
++        if (stopping_) break;
++      }
++
++      std::lock_guard<std::mutex> lock(mutex_);
++      auto &image = images_[index];
++      if (result == VK_SUCCESS) {
++        const uint64_t ready = 1;
++        ssize_t written;
++        do { written = write(image.event, &ready, sizeof(ready)); }
++        while (written < 0 && errno == EINTR);
++        if (written != sizeof(ready)) {
++          std::fprintf(stderr, "[Gamescope WSI] Present-ready: eventfd signal failed (%d).\n", errno);
++          failed_ = true;
++        }
++        ++completed_;
++        waitNanoseconds_ += std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count();
++      } else {
++        image.unsafe = result != VK_ERROR_DEVICE_LOST;
++        failed_ = true;
++        std::fprintf(stderr, "[Gamescope WSI] Present-ready: fence wait stopped (%d); readiness remains unsignaled.\n", result);
++      }
++      CloseEvent(image);
++      image.pending = false;
++      changed_.notify_all();
++
++      if (Clock::now() - statsTime_ >= std::chrono::seconds(10)) {
++        std::fprintf(stderr, "[Gamescope WSI] Present-ready: frames=%llu worker_wait_avg=%.2fms main_reuse_waits=%llu\n",
++                     static_cast<unsigned long long>(completed_),
++                     completed_ ? double(waitNanoseconds_) / double(completed_) / 1000000.0 : 0.0,
++                     static_cast<unsigned long long>(reuseWaits_));
++        completed_ = 0;
++        waitNanoseconds_ = 0;
++        reuseWaits_ = 0;
++        statsTime_ = Clock::now();
++      }
++      if (stopping_ && result != VK_SUCCESS) return;
++    }
++  }
++
++  VkDevice device_;
++  PresentReadyApi api_;
++  std::vector<Image> images_;
++  std::vector<uint32_t> jobs_;
++  uint32_t jobHead_ = 0;
++  uint32_t jobCount_ = 0;
++  std::mutex mutex_;
++  std::condition_variable changed_;
++  pthread_t worker_{};
++  bool workerStarted_ = false;
++  bool stopping_ = false;
++  bool failed_ = false;
++  Clock::time_point statsTime_;
++  uint64_t completed_ = 0;
++  uint64_t waitNanoseconds_ = 0;
++  uint64_t reuseWaits_ = 0;
++};
++
++}
+diff --git a/protocol/gamescope-swapchain.xml b/protocol/gamescope-swapchain.xml
+--- a/protocol/gamescope-swapchain.xml
++++ b/protocol/gamescope-swapchain.xml
+@@ -29,7 +29,7 @@
+     it.
+   </description>
+ 
+-  <interface name="gamescope_swapchain_factory_v2" version="1">
++  <interface name="gamescope_swapchain_factory_v2" version="2">
+     <request name="destroy" type="destructor"></request>
+ 
+     <request name="create_swapchain">
+@@ -43,7 +43,7 @@
+     </request>
+   </interface>
+ 
+-  <interface name="gamescope_swapchain" version="1">
++  <interface name="gamescope_swapchain" version="2">
+     <request name="destroy" type="destructor"></request>
+ 
+     <request name="override_window_content">
+@@ -190,5 +190,23 @@
+     <event name="retired">
+       <description summary="Swapchain was remotely retired"></description>
+     </event>
++
++    <request name="set_acquire_fence" since="2">
++      <description summary="producer completion fence for the next commit">
++        Supplies a pollable fd that becomes readable when the producer has
++        finished writing the next committed buffer. Linux sync_file and
++        eventfd descriptors are supported. This state is consumed by the next
++        wl_surface.commit and does not persist to later commits. A new request
++        replaces any fence that has not yet been consumed.
++      </description>
++      <arg name="fd" type="fd" summary="producer completion readiness fd"/>
++    </request>
++
++    <request name="clear_acquire_fence" since="2">
++      <description summary="discard a producer fence that was not committed">
++        Clears any pending acquire fence without affecting a fence already
++        transferred to a committed buffer.
++      </description>
++    </request>
+   </interface>
+ </protocol>
+diff --git a/src/Utils/AcquireFence.h b/src/Utils/AcquireFence.h
+new file mode 100644
+--- /dev/null
++++ b/src/Utils/AcquireFence.h
+@@ -0,0 +1,17 @@
++#pragma once
++
++#include <utility>
++#include <unistd.h>
++
++class GamescopeAcquireFence
++{
++public:
++	explicit GamescopeAcquireFence( int nFd ) : m_nFd( nFd ) {}
++	~GamescopeAcquireFence() { if ( m_nFd >= 0 ) close( m_nFd ); }
++	GamescopeAcquireFence( const GamescopeAcquireFence& ) = delete;
++	GamescopeAcquireFence& operator=( const GamescopeAcquireFence& ) = delete;
++	int Take() { return std::exchange( m_nFd, -1 ); }
++
++private:
++	int m_nFd;
++};
+diff --git a/src/WaylandServer/WaylandServerLegacy.h b/src/WaylandServer/WaylandServerLegacy.h
+--- a/src/WaylandServer/WaylandServerLegacy.h
++++ b/src/WaylandServer/WaylandServerLegacy.h
+@@ -2,6 +2,7 @@
+ 
+ #include <wayland-server-core.h>
+ #include "WaylandDecls.h"
++#include "Utils/AcquireFence.h"
+ #include <memory>
+ #include <optional>
+ #include <vector>
+@@ -55,6 +56,8 @@
+ 	std::vector<struct wl_resource *> gamescope_swapchains;
+ 	std::optional<uint32_t> present_id = std::nullopt;
+ 	uint64_t desired_present_time = 0;
++	std::shared_ptr<GamescopeAcquireFence> pPendingAcquireFence;
++	struct wl_resource *pPendingAcquireFenceSwapchain = nullptr;
+ 
+ 	uint64_t last_refresh_cycle = 0;
+ };
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -8625,19 +8625,25 @@
+ 	return poll( &pfd, 1, 0 ) == 1 && ( pfd.revents & POLLIN );
+ }
+ 
+-static void note_commit_fence( bool bReadyAtImport )
++static void note_commit_fence( bool bReadyAtImport, bool bExplicitFence )
+ {
+ 	droiddeck::frame_trace::Record( bReadyAtImport ? droiddeck::frame_trace::Event::FenceReady
+ 												 : droiddeck::frame_trace::Event::FenceWaited );
+ 	static uint64_t s_ulReady = 0, s_ulWaited = 0, s_ulLastLog = 0;
++	static uint64_t s_ulExplicitReady = 0, s_ulExplicitWaited = 0;
+ 	( bReadyAtImport ? s_ulReady : s_ulWaited )++;
++	if ( bExplicitFence )
++		( bReadyAtImport ? s_ulExplicitReady : s_ulExplicitWaited )++;
+ 	uint64_t now = get_time_in_nanos();
+ 	if ( !s_ulLastLog )
+ 		s_ulLastLog = now;
+ 	if ( now - s_ulLastLog >= 10'000'000'000ul )
+ 	{
+ 		xwm_log.infof( "commit fences, last 10 s: %lu ready at import, %lu waited for", s_ulReady, s_ulWaited );
++		if ( s_ulExplicitReady || s_ulExplicitWaited )
++			xwm_log.infof( "NMS explicit acquire fences, last 10 s: %lu ready at import, %lu waited for", s_ulExplicitReady, s_ulExplicitWaited );
+ 		s_ulReady = s_ulWaited = 0;
++		s_ulExplicitReady = s_ulExplicitWaited = 0;
+ 		s_ulLastLog = now;
+ 	}
+ }
+@@ -8801,7 +8807,8 @@
+ 		bDroidDeckHudFrame = iter != g_VirtualConnectorFocuses.end() && iter->second.focusWindow && iter->second.focusWindow->isSteamStreamingClient;
+ 	}
+ 
+-	bool bValidPreemptiveScale = reslistentry.pAcquirePoint && pUpscaleFocus && cv_upscale_preemptive;
++	bool bExplicitFence = bool( reslistentry.pAcquireFence );
++	bool bValidPreemptiveScale = !bExplicitFence && reslistentry.pAcquirePoint && pUpscaleFocus && cv_upscale_preemptive;
+ 	bool bPreemptiveUpscale = bValidPreemptiveScale && newCommit->ShouldPreemptivelyUpscale( pUpscaleFocus->eUpscaleFilter, pUpscaleFocus->eUpscaleScaler );
+ 
+ 	bool bKnownReady = false;
+@@ -8887,7 +8894,7 @@
+ 			ClearUpscaleImages( pUpscaleFocus );
+ 		}
+ 
+-		if ( reslistentry.pAcquirePoint )
++		if ( !bExplicitFence && reslistentry.pAcquirePoint )
+ 		{
+ 			eventFd = reslistentry.pAcquirePoint->CreateEventFd();
+ 		}
+@@ -8901,7 +8908,12 @@
+ 			pBackendFb->SetBuffer( buf );
+ 	}
+ 
+-	if ( eventFd != gamescope::CAcquireTimelinePoint::k_InvalidEvent )
++	if ( bExplicitFence )
++	{
++		fence = reslistentry.pAcquireFence->Take();
++		reslistentry.pAcquireFence.reset();
++	}
++	else if ( eventFd != gamescope::CAcquireTimelinePoint::k_InvalidEvent )
+ 	{
+ 		fence = eventFd.first;
+ 		bKnownReady = eventFd.second;
+@@ -8926,7 +8938,7 @@
+ 	{
+ 		if ( !bKnownReady && fence >= 0 && commit_fence_ready_now( fence ) )
+ 			bKnownReady = true;
+-		note_commit_fence( bKnownReady );
++		note_commit_fence( bKnownReady, bExplicitFence );
+ 	}
+ 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
+ 	{
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -168,8 +168,10 @@
+ 		wl_surf->present_id,
+ 		wl_surf->desired_present_time,
+ 		std::move( pAcquirePoint ),
+-		std::move( pReleasePoint )
++		std::move( pReleasePoint ),
++		std::move( wl_surf->pPendingAcquireFence )
+ 	};
++	wl_surf->pPendingAcquireFenceSwapchain = nullptr;
+ 	wl_surf->present_id = std::nullopt;
+ 	wl_surf->desired_present_time = 0;
+ 	wl_surf->pending_presentation_feedbacks.clear();
+@@ -614,6 +616,8 @@
+ {
+ 	wlserver_wl_surface_info *surf = wl_container_of( l, surf, commit );
+ 	xwayland_surface_commit(surf->wlr);
++	surf->pPendingAcquireFence.reset();
++	surf->pPendingAcquireFenceSwapchain = nullptr;
+ }
+ 
+ static void wlserver_xdg_surface_info_finish( struct wlserver_xdg_surface_info *info )
+@@ -996,6 +1000,11 @@
+ 	if ( wl_surface_info )
+ 	{
+ 		gamescope_swapchain_destroy_co( resource );
++		if ( wl_surface_info->pPendingAcquireFenceSwapchain == resource )
++		{
++			wl_surface_info->pPendingAcquireFence.reset();
++			wl_surface_info->pPendingAcquireFenceSwapchain = nullptr;
++		}
+ 		std::erase(wl_surface_info->gamescope_swapchains, resource);
+ 	}
+ }
+@@ -1114,6 +1123,28 @@
+ 	}
+ }
+ 
++static void gamescope_swapchain_set_acquire_fence( struct wl_client *client, struct wl_resource *resource, int32_t fd )
++{
++	wlserver_wl_surface_info *wl_info = (wlserver_wl_surface_info *)wl_resource_get_user_data( resource );
++	if ( wl_info )
++	{
++		wl_info->pPendingAcquireFence = std::make_shared<GamescopeAcquireFence>( fd );
++		wl_info->pPendingAcquireFenceSwapchain = resource;
++	}
++	else
++		close( fd );
++}
++
++static void gamescope_swapchain_clear_acquire_fence( struct wl_client *client, struct wl_resource *resource )
++{
++	wlserver_wl_surface_info *wl_info = (wlserver_wl_surface_info *)wl_resource_get_user_data( resource );
++	if ( wl_info && wl_info->pPendingAcquireFenceSwapchain == resource )
++	{
++		wl_info->pPendingAcquireFence.reset();
++		wl_info->pPendingAcquireFenceSwapchain = nullptr;
++	}
++}
++
+ static const struct gamescope_swapchain_interface gamescope_swapchain_impl = {
+ 	.destroy = gamescope_swapchain_destroy,
+ 	.override_window_content = gamescope_swapchain_override_window_content,
+@@ -1121,6 +1152,8 @@
+ 	.set_present_mode = gamescope_swapchain_set_present_mode,
+ 	.set_hdr_metadata = gamescope_swapchain_set_hdr_metadata,
+ 	.set_present_time = gamescope_swapchain_set_present_time,
++	.set_acquire_fence = gamescope_swapchain_set_acquire_fence,
++	.clear_acquire_fence = gamescope_swapchain_clear_acquire_fence,
+ };
+ 
+ static void gamescope_swapchain_factory_v2_destroy( struct wl_client *client, struct wl_resource *resource )
+@@ -1157,8 +1190,9 @@
+ 
+ static void create_gamescope_swapchain_factory_v2( void )
+ {
+-	uint32_t version = 1;
++	uint32_t version = 2;
+ 	wl_global_create( wlserver.display, &gamescope_swapchain_factory_v2_interface, version, NULL, gamescope_swapchain_factory_v2_bind );
++	wl_log.infof( "NMS frame readiness: per-commit explicit acquire fences available" );
+ }
+ 
+ ////////////////////////
+diff --git a/src/wlserver.hpp b/src/wlserver.hpp
+--- a/src/wlserver.hpp
++++ b/src/wlserver.hpp
+@@ -50,6 +50,7 @@
+ 	uint64_t desired_present_time;
+ 	std::shared_ptr<gamescope::CAcquireTimelinePoint> pAcquirePoint;
+ 	std::shared_ptr<gamescope::CReleaseTimelinePoint> pReleasePoint;
++	std::shared_ptr<GamescopeAcquireFence> pAcquireFence;
+ };
+ 
+ struct wlserver_content_override;
+diff --git a/tests/meson.build b/tests/meson.build
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -27,3 +27,11 @@
+ test('utils/process', gamescope_tests, args: ['[process]'], depends: [reaper_test_helper])
+ test('utils/string', gamescope_tests, args: ['[string]'])
+ test('vrclient_detect', gamescope_tests, args: ['[vrclient_detect]'])
++
++present_ready_test = executable(
++	'present_ready_test',
++	'present_ready_test.cpp',
++	dependencies: [vulkan_dep, dependency('threads')],
++	cpp_args: ['-UNDEBUG'],
++)
++test('present_ready', present_ready_test)
+diff --git a/tests/present_ready_test.cpp b/tests/present_ready_test.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/present_ready_test.cpp
+@@ -0,0 +1,213 @@
++#include "../layer/present_ready.hpp"
++
++#include <atomic>
++#include <cassert>
++#include <future>
++#include <poll.h>
++
++using GamescopeWSILayer::PresentReady;
++using GamescopeWSILayer::PresentReadyApi;
++using namespace std::chrono_literals;
++
++struct FakeFence {
++  std::mutex mutex;
++  std::condition_variable changed;
++  bool signaled = false;
++  bool entered = false;
++  VkResult error = VK_SUCCESS;
++};
++
++static std::atomic<unsigned> creates{0}, destroys{0}, waits{0};
++static bool failCreate = false;
++
++static FakeFence *Cast(VkFence fence) { return reinterpret_cast<FakeFence *>(fence); }
++
++static VKAPI_ATTR VkResult VKAPI_CALL Create(VkDevice, const VkFenceCreateInfo *,
++                                            const VkAllocationCallbacks *, VkFence *fence) {
++  if (failCreate) return VK_ERROR_OUT_OF_HOST_MEMORY;
++  *fence = reinterpret_cast<VkFence>(new FakeFence);
++  ++creates;
++  return VK_SUCCESS;
++}
++
++static VKAPI_ATTR VkResult VKAPI_CALL Reset(VkDevice, uint32_t count, const VkFence *fences) {
++  assert(count == 1);
++  auto &fence = *Cast(fences[0]);
++  std::lock_guard<std::mutex> lock(fence.mutex);
++  fence.signaled = false;
++  fence.entered = false;
++  return VK_SUCCESS;
++}
++
++static VKAPI_ATTR VkResult VKAPI_CALL Wait(VkDevice, uint32_t count, const VkFence *fences,
++                                          VkBool32 waitAll, uint64_t timeout) {
++  assert(count == 1 && waitAll);
++  ++waits;
++  auto &fence = *Cast(fences[0]);
++  std::unique_lock<std::mutex> lock(fence.mutex);
++  fence.entered = true;
++  fence.changed.notify_all();
++  if (!fence.changed.wait_for(lock, std::chrono::nanoseconds(timeout),
++                             [&] { return fence.signaled || fence.error != VK_SUCCESS; }))
++    return VK_TIMEOUT;
++  return fence.error;
++}
++
++static VKAPI_ATTR void VKAPI_CALL Destroy(VkDevice, VkFence fence, const VkAllocationCallbacks *) {
++  ++destroys;
++  delete Cast(fence);
++}
++
++static const PresentReadyApi api{Create, Reset, Wait, Destroy};
++
++static void Signal(VkFence handle, VkResult result = VK_SUCCESS) {
++  auto &fence = *Cast(handle);
++  std::lock_guard<std::mutex> lock(fence.mutex);
++  fence.signaled = result == VK_SUCCESS;
++  fence.error = result;
++  fence.changed.notify_all();
++}
++
++static void WaitEntered(VkFence handle) {
++  auto &fence = *Cast(handle);
++  std::unique_lock<std::mutex> lock(fence.mutex);
++  assert(fence.changed.wait_for(lock, 1s, [&] { return fence.entered; }));
++}
++
++static bool Ready(int fd, int timeout = 0) {
++  struct pollfd event{fd, POLLIN, 0};
++  int result = poll(&event, 1, timeout);
++  assert(result >= 0);
++  return result == 1 && (event.revents & POLLIN);
++}
++
++static void TestNoEarlySignalAndReuse() {
++  PresentReady ready(VK_NULL_HANDLE, 2, api);
++  assert(!ready.Prepare(2));
++  assert(ready.Prepare(0));
++  VkFence firstFence = ready.GetFence(0);
++  int firstEvent = dup(ready.GetEventFd(0));
++  assert(firstEvent >= 0 && !Ready(firstEvent));
++  ready.Complete(0, VK_SUCCESS);
++  WaitEntered(firstFence);
++  assert(!Ready(firstEvent));
++
++  auto prepare = std::async(std::launch::async, [&] { return ready.Prepare(0); });
++  assert(prepare.wait_for(10ms) == std::future_status::timeout);
++  Signal(firstFence);
++  assert(Ready(firstEvent, 1000));
++  assert(prepare.get());
++  assert(ready.GetFence(0) == firstFence);
++  assert(!Ready(ready.GetEventFd(0)));
++  ready.Cancel(0);
++  close(firstEvent);
++}
++
++static void TestNativeOomDoesNotEnqueueOrSignal() {
++  unsigned beforeWait = waits;
++  unsigned beforeDestroy = destroys;
++  int event;
++  {
++    PresentReady ready(VK_NULL_HANDLE, 1, api);
++    assert(ready.Prepare(0));
++    event = dup(ready.GetEventFd(0));
++    ready.Complete(0, VK_ERROR_OUT_OF_HOST_MEMORY);
++    assert(waits == beforeWait);
++    assert(!Ready(event));
++    assert(ready.GetEventFd(0) == -1);
++    assert(ready.Prepare(0));
++    ready.Cancel(0);
++  }
++  assert(destroys == beforeDestroy + 1);
++  assert(!Ready(event));
++  close(event);
++}
++
++static void TestNativeErrorDoesNotReusePendingFence() {
++  PresentReady ready(VK_NULL_HANDLE, 1, api);
++  assert(ready.Prepare(0));
++  VkFence fence = ready.GetFence(0);
++  int event = dup(ready.GetEventFd(0));
++  ready.Complete(0, VK_ERROR_OUT_OF_DATE_KHR);
++  assert(!ready.Prepare(0));
++  assert(!Ready(event));
++  Signal(fence);
++  assert(ready.Prepare(0));
++  ready.Cancel(0);
++  assert(!Ready(event));
++  close(event);
++}
++
++static void TestDeviceLostDoesNotSignal() {
++  int event;
++  {
++    PresentReady ready(VK_NULL_HANDLE, 1, api);
++    assert(ready.Prepare(0));
++    VkFence fence = ready.GetFence(0);
++    event = dup(ready.GetEventFd(0));
++    ready.Complete(0, VK_SUCCESS);
++    WaitEntered(fence);
++    Signal(fence, VK_ERROR_DEVICE_LOST);
++  }
++  assert(!Ready(event));
++  close(event);
++}
++
++static void TestShutdownDrainsReadyImages() {
++  unsigned beforeDestroy = destroys;
++  int events[2];
++  {
++    PresentReady ready(VK_NULL_HANDLE, 2, api);
++    for (uint32_t i = 0; i < 2; ++i) {
++      assert(ready.Prepare(i));
++      events[i] = dup(ready.GetEventFd(i));
++      ready.Complete(i, VK_SUBOPTIMAL_KHR);
++      Signal(ready.GetFence(i));
++    }
++  }
++  assert(destroys == beforeDestroy + 2);
++  for (int event : events) {
++    assert(Ready(event));
++    close(event);
++  }
++}
++
++static void TestShutdownDoesNotDestroyGpuPendingFence() {
++  unsigned beforeDestroy = destroys;
++  VkFence fence;
++  int event;
++  auto start = std::chrono::steady_clock::now();
++  {
++    PresentReady ready(VK_NULL_HANDLE, 1, api);
++    assert(ready.Prepare(0));
++    fence = ready.GetFence(0);
++    event = dup(ready.GetEventFd(0));
++    ready.Complete(0, VK_SUCCESS);
++    WaitEntered(fence);
++  }
++  assert(std::chrono::steady_clock::now() - start < 1s);
++  assert(destroys == beforeDestroy);
++  assert(!Ready(event));
++  close(event);
++  delete Cast(fence);
++}
++
++static void TestAllocationFailureFallsBack() {
++  PresentReady ready(VK_NULL_HANDLE, 1, api);
++  failCreate = true;
++  assert(!ready.Prepare(0));
++  failCreate = false;
++  assert(ready.Prepare(0));
++  ready.Cancel(0);
++}
++
++int main() {
++  TestNoEarlySignalAndReuse();
++  TestNativeOomDoesNotEnqueueOrSignal();
++  TestNativeErrorDoesNotReusePendingFence();
++  TestDeviceLostDoesNotSignal();
++  TestShutdownDrainsReadyImages();
++  TestShutdownDoesNotDestroyGpuPendingFence();
++  TestAllocationFailureFallsBack();
++  std::puts("present-ready tests passed");
++}
