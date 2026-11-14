@@ -189,7 +189,7 @@ def little_nightmares_threads(game):
 
 def names_module(overrides, names):
     for entry in (overrides or "").split(";"):
-        if "=" in entry and names & {name.lower() for name in re.split(r"[, \t]", entry.split("=", 1)[0])}:
+        if "=" in entry and names & {re.sub(r"^\*|\.dll$", "", name.lower()) for name in re.split(r"[, \t]", entry.split("=", 1)[0])}:
             return True
     return False
 

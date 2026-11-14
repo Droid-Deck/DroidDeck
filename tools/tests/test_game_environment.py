@@ -774,6 +774,11 @@ class GameEnvironmentTest(unittest.TestCase):
             ({"WINEDLLOVERRIDES": "d3d11\ttabtip.exe=b"}, "d3d11\ttabtip.exe=b"),
             ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b;tabtip.exe=d"),
             ({"WINEDLLOVERRIDES": "d3d11 dxgi=n"}, "d3d11 dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "*tabtip.exe=b"}, "*tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "TabTip.exe.DLL=b"}, "TabTip.exe.DLL=b"),
+            ({"WINEDLLOVERRIDES": "d3d11,*tabtip.exe.dll=n"}, "d3d11,*tabtip.exe.dll=n"),
+            ({"WINEDLLOVERRIDES": "*tabtip=b"}, "*tabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.dll=b"}, "tabtip.dll=b;tabtip.exe=d"),
         )
         for before, overrides in cases:
             with self.subTest(env=before):
