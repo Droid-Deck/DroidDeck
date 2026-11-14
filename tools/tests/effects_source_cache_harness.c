@@ -51,6 +51,70 @@ static VkResult VKAPI_CALL allocate_set(VkDevice dev, const VkDescriptorSetAlloc
     *out = (VkDescriptorSet)(uintptr_t)(200 + ++sets);
     return VK_SUCCESS;
 }
+
+static VkImageLayout restored_layout;
+static VkPipelineStageFlags restored_stage;
+static void VKAPI_CALL pipeline_barrier(VkCommandBuffer cmd, VkPipelineStageFlags src, VkPipelineStageFlags dst,
+    VkDependencyFlags flags, uint32_t nm, const VkMemoryBarrier *m, uint32_t nb,
+    const VkBufferMemoryBarrier *b, uint32_t ni, const VkImageMemoryBarrier *images) {
+    for (uint32_t k = 0; k < ni; k++) {
+        if (images[k].image == (VkImage)(uintptr_t)10 && images[k].newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+            restored_layout = images[k].oldLayout;
+            restored_stage = src;
+        }
+    }
+}
+static void VKAPI_CALL begin_pass(VkCommandBuffer c, const VkRenderPassBeginInfo *i, VkSubpassContents s) {}
+static void VKAPI_CALL viewport(VkCommandBuffer c, uint32_t f, uint32_t n, const VkViewport *v) {}
+static void VKAPI_CALL scissor(VkCommandBuffer c, uint32_t f, uint32_t n, const VkRect2D *v) {}
+static void VKAPI_CALL bind_pipeline(VkCommandBuffer c, VkPipelineBindPoint b, VkPipeline p) {}
+static void VKAPI_CALL bind_sets(VkCommandBuffer c, VkPipelineBindPoint b, VkPipelineLayout l, uint32_t f,
+    uint32_t n, const VkDescriptorSet *s, uint32_t nd, const uint32_t *d) {}
+static void VKAPI_CALL push(VkCommandBuffer c, VkPipelineLayout l, VkShaderStageFlags s, uint32_t o,
+    uint32_t n, const void *v) {}
+static void VKAPI_CALL draw(VkCommandBuffer c, uint32_t n, uint32_t i, uint32_t f, uint32_t fi) {}
+static void VKAPI_CALL end_pass(VkCommandBuffer c) {}
+static void VKAPI_CALL blit(VkCommandBuffer c, VkImage a, VkImageLayout al, VkImage b, VkImageLayout bl,
+    uint32_t n, const VkImageBlit *r, VkFilter f) {}
+
+static void check_generated_settings_and_layout(void) {
+    g_vk.CmdPipelineBarrier = pipeline_barrier;
+    g_vk.CmdBeginRenderPass = begin_pass;
+    g_vk.CmdSetViewport = viewport; g_vk.CmdSetScissor = scissor;
+    g_vk.CmdBindPipeline = bind_pipeline; g_vk.CmdBindDescriptorSets = bind_sets;
+    g_vk.CmdPushConstants = push; g_vk.CmdDraw = draw; g_vk.CmdEndRenderPass = end_pass;
+    g_vk.CmdBlitImage = blit;
+    g_ready = 1;
+    for (int k = 0; k < 2; k++) {
+        struct fx_target *t = &g_contexts[1].targets[k];
+        t->img = (VkImage)(uintptr_t)(30 + k); t->w = 1920; t->h = 1080;
+    }
+    vkp_effects_set_scaling(3);
+    assert(vkp_effects_prepare_generated());
+    vkp_effects_set_scaling(0);
+    vkp_effects_set_cas(1, 75);
+    vkp_effects_sync();
+    assert(g_cur.scaling == 0 && cas_active(&g_cur));
+    assert(g_generated_settings.scaling == 3 && !effect_count(&g_generated_settings));
+    int w, h;
+    VkImage input = (VkImage)(uintptr_t)10;
+    assert(vkp_effects_run_before_generated(VK_NULL_HANDLE, input, 1280, 720, &w, &h) == input);
+    assert(w == 1280 && h == 720);
+    assert(vkp_effects_run_generated(VK_NULL_HANDLE, input, 1280, 720, 1920, 1080, 0, &w, &h) != input);
+    assert(w == 1920 && h == 1080);
+    assert(restored_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    assert(restored_stage == VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    g_generated_settings.scaling = 0;
+    g_generated_settings.color_on = 1;
+    assert(vkp_effects_run_generated(VK_NULL_HANDLE, input, 1280, 720, 1920, 1080, 0, &w, &h) != input);
+    assert(restored_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    assert(restored_stage == VK_PIPELINE_STAGE_TRANSFER_BIT);
+    g_ready = -1;
+    assert(vkp_effects_run_generated(VK_NULL_HANDLE, input, 1280, 720, 1920, 1080, 0, &w, &h) == input);
+    assert(w == 1280 && h == 720);
+    assert(restored_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    assert(g_context == 0);
+}
 static void VKAPI_CALL update_set(VkDevice dev, uint32_t count, const VkWriteDescriptorSet *writes,
                                  uint32_t copies, const VkCopyDescriptorSet *copy) {
     (void)dev; (void)copies; (void)copy;
@@ -84,7 +148,20 @@ int main(int argc, char **argv) {
     VkImage source = (VkImage)(uintptr_t)10;
     assert(scene_ensure(source, 1280, 720) == 0);
     VkImageView original = bound_view;
-    if (!strcmp(argv[1], "recycled")) {
+    if (!strcmp(argv[1], "generated-layout")) {
+        check_generated_settings_and_layout();
+    } else if (!strcmp(argv[1], "generated")) {
+        for (int k = 1; k < FX_CONTEXTS; k++) {
+            g_context = k;
+            assert(scene_ensure((VkImage)(uintptr_t)(10 + k), 1280, 720) == 0);
+        }
+        assert(sets == FX_CONTEXTS && !freed_sets);
+        vkp_effects_release_generated_sources();
+        assert(g_context == 0 && freed_sets == FX_CONTEXTS - 1);
+        assert(g_scene.img == source && g_scene.view == original);
+        vkp_effects_release_generated_sources();
+        assert(freed_sets == FX_CONTEXTS - 1);
+    } else if (!strcmp(argv[1], "recycled")) {
         vkp_effects_forget_image(source);
         assert(freed_sets == 1 && freed_views == 1);
         assert(scene_ensure(source, 1280, 720) == 0);
