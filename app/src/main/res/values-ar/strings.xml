@@ -2605,6 +2605,7 @@
     <string name="bnet_dl_queued">في انتظار تنزيل Battle.net الآخر…</string>
     <string name="bnet_dl_client_first">افتح Battle.net وسجّل الدخول مرة واحدة، ثم ثبّت ألعابه من هنا.</string>
     <string name="bnet_dl_failed">توقفت أداة التنزيل من Blizzard: %1$s</string>
+    <string name="bnet_dl_stalled">توقفت أداة التنزيل من Blizzard عن التقدم.</string>
     <string name="bnet_dl_agent_error">خطأ Blizzard %1$s</string>
     <string name="bnet_update">تحديث</string>
     <string name="bnet_store">ألعاب Blizzard</string>

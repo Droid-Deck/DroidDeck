@@ -2553,6 +2553,7 @@
     <string name="bnet_dl_queued">Oczekiwanie na drugie pobieranie z Battle.net…</string>
     <string name="bnet_dl_client_first">Otwórz Battle.net i zaloguj się raz, a potem instaluj jego gry tutaj.</string>
     <string name="bnet_dl_failed">Program pobierający Blizzarda zatrzymał się: %1$s</string>
+    <string name="bnet_dl_stalled">Program pobierający Blizzarda przestał robić postępy.</string>
     <string name="bnet_dl_agent_error">Błąd Blizzarda %1$s</string>
     <string name="bnet_update">Aktualizuj</string>
     <string name="bnet_store">Gry Blizzarda</string>

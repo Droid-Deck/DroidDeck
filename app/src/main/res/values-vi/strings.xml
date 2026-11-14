@@ -2476,6 +2476,7 @@
     <string name="bnet_dl_queued">Đang chờ lượt tải Battle.net khác…</string>
     <string name="bnet_dl_client_first">Mở Battle.net và đăng nhập một lần, sau đó cài trò chơi của nó tại đây.</string>
     <string name="bnet_dl_failed">Trình tải xuống của Blizzard đã dừng: %1$s</string>
+    <string name="bnet_dl_stalled">Trình tải xuống của Blizzard không còn tiến triển.</string>
     <string name="bnet_dl_agent_error">Lỗi Blizzard %1$s</string>
     <string name="bnet_update">Cập nhật</string>
     <string name="bnet_store">Trò chơi Blizzard</string>

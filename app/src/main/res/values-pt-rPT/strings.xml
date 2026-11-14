@@ -2518,6 +2518,7 @@
     <string name="bnet_dl_queued">A aguardar a outra transferência do Battle.net…</string>
     <string name="bnet_dl_client_first">Abra o Battle.net e inicie sessão uma vez; depois instale os jogos dele aqui.</string>
     <string name="bnet_dl_failed">O programa de transferência da Blizzard parou: %1$s</string>
+    <string name="bnet_dl_stalled">O programa de transferência da Blizzard deixou de avançar.</string>
     <string name="bnet_dl_agent_error">Erro da Blizzard %1$s</string>
     <string name="bnet_update">Atualizar</string>
     <string name="bnet_store">Jogos da Blizzard</string>

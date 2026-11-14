@@ -2555,6 +2555,7 @@
     <string name="bnet_dl_queued">正在等待另一个 Battle.net 下载…</string>
     <string name="bnet_dl_client_first">请先打开 Battle.net 并登录一次，然后在这里安装其游戏。</string>
     <string name="bnet_dl_failed">暴雪下载器已停止：%1$s</string>
+    <string name="bnet_dl_stalled">暴雪下载器已停止进展。</string>
     <string name="bnet_dl_agent_error">暴雪错误 %1$s</string>
     <string name="bnet_update">更新</string>
     <string name="bnet_store">暴雪游戏</string>

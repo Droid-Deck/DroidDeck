@@ -2553,6 +2553,7 @@
     <string name="bnet_dl_queued">Ожидание другой загрузки Battle.net…</string>
     <string name="bnet_dl_client_first">Откройте Battle.net и войдите один раз, затем устанавливайте его игры здесь.</string>
     <string name="bnet_dl_failed">Загрузчик Blizzard остановился: %1$s</string>
+    <string name="bnet_dl_stalled">Загрузчик Blizzard перестал продвигаться.</string>
     <string name="bnet_dl_agent_error">Ошибка Blizzard %1$s</string>
     <string name="bnet_update">Обновить</string>
     <string name="bnet_store">Игры Blizzard</string>

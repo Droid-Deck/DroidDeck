@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">Venter på den anden Battle.net-download…</string>
     <string name="bnet_dl_client_first">Åbn Battle.net, og log ind én gang, og installer derefter dets spil herfra.</string>
     <string name="bnet_dl_failed">Blizzards downloader stoppede: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzards downloader holdt op med at gøre fremskridt.</string>
     <string name="bnet_dl_agent_error">Blizzard-fejl %1$s</string>
     <string name="bnet_update">Opdater</string>
     <string name="bnet_store">Blizzard-spil</string>

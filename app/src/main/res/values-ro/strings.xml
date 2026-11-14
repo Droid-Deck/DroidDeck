@@ -2527,6 +2527,7 @@
     <string name="bnet_dl_queued">Se așteaptă cealaltă descărcare Battle.net…</string>
     <string name="bnet_dl_client_first">Deschide Battle.net și conectează-te o dată, apoi instalează jocurile de aici.</string>
     <string name="bnet_dl_failed">Programul de descărcare Blizzard s-a oprit: %1$s</string>
+    <string name="bnet_dl_stalled">Programul de descărcare Blizzard nu mai avansează.</string>
     <string name="bnet_dl_agent_error">Eroare Blizzard %1$s</string>
     <string name="bnet_update">Actualizează</string>
     <string name="bnet_store">Jocuri Blizzard</string>
