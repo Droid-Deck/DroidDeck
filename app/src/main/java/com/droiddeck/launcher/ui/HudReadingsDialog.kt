@@ -73,6 +73,7 @@ import kotlin.math.roundToInt
 private val ROW_HEIGHT = 44.dp
 private val HANDLE_WIDTH = 40.dp
 private const val RESET_HOLD_MS = 5_000
+private const val TAP_HOLD_MS = 400
 private val HINT_LABEL_WIDTH = 92.dp
 
 @Composable
@@ -165,6 +166,16 @@ internal fun HudReadingsDialog(
     val save = { onSave(enabled.toMap(), merged()); close() }
     val restore = { onReset(); close() }
     val rowPx = with(LocalDensity.current) { ROW_HEIGHT.toPx() }
+    var pad by remember { mutableStateOf(controller) }
+    var yHeld by remember { mutableStateOf(false) }
+    var yLong by remember { mutableStateOf(false) }
+    var yStartedGrab by remember { mutableStateOf(false) }
+    LaunchedEffect(yHeld) {
+        if (!yHeld) return@LaunchedEffect
+        delay(TAP_HOLD_MS.toLong())
+        yLong = true
+    }
+
     var resetHeld by remember { mutableStateOf(false) }
     val resetFill = ResetHold(resetHeld, restore)
 
@@ -204,8 +215,8 @@ internal fun HudReadingsDialog(
     AppDialog(
         shown, close, "hudReadings", wide = false, scrollable = false,
         modifier = Modifier.fillMaxHeight(),
-        back = { if (grabbed != null) cancel() else if (controller) save() else close() },
-        side = if (controller) {
+        back = { if (grabbed != null) cancel() else if (pad) save() else close() },
+        side = if (pad) {
             { HudKeyHints(grabbed, resetFill) }
         } else {
             null
@@ -219,16 +230,28 @@ internal fun HudReadingsDialog(
                 .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 val down = key.action == KeyEvent.ACTION_DOWN
+                if (down) pad = true
                 val first = down && key.repeatCount == 0
                 val held = grabbed
                 when {
                     key.keyCode == KeyEvent.KEYCODE_BUTTON_Y -> {
-                        if (first) {
-                            if (held == null) grab() else grabbed = null
+                        when {
+                            down && first -> {
+                                yHeld = true
+                                yLong = key.flags and KeyEvent.FLAG_LONG_PRESS != 0
+                                yStartedGrab = grabbed == null
+                                if (yStartedGrab) grab()
+                            }
+                            down -> if (key.repeatCount > 0) yLong = true
+                            else -> {
+                                val drop = grabbed != null && (!yStartedGrab || yLong)
+                                yHeld = false
+                                if (drop) grabbed = null
+                            }
                         }
                         true
                     }
-                    key.keyCode == KeyEvent.KEYCODE_BUTTON_X && controller -> {
+                    key.keyCode == KeyEvent.KEYCODE_BUTTON_X && pad -> {
                         resetHeld = down
                         true
                     }
@@ -347,7 +370,7 @@ internal fun HudReadingsDialog(
                 }
             }
             list(Modifier.weight(1f).fillMaxWidth())
-            if (!controller) {
+            if (!pad) {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f))
                     PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save)
