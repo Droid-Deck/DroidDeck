@@ -296,7 +296,8 @@ Brightness remains limited to the known protocol values **0–9**. XREAL's
 [display guide](https://tutorials.xreal.com/docs/glasses/pro-plus/display-sound/)
 documents 14 physical levels in Follow mode with Stabilizer off and 10 in Anchor
 or Spatial Anchor. Those counts do not establish a 0–13 direct-protocol range.
-The wider API mapping, brightness behavior, and dimming still need validation.
+The wearer confirmed that DroidDeck's brightness and dimming controls work on the
+Pro+. The wider brightness API mapping remains unverified.
 
 Use **Follow** with **Stabilizer off** in the glasses' own menu before using
 DroidDeck tracking, following the official
