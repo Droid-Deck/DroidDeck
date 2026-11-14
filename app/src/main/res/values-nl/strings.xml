@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Eén herhalen</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Geen audiobestanden in deze soundtrack</string>
-    <string name="setup_stores">Winkels</string>
     <string name="screen_effects_target">Effectenprofiel</string>
     <string name="screen_effects_target_hint">Kies het profiel waarvan je de schermeffecten wilt wijzigen.</string>
     <string name="screen_effects_target_auto">Huidige game (automatisch)</string>

@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Egy ismétlése</string>
     <string name="soundtracks_volume">Hangerő</string>
     <string name="soundtracks_no_tracks">Nincs hangfájl ebben a soundtrackben</string>
-    <string name="setup_stores">Áruházak</string>
     <string name="screen_effects_target">Effektprofil</string>
     <string name="screen_effects_target_hint">Válaszd ki, melyik profil képernyőeffektusait szeretnéd módosítani.</string>
     <string name="screen_effects_target_auto">Aktuális játék (automatikus)</string>

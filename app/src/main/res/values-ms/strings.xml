@@ -3701,7 +3701,6 @@
     <string name="soundtracks_repeat_one">Ulang satu</string>
     <string name="soundtracks_volume">Kelantangan</string>
     <string name="soundtracks_no_tracks">Tiada fail audio dalam runut bunyi ini</string>
-    <string name="setup_stores">Kedai</string>
     <string name="screen_effects_target">Profil kesan</string>
     <string name="screen_effects_target_hint">Pilih profil yang kesan skrinnya ingin diubah.</string>
     <string name="screen_effects_target_auto">Permainan semasa (automatik)</string>

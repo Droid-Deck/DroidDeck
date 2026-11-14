@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Повтаряне на една</string>
     <string name="soundtracks_volume">Сила на звука</string>
     <string name="soundtracks_no_tracks">В този саундтрак няма аудиофайлове</string>
-    <string name="setup_stores">Магазини</string>
     <string name="screen_effects_target">Профил на ефектите</string>
     <string name="screen_effects_target_hint">Изберете профила, чиито екранни ефекти искате да промените.</string>
     <string name="screen_effects_target_auto">Текуща игра (автоматично)</string>

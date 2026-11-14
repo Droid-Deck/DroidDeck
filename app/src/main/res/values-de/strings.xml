@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Titel wiederholen</string>
     <string name="soundtracks_volume">Lautstärke</string>
     <string name="soundtracks_no_tracks">Keine Audiodateien in diesem Soundtrack</string>
-    <string name="setup_stores">Stores</string>
     <string name="screen_effects_target">Effektprofil</string>
     <string name="screen_effects_target_hint">Wähle aus, für welches Profil du die Bildschirmeffekte ändern möchtest.</string>
     <string name="screen_effects_target_auto">Aktuelles Spiel (automatisch)</string>

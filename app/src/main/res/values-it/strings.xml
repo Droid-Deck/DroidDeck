@@ -3770,7 +3770,6 @@
     <string name="soundtracks_repeat_one">Ripeti uno</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Nessun file audio in questa colonna sonora</string>
-    <string name="setup_stores">Negozi</string>
     <string name="screen_effects_target">Profilo effetti</string>
     <string name="screen_effects_target_hint">Scegli il profilo di cui vuoi modificare gli effetti dello schermo.</string>
     <string name="screen_effects_target_auto">Gioco corrente (automatico)</string>

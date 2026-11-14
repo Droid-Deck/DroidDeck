@@ -3809,7 +3809,6 @@
     <string name="soundtracks_repeat_one">Opakovat jednu</string>
     <string name="soundtracks_volume">Hlasitost</string>
     <string name="soundtracks_no_tracks">V tomto soundtracku nejsou žádné zvukové soubory</string>
-    <string name="setup_stores">Obchody</string>
     <string name="screen_effects_target">Profil efektů</string>
     <string name="screen_effects_target_hint">Vyberte profil, jehož efekty obrazovky chcete změnit.</string>
     <string name="screen_effects_target_auto">Aktuální hra (automaticky)</string>

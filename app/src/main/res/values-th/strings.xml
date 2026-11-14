@@ -3701,7 +3701,6 @@
     <string name="soundtracks_repeat_one">เล่นซ้ำหนึ่งเพลง</string>
     <string name="soundtracks_volume">ระดับเสียง</string>
     <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
-    <string name="setup_stores">สโตร์</string>
     <string name="screen_effects_target">โปรไฟล์เอฟเฟกต์</string>
     <string name="screen_effects_target_hint">เลือกโปรไฟล์ที่ต้องการเปลี่ยนเอฟเฟกต์หน้าจอ</string>
     <string name="screen_effects_target_auto">เกมปัจจุบัน (อัตโนมัติ)</string>

@@ -3701,7 +3701,6 @@
     <string name="soundtracks_repeat_one">한 곡 반복</string>
     <string name="soundtracks_volume">볼륨</string>
     <string name="soundtracks_no_tracks">이 사운드트랙에 오디오 파일이 없습니다</string>
-    <string name="setup_stores">스토어</string>
     <string name="screen_effects_target">효과 프로필</string>
     <string name="screen_effects_target_hint">화면 효과를 변경할 프로필을 선택하세요.</string>
     <string name="screen_effects_target_auto">현재 게임(자동)</string>

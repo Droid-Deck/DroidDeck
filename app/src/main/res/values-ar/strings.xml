@@ -3887,7 +3887,6 @@
     <string name="soundtracks_repeat_one">تكرار مقطع واحد</string>
     <string name="soundtracks_volume">مستوى الصوت</string>
     <string name="soundtracks_no_tracks">لا توجد ملفات صوتية في هذه الموسيقى التصويرية</string>
-    <string name="setup_stores">المتاجر</string>
     <string name="screen_effects_target">ملف التأثيرات</string>
     <string name="screen_effects_target_hint">اختر الملف الشخصي الذي تريد تغيير تأثيرات الشاشة فيه.</string>
     <string name="screen_effects_target_auto">اللعبة الحالية (تلقائي)</string>

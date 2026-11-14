@@ -3701,7 +3701,6 @@
     <string name="soundtracks_repeat_one">Lặp lại một bài</string>
     <string name="soundtracks_volume">Âm lượng</string>
     <string name="soundtracks_no_tracks">Không có tệp âm thanh trong nhạc nền này</string>
-    <string name="setup_stores">Cửa hàng</string>
     <string name="screen_effects_target">Hồ sơ hiệu ứng</string>
     <string name="screen_effects_target_hint">Chọn hồ sơ có hiệu ứng màn hình bạn muốn thay đổi.</string>
     <string name="screen_effects_target_auto">Trò chơi hiện tại (tự động)</string>

@@ -3704,7 +3704,6 @@
     <string name="soundtracks_repeat_one">單曲重複</string>
     <string name="soundtracks_volume">音量</string>
     <string name="soundtracks_no_tracks">此原聲帶中沒有音訊檔案</string>
-    <string name="setup_stores">遊戲商店</string>
     <string name="screen_effects_target">效果設定檔</string>
     <string name="screen_effects_target_hint">選擇要變更螢幕效果的設定檔。</string>
     <string name="screen_effects_target_auto">目前遊戲（自動）</string>

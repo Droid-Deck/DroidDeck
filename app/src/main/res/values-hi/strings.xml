@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">एक दोहराएँ</string>
     <string name="soundtracks_volume">वॉल्यूम</string>
     <string name="soundtracks_no_tracks">इस साउंडट्रैक में कोई ऑडियो फ़ाइल नहीं है</string>
-    <string name="setup_stores">स्टोर</string>
     <string name="screen_effects_target">इफ़ेक्ट प्रोफ़ाइल</string>
     <string name="screen_effects_target_hint">चुनें कि किस प्रोफ़ाइल के स्क्रीन इफ़ेक्ट बदलने हैं।</string>
     <string name="screen_effects_target_auto">वर्तमान गेम (स्वचालित)</string>

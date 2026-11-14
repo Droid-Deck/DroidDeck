@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Toista yksi</string>
     <string name="soundtracks_volume">Äänenvoimakkuus</string>
     <string name="soundtracks_no_tracks">Tässä soundtrackissa ei ole äänitiedostoja</string>
-    <string name="setup_stores">Kaupat</string>
     <string name="screen_effects_target">Tehosteprofiili</string>
     <string name="screen_effects_target_hint">Valitse profiili, jonka näyttötehosteita haluat muuttaa.</string>
     <string name="screen_effects_target_auto">Nykyinen peli (automaattinen)</string>

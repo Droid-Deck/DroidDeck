@@ -3771,7 +3771,6 @@
     <string name="soundtracks_repeat_one">Repetir una</string>
     <string name="soundtracks_volume">Volumen</string>
     <string name="soundtracks_no_tracks">No hay archivos de audio en esta banda sonora</string>
-    <string name="setup_stores">Tiendas</string>
     <string name="screen_effects_target">Perfil de efectos</string>
     <string name="screen_effects_target_hint">Elige el perfil cuyos efectos de pantalla quieres cambiar.</string>
     <string name="screen_effects_target_auto">Juego actual (automático)</string>

@@ -3892,7 +3892,6 @@
     <string name="soundtracks_repeat_one">Повторять один</string>
     <string name="soundtracks_volume">Громкость</string>
     <string name="soundtracks_no_tracks">В этом саундтреке нет аудиофайлов</string>
-    <string name="setup_stores">Магазины</string>
     <string name="screen_effects_target">Профиль эффектов</string>
     <string name="screen_effects_target_hint">Выберите профиль, в котором нужно изменить экранные эффекты.</string>
     <string name="screen_effects_target_auto">Текущая игра (автоматически)</string>

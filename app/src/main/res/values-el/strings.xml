@@ -3731,7 +3731,6 @@
     <string name="soundtracks_repeat_one">Επανάληψη ενός</string>
     <string name="soundtracks_volume">Ένταση</string>
     <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
-    <string name="setup_stores">Καταστήματα</string>
     <string name="screen_effects_target">Προφίλ εφέ</string>
     <string name="screen_effects_target_hint">Επιλέξτε ποιανού προφίλ τα εφέ οθόνης θέλετε να αλλάξετε.</string>
     <string name="screen_effects_target_auto">Τρέχον παιχνίδι (αυτόματα)</string>

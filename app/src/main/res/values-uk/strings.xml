@@ -3809,7 +3809,6 @@
     <string name="soundtracks_repeat_one">Повторювати один</string>
     <string name="soundtracks_volume">Гучність</string>
     <string name="soundtracks_no_tracks">У цьому саундтреку немає аудіофайлів</string>
-    <string name="setup_stores">Магазини</string>
     <string name="screen_effects_target">Профіль ефектів</string>
     <string name="screen_effects_target_hint">Виберіть профіль, у якому потрібно змінити екранні ефекти.</string>
     <string name="screen_effects_target_auto">Поточна гра (автоматично)</string>
