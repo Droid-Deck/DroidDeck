@@ -2138,10 +2138,13 @@
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
     <string name="swap_screens">Swap screens</string>
     <string name="swap_screens_unavailable">The bottom screen is not free right now</string>
-    <string name="swap_game_screen_group">Game screen</string>
+    <string name="swap_game_screen_group">Screen placement</string>
     <string name="swap_game_screen">Show the game on</string>
     <string name="swap_game_screen_top">Top screen</string>
     <string name="swap_game_screen_bottom">Bottom screen</string>
+    <string name="session_menu_screen">Show DroidDeck menu on</string>
+    <string name="session_menu_screen_game">Game screen</string>
+    <string name="session_menu_screen_companion">Companion screen</string>
     <string name="bottom_page_downloads">Downloads</string>
     <string name="bottom_downloads_none">No downloads running.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -4022,6 +4025,8 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+    <string name="second_screen_enabled">Use second screen</string>
+    <string name="input_shape_toolbar">Toolbar button</string>
 
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>

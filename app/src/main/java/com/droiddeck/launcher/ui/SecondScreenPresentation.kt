@@ -33,7 +33,6 @@ class SecondScreenPresentation(
     display: Display,
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
-    private val onClose: () -> Unit,
     private val pad: PadBridge? = null,
     private val onKeyboardClosed: () -> Unit = {},
     private val onMenu: (() -> Unit)? = null,
@@ -44,12 +43,12 @@ class SecondScreenPresentation(
     private val onDeckPanel: (DeckPanel) -> Unit = { SessionPrefs.setDeckPanel(sessionActivity, it) },
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
-    private var menuView: androidx.compose.ui.platform.ComposeView? = null
+    var menuHost: SessionMenuHost? = null
+        private set
     private var dashboardView: androidx.compose.ui.platform.ComposeView? = null
     private var chatView: androidx.compose.ui.platform.ComposeView? = null
     private var chatLost: (() -> Unit)? = null
-    var menuShown = false
-        private set
+    val menuShown: Boolean get() = menuHost?.shown == true
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.BLACK)
@@ -170,25 +169,14 @@ class SecondScreenPresentation(
     fun showMenu(on: Boolean) {
         if (on == menuShown) return
         val content = menu ?: return
-        menuShown = on
         if (on) {
             keyboardHost?.takeIf { it.shown }?.hide()
             keyboardShown.value = false
-            ownComposeViews()
-            val view = menuView ?: androidx.compose.ui.platform.ComposeView(context).apply {
-                isFocusable = true
-                isFocusableInTouchMode = true
-                defaultFocusHighlightEnabled = false
-                setContent { content() }
-                frame.addView(this, FrameLayout.LayoutParams(-1, -1))
-                menuView = this
-            }
-            view.visibility = View.VISIBLE
+            val host = menuHost ?: SessionMenuHost(sessionActivity, window ?: return, frame, content).also { menuHost = it }
+            host.show(true)
             root.visibility = View.INVISIBLE
-            view.requestFocus()
         } else {
-            menuView?.let { frame.removeView(it); it.disposeComposition() }
-            menuView = null
+            menuHost?.show(false)
             root.visibility = View.VISIBLE
         }
     }
@@ -202,19 +190,13 @@ class SecondScreenPresentation(
         }
     }
 
-    fun focusMenu(): Boolean = menuView?.requestFocus() == true
-
-    fun dispatchMenuKey(event: KeyEvent): Boolean {
-        KeyWindows.topOn(display.displayId)?.let { return it.rootView.dispatchKeyEvent(event) }
-        return menuView?.dispatchKeyEvent(event) == true
-    }
-
     fun closeControls() {
         showMenu(false)
         closeDashboard()
         closeTerminal()
         dropChat()
         keyboardHost?.hide()
+        keyboardHost?.let(frame::removeView)
         keyboardHost = null
         controlsView = null
         dismiss()
@@ -267,6 +249,7 @@ class SecondScreenPresentation(
         dropChat()
         fieldKeyboard = false
         keyboardHost?.hide()
+        keyboardHost?.let(frame::removeView)
         keyboardHost = null
         keyboardShown.value = false
         keyboardPending = false
@@ -299,7 +282,7 @@ class SecondScreenPresentation(
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
             SecondScreenMode.DESKTOP -> {
-                root.addView(BottomDesktopPanel(context, onClose, onMenu,
+                root.addView(BottomDesktopPanel(context, null, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
             }
             SecondScreenMode.NONE -> Unit
@@ -307,7 +290,7 @@ class SecondScreenPresentation(
     }
 
     private fun panelLayout(mode: SecondScreenMode) = com.droiddeck.launcher.input.InputLibraries.read(context)
-        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context))
+        .sessionPanelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context), SessionState.mode == SessionService.MODE_STEAM)
 
     private fun bar(mode: SecondScreenMode) {
         val first = barModel(mode) ?: return
@@ -317,15 +300,15 @@ class SecondScreenPresentation(
     internal fun barModel(mode: SecondScreenMode): BottomBarModel? {
         val swap = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) })
         fun model(extras: List<BarExtra>, tabs: BarTabs? = null) =
-            sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras, tabs)
+            sessionBarModel(context.getString(mode.label), null, onMenu, onSteamMenu, onQam, extras, tabs)
         return when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> model(listOf(BarExtra(
                 context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
                 icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }))
             SecondScreenMode.DECK_CONTROLS -> model(swap, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
-            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(swap)
+            SecondScreenMode.DASHBOARD -> model(swap)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
-                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }))
+                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + swap)
             else -> null
         }
     }
@@ -359,7 +342,7 @@ class SecondScreenPresentation(
         }
         host.onImeChanged = { visible -> if (!visible && keyboardShown.value) keyboardClosed() }
         keyboardHost = host
-        root.addView(host, ViewGroup.LayoutParams(1, 1))
+        frame.addView(host, FrameLayout.LayoutParams(1, 1))
     }
 
     private fun renderTerminal() {

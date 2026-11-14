@@ -48,7 +48,7 @@ class InputLayoutToolsTest {
         assertEquals(InputLibraries.DECK, copied.copyLayout("mine", "Again", "again").layouts.first { it.id == "again" }.origin)
         val independent = library.useLayout(InputProfile.GAME, InputRole.SECONDARY, InputLibraries.DECK, shared = false)
         assertEquals(InputLibraries.DECK, independent.layout(InputProfile.GAME, InputRole.SECONDARY)!!.origin)
-        val stock = InputStockLayouts.layouts().first { it.id == InputLibraries.DECK }.elements
+        val stock = InputStockLayouts.withToolbar(context, InputStockLayouts.layouts().first { it.id == InputLibraries.DECK }).elements
         val dragged = mine.copy(elements = mine.elements.map { it.copy(x = 0f, y = 0f) })
         assertEquals(stock, InputLibraries.defaultPositions(context, copied, dragged))
         assertEquals(mine.elements, dragged.elements.withPositionsOf(stock))

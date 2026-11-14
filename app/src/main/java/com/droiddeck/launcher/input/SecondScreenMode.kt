@@ -23,16 +23,9 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     companion object {
         fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false, desktopSession: Boolean = false): SecondScreenMode {
             entries.firstOrNull {
-                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard) &&
-                    (it != DESKTOP || bottomDesktop)
-            }?.let { return it }
-            val picked = entries.any { it != NONE && it.id == remembered }
-            return when {
-                desktopSession -> KEYBOARD_TRACKPAD
-                deckPad -> DECK_CONTROLS
-                dashboard && !picked -> DASHBOARD
-                else -> KEYBOARD_TRACKPAD
-            }
+                it != NONE && it.id == remembered && (it != DASHBOARD || dashboard) && (it != DESKTOP || bottomDesktop)
+            }?.let { return if (it.controls) CUSTOM_CONTROLS else it }
+            return CUSTOM_CONTROLS
         }
     }
 }

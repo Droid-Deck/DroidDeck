@@ -21,7 +21,7 @@ enum class InputControl(val id: String, val label: String, val dimensions: Int =
     }
 }
 
-enum class InputCommand { MENU, KEYBOARD, STEAM, QUICK_ACCESS }
+enum class InputCommand { MENU, KEYBOARD, STEAM, QUICK_ACCESS, SWAP_SCREENS }
 
 sealed interface InputAction {
     data class Native(val target: InputControl? = null) : InputAction

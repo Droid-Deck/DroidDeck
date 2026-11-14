@@ -94,6 +94,15 @@ data class InputLibrary(
     fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
         panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
     fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
+    fun sessionPanelLayout(isDesktop: Boolean, panel: String?, steam: Boolean): SavedInputLayout? {
+        val layout = panelLayout(isDesktop, panel) ?: return null
+        if (steam) return layout
+        val actions = preset(panelPart(isDesktop, panel).bindings)
+        return layout.copy(elements = layout.elements.filterNot { element ->
+            val command = (actions.action(element) as? InputAction.Command)?.command
+            element.kind == InputElementKind.BUTTON && (command == InputCommand.STEAM || command == InputCommand.QUICK_ACCESS)
+        })
+    }
     fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
         preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
     })

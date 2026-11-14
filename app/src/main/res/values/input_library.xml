@@ -103,7 +103,7 @@
     <string name="input_shortcut_back_modes">Back · twice in Steam, once in Desktop</string>
     <string name="input_shortcut_hold_hint">In Steam mode. Holding Back also opens quick access.</string>
     <string name="input_restore_shortcut">Restore to default</string>
-    <string name="input_second_mode_hint">Your panel choice is remembered. Desktop opens a second workspace; it does not switch the session or its input profile.</string>
+    <string name="input_second_mode_hint">Your mode is remembered when the screen is turned off. Profile controls uses the second-screen layout selected under Controller. Desktop opens a second workspace without changing the session.</string>
     <string name="input_virtual_controller">Virtual controller</string>
     <string name="input_virtual_controller_hint">The controller type seen by Steam or the game.</string>
     <string name="input_touchscreen">Touchscreen</string>

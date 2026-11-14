@@ -48,19 +48,13 @@ class SecondScreenProfileMigrationTest {
         SessionState.deckPad = previousDeckPad
     }
 
-    @Test fun firstOpeningKeepsTheLibraryAndOpensTheTrackpadOnDesktopAndTheControllerPanelInGames() {
+    @Test fun firstOpeningKeepsTheLibraryAndUsesProfileControlsInBothSessions() {
         for (desktop in listOf(false, true)) for (deckPad in listOf(false, true)) {
             val original = customLibrary(desktop)
             open(desktop, deckPad)
             assertEquals(original, InputLibraries.read(activity))
             assertNull(SessionPrefs.secondScreenPanel(activity, desktop))
-            val dashboard = ReflectionHelpers.callInstanceMethod<List<*>>(activity, "bottomPages").isNotEmpty()
-            val expected = when {
-                desktop -> SecondScreenMode.KEYBOARD_TRACKPAD
-                deckPad -> SecondScreenMode.DECK_CONTROLS
-                dashboard -> SecondScreenMode.DASHBOARD
-                else -> SecondScreenMode.KEYBOARD_TRACKPAD
-            }
+            val expected = SecondScreenMode.CUSTOM_CONTROLS
             assertEquals(expected, SessionState.secondScreenMode)
         }
     }
@@ -75,6 +69,25 @@ class SecondScreenProfileMigrationTest {
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SessionState.secondScreenMode)
     }
 
+    @Test fun disablingAndEnablingRestoresTheRememberedContent() {
+        customLibrary(desktop = false)
+        ReflectionHelpers.getField<MutableState<List<SecondScreenDisplay>>>(activity, "secondScreenDisplays\$delegate").value =
+            listOf(SecondScreenDisplay(Display.DEFAULT_DISPLAY, "Bottom screen"))
+        SessionPrefs.setSecondScreenPanel(activity, false, SecondScreenMode.TERMINAL.id)
+        show(SecondScreenMode.TERMINAL)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "setSecondScreenEnabled",
+            ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, false))
+        assertEquals(SecondScreenMode.NONE, SessionState.secondScreenMode)
+        assertFalse(SessionPrefs.secondScreenEnabled(activity, false))
+        assertTrue(ReflectionHelpers.getField<MutableState<Boolean>>(activity, "drawerOpenState\$delegate").value)
+        assertEquals(SecondScreenMode.TERMINAL.id, SessionPrefs.secondScreenPanel(activity, false))
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "setSecondScreenEnabled",
+            ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        assertEquals(SecondScreenMode.TERMINAL, SessionState.secondScreenMode)
+        assertTrue(SessionPrefs.secondScreenEnabled(activity, false))
+        assertTrue(ReflectionHelpers.getField<MutableState<Boolean>>(activity, "drawerOpenState\$delegate").value)
+    }
+
     @Test fun theSharedPanelChoiceCarriesOverToGamesExceptTheForcedProfileControls() {
         val prefs = activity.getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit().putString("secondScreenPanel", SecondScreenMode.TERMINAL.id).commit()
@@ -82,20 +95,19 @@ class SecondScreenProfileMigrationTest {
         assertNull(SessionPrefs.secondScreenPanel(activity, true))
         customLibrary(desktop = true)
         open(desktop = true, deckPad = true)
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SessionState.secondScreenMode)
+        assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SessionState.secondScreenMode)
         prefs.edit().putString("secondScreenPanel", SecondScreenMode.CUSTOM_CONTROLS.id).commit()
         for (desktop in listOf(false, true)) assertNull(SessionPrefs.secondScreenPanel(activity, desktop))
     }
 
-    @Test fun trackpadAndDeckPanelsUseTheirStockBindingsWithoutChangingTheProfile() {
+    @Test fun historicalModeIdsDoNotOverrideTheActiveProfileAfterMigration() {
         for (desktop in listOf(false, true)) for (mode in listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS)) {
             val original = customLibrary(desktop)
             SessionState.deckPad = true
-            val stock = original.preset(mode.bindings!!)
             show(mode)
             assertEquals(original, InputLibraries.read(activity))
-            assertEquals(stock.layoutId, routedLayout()?.id)
-            assertEquals(stock.elements, routedProfile().elements[InputRole.SECONDARY].orEmpty())
+            assertEquals("custom.layout", routedLayout()?.id)
+            assertEquals(InputAction.Keys(listOf(57)), routedProfile().elementAction(InputRole.SECONDARY, "custom.button", InputControl.A))
             show(SecondScreenMode.CUSTOM_CONTROLS)
             assertEquals("custom.layout", routedLayout()?.id)
             assertEquals(InputAction.Keys(listOf(57)), routedProfile().elementAction(InputRole.SECONDARY, "custom.button", InputControl.A))
@@ -109,7 +121,7 @@ class SecondScreenProfileMigrationTest {
             show(SecondScreenMode.DECK_CONTROLS)
             val fallback = ReflectionHelpers.callInstanceMethod<SecondScreenMode>(activity, "openingPanel")
             assertNotEquals(SecondScreenMode.DECK_CONTROLS, fallback)
-            if (desktop) assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, fallback)
+            if (desktop) assertEquals(SecondScreenMode.CUSTOM_CONTROLS, fallback)
             assertEquals(fallback, SessionState.secondScreenMode)
             assertNotEquals(InputLibraries.DECK, routedLayout()?.id)
         }
@@ -127,7 +139,7 @@ class SecondScreenProfileMigrationTest {
             library.withLayout(layout).withPreset(bindings)
                 .withProfile(profile.copy(parts = profile.parts + (InputRole.SECONDARY to InputPart(bindings.id, layout.id))))
                 .copy(selections = emptyMap())
-        }
+        }.also { ReflectionHelpers.callInstanceMethod<Unit>(activity, "refreshInputProfile") }
     }
 
     private fun routedProfile(): InputProfile = ReflectionHelpers.getField(activity, "inputProfile")

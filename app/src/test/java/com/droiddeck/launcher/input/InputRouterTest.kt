@@ -238,6 +238,40 @@ class InputRouterTest {
         assertFalse(source.route(PadState().apply { press(PadState.A, true) }).isDown(PadState.A))
     }
 
+    @Test fun anOpenMenuAllowsTouchCommandsButStillBlocksGameAndPhysicalInput() {
+        val menu = router.channel(InputRole.SECONDARY, InputControl.A, InputAction.Command(InputCommand.MENU))
+        val physical = router.channel(InputRole.PHYSICAL, InputControl.A, InputAction.Command(InputCommand.MENU))
+        val native = router.channel(InputRole.SECONDARY, InputControl.A, InputAction.Native())
+        val key = router.channel(InputRole.PRIMARY, InputControl.A, InputAction.Keys(listOf(30)))
+        val mouse = router.channel(InputRole.SECONDARY, InputControl.B, InputAction.MouseButton(272))
+        val stick = router.channel(InputRole.SECONDARY, InputControl.LS, InputAction.Pointer())
+        router.setEnabled(false)
+        router.setTouchCommandsEnabled(true)
+        for (channel in listOf(menu, physical, native, key, mouse, stick)) {
+            assertNull(channel.update(1f))
+            assertNull(channel.update(0f))
+        }
+        assertFalse(router.tick(.016f))
+        assertEquals(listOf("MENU"), output.events)
+    }
+
+    @Test fun hidingTheMenuCancelsAPendingTouchCommandUntilAFreshPress() {
+        val menu = router.channel(InputRole.SECONDARY, InputControl.A, InputAction.Command(InputCommand.MENU))
+        router.setEnabled(false)
+        router.setTouchCommandsEnabled(true)
+        menu.update(1f)
+        router.setTouchCommandsEnabled(false)
+        router.setTouchCommandsEnabled(true)
+        menu.update(0f)
+        assertTrue(output.events.isEmpty())
+        menu.update(1f); menu.update(0f)
+        assertEquals(listOf("MENU"), output.events)
+        output.events.clear()
+        router.setTouchCommandsEnabled(false)
+        menu.update(1f); menu.update(0f)
+        assertTrue(output.events.isEmpty())
+    }
+
     @Test fun lifecycleReleaseAlsoBlocksNativeIdentityRoute() {
         val source = router.pad(InputRole.PHYSICAL)
         val raw = PadState().apply { press(PadState.A, true) }
