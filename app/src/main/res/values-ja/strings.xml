@@ -566,6 +566,8 @@
     <string name="perf_game_cores_group">ゲームコア</string>
     <string name="perf_game_cores">ゲームコア</string>
     <string name="perf_game_cores_hint">ゲームが使用するコア。すべて選択するとAndroidが自由にスケジュールします。</string>
+    <string name="perf_pace_cores">安定したゲームで省電力</string>
+    <string name="perf_pace_cores_hint">フレームレートが安定している間はゲームを低速コアで動かし、遅れ始めたら元のコアに戻します。</string>
     <string name="perf_client_ui">クライアントUI</string>
     <string name="perf_glthread">GLマルチスレッド</string>
     <string name="perf_glthread_hint">Steamメニューの応答が速くなる可能性があります。</string>

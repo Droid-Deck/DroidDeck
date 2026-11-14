@@ -566,6 +566,8 @@
     <string name="perf_game_cores_group">게임 코어</string>
     <string name="perf_game_cores">게임 코어</string>
     <string name="perf_game_cores_hint">게임에서 사용하는 코어입니다. 모두 선택하면 Android가 자유롭게 스케줄링합니다.</string>
+    <string name="perf_pace_cores">안정적인 게임에서 전력 절약</string>
+    <string name="perf_pace_cores_hint">게임이 안정적인 프레임 레이트를 유지하는 동안 느린 코어에서 실행하고, 뒤처지면 원래 코어로 되돌립니다.</string>
     <string name="perf_client_ui">클라이언트 UI</string>
     <string name="perf_glthread">GL 멀티스레딩</string>
     <string name="perf_glthread_hint">Steam 메뉴 응답 속도를 높일 수 있습니다.</string>

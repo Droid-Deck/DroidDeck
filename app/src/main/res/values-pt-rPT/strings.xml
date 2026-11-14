@@ -570,6 +570,8 @@
     <string name="perf_game_cores_group">Núcleos dos jogos</string>
     <string name="perf_game_cores">Núcleos dos jogos</string>
     <string name="perf_game_cores_hint">Núcleos para os jogos. Com todos selecionados, o Android distribui livremente.</string>
+    <string name="perf_pace_cores">Poupar energia em jogos estáveis</string>
+    <string name="perf_pace_cores_hint">Executa um jogo nos núcleos mais lentos enquanto mantém uma taxa de fotogramas estável, e devolve-o aos núcleos habituais quando fica para trás.</string>
     <string name="perf_client_ui">Interface do cliente</string>
     <string name="perf_glthread">GL multithread</string>
     <string name="perf_glthread_hint">Pode fazer os menus do Steam responder mais depressa.</string>

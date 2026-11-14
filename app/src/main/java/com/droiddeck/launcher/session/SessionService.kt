@@ -985,6 +985,7 @@ class SessionService : Service() {
         guest.add("BL_SYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
         guest.add("BL_SYNC_FALLBACK=" + (if (SessionPrefs.syncFallback(this)) "1" else "0"))
         guest.add("BL_FSYNC_FIRST=" + (if (SessionPrefs.fsyncFirst(this)) "1" else "0"))
+        guest.add("BL_PACE_CORES=" + (if (SessionPrefs.paceCores(this)) "1" else "0"))
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
         relativeMouseForSession().takeIf { it != 0 }?.let { guest.add("gamescope_relative_mouse=$it") }

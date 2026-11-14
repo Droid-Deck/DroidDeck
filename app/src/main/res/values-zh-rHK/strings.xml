@@ -566,6 +566,8 @@
     <string name="perf_game_cores_group">遊戲核心</string>
     <string name="perf_game_cores">遊戲核心</string>
     <string name="perf_game_cores_hint">供遊戲使用的核心。全選時由 Android 自由排程。</string>
+    <string name="perf_pace_cores">穩定的遊戲省電運行</string>
+    <string name="perf_pace_cores_hint">遊戲幀率穩定時在較慢的核心上運行，一旦跟不上就回到原來的核心。</string>
     <string name="perf_client_ui">用戶端介面</string>
     <string name="perf_glthread">GL 多線程</string>
     <string name="perf_glthread_hint">可能讓 Steam 選單反應更快。</string>
