@@ -60,6 +60,12 @@ class XrealOrientationFilterTest {
         }
     }
 
+    @Test fun auraAxesAreNotFlippedLikeTheRestOfTheOneFamily() {
+        val aura = XrealOrientationFilter(flipYz = false).update(sample(1000000, accel = Vec3(0f, 9.81f, 0f)))!!
+        assertTrue(matrix(aura)[7] > 0.99f)
+        assertNull(XrealOrientationFilter(flipYz = false).update(sample(1000000, accel = Vec3(0f, 0f, 0f))))
+    }
+
     @Test fun capturedNeutralGravityStartsUprightBeforeRecenter() {
         val pose = XrealOrientationFilter().update(sample(1000000,
             accel = Vec3(-0.0909f, -9.6529f, -1.0731f)))!!

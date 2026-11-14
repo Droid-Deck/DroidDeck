@@ -252,10 +252,14 @@ class GlassesUsbTest {
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
-    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
-        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+    @Test fun xrealOneFamilyUsesExactIdentityAndExcludesAirAndRecoveryProducts() {
+        assertEquals(XrealModel.ONE_S, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+        assertEquals(XrealModel.ONE, Glasses.deviceModel(device(0x0438, 0x3318, "XREAL One")))
+        assertEquals(XrealModel.ONE_PRO, Glasses.deviceModel(device(0x0436, 0x3318, "XREAL One Pro")))
+        assertEquals(XrealModel.ONE_PRO_PLUS, Glasses.deviceModel(device(0x0444, 0x3318, "XREAL 1 Pro+")))
+        assertEquals(XrealModel.AURA, Glasses.deviceModel(device(0x043a, 0x3318, "XREAL Aura")))
         assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
-        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
+        for (pid in listOf(0x043d, 0x0435, 0x0437, 0x0439, 0x0443, 0x0424, 0xffff)) {
             assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
         }
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))

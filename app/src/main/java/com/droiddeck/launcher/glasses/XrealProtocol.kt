@@ -13,6 +13,7 @@ internal object XrealProtocol {
     const val REPORT = 0x2836
     const val GET_DISPLAY = 0x275e
     const val SET_DISPLAY = 0x275f
+    const val GET_INPUT = 0x2821
     const val SET_INPUT = 0x2822
     const val SET_BRIGHTNESS = 0x271c
     const val SET_DIMMER = 0x2727
