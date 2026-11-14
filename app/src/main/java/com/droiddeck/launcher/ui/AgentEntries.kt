@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -53,9 +55,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
 import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
+import com.droiddeck.launcher.agent.choices
 
 @Composable
-internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, onRevise: () -> Unit = {}) {
+internal fun AgentEntry(
+    entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, answerable: Boolean = false, onRevise: () -> Unit = {},
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     when (entry) {
@@ -66,7 +71,13 @@ internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, c
                     modifier = Modifier.widthIn(max = 560.dp).clip(Shape16).background(pal.primary).padding(horizontal = 14.dp, vertical = 10.dp))
             }
         }
-        is Entry.Said -> SelectionContainer { AgentMarkdown(entry.text, Modifier.widthIn(max = 760.dp).padding(horizontal = 4.dp)) }
+        is Entry.Said -> {
+            val reply = remember(entry.text) { choices(entry.text) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (reply.text.isNotBlank()) SelectionContainer { AgentMarkdown(reply.text, Modifier.widthIn(max = 760.dp).padding(horizontal = 4.dp)) }
+                if (reply.options.isNotEmpty()) AgentChoices(reply.options, answerable)
+            }
+        }
         is Entry.Thought -> AgentThought(entry.text, live = false)
         is Entry.Used -> if (entry.tool == "TodoWrite") AgentTodos(entry.input) else AgentToolCall(entry, running)
         is Entry.Result -> Unit
@@ -77,6 +88,18 @@ internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, c
                 AgentPlanActions(onRevise)
             }
             else -> AgentTurnEnd(entry, changes)
+        }
+    }
+}
+
+/** The options a reply ends with; picking one sends it, while the reply is still the latest. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AgentChoices(options: List<String>, answerable: Boolean) {
+    val context = LocalContext.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        for (option in options) SecondaryButton(option, enabled = answerable, compact = true, modifier = Modifier.testTag("agent-choice")) {
+            AgentHost.send(context, option)
         }
     }
 }

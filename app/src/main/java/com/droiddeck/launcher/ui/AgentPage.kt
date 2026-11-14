@@ -411,7 +411,8 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, following
             val entry = AgentHost.entries[i]
             AgentEntry(
                 entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex,
-                changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null, onRevise = onRevise,
+                changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null,
+                answerable = !working && i > start && AgentHost.queue.isEmpty(), onRevise = onRevise,
             )
         }
         if (working) item { AgentLive() }

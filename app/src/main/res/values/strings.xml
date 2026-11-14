@@ -1164,6 +1164,10 @@
     <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
     <string name="agent_attach_game">Attach what the game shows</string>
     <string name="agent_attach_game_failed">Could not capture the game</string>
+    <string name="agent_done_channel">Agent replies</string>
+    <string name="agent_done">Agent finished</string>
+    <string name="agent_done_failed">Agent stopped with an error</string>
+    <string name="agent_done_question">Agent has a question</string>
     <string name="agent_missing">Install Claude Code in the Linux userland to use the agent.</string>
     <string name="agent_hint">Ask about a game, a crash, or a change to DroidDeck</string>
     <string name="agent_send">Send</string>
