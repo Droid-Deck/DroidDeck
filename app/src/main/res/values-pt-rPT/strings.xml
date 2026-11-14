@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">A repor os gráficos e a reabrir o SteamVR…</string>
     <string name="steamvr_recovery_failed">O DroidDeck não conseguiu reiniciar automaticamente. Feche completamente a app e volte a abri-la.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>A primeira execução transfere o Steam. Isto pode demorar alguns minutos.</item>
+        <item>Por predefinição, sair da app coloca o Steam em pausa; ao voltar, continua onde ficou.</item>
+        <item>O seu comando aparece como um comando Xbox 360. Se não tiver comando, utilize os controlos no ecrã.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>A primeira execução configura o ambiente de trabalho. Isto pode demorar alguns minutos.</item>
+        <item>Por predefinição, sair da app coloca a sessão em pausa; ao voltar, continua onde ficou.</item>
+        <item>O toque funciona como um painel tátil: arraste para mover o ponteiro, toque para clicar.</item>
+        <item>O seu comando aparece como um comando Xbox 360. Se não tiver comando, utilize os controlos no ecrã.</item>
+    </string-array>
     <string name="session_channel">Sessão</string>
     <string name="session_channel_description">Apresentada enquanto houver uma sessão do Steam ou do ambiente de trabalho aberta</string>
     <string name="session_notification">O Steam está em execução</string>
@@ -910,6 +921,8 @@
     <string name="setup_home">Utilizar como página inicial</string>
     <string name="setup_home_on">O DroidDeck pode ser a app de página inicial</string>
     <string name="setup_home_off">O DroidDeck nunca é proposto como app de página inicial</string>
+    <string name="setup_home_page">O botão Home abre</string>
+    <string name="setup_home_page_hint">A página apresentada quando o DroidDeck é a aplicação Home e se premir Home</string>
     <string name="setup_home_game_space_first">Em Adicionar jogos, define o DroidDeck como Incluir</string>
     <string name="setup_orientation">Orientação</string>
     <string name="setup_launcher_orientation">Orientação do iniciador</string>
@@ -937,6 +950,8 @@
     <string name="dual_typing_done">Concluído</string>
     <string name="setup_default_home">App de página inicial predefinida</string>
     <string name="setup_choose_home">Escolher uma app de página inicial</string>
+    <string name="setup_hide_home_from_recents">Ocultar o iniciador dos Recentes enquanto inativo</string>
+    <string name="setup_hide_home_from_recents_hint">Só se aplica quando o DroidDeck é a aplicação Home predefinida e não há nenhuma sessão em curso.</string>
     <string name="setup_choose">Escolher</string>
     <string name="setup_linux_apps">Apps Linux (beta)</string>
     <string name="setup_tool_files">Ficheiros</string>
@@ -1118,6 +1133,29 @@
     <string name="agent_attach">Anexar</string>
     <string name="agent_remove_attachment">Remover</string>
     <string name="agent_model_default">Predefinido</string>
+    <string name="agent_effort">Esforço de raciocínio</string>
+    <string name="agent_plan_go">Avançar</string>
+    <string name="agent_plan_revise">Rever</string>
+    <string name="agent_plan_untouched">Ainda nada mudou</string>
+    <string name="agent_plan_go_message">Avançar com o plano.</string>
+    <string name="agent_send_now">Enviar agora</string>
+    <string name="agent_message">Mensagem</string>
+    <string name="agent_more">Mais</string>
+    <string name="agent_close">Fechar</string>
+    <string name="agent_latest">Mais recente</string>
+    <string name="agent_working_short">A trabalhar</string>
+    <string name="agent_usage_context">Contexto</string>
+    <string name="agent_usage_of">%1$s de %2$s</string>
+    <string name="agent_usage_conversation">Esta conversa · %1$s</string>
+    <string name="agent_usage_unknown">A utilização só aparece após a primeira resposta</string>
+    <string name="agent_limit_hours">Limite de %1$d horas</string>
+    <string name="agent_limit_minutes">Limite de %1$d minutos</string>
+    <string name="agent_limit_week">Limite semanal</string>
+    <string name="agent_limit_resets">%1$d%% · reinício: %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d ficheiro</item>
+        <item quantity="other">%1$d ficheiros</item>
+    </plurals>
     <string name="agent_plan">Planear primeiro</string>
     <string name="agent_plan_short">Planear</string>
     <string name="agent_plan_hint">Propõe um plano sem alterar nada</string>
@@ -1412,6 +1450,14 @@
     <string name="rail_apps">Aplicações</string>
     <string name="rail_setup">Configuração</string>
     <string name="rail_updates">Atualizações</string>
+    <string name="rail_more">Mais</string>
+    <string name="more_edit_tabs">Editar separadores</string>
+    <string name="setup_group_tabs">Separadores</string>
+    <string name="tabs_place_bar">Visível</string>
+    <string name="tabs_place_more">Em Mais</string>
+    <string name="tabs_place_hidden">Oculto</string>
+    <string name="tabs_move_up">Mover %1$s para cima</string>
+    <string name="tabs_move_down">Mover %1$s para baixo</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Retomar %1$s</string>
     <string name="roms_text">Aparece como /root/ROMs em cada sessão. O armazenamento interno está em /root/Storage.</string>
@@ -1497,6 +1543,7 @@
     <string name="game_file_folder">Escolha uma pasta para os ficheiros de jogos do frontend</string>
     <string name="game_file_exported">Ficheiros de jogos guardados em %1$s</string>
     <string name="game_frontend_files">Ficheiros para frontends</string>
+
     <string name="main_wait_runtime">Aguarde que a operação do runtime termine</string>
     <string name="main_wait_proton_install">Aguarde que a instalação da ferramenta de compatibilidade termine</string>
     <string name="load_compat_title">A preparar as ferramentas de compatibilidade</string>
@@ -1587,6 +1634,7 @@
     <string name="main_removing_runtime">A remover o runtime Linux</string>
     <string name="main_settings_main_screen">Não foi possível abrir as Definições no ecrã inferior; foram abertas no ecrã principal.</string>
     <string name="main_open_dev_options">Abra as Opções de programador nas Definições</string>
+
     <string name="upd_unknown_apps_failed">Não foi possível abrir a definição «Instalar apps desconhecidas» do Android</string>
     <string name="upd_couldnt_check">Não foi possível verificar: %1$s</string>
     <string name="upd_no_download">Esta versão não tem transferência para esta cópia do DroidDeck</string>
@@ -1596,10 +1644,12 @@
     <string name="upd_stage_confirm">A aguardar a sua confirmação</string>
     <string name="upd_failed">A atualização falhou</string>
     <string name="upd_not_offered">O Android não ofereceu a instalação da atualização</string>
+
     <string name="decky_install_failed">Falha na instalação do Decky: %1$s</string>
     <string name="decky_plugin_starting">A iniciar a importação do plugin…</string>
     <string name="decky_plugin_failed">Falha na importação do plugin: %1$s</string>
     <string name="decky_plugin_installed">Plugin instalado. Reinicie o Steam para o carregar.</string>
+
     <string name="drivers_not_checked">Ainda não verificado - toque em atualizar para procurar novos controladores</string>
     <string name="drivers_bundle_sets_display">Android + Linux: define também o controlador de ecrã</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: define também o controlador do runtime</string>
@@ -1655,6 +1705,7 @@
     <string name="drivers_check_failed">falha na verificação</string>
     <string name="drivers_installed_pick_either">%1$s instalado - escolha-o em qualquer das listas para definir ambos os controladores</string>
     <string name="drivers_installed_pick">%1$s instalado - escolha-o no menu</string>
+
     <string name="session_wait_removal">Aguarde que a remoção do runtime termine</string>
     <string name="session_title_game">Jogo</string>
     <string name="session_touch_auto_touchpad">painel tátil</string>
@@ -1702,6 +1753,7 @@
         <item quantity="many">O registo mostra %1$d erros «Function not implemented»: a aceleração seccomp do proot está a fazer falhar um processo auxiliar neste dispositivo. Experimente %2$s → «%3$s» (ou «%4$s») e inicie novamente.</item>
         <item quantity="other">O registo mostra %1$d erros «Function not implemented»: a aceleração seccomp do proot está a fazer falhar um processo auxiliar neste dispositivo. Experimente %2$s → «%3$s» (ou «%4$s») e inicie novamente.</item>
     </plurals>
+
     <string name="mode_decky_plugins">Plugins</string>
     <string name="mode_decky_plugins_hint">Instale um ZIP de plugin para a próxima sessão do Steam.</string>
     <string name="mode_decky_plugin_downloading">A transferir…</string>
@@ -2064,6 +2116,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">A porta %1$d está a receber dados (%2$d pacotes de %3$d bytes), mas num formato que esta página ainda não consegue ler.</string>
     <string name="bottom_telemetry_port_busy">Outro programa já utiliza a porta %1$s, por isso esse jogo não pode aparecer aqui.</string>
+
     <string name="rtinst_removing">A remover o runtime Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">A remover o runtime Linux · %1$d entrada</item>
@@ -2079,6 +2132,7 @@
     <string name="rtinst_channel_description">Aparece enquanto o runtime Linux é instalado ou removido</string>
     <string name="rtinst_title_installing">A instalar o runtime Linux</string>
     <string name="rtinst_title_removing">A remover o runtime Linux</string>
+
     <string name="deskpkg_runtime_missing">O runtime Linux não está instalado</string>
     <string name="deskpkg_no_checksum">O catálogo não tem soma de verificação para %1$s</string>
     <string name="deskpkg_checksum_mismatch">A soma de verificação não corresponde - nada foi alterado</string>
@@ -2086,6 +2140,7 @@
     <string name="deskpkg_place_failed">Não foi possível colocar a AppImage</string>
     <string name="deskpkg_extract_failed">Falha na extração</string>
     <string name="deskpkg_install_failed">Falha na instalação</string>
+
     <string name="flatpakmgr_setup_failed">Falha na configuração do Flatpak (saída %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">A configuração do Flatpak não terminou</string>
     <string name="flatpakmgr_busy">Está em curso outra tarefa da loja</string>
@@ -2104,6 +2159,7 @@
     <string name="flatpakmgr_ref_media_codecs">codecs multimédia</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
+
     <string name="appimg_too_small">O ficheiro é demasiado pequeno para ser uma AppImage</string>
     <string name="appimg_unreadable">Não é possível ler o ficheiro: %1$s</string>
     <string name="appimg_not_linux">Isto não é uma AppImage (não é um programa Linux)</string>
@@ -2118,6 +2174,7 @@
     <string name="appimg_extracting">A extrair %1$s</string>
     <string name="appimg_extract_failed">Não foi possível extrair a AppImage</string>
     <string name="appimg_extract_failed_detail">Não foi possível extrair a AppImage: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">Pare a sessão ativa antes de instalar o Decky Loader</string>
     <string name="deckymgr_download_failed">Falha na transferência do Decky Loader</string>
     <string name="deckymgr_size_mismatch">O tamanho do Decky Loader não corresponde aos metadados da versão</string>
@@ -2166,11 +2223,13 @@
     <string name="deckymgr_activate_failed">Não foi possível ativar o plugin importado</string>
     <string name="deckymgr_settings_failed">Não foi possível atualizar as definições de plugins do Decky</string>
     <string name="deckymgr_restore_failed">Não foi possível restaurar o plugin existente</string>
+
     <string name="adbfix_save_failed">Não foi possível guardar a identidade da depuração sem fios</string>
     <string name="adbfix_command_failed">O comando ADB falhou (%1$d)</string>
     <string name="adbfix_not_confirmed">O Android não confirmou a alteração do limite de processos secundários: %1$s</string>
     <string name="adbfix_no_pairing">Não há nenhuma sincronização de depuração sem fios guardada</string>
     <string name="adbfix_enter_address">Introduza o endereço IP e a porta atuais da depuração sem fios</string>
+
     <string name="adbpair_timed_out">Tempo esgotado à espera da janela de sincronização. Tente novamente a partir do DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Não foi possível procurar a janela de sincronização (%1$d). Verifique se o Wi-Fi está ativado.</string>
     <string name="adbpair_discovery_failed">Não foi possível procurar a janela de sincronização: %1$s</string>
@@ -2196,6 +2255,7 @@
     <string name="adbpair_title_done">O Steam está pronto</string>
     <string name="adbpair_done_text">Toque para voltar ao DroidDeck. Já pode desativar a depuração sem fios.</string>
     <string name="adbpair_title_failed">A configuração da depuração sem fios parou</string>
+
     <string name="selfinst_download_failed">A transferência falhou</string>
     <string name="selfinst_size_mismatch">O tamanho da transferência não correspondia ao APK publicado e foi descartada - tente novamente</string>
     <string name="selfinst_checksum_mismatch">A transferência não correspondia à soma de verificação e foi descartada - tente novamente</string>
@@ -2208,11 +2268,13 @@
     <string name="selfinst_no_signing">O APK transferido não tem informações de assinatura</string>
     <string name="selfinst_wrong_signer">O APK transferido não está assinado com a chave de lançamento do DroidDeck</string>
     <string name="appupd_http">O catálogo de atualizações respondeu HTTP %1$d</string>
+
     <string name="loadstate_starting">A iniciar a sessão…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d decorridos · ainda a trabalhar</string>
     <string name="loadstate_steam_update">A transferir a atualização do cliente Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">A aplicar a atualização do cliente Steam…</string>
     <string name="loadstate_steam_client">A transferir o cliente Steam · %1$s</string>
+
     <string name="pextra_busy">Já está em curso a instalação de uma ferramenta de compatibilidade</string>
     <string name="pextra_stop_session">Pare a sessão ativa antes de instalar ferramentas de compatibilidade</string>
     <string name="pextra_no_release">Não foi possível encontrar uma versão ARM64 de %1$s</string>
@@ -2232,6 +2294,7 @@
     <string name="pextra_install_failed">Falha na instalação de %1$s (saída %2$d)</string>
     <string name="pextra_could_not_install">Não foi possível instalar %1$s</string>
     <string name="esync_fetching">A obter o pacote droiddeck-esync</string>
+
     <string name="cmgr_fex_linux_helpers">com auxiliares Linux</string>
     <string name="cmgr_fex_dlls_only">Só DLLs</string>
     <string name="cmgr_original_proton_updated">Original (Proton atualizado desde a última troca)</string>
@@ -2254,11 +2317,13 @@
     <string name="cmgr_nightly_replaced">A transferência falhou: esta versão nightly pode ter sido substituída por uma mais recente. Atualize a lista e tente novamente.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de pacotes é anterior às somas de verificação - atualize-a e tente novamente</string>
     <string name="cmgr_checksum_mismatch">A soma de verificação não corresponde</string>
+
     <string name="sprefs_upscaler_linear">Linear</string>
     <string name="sprefs_upscaler_nearest">Mais próximo</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (qualidade)</string>
     <string name="sprefs_upscaler_sharpen">Só nitidez</string>
     <string name="sprefs_lod_bias_auto">Automático (acompanha a escala)</string>
+
     <string name="look_off_desc">Nada aplicado.</string>
     <string name="look_game_clarity">Clareza de jogo</string>
     <string name="look_game_clarity_desc">Nitidez com um toque de contraste - a do dia a dia.</string>
@@ -2282,6 +2347,7 @@
     <string name="look_pixel_clean_desc">Píxeis nítidos para 2D e jogos antigos.</string>
     <string name="look_anime_edge">Contornos anime</string>
     <string name="look_anime_edge_desc">Contornos de desenho animado mais nitidez.</string>
+
     <string name="gpuinfo_not_adreno">Não é uma GPU Adreno</string>
     <string name="gpuinfo_powervr">Controlador PowerVR do sistema: a compatibilidade varia consoante o dispositivo</string>
     <string name="gpuinfo_xclipse">Experimental: RADV ou o controlador Xclipse do sistema</string>
@@ -2306,6 +2372,7 @@
     <string name="gpuinfo_unsupported">Não suportada: não está disponível um backend gráfico compatível para esta GPU</string>
     <string name="gpuinfo_bridge">Corre através da ponte Mali, com o controlador Vulkan do próprio telemóvel</string>
     <string name="gpuinfo_bridge_off">Não suportado com a ponte Mali desativada: o Turnip precisa de uma GPU Adreno (Snapdragon)</string>
+
     <string name="turnip_rate_limited">Foi atingido o limite de pedidos do GitHub - tente novamente mais tarde</string>
     <string name="turnip_github_http">O GitHub respondeu HTTP %1$d</string>
     <string name="turnip_download_failed">A transferência falhou</string>
@@ -2326,12 +2393,16 @@
     <string name="bundle_no_manifest">Não é um pacote de controladores: não há manifest.json que indique um controlador Android e um Linux</string>
     <string name="bundle_entry_outside">Não é um pacote de controladores: %1$s aponta para fora dele</string>
     <string name="bundle_too_large">Não é um pacote de controladores: descompactado ocupa mais de %1$d MB</string>
+
     <string name="gstore_sd_card">Cartão SD</string>
     <string name="gstore_folder">Pasta</string>
+
     <string name="logshare_chooser">Partilhar registos da sessão</string>
+
     <string name="hdr_needs_android_10">requer Android 10 ou mais recente (camadas de ecrã com espaço de cor)</string>
     <string name="hdr_none">este ecrã não indica suporte HDR</string>
     <string name="hdr_not_hdr10">este ecrã suporta %1$s, não HDR10</string>
+
     <string name="gpu_this_gpu">esta GPU</string>
     <string name="phantom_title_on">O limite de processos secundários está ativado</string>
     <string name="phantom_title_unset">O limite de processos secundários não está definido</string>
@@ -2405,6 +2476,7 @@
     <string name="device_info_copied">Copiado.</string>
     <string name="force_ssbs_title">Forçar SSBS</string>
     <string name="force_ssbs_hint">Mantém ativa uma definição de velocidade da CPU que o Wine está sempre a desativar. Pode tornar os jogos Windows mais rápidos no Snapdragon 8 Elite; pouca diferença nos chips mais antigos. Aplica-se no próximo arranque do jogo.</string>
+
     <string name="rail_stores">Lojas</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizados</string>
@@ -2500,6 +2572,13 @@
     <string name="stores_sort">Ordenar</string>
     <string name="setup_rail_labels">Etiquetas da barra lateral</string>
     <string name="setup_rail_labels_hint">Mostra os nomes por baixo dos ícones da barra lateral. Desative para uma barra lateral mais estreita.</string>
+    <string name="setup_agent_pet">Mascote do agente</string>
+    <string name="setup_agent_pet_hint">A DeeDee flutua sobre o iniciador e os jogos e mostra o que o agente está a fazer.</string>
+    <string name="setup_agent_pet_float">Sobre outras aplicações</string>
+    <string name="setup_agent_pet_float_hint">Permitir que a DeeDee flutue sobre todas as aplicações e abra aí a conversa</string>
+    <string name="setup_agent_pet_allow">Permitir</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">Conversar com a DeeDee</string>
     <string name="library_display">Apresentação</string>
     <string name="library_display_larger">Cartões maiores</string>
     <string name="library_display_smaller">Cartões mais pequenos</string>
@@ -2883,6 +2962,7 @@
     <string name="touch_icon_color">Cor do ícone</string>
     <string name="touch_button_color">Cor do botão</string>
     <string name="touch_no_icon">Sem ícone</string>
+
     <string name="stores_sync_sign_in">A verificar o início de sessão…</string>
     <string name="stores_sync_library">A obter a tua biblioteca…</string>
     <string name="stores_sync_game_list">A obter a lista de jogos…</string>
@@ -3319,6 +3399,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps é mais fluido, mas usa mais CPU enquanto o Steam arranca. Um vídeo escolhido nas definições do Steam também aparece aqui.</string>
     <string name="boot_movie_sound">Som</string>
+    <string name="boot_movie_skip">Ignorar o vídeo de arranque</string>
+    <string name="boot_movie_skip_hint">Utilizar um clipe preto de 0,1 segundos como vídeo de arranque do Steam. Aplica-se na próxima sessão.</string>
     <string name="boot_movie_custom">O seu próprio vídeo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Outros formatos e ficheiros acima de %1$d MB são convertidos para WebM 720p no dispositivo, até %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>
@@ -3939,8 +4021,10 @@
     <string name="input_reset_positions">Repor posições</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">Não foi possível importar este esquema</string>
+
     <string name="theme_white_red">Neve Escarlate</string>
     <string name="theme_white_red_detail">Superfícies brancas com detalhes vermelhos.</string>
+    
     <string name="rail_soundtracks">Bandas sonoras</string>
     <string name="rail_music">Música</string>
     <string name="soundtracks_options">Opções de reprodução</string>
@@ -4003,6 +4087,8 @@
     <string name="soundtracks_repeat_one">Repetir uma</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Nenhum ficheiro de áudio nesta banda sonora</string>
+    <string name="stores_rockstar_launch_unavailable">Início indisponível</string>
+    <string name="agent_browser_unavailable">Não há nenhum navegador disponível para abrir esta ligação.</string>
     <string name="setup_stores">Lojas</string>
     <string name="setup_agent_tab">Separador do agente</string>
 </resources>

@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">Menetapkan semula grafik dan membuka SteamVR sekali lagi…</string>
     <string name="steamvr_recovery_failed">DroidDeck tidak dapat dimulakan semula secara automatik. Tutup apl sepenuhnya, kemudian buka semula.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
+        <item>Secara lalai, meninggalkan apl ini menjedakan Steam; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
+        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Larian pertama menyediakan desktop. Ini mungkin mengambil beberapa minit.</item>
+        <item>Secara lalai, meninggalkan apl ini menjedakan sesi; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
+        <item>Sentuhan berfungsi sebagai pad sentuh: seret untuk menggerakkan penunjuk, ketik untuk klik.</item>
+        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
+    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_channel_description">Dipaparkan semasa sesi Steam atau desktop sedang dibuka</string>
     <string name="session_notification">Steam sedang berjalan</string>
@@ -912,6 +923,8 @@
     <string name="setup_home">Gunakan sebagai skrin Utama</string>
     <string name="setup_home_on">DroidDeck boleh menjadi apl Utama</string>
     <string name="setup_home_off">DroidDeck tidak sekali-kali ditawarkan sebagai apl Utama</string>
+    <string name="setup_home_page">Butang Utama membuka</string>
+    <string name="setup_home_page_hint">Halaman yang dipaparkan apabila DroidDeck ialah apl Skrin Utama dan anda menekan butang Utama</string>
     <string name="setup_home_game_space_first">Dalam Tambah Permainan, tetapkan DroidDeck kepada Sertakan</string>
     <string name="setup_orientation">Orientasi</string>
     <string name="setup_launcher_orientation">Orientasi pelancar</string>
@@ -939,6 +952,8 @@
     <string name="dual_typing_done">Selesai</string>
     <string name="setup_default_home">Apl Utama lalai</string>
     <string name="setup_choose_home">Pilih apl Utama</string>
+    <string name="setup_hide_home_from_recents">Sembunyikan pelancar daripada senarai apl terkini semasa melahu</string>
+    <string name="setup_hide_home_from_recents_hint">Hanya berkuat kuasa apabila DroidDeck ialah apl Skrin Utama lalai dan tiada sesi sedang berjalan.</string>
     <string name="setup_choose">Pilih</string>
     <string name="setup_linux_apps">Apl Linux (beta)</string>
     <string name="setup_tool_files">Fail</string>
@@ -1120,6 +1135,29 @@
     <string name="agent_attach">Lampirkan</string>
     <string name="agent_remove_attachment">Alih keluar</string>
     <string name="agent_model_default">Lalai</string>
+    <string name="agent_effort">Usaha penaakulan</string>
+    <string name="agent_plan_go">Teruskan</string>
+    <string name="agent_plan_revise">Ubah suai</string>
+    <string name="agent_plan_untouched">Belum ada perubahan</string>
+    <string name="agent_plan_go_message">Teruskan dengan pelan ini.</string>
+    <string name="agent_send_now">Hantar sekarang</string>
+    <string name="agent_message">Mesej</string>
+    <string name="agent_more">Lagi</string>
+    <string name="agent_close">Tutup</string>
+    <string name="agent_latest">Terkini</string>
+    <string name="agent_working_short">Sedang bekerja</string>
+    <string name="agent_usage_context">Konteks</string>
+    <string name="agent_usage_of">%1$s daripada %2$s</string>
+    <string name="agent_usage_conversation">Perbualan ini · %1$s</string>
+    <string name="agent_usage_unknown">Penggunaan dipaparkan selepas balasan pertama</string>
+    <string name="agent_limit_hours">Had %1$d jam</string>
+    <string name="agent_limit_minutes">Had %1$d minit</string>
+    <string name="agent_limit_week">Had mingguan</string>
+    <string name="agent_limit_resets">%1$d%% · ditetapkan semula %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d fail</item>
+        <item quantity="other">%1$d fail</item>
+    </plurals>
     <string name="agent_plan">Rancang dahulu</string>
     <string name="agent_plan_short">Rancang</string>
     <string name="agent_plan_hint">Mencadangkan pelan tanpa mengubah apa-apa</string>
@@ -1406,6 +1444,14 @@
     <string name="rail_apps">Apl</string>
     <string name="rail_setup">Persediaan</string>
     <string name="rail_updates">Kemas kini</string>
+    <string name="rail_more">Lagi</string>
+    <string name="more_edit_tabs">Sunting tab</string>
+    <string name="setup_group_tabs">Tab</string>
+    <string name="tabs_place_bar">Dipaparkan</string>
+    <string name="tabs_place_more">Dalam Lagi</string>
+    <string name="tabs_place_hidden">Disembunyikan</string>
+    <string name="tabs_move_up">Alih %1$s ke atas</string>
+    <string name="tabs_move_down">Alih %1$s ke bawah</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Sambung %1$s</string>
     <string name="roms_text">Muncul sebagai /root/ROMs dalam setiap sesi. Storan dalaman berada di /root/Storage.</string>
@@ -1491,6 +1537,7 @@
     <string name="game_file_folder">Pilih folder untuk fail permainan frontend</string>
     <string name="game_file_exported">Fail permainan disimpan ke %1$s</string>
     <string name="game_frontend_files">Fail frontend</string>
+
     <string name="main_wait_runtime">Tunggu operasi masa jalan selesai</string>
     <string name="main_wait_proton_install">Tunggu pemasangan alat keserasian selesai</string>
     <string name="load_compat_title">Menyediakan alat keserasian</string>
@@ -1571,6 +1618,7 @@
     <string name="main_removing_runtime">Mengalih keluar masa jalan Linux</string>
     <string name="main_settings_main_screen">Tidak dapat membuka Tetapan pada skrin bawah; dibuka pada skrin utama.</string>
     <string name="main_open_dev_options">Buka Pilihan pembangun dalam Tetapan</string>
+
     <string name="upd_unknown_apps_failed">Tidak dapat membuka tetapan “Pasang apl tidak diketahui” Android</string>
     <string name="upd_couldnt_check">Tidak dapat menyemak: %1$s</string>
     <string name="upd_no_download">Binaan ini tidak mempunyai muat turun untuk salinan DroidDeck ini</string>
@@ -1580,10 +1628,12 @@
     <string name="upd_stage_confirm">Menunggu pengesahan anda</string>
     <string name="upd_failed">Kemas kini gagal</string>
     <string name="upd_not_offered">Android tidak menawarkan untuk memasang kemas kini</string>
+
     <string name="decky_install_failed">Pemasangan Decky gagal: %1$s</string>
     <string name="decky_plugin_starting">Memulakan import pemalam…</string>
     <string name="decky_plugin_failed">Import pemalam gagal: %1$s</string>
     <string name="decky_plugin_installed">Pemalam dipasang. Mulakan semula Steam untuk memuatkannya.</string>
+
     <string name="drivers_not_checked">Belum disemak - ketik segar semula untuk mencari pemacu baharu</string>
     <string name="drivers_bundle_sets_display">Android + Linux: menetapkan pemacu paparan sekali</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: menetapkan pemacu masa jalan sekali</string>
@@ -1633,6 +1683,7 @@
     <string name="drivers_check_failed">semakan gagal</string>
     <string name="drivers_installed_pick_either">%1$s dipasang - pilih dalam mana-mana senarai untuk menetapkan kedua-dua pemacu</string>
     <string name="drivers_installed_pick">%1$s dipasang - pilih dalam menu</string>
+
     <string name="session_wait_removal">Tunggu pengalihan keluar masa jalan selesai</string>
     <string name="session_title_game">Permainan</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1676,6 +1727,7 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">Log menunjukkan %1$d ralat “Function not implemented”: pecutan seccomp proot gagal pada pembantu di peranti ini. Cuba %2$s → “%3$s” (atau “%4$s”) dan mulakan semula.</item>
     </plurals>
+
     <string name="mode_decky_plugins">Pemalam</string>
     <string name="mode_decky_plugins_hint">Pasang ZIP pemalam untuk sesi Steam seterusnya.</string>
     <string name="mode_decky_plugin_downloading">Memuat turun…</string>
@@ -2024,6 +2076,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d menerima data (%2$d paket bersaiz %3$d bait), tetapi dalam format yang belum dapat dibaca oleh halaman ini.</string>
     <string name="bottom_telemetry_port_busy">Program lain sudah menggunakan port %1$s, jadi permainan itu tidak dapat dipaparkan di sini.</string>
+
     <string name="rtinst_removing">Mengalih keluar masa jalan Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Mengalih keluar masa jalan Linux · %1$d entri</item>
@@ -2037,6 +2090,7 @@
     <string name="rtinst_channel_description">Dipaparkan semasa masa jalan Linux dipasang atau dialih keluar</string>
     <string name="rtinst_title_installing">Memasang masa jalan Linux</string>
     <string name="rtinst_title_removing">Mengalih keluar masa jalan Linux</string>
+
     <string name="deskpkg_runtime_missing">Masa jalan Linux belum dipasang</string>
     <string name="deskpkg_no_checksum">Katalog tidak mempunyai checksum untuk %1$s</string>
     <string name="deskpkg_checksum_mismatch">Checksum tidak sepadan - tiada apa yang diubah</string>
@@ -2044,6 +2098,7 @@
     <string name="deskpkg_place_failed">Tidak dapat meletakkan AppImage</string>
     <string name="deskpkg_extract_failed">Pengekstrakan gagal</string>
     <string name="deskpkg_install_failed">Pemasangan gagal</string>
+
     <string name="flatpakmgr_setup_failed">Persediaan Flatpak gagal (keluar %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Persediaan Flatpak tidak selesai</string>
     <string name="flatpakmgr_busy">Tugas kedai lain sedang berjalan</string>
@@ -2062,6 +2117,7 @@
     <string name="flatpakmgr_ref_media_codecs">kodek media</string>
     <string name="flatpakmgr_ref_runtime">masa jalan %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">masa jalan %1$s %2$s</string>
+
     <string name="appimg_too_small">Fail terlalu kecil untuk menjadi AppImage</string>
     <string name="appimg_unreadable">Fail tidak dapat dibaca: %1$s</string>
     <string name="appimg_not_linux">Ini bukan AppImage (ia bukan program Linux)</string>
@@ -2076,6 +2132,7 @@
     <string name="appimg_extracting">Mengekstrak %1$s</string>
     <string name="appimg_extract_failed">AppImage tidak dapat diekstrak</string>
     <string name="appimg_extract_failed_detail">AppImage tidak dapat diekstrak: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">Hentikan sesi aktif sebelum memasang Decky Loader</string>
     <string name="deckymgr_download_failed">Muat turun Decky Loader gagal</string>
     <string name="deckymgr_size_mismatch">Saiz Decky Loader tidak sepadan dengan metadata keluaran</string>
@@ -2124,11 +2181,13 @@
     <string name="deckymgr_activate_failed">Tidak dapat mengaktifkan pemalam yang diimport</string>
     <string name="deckymgr_settings_failed">Tidak dapat mengemas kini tetapan pemalam Decky</string>
     <string name="deckymgr_restore_failed">Tidak dapat memulihkan pemalam sedia ada</string>
+
     <string name="adbfix_save_failed">Tidak dapat menyimpan identiti Debugging Wayarles</string>
     <string name="adbfix_command_failed">Arahan ADB gagal (%1$d)</string>
     <string name="adbfix_not_confirmed">Android tidak mengesahkan had proses anak telah ditukar: %1$s</string>
     <string name="adbfix_no_pairing">Tiada gandingan Debugging Wayarles disimpan</string>
     <string name="adbfix_enter_address">Masukkan alamat IP &amp; Port Debugging Wayarles semasa</string>
+
     <string name="adbpair_timed_out">Masa tamat menunggu tetingkap timbul gandingan. Cuba lagi daripada DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Tidak dapat mencari tetingkap timbul gandingan (%1$d). Semak Wi-Fi dihidupkan.</string>
     <string name="adbpair_discovery_failed">Tidak dapat mencari tetingkap timbul gandingan: %1$s</string>
@@ -2154,6 +2213,7 @@
     <string name="adbpair_title_done">Steam sedia</string>
     <string name="adbpair_done_text">Ketik untuk kembali ke DroidDeck. Anda boleh matikan Debugging Wayarles sekarang.</string>
     <string name="adbpair_title_failed">Persediaan Debugging Wayarles terhenti</string>
+
     <string name="selfinst_download_failed">Muat turun gagal</string>
     <string name="selfinst_size_mismatch">Saiz muat turun tidak sepadan dengan APK yang diterbitkan dan telah dibuang - cuba lagi</string>
     <string name="selfinst_checksum_mismatch">Muat turun tidak sepadan dengan checksumnya dan telah dibuang - cuba lagi</string>
@@ -2166,11 +2226,13 @@
     <string name="selfinst_no_signing">APK yang dimuat turun tidak mempunyai maklumat tandatangan</string>
     <string name="selfinst_wrong_signer">APK yang dimuat turun tidak ditandatangani dengan kunci keluaran DroidDeck</string>
     <string name="appupd_http">Katalog kemas kini menjawab HTTP %1$d</string>
+
     <string name="loadstate_starting">Memulakan sesi…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d berlalu · masih berjalan</string>
     <string name="loadstate_steam_update">Memuat turun kemas kini klien Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Memasang kemas kini klien Steam…</string>
     <string name="loadstate_steam_client">Memuat turun klien Steam · %1$s</string>
+
     <string name="pextra_busy">Pemasangan alat keserasian sudah berjalan</string>
     <string name="pextra_stop_session">Hentikan sesi aktif sebelum memasang alat keserasian</string>
     <string name="pextra_no_release">Tidak dapat mencari keluaran ARM64 untuk %1$s</string>
@@ -2190,6 +2252,7 @@
     <string name="pextra_install_failed">Pemasangan %1$s gagal (keluar %2$d)</string>
     <string name="pextra_could_not_install">Tidak dapat memasang %1$s</string>
     <string name="esync_fetching">Mengambil pek droiddeck-esync</string>
+
     <string name="cmgr_fex_linux_helpers">dengan pembantu Linux</string>
     <string name="cmgr_fex_dlls_only">DLL sahaja</string>
     <string name="cmgr_original_proton_updated">Asal (Proton dikemas kini sejak penukaran terakhir)</string>
@@ -2212,11 +2275,13 @@
     <string name="cmgr_nightly_replaced">Muat turun gagal: binaan nightly ini mungkin telah diganti dengan yang lebih baharu. Segarkan semula senarai dan cuba lagi.</string>
     <string name="cmgr_list_predates_checksums">Senarai pakej ini mendahului checksum - segarkan dan cuba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak sepadan</string>
+
     <string name="sprefs_upscaler_linear">Linear</string>
     <string name="sprefs_upscaler_nearest">Terdekat</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kualiti)</string>
     <string name="sprefs_upscaler_sharpen">Ketajaman sahaja</string>
     <string name="sprefs_lod_bias_auto">Auto (sepadan penskalaan)</string>
+
     <string name="look_off_desc">Tiada yang digunakan.</string>
     <string name="look_game_clarity">Kejelasan Permainan</string>
     <string name="look_game_clarity_desc">Ketajaman dengan sedikit kontras - yang harian.</string>
@@ -2240,6 +2305,7 @@
     <string name="look_pixel_clean_desc">Piksel tajam untuk 2D dan tajuk lama.</string>
     <string name="look_anime_edge">Tepi Anime</string>
     <string name="look_anime_edge_desc">Garis luar kartun tambah ketajaman.</string>
+
     <string name="gpuinfo_not_adreno">Bukan GPU Adreno</string>
     <string name="gpuinfo_powervr">Pemandu sistem PowerVR: keserasian berbeza mengikut peranti</string>
     <string name="gpuinfo_xclipse">Eksperimen: RADV atau pemandu sistem Xclipse</string>
@@ -2264,6 +2330,7 @@
     <string name="gpuinfo_unsupported">Tidak disokong: tiada backend grafik yang serasi tersedia untuk GPU ini</string>
     <string name="gpuinfo_bridge">Berjalan melalui jambatan Mali, menggunakan pemandu Vulkan asal telefon</string>
     <string name="gpuinfo_bridge_off">Tidak disokong apabila jambatan Mali dimatikan: Turnip memerlukan GPU Adreno (Snapdragon)</string>
+
     <string name="turnip_rate_limited">Had kadar GitHub dicapai - cuba lagi kemudian</string>
     <string name="turnip_github_http">GitHub menjawab HTTP %1$d</string>
     <string name="turnip_download_failed">Muat turun gagal</string>
@@ -2284,12 +2351,16 @@
     <string name="bundle_no_manifest">Bukan gabungan pemacu: tiada manifest.json yang menamakan pemacu android dan linux</string>
     <string name="bundle_entry_outside">Bukan gabungan pemacu: %1$s menunjuk ke luar darinya</string>
     <string name="bundle_too_large">Bukan gabungan pemacu: ia mengembang lebih daripada %1$d MB</string>
+
     <string name="gstore_sd_card">Kad SD</string>
     <string name="gstore_folder">Folder</string>
+
     <string name="logshare_chooser">Kongsi log sesi</string>
+
     <string name="hdr_needs_android_10">memerlukan Android 10 atau lebih baharu (lapisan paparan dengan ruang warna)</string>
     <string name="hdr_none">paparan ini melaporkan tiada sokongan HDR</string>
     <string name="hdr_not_hdr10">paparan ini menyokong %1$s, bukan HDR10</string>
+
     <string name="gpu_this_gpu">GPU ini</string>
     <string name="phantom_title_on">Had proses anak dihidupkan</string>
     <string name="phantom_title_unset">Had proses anak tidak ditetapkan</string>
@@ -2363,6 +2434,7 @@
     <string name="device_info_copied">Disalin.</string>
     <string name="force_ssbs_title">Paksa SSBS</string>
     <string name="force_ssbs_hint">Mengekalkan tetapan kelajuan CPU yang sentiasa dimatikan oleh Wine. Boleh melajukan permainan Windows pada Snapdragon 8 Elite; sedikit perubahan dilihat pada cip lama. Berkuat kuasa pada pelancaran permainan seterusnya.</string>
+
     <string name="rail_stores">Kedai</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Tersuai</string>
@@ -2458,6 +2530,13 @@
     <string name="stores_sort">Isih</string>
     <string name="setup_rail_labels">Label bar sisi</string>
     <string name="setup_rail_labels_hint">Paparkan nama di bawah ikon bar sisi. Matikan untuk bar sisi yang lebih ramping.</string>
+    <string name="setup_agent_pet">Haiwan peliharaan ejen</string>
+    <string name="setup_agent_pet_hint">DeeDee terapung di atas pelancar dan permainan serta menunjukkan apa yang sedang dilakukan oleh ejen.</string>
+    <string name="setup_agent_pet_float">Di atas apl lain</string>
+    <string name="setup_agent_pet_float_hint">Benarkan DeeDee terapung di atas setiap apl dan buka sembangnya di situ</string>
+    <string name="setup_agent_pet_allow">Benarkan</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">Sembang dengan DeeDee</string>
     <string name="library_display">Paparan</string>
     <string name="library_display_larger">Kad lebih besar</string>
     <string name="library_display_smaller">Kad lebih kecil</string>
@@ -2838,6 +2917,7 @@
     <string name="touch_icon_color">Warna ikon</string>
     <string name="touch_button_color">Warna butang</string>
     <string name="touch_no_icon">Tiada ikon</string>
+
     <string name="stores_sync_sign_in">Menyemak log masuk…</string>
     <string name="stores_sync_library">Mengambil pustaka anda…</string>
     <string name="stores_sync_game_list">Mengambil senarai permainan…</string>
@@ -3252,6 +3332,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps kelihatan lebih lancar tetapi menggunakan lebih banyak CPU semasa Steam bermula. Video yang dipilih dalam tetapan Steam sendiri turut dipaparkan di sini.</string>
     <string name="boot_movie_sound">Bunyi</string>
+    <string name="boot_movie_skip">Langkau filem permulaan</string>
+    <string name="boot_movie_skip_hint">Gunakan klip hitam 0.1 saat sebagai filem permulaan Steam. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="boot_movie_custom">Video anda sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV atau WebM. Format lain dan fail melebihi %1$d MB ditukar kepada WebM 720p pada peranti, sehingga %2$d saat.</string>
     <string name="boot_movie_import">Import</string>
@@ -3870,8 +3952,10 @@
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
     <string name="input_show_label">Tunjukkan label</string>
     <string name="input_layout_import_failed">Susun atur ini tidak dapat diimport</string>
+
     <string name="theme_white_red">Salji Merah Skarlet</string>
     <string name="theme_white_red_detail">Permukaan putih dengan aksen merah.</string>
+    
     <string name="rail_soundtracks">Runut bunyi</string>
     <string name="rail_music">Muzik</string>
     <string name="soundtracks_options">Pilihan main balik</string>
@@ -3934,6 +4018,8 @@
     <string name="soundtracks_repeat_one">Ulang satu</string>
     <string name="soundtracks_volume">Kelantangan</string>
     <string name="soundtracks_no_tracks">Tiada fail audio dalam runut bunyi ini</string>
+    <string name="stores_rockstar_launch_unavailable">Pelancaran tidak tersedia</string>
+    <string name="agent_browser_unavailable">Tiada penyemak imbas web tersedia untuk membuka pautan ini.</string>
     <string name="setup_stores">Kedai</string>
     <string name="setup_agent_tab">Tab Ejen</string>
 </resources>

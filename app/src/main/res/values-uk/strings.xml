@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">Скидання графіки й повторне відкриття SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck не вдалося перезапуститися автоматично. Повністю закрийте додаток, а потім відкрийте його знову.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>Під час першого запуску завантажується Steam. Це може зайняти кілька хвилин.</item>
+        <item>За замовчуванням вихід із додатка ставить Steam на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
+        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>Під час першого запуску налаштовується робочий стіл. Це може зайняти кілька хвилин.</item>
+        <item>За замовчуванням вихід із додатка ставить сеанс на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
+        <item>Екран працює як сенсорна панель: проводьте пальцем, щоб рухати вказівник, і торкайтеся, щоб клацнути.</item>
+        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
+    </string-array>
     <string name="session_channel">Сеанс</string>
     <string name="session_channel_description">Відображається, поки відкрито сеанс Steam або робочого столу</string>
     <string name="session_notification">Steam працює</string>
@@ -921,6 +932,8 @@
     <string name="setup_home">Використовувати як головний екран</string>
     <string name="setup_home_on">DroidDeck може бути додатком головного екрана</string>
     <string name="setup_home_off">DroidDeck ніколи не пропонується як додаток головного екрана</string>
+    <string name="setup_home_page">Кнопка «Додому» відкриває</string>
+    <string name="setup_home_page_hint">Сторінка, яка відкривається, коли DroidDeck є застосунком головного екрана й ви натискаєте «Додому»</string>
     <string name="setup_home_game_space_first">У розділі «Додати ігри» перемкніть DroidDeck на «Включити»</string>
     <string name="setup_orientation">Орієнтація</string>
     <string name="setup_launcher_orientation">Орієнтація лаунчера</string>
@@ -948,6 +961,8 @@
     <string name="dual_typing_done">Готово</string>
     <string name="setup_default_home">Стандартний додаток головного екрана</string>
     <string name="setup_choose_home">Виберіть додаток головного екрана</string>
+    <string name="setup_hide_home_from_recents">Приховувати лаунчер у списку останніх програм під час простою</string>
+    <string name="setup_hide_home_from_recents_hint">Діє лише тоді, коли DroidDeck є типовим застосунком головного екрана й не запущено жодного сеансу.</string>
     <string name="setup_choose">Вибрати</string>
     <string name="setup_linux_apps">Додатки Linux (бета)</string>
     <string name="setup_tool_files">Файли</string>
@@ -1129,6 +1144,31 @@
     <string name="agent_attach">Прикріпити</string>
     <string name="agent_remove_attachment">Видалити</string>
     <string name="agent_model_default">За замовчуванням</string>
+    <string name="agent_effort">Рівень міркувань</string>
+    <string name="agent_plan_go">Почати</string>
+    <string name="agent_plan_revise">Переглянути</string>
+    <string name="agent_plan_untouched">Поки нічого не змінено</string>
+    <string name="agent_plan_go_message">Виконайте план.</string>
+    <string name="agent_send_now">Надіслати зараз</string>
+    <string name="agent_message">Повідомлення</string>
+    <string name="agent_more">Ще</string>
+    <string name="agent_close">Закрити</string>
+    <string name="agent_latest">Найновіше</string>
+    <string name="agent_working_short">Працює</string>
+    <string name="agent_usage_context">Контекст</string>
+    <string name="agent_usage_of">%1$s з %2$s</string>
+    <string name="agent_usage_conversation">Ця розмова · %1$s</string>
+    <string name="agent_usage_unknown">Використання відобразиться після першої відповіді</string>
+    <string name="agent_limit_hours">%1$d-годинний ліміт</string>
+    <string name="agent_limit_minutes">%1$d-хвилинний ліміт</string>
+    <string name="agent_limit_week">Тижневий ліміт</string>
+    <string name="agent_limit_resets">%1$d%% · скидання %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="few">%1$d файли</item>
+        <item quantity="many">%1$d файлів</item>
+        <item quantity="one">%1$d файл</item>
+        <item quantity="other">%1$d файлів</item>
+    </plurals>
     <string name="agent_plan">Спочатку план</string>
     <string name="agent_plan_short">План</string>
     <string name="agent_plan_hint">Пропонує план, нічого не змінюючи</string>
@@ -1427,6 +1467,14 @@
     <string name="rail_apps">Додатки</string>
     <string name="rail_setup">Налаштування</string>
     <string name="rail_updates">Оновлення</string>
+    <string name="rail_more">Ще</string>
+    <string name="more_edit_tabs">Редагувати вкладки</string>
+    <string name="setup_group_tabs">Вкладки</string>
+    <string name="tabs_place_bar">Показано</string>
+    <string name="tabs_place_more">У «Ще»</string>
+    <string name="tabs_place_hidden">Приховано</string>
+    <string name="tabs_move_up">Перемістити %1$s вгору</string>
+    <string name="tabs_move_down">Перемістити %1$s вниз</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Продовжити %1$s</string>
     <string name="roms_text">У кожному сеансі з’являється як /root/ROMs. Внутрішня пам’ять доступна в /root/Storage.</string>
@@ -1512,6 +1560,7 @@
     <string name="game_file_folder">Виберіть папку для файлів ігор для фронтендів</string>
     <string name="game_file_exported">Файли ігор збережено в %1$s</string>
     <string name="game_frontend_files">Файли для фронтендів</string>
+
     <string name="main_wait_runtime">Дочекайтеся завершення операції із середовищем</string>
     <string name="main_wait_proton_install">Дочекайтеся завершення встановлення інструмента сумісності</string>
     <string name="load_compat_title">Підготовка інструментів сумісності</string>
@@ -1607,6 +1656,7 @@
     <string name="main_removing_runtime">Видалення середовища Linux</string>
     <string name="main_settings_main_screen">Не вдалося відкрити налаштування на нижньому екрані, тож їх відкрито на основному.</string>
     <string name="main_open_dev_options">Відкрийте «Параметри розробника» в налаштуваннях</string>
+
     <string name="upd_unknown_apps_failed">Не вдалося відкрити налаштування Android «Встановлення невідомих додатків»</string>
     <string name="upd_couldnt_check">Не вдалося перевірити: %1$s</string>
     <string name="upd_no_download">У цій збірці немає завантаження для вашої копії DroidDeck</string>
@@ -1616,10 +1666,12 @@
     <string name="upd_stage_confirm">Очікування вашого підтвердження</string>
     <string name="upd_failed">Не вдалося оновити</string>
     <string name="upd_not_offered">Android не запропонував встановити оновлення</string>
+
     <string name="decky_install_failed">Не вдалося встановити Decky: %1$s</string>
     <string name="decky_plugin_starting">Початок імпорту плагіна…</string>
     <string name="decky_plugin_failed">Не вдалося імпортувати плагін: %1$s</string>
     <string name="decky_plugin_installed">Плагін встановлено. Перезапустіть Steam, щоб завантажити його.</string>
+
     <string name="drivers_not_checked">Ще не перевірено — натисніть «Оновити», щоб пошукати нові драйвери</string>
     <string name="drivers_bundle_sets_display">Android + Linux: заодно встановлює драйвер дисплея</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: заодно встановлює драйвер середовища</string>
@@ -1678,6 +1730,7 @@
     <string name="drivers_check_failed">помилка перевірки</string>
     <string name="drivers_installed_pick_either">Встановлено %1$s — виберіть його в будь-якому зі списків, щоб задати обидва драйвери</string>
     <string name="drivers_installed_pick">Встановлено %1$s — виберіть його в меню</string>
+
     <string name="session_wait_removal">Дочекайтеся завершення видалення середовища</string>
     <string name="session_title_game">Гра</string>
     <string name="session_touch_auto_touchpad">тачпад</string>
@@ -1727,6 +1780,7 @@
         <item quantity="many">У журналі %1$d помилок «Function not implemented»: прискорення seccomp у proot порушує роботу допоміжної програми на цьому пристрої. Спробуйте %2$s → «%3$s» (або «%4$s») і запустіть знову.</item>
         <item quantity="other">У журналі %1$d помилки «Function not implemented»: прискорення seccomp у proot порушує роботу допоміжної програми на цьому пристрої. Спробуйте %2$s → «%3$s» (або «%4$s») і запустіть знову.</item>
     </plurals>
+
     <string name="mode_decky_plugins">Плагіни</string>
     <string name="mode_decky_plugins_hint">Встановіть плагін із ZIP для наступного сеансу Steam.</string>
     <string name="mode_decky_plugin_downloading">Завантаження…</string>
@@ -2096,6 +2150,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Порт %1$d отримує дані (пакетів: %2$d, по %3$d байт), але у форматі, який ця сторінка ще не вміє читати.</string>
     <string name="bottom_telemetry_port_busy">Порт %1$s уже використовує інша програма, тому ця гра не може відображатися тут.</string>
+
     <string name="rtinst_removing">Видалення середовища Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Видалення середовища Linux · %1$d запис</item>
@@ -2112,6 +2167,7 @@
     <string name="rtinst_channel_description">Показується під час встановлення або видалення середовища Linux</string>
     <string name="rtinst_title_installing">Встановлення середовища Linux</string>
     <string name="rtinst_title_removing">Видалення середовища Linux</string>
+
     <string name="deskpkg_runtime_missing">Середовище Linux не встановлено</string>
     <string name="deskpkg_no_checksum">У каталозі немає контрольної суми для %1$s</string>
     <string name="deskpkg_checksum_mismatch">Контрольна сума не збігається — нічого не змінено</string>
@@ -2119,6 +2175,7 @@
     <string name="deskpkg_place_failed">Не вдалося розмістити AppImage</string>
     <string name="deskpkg_extract_failed">Не вдалося розпакувати</string>
     <string name="deskpkg_install_failed">Не вдалося встановити</string>
+
     <string name="flatpakmgr_setup_failed">Не вдалося налаштувати Flatpak (код %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Налаштування Flatpak не завершено</string>
     <string name="flatpakmgr_busy">Виконується інше завдання магазину</string>
@@ -2137,6 +2194,7 @@
     <string name="flatpakmgr_ref_media_codecs">медіакодеків</string>
     <string name="flatpakmgr_ref_runtime">середовища виконання %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">середовища виконання %1$s %2$s</string>
+
     <string name="appimg_too_small">Файл замалий для AppImage</string>
     <string name="appimg_unreadable">Не вдається прочитати файл: %1$s</string>
     <string name="appimg_not_linux">Це не AppImage (це не програма для Linux)</string>
@@ -2151,6 +2209,7 @@
     <string name="appimg_extracting">Розпакування %1$s</string>
     <string name="appimg_extract_failed">Не вдалося розпакувати AppImage</string>
     <string name="appimg_extract_failed_detail">Не вдалося розпакувати AppImage: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">Зупиніть активний сеанс, перш ніж встановлювати Decky Loader</string>
     <string name="deckymgr_download_failed">Не вдалося завантажити Decky Loader</string>
     <string name="deckymgr_size_mismatch">Розмір Decky Loader не збігся з метаданими випуску</string>
@@ -2199,11 +2258,13 @@
     <string name="deckymgr_activate_failed">Не вдалося активувати імпортований плагін</string>
     <string name="deckymgr_settings_failed">Не вдалося оновити налаштування плагінів Decky</string>
     <string name="deckymgr_restore_failed">Не вдалося відновити наявний плагін</string>
+
     <string name="adbfix_save_failed">Не вдалося зберегти ідентифікаційні дані бездротового налагодження</string>
     <string name="adbfix_command_failed">Команда ADB завершилася помилкою (%1$d)</string>
     <string name="adbfix_not_confirmed">Android не підтвердив зміну обмеження дочірніх процесів: %1$s</string>
     <string name="adbfix_no_pairing">Немає збереженої прив’язки бездротового налагодження</string>
     <string name="adbfix_enter_address">Введіть поточну IP-адресу та порт бездротового налагодження</string>
+
     <string name="adbpair_timed_out">Час очікування вікна прив’язки минув. Спробуйте ще раз із DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Не вдалося знайти вікно прив’язки (%1$d). Перевірте, що Wi-Fi увімкнено.</string>
     <string name="adbpair_discovery_failed">Не вдалося знайти вікно прив’язки: %1$s</string>
@@ -2229,6 +2290,7 @@
     <string name="adbpair_title_done">Steam готовий</string>
     <string name="adbpair_done_text">Торкніться, щоб повернутися до DroidDeck. Тепер можна вимкнути бездротове налагодження.</string>
     <string name="adbpair_title_failed">Налаштування бездротового налагодження зупинено</string>
+
     <string name="selfinst_download_failed">Не вдалося завантажити</string>
     <string name="selfinst_size_mismatch">Розмір завантаження не збігся з опублікованим APK, тож його відхилено - спробуйте ще раз</string>
     <string name="selfinst_checksum_mismatch">Завантаження не збіглося з контрольною сумою, тож його відхилено - спробуйте ще раз</string>
@@ -2241,11 +2303,13 @@
     <string name="selfinst_no_signing">Завантажений APK не містить інформації про підпис</string>
     <string name="selfinst_wrong_signer">Завантажений APK не підписано ключем випуску DroidDeck</string>
     <string name="appupd_http">Каталог оновлень відповів HTTP %1$d</string>
+
     <string name="loadstate_starting">Запуск сеансу…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d минуло · досі триває</string>
     <string name="loadstate_steam_update">Завантаження оновлення клієнта Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Застосування оновлення клієнта Steam…</string>
     <string name="loadstate_steam_client">Завантаження клієнта Steam · %1$s</string>
+
     <string name="pextra_busy">Встановлення інструмента сумісності вже триває</string>
     <string name="pextra_stop_session">Зупиніть активний сеанс, перш ніж встановлювати інструменти сумісності</string>
     <string name="pextra_no_release">Не вдалося знайти випуск ARM64 для %1$s</string>
@@ -2265,6 +2329,7 @@
     <string name="pextra_install_failed">Встановлення %1$s не вдалося (код виходу %2$d)</string>
     <string name="pextra_could_not_install">Не вдалося встановити %1$s</string>
     <string name="esync_fetching">Отримання пакета droiddeck-esync</string>
+
     <string name="cmgr_fex_linux_helpers">з допоміжними засобами Linux</string>
     <string name="cmgr_fex_dlls_only">лише DLL</string>
     <string name="cmgr_original_proton_updated">Оригінал (Proton оновлено з часу останньої заміни)</string>
@@ -2287,11 +2352,13 @@
     <string name="cmgr_nightly_replaced">Не вдалося завантажити: можливо, цю нічну збірку замінено новішою. Оновіть список і спробуйте ще раз.</string>
     <string name="cmgr_list_predates_checksums">Цей список пакетів створено до появи контрольних сум - оновіть його і спробуйте ще раз</string>
     <string name="cmgr_checksum_mismatch">Контрольна сума не збіглася</string>
+
     <string name="sprefs_upscaler_linear">Лінійний</string>
     <string name="sprefs_upscaler_nearest">Найближчий</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (якість)</string>
     <string name="sprefs_upscaler_sharpen">Лише різкість</string>
     <string name="sprefs_lod_bias_auto">Автоматично (відповідно до масштабування)</string>
+
     <string name="look_off_desc">Нічого не застосовано.</string>
     <string name="look_game_clarity">Ігрова чіткість</string>
     <string name="look_game_clarity_desc">Різкість із ноткою контрасту - варіант на щодень.</string>
@@ -2315,6 +2382,7 @@
     <string name="look_pixel_clean_desc">Чіткі пікселі для 2D та старих ігор.</string>
     <string name="look_anime_edge">Аніме-контур</string>
     <string name="look_anime_edge_desc">Контури у стилі мультфільму плюс різкість.</string>
+
     <string name="gpuinfo_not_adreno">Не GPU Adreno</string>
     <string name="gpuinfo_powervr">Системний драйвер PowerVR: сумісність залежить від пристрою</string>
     <string name="gpuinfo_xclipse">Експериментально: RADV або системний драйвер Xclipse</string>
@@ -2339,6 +2407,7 @@
     <string name="gpuinfo_unsupported">Не підтримується: для цього GPU немає сумісного графічного бекенда</string>
     <string name="gpuinfo_bridge">Працює через міст Mali на власному драйвері Vulkan телефону</string>
     <string name="gpuinfo_bridge_off">Не підтримується, коли міст Mali вимкнено: Turnip потребує GPU Adreno (Snapdragon)</string>
+
     <string name="turnip_rate_limited">Перевищено ліміт запитів GitHub - спробуйте пізніше</string>
     <string name="turnip_github_http">GitHub відповів HTTP %1$d</string>
     <string name="turnip_download_failed">Не вдалося завантажити</string>
@@ -2359,12 +2428,16 @@
     <string name="bundle_no_manifest">Не є набором драйверів: немає manifest.json із вказаними драйверами android і linux</string>
     <string name="bundle_entry_outside">Не є набором драйверів: %1$s вказує за його межі</string>
     <string name="bundle_too_large">Не є набором драйверів: розпаковується в обсяг понад %1$d MB</string>
+
     <string name="gstore_sd_card">SD-карта</string>
     <string name="gstore_folder">Папка</string>
+
     <string name="logshare_chooser">Поділитися журналами сеансу</string>
+
     <string name="hdr_needs_android_10">потрібен Android 10 або новіший (шари дисплея з кольоровим простором)</string>
     <string name="hdr_none">цей дисплей не повідомляє про підтримку HDR</string>
     <string name="hdr_not_hdr10">цей дисплей підтримує %1$s, а не HDR10</string>
+
     <string name="gpu_this_gpu">цей GPU</string>
     <string name="phantom_title_on">Обмеження дочірніх процесів увімкнено</string>
     <string name="phantom_title_unset">Обмеження дочірніх процесів не задано</string>
@@ -2438,6 +2511,7 @@
     <string name="device_info_copied">Скопійовано.</string>
     <string name="force_ssbs_title">Примусовий SSBS</string>
     <string name="force_ssbs_hint">Утримує увімкненим налаштування швидкості CPU, яке Wine постійно вимикає. Може прискорити ігри Windows на Snapdragon 8 Elite; на старших чипах зміни майже непомітні. Застосовується під час наступного запуску гри.</string>
+
     <string name="rail_stores">Магазини</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Власна</string>
@@ -2533,6 +2607,13 @@
     <string name="stores_sort">Сортувати</string>
     <string name="setup_rail_labels">Підписи бічної панелі</string>
     <string name="setup_rail_labels_hint">Показувати назви під значками бічної панелі. Вимкніть, щоб зробити панель вужчою.</string>
+    <string name="setup_agent_pet">Віртуальний улюбленець агента</string>
+    <string name="setup_agent_pet_hint">DeeDee відображається поверх лаунчера та ігор і показує, що робить агент.</string>
+    <string name="setup_agent_pet_float">Поверх інших застосунків</string>
+    <string name="setup_agent_pet_float_hint">Дозволити DeeDee відображатися поверх усіх застосунків і відкривати там чат</string>
+    <string name="setup_agent_pet_allow">Дозволити</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">Чат з DeeDee</string>
     <string name="library_display">Вигляд</string>
     <string name="library_display_larger">Великі картки</string>
     <string name="library_display_smaller">Малі картки</string>
@@ -2922,6 +3003,7 @@
     <string name="touch_icon_color">Колір значка</string>
     <string name="touch_button_color">Колір кнопки</string>
     <string name="touch_no_icon">Без значка</string>
+
     <string name="stores_sync_sign_in">Перевірка входу…</string>
     <string name="stores_sync_library">Отримання вашої бібліотеки…</string>
     <string name="stores_sync_game_list">Отримання списку ігор…</string>
@@ -3357,6 +3439,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d кадр/с</string>
     <string name="boot_movie_note">60 кадр/с виглядає плавніше, але більше навантажує процесор під час запуску Steam. Відео, вибране в налаштуваннях самого Steam, також з\'являється тут.</string>
     <string name="boot_movie_sound">Звук</string>
+    <string name="boot_movie_skip">Пропускати відео запуску</string>
+    <string name="boot_movie_skip_hint">Використовувати 0,1-секундний чорний кліп як вступне відео Steam. Застосовується з наступного сеансу.</string>
     <string name="boot_movie_custom">Власне відео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV або WebM. Інші формати й файли понад %1$d МБ перетворюються на пристрої на WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Імпорт</string>
@@ -3978,8 +4062,10 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+
     <string name="theme_white_red">Багряний сніг</string>
     <string name="theme_white_red_detail">Білі поверхні з червоними акцентами.</string>
+    
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музика</string>
     <string name="soundtracks_options">Параметри відтворення</string>
@@ -4042,6 +4128,8 @@
     <string name="soundtracks_repeat_one">Повторювати один</string>
     <string name="soundtracks_volume">Гучність</string>
     <string name="soundtracks_no_tracks">У цьому саундтреку немає аудіофайлів</string>
+    <string name="stores_rockstar_launch_unavailable">Запуск недоступний</string>
+    <string name="agent_browser_unavailable">Немає веббраузера, щоб відкрити це посилання.</string>
     <string name="setup_stores">Магазини</string>
     <string name="setup_agent_tab">Вкладка агента</string>
 </resources>

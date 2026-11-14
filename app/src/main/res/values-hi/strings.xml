@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">ग्राफ़िक्स रीसेट हो रहे हैं और SteamVR फिर से खुल रहा है…</string>
     <string name="steamvr_recovery_failed">DroidDeck अपने-आप रीस्टार्ट नहीं हो सका। ऐप को पूरी तरह बंद करें, फिर उसे दोबारा खोलें।</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>पहली बार चलाने पर Steam डाउनलोड होता है। इसमें कुछ मिनट लग सकते हैं।</item>
+        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर Steam रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
+        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>पहली बार चलाने पर डेस्कटॉप सेट हो जाता है। इसमें कुछ मिनट लग सकते हैं।</item>
+        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर सेशन रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
+        <item>टच टचपैड की तरह काम करता है: पॉइंटर घुमाने के लिए ड्रैग करें, क्लिक के लिए टैप करें।</item>
+        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
+    </string-array>
     <string name="session_channel">सेशन</string>
     <string name="session_channel_description">Steam या डेस्कटॉप सेशन खुला होने पर दिखता है</string>
     <string name="session_notification">Steam चल रहा है</string>
@@ -915,6 +926,8 @@
     <string name="setup_home">होम स्क्रीन के तौर पर इस्तेमाल करें</string>
     <string name="setup_home_on">DroidDeck होम ऐप हो सकता है</string>
     <string name="setup_home_off">DroidDeck को होम ऐप के तौर पर कभी नहीं दिखाया जाता</string>
+    <string name="setup_home_page">होम बटन खोलता है</string>
+    <string name="setup_home_page_hint">जब DroidDeck होम ऐप हो और आप होम बटन दबाएँ, तब दिखने वाला पेज।</string>
     <string name="setup_home_game_space_first">गेम जोड़ें में DroidDeck को शामिल करें पर सेट करें</string>
     <string name="setup_orientation">ओरिएंटेशन</string>
     <string name="setup_launcher_orientation">लॉन्चर ओरिएंटेशन</string>
@@ -942,6 +955,8 @@
     <string name="dual_typing_done">हो गया</string>
     <string name="setup_default_home">डिफ़ॉल्ट होम ऐप</string>
     <string name="setup_choose_home">होम ऐप चुनें</string>
+    <string name="setup_hide_home_from_recents">निष्क्रिय अवस्था में लॉन्चर को हाल के ऐप्स से छिपाएँ</string>
+    <string name="setup_hide_home_from_recents_hint">यह तभी लागू होता है जब DroidDeck डिफ़ॉल्ट होम ऐप हो और कोई सत्र न चल रहा हो।</string>
     <string name="setup_choose">चुनें</string>
     <string name="setup_linux_apps">Linux ऐप (बीटा)</string>
     <string name="setup_tool_files">फ़ाइलें</string>
@@ -1123,6 +1138,29 @@
     <string name="agent_attach">संलग्न करें</string>
     <string name="agent_remove_attachment">हटाएँ</string>
     <string name="agent_model_default">डिफ़ॉल्ट</string>
+    <string name="agent_effort">सोचने का स्तर</string>
+    <string name="agent_plan_go">आगे बढ़ें</string>
+    <string name="agent_plan_revise">संशोधित करें</string>
+    <string name="agent_plan_untouched">अभी तक कुछ नहीं बदला</string>
+    <string name="agent_plan_go_message">योजना के साथ आगे बढ़ें।</string>
+    <string name="agent_send_now">अभी भेजें</string>
+    <string name="agent_message">संदेश</string>
+    <string name="agent_more">अधिक</string>
+    <string name="agent_close">बंद करें</string>
+    <string name="agent_latest">नवीनतम</string>
+    <string name="agent_working_short">काम चल रहा है</string>
+    <string name="agent_usage_context">संदर्भ</string>
+    <string name="agent_usage_of">%1$s, कुल %2$s में से</string>
+    <string name="agent_usage_conversation">यह बातचीत · %1$s</string>
+    <string name="agent_usage_unknown">पहले जवाब के बाद उपयोग दिखेगा</string>
+    <string name="agent_limit_hours">%1$d-घंटे की सीमा</string>
+    <string name="agent_limit_minutes">%1$d-मिनट की सीमा</string>
+    <string name="agent_limit_week">साप्ताहिक सीमा</string>
+    <string name="agent_limit_resets">%1$d%% · रीसेट: %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d फ़ाइल</item>
+        <item quantity="other">%1$d फ़ाइलें</item>
+    </plurals>
     <string name="agent_plan">पहले योजना बनाएँ</string>
     <string name="agent_plan_short">योजना</string>
     <string name="agent_plan_hint">कुछ भी बदले बिना योजना पेश करता है</string>
@@ -1413,6 +1451,14 @@
     <string name="rail_apps">ऐप</string>
     <string name="rail_setup">सेटअप</string>
     <string name="rail_updates">अपडेट</string>
+    <string name="rail_more">अधिक</string>
+    <string name="more_edit_tabs">टैब्स संपादित करें</string>
+    <string name="setup_group_tabs">टैब्स</string>
+    <string name="tabs_place_bar">दिखाया जाए</string>
+    <string name="tabs_place_more">अधिक में</string>
+    <string name="tabs_place_hidden">छिपाया जाए</string>
+    <string name="tabs_move_up">%1$s को ऊपर ले जाएँ</string>
+    <string name="tabs_move_down">%1$s को नीचे ले जाएँ</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s फिर से शुरू करें</string>
     <string name="roms_text">हर सेशन में /root/ROMs के रूप में दिखता है। इंटरनल स्टोरेज /root/Storage पर है।</string>
@@ -1498,6 +1544,7 @@
     <string name="game_file_folder">फ़्रंटएंड गेम फ़ाइलों के लिए फ़ोल्डर चुनें</string>
     <string name="game_file_exported">गेम फ़ाइलें %1$s में सेव हुईं</string>
     <string name="game_frontend_files">फ़्रंटएंड फ़ाइलें</string>
+
     <string name="main_wait_runtime">रनटाइम ऑपरेशन खत्म होने का इंतज़ार करें</string>
     <string name="main_wait_proton_install">कम्पैटिबिलिटी टूल इंस्टॉल खत्म होने का इंतज़ार करें</string>
     <string name="load_compat_title">कम्पैटिबिलिटी टूल तैयार हो रहे हैं</string>
@@ -1583,6 +1630,7 @@
     <string name="main_removing_runtime">Linux रनटाइम हटाया जा रहा है</string>
     <string name="main_settings_main_screen">नीचे की स्क्रीन पर Settings नहीं खुल सकी; इसे मुख्य स्क्रीन पर खोला गया।</string>
     <string name="main_open_dev_options">Settings में डेवलपर विकल्प खोलें</string>
+
     <string name="upd_unknown_apps_failed">Android की “Install unknown apps” सेटिंग नहीं खुल सकी</string>
     <string name="upd_couldnt_check">जांच नहीं हो सकी: %1$s</string>
     <string name="upd_no_download">इस बिल्ड में DroidDeck की इस कॉपी के लिए कोई डाउनलोड नहीं है</string>
@@ -1592,10 +1640,12 @@
     <string name="upd_stage_confirm">आपकी पुष्टि का इंतज़ार हो रहा है</string>
     <string name="upd_failed">अपडेट विफल रहा</string>
     <string name="upd_not_offered">Android ने अपडेट इंस्टॉल करने का विकल्प नहीं दिया</string>
+
     <string name="decky_install_failed">Decky इंस्टॉल विफल रहा: %1$s</string>
     <string name="decky_plugin_starting">प्लगइन इंपोर्ट शुरू हो रहा है…</string>
     <string name="decky_plugin_failed">प्लगइन इंपोर्ट विफल रहा: %1$s</string>
     <string name="decky_plugin_installed">प्लगइन इंस्टॉल हो गया। इसे लोड करने के लिए Steam रीस्टार्ट करें।</string>
+
     <string name="drivers_not_checked">अभी जांचा नहीं गया - नए ड्राइवर देखने के लिए रीफ़्रेश पर टैप करें</string>
     <string name="drivers_bundle_sets_display">Android + Linux: इसके साथ डिस्प्ले ड्राइवर सेट करता है</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: इसके साथ रनटाइम ड्राइवर सेट करता है</string>
@@ -1648,6 +1698,7 @@
     <string name="drivers_check_failed">जांच विफल रही</string>
     <string name="drivers_installed_pick_either">इंस्टॉल है %1$s - दोनों ड्राइवर सेट करने के लिए इसे किसी भी लिस्ट में चुनें</string>
     <string name="drivers_installed_pick">इंस्टॉल है %1$s - इसे मेनू में चुनें</string>
+
     <string name="session_wait_removal">रनटाइम हटाना खत्म होने का इंतज़ार करें</string>
     <string name="session_title_game">गेम</string>
     <string name="session_touch_auto_touchpad">टचपैड</string>
@@ -1693,6 +1744,7 @@
         <item quantity="one">लॉग में %1$d “Function not implemented” एरर दिखता है: इस डिवाइस पर proot का seccomp एक्सेलरेशन एक हेल्पर को फेल कर रहा है। %2$s → “%3$s” (या “%4$s”) आज़माएं और फिर से शुरू करें।</item>
         <item quantity="other">लॉग में %1$d “Function not implemented” एरर दिखते हैं: इस डिवाइस पर proot का seccomp एक्सेलरेशन एक हेल्पर को फेल कर रहा है। %2$s → “%3$s” (या “%4$s”) आज़माएं और फिर से शुरू करें।</item>
     </plurals>
+
     <string name="mode_decky_plugins">प्लगइन</string>
     <string name="mode_decky_plugins_hint">अगले Steam सेशन के लिए एक प्लगइन ZIP इंस्टॉल करें।</string>
     <string name="mode_decky_plugin_downloading">डाउनलोड हो रहा है…</string>
@@ -2048,6 +2100,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">पोर्ट %1$d पर डेटा आ रहा है (%3$d बाइट के %2$d पैकेट), लेकिन ऐसे फ़ॉर्मैट में जिसे यह पेज अभी पढ़ नहीं सकता।</string>
     <string name="bottom_telemetry_port_busy">पोर्ट %1$s को कोई दूसरा प्रोग्राम पहले से इस्तेमाल कर रहा है, इसलिए वह गेम यहां नहीं दिख सकता।</string>
+
     <string name="rtinst_removing">Linux रनटाइम हटाया जा रहा है</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Linux रनटाइम हटाया जा रहा है · %1$d एंट्री</item>
@@ -2062,6 +2115,7 @@
     <string name="rtinst_channel_description">Linux रनटाइम इंस्टॉल या हटाए जाते समय दिखता है</string>
     <string name="rtinst_title_installing">Linux रनटाइम इंस्टॉल हो रहा है</string>
     <string name="rtinst_title_removing">Linux रनटाइम हटाया जा रहा है</string>
+
     <string name="deskpkg_runtime_missing">Linux रनटाइम इंस्टॉल नहीं है</string>
     <string name="deskpkg_no_checksum">कैटलॉग में %1$s के लिए कोई चेकसम नहीं है</string>
     <string name="deskpkg_checksum_mismatch">चेकसम मेल नहीं खाया - कुछ नहीं बदला गया</string>
@@ -2069,6 +2123,7 @@
     <string name="deskpkg_place_failed">AppImage को नहीं रखा जा सका</string>
     <string name="deskpkg_extract_failed">एक्सट्रैक्शन विफल रहा</string>
     <string name="deskpkg_install_failed">इंस्टॉल विफल रहा</string>
+
     <string name="flatpakmgr_setup_failed">Flatpak सेटअप विफल रहा (exit %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak सेटअप पूरा नहीं हुआ</string>
     <string name="flatpakmgr_busy">कोई और स्टोर टास्क चल रहा है</string>
@@ -2087,6 +2142,7 @@
     <string name="flatpakmgr_ref_media_codecs">मीडिया कोडेक</string>
     <string name="flatpakmgr_ref_runtime">%1$s रनटाइम</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s रनटाइम %2$s</string>
+
     <string name="appimg_too_small">यह फ़ाइल AppImage होने के लिए बहुत छोटी है</string>
     <string name="appimg_unreadable">फ़ाइल पढ़ी नहीं जा सकती: %1$s</string>
     <string name="appimg_not_linux">यह AppImage नहीं है (यह Linux प्रोग्राम नहीं है)</string>
@@ -2101,6 +2157,7 @@
     <string name="appimg_extracting">%1$s एक्सट्रैक्ट हो रहा है</string>
     <string name="appimg_extract_failed">AppImage एक्सट्रैक्ट नहीं हो सका</string>
     <string name="appimg_extract_failed_detail">AppImage एक्सट्रैक्ट नहीं हो सका: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">Decky Loader इंस्टॉल करने से पहले चल रहा सेशन बंद करें</string>
     <string name="deckymgr_download_failed">Decky Loader डाउनलोड विफल रहा</string>
     <string name="deckymgr_size_mismatch">Decky Loader का आकार रिलीज़ मेटाडेटा से मेल नहीं खाया</string>
@@ -2149,11 +2206,13 @@
     <string name="deckymgr_activate_failed">इंपोर्ट किए प्लगइन को चालू नहीं किया जा सका</string>
     <string name="deckymgr_settings_failed">Decky प्लगइन सेटिंग अपडेट नहीं हो सकी</string>
     <string name="deckymgr_restore_failed">मौजूदा प्लगइन वापस नहीं लाया जा सका</string>
+
     <string name="adbfix_save_failed">वायरलेस डीबगिंग पहचान सेव नहीं हो सकी</string>
     <string name="adbfix_command_failed">ADB कमांड विफल रहा (%1$d)</string>
     <string name="adbfix_not_confirmed">Android ने पुष्टि नहीं की कि चाइल्ड-प्रोसेस सीमा बदली गई: %1$s</string>
     <string name="adbfix_no_pairing">कोई वायरलेस डीबगिंग पेयरिंग सेव नहीं है</string>
     <string name="adbfix_enter_address">मौजूदा वायरलेस डीबगिंग का IP एड्रेस और पोर्ट डालें</string>
+
     <string name="adbpair_timed_out">पेयरिंग पॉप-अप का इंतज़ार करते-करते समय खत्म हो गया। DroidDeck से फिर कोशिश करें।</string>
     <string name="adbpair_discovery_failed_code">पेयरिंग पॉप-अप नहीं खोजा जा सका (%1$d)। जांचें कि Wi-Fi चालू है।</string>
     <string name="adbpair_discovery_failed">पेयरिंग पॉप-अप नहीं खोजा जा सका: %1$s</string>
@@ -2179,6 +2238,7 @@
     <string name="adbpair_title_done">Steam तैयार है</string>
     <string name="adbpair_done_text">DroidDeck पर वापस जाने के लिए टैप करें। अब आप वायरलेस डीबगिंग बंद कर सकते हैं।</string>
     <string name="adbpair_title_failed">वायरलेस डीबगिंग सेटअप रुक गया</string>
+
     <string name="selfinst_download_failed">डाउनलोड विफल</string>
     <string name="selfinst_size_mismatch">डाउनलोड का आकार पब्लिश किए APK से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
     <string name="selfinst_checksum_mismatch">डाउनलोड अपने चेकसम से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
@@ -2191,11 +2251,13 @@
     <string name="selfinst_no_signing">डाउनलोड किए APK में कोई साइनिंग जानकारी नहीं है</string>
     <string name="selfinst_wrong_signer">डाउनलोड किया APK DroidDeck की रिलीज़ कुंजी से साइन नहीं है</string>
     <string name="appupd_http">अपडेट कैटलॉग ने HTTP %1$d जवाब दिया</string>
+
     <string name="loadstate_starting">सेशन शुरू हो रहा है…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d बीत गया · अभी भी काम हो रहा है</string>
     <string name="loadstate_steam_update">Steam क्लाइंट अपडेट डाउनलोड हो रहा है · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Steam क्लाइंट अपडेट लागू किया जा रहा है…</string>
     <string name="loadstate_steam_client">Steam क्लाइंट डाउनलोड हो रहा है · %1$s</string>
+
     <string name="pextra_busy">एक कम्पैटिबिलिटी टूल इंस्टॉल पहले से चल रहा है</string>
     <string name="pextra_stop_session">कम्पैटिबिलिटी टूल इंस्टॉल करने से पहले चल रहा सेशन बंद करें</string>
     <string name="pextra_no_release">%1$s के लिए कोई ARM64 रिलीज़ नहीं मिली</string>
@@ -2215,6 +2277,7 @@
     <string name="pextra_install_failed">%1$s इंस्टॉलेशन विफल रहा (exit %2$d)</string>
     <string name="pextra_could_not_install">%1$s इंस्टॉल नहीं हो सका</string>
     <string name="esync_fetching">droiddeck-esync पैक लिया जा रहा है</string>
+
     <string name="cmgr_fex_linux_helpers">Linux हेल्पर के साथ</string>
     <string name="cmgr_fex_dlls_only">सिर्फ़ DLL</string>
     <string name="cmgr_original_proton_updated">ओरिजिनल (पिछले स्वैप के बाद Proton अपडेट हुआ)</string>
@@ -2237,11 +2300,13 @@
     <string name="cmgr_nightly_replaced">डाउनलोड विफल: हो सकता है यह नाइटली बिल्ड किसी नए बिल्ड से बदल दिया गया हो। सूची रीफ़्रेश करें और फिर से कोशिश करें।</string>
     <string name="cmgr_list_predates_checksums">यह पैकेज लिस्ट चेकसम से पुरानी है - इसे रीफ़्रेश करें और फिर कोशिश करें</string>
     <string name="cmgr_checksum_mismatch">चेकसम मेल नहीं खाया</string>
+
     <string name="sprefs_upscaler_linear">लीनियर</string>
     <string name="sprefs_upscaler_nearest">निअरेस्ट</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (क्वालिटी)</string>
     <string name="sprefs_upscaler_sharpen">सिर्फ़ शार्पन</string>
     <string name="sprefs_lod_bias_auto">ऑटो (स्केलिंग से मेल)</string>
+
     <string name="look_off_desc">कुछ लागू नहीं।</string>
     <string name="look_game_clarity">गेम क्लैरिटी</string>
     <string name="look_game_clarity_desc">थोड़े कंट्रास्ट के साथ शार्पनिंग - रोज़ के लिए वाला।</string>
@@ -2265,6 +2330,7 @@
     <string name="look_pixel_clean_desc">2D और पुराने गेम के लिए साफ़ पिक्सल।</string>
     <string name="look_anime_edge">एनिमे एज</string>
     <string name="look_anime_edge_desc">टून आउटलाइन के साथ शार्पनिंग।</string>
+
     <string name="gpuinfo_not_adreno">Adreno GPU नहीं है</string>
     <string name="gpuinfo_powervr">सिस्टम PowerVR ड्राइवर: संगतता डिवाइस के अनुसार अलग-अलग होती है</string>
     <string name="gpuinfo_xclipse">प्रायोगिक: RADV या सिस्टम Xclipse ड्राइवर</string>
@@ -2289,6 +2355,7 @@
     <string name="gpuinfo_unsupported">समर्थित नहीं: इस GPU के लिए कोई संगत ग्राफ़िक्स बैकएंड उपलब्ध नहीं है</string>
     <string name="gpuinfo_bridge">Mali ब्रिज से होकर, फ़ोन के अपने Vulkan ड्राइवर पर चलता है</string>
     <string name="gpuinfo_bridge_off">Mali ब्रिज बंद होने पर यह समर्थित नहीं है: Turnip के लिए Adreno (Snapdragon) GPU ज़रूरी है</string>
+
     <string name="turnip_rate_limited">GitHub की रेट लिमिट पार हो गई - बाद में फिर कोशिश करें</string>
     <string name="turnip_github_http">GitHub ने HTTP %1$d जवाब दिया</string>
     <string name="turnip_download_failed">डाउनलोड विफल</string>
@@ -2309,12 +2376,16 @@
     <string name="bundle_no_manifest">यह ड्राइवर बंडल नहीं है: कोई manifest.json नहीं जो एक android और एक linux ड्राइवर का नाम ले</string>
     <string name="bundle_entry_outside">यह ड्राइवर बंडल नहीं है: %1$s इसके बाहर इशारा करता है</string>
     <string name="bundle_too_large">यह ड्राइवर बंडल नहीं है: यह %1$d MB से ज़्यादा में अनपैक होता है</string>
+
     <string name="gstore_sd_card">SD कार्ड</string>
     <string name="gstore_folder">फ़ोल्डर</string>
+
     <string name="logshare_chooser">सेशन लॉग शेयर करें</string>
+
     <string name="hdr_needs_android_10">Android 10 या नया चाहिए (कलर स्पेस वाली डिस्प्ले लेयर)</string>
     <string name="hdr_none">यह डिस्प्ले HDR सपोर्ट नहीं बताता</string>
     <string name="hdr_not_hdr10">यह डिस्प्ले %1$s को सपोर्ट करता है, HDR10 को नहीं</string>
+
     <string name="gpu_this_gpu">यह GPU</string>
     <string name="phantom_title_on">चाइल्ड-प्रोसेस सीमा चालू है</string>
     <string name="phantom_title_unset">चाइल्ड-प्रोसेस सीमा सेट नहीं है</string>
@@ -2388,6 +2459,7 @@
     <string name="device_info_copied">कॉपी हो गया।</string>
     <string name="force_ssbs_title">SSBS फ़ोर्स करें</string>
     <string name="force_ssbs_hint">एक CPU स्पीड सेटिंग चालू रखता है जिसे Wine बार-बार बंद कर देता है। Snapdragon 8 Elite पर Windows गेम तेज़ हो सकते हैं; पुराने चिप पर बहुत कम फ़र्क़ दिखता है। अगली बार गेम लॉन्च होने पर लागू होता है।</string>
+
     <string name="rail_stores">स्टोर</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">कस्टम</string>
@@ -2483,6 +2555,13 @@
     <string name="stores_sort">क्रमबद्ध करें</string>
     <string name="setup_rail_labels">साइडबार लेबल</string>
     <string name="setup_rail_labels_hint">साइडबार आइकन के नीचे नाम दिखाएं। पतले साइडबार के लिए बंद करें।</string>
+    <string name="setup_agent_pet">एजेंट पेट</string>
+    <string name="setup_agent_pet_hint">DeeDee लॉन्चर और गेम्स पर दिखाई देता है और बताता है कि एजेंट क्या कर रहा है।</string>
+    <string name="setup_agent_pet_float">अन्य ऐप्स के ऊपर दिखाएँ</string>
+    <string name="setup_agent_pet_float_hint">DeeDee को हर ऐप के ऊपर दिखने दें और वहीं इसकी चैट खोलें</string>
+    <string name="setup_agent_pet_allow">अनुमति दें</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">DeeDee के साथ चैट करें</string>
     <string name="library_display">डिस्प्ले</string>
     <string name="library_display_larger">बड़े कार्ड</string>
     <string name="library_display_smaller">छोटे कार्ड</string>
@@ -2866,6 +2945,7 @@
     <string name="touch_icon_color">आइकॉन का रंग</string>
     <string name="touch_button_color">बटन का रंग</string>
     <string name="touch_no_icon">कोई आइकॉन नहीं</string>
+
     <string name="stores_sync_sign_in">साइन-इन जांचा जा रहा है…</string>
     <string name="stores_sync_library">आपकी लाइब्रेरी लाई जा रही है…</string>
     <string name="stores_sync_game_list">गेम लिस्ट लाई जा रही है…</string>
@@ -3281,6 +3361,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps ज़्यादा स्मूथ दिखता है, लेकिन Steam शुरू होते समय CPU ज़्यादा इस्तेमाल करता है। Steam की अपनी सेटिंग्स में चुना गया वीडियो यहाँ भी दिखता है।</string>
     <string name="boot_movie_sound">आवाज़</string>
+    <string name="boot_movie_skip">बूट मूवी छोड़ें</string>
+    <string name="boot_movie_skip_hint">Steam की स्टार्टअप मूवी के रूप में 0.1 सेकंड की काली क्लिप इस्तेमाल करें। अगले सत्र से लागू होगा।</string>
     <string name="boot_movie_custom">अपना वीडियो</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV या WebM. दूसरे फ़ॉर्मैट और %1$d MB से बड़ी फ़ाइलें डिवाइस पर 720p WebM में बदली जाती हैं, %2$d सेकंड तक।</string>
     <string name="boot_movie_import">इंपोर्ट करें</string>
@@ -3900,8 +3982,10 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+
     <string name="theme_white_red">किरमिज़ी बर्फ</string>
     <string name="theme_white_red_detail">लाल रंग की झलकियों वाली सफ़ेद सतहें।</string>
+    
     <string name="rail_soundtracks">साउंडट्रैक</string>
     <string name="rail_music">संगीत</string>
     <string name="soundtracks_options">प्लेबैक विकल्प</string>
@@ -3964,6 +4048,8 @@
     <string name="soundtracks_repeat_one">एक दोहराएँ</string>
     <string name="soundtracks_volume">वॉल्यूम</string>
     <string name="soundtracks_no_tracks">इस साउंडट्रैक में कोई ऑडियो फ़ाइल नहीं है</string>
+    <string name="stores_rockstar_launch_unavailable">लॉन्च उपलब्ध नहीं</string>
+    <string name="agent_browser_unavailable">इस लिंक को खोलने के लिए कोई वेब ब्राउज़र उपलब्ध नहीं है।</string>
     <string name="setup_stores">स्टोर</string>
     <string name="setup_agent_tab">एजेंट टैब</string>
 </resources>

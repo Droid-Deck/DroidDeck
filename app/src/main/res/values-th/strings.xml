@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">กำลังรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง…</string>
     <string name="steamvr_recovery_failed">DroidDeck รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
+        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
+        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>การเริ่มใช้งานครั้งแรกจะตั้งค่าเดสก์ท็อป ซึ่งอาจใช้เวลาสักครู่</item>
+        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
+        <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
+        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
+    </string-array>
     <string name="session_channel">เซสชัน</string>
     <string name="session_channel_description">แสดงขณะมีเซสชัน Steam หรือเดสก์ท็อปเปิดอยู่</string>
     <string name="session_notification">Steam กำลังทำงาน</string>
@@ -912,6 +923,8 @@
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
     <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
     <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
+    <string name="setup_home_page">ปุ่มโฮมเปิดไปยัง</string>
+    <string name="setup_home_page_hint">หน้าที่แสดงเมื่อ DroidDeck เป็นแอปหน้าจอหลักและคุณกดปุ่มโฮม</string>
     <string name="setup_home_game_space_first">ในเพิ่มเกม ให้ตั้ง DroidDeck เป็นรวม</string>
     <string name="setup_orientation">การวางแนว</string>
     <string name="setup_launcher_orientation">การวางแนวของตัวเปิดใช้</string>
@@ -939,6 +952,8 @@
     <string name="dual_typing_done">เสร็จสิ้น</string>
     <string name="setup_default_home">แอปหน้าจอหลักเริ่มต้น</string>
     <string name="setup_choose_home">เลือกแอปหน้าจอหลัก</string>
+    <string name="setup_hide_home_from_recents">ซ่อนแอปหน้าจอหลักจากหน้าจอแอปล่าสุดเมื่อไม่ได้ใช้งาน</string>
+    <string name="setup_hide_home_from_recents_hint">ใช้เฉพาะเมื่อ DroidDeck เป็นแอปหน้าจอหลักเริ่มต้นและไม่มีเซสชันกำลังทำงานอยู่</string>
     <string name="setup_choose">เลือก</string>
     <string name="setup_linux_apps">แอป Linux (ทดลอง)</string>
     <string name="setup_tool_files">ไฟล์</string>
@@ -1120,6 +1135,29 @@
     <string name="agent_attach">แนบ</string>
     <string name="agent_remove_attachment">นำออก</string>
     <string name="agent_model_default">ค่าเริ่มต้น</string>
+    <string name="agent_effort">ระดับการใช้เหตุผล</string>
+    <string name="agent_plan_go">ดำเนินการ</string>
+    <string name="agent_plan_revise">แก้ไข</string>
+    <string name="agent_plan_untouched">ยังไม่มีการเปลี่ยนแปลง</string>
+    <string name="agent_plan_go_message">ดำเนินการตามแผนได้เลย</string>
+    <string name="agent_send_now">ส่งตอนนี้</string>
+    <string name="agent_message">ข้อความ</string>
+    <string name="agent_more">เพิ่มเติม</string>
+    <string name="agent_close">ปิด</string>
+    <string name="agent_latest">ล่าสุด</string>
+    <string name="agent_working_short">กำลังทำงาน</string>
+    <string name="agent_usage_context">บริบท</string>
+    <string name="agent_usage_of">%1$s จาก %2$s</string>
+    <string name="agent_usage_conversation">การสนทนานี้ · %1$s</string>
+    <string name="agent_usage_unknown">การใช้งานจะแสดงหลังจากตอบกลับครั้งแรก</string>
+    <string name="agent_limit_hours">ขีดจำกัด %1$d ชั่วโมง</string>
+    <string name="agent_limit_minutes">ขีดจำกัด %1$d นาที</string>
+    <string name="agent_limit_week">ขีดจำกัดรายสัปดาห์</string>
+    <string name="agent_limit_resets">%1$d%% · รีเซ็ต %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d ไฟล์</item>
+        <item quantity="other">%1$d ไฟล์</item>
+    </plurals>
     <string name="agent_plan">วางแผนก่อน</string>
     <string name="agent_plan_short">วางแผน</string>
     <string name="agent_plan_hint">เสนอแผนโดยไม่เปลี่ยนแปลงสิ่งใด</string>
@@ -1406,6 +1444,14 @@
     <string name="rail_apps">แอป</string>
     <string name="rail_setup">การตั้งค่า</string>
     <string name="rail_updates">การอัปเดต</string>
+    <string name="rail_more">เพิ่มเติม</string>
+    <string name="more_edit_tabs">แก้ไขแท็บ</string>
+    <string name="setup_group_tabs">แท็บ</string>
+    <string name="tabs_place_bar">แสดง</string>
+    <string name="tabs_place_more">ในเพิ่มเติม</string>
+    <string name="tabs_place_hidden">ซ่อน</string>
+    <string name="tabs_move_up">ย้าย %1$s ขึ้น</string>
+    <string name="tabs_move_down">ย้าย %1$s ลง</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">ดำเนินการต่อ %1$s</string>
     <string name="roms_text">แสดงเป็น /root/ROMs ในแต่ละเซสชัน พื้นที่จัดเก็บภายในอยู่ที่ /root/Storage</string>
@@ -1491,6 +1537,7 @@
     <string name="game_file_folder">เลือกโฟลเดอร์สำหรับไฟล์เกมของฟรอนต์เอนด์</string>
     <string name="game_file_exported">บันทึกไฟล์เกมไปยัง %1$s แล้ว</string>
     <string name="game_frontend_files">ไฟล์ของฟรอนต์เอนด์</string>
+
     <string name="main_wait_runtime">รอให้การดำเนินการของรันไทม์เสร็จสิ้น</string>
     <string name="main_wait_proton_install">รอให้การติดตั้งเครื่องมือความเข้ากันได้เสร็จสิ้น</string>
     <string name="load_compat_title">กำลังเตรียมเครื่องมือความเข้ากันได้</string>
@@ -1571,6 +1618,7 @@
     <string name="main_removing_runtime">กำลังลบรันไทม์ Linux</string>
     <string name="main_settings_main_screen">ไม่สามารถเปิดการตั้งค่าบนหน้าจอด้านล่างได้ จึงเปิดบนหน้าจอหลักแทน</string>
     <string name="main_open_dev_options">เปิดตัวเลือกสำหรับนักพัฒนาในการตั้งค่า</string>
+
     <string name="upd_unknown_apps_failed">ไม่สามารถเปิดการตั้งค่า “Install unknown apps” ของ Android ได้</string>
     <string name="upd_couldnt_check">ไม่สามารถตรวจสอบได้: %1$s</string>
     <string name="upd_no_download">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ DroidDeck</string>
@@ -1580,10 +1628,12 @@
     <string name="upd_stage_confirm">กำลังรอให้คุณยืนยัน</string>
     <string name="upd_failed">การอัปเดตล้มเหลว</string>
     <string name="upd_not_offered">Android ไม่ได้เสนอให้ติดตั้งอัปเดต</string>
+
     <string name="decky_install_failed">ติดตั้ง Decky ล้มเหลว: %1$s</string>
     <string name="decky_plugin_starting">กำลังเริ่มนำเข้าพลักอิน…</string>
     <string name="decky_plugin_failed">นำเข้าพลักอินล้มเหลว: %1$s</string>
     <string name="decky_plugin_installed">ติดตั้งพลักอินแล้ว รีสตาร์ท Steam เพื่อโหลด</string>
+
     <string name="drivers_not_checked">ยังไม่ตรวจสอบ - แตะรีเฟรชเพื่อค้นหาไดรเวอร์ใหม่</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ตั้งไดรเวอร์แสดงผลไปด้วย</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: ตั้งไดรเวอร์รันไทม์ไปด้วย</string>
@@ -1633,6 +1683,7 @@
     <string name="drivers_check_failed">ตรวจสอบล้มเหลว</string>
     <string name="drivers_installed_pick_either">ติดตั้ง %1$s แล้ว - เลือกจากรายการใดก็ได้เพื่อตั้งค่าไดรเวอร์ทั้งสอง</string>
     <string name="drivers_installed_pick">ติดตั้ง %1$s แล้ว - เลือกจากเมนู</string>
+
     <string name="session_wait_removal">รอให้การลบรันไทม์เสร็จสิ้น</string>
     <string name="session_title_game">เกม</string>
     <string name="session_touch_auto_touchpad">ทัชแพด</string>
@@ -1676,6 +1727,7 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">ล็อกแสดงข้อผิดพลาด “Function not implemented” %1$d รายการ: การเร่งความเร็ว seccomp ของ proot ทำให้ตัวช่วยบนอุปกรณ์นี้ล้มเหลว ลอง %2$s → “%3$s” (หรือ “%4$s”) แล้วเริ่มใหม่</item>
     </plurals>
+
     <string name="mode_decky_plugins">พลักอิน</string>
     <string name="mode_decky_plugins_hint">ติดตั้งไฟล์ ZIP พลักอินสำหรับเซสชัน Steam ครั้งถัดไป</string>
     <string name="mode_decky_plugin_downloading">กำลังดาวน์โหลด…</string>
@@ -2024,6 +2076,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">พอร์ต %1$d ได้รับข้อมูล (%2$d แพ็กเก็ต ขนาด %3$d ไบต์) แต่อยู่ในรูปแบบที่หน้านี้ยังอ่านไม่ได้</string>
     <string name="bottom_telemetry_port_busy">มีโปรแกรมอื่นใช้พอร์ต %1$s อยู่แล้ว เกมนั้นจึงแสดงที่นี่ไม่ได้</string>
+
     <string name="rtinst_removing">กำลังลบรันไทม์ Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">กำลังลบรันไทม์ Linux · %1$d รายการ</item>
@@ -2037,6 +2090,7 @@
     <string name="rtinst_channel_description">แสดงขณะติดตั้งหรือลบรันไทม์ Linux</string>
     <string name="rtinst_title_installing">กำลังติดตั้งรันไทม์ Linux</string>
     <string name="rtinst_title_removing">กำลังลบรันไทม์ Linux</string>
+
     <string name="deskpkg_runtime_missing">ยังไม่ติดตั้งรันไทม์ Linux</string>
     <string name="deskpkg_no_checksum">แคตตาล็อกไม่มีค่าตรวจสอบสำหรับ %1$s</string>
     <string name="deskpkg_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน - ไม่มีการเปลี่ยนแปลงใด ๆ</string>
@@ -2044,6 +2098,7 @@
     <string name="deskpkg_place_failed">ไม่สามารถวาง AppImage ได้</string>
     <string name="deskpkg_extract_failed">การแตกไฟล์ล้มเหลว</string>
     <string name="deskpkg_install_failed">การติดตั้งล้มเหลว</string>
+
     <string name="flatpakmgr_setup_failed">การตั้งค่า Flatpak ล้มเหลว (ออกด้วยสถานะ %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">การตั้งค่า Flatpak ไม่เสร็จสมบูรณ์</string>
     <string name="flatpakmgr_busy">มีงานสโตร์อื่นกำลังทำงานอยู่</string>
@@ -2062,6 +2117,7 @@
     <string name="flatpakmgr_ref_media_codecs">ตัวแปลงรหัสสื่อ</string>
     <string name="flatpakmgr_ref_runtime">รันไทม์ %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">รันไทม์ %1$s %2$s</string>
+
     <string name="appimg_too_small">ไฟล์มีขนาดเล็กเกินกว่าจะเป็น AppImage</string>
     <string name="appimg_unreadable">ไม่สามารถอ่านไฟล์ได้: %1$s</string>
     <string name="appimg_not_linux">นี่ไม่ใช่ AppImage (ไม่ใช่โปรแกรม Linux)</string>
@@ -2076,6 +2132,7 @@
     <string name="appimg_extracting">กำลังแตกไฟล์ %1$s</string>
     <string name="appimg_extract_failed">ไม่สามารถแตกไฟล์ AppImage ได้</string>
     <string name="appimg_extract_failed_detail">ไม่สามารถแตกไฟล์ AppImage ได้: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">หยุดเซสชันที่กำลังทำงานก่อนติดตั้ง Decky Loader</string>
     <string name="deckymgr_download_failed">ดาวน์โหลด Decky Loader ล้มเหลว</string>
     <string name="deckymgr_size_mismatch">ขนาด Decky Loader ไม่ตรงกับข้อมูลเมตาของรุ่นที่เผยแพร่</string>
@@ -2124,11 +2181,13 @@
     <string name="deckymgr_activate_failed">ไม่สามารถเปิดใช้พลักอินที่นำเข้าได้</string>
     <string name="deckymgr_settings_failed">ไม่สามารถอัปเดตการตั้งค่าพลักอินของ Decky ได้</string>
     <string name="deckymgr_restore_failed">ไม่สามารถคืนค่าพลักอินเดิมได้</string>
+
     <string name="adbfix_save_failed">ไม่สามารถบันทึกข้อมูลประจำตัวของ Wireless debugging ได้</string>
     <string name="adbfix_command_failed">คำสั่ง ADB ล้มเหลว (%1$d)</string>
     <string name="adbfix_not_confirmed">Android ไม่ได้ยืนยันว่าขีดจำกัดโพรเซสลูกถูกเปลี่ยน: %1$s</string>
     <string name="adbfix_no_pairing">ไม่มีการจับคู่ Wireless debugging ที่บันทึกไว้</string>
     <string name="adbfix_enter_address">กรอกที่อยู่ IP และพอร์ตปัจจุบันของ Wireless debugging</string>
+
     <string name="adbpair_timed_out">รอป๊อปอัปการจับคู่หมดเวลา ลองใหม่จาก DroidDeck</string>
     <string name="adbpair_discovery_failed_code">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้ (%1$d) ตรวจสอบว่าเปิด Wi-Fi อยู่</string>
     <string name="adbpair_discovery_failed">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้: %1$s</string>
@@ -2154,6 +2213,7 @@
     <string name="adbpair_title_done">Steam พร้อมแล้ว</string>
     <string name="adbpair_done_text">แตะเพื่อกลับไปที่ DroidDeck คุณสามารถปิด Wireless debugging ได้แล้วตอนนี้</string>
     <string name="adbpair_title_failed">การตั้งค่า Wireless debugging หยุดแล้ว</string>
+
     <string name="selfinst_download_failed">ดาวน์โหลดไม่สำเร็จ</string>
     <string name="selfinst_size_mismatch">ขนาดการดาวน์โหลดไม่ตรงกับ APK ที่เผยแพร่และถูกยกเลิก - ลองใหม่</string>
     <string name="selfinst_checksum_mismatch">การดาวน์โหลดไม่ตรงกับค่าตรวจสอบและถูกยกเลิก - ลองใหม่</string>
@@ -2166,11 +2226,13 @@
     <string name="selfinst_no_signing">APK ที่ดาวน์โหลดไม่มีข้อมูลการลงนาม</string>
     <string name="selfinst_wrong_signer">APK ที่ดาวน์โหลดไม่ได้ลงนามด้วยคีย์รุ่นวางจำหน่ายของ DroidDeck</string>
     <string name="appupd_http">แคตตาล็อกอัปเดตตอบกลับด้วย HTTP %1$d</string>
+
     <string name="loadstate_starting">กำลังเริ่มเซสชัน…</string>
     <string name="loadstate_elapsed">ผ่านไป %1$d:%2$02d · ยังทำงานอยู่</string>
     <string name="loadstate_steam_update">กำลังดาวน์โหลดอัปเดตไคลเอนต์ Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">กำลังติดตั้งอัปเดตไคลเอนต์ Steam…</string>
     <string name="loadstate_steam_client">กำลังดาวน์โหลดไคลเอนต์ Steam · %1$s</string>
+
     <string name="pextra_busy">มีการติดตั้งเครื่องมือความเข้ากันได้อื่นกำลังทำงานอยู่แล้ว</string>
     <string name="pextra_stop_session">หยุดเซสชันที่กำลังทำงานก่อนติดตั้งเครื่องมือความเข้ากันได้</string>
     <string name="pextra_no_release">ไม่พบรุ่นที่เผยแพร่แบบ ARM64 สำหรับ %1$s</string>
@@ -2190,6 +2252,7 @@
     <string name="pextra_install_failed">การติดตั้ง %1$s ล้มเหลว (ออกด้วยสถานะ %2$d)</string>
     <string name="pextra_could_not_install">ไม่สามารถติดตั้ง %1$s ได้</string>
     <string name="esync_fetching">กำลังดึงแพ็ก droiddeck-esync</string>
+
     <string name="cmgr_fex_linux_helpers">พร้อมตัวช่วย Linux</string>
     <string name="cmgr_fex_dlls_only">DLL เท่านั้น</string>
     <string name="cmgr_original_proton_updated">ต้นฉบับ (Proton ถูกอัปเดตตั้งแต่การสลับครั้งล่าสุด)</string>
@@ -2212,11 +2275,13 @@
     <string name="cmgr_nightly_replaced">ดาวน์โหลดไม่สำเร็จ: บิลด์ nightly นี้อาจถูกแทนที่ด้วยบิลด์ที่ใหม่กว่า รีเฟรชรายการแล้วลองอีกครั้ง</string>
     <string name="cmgr_list_predates_checksums">รายการแพ็กเกจนี้เก่ากว่าระบบค่าตรวจสอบ - รีเฟรชแล้วลองใหม่</string>
     <string name="cmgr_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน</string>
+
     <string name="sprefs_upscaler_linear">เชิงเส้น</string>
     <string name="sprefs_upscaler_nearest">ใกล้ที่สุด</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (คุณภาพ)</string>
     <string name="sprefs_upscaler_sharpen">เพิ่มความคมชัดเท่านั้น</string>
     <string name="sprefs_lod_bias_auto">อัตโนมัติ (ตามอัตราขยาย)</string>
+
     <string name="look_off_desc">ไม่ใช้เอฟเฟกต์ใด ๆ</string>
     <string name="look_game_clarity">ความชัดของเกม</string>
     <string name="look_game_clarity_desc">เพิ่มความคมชัดพร้อมคอนทราสต์เล็กน้อย - ใช้งานทั่วไป</string>
@@ -2240,6 +2305,7 @@
     <string name="look_pixel_clean_desc">พิกเซลคมชัดสำหรับเกม 2D และเกมรุ่นเก่า</string>
     <string name="look_anime_edge">ขอบแอนิเมะ</string>
     <string name="look_anime_edge_desc">เส้นขอบแบบการ์ตูนพร้อมเพิ่มความคมชัด</string>
+
     <string name="gpuinfo_not_adreno">ไม่ใช่ GPU Adreno</string>
     <string name="gpuinfo_powervr">ไดรเวอร์ PowerVR ของระบบ: ความเข้ากันได้แตกต่างกันตามอุปกรณ์</string>
     <string name="gpuinfo_xclipse">ทดลอง: RADV หรือไดรเวอร์ Xclipse ของระบบ</string>
@@ -2264,6 +2330,7 @@
     <string name="gpuinfo_unsupported">ไม่รองรับ: ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ GPU นี้</string>
     <string name="gpuinfo_bridge">ทำงานผ่านบริดจ์ Mali บนไดรเวอร์ Vulkan ของเครื่องเอง</string>
     <string name="gpuinfo_bridge_off">ไม่รองรับเมื่อปิดบริดจ์ Mali: Turnip ต้องการ GPU Adreno (Snapdragon)</string>
+
     <string name="turnip_rate_limited">ติดขีดจำกัดอัตราของ GitHub - ลองใหม่ในหลัง</string>
     <string name="turnip_github_http">GitHub ตอบกลับด้วย HTTP %1$d</string>
     <string name="turnip_download_failed">ดาวน์โหลดไม่สำเร็จ</string>
@@ -2284,12 +2351,16 @@
     <string name="bundle_no_manifest">ไม่ใช่แพ็กไดรเวอร์: ไม่มี manifest.json ที่ระบุไดรเวอร์ android และ linux</string>
     <string name="bundle_entry_outside">ไม่ใช่แพ็กไดรเวอร์: %1$s ชี้ไปนอกแพ็ก</string>
     <string name="bundle_too_large">ไม่ใช่แพ็กไดรเวอร์: แตกไฟล์แล้วมีขนาดเกิน %1$d MB</string>
+
     <string name="gstore_sd_card">การ์ด SD</string>
     <string name="gstore_folder">โฟลเดอร์</string>
+
     <string name="logshare_chooser">แชร์ล็อกเซสชัน</string>
+
     <string name="hdr_needs_android_10">ต้องใช้ Android 10 หรือใหม่กว่า (เลเยอร์แสดงผลที่มีพื้นที่สี)</string>
     <string name="hdr_none">หน้าจอนี้ไม่รองรับ HDR</string>
     <string name="hdr_not_hdr10">หน้าจอนี้รองรับ %1$s ไม่ใช่ HDR10</string>
+
     <string name="gpu_this_gpu">GPU นี้</string>
     <string name="phantom_title_on">ขีดจำกัดโพรเซสลูกเปิดอยู่</string>
     <string name="phantom_title_unset">ยังไม่ตั้งค่าขีดจำกัดโพรเซสลูก</string>
@@ -2363,6 +2434,7 @@
     <string name="device_info_copied">คัดลอกแล้ว</string>
     <string name="force_ssbs_title">บังคับ SSBS</string>
     <string name="force_ssbs_hint">คงการตั้งค่าความเร็ว CPU ที่ Wine มักปิดอยู่เสมอ อาจทำให้เกม Windows เร็วขึ้นบน Snapdragon 8 Elite แต่เห็นความเปลี่ยนแปลงน้อยบนชิปรุ่นเก่า มีผลในการเปิดเกมครั้งถัดไป</string>
+
     <string name="rail_stores">สโตร์</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">กำหนดเอง</string>
@@ -2458,6 +2530,13 @@
     <string name="stores_sort">จัดเรียง</string>
     <string name="setup_rail_labels">ป้ายแถบด้านข้าง</string>
     <string name="setup_rail_labels_hint">แสดงชื่อใต้ไอคอนในแถบด้านข้าง ปิดเพื่อให้แถบด้านข้างแคบลง</string>
+    <string name="setup_agent_pet">สัตว์เลี้ยงเอเจนต์</string>
+    <string name="setup_agent_pet_hint">DeeDee ลอยเหนือแอปหน้าจอหลักและเกม พร้อมแสดงสิ่งที่เอเจนต์กำลังทำอยู่</string>
+    <string name="setup_agent_pet_float">เหนือแอปอื่น</string>
+    <string name="setup_agent_pet_float_hint">ให้ DeeDee ลอยเหนือทุกแอปและเปิดแชทได้จากตรงนั้น</string>
+    <string name="setup_agent_pet_allow">อนุญาต</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">แชทกับ DeeDee</string>
     <string name="library_display">การแสดงผล</string>
     <string name="library_display_larger">การ์ดใหญ่ขึ้น</string>
     <string name="library_display_smaller">การ์ดเล็กลง</string>
@@ -2838,6 +2917,7 @@
     <string name="touch_icon_color">สีไอคอน</string>
     <string name="touch_button_color">สีปุ่ม</string>
     <string name="touch_no_icon">ไม่มีไอคอน</string>
+
     <string name="stores_sync_sign_in">กำลังตรวจสอบการลงชื่อเข้าใช้…</string>
     <string name="stores_sync_library">กำลังดึงข้อมูลคลังเกมของคุณ…</string>
     <string name="stores_sync_game_list">กำลังดึงรายการเกม…</string>
@@ -3252,6 +3332,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps ลื่นกว่าแต่ใช้ CPU มากขึ้นระหว่างที่ Steam กำลังเริ่ม วิดีโอที่เลือกในการตั้งค่าของ Steam เองจะแสดงที่นี่ด้วย</string>
     <string name="boot_movie_sound">เสียง</string>
+    <string name="boot_movie_skip">ข้ามวิดีโอเริ่มต้น</string>
+    <string name="boot_movie_skip_hint">ใช้คลิปสีดำความยาว 0.1 วินาทีเป็นวิดีโอเริ่มต้นของ Steam มีผลในเซสชันถัดไป</string>
     <string name="boot_movie_custom">วิดีโอของคุณเอง</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV หรือ WebM รูปแบบอื่นและไฟล์ที่ใหญ่กว่า %1$d MB จะถูกแปลงเป็น WebM 720p บนอุปกรณ์ ความยาวไม่เกิน %2$d วินาที</string>
     <string name="boot_movie_import">นำเข้า</string>
@@ -3870,8 +3952,10 @@
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>
+
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     <string name="theme_white_red_detail">พื้นผิวสีขาวมีสีแดงเป็นสีเน้น</string>
+    
     <string name="rail_soundtracks">ซาวด์แทร็ก</string>
     <string name="rail_music">เพลง</string>
     <string name="soundtracks_options">ตัวเลือกการเล่น</string>
@@ -3934,6 +4018,8 @@
     <string name="soundtracks_repeat_one">เล่นซ้ำหนึ่งเพลง</string>
     <string name="soundtracks_volume">ระดับเสียง</string>
     <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
+    <string name="stores_rockstar_launch_unavailable">ไม่สามารถเปิดได้</string>
+    <string name="agent_browser_unavailable">ไม่มีเว็บเบราว์เซอร์ที่เปิดลิงก์นี้ได้</string>
     <string name="setup_stores">สโตร์</string>
     <string name="setup_agent_tab">แท็บ Agent</string>
 </resources>

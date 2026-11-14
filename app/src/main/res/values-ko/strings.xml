@@ -8,6 +8,17 @@
     <string name="steamvr_recovery_restarting">그래픽을 초기화하고 SteamVR을 다시 여는 중…</string>
     <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
+    <string-array name="loading_hints">
+        <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
+        <item>기본적으로 앱을 나가면 Steam이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
+        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>첫 실행 시 데스크톱을 설정합니다. 몇 분 정도 걸릴 수 있습니다.</item>
+        <item>기본적으로 앱을 나가면 세션이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
+        <item>터치는 트랙패드처럼 작동합니다. 드래그하여 포인터를 이동하고, 탭하여 클릭합니다.</item>
+        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
+    </string-array>
     <string name="session_channel">세션</string>
     <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
     <string name="session_notification">Steam이 실행 중입니다</string>
@@ -912,6 +923,8 @@
     <string name="setup_home">홈 화면으로 사용</string>
     <string name="setup_home_on">DroidDeck을 홈 앱으로 사용할 수 있습니다</string>
     <string name="setup_home_off">DroidDeck은 홈 앱으로 제공되지 않습니다</string>
+    <string name="setup_home_page">홈 버튼으로 열 페이지</string>
+    <string name="setup_home_page_hint">DroidDeck이 홈 앱일 때 홈 버튼을 누르면 표시되는 페이지</string>
     <string name="setup_home_game_space_first">게임 추가에서 DroidDeck을 포함으로 설정하세요</string>
     <string name="setup_orientation">화면 방향</string>
     <string name="setup_launcher_orientation">런처 방향</string>
@@ -939,6 +952,8 @@
     <string name="dual_typing_done">완료</string>
     <string name="setup_default_home">기본 홈 앱</string>
     <string name="setup_choose_home">홈 앱 선택</string>
+    <string name="setup_hide_home_from_recents">대기 중일 때 최근 앱 목록에서 런처 숨기기</string>
+    <string name="setup_hide_home_from_recents_hint">DroidDeck이 기본 홈 앱이고 실행 중인 세션이 없을 때만 적용됩니다.</string>
     <string name="setup_choose">선택</string>
     <string name="setup_linux_apps">Linux 앱(베타)</string>
     <string name="setup_tool_files">파일</string>
@@ -1120,6 +1135,29 @@
     <string name="agent_attach">첨부</string>
     <string name="agent_remove_attachment">제거</string>
     <string name="agent_model_default">기본</string>
+    <string name="agent_effort">추론 수준</string>
+    <string name="agent_plan_go">진행</string>
+    <string name="agent_plan_revise">수정</string>
+    <string name="agent_plan_untouched">아직 변경된 내용 없음</string>
+    <string name="agent_plan_go_message">계획대로 진행해 주세요.</string>
+    <string name="agent_send_now">지금 보내기</string>
+    <string name="agent_message">메시지</string>
+    <string name="agent_more">더보기</string>
+    <string name="agent_close">닫기</string>
+    <string name="agent_latest">최신</string>
+    <string name="agent_working_short">작업 중</string>
+    <string name="agent_usage_context">컨텍스트</string>
+    <string name="agent_usage_of">%2$s 중 %1$s</string>
+    <string name="agent_usage_conversation">이 대화 · %1$s</string>
+    <string name="agent_usage_unknown">첫 답변 후 사용량이 표시됩니다.</string>
+    <string name="agent_limit_hours">%1$d시간 한도</string>
+    <string name="agent_limit_minutes">%1$d분 한도</string>
+    <string name="agent_limit_week">주간 한도</string>
+    <string name="agent_limit_resets">%1$d%% · %2$s에 초기화</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d개 파일</item>
+        <item quantity="other">%1$d개 파일</item>
+    </plurals>
     <string name="agent_plan">먼저 계획 세우기</string>
     <string name="agent_plan_short">계획</string>
     <string name="agent_plan_hint">아무것도 변경하지 않고 계획만 제안합니다</string>
@@ -1406,6 +1444,14 @@
     <string name="rail_apps">앱</string>
     <string name="rail_setup">설정</string>
     <string name="rail_updates">업데이트</string>
+    <string name="rail_more">더보기</string>
+    <string name="more_edit_tabs">탭 편집</string>
+    <string name="setup_group_tabs">탭</string>
+    <string name="tabs_place_bar">표시</string>
+    <string name="tabs_place_more">더보기 안</string>
+    <string name="tabs_place_hidden">숨김</string>
+    <string name="tabs_move_up">%1$s 위로 이동</string>
+    <string name="tabs_move_down">%1$s 아래로 이동</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s 재개</string>
     <string name="roms_text">각 세션에서 /root/ROMs로 표시됩니다. 내부 저장 공간은 /root/Storage에 있습니다.</string>
@@ -1491,6 +1537,7 @@
     <string name="game_file_folder">프론트엔드 게임 파일용 폴더 선택</string>
     <string name="game_file_exported">게임 파일이 %1$s에 저장되었습니다</string>
     <string name="game_frontend_files">프론트엔드 파일</string>
+
     <string name="main_wait_runtime">런타임 작업이 끝날 때까지 기다려 주세요</string>
     <string name="main_wait_proton_install">호환성 도구 설치가 끝날 때까지 기다려 주세요</string>
     <string name="load_compat_title">호환성 도구 준비 중</string>
@@ -1571,6 +1618,7 @@
     <string name="main_removing_runtime">Linux 런타임 제거 중</string>
     <string name="main_settings_main_screen">하단 화면에서 설정을 열 수 없어 메인 화면에서 열었습니다.</string>
     <string name="main_open_dev_options">설정에서 개발자 옵션을 여세요</string>
+
     <string name="upd_unknown_apps_failed">Android의 \"출처를 알 수 없는 앱 설치\" 설정을 열 수 없습니다</string>
     <string name="upd_couldnt_check">확인할 수 없음: %1$s</string>
     <string name="upd_no_download">이 빌드에는 이 DroidDeck 복사본용 다운로드가 없습니다</string>
@@ -1580,10 +1628,12 @@
     <string name="upd_stage_confirm">확인 대기 중</string>
     <string name="upd_failed">업데이트 실패</string>
     <string name="upd_not_offered">Android에서 업데이트 설치를 진행하지 않았습니다</string>
+
     <string name="decky_install_failed">Decky 설치 실패: %1$s</string>
     <string name="decky_plugin_starting">플러그인 가져오기 시작 중…</string>
     <string name="decky_plugin_failed">플러그인 가져오기 실패: %1$s</string>
     <string name="decky_plugin_installed">플러그인이 설치되었습니다. 불러오려면 Steam을 다시 시작하세요.</string>
+
     <string name="drivers_not_checked">아직 확인하지 않음 - 새로 고침을 탭하여 새 드라이버를 찾으세요</string>
     <string name="drivers_bundle_sets_display">Android + Linux: 디스플레이 드라이버도 함께 설정</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: 런타임 드라이버도 함께 설정</string>
@@ -1633,6 +1683,7 @@
     <string name="drivers_check_failed">확인 실패</string>
     <string name="drivers_installed_pick_either">%1$s 설치됨 - 두 목록 중 어디에서든 선택하면 두 드라이버가 모두 설정됩니다</string>
     <string name="drivers_installed_pick">%1$s 설치됨 - 메뉴에서 선택하세요</string>
+
     <string name="session_wait_removal">런타임 제거가 끝날 때까지 기다려 주세요</string>
     <string name="session_title_game">게임</string>
     <string name="session_touch_auto_touchpad">터치패드</string>
@@ -1676,6 +1727,7 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">로그에 \"Function not implemented\" 오류가 %1$d개 있습니다. 이 기기에서 proot의 seccomp 가속이 보조 프로세스를 실패시키고 있습니다. %2$s → \"%3$s\"(또는 \"%4$s\")를 시도한 후 다시 시작하세요.</item>
     </plurals>
+
     <string name="mode_decky_plugins">플러그인</string>
     <string name="mode_decky_plugins_hint">다음 Steam 세션에 사용할 플러그인 ZIP을 설치합니다.</string>
     <string name="mode_decky_plugin_downloading">다운로드 중…</string>
@@ -2024,6 +2076,7 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">포트 %1$d에서 데이터를 받고 있지만(%3$d바이트 패킷 %2$d개), 이 페이지가 아직 읽을 수 없는 형식입니다.</string>
     <string name="bottom_telemetry_port_busy">다른 프로그램이 이미 포트 %1$s을(를) 사용하고 있어 해당 게임을 여기에 표시할 수 없습니다.</string>
+
     <string name="rtinst_removing">Linux 런타임 제거 중</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Linux 런타임 제거 중 · 항목 %1$d개</item>
@@ -2037,6 +2090,7 @@
     <string name="rtinst_channel_description">Linux 런타임을 설치하거나 제거하는 동안 표시</string>
     <string name="rtinst_title_installing">Linux 런타임 설치 중</string>
     <string name="rtinst_title_removing">Linux 런타임 제거 중</string>
+
     <string name="deskpkg_runtime_missing">Linux 런타임이 설치되지 않았습니다</string>
     <string name="deskpkg_no_checksum">카탈로그에 %1$s의 체크섬이 없습니다</string>
     <string name="deskpkg_checksum_mismatch">체크섬이 일치하지 않습니다. 변경된 내용은 없습니다</string>
@@ -2044,6 +2098,7 @@
     <string name="deskpkg_place_failed">AppImage를 배치할 수 없습니다</string>
     <string name="deskpkg_extract_failed">압축 해제 실패</string>
     <string name="deskpkg_install_failed">설치 실패</string>
+
     <string name="flatpakmgr_setup_failed">Flatpak 설정 실패(종료 코드 %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak 설정이 완료되지 않았습니다</string>
     <string name="flatpakmgr_busy">다른 스토어 작업이 진행 중입니다</string>
@@ -2062,6 +2117,7 @@
     <string name="flatpakmgr_ref_media_codecs">미디어 코덱</string>
     <string name="flatpakmgr_ref_runtime">%1$s 런타임</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s 런타임 %2$s</string>
+
     <string name="appimg_too_small">파일이 너무 작아 AppImage가 아닙니다</string>
     <string name="appimg_unreadable">파일을 읽을 수 없습니다: %1$s</string>
     <string name="appimg_not_linux">AppImage가 아닙니다(Linux 프로그램이 아님)</string>
@@ -2076,6 +2132,7 @@
     <string name="appimg_extracting">%1$s 압축 해제 중</string>
     <string name="appimg_extract_failed">AppImage의 압축을 풀 수 없습니다</string>
     <string name="appimg_extract_failed_detail">AppImage의 압축을 풀 수 없습니다: %1$s</string>
+
     <string name="deckymgr_stop_session_loader">Decky Loader를 설치하기 전에 실행 중인 세션을 중지하세요</string>
     <string name="deckymgr_download_failed">Decky Loader 다운로드 실패</string>
     <string name="deckymgr_size_mismatch">Decky Loader 크기가 릴리스 정보와 일치하지 않습니다</string>
@@ -2124,11 +2181,13 @@
     <string name="deckymgr_activate_failed">가져온 플러그인을 활성화할 수 없습니다</string>
     <string name="deckymgr_settings_failed">Decky 플러그인 설정을 업데이트할 수 없습니다</string>
     <string name="deckymgr_restore_failed">기존 플러그인을 복원할 수 없습니다</string>
+
     <string name="adbfix_save_failed">무선 디버깅 ID를 저장할 수 없습니다</string>
     <string name="adbfix_command_failed">ADB 명령 실패(%1$d)</string>
     <string name="adbfix_not_confirmed">Android에서 하위 프로세스 제한 변경을 확인하지 않았습니다: %1$s</string>
     <string name="adbfix_no_pairing">저장된 무선 디버깅 페어링이 없습니다</string>
     <string name="adbfix_enter_address">현재 무선 디버깅의 IP 주소 및 포트를 입력하세요</string>
+
     <string name="adbpair_timed_out">페어링 팝업을 기다리는 시간이 초과되었습니다. DroidDeck에서 다시 시도하세요.</string>
     <string name="adbpair_discovery_failed_code">페어링 팝업을 찾을 수 없습니다(%1$d). Wi-Fi가 켜져 있는지 확인하세요.</string>
     <string name="adbpair_discovery_failed">페어링 팝업을 찾을 수 없습니다: %1$s</string>
@@ -2154,6 +2213,7 @@
     <string name="adbpair_title_done">Steam 준비 완료</string>
     <string name="adbpair_done_text">탭하여 DroidDeck으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
     <string name="adbpair_title_failed">무선 디버깅 설정이 중단되었습니다</string>
+
     <string name="selfinst_download_failed">다운로드 실패</string>
     <string name="selfinst_size_mismatch">다운로드 크기가 배포된 APK와 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_checksum_mismatch">다운로드한 파일이 체크섬과 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
@@ -2166,11 +2226,13 @@
     <string name="selfinst_no_signing">다운로드한 APK에 서명 정보가 없습니다</string>
     <string name="selfinst_wrong_signer">다운로드한 APK가 DroidDeck 릴리스 키로 서명되지 않았습니다</string>
     <string name="appupd_http">업데이트 카탈로그 응답: HTTP %1$d</string>
+
     <string name="loadstate_starting">세션 시작 중…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d 경과 · 아직 진행 중</string>
     <string name="loadstate_steam_update">Steam 클라이언트 업데이트 다운로드 중 · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Steam 클라이언트 업데이트 적용 중…</string>
     <string name="loadstate_steam_client">Steam 클라이언트 다운로드 중 · %1$s</string>
+
     <string name="pextra_busy">호환성 도구를 이미 설치하고 있습니다</string>
     <string name="pextra_stop_session">호환성 도구를 설치하기 전에 실행 중인 세션을 중지하세요</string>
     <string name="pextra_no_release">%1$s의 ARM64 릴리스를 찾을 수 없습니다</string>
@@ -2190,6 +2252,7 @@
     <string name="pextra_install_failed">%1$s 설치 실패(종료 코드 %2$d)</string>
     <string name="pextra_could_not_install">%1$s을(를) 설치할 수 없습니다</string>
     <string name="esync_fetching">droiddeck-esync 팩 받는 중</string>
+
     <string name="cmgr_fex_linux_helpers">Linux 도우미 포함</string>
     <string name="cmgr_fex_dlls_only">DLL만</string>
     <string name="cmgr_original_proton_updated">원본(마지막 교체 이후 Proton 업데이트됨)</string>
@@ -2212,11 +2275,13 @@
     <string name="cmgr_nightly_replaced">다운로드 실패: 이 나이틀리 빌드가 더 새로운 빌드로 교체되었을 수 있습니다. 목록을 새로 고친 후 다시 시도하세요.</string>
     <string name="cmgr_list_predates_checksums">이 패키지 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="cmgr_checksum_mismatch">체크섬 불일치</string>
+
     <string name="sprefs_upscaler_linear">선형</string>
     <string name="sprefs_upscaler_nearest">최근접</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR(품질)</string>
     <string name="sprefs_upscaler_sharpen">샤프닝 전용</string>
     <string name="sprefs_lod_bias_auto">자동(스케일링에 맞춤)</string>
+
     <string name="look_off_desc">적용된 효과 없음.</string>
     <string name="look_game_clarity">게임 선명도</string>
     <string name="look_game_clarity_desc">샤프닝에 약간의 대비를 더한 일상용 프리셋.</string>
@@ -2240,6 +2305,7 @@
     <string name="look_pixel_clean_desc">2D 및 고전 게임을 위한 또렷한 픽셀.</string>
     <string name="look_anime_edge">애니메 윤곽</string>
     <string name="look_anime_edge_desc">툰 윤곽선과 샤프닝.</string>
+
     <string name="gpuinfo_not_adreno">Adreno GPU가 아님</string>
     <string name="gpuinfo_powervr">시스템 PowerVR 드라이버: 기기에 따라 호환성이 다릅니다</string>
     <string name="gpuinfo_xclipse">실험 기능: RADV 또는 시스템 Xclipse 드라이버</string>
@@ -2264,6 +2330,7 @@
     <string name="gpuinfo_unsupported">지원되지 않음: 이 GPU에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다</string>
     <string name="gpuinfo_bridge">Mali 브리지를 거쳐 휴대전화 자체 Vulkan 드라이버에서 실행됩니다.</string>
     <string name="gpuinfo_bridge_off">Mali 브리지가 꺼져 있으면 지원되지 않습니다: Turnip에는 Adreno(스냅드래곤) GPU가 필요합니다.</string>
+
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
     <string name="turnip_download_failed">다운로드 실패</string>
@@ -2284,12 +2351,16 @@
     <string name="bundle_no_manifest">드라이버 번들이 아닙니다: android 및 linux 드라이버를 지정하는 manifest.json이 없습니다</string>
     <string name="bundle_entry_outside">드라이버 번들이 아닙니다: %1$s이(가) 번들 외부를 가리킵니다</string>
     <string name="bundle_too_large">드라이버 번들이 아닙니다: 압축을 풀면 %1$d MB를 초과합니다</string>
+
     <string name="gstore_sd_card">SD 카드</string>
     <string name="gstore_folder">폴더</string>
+
     <string name="logshare_chooser">세션 로그 공유</string>
+
     <string name="hdr_needs_android_10">Android 10 이상 필요(색 공간을 지원하는 디스플레이 레이어)</string>
     <string name="hdr_none">이 디스플레이는 HDR을 지원하지 않습니다</string>
     <string name="hdr_not_hdr10">이 디스플레이는 HDR10이 아닌 %1$s 형식을 지원합니다</string>
+
     <string name="gpu_this_gpu">이 GPU</string>
     <string name="phantom_title_on">하위 프로세스 제한 켜짐</string>
     <string name="phantom_title_unset">하위 프로세스 제한 설정되지 않음</string>
@@ -2363,6 +2434,7 @@
     <string name="device_info_copied">복사했습니다.</string>
     <string name="force_ssbs_title">SSBS 강제</string>
     <string name="force_ssbs_hint">Wine이 계속 끄는 CPU 속도 설정을 켜 둡니다. Snapdragon 8 Elite에서 Windows 게임이 빨라질 수 있으며, 이전 칩에서는 변화가 거의 없습니다. 다음 게임 실행 시 적용됩니다.</string>
+
     <string name="rail_stores">스토어</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">사용자 정의</string>
@@ -2458,6 +2530,13 @@
     <string name="stores_sort">정렬</string>
     <string name="setup_rail_labels">사이드바 레이블</string>
     <string name="setup_rail_labels_hint">사이드바 아이콘 아래에 이름을 표시합니다. 끄면 사이드바가 더 슬림해집니다.</string>
+    <string name="setup_agent_pet">에이전트 펫</string>
+    <string name="setup_agent_pet_hint">DeeDee가 런처와 게임 위에 표시되며 에이전트가 무엇을 하고 있는지 보여 줍니다.</string>
+    <string name="setup_agent_pet_float">다른 앱 위에 표시</string>
+    <string name="setup_agent_pet_float_hint">DeeDee가 모든 앱 위에 표시되도록 허용하고 해당 앱에서 채팅을 열 수 있게 합니다.</string>
+    <string name="setup_agent_pet_allow">허용</string>
+    <string name="agent_pet_name">DeeDee</string>
+    <string name="agent_pet_open">DeeDee와 채팅하기</string>
     <string name="library_display">표시</string>
     <string name="library_display_larger">카드 크게</string>
     <string name="library_display_smaller">카드 작게</string>
@@ -2838,6 +2917,7 @@
     <string name="touch_icon_color">아이콘 색상</string>
     <string name="touch_button_color">버튼 색상</string>
     <string name="touch_no_icon">아이콘 없음</string>
+
     <string name="stores_sync_sign_in">로그인 확인 중…</string>
     <string name="stores_sync_library">라이브러리를 가져오는 중…</string>
     <string name="stores_sync_game_list">게임 목록을 가져오는 중…</string>
@@ -3252,6 +3332,8 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps는 더 부드럽지만 Steam이 시작되는 동안 CPU를 더 사용합니다. Steam 자체 설정에서 고른 동영상도 여기에 표시됩니다.</string>
     <string name="boot_movie_sound">소리</string>
+    <string name="boot_movie_skip">시작 동영상 건너뛰기</string>
+    <string name="boot_movie_skip_hint">0.1초짜리 검은 화면 클립을 Steam 시작 동영상으로 사용합니다. 다음 세션부터 적용됩니다.</string>
     <string name="boot_movie_custom">내 동영상</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
     <string name="boot_movie_import">가져오기</string>
@@ -3870,8 +3952,10 @@
     <string name="input_reset_positions">위치 초기화</string>
     <string name="input_show_label">라벨 표시</string>
     <string name="input_layout_import_failed">이 레이아웃을 가져올 수 없습니다</string>
+
     <string name="theme_white_red">진홍빛 눈</string>
     <string name="theme_white_red_detail">빨간색 포인트가 있는 흰색 표면.</string>
+    
     <string name="rail_soundtracks">사운드트랙</string>
     <string name="rail_music">음악</string>
     <string name="soundtracks_options">재생 옵션</string>
@@ -3934,6 +4018,8 @@
     <string name="soundtracks_repeat_one">한 곡 반복</string>
     <string name="soundtracks_volume">볼륨</string>
     <string name="soundtracks_no_tracks">이 사운드트랙에 오디오 파일이 없습니다</string>
+    <string name="stores_rockstar_launch_unavailable">실행할 수 없음</string>
+    <string name="agent_browser_unavailable">이 링크를 열 수 있는 웹 브라우저가 없습니다.</string>
     <string name="setup_stores">스토어</string>
     <string name="setup_agent_tab">에이전트 탭</string>
 </resources>
