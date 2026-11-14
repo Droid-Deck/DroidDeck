@@ -36,7 +36,12 @@ class RumbleComponentTest {
         vibrator = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java).defaultVibrator
             else context.getSystemService(Vibrator::class.java)
         shadowOf(vibrator).setHasVibrator(true)
-        rumble = RumbleComponent().also { it.motorLooper = Looper.getMainLooper(); it.attach(context); it.start() }
+        rumble = RumbleComponent().also {
+            it.motorLooper = Looper.getMainLooper()
+            it.gameRunning = { false }
+            it.attach(context)
+            it.start()
+        }
     }
 
     @After fun stopListener() { rumble.stop() }
@@ -113,6 +118,63 @@ class RumbleComponentTest {
         idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
         assertEquals("the keepalive restarted the motors after a stop", 5, pad.played.size)
         assertFalse(pad.vibrating)
+    }
+
+    @Test fun aHeldEffectStopsWhenTheProcessThatStartedItIsGone() {
+        val pad = FakeMotors()
+        var alive = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { pid -> if (pid == SENDER && alive) "1234" else null }
+        rumble.gameRunning = { false }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        alive = false
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertFalse("a crashed game's rumble kept going", pad.vibrating)
+        val played = pad.played.size
+        idle(RumbleComponent.KEEPALIVE_MS * 4)
+        assertEquals("the keepalive restarted the motors", played, pad.played.size)
+    }
+
+    @Test fun aHeldEffectStopsWhenTheGameItStartedInExits() {
+        val pad = FakeMotors()
+        var game = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived the game", pad.vibrating)
+        game = true
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        assertTrue("the next game's rumble was dropped", pad.vibrating)
+    }
+
+    @Test fun aProcessStartTimeIsReadForALiveProcessOnly() {
+        val self = ProcessHandle.current().pid().toInt()
+        val start = RumbleComponent.readProcessStart(self)
+        assertNotNull(start)
+        assertNotEquals(RumbleComponent.UNKNOWN_START, start)
+        assertEquals("the start time changed for the same process", start, RumbleComponent.readProcessStart(self))
+        assertNull(RumbleComponent.readProcessStart(Int.MAX_VALUE))
+    }
+
+    @Test fun anUnreadableButLiveProcessKeepsItsRumble() {
+        val pad = FakeMotors()
+        var start: String? = "1234"
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { start }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        start = RumbleComponent.UNKNOWN_START
+        idle(RumbleComponent.KEEPALIVE_MS * 3 + 100)
+        assertTrue("a passing /proc read error cut the rumble", pad.vibrating)
     }
 
     @Test fun quietingStopsAHeldEffectAndDropsEffectsUntilLifted() {
@@ -280,6 +342,12 @@ class RumbleComponentTest {
             .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
 
+    private fun effectFrom(sender: Int, strong: Int = 40000, weak: Int = 20000, slot: Int = 0, ms: Int = 5000) {
+        val int = Int::class.javaPrimitiveType
+        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int, int)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot, sender)
+    }
+
     private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
 
     private class FakeMotors : RumbleComponent.Motors {
@@ -293,6 +361,7 @@ class RumbleComponentTest {
     private companion object {
         const val PAD_ID = 7
         const val SECOND_PAD_ID = 8
+        const val SENDER = 4242
     }
 
     @Implements(LocalServerSocket::class)

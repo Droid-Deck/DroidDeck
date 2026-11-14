@@ -19,6 +19,7 @@ import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.JoyCon
 import com.droiddeck.launcher.input.PadBridge
 import java.io.DataInputStream
+import java.io.File
 import kotlin.math.max
 
 class RumbleComponent : SessionPart() {
@@ -39,6 +40,8 @@ class RumbleComponent : SessionPart() {
 
     internal var controllerMotors: (Int) -> Motors? = ::lookupController
     internal var motorLooper: Looper? = null
+    internal var processStart: (Int) -> String? = ::readProcessStart
+    internal var gameRunning: () -> Boolean = { SteamGameProcess.running() }
 
     @Synchronized private fun refreshEnabled() {
         enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
@@ -66,7 +69,8 @@ class RumbleComponent : SessionPart() {
                 try {
                     val bytes = ByteArray(8)
                     DataInputStream(client.inputStream).readFully(bytes)
-                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6))
+                    val sender = runCatching { client.peerCredentials.pid }.getOrDefault(0)
+                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6), sender)
                 } catch (e: Exception) {
                 } finally {
                     try { client.close() } catch (e: Exception) {   }
@@ -94,7 +98,9 @@ class RumbleComponent : SessionPart() {
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
-    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
+    private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) = buzz(strong, weak, ms, slot, 0)
+
+    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int, sender: Int) {
         if (!enabled || quiet) return
         val target = target(slot)
         val previous = playing[slot]
@@ -108,7 +114,9 @@ class RumbleComponent : SessionPart() {
         if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); forget(slot); return }
         val handler = handler ?: return
         val effect = effects.getOrPut(slot) { Effect(slot) }
+        val held = effect.hold
         effect.want(strong, weak, ms)
+        if (effect.hold && (!held || effect.owner != sender)) effect.claim(sender)
         val now = SystemClock.uptimeMillis()
         if (effect.playing(now)) return
         handler.removeCallbacks(effect)
@@ -116,14 +124,23 @@ class RumbleComponent : SessionPart() {
         if (wait > 0) handler.postDelayed(effect, wait) else play(effect)
     }
 
-    @Synchronized private fun play(effect: Effect) {
+    @Synchronized private fun play(effect: Effect, keepalive: Boolean = false) {
         val target = playing[effect.slot]
         if (target == null || effects[effect.slot] !== effect) return
+        if (keepalive && effect.hold && effect.armed) effect.orphaned()?.let { why ->
+            Log.i(TAG, "rumble: slot ${effect.slot} stopped, $why")
+            target.cancel()
+            forget(effect.slot)
+            return
+        }
         val duration = if (effect.hold) HOLD_EFFECT_MS else effect.ms.toLong().coerceIn(1L, 5000L)
         try {
             target.play(effect.strong, effect.weak, duration)
             effect.played(SystemClock.uptimeMillis(), duration)
-            if (effect.hold) handler?.postDelayed(effect, KEEPALIVE_MS)
+            if (effect.hold) {
+                effect.armed = true
+                handler?.postDelayed(effect, KEEPALIVE_MS)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "rumble: ${target.name}: $e")
         }
@@ -170,7 +187,25 @@ class RumbleComponent : SessionPart() {
         private var playedWeak = 0
         private var playedMs = 0
         private var until = 0L
+        var owner = 0
+        private var ownerStart: String? = null
+        private var duringGame: Boolean? = null
+        var armed = false
         val hold get() = ms == HOLD_MS
+
+        fun claim(sender: Int) {
+            owner = sender
+            ownerStart = if (sender > 0) processStart(sender)?.takeIf { it != UNKNOWN_START } else null
+            duringGame = null
+            armed = false
+        }
+
+        fun orphaned(): String? {
+            val start = ownerStart?.let { processStart(owner) }
+            if (ownerStart != null && start != UNKNOWN_START && start != ownerStart) return "process $owner that started it is gone"
+            val game = duringGame ?: gameRunning().also { duringGame = it }
+            return if (game && !gameRunning()) "the game it started in has exited" else null
+        }
 
         fun want(strong: Int, weak: Int, ms: Int) { this.strong = strong; this.weak = weak; this.ms = ms }
 
@@ -185,7 +220,7 @@ class RumbleComponent : SessionPart() {
             until = now + duration
         }
 
-        override fun run() = play(this)
+        override fun run() = play(this, keepalive = true)
     }
 
     internal interface Motors {
@@ -262,6 +297,13 @@ class RumbleComponent : SessionPart() {
                 else VibrationEffect.DEFAULT_AMPLITUDE
             return VibrationEffect.createOneShot(ms, amplitude)
         }
+
+        const val UNKNOWN_START = "?"
+
+        internal fun readProcessStart(pid: Int): String? = runCatching {
+            val stat = File("/proc/$pid/stat").readText()
+            stat.substring(stat.lastIndexOf(')') + 2).split(' ')[19]
+        }.getOrElse { if (File("/proc/$pid").exists()) UNKNOWN_START else null }
 
         private fun lookupController(id: Int): Motors? {
             val device = InputDevice.getDevice(id) ?: return null
