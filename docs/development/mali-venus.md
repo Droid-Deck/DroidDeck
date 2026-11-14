@@ -122,11 +122,16 @@ What it does, per feature:
   - The source must be memory the application has mapped; DXVK's staging memory is.
   - Decoded texels go through the layer's own staging buffers, recycled when the command buffer is reset.
   - Copies from a BC image into a buffer, and between BC and uncompressed images, are skipped with a warning.
+- `dualSrcBlend`: reports maxFragmentDualSrcAttachments 1. DXVK 2.x and 3.x require it for D3D11.
+  - Fragment outputs with `Index 1` become Private, in shader modules and in inline stage code.
+  - SRC1 blend factors become source alpha: `SRC1_COLOR` and `SRC1_ALPHA` → `SRC_ALPHA`, their `ONE_MINUS_` forms → `ONE_MINUS_SRC_ALPHA`.
+  - Pipelines and `vkCmdSetColorBlendEquationEXT` both.
+  - Why alpha: output 0's color is the paint, its alpha is the usual coverage. Per-channel coverage collapses to one value; blending stays plain alpha blending, not tinted by the paint.
 
 Files:
 - `layer.c`: loader plumbing, feature and limit reporting, device creation, the hook table.
 - `pipeline.c`: pipelines, shader modules, viewports.
-- `spirv.c`: the SPIR-V rewriter for clip and cull distances.
+- `spirv.c`: the SPIR-V rewriter for clip and cull distances and the second blend source.
 - `bc.c`: BC formats, images and uploads.
 - `VkLayer_droiddeck_mali_compat.json`: implicit layer manifest.
 
@@ -142,7 +147,8 @@ How it ships:
   - Guest paths: `usr/local/lib/droiddeck-mali/` and `usr/local/share/vulkan/implicit_layer.d/`.
 
 Not done yet:
-- Unit tests for the SPIR-V rewriter. It is untested beyond DXVK's shaders, and unknown whether Silksong's shaders used clip distances at all.
+- Unit tests for the clip and cull distance rewriter. It is untested beyond DXVK's shaders, and unknown whether Silksong's shaders used clip distances at all.
+  - The dual-source rewrite has them: `tools/tests/test_mali_compat_layer.py`.
 - Performance: BC decoding on the CPU makes loads slow. A compute-shader decoder would be the next step.
 
 ## Changes on the branch
