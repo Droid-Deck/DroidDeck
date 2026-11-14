@@ -2,6 +2,7 @@
 #include "nested_surface_format.hpp"
 #include "dmabuf_import.hpp"
 #include "sdl_refresh.hpp"
+#include "swapchain_remake.hpp"
 #include <cassert>
 #include <cstdio>
 
@@ -152,5 +153,51 @@ int main()
     assert(DmabufMemoryType(memory, 7, 0, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == UINT32_MAX);
     assert(DmabufMemoryType(memory, 7, 4, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == UINT32_MAX);
+    using gamescope::RemakeSwapchainWithRetries;
+    using gamescope::k_unSwapchainRemakeAttempts;
+    using gamescope::k_unSwapchainRemakeDelayMs;
+    struct RemakeTrace
+    {
+        uint32_t makes = 0;
+        uint32_t releases = 0;
+        uint32_t waits = 0;
+        uint32_t waitedMs = 0;
+        bool live = false;
+        bool makeOverLive = false;
+    };
+    auto remake = [](RemakeTrace &trace, uint32_t failures)
+    {
+        return RemakeSwapchainWithRetries(
+            [&trace, failures]()
+            {
+                trace.makeOverLive |= trace.live;
+                trace.live = true;
+                return ++trace.makes > failures;
+            },
+            [&trace]() { trace.live = false; ++trace.releases; },
+            [&trace](uint32_t delayMs) { ++trace.waits; trace.waitedMs += delayMs; });
+    };
+
+    RemakeTrace first;
+    assert(remake(first, 0) == 1);
+    assert(first.makes == 1 && first.releases == 0 && first.waits == 0 && first.live);
+
+    RemakeTrace transient;
+    assert(remake(transient, 3) == 4);
+    assert(transient.makes == 4 && transient.releases == 3 && transient.waits == 3);
+    assert(transient.waitedMs == 3 * k_unSwapchainRemakeDelayMs);
+    assert(transient.live && !transient.makeOverLive);
+
+    RemakeTrace lastChance;
+    assert(remake(lastChance, k_unSwapchainRemakeAttempts - 1) == k_unSwapchainRemakeAttempts);
+    assert(lastChance.live && !lastChance.makeOverLive);
+
+    RemakeTrace persistent;
+    assert(remake(persistent, UINT32_MAX) == 0);
+    assert(persistent.makes == k_unSwapchainRemakeAttempts);
+    assert(persistent.releases == k_unSwapchainRemakeAttempts);
+    assert(persistent.waits == k_unSwapchainRemakeAttempts - 1);
+    assert(!persistent.live && !persistent.makeOverLive);
+
     std::puts("Gamescope presentation and DMA-BUF import tests passed");
 }
