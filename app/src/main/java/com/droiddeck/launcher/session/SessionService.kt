@@ -1647,9 +1647,13 @@ class SessionService : Service() {
                                 SessionState.gameId = previousGameId
                                 val previousProfileId =
                                     SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
-                                SessionPrefs.setActiveScreenEffectsProfile(this@SessionService, previousProfileId)
-                                SessionPrefs.screenEffects(this@SessionService, previousProfileId)
-                                    .push(SessionPrefs.screenEffectsUpscaler(this@SessionService, previousProfileId))
+                                val failedGameProfileId =
+                                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
+                                if (SessionPrefs.activeScreenEffectsProfileId(this@SessionService) == failedGameProfileId) {
+                                    SessionPrefs.setActiveScreenEffectsProfile(this@SessionService, previousProfileId)
+                                    SessionPrefs.screenEffects(this@SessionService, previousProfileId)
+                                        .push(SessionPrefs.screenEffectsUpscaler(this@SessionService, previousProfileId))
+                                }
                                 pendingSteamPreviousGameId = null
                                 watchGameExit(previousGameId, gen, token)
                             } else {
