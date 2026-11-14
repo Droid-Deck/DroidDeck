@@ -349,4 +349,4 @@ relative motion and touches still place the pointer. gamescope now compares the 
 motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, also when its hint arrives with the game's first warp, and is released
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
-(PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+(PEAK). `relative_mouse` 3, sent by DroidDeck for Auto with a physical mouse, treats a constraint for a hidden cursor as held while the latest pointer input came from a mouse. Touch warps clear that state, so mode 3 does not force Direct touch into relative motion. This fixes games that clip a hidden cursor to the screen without recentring it, which stopped camera movement at a screen edge. `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
