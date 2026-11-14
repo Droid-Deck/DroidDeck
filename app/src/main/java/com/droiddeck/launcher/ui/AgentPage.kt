@@ -264,7 +264,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, onPanel = { panel = it }, onSent = { readingBack = false })
+                    AgentComposer(composer, draft, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
