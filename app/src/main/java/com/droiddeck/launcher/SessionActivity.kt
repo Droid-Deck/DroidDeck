@@ -151,6 +151,9 @@ import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
+private const val SCREEN_EFFECTS_TARGET_AUTO = "auto"
+private const val SCREEN_EFFECTS_TARGET_GLOBAL = "global"
+
 class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -503,6 +506,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
+    private var observedScreenEffectsProfileId by mutableStateOf<String?>(null)
+    private var screenEffectsTarget by mutableStateOf(SCREEN_EFFECTS_TARGET_AUTO)
     private var cardboard by mutableStateOf(Cardboard.OFF)
     private var headTracker: HeadTracker? = null
     private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
@@ -544,6 +549,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
     private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
+    }
+    private val screenEffectsProfilePrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.SCREEN_EFFECTS_ACTIVE_PROFILE_KEY) uiHandler.post {
+            syncActiveScreenEffectsProfile()
+        }
     }
     private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == PhysicalShortcuts.KEY) {
@@ -976,6 +986,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
+            val activeEffectsProfileId = currentScreenEffectsProfileId()
+            val effectsEditorTarget = if (drawerOpen) screenEffectsTarget else null
+            val effectsEditorProfileId = activeEffectsProfileId.takeIf {
+                effectsEditorTarget == SCREEN_EFFECTS_TARGET_AUTO
+            }
+            androidx.compose.runtime.LaunchedEffect(effectsEditorTarget, effectsEditorProfileId) {
+                when (effectsEditorTarget) {
+                    SCREEN_EFFECTS_TARGET_AUTO -> syncActiveScreenEffectsProfile()
+                    null -> Unit
+                    else -> syncScreenEffectsTarget(effectsEditorTarget)
+                }
+            }
             val uiPointer = appUiOwnsPointer()
             androidx.compose.runtime.SideEffect {
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity,
@@ -1069,6 +1091,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty(), drawerGameInventoryRevision) {
+                    val startingActiveEffectsProfileId =
+                        SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1091,18 +1115,36 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                             val id = AgentGuest.activeSteamAppId(
                                 this@SessionActivity, cachedIds + inventoryIds
                             )
-                            val name = id?.let { activeId ->
-                                games.firstOrNull { it.profileKey == activeId.toString() }?.name
+                            val activeGame = id?.let { activeId ->
+                                games.firstOrNull { it.profileKey == activeId.toString() }
                             }
-                            id to name
+                            id to activeGame
                         }
                         if (target.first != frameGenActiveGameId) {
+                            val previousActiveGameId = frameGenActiveGameId
                             frameGenActiveGameId = target.first
+                            if ((target.first != null || previousActiveGameId != null) &&
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) ==
+                                    startingActiveEffectsProfileId
+                            ) {
+                                val activeEffectsProfileId = target.first?.let {
+                                    SessionPrefs.screenEffectsProfileId(
+                                        SessionService.MODE_STEAM,
+                                        target.second?.gameIdString ?: it.toString(),
+                                        null,
+                                    )
+                                }
+                                SessionPrefs.setActiveScreenEffectsProfile(
+                                    this@SessionActivity, activeEffectsProfileId,
+                                )
+                                observedScreenEffectsProfileId = activeEffectsProfileId
+                                syncActiveScreenEffectsProfile()
+                            }
                             if (drawerGameProfileFollowState.followsSteam) {
                                 loadFrameGenFor(target.first)
                             }
                         }
-                        frameGenActiveGameName = target.second
+                        frameGenActiveGameName = target.second?.name
                     }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
@@ -1217,7 +1259,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     onAndroidKeyboard = { pcKeyboardOpen = false; keyboard?.toggle() },
                     onClose = { pcKeyboardOpen = false },
                 )
-                if (!drawerDocked) SessionMenu(docked = false)
+                if (!drawerDocked) SessionMenu(
+                    docked = false,
+                    effectsEditorProfileId = effectsEditorProfileId,
+                    effectsEditorTarget = effectsEditorTarget,
+                )
                 LaunchedEffect(achievementsOpen) {
                     if (achievementsOpen) {
                         releasePads()
@@ -1267,7 +1313,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     @androidx.compose.runtime.Composable
-    private fun SessionMenu(docked: Boolean) {
+    private fun SessionMenu(
+        docked: Boolean,
+        effectsEditorProfileId: String?,
+        effectsEditorTarget: String?,
+    ) {
         SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
@@ -1283,6 +1333,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             hudConfig = hudConfig,
             upscaler = upscaler, upscaleSharpness = upscaleSharpness,
             effects = effects,
+            screenEffectsTarget = screenEffectsTarget,
+            screenEffectsTargets = screenEffectsTargetOptions(),
+            screenEffectsCanDelete = screenEffectsProfileIdForTarget(screenEffectsTarget)?.let {
+                SessionPrefs.hasScreenEffectsOverride(this@SessionActivity, it)
+            } == true,
             cardboard = cardboard,
             cardboardSensor = hasRotationSensor,
             onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
@@ -1333,17 +1388,127 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
             onUpscaler = { m ->
-                SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
-                WaylandCompositor.nativeSetUpscaler(m)
-                WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
+                val target = effectsEditorTarget ?: screenEffectsTarget
+                val activeProfileId =
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+
+                if (target == SCREEN_EFFECTS_TARGET_AUTO &&
+                    activeProfileId != effectsEditorProfileId) {
+                    Log.w(TAG, "Screen effects profile changed while editing; discarding stale upscaler edit")
+                    observedScreenEffectsProfileId = activeProfileId
+                    val activeEffects = SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                    val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this@SessionActivity, activeProfileId)
+                    effects = activeEffects
+                    upscaler = activeUpscaler
+                    activeEffects.push(activeUpscaler)
+                } else {
+                    val profileId = screenEffectsProfileIdForTarget(target)
+                    SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
+
+                    if (target == screenEffectsTarget) {
+                        upscaler = m
+                        if (screenEffectsUpscalerTargetAppliesToLiveOutput(target)) {
+                            val liveProfileId =
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                            val liveUpscaler =
+                                SessionPrefs.screenEffectsUpscaler(this@SessionActivity, liveProfileId)
+                            val liveEffects =
+                                SessionPrefs.screenEffects(this@SessionActivity, liveProfileId)
+                            WaylandCompositor.nativeSetUpscaler(liveUpscaler)
+                            WaylandCompositor.nativeSetLookName(
+                                ScreenEffectLooks.match(liveEffects, liveUpscaler)?.name
+                            )
+                            liveEffects.push(liveUpscaler)
+                        }
+                    }
+                }
+            },
+            onPresetUpscaler = { m ->
+                val target = effectsEditorTarget ?: screenEffectsTarget
+                val activeProfileId = if (target == SCREEN_EFFECTS_TARGET_AUTO) {
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                } else null
+
+                if (target == SCREEN_EFFECTS_TARGET_AUTO &&
+                    activeProfileId != effectsEditorProfileId) {
+                    Log.w(TAG, "Screen effects profile changed while editing; discarding stale upscaler edit")
+                    observedScreenEffectsProfileId = activeProfileId
+                    val activeEffects = SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                    effects = activeEffects
+                    activeEffects.push(upscaler)
+                } else {
+                    val profileId = screenEffectsProfileIdForTarget(target)
+                    SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
+                    if (target == screenEffectsTarget) {
+                        upscaler = m
+                        if (screenEffectsUpscalerTargetAppliesToLiveOutput(target)) {
+                            val liveProfileId =
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                            val liveUpscaler =
+                                SessionPrefs.screenEffectsUpscaler(this@SessionActivity, liveProfileId)
+                            val liveEffects =
+                                SessionPrefs.screenEffects(this@SessionActivity, liveProfileId)
+                            WaylandCompositor.nativeSetUpscaler(liveUpscaler)
+                            WaylandCompositor.nativeSetLookName(
+                                ScreenEffectLooks.match(liveEffects, liveUpscaler)?.name
+                            )
+                            liveEffects.push(liveUpscaler)
+                        }
+                    }
+                }
             },
             onUpscaleSharpness = { pct ->
                 SessionPrefs.setUpscaleSharpness(this@SessionActivity, pct); upscaleSharpness = pct
                 WaylandCompositor.nativeSetUpscaleSharpness(pct)
             },
             onEffects = { e ->
-                SessionPrefs.setScreenEffects(this@SessionActivity, e); effects = e
-                e.push(upscaler)
+                if (drawerOpen || (docked && drawerPinned)) {
+                    val editorTarget = effectsEditorTarget ?: screenEffectsTarget
+                    if (editorTarget != screenEffectsTarget) {
+                        syncScreenEffectsTarget(screenEffectsTarget)
+                    } else if (editorTarget == SCREEN_EFFECTS_TARGET_AUTO) {
+                        val activeProfileId =
+                            SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                        if (activeProfileId != effectsEditorProfileId) {
+                            Log.w(TAG, "Screen effects profile changed while editing; discarding stale edit")
+                            observedScreenEffectsProfileId = activeProfileId
+                            val activeEffects = SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                            effects = activeEffects
+                            activeEffects.push(upscaler)
+                        } else {
+                            SessionPrefs.setScreenEffects(this@SessionActivity, activeProfileId, e)
+                            observedScreenEffectsProfileId = activeProfileId
+                            effects = e
+                            e.push(upscaler)
+                        }
+                    } else {
+                        val profileId = screenEffectsProfileIdForTarget(editorTarget)
+                        SessionPrefs.setScreenEffects(this@SessionActivity, profileId, e)
+                        effects = e
+                        if (screenEffectsTargetAppliesToLiveOutput(editorTarget)) e.push(upscaler)
+                    }
+                }
+            },
+            onScreenEffectsTarget = ::selectScreenEffectsTarget,
+            onScreenEffectsReset = {
+                val target = effectsEditorTarget ?: screenEffectsTarget
+                val profileStillMatches = target != SCREEN_EFFECTS_TARGET_AUTO ||
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId
+                if (target == screenEffectsTarget && profileStillMatches) {
+                    resetScreenEffectsTarget(target)
+                }
+            },
+            onScreenEffectsDelete = {
+                val target = effectsEditorTarget ?: screenEffectsTarget
+                val profileStillMatches = target != SCREEN_EFFECTS_TARGET_AUTO ||
+                    SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity) == effectsEditorProfileId
+                if (target == screenEffectsTarget && profileStillMatches) {
+                    deleteScreenEffectsTarget(target)
+                }
+            },
+            onScreenEffectsProfilesRefresh = {
+                drawerGameInventoryRevision++
+                refreshDrawerGameProfile()
             },
             onTextureAnisotropy = { value ->
                 drawerGameProfileId?.let { appId ->
@@ -1966,6 +2131,124 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }, "drawer-game-no-steam").start()
     }
 
+    private fun syncActiveScreenEffectsProfile() {
+        val profileId = SessionPrefs.activeScreenEffectsProfileId(this)
+        observedScreenEffectsProfileId = profileId
+        val activeEffects = SessionPrefs.screenEffects(this, profileId)
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, profileId)
+        if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
+            effects = activeEffects
+            upscaler = activeUpscaler
+        }
+        WaylandCompositor.nativeSetUpscaler(activeUpscaler)
+        activeEffects.push(activeUpscaler)
+    }
+
+    private fun screenEffectsProfileIdForTarget(target: String): String? = when (target) {
+        SCREEN_EFFECTS_TARGET_AUTO -> currentScreenEffectsProfileId()
+        SCREEN_EFFECTS_TARGET_GLOBAL -> null
+        else -> target
+    }
+
+    private fun screenEffectsTargetOptions(): List<Pair<String, String>> {
+        val installed = LibraryCache.load(this)
+            .associate { it.gameIdString to it.name }
+        val ids = linkedSetOf<String>()
+        ids.addAll(installed.keys)
+        SessionPrefs.screenEffectsProfileIds(this).forEach { saved ->
+            if (saved.startsWith("game:")) {
+                saved.removePrefix("game:").toULongOrNull()?.let { ids.add(it.toString()) }
+            }
+        }
+        currentScreenEffectsProfileId()?.takeIf { it.startsWith("game:") }
+            ?.removePrefix("game:")?.toULongOrNull()?.let { ids.add(it.toString()) }
+
+        return buildList {
+            add(SCREEN_EFFECTS_TARGET_AUTO to getString(R.string.screen_effects_target_auto))
+            add(SCREEN_EFFECTS_TARGET_GLOBAL to getString(R.string.frame_gen_scope_global))
+            ids.sortedBy { installed[it]?.lowercase() ?: it }.forEach { id ->
+                add("game:$id" to (installed[id] ?: getString(R.string.game_env_profile, id)))
+            }
+        }
+    }
+
+    private fun screenEffectsUpscalerTargetAppliesToLiveOutput(target: String): Boolean {
+        if (target == SCREEN_EFFECTS_TARGET_AUTO) return true
+        val selectedProfileId = screenEffectsProfileIdForTarget(target)
+        val activeProfileId = currentScreenEffectsProfileId()
+        if (selectedProfileId == activeProfileId) return true
+        return selectedProfileId == null &&
+            (activeProfileId == null ||
+                !SessionPrefs.hasScreenEffectsUpscalerOverride(this, activeProfileId))
+    }
+
+    private fun screenEffectsTargetAppliesToLiveOutput(target: String): Boolean {
+        if (target == SCREEN_EFFECTS_TARGET_AUTO) return true
+        val selectedProfileId = screenEffectsProfileIdForTarget(target)
+        val activeProfileId = currentScreenEffectsProfileId()
+        if (selectedProfileId == activeProfileId) return true
+        return selectedProfileId == null &&
+            (activeProfileId == null || !SessionPrefs.hasScreenEffectsOverride(this, activeProfileId))
+    }
+
+    private fun syncScreenEffectsTarget(target: String) {
+        if (target == SCREEN_EFFECTS_TARGET_AUTO) {
+            syncActiveScreenEffectsProfile()
+            return
+        }
+        val profileId = screenEffectsProfileIdForTarget(target)
+        val targetEffects = SessionPrefs.screenEffects(this, profileId)
+        val targetUpscaler = SessionPrefs.screenEffectsUpscaler(this, profileId)
+        effects = targetEffects
+        upscaler = targetUpscaler
+        if (screenEffectsTargetAppliesToLiveOutput(target)) {
+            WaylandCompositor.nativeSetUpscaler(targetUpscaler)
+            WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(targetEffects, targetUpscaler)?.name)
+            targetEffects.push(targetUpscaler)
+        }
+    }
+
+    private fun selectScreenEffectsTarget(target: String) {
+        if (target == screenEffectsTarget) return
+        screenEffectsTarget = target
+        syncScreenEffectsTarget(target)
+    }
+
+    private fun resetScreenEffectsTarget(target: String) {
+        if (target != screenEffectsTarget) return
+        SessionPrefs.resetScreenEffectsProfile(this, screenEffectsProfileIdForTarget(target))
+        syncScreenEffectsTarget(target)
+    }
+
+    private fun deleteScreenEffectsTarget(target: String) {
+        if (target != screenEffectsTarget) return
+        val profileId = screenEffectsProfileIdForTarget(target) ?: return
+        SessionPrefs.deleteScreenEffectsProfile(this, profileId)
+        syncScreenEffectsTarget(target)
+    }
+
+    private fun currentScreenEffectsProfileId(): String? {
+        if (SessionState.running) {
+            return observedScreenEffectsProfileId
+                ?: SessionPrefs.activeScreenEffectsProfileId(this)
+        }
+        val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+        val explicitGameId = intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+            ?.trim()
+            ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
+        val steamUrlGameId = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+            ?.takeIf { it.startsWith("steam://rungameid/") }
+            ?.removePrefix("steam://rungameid/")
+            ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
+        val gameId = explicitGameId ?: steamUrlGameId
+
+        return SessionPrefs.screenEffectsProfileId(
+            mode,
+            gameId,
+            intent.getStringExtra(SessionService.EXTRA_PROGRAM),
+        )
+    }
+
     private fun loadingMode(): String =
         if (SessionState.running) SessionState.mode
         else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
@@ -2060,9 +2343,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
-        upscaler = SessionPrefs.upscaler(this)
+        upscaler = SessionPrefs.screenEffectsUpscaler(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
-        effects = SessionPrefs.screenEffects(this)
+        effects = SessionPrefs.screenEffects(this, screenEffectsProfileIdForTarget(screenEffectsTarget))
         applyCardboard(SessionPrefs.cardboard(this))
         if (SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
             steamVrSwitchedPicture = true
@@ -2298,9 +2581,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
-        WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
+        val activeProfileId = currentScreenEffectsProfileId()
+        val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
+        val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
+        WaylandCompositor.nativeSetUpscaler(activeUpscaler)
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
-        SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
+        activeEffects.push(activeUpscaler)
         activeCardboard = effectiveCardboard(SessionPrefs.cardboard(this))
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
@@ -3733,7 +4019,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         },
         menu = {
-            DroidDeckTheme { SessionMenu(docked = true) }
+            DroidDeckTheme {
+                val activeEffectsProfileId = currentScreenEffectsProfileId()
+                val effectsEditorTarget =
+                    if (drawerOpen || drawerPinned) screenEffectsTarget else null
+                val effectsEditorProfileId = activeEffectsProfileId.takeIf {
+                    effectsEditorTarget == SCREEN_EFFECTS_TARGET_AUTO
+                }
+                androidx.compose.runtime.LaunchedEffect(effectsEditorTarget, effectsEditorProfileId) {
+                    when (effectsEditorTarget) {
+                        SCREEN_EFFECTS_TARGET_AUTO -> syncActiveScreenEffectsProfile()
+                        null -> Unit
+                        else -> syncScreenEffectsTarget(effectsEditorTarget)
+                    }
+                }
+                SessionMenu(
+                    docked = true,
+                    effectsEditorProfileId = effectsEditorProfileId,
+                    effectsEditorTarget = effectsEditorTarget,
+                )
+            }
         },
         onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
         onDeckPanel = ::selectDeckPanel,
@@ -5014,7 +5319,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
+        observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
+        observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
+        if (CompositorHost.isStarted) {
+            syncActiveScreenEffectsProfile()
+        } else if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
+            effects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
+            upscaler = SessionPrefs.screenEffectsUpscaler(this, observedScreenEffectsProfileId)
+        }
+        if (screenEffectsTarget != SCREEN_EFFECTS_TARGET_AUTO) {
+            val editorProfileId = screenEffectsProfileIdForTarget(screenEffectsTarget)
+            effects = SessionPrefs.screenEffects(this, editorProfileId)
+            upscaler = SessionPrefs.screenEffectsUpscaler(this, editorProfileId)
+        }
         refreshInputProfile()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()
@@ -5062,6 +5381,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
         super.onPause()

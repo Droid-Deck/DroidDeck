@@ -13,6 +13,8 @@ import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 import java.io.File
 
+private const val SCREEN_EFFECTS_PROFILE_UPSCALER_KEY = "upscaler"
+
 object SessionPrefs {
     data class GameTextureFiltering(val anisotropy: Int? = null, val lodBias: String? = null)
 
@@ -1443,13 +1445,134 @@ object SessionPrefs {
     }
 
 
+    private const val SCREEN_EFFECTS_PROFILES_KEY = "screenEffects.profiles"
+    const val SCREEN_EFFECTS_ACTIVE_PROFILE_KEY = "screenEffects.activeProfile"
+
+    fun screenEffectsProfileId(mode: String, gameId: String?, program: String?): String? {
+        if (mode == SessionService.MODE_DESKTOP) return "desktop"
+        val id = gameId?.trim()?.takeIf { it.isNotEmpty() }
+        if (id != null) return "game:$id"
+        return if (mode == SessionService.MODE_RUN) {
+            program?.trim()?.takeIf { it.isNotEmpty() }?.let { "program:$it" }
+        } else null
+    }
+
+    fun activeScreenEffectsProfileId(context: Context): String? =
+        prefs(context).getString(SCREEN_EFFECTS_ACTIVE_PROFILE_KEY, null)?.takeIf { it.isNotBlank() }
+
+    fun setActiveScreenEffectsProfile(context: Context, profileId: String?) {
+        prefs(context).edit().putString(SCREEN_EFFECTS_ACTIVE_PROFILE_KEY, profileId.orEmpty()).apply()
+    }
+
     fun screenEffects(context: Context): ScreenEffects {
         val text = prefs(context).getString("screenEffects", null) ?: return ScreenEffects.OFF
         return runCatching { ScreenEffects.decode(JSONObject(text)) }.getOrDefault(ScreenEffects.OFF)
     }
 
+    fun screenEffects(context: Context, profileId: String?): ScreenEffects {
+        if (profileId.isNullOrBlank()) return screenEffects(context)
+        val storedProfiles = prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null)
+        val profile = storedProfiles?.let { raw ->
+            runCatching { JSONObject(raw).optJSONObject(profileId) }.getOrNull()
+        }
+        return profile?.let {
+            runCatching { ScreenEffects.decode(it) }.getOrDefault(ScreenEffects.OFF)
+        } ?: screenEffects(context)
+    }
+
     fun setScreenEffects(context: Context, effects: ScreenEffects) {
         prefs(context).edit().putString("screenEffects", effects.encode().toString()).apply()
+    }
+
+    fun setScreenEffects(context: Context, profileId: String?, effects: ScreenEffects) {
+        if (profileId.isNullOrBlank()) {
+            setScreenEffects(context, effects)
+            return
+        }
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrDefault(JSONObject())
+        val encoded = effects.encode()
+        profiles.optJSONObject(profileId)?.let { savedProfile ->
+            if (savedProfile.has(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY)) {
+                encoded.put(
+                    SCREEN_EFFECTS_PROFILE_UPSCALER_KEY,
+                    savedProfile.optInt(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY),
+                )
+            }
+        }
+        profiles.put(profileId, encoded)
+        sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
+    }
+
+    fun hasScreenEffectsUpscalerOverride(context: Context, profileId: String?): Boolean {
+        if (profileId.isNullOrBlank()) return false
+        return runCatching {
+            val profiles = JSONObject(prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+            profiles.optJSONObject(profileId)?.has(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY) == true
+        }.getOrDefault(false)
+    }
+
+    fun screenEffectsUpscaler(context: Context, profileId: String?): Int {
+        if (profileId.isNullOrBlank()) return upscaler(context)
+        val stored = runCatching {
+            val profiles = JSONObject(prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+            val profile = profiles.optJSONObject(profileId)
+            if (profile?.has(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY) == true) {
+                profile.optInt(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY, -1)
+            } else -1
+        }.getOrDefault(-1)
+        return if (stored >= 0) canonicalUpscaler(stored) else upscaler(context)
+    }
+
+    fun setScreenEffectsUpscaler(context: Context, profileId: String?, mode: Int) {
+        if (profileId.isNullOrBlank()) {
+            setUpscaler(context, mode)
+            return
+        }
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrDefault(JSONObject())
+        val profile = profiles.optJSONObject(profileId)
+            ?: screenEffects(context, profileId).encode()
+        profile.put(SCREEN_EFFECTS_PROFILE_UPSCALER_KEY, canonicalUpscaler(mode))
+        profiles.put(profileId, profile)
+        sessionPrefs.edit().putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString()).apply()
+    }
+
+    fun screenEffectsProfileIds(context: Context): Set<String> {
+        val profiles = runCatching {
+            JSONObject(prefs(context).getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        return buildSet {
+            val keys = profiles.keys()
+            while (keys.hasNext()) add(keys.next())
+        }
+    }
+
+    fun hasScreenEffectsOverride(context: Context, profileId: String?): Boolean {
+        if (profileId.isNullOrBlank()) return prefs(context).contains("screenEffects")
+        return profileId in screenEffectsProfileIds(context)
+    }
+
+    fun resetScreenEffectsProfile(context: Context, profileId: String?) {
+        setScreenEffects(context, profileId, ScreenEffects.OFF)
+    }
+
+    fun deleteScreenEffectsProfile(context: Context, profileId: String?) {
+        if (profileId.isNullOrBlank()) return
+        val sessionPrefs = prefs(context)
+        val profiles = runCatching {
+            JSONObject(sessionPrefs.getString(SCREEN_EFFECTS_PROFILES_KEY, null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        if (!profiles.has(profileId)) return
+        profiles.remove(profileId)
+        sessionPrefs.edit().apply {
+            if (profiles.length() == 0) remove(SCREEN_EFFECTS_PROFILES_KEY)
+            else putString(SCREEN_EFFECTS_PROFILES_KEY, profiles.toString())
+        }.apply()
     }
 
     const val CARDBOARD_KEY = "cardboard"

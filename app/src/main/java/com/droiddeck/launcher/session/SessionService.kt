@@ -114,7 +114,10 @@ class SessionService : Service() {
     private var freezePending = false
     private var freezeCancelled = false
     private var pendingSteamGameId: String? = null
+    private var pendingSteamPreviousGameId: String? = null
+    private var pendingSteamPreviousGamePending = false
     private var pendingSteamGameGeneration = -1
+    private var pendingSteamGameExitWatchToken = -1
     @Volatile private var gameExitWatchToken = 0
     private val flushSteamGame = object : Runnable {
         override fun run() = flushQueuedSteamGame()
@@ -390,9 +393,21 @@ class SessionService : Service() {
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
-        SessionState.gameId = intent?.getStringExtra(EXTRA_GAME_ID)
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        val steamUrlGameId = SessionState.steamUrl
+            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }
+            ?.removePrefix(GAME_URL_PREFIX)
+            ?.takeIf(GameLaunchLink::validId)
+        val resolvedGameId = intent?.getStringExtra(EXTRA_GAME_ID)
+            ?.trim()
+            ?.takeIf(GameLaunchLink::validId)
+            ?: steamUrlGameId
+        SessionState.gameId = resolvedGameId
+        SessionPrefs.setActiveScreenEffectsProfile(
+            this,
+            SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
+        )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
         val gen = synchronized(stopLock) {
             SessionState.steamClientArch = null
@@ -413,8 +428,10 @@ class SessionService : Service() {
         if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
-        if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
-            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let { watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen) }
+        if (SessionState.mode == MODE_STEAM &&
+            SessionState.steamUrl?.startsWith(GAME_URL_PREFIX) == true) {
+            resolvedGameId?.let { watchGameExit(it, gen, ++gameExitWatchToken) }
+        }
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
@@ -1521,7 +1538,19 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
-        if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
+        if (!pendingSteamPreviousGamePending) {
+            pendingSteamPreviousGameId = SessionState.gameId
+            pendingSteamPreviousGamePending = true
+        }
+        if (pendingSteamGameId != null) {
+            Log.i(TAG, "replacing queued game ${pendingSteamGameId} with $accepted")
+        }
+        pendingSteamGameExitWatchToken = ++gameExitWatchToken
+        SessionState.gameId = accepted
+        val effectsProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, accepted, null)
+        SessionPrefs.setActiveScreenEffectsProfile(this, effectsProfileId)
+        SessionPrefs.screenEffects(this, effectsProfileId)
+            .push(SessionPrefs.screenEffectsUpscaler(this, effectsProfileId))
         pendingSteamGameId = accepted
         pendingSteamGameGeneration = sessionGen
         if (SessionState.suspended) resumeSession()
@@ -1532,9 +1561,29 @@ class SessionService : Service() {
     private fun flushQueuedSteamGame() {
         val gameId = pendingSteamGameId ?: return
         val gen = pendingSteamGameGeneration
+        val exitWatchToken = pendingSteamGameExitWatchToken
+        if (exitWatchToken != gameExitWatchToken) return
         if (gen != sessionGen || !SessionState.running || SessionState.stopRequested ||
-            SessionState.mode != MODE_STEAM || !GameLaunchLink.validId(gameId)) {
+            SessionState.mode != MODE_STEAM || SessionState.gameId != gameId ||
+            !GameLaunchLink.validId(gameId)) {
+            val previousGameId = pendingSteamPreviousGameId
+            val queuedProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
+            val canRestore = gen == sessionGen &&
+                SessionState.running && !SessionState.stopRequested &&
+                SessionState.mode == MODE_STEAM &&
+                SessionState.gameId == gameId &&
+                SessionPrefs.activeScreenEffectsProfileId(this) == queuedProfileId
+
             cancelQueuedSteamGame()
+
+            if (canRestore) {
+                SessionState.gameId = previousGameId
+                val previousProfileId =
+                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
+                SessionPrefs.setActiveScreenEffectsProfile(this, previousProfileId)
+                SessionPrefs.screenEffects(this, previousProfileId)
+                    .push(SessionPrefs.screenEffectsUpscaler(this, previousProfileId))
+            }
             return
         }
         if (SessionState.suspended) {
@@ -1561,33 +1610,95 @@ class SessionService : Service() {
         }
         pendingSteamGameId = null
         pendingSteamGameGeneration = -1
+        pendingSteamGameExitWatchToken = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
-        watchGameExit(gameId, gen)
+        watchGameExit(gameId, gen, exitWatchToken, pendingSteamPreviousGameId)
         Log.i(TAG, "queued Steam game $gameId for the running client")
     }
 
-    private fun watchGameExit(gameId: String, gen: Int) {
-        if (!SessionPrefs.returnAfterGame(this)) return
-        val token = ++gameExitWatchToken
+    private fun watchGameExit(
+        gameId: String,
+        gen: Int,
+        token: Int,
+        previousGameId: String? = null
+    ) {
         Thread({
-            val startBy = android.os.SystemClock.elapsedRealtime() + GAME_START_TIMEOUT_MS
+            var startupRemaining = GAME_START_TIMEOUT_MS
+            var lastStartupCheck = android.os.SystemClock.elapsedRealtime()
+            var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
-                if (steamGameRunning()) {
-                    if (!seen) Log.i(TAG, "game $gameId started; returning to the launcher when it closes")
+                val startupSuspended = SessionState.suspended || SessionState.suspending
+                if (!seen) {
+                    if (startupSuspended) {
+                        startupWasSuspended = true
+                        lastStartupCheck = now
+                    } else if (startupWasSuspended) {
+                        startupWasSuspended = false
+                        lastStartupCheck = now
+                    } else {
+                        startupRemaining -= (now - lastStartupCheck).coerceAtLeast(0L)
+                        lastStartupCheck = now
+                    }
+                }
+                if (steamGameRunning(gameId)) {
+                    if (!seen) {
+                        Log.i(TAG, "game $gameId started; tracking its exit")
+                        mainHandler.post {
+                            if (token == gameExitWatchToken && gen == sessionGen &&
+                                pendingSteamPreviousGamePending &&
+                                pendingSteamPreviousGameId == previousGameId) {
+                                pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
+                            }
+                        }
+                    }
                     seen = true
                     goneSince = 0L
                 } else if (!seen) {
-                    if (now > startBy) {
-                        Log.i(TAG, "game $gameId did not start; not watching for its exit")
+                    if (!startupSuspended && startupRemaining <= 0L) {
+                        mainHandler.post {
+                            if (token != gameExitWatchToken || gen != sessionGen ||
+                                !SessionState.running || SessionState.stopRequested) {
+                                return@post
+                            }
+
+                            if (previousGameId != null && steamGameRunning(previousGameId)) {
+                                Log.w(TAG, "game $gameId did not start; restoring previous game $previousGameId")
+                                SessionState.gameId = previousGameId
+                                val previousProfileId =
+                                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
+                                val failedGameProfileId =
+                                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
+                                if (SessionPrefs.activeScreenEffectsProfileId(this@SessionService) == failedGameProfileId) {
+                                    SessionPrefs.setActiveScreenEffectsProfile(this@SessionService, previousProfileId)
+                                    SessionPrefs.screenEffects(this@SessionService, previousProfileId)
+                                        .push(SessionPrefs.screenEffectsUpscaler(this@SessionService, previousProfileId))
+                                }
+                                pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
+                                watchGameExit(previousGameId, gen, token)
+                            } else {
+                                Log.i(TAG, "game $gameId did not start; clearing its screen effects profile")
+                                pendingSteamPreviousGameId = null
+                                pendingSteamPreviousGamePending = false
+                                clearActiveScreenEffectsProfile(gameId, gen, token)
+                            }
+                        }
                         return@Thread
                     }
                 } else if (goneSince == 0L) {
                     goneSince = now
                 } else if (now - goneSince >= GAME_EXIT_GRACE_MS) {
-                    mainHandler.post { returnAfterGame(gameId, gen, token) }
+                    mainHandler.post {
+                        if (SessionPrefs.returnAfterGame(this@SessionService)) {
+                            returnAfterGame(gameId, gen, token)
+                        } else {
+                            clearActiveScreenEffectsProfile(gameId, gen, token)
+                        }
+                    }
                     return@Thread
                 }
                 try { Thread.sleep(GAME_EXIT_POLL_MS) } catch (e: InterruptedException) { return@Thread }
@@ -1595,17 +1706,52 @@ class SessionService : Service() {
         }, "game-exit-watch").start()
     }
 
-    private fun returnAfterGame(gameId: String, gen: Int, token: Int) {
-        if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
-            SessionState.stopRequested || SessionState.mode != MODE_STEAM || !SessionPrefs.returnAfterGame(this)) return
-        val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
-            .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess
-        if (!written) return
-        SessionEvents.record("steam.return_after_game", mapOf("gameId" to gameId))
-        Log.i(TAG, "game $gameId closed: asking the client to exit and returning to the launcher")
+    private fun clearActiveScreenEffectsProfile(gameId: String, gen: Int, token: Int) {
+        if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running || SessionState.stopRequested) return
+        val gameProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, gameId, null)
+        if (SessionPrefs.activeScreenEffectsProfileId(this) != gameProfileId) return
+        SessionPrefs.setActiveScreenEffectsProfile(this, null)
+        SessionPrefs.screenEffects(this, null).push(SessionPrefs.screenEffectsUpscaler(this, null))
     }
 
-    private fun steamGameRunning(): Boolean = SteamGameProcess.running()
+    private fun returnAfterGame(gameId: String, gen: Int, token: Int) {
+        mainHandler.postDelayed({
+            if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
+                SessionState.stopRequested || SessionState.mode != MODE_STEAM ||
+                SessionState.gameId != gameId || pendingSteamGameId != null) {
+                return@postDelayed
+            }
+
+            if (steamGameRunning(gameId)) {
+                Log.i(TAG, "game $gameId is running again; restarting its exit watcher")
+                watchGameExit(gameId, gen, token)
+                return@postDelayed
+            }
+
+            if (SteamGameProcess.running()) {
+                Log.i(TAG, "another Steam game is still running after $gameId; checking again")
+                returnAfterGame(gameId, gen, token)
+                return@postDelayed
+            }
+
+            clearActiveScreenEffectsProfile(gameId, gen, token)
+
+            if (!SessionPrefs.returnAfterGame(this)) {
+                Log.i(TAG, "return after game disabled; keeping the Steam session open")
+                return@postDelayed
+            }
+
+            val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
+                .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess
+            if (!written) return@postDelayed
+
+            SessionEvents.record("steam.return_after_game", mapOf("gameId" to gameId))
+            Log.i(TAG, "game $gameId closed: asking the client to exit and returning to the launcher")
+        }, GAME_EXIT_CONFIRM_MS)
+    }
+
+    private fun steamGameRunning(gameId: String): Boolean =
+        SteamGameProcess.running(gameId)
 
     private fun resumeSession(panelVisible: Boolean = true) {
         if (SessionState.suspended) SessionState.resumeRequested = true
@@ -1625,7 +1771,11 @@ class SessionService : Service() {
     private fun cancelQueuedSteamGame(clearMailbox: Boolean = true) {
         mainHandler.removeCallbacks(flushSteamGame)
         pendingSteamGameId = null
+        pendingSteamPreviousGameId = null
+        pendingSteamPreviousGamePending = false
         pendingSteamGameGeneration = -1
+        pendingSteamGameExitWatchToken = -1
+        gameExitWatchToken++
         if (clearMailbox) clearSteamGameMailbox()
     }
 
@@ -2448,6 +2598,7 @@ class SessionService : Service() {
         private const val GAME_URL_PREFIX = "steam://rungameid/"
         private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
         private const val GAME_EXIT_GRACE_MS = 10_000L
+        private const val GAME_EXIT_CONFIRM_MS = 2_000L
         private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"

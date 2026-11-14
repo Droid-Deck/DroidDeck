@@ -766,6 +766,13 @@
     <string name="hud_reset_button">Reset</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
+    <string name="screen_effects_target">Edit profile</string>
+    <string name="screen_effects_target_hint">Choose which profile to change screen effects for.</string>
+    <string name="screen_effects_target_auto">Current session (automatic)</string>
+    <string name="screen_effects_reset">Reset effects</string>
+    <string name="screen_effects_reset_hint">Restore the default-off effect values for this profile.</string>
+    <string name="screen_effects_delete">Delete saved override</string>
+    <string name="screen_effects_delete_hint">Remove saved effects for this game so it inherits the Default profile.</string>
     <string name="drawer_effects">Screen effects</string>
     <string name="drawer_effects_hint">Live. Costs a little GPU time while any effect is on.</string>
     <string name="drawer_look">Presets</string>
