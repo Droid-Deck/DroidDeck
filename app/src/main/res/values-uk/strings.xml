@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Миша</string>
     <string name="mode_pen_touch">Сенсорне введення</string>
     <string name="mode_pen_button">Бічна кнопка</string>
+    <string name="mode_pen_palm">Захист від дотиків долонею</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">«Авто» показує екранне керування, коли контролер не під’єднано.</string>

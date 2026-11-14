@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Fare</string>
     <string name="mode_pen_touch">Dokunma</string>
     <string name="mode_pen_button">Yan düğme</string>
+    <string name="mode_pen_palm">Avuç içi reddi</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>

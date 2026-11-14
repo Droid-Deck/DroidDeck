@@ -20,6 +20,7 @@ class BottomGameScreen(
     private val callback: SurfaceHolder.Callback,
     private val onTouch: (MotionEvent) -> Boolean,
     private val onHover: (MotionEvent) -> Boolean,
+    private val touchFilter: (MotionEvent) -> Boolean,
 ) : Presentation(activity, display) {
     val surfaceView = SurfaceView(getContext())
     val holder: SurfaceHolder get() = surfaceView.holder
@@ -47,6 +48,10 @@ class BottomGameScreen(
         surfaceView.setOnTouchListener { _, event -> onTouch(event) }
         surfaceView.holder.addCallback(callback)
     }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean = touchFilter(event)
+
+    fun deliverTouch(event: MotionEvent): Boolean = super.dispatchTouchEvent(event)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         activity.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)

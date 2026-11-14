@@ -98,6 +98,8 @@ import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.input.DirectTouchHold
 import com.droiddeck.launcher.input.GestureTouchStreamGate
+import com.droiddeck.launcher.input.PalmFilter
+import com.droiddeck.launcher.input.PalmGate
 import com.droiddeck.launcher.input.PenRouter
 import com.droiddeck.launcher.input.PenStream
 import com.droiddeck.launcher.input.PointerGestures
@@ -324,6 +326,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var penRoute: PenRouter.Route? = null
     private var penDown = false
     private val penStream = PenStream(WaylandCompositor::nativeSendPen)
+    private val palmGate = PalmGate { Log.i(TAG, it) }
+    private val palmFilter = PalmFilter(palmGate, ::deliverTouch)
+    private val bottomPalmFilter = PalmFilter(palmGate) { bottomGame?.deliverTouch(it) ?: false }
     private var keyboard: KeyboardHost? = null
     private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var lastUserPressMs = 0L
@@ -801,6 +806,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
             penStream.deviceRemoved(deviceId)
+            palmGate.deviceRemoved(deviceId, SystemClock.uptimeMillis())
             Log.i(TAG, "input device $deviceId disconnected")
             dropMouseCursor()
             backQamInput.onDeviceRemoved(deviceId)
@@ -1530,6 +1536,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             pen = penSettings.takeIf { penSeen },
             onPen = { key, value -> SessionPrefs.setPenSetting(this@SessionActivity, key, value); readPrefs() },
+            onPenPalm = { on -> SessionPrefs.setPenPalm(this@SessionActivity, on); readPrefs() },
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
             secondScreenNone = !bottomOutputActive && !dockDrawer(),
@@ -2644,6 +2651,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (penSettings != nextPen) cancelPen()
         penSettings = nextPen
         penStream.sideButton = nextPen.button
+        palmGate.enabled = nextPen.palm
         if (!penSeen && (SessionPrefs.penSeen(this) || PenStream.penConnected())) notePenSeen()
         val nextRoutedTouchMode = effectiveTouchMode()
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
@@ -3047,6 +3055,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun cancelPen(releaseKey: Boolean = false) {
         penStream.cancel(releaseKey)
         penDown = false
+        palmGate.forceOut(SystemClock.uptimeMillis())
     }
 
     private fun notePenSeen() {
@@ -3731,6 +3740,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        notePalmPen(event)
         if (pipUi) return true
         notePress(event)
         if (PadBridge.isControllerMotionEvent(event) && (menuOwnsController || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
@@ -3796,7 +3806,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             unfoldedColumn?.getChildAt(0)?.let { takes(it) { _, _ -> true } } == true
     }
 
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean = palmFilter.dispatch(event)
+
+    private fun deliverTouch(event: MotionEvent): Boolean {
         if (pipUi) return true
         notePress(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN &&
@@ -3805,6 +3817,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             gestureTouchStreamGate.reset()
         }
         return super.dispatchTouchEvent(event)
+    }
+
+    private fun notePalmPen(event: MotionEvent) {
+        val pen = PenStream.penIndex(event)
+        if (pen < 0 || !PalmFilter.armsGate(event, pen)) return
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE ->
+                palmGate.onPen(event.eventTime, PalmGate.Pen.HOVER, event.deviceId)
+            MotionEvent.ACTION_HOVER_EXIT -> palmGate.leave(event.eventTime)
+        }
     }
 
     private fun dispatchDrawerDirection(event: MotionEvent) {
@@ -6452,7 +6474,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (shown != null) {
             closeSecondScreen(reset = false)
-            val screen = com.droiddeck.launcher.ui.BottomGameScreen(this, shown, this, ::onBottomGameTouch, ::onBottomGameHover)
+            bottomPalmFilter.reset()
+            val screen = com.droiddeck.launcher.ui.BottomGameScreen(this, shown, this, ::onBottomGameTouch, ::onBottomGameHover,
+                bottomPalmFilter::dispatch)
             bottomGame = screen
             surfaceW = 0
             surfaceH = 0
@@ -6507,6 +6531,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun onBottomGameHover(event: MotionEvent): Boolean {
+        notePalmPen(event)
         val pen = PenStream.penIndex(event)
         if (pipUi || pen < 0) return false
         return when (routePen(event, pen)) {
