@@ -56,6 +56,7 @@ import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Toys
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
@@ -200,6 +201,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    "trinkets" -> R.string.rail_trinkets to Icons.Outlined.Toys
     NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }

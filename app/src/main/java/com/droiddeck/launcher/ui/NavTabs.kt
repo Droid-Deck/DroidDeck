@@ -13,7 +13,7 @@ internal enum class TabPlace { BAR, MORE, HIDDEN }
 internal object NavTabs {
     const val MORE = "more"
     val FEATURES = setOf("stores", "soundtracks", "agent")
-    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup", "updates")
+    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup", "updates", "trinkets")
 
     var order by mutableStateOf(ALL)
         private set

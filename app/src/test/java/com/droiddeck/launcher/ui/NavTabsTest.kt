@@ -37,7 +37,7 @@ class NavTabsTest {
     }
 
     @Test fun musicStartsInMore() {
-        assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", "trinkets", NavTabs.MORE), navigationKeys(state()))
         assertEquals(listOf("soundtracks"), NavTabs.more(state()))
         assertEquals(setOf("soundtracks", "agent"), NavTabs.shelved)
         assertTrue(com.droiddeck.launcher.agent.AgentTab.shown)
@@ -46,7 +46,7 @@ class NavTabsTest {
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         NavTabs.setPlace(ctx, "soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates"), navigationKeys(state()))
+        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates", "trinkets"), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
@@ -80,9 +80,9 @@ class NavTabsTest {
     }
 
     @Test fun tabsMissingFromASavedOrderSlotInAfterTheirDefaultNeighbour() {
-        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup"),
+        assertEquals(listOf("updates", "trinkets", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup"),
             NavTabs.arrange(listOf("updates", "steam")))
-        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "updates"),
+        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "updates", "trinkets"),
             NavTabs.arrange(listOf("games", "steam", "setup", "stores", "desktop", "components", "android-apps", "updates", "bogus")))
     }
 
