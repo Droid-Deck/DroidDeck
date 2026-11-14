@@ -1,6 +1,7 @@
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -20,7 +21,15 @@ def load(name):
 shortcuts = load('droiddeck-steam-shortcuts')
 
 APPID = 0x87654321
-GUEST = '/root/Games/PC/Example'
+GUEST = os.path.join(tempfile.mkdtemp(prefix='droiddeck-shortcuts-'), 'Games/PC/Example')
+
+
+def installed(*paths):
+    """Creates the files the writer checks, so a Steam edit to one of them is kept."""
+    for path in paths:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).touch()
+    return paths[0]
 
 
 class ShortcutsTest(unittest.TestCase):
@@ -34,7 +43,7 @@ class ShortcutsTest(unittest.TestCase):
         self.listing = self.root / 'added-games.json'
 
     def game(self, exe='Example.exe', seen=0, appid=APPID, name='Example'):
-        path = GUEST + '/' + exe
+        path = installed(GUEST + '/' + exe)
         return dict(name=name, exe=path, folder=GUEST, dir=path.rsplit('/', 1)[0], appid=appid, seen=seen)
 
     def run_writer(self, *games):
@@ -54,6 +63,10 @@ class ShortcutsTest(unittest.TestCase):
             if value['appid'] & 0xFFFFFFFF == appid:
                 value.update(fields)
         path.write_bytes(shortcuts.write({'shortcuts': data}))
+        if fields.get('Exe'):
+            target = Path(shortcuts.unquoted(fields['Exe']))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.touch()
 
     def record(self):
         return json.loads((self.config / shortcuts.RECORD).read_text())
@@ -81,6 +94,24 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual(1, state['rev'])
         self.run_writer(self.game())
         self.assertEqual(1, self.record()['games'][str(APPID)]['rev'])
+
+    def test_a_steam_target_whose_file_is_gone_goes_back_to_the_apps(self):
+        self.run_writer(self.game())
+        self.steam_edits(Exe='"%s/bin/Other.exe"' % GUEST, StartDir='"%s/data"' % GUEST)
+        Path(shortcuts.unquoted('"%s/bin/Other.exe"' % GUEST)).unlink()
+        entry = self.run_writer(self.game())[APPID]
+        self.assertEqual('"%s/Example.exe"' % GUEST, entry['Exe'])
+        self.assertEqual('"%s"' % GUEST, entry['StartDir'])
+        self.assertEqual('"%s/Example.exe"' % GUEST, self.record()['games'][str(APPID)]['steam']['Exe'])
+
+    def test_a_steam_target_on_an_unmounted_card_is_kept(self):
+        self.run_writer(self.game())
+        self.steam_edits(Exe='"%s/card/Other.exe"' % GUEST)
+        card = Path(GUEST + '/card')
+        (card / 'Other.exe').unlink()
+        card.rmdir()
+        entry = self.run_writer(self.game())[APPID]
+        self.assertEqual('"%s/card/Other.exe"' % GUEST, entry['Exe'])
 
     def test_the_app_taking_steams_target_keeps_steams_start_in(self):
         self.run_writer(self.game())

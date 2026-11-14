@@ -197,6 +197,13 @@ The appid Steam derives (CRC32 of the quoted exe plus the name, high bit set) is
 listing carries, so the live add and the writer never disagree. Uninstall removes the folder and the
 listing drops the entry; the live client is asked to remove it too.
 
+`droiddeck-steam-shortcuts` merges each entry against the one Steam holds: a Target or Start In
+edited in Steam survives the client's restart. A target whose file is gone is not an edit to keep -
+it can only fail before the game starts - so the listing's exe replaces it, checked in the guest
+where the shortcut's paths live, as long as the folder holding it exists (a missing folder can be an
+unmounted card). #694 was a hand-typed Target that outlived the game update that removed its file,
+so every launch died with Wine's `Failed to create process ...: 2` before the game ran.
+
 `Library.SteamGame.source` is `steam`, `gog`, `epic`, `amazon` or `added`; the Library shows it as
 a chip on every tile and in the hero, and filters by it.
 
