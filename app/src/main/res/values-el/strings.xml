@@ -1454,11 +1454,6 @@
     <string name="rail_more">Περισσότερα</string>
     <string name="more_edit_tabs">Επεξεργασία καρτελών</string>
     <string name="setup_group_tabs">Καρτέλες</string>
-    <string name="tabs_place_bar">Εμφανής</string>
-    <string name="tabs_place_more">Στα Περισσότερα</string>
-    <string name="tabs_place_hidden">Κρυφή</string>
-    <string name="tabs_move_up">Μετακινήστε %1$s προς τα πάνω</string>
-    <string name="tabs_move_down">Μετακινήστε %1$s προς τα κάτω</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Συνέχιση %1$s</string>
     <string name="roms_text">Εμφανίζεται ως /root/ROMs σε κάθε συνεδρία. Ο εσωτερικός χώρος αποθήκευσης βρίσκεται στο /root/Storage.</string>

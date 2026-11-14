@@ -1447,11 +1447,6 @@
     <string name="rail_more">더보기</string>
     <string name="more_edit_tabs">탭 편집</string>
     <string name="setup_group_tabs">탭</string>
-    <string name="tabs_place_bar">표시</string>
-    <string name="tabs_place_more">더보기 안</string>
-    <string name="tabs_place_hidden">숨김</string>
-    <string name="tabs_move_up">%1$s 위로 이동</string>
-    <string name="tabs_move_down">%1$s 아래로 이동</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s 재개</string>
     <string name="roms_text">각 세션에서 /root/ROMs로 표시됩니다. 내부 저장 공간은 /root/Storage에 있습니다.</string>

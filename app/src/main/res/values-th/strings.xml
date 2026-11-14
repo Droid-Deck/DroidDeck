@@ -1447,11 +1447,6 @@
     <string name="rail_more">เพิ่มเติม</string>
     <string name="more_edit_tabs">แก้ไขแท็บ</string>
     <string name="setup_group_tabs">แท็บ</string>
-    <string name="tabs_place_bar">แสดง</string>
-    <string name="tabs_place_more">ในเพิ่มเติม</string>
-    <string name="tabs_place_hidden">ซ่อน</string>
-    <string name="tabs_move_up">ย้าย %1$s ขึ้น</string>
-    <string name="tabs_move_down">ย้าย %1$s ลง</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">ดำเนินการต่อ %1$s</string>
     <string name="roms_text">แสดงเป็น /root/ROMs ในแต่ละเซสชัน พื้นที่จัดเก็บภายในอยู่ที่ /root/Storage</string>
