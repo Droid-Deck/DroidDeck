@@ -23,7 +23,7 @@ class LibraryFavoritesTest {
     }
 
     @Test fun aStoreGameIsKeyedByItsStoreProductSoInstallingItKeepsTheHeart() {
-        val entry = owned("123")
+        val entry = owned("123", "Witcher")
         assertEquals("gog:123", entry.favoriteKey)
         val installed = LibraryEntry("app:-5", "gog", "Game", Library.SteamGame(-5, "Game", null, Library.ADDED, source = "gog", storeId = "123"), null, true)
         assertEquals(entry.favoriteKey, installed.favoriteKey)
