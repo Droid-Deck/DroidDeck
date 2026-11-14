@@ -61,8 +61,8 @@ Before a release can expose this fix:
    The build script now includes `present_ready` in its required tests.
 3. Publish a **new** Gamescope component tag and record the resulting archive's
    actual SHA-256 in `tools/gamescope/release.env`. Existing published tags must
-   not be overwritten. This review branch retains the existing p23 pin until a real replacement
-   component is published.
+   not be overwritten. This review branch retains the existing p23 pin until a
+   real replacement component is published.
 4. Rebuild the runtime component/APK so the server and WSI layer both update.
    Confirm their runtime library and symbol requirements remain compatible.
 5. Enable the game environment variable, stop the old session, and start a new
@@ -97,7 +97,8 @@ The successful test build also had `renderOnCommit=false`, compressed buffer
 advertisement enabled, and imported-image ownership handoff changes. Current
 main already has its own external-image synchronization implementation; those
 earlier experiments are not duplicated by this patch. The contribution keeps
-the successful readiness mechanism isolated for review. The latest-main default render scheduling has not been device-validated.
+the successful readiness mechanism isolated for review. The latest-main default
+render scheduling has not been device-validated.
 
 The supplied post-fix report gives:
 
@@ -220,6 +221,19 @@ warnings as errors, assertions enabled and exceptions disabled. It runs through
 for a published Gamescope component.
 
 The Gamescope build script also runs the `present_ready` Meson test alongside
-its existing checks. Final source-application, build and test results are
-recorded in the PR description. Native checks do not replace the pending device
-comparison of the exact current-main default scheduling and driver combinations.
+its existing checks. Local review validation on November 15 gives:
+
+- The complete 48-patch stack applies to clean Gamescope 3.16.29. The new 0936
+  patch applies with GNU patch fuzz zero; all 33 patched source files match the
+  compiled tree used for the November 13 device-tested components. Existing
+  patches retain their existing fuzz allowances.
+- The source-equivalent AArch64 server, WSI layer and project test executables
+  are up to date. All 12 Gamescope project tests pass, including `present_ready`.
+- All 17 Gamescope Python/native regression tests pass in Linux, including the
+  production readiness-worker fixture with exceptions disabled. The upstream
+  nested-swapchain check and build-script syntax check also pass.
+- Both tested AArch64 binaries require no additional shared libraries or newer
+  GLIBC, GLIBCXX or CXXABI symbol versions than the published p23 component.
+
+Native checks do not replace the pending device comparison of the exact
+current-main default scheduling and driver combinations.
