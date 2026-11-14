@@ -413,8 +413,7 @@ static void update_map(int scene_w, int scene_h) {
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
-            aspect = (float)(int)m;
-            if (aspect < 1.0f) aspect = 1.0f;
+            aspect = m < 1.0f ? m : (float)(int)m;
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
