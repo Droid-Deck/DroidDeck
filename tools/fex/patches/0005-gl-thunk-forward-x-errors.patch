@@ -1,0 +1,139 @@
+diff --git a/ThunkLibs/include/common/X11Manager.h b/ThunkLibs/include/common/X11Manager.h
+index a0b1f9e..af55eb2 100644
+--- a/ThunkLibs/include/common/X11Manager.h
++++ b/ThunkLibs/include/common/X11Manager.h
+@@ -68,18 +68,25 @@ struct X11Manager {
+     return it->second;
+   }
+ 
++  _XDisplay* FindGuestDisplay(const _XDisplay* from) {
++    std::unique_lock lock(mutex);
++    for (auto& [guest, host] : displays) {
++      if (host == from) {
++        return guest;
++      }
++    }
++    return nullptr;
++  }
++
+   guest_layout<_XDisplay*> HostToGuestDisplay(const _XDisplay* from) {
+     if (from == nullptr) {
+       return {.data = 0};
+     }
+ 
+-    std::unique_lock lock(mutex);
+-    for (auto& [guest, host] : displays) {
+-      if (host == from) {
+-        guest_layout<_XDisplay*> ret;
+-        ret.data = reinterpret_cast<uintptr_t>(guest);
+-        return ret;
+-      }
++    if (auto guest = FindGuestDisplay(from)) {
++      guest_layout<_XDisplay*> ret;
++      ret.data = reinterpret_cast<uintptr_t>(guest);
++      return ret;
+     }
+ 
+     fprintf(stderr, "ERROR: Could not map host display %p back to guest\n", from);
+@@ -106,6 +113,11 @@ struct X11Manager {
+     return func(Name);
+   }
+ 
++  static XErrorHandler HostXSetErrorHandler(XErrorHandler Handler) {
++    static auto func = reinterpret_cast<decltype(&XSetErrorHandler)>(dlsym(GetLibX11(), "XSetErrorHandler"));
++    return func(Handler);
++  }
++
+   static XVisualInfo* HostXGetVisualInfo(Display* a, long b, XVisualInfo* c, int* d) {
+     static auto func = reinterpret_cast<decltype(&XGetVisualInfo)>(dlsym(GetLibX11(), "XGetVisualInfo"));
+     return func(a, b, c, d);
+@@ -114,6 +126,7 @@ struct X11Manager {
+   // NOTE: Struct pointers are replaced by void* to avoid involving data layout conversion here.
+   int (*GuestXSync)(void*, int) = nullptr;
+   void* (*GuestXGetVisualInfo)(void*, guest_long, void*, int*) = nullptr;
++  int (*GuestXErrorForward)(void*, int, guest_long, guest_long, int, int, int) = nullptr;
+ 
+   // XDisplayString internally just reads data from _XDisplay's internal struct definition.
+   // This breaks when data layout is different, so allow reading from a guest context instead.
+diff --git a/ThunkLibs/libGL/libGL_Guest.cpp b/ThunkLibs/libGL/libGL_Guest.cpp
+index b0eea5b..aef750d 100644
+--- a/ThunkLibs/libGL/libGL_Guest.cpp
++++ b/ThunkLibs/libGL/libGL_Guest.cpp
+@@ -79,11 +79,26 @@ static void* malloc_wrapper(size_t size) {
+   return malloc(size);
+ }
+ 
++static int ForwardXError(Display* display, int type, long resourceid, long serial, int error_code, int request_code, int minor_code) {
++  XErrorEvent event {};
++  event.type = type;
++  event.display = display;
++  event.resourceid = resourceid;
++  event.serial = serial;
++  event.error_code = error_code;
++  event.request_code = request_code;
++  event.minor_code = minor_code;
++  auto handler = XSetErrorHandler(nullptr);
++  XSetErrorHandler(handler);
++  return handler ? handler(display, &event) : 0;
++}
++
+ static void OnInit() {
+   fexfn_pack_GL_SetGuestMalloc((uintptr_t)malloc_wrapper, (uintptr_t)CallbackUnpack<decltype(malloc_wrapper)>::Unpack);
+   fexfn_pack_GL_SetGuestXSync((uintptr_t)XSync, (uintptr_t)CallbackUnpack<decltype(XSync)>::Unpack);
+   fexfn_pack_GL_SetGuestXGetVisualInfo((uintptr_t)XGetVisualInfo, (uintptr_t)CallbackUnpack<decltype(XGetVisualInfo)>::Unpack);
+   fexfn_pack_GL_SetGuestXDisplayString((uintptr_t)XDisplayString, (uintptr_t)CallbackUnpack<decltype(XDisplayString)>::Unpack);
++  fexfn_pack_GL_SetGuestXErrorForward((uintptr_t)ForwardXError, (uintptr_t)CallbackUnpack<decltype(ForwardXError)>::Unpack);
+ }
+ 
+ // libGL.so must pull in libX11.so as a dependency. Referencing some libX11
+diff --git a/ThunkLibs/libGL/libGL_Host.cpp b/ThunkLibs/libGL/libGL_Host.cpp
+index dd3cec4..1135708 100644
+--- a/ThunkLibs/libGL/libGL_Host.cpp
++++ b/ThunkLibs/libGL/libGL_Host.cpp
+@@ -66,6 +66,25 @@ static void fexfn_impl_libGL_GL_SetGuestXDisplayString(uintptr_t GuestTarget, ui
+   MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXDisplayString);
+ }
+ 
++static XErrorHandler HostPreviousXErrorHandler = nullptr;
++
++static int HostXErrorHandler(Display* HostDisplay, XErrorEvent* Event) {
++  auto GuestDisplay = x11_manager.FindGuestDisplay(HostDisplay);
++  if (!GuestDisplay || !x11_manager.GuestXErrorForward) {
++    return HostPreviousXErrorHandler ? HostPreviousXErrorHandler(HostDisplay, Event) : 0;
++  }
++  return x11_manager.GuestXErrorForward(GuestDisplay, Event->type, static_cast<guest_long>(Event->resourceid),
++                                        static_cast<guest_long>(Event->serial), Event->error_code, Event->request_code, Event->minor_code);
++}
++
++static void fexfn_impl_libGL_GL_SetGuestXErrorForward(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {
++  MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXErrorForward);
++  auto Previous = x11_manager.HostXSetErrorHandler(HostXErrorHandler);
++  if (Previous != HostXErrorHandler) {
++    HostPreviousXErrorHandler = Previous;
++  }
++}
++
+ #include "thunkgen_host_libGL.inl"
+ 
+ auto fexfn_impl_libGL_glXGetProcAddress(const GLubyte* name) -> void (*)() {
+diff --git a/ThunkLibs/libGL/libGL_interface.cpp b/ThunkLibs/libGL/libGL_interface.cpp
+index 04a2d2b..b769cda 100644
+--- a/ThunkLibs/libGL/libGL_interface.cpp
++++ b/ThunkLibs/libGL/libGL_interface.cpp
+@@ -26,6 +26,7 @@ void GL_SetGuestMalloc(uintptr_t, uintptr_t);
+ void GL_SetGuestXSync(uintptr_t, uintptr_t);
+ void GL_SetGuestXGetVisualInfo(uintptr_t, uintptr_t);
+ void GL_SetGuestXDisplayString(uintptr_t, uintptr_t);
++void GL_SetGuestXErrorForward(uintptr_t, uintptr_t);
+ template<>
+ struct fex_gen_config<GL_SetGuestMalloc> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
+ template<>
+@@ -34,6 +35,8 @@ template<>
+ struct fex_gen_config<GL_SetGuestXGetVisualInfo> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
+ template<>
+ struct fex_gen_config<GL_SetGuestXDisplayString> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<GL_SetGuestXErrorForward> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
+ 
+ template<typename>
+ struct fex_gen_type {};
