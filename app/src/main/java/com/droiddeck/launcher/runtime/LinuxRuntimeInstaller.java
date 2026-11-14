@@ -158,15 +158,15 @@ public final class LinuxRuntimeInstaller {
             if (listener != null) job.listeners.add(listener);
         }
         if (!owner) {
-            boolean ok = join(job, listener);
-            if (job.done.getCount() == 0) {
+            Boolean ok = await(job, listener);
+            if (ok != null) {
                 LAST_INSTALL.set(job);
-            } else {
-                Job interrupted = new Job(false, null);
-                interrupted.failure = "Runtime install interrupted while waiting for the running install";
-                LAST_INSTALL.set(interrupted);
+                return ok;
             }
-            return ok;
+            Job interrupted = new Job(false, null);
+            interrupted.failure = "Runtime install interrupted while waiting for the running install";
+            LAST_INSTALL.set(interrupted);
+            return false;
         }
         CURRENT_INSTALL.set(job);
         try {
@@ -318,13 +318,17 @@ public final class LinuxRuntimeInstaller {
     }
 
     private static boolean join(Job job, ProgressListener listener) {
+        return Boolean.TRUE.equals(await(job, listener));
+    }
+
+    private static Boolean await(Job job, ProgressListener listener) {
         try {
             if (listener != null) listener.onProgress(job.step, job.stage, job.percent);
             job.done.await();
             return job.ok;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
+            return null;
         } finally {
             if (listener != null) job.listeners.remove(listener);
         }
