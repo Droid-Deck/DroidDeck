@@ -131,6 +131,14 @@ app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the
   the Mali bridge rejected both of the backend's modifiers for AR24, so the session ended at start
   (0933's "no usable modifier"); the bridge makes such images without the handle type and exports
   them through a dma-heap.
+- `0936-nested-swapchain-remake-retries.patch`: recreating the nested swapchain asserted
+  `bRet` (`vulkan_remake_swapchain`) on the first failure and logged no VkResult. A Pixel 10 Pro
+  (PowerVR D-Series through libhybris) built two swapchains and aborted on the third, as Steam's
+  Big Picture took focus. Failed `vkCreateSwapchainKHR`, `vkGetPhysicalDeviceSurfaceCapabilitiesKHR`,
+  `vkQueuePresentKHR` and `vkAcquireNextImageKHR` calls now log their VkResult. A failed attempt
+  releases whatever it created, so a retry never finds the surface still owned by a half-built
+  swapchain, and is retried up to 10 times, 100 ms apart. A swapchain that still cannot be made
+  ends gamescope with a logged reason instead of the assertion.
 
 The shared DroidDeck patch also includes `0116-release-cursor-shm-buffers.patch`: pointer cursor
 surfaces have no X11/xdg window association, so routing their commits through `g_PendingCommits`
