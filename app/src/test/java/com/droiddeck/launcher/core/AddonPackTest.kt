@@ -74,6 +74,13 @@ class AddonPackTest {
         assertEquals("a".repeat(64), pack.dir(context).name)
     }
 
+    @Test fun aBuildWithoutThePackSaysSoWhenAwaited() {
+        val pack = AddonPack("sample", "", 0L, listOf("tool"), reuseDeviceCopy = false)
+
+        assertFalse(pack.await(context))
+        assertEquals("this build has no pack", pack.failure)
+    }
+
     @Test fun localBuildInstallsTheBundledPackWithoutDownloading() {
         val archive = tarZst("tool" to "x")
         val pack = AddonPack("sample", Hashes.sha256(archive), archive.length(), listOf("tool"), bundle = { archive.inputStream() })

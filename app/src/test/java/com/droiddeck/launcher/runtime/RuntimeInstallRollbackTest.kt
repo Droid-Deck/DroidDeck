@@ -40,7 +40,7 @@ class RuntimeInstallRollbackTest {
 
     private data class Attempt(val root: File, val staging: File, val old: File, val result: Boolean)
 
-    private fun attempt(failRollback: Boolean): Attempt {
+    private fun packedContext(): Context {
         val files = tmp.newFolder("files")
         val cache = tmp.newFolder("cache")
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
@@ -58,6 +58,29 @@ class RuntimeInstallRollbackTest {
             required.forEach { put(directory, it, "test pack") }
             put(directory, AddonPack.COMPLETE, version)
         }
+        return context
+    }
+
+    private fun serveOnce(server: ServerSocket, head: String, body: ByteArray = ByteArray(0)) = Thread {
+        runCatching {
+            server.accept().use { socket ->
+                socket.soTimeout = 5000
+                val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+                while (true) {
+                    val line = input.readLine() ?: break
+                    if (line.isEmpty()) break
+                }
+                val out = socket.getOutputStream()
+                out.write(("$head\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray())
+                out.write(body)
+                out.flush()
+            }
+        }
+    }.apply { isDaemon = true; start() }
+
+    private fun attempt(failRollback: Boolean): Attempt {
+        val context = packedContext()
+        val files = context.filesDir
         val root = LinuxRuntime.rootDir(context)
         val staging = File(files, LinuxRuntime.DIR + ".new")
         val old = File(files, LinuxRuntime.DIR + ".old")
@@ -87,22 +110,7 @@ class RuntimeInstallRollbackTest {
             } else failRollback && path == File(old, "root/rollback-block").toPath()
         }
         val server = ServerSocket(0)
-        val thread = Thread {
-            runCatching {
-                server.accept().use { socket ->
-                    socket.soTimeout = 5000
-                    val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
-                    while (true) {
-                        val line = input.readLine() ?: break
-                        if (line.isEmpty()) break
-                    }
-                    val out = socket.getOutputStream()
-                    out.write(("HTTP/1.1 200 OK\r\nContent-Length: ${payload.size}\r\nConnection: close\r\n\r\n").toByteArray())
-                    out.write(payload)
-                    out.flush()
-                }
-            }
-        }.apply { isDaemon = true; start() }
+        val thread = serveOnce(server, "HTTP/1.1 200 OK", payload)
         try {
             val release = LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", digest, payload.size.toLong())
             val result = LinuxRuntimeInstaller.install(context, release, null)
@@ -136,5 +144,34 @@ class RuntimeInstallRollbackTest {
         assertEquals("original user data", File(attempt.root, "root/save.dat").readText())
         assertEquals("original app", File(attempt.root, "opt/appimages/user/game/app.AppImage").readText())
         assertFalse(attempt.staging.exists())
+    }
+
+    private fun failedInstall(context: Context, head: String): String? {
+        val server = ServerSocket(0)
+        val thread = serveOnce(server, head)
+        try {
+            val release = LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", "a".repeat(64), 1L)
+            assertFalse(LinuxRuntimeInstaller.install(context, release, null))
+            return LinuxRuntimeInstaller.installError()
+        } finally {
+            server.close()
+            thread.join(1000)
+        }
+    }
+
+    @Test fun aRefusedRuntimeDownloadNamesTheStepAndTheServerAnswer() {
+        val context = packedContext()
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 403", failedInstall(context, "HTTP/1.1 403 Forbidden"))
+    }
+
+    @Test fun eachInstallReportsItsOwnFailureOnly() {
+        val context = packedContext()
+        failedInstall(context, "HTTP/1.1 403 Forbidden")
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", failedInstall(context, "HTTP/1.1 404 Not Found"))
+    }
+
+    @Test fun aFailedSwapNamesTheStep() {
+        assertFalse(attempt(failRollback = false).result)
+        assertTrue(LinuxRuntimeInstaller.installError().orEmpty().startsWith("Cannot carry user data into the new runtime"))
     }
 }
