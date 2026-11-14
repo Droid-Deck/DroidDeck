@@ -331,7 +331,10 @@ GOG uploads stage their gzip body in the app's cache folder, which is created if
   migration runs once per game (`cloud_layout_<id>`), so a game that legitimately keeps a folder
   named like the location is not relocated again; a non-prefixed listing is left unchanged.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
-  own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
+  own client (the client secret is kept at install; the Galaxy token is the fallback). Every
+  cloudstorage request sends Galaxy's communication-service `User-Agent` (`GOG_CLOUD_UA`, the
+  same string Heroic's gogdl and Lutris send), and PUT repeats it as `X-Object-Meta-User-Agent`;
+  the bare `GOG Galaxy` value is now refused with HTTP 400 `invalid_version`. Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
   `epic/savesync.rs`; the template's root token and `{EpicId}` / `{AppName}` are read by
   `EpicSaveTemplate`).

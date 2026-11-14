@@ -238,6 +238,8 @@ private fun gzipFile(src: File, dst: File): GzipFile {
     }
 }
 
+internal const val GOG_CLOUD_UA = "GOGGalaxyCommunicationService/2.0.13.27 (Windows_32bit) dont_sync_marker/true installation_source/gog"
+
 /** GOG Galaxy parses `X-Object-Meta-LocalLastModified`; objects without it fail as "invalid data". */
 private val GOG_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx", Locale.US)
 
@@ -253,7 +255,7 @@ class GogCloud(
     private val tempDir: File? = null,
 ) : CloudTransport {
     private val base = baseUrl ?: "https://cloudstorage.gog.com/v1/$userId/$clientId"
-    private val ua = "GOG Galaxy"
+    private val ua = GOG_CLOUD_UA
     private var prefix: String? = location?.let { "$it/" }
 
     private fun key(name: String) = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
@@ -355,6 +357,7 @@ class GogCloud(
             c.setRequestProperty("Content-Encoding", "gzip")
             c.setRequestProperty("Etag", etag)
             c.setRequestProperty("X-Object-Meta-LocalLastModified", gogStamp(modified))
+            c.setRequestProperty("X-Object-Meta-User-Agent", ua)
             c.setFixedLengthStreamingMode(length)
             try {
                 c.outputStream.use { out -> source.use { it.copyTo(out, 64 * 1024) } }

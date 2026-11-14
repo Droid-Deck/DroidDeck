@@ -159,6 +159,43 @@ class GogCloudKeysTest {
         assertEquals("", cloudErrorSnippet(null))
     }
 
+    @Test fun everyCloudRequestIdentifiesAsTheGalaxyCommunicationService() {
+        val raw = "savegame0".toByteArray()
+        val requests = serve(5, { request ->
+            when {
+                request.method == "GET" && request.path == "/v1/user/client" ->
+                    "HTTP/1.1 200 OK\r\nContent-Length: 14\r\nConnection: close\r\n\r\nsaves/save.sav"
+                request.method == "GET" ->
+                    "HTTP/1.1 200 OK\r\nContent-Length: ${raw.size}\r\nConnection: close\r\n\r\n${raw.decodeToString()}"
+                else -> okResponse(request)
+            }
+        }) { url ->
+            val cloud = GogCloud("user", "client", "token", "saves", url)
+            val file = cloud.list().single()
+            cloud.details(file)
+            assertArrayEquals(raw, cloud.get(file).first)
+            cloud.put(mapOf("save.sav" to raw), mapOf("save.sav" to 1_793_490_825_000L))
+        }
+        assertEquals(listOf("GET", "HEAD", "GET", "PUT", "HEAD"), requests.map { it.method })
+        requests.forEach { assertEquals(it.method, GOG_CLOUD_UA, it.headers["user-agent"]) }
+        assertTrue(GOG_CLOUD_UA.startsWith("GOGGalaxyCommunicationService/2."))
+        assertEquals(GOG_CLOUD_UA, requests[3].headers["x-object-meta-user-agent"])
+        requests.forEach { assertEquals("Bearer token", it.headers["authorization"]) }
+    }
+
+    @Test fun rejectedListKeepsTheServerErrorInTheDetail() {
+        val body = "{\"error\":\"invalid_version\",\"error_description\":\"not supported with this version\"}"
+        val failure = runCatching {
+            serve(1, { "HTTP/1.1 400 Bad Request\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
+                GogCloud("user", "client", "token", "saves", url).list()
+            }
+        }.exceptionOrNull()
+        assertTrue(failure is java.io.IOException)
+        val detail = cloudFailureDetail(failure!!)
+        assertTrue(detail, detail.contains("GOG cloud list HTTP 400"))
+        assertTrue(detail, detail.contains("invalid_version"))
+    }
+
     @Test fun failedResultLineCarriesTheDetailAndOtherLinesAreUnchanged() {
         assertEquals("result=failed files=0 bytes=0 reason=IOException detail=\"IOException: x\"",
             CloudSaves.Result("failed", 0, 0, "IOException", detail = "IOException: x").line)
