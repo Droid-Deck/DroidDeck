@@ -17,6 +17,11 @@ helper (Chromium on ANGLE on Zink) hit this within seconds of fast Home
 shelf scrolling on a Pixel 10 Pro Fold and segfaulted in the driver's
 vkUpdateDescriptorSetWithTemplate. Rebuild all of the view's surfaces with
 init_sampler_view() instead. Still present in Mesa main.
+
+zink_rebind_all_images() rebuilds a view once, through the rebind_count
+guard, so a second slot bound to the same view used to skip its descriptor
+refresh and keep the old VkImageView. Refresh every slot whose cached view
+no longer matches.
 ---
 diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
 --- a/src/gallium/drivers/zink/zink_context.c
@@ -32,13 +37,22 @@ diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/
                 ctx->invalidate_descriptor_state(ctx, i, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, j, 1);
                 update_descriptor_state_sampler(ctx, i, j, res);
              }
-@@ -5457,8 +5457,7 @@ zink_rebind_all_images(struct zink_context *ctx)
+@@ -5455,10 +5455,15 @@ zink_rebind_all_images(struct zink_context *ctx)
+          if (!sv || !sv->image_view || sv->base.texture->target == PIPE_BUFFER)
+             continue;
           struct zink_resource *res = zink_resource(sv->base.texture);
-          if (res->rebind_count != sv->rebind_count) {
+-         if (res->rebind_count != sv->rebind_count) {
++         bool rebuilt = res->rebind_count != sv->rebind_count;
++         if (rebuilt) {
              sv->rebind_count = res->rebind_count;
 -            struct pipe_surface tmpl = pipe_surface_templ_from_sampler_view(&sv->base, &res->base.b, sv->base.target);
 -            sv->image_view = zink_get_surface(ctx, &tmpl, &sv->ivci);
 +            init_sampler_view(ctx, sv);
++         }
++         /* a view bound in several slots is rebuilt once; every slot still needs the new VkImageView */
++         enum pipe_format format;
++         struct zink_surface *surface = get_imageview_for_binding(ctx, i, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, j, &format);
++         if (rebuilt || ctx->di.textures[i][j].imageView != surface->image_view) {
              ctx->invalidate_descriptor_state(ctx, i, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, j, 1);
              update_descriptor_state_sampler(ctx, i, j, res);
           }
