@@ -243,11 +243,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
             s.integerScaling?.let { enabled ->
-                ToggleRow(
+                ChoiceRow(
                     host, "integer-scaling",
                     stringResource(R.string.display_integer_scaling),
                     stringResource(R.string.display_integer_scaling_hint),
-                    enabled, onChange = a.onIntegerScaling,
+                    listOf(
+                        false to stringResource(R.string.display_scaling_fit),
+                        true to stringResource(R.string.display_scaling_auto),
+                    ),
+                    enabled, onPick = a.onIntegerScaling,
                 )
             }
             ChoiceRow(
