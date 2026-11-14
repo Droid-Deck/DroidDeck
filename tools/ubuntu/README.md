@@ -7,7 +7,7 @@ Steam on the desktop). The app installs it into `files/linuxfs` and runs it unde
 - `build-debs.sh` (run in an `ubuntu:26.04` container on an arm64 runner) rebuilds two Ubuntu source
   packages: Mesa with `-Dfreedreno-kmds=msm,kgsl`, so Turnip and freedreno reach Android's
   `/dev/kgsl-3d0`, and KWin with `patches/kwin` (nested desktop scale, an explicit render node,
-  scroll source/discrete forwarding). Both get a `+droiddeck` version. `patches/mesa` adds KGSL
+  scroll source/discrete forwarding, tablet input). Both get a `+droiddeck` version. `patches/mesa` adds KGSL
   UBWC 5/6 (backported from upstream Mesa) and the KGSL device numbers for WSI (from
   [Droid-Deck/Drivers](https://github.com/Droid-Deck/Drivers)). It also carries Icenowy Zheng's upstream
   Zink fix that keeps the Imagination depth/stencil swizzle off colour views (Mesa d55418dae7).
