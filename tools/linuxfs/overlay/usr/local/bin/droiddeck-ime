@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import json
 import os
+import runpy
 import select
 import socket
 import struct
 import sys
 import time
+import uuid
+from pathlib import Path
 
 DISPLAY_ID = 1
 REGISTRY_ID = 2
@@ -58,8 +61,8 @@ class Report:
         self.seq = 0
         self.sent = None
 
-    def write(self, field, hint=0, purpose=0):
-        state = (field, purpose)
+    def write(self, field, hint=0, purpose=0, context="", source="wayland", key=""):
+        state = (field, hint, purpose, context, source, key)
         if state == self.sent or not self.directory:
             return
         self.sent = state
@@ -69,7 +72,8 @@ class Report:
         temp = target + ".tmp"
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as handle:
-            json.dump({"textField": field, "hint": hint, "purpose": purpose, "seq": self.seq}, handle)
+            json.dump({"textField": field, "hint": hint, "purpose": purpose, "seq": self.seq,
+                       "context": context, "source": source, "key": key}, handle)
         os.replace(temp, target)
         print(f"droiddeck-ime: text field {'focused' if field else 'left'}", file=sys.stderr, flush=True)
 
@@ -83,16 +87,190 @@ def connect():
     return sock
 
 
+class Accessibility:
+    def __init__(self, directory):
+        self.directory = Path(directory)
+        self.target = None
+        self.focused = None
+        self.token = ""
+        self.key = ""
+        self.api = None
+        if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+            return
+        try:
+            import dbus
+            import pyatspi
+            from gi.repository import GLib
+            bus = dbus.SessionBus()
+            props = dbus.Interface(bus.get_object("org.a11y.Bus", "/org/a11y/bus"),
+                                   "org.freedesktop.DBus.Properties")
+            props.Set("org.a11y.Status", "IsEnabled", dbus.Boolean(True))
+            self.api = pyatspi
+            self.loop = GLib.MainContext.default()
+            pyatspi.Registry.registerEventListener(self.focus, "object:state-changed:focused",
+                                                  "object:text-caret-moved")
+        except Exception as error:
+            self.api = None
+            print(f"droiddeck-ime: accessibility unavailable: {error}", file=sys.stderr, flush=True)
+
+    def editable(self, target):
+        if self.api is None or target is None:
+            return False
+        try:
+            state = target.getState()
+            return all(state.contains(s) for s in (self.api.STATE_FOCUSED, self.api.STATE_EDITABLE,
+                                                   self.api.STATE_ENABLED)) and \
+                "EditableText" in target.get_interfaces()
+        except Exception:
+            return False
+
+    def focus(self, event):
+        try:
+            if event.source.getState().contains(self.api.STATE_FOCUSED):
+                self.focused = event.source
+            elif self.focused == event.source:
+                self.focused = None
+        except Exception:
+            self.focused = None
+        if self.editable(event.source):
+            if self.target != event.source:
+                self.target = event.source
+                self.token = str(uuid.uuid4())
+                self.key = ""
+        elif self.target == event.source:
+            self.target = None
+
+    def state(self, host):
+        if self.api is None:
+            return None
+        for _ in range(32):
+            if not self.loop.pending():
+                break
+            self.loop.iteration(False)
+        if host.get("textField") or not self.editable(self.target):
+            return None
+        try:
+            key = host.get("activeKey", "")
+            pid = self.target.getApplication().get_process_id()
+            managed = [w for w in host.get("managed", []) if w.get("pid") == pid]
+            if not key or not any(w.get("key") == key for w in managed):
+                return None
+            if len(managed) > 1:
+                windows = json.loads((self.directory / "windows.json").read_text()).get("windows", [])
+                title = next((w.get("title") for w in windows if w.get("key") == key), "")
+                parent = self.target
+                names = []
+                for _ in range(32):
+                    if parent is None:
+                        break
+                    names.append(parent.name)
+                    parent = parent.parent
+                if not title or title not in names:
+                    return None
+            if self.key != key:
+                self.key = key
+                self.token = str(uuid.uuid4())
+            purpose = 9 if self.target.getRole() == self.api.ROLE_PASSWORD_TEXT else 0
+            return {"token": self.token, "key": key, "purpose": purpose}
+        except Exception:
+            return None
+
+    def commit(self, request, host):
+        state = self.state(host)
+        if not state or request.get("context") != state["token"] or request.get("key") != state["key"]:
+            return False
+        if request.get("action") == "preedit":
+            return True
+        if request.get("action") != "commit":
+            return False
+        try:
+            text = self.target.queryText()
+            editable = self.target.queryEditableText()
+            if text.getNSelections():
+                start, end = text.getSelection(0)
+                if not editable.deleteText(start, end):
+                    return False
+                offset = start
+            else:
+                offset = text.caretOffset
+            value = request.get("text", "")
+            count = text.characterCount
+            if not editable.insertText(offset, value, len(value.encode())):
+                return False
+            inserted = text.characterCount - count
+            # Some AT-SPI providers resize a UTF-16 string using the specified UTF-8 byte length.
+            if inserted > len(value):
+                lengths = sorted({len(value), len(value.encode("utf-16-le")) // 2})
+                for length in lengths:
+                    if length <= inserted and text.getText(offset, offset + length) == value:
+                        if length < inserted and not editable.deleteText(offset + length, offset + inserted):
+                            return False
+                        inserted = length
+                        break
+            text.setCaretOffset(offset + inserted)
+            return True
+        except Exception as error:
+            print(f"droiddeck-ime: accessibility commit failed: {error}", file=sys.stderr, flush=True)
+            return False
+
+
+def read_host(directory):
+    try:
+        return json.loads((Path(directory) / "window-host.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def text_requests(conn, directory, current, contexts, accessibility=None, ibus=None):
+    requests = Path(directory) / "window-text-requests"
+    if not requests.is_dir():
+        return
+    host = read_host(directory)
+    for path in sorted(requests.glob("*.json")):
+        try:
+            request = json.loads(path.read_bytes()[:65536])
+            text = str(request.get("text", ""))
+            if len(text.encode()) > 60000:
+                continue
+            if accessibility is not None and accessibility.commit(request, host):
+                continue
+            if ibus is not None and ibus.commit(request, host):
+                continue
+            state = contexts.get(current)
+            if not state or request.get("context") != state["token"] or not host.get("textField") or \
+                    request.get("key") != host.get("activeKey"):
+                continue
+            if request.get("action") == "commit":
+                conn.send(current, 1, struct.pack("<I", state["serial"]) + wl_string(text))
+            elif request.get("action") == "preedit":
+                cursor = int(request.get("cursor", 1))
+                index = len(text) + cursor - 1 if cursor > 0 else cursor
+                offset = len(text[:max(0, min(len(text), index))].encode())
+                conn.send(current, 4, struct.pack("<i", offset))
+                conn.send(current, 2, struct.pack("<I", state["serial"]) + wl_string(text) + wl_string(""))
+        except (OSError, ValueError, TypeError):
+            pass
+        finally:
+            path.unlink(missing_ok=True)
+
+
 def main():
     launch = os.environ.get("BL_LAUNCH_DIR", "")
     report = Report(os.environ.get("BL_IME_DIR") or (os.path.join(launch, "agent") if launch else ""))
+    ibus = None
+    if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        try:
+            ibus = runpy.run_path(str(Path(__file__).with_name("droiddeck-ibus")))["create"](report.directory)
+        except Exception as error:
+            print(f"droiddeck-ime: IBus unavailable: {error}", file=sys.stderr, flush=True)
+    accessibility = Accessibility(report.directory)
     conn = Connection(connect())
     conn.send(DISPLAY_ID, 1, struct.pack("<I", REGISTRY_ID))
     contexts = {}
     current = None
     pending = None
     while True:
-        timeout = None if pending is None else max(0.0, pending - time.monotonic())
+        timeout = 0.05 if pending is None else min(0.05, max(0.0, pending - time.monotonic()))
         try:
             batch = conn.messages(timeout)
         except (EOFError, ConnectionError):
@@ -114,10 +292,10 @@ def main():
                               + struct.pack("<II", min(version, 1), METHOD_ID))
             elif obj == METHOD_ID and opcode == 0:
                 (context,) = struct.unpack_from("<I", payload)
-                contexts[context] = [0, 0]
+                contexts[context] = {"hint": 0, "purpose": 0, "serial": 0, "token": str(uuid.uuid4())}
                 current = context
                 pending = None
-                report.write(True)
+                report.write(True, context=contexts[context]["token"])
             elif obj == METHOD_ID and opcode == 1:
                 (context,) = struct.unpack_from("<I", payload)
                 contexts.pop(context, None)
@@ -127,13 +305,34 @@ def main():
                     pending = time.monotonic() + SETTLE
             elif obj in contexts and opcode == 2:
                 hint, purpose = struct.unpack_from("<II", payload)
-                contexts[obj] = [hint, purpose]
+                contexts[obj].update(hint=hint, purpose=purpose)
                 if obj == current:
-                    report.write(True, hint, purpose)
+                    report.write(True, hint, purpose, contexts[obj]["token"])
+            elif obj in contexts and opcode == 4:
+                contexts[obj]["serial"] = struct.unpack_from("<I", payload)[0]
         if pending is not None and time.monotonic() >= pending:
             pending = None
             if current is None:
                 report.write(False)
+        host = read_host(report.directory)
+        fallback = accessibility.state(host)
+        ibus_state = ibus.state(host) if ibus is not None else None
+        if ibus_state is not None and accessibility.focused is not None:
+            try:
+                if accessibility.focused.getApplication().get_process_id() == ibus.current.pid and \
+                        not accessibility.editable(accessibility.focused):
+                    ibus_state = None
+            except Exception:
+                pass
+        source = "atspi"
+        if ibus_state is not None:
+            fallback, source = ibus_state, "ibus"
+        if fallback is not None and current is None:
+            report.write(True, purpose=fallback["purpose"], context=fallback["token"],
+                         source=source, key=fallback["key"])
+        elif current is None and pending is None and report.sent and report.sent[0]:
+            report.write(False)
+        text_requests(conn, report.directory, current, contexts, accessibility, ibus)
 
 
 if __name__ == "__main__":

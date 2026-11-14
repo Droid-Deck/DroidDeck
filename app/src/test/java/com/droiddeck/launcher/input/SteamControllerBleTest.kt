@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input
 
+import android.app.Application
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -17,12 +18,15 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.shadow.api.Shadow
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.shadows.ShadowBluetoothGatt
+import org.robolectric.shadows.ShadowPausedMessageQueue
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE, shadows = [SteamControllerBleTest.Writer::class])
+@Config(sdk = [34], manifest = Config.NONE, application = Application::class,
+    shadows = [SteamControllerBleTest.Writer::class])
 class SteamControllerBleTest {
     private val keys = ArrayList<Pair<Int, Boolean>>()
     private val router = InputRouter(object : InputOutput {
@@ -49,8 +53,7 @@ class SteamControllerBleTest {
     }
 
     @After fun close() {
-        controller.stop()
-        handler.looper.quit()
+        close(controller, handler)
     }
 
     @Test fun stopReleasesAndDetachesInputBeforeQueuedCallbacksCanPublish() {
@@ -125,8 +128,7 @@ class SteamControllerBleTest {
             assertFalse(Writer.connections.last())
             assertTrue(Writer.reports.last().all { it == 0.toByte() })
         } finally {
-            replacement.stop()
-            replacementHandler.looper.quit()
+            close(replacement, replacementHandler)
         }
     }
 
@@ -141,9 +143,21 @@ class SteamControllerBleTest {
             assertEquals(connections, Writer.connections)
             assertEquals(reports, Writer.reports.size)
         } finally {
-            unused.stop()
-            ReflectionHelpers.getField<Handler>(unused, "handler").looper.quit()
+            close(unused, ReflectionHelpers.getField(unused, "handler"))
         }
+    }
+
+    private fun close(target: SteamControllerBle, targetHandler: Handler) {
+        target.stop()
+        val thread = targetHandler.looper.thread
+        val looper = shadowOf(targetHandler.looper)
+        val quitting = ReflectionHelpers.callInstanceMethod<Boolean>(
+            Shadow.extract<ShadowPausedMessageQueue>(targetHandler.looper.queue), "isQuitting")
+        if (looper.isPaused && !quitting) {
+            looper.idle()
+        }
+        thread.join(5000)
+        assertFalse("BLE cleanup must finish before the Robolectric sandbox closes", thread.isAlive)
     }
 
     private fun subscribe(target: SteamControllerBle) {

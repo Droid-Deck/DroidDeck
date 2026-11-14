@@ -121,11 +121,24 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
     done
   fi
   mkdir -p /run/droiddeck/kwin
-  printf '#!/bin/sh\nGALLIUM_THREAD=0 exec /usr/bin/kwin_wayland "$@"\n' > /run/droiddeck/kwin/kwin_wayland
+  cat > /run/droiddeck/kwin/kwin_wayland <<'EOF'
+#!/bin/sh
+runtime=/usr/local/lib/droiddeck-kwin
+if [ "$(dpkg-query -W -f='${Version}' libkwin6 2>/dev/null)" = '4:6.6.6-0ubuntu0.1+droiddeck1' ] &&
+   [ -r "$runtime/libkwin.so.6" ] && (cd "$runtime" && sha256sum -c kwin.sha256 >/dev/null 2>&1); then
+    export LD_LIBRARY_PATH="$runtime${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    GALLIUM_THREAD=0 exec "$runtime/kwin_wayland" "$@"
+fi
+GALLIUM_THREAD=0 exec /usr/bin/kwin_wayland "$@"
+EOF
   chmod 755 /run/droiddeck/kwin/kwin_wayland
   export PATH=/run/droiddeck/kwin:$PATH
+  export KWIN_DROIDDECK_OUTPUT_AHB=1
+  [ "$(cat /usr/share/droiddeck/kwin-output-ahb 2>/dev/null)" != 0 ] || export KWIN_DROIDDECK_OUTPUT_AHB=0
+  echo "[gpu] KWin Android output buffers: $KWIN_DROIDDECK_OUTPUT_AHB; using selected system driver"
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+[ -z "${BL_LAUNCH_DIR:-}" ] || rm -f "$BL_LAUNCH_DIR/agent/window-host.json"
 dbus-run-session -- startplasma-wayland
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"

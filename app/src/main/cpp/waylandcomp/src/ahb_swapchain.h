@@ -6,19 +6,24 @@
 
 struct dmabuf_buffer;
 struct surface;
+struct sc_target;
+struct AHardwareBuffer;
 
 void ahb_swapchain_init(struct wl_display *display);
 void ahb_swapchain_set_mode(int on, int live);
 int ahb_swapchain_last_frame_age_ms(void);
 int ahb_swapchain_has_ahb(const struct dmabuf_buffer *b);
 int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h);
+int ahb_swapchain_present_target(struct dmabuf_buffer *b, struct surface *s, struct sc_target *target,
+                                 const int geometry[8], int translucent, int z);
+int ahb_swapchain_register(struct dmabuf_buffer *b, struct wl_resource *buffer, struct AHardwareBuffer *ahb);
 int ahb_swapchain_defer_release(struct dmabuf_buffer *b, struct wl_resource *buffer, struct surface *s, int paced);
 void ahb_swapchain_surface_gone(struct surface *s);
 unsigned ahb_swapchain_stats_take(void);
 int ahb_swapchain_advertised(void);
 uint32_t ahb_swapchain_ahb_format(const struct dmabuf_buffer *b);
 
-void ahb_swapchain_layer_released(void *token, int release_fd);
+void ahb_swapchain_layer_released(void *token, int release_fd, int completed);
 
 struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer);
 int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b);

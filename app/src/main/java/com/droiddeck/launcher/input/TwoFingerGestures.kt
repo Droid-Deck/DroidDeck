@@ -20,6 +20,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
 
     private val handler = Handler(Looper.getMainLooper())
     private var state = State.IDLE
+    val committed: Boolean get() = state == State.SCROLLING || state == State.HELD || state == State.TAPPED
     private var x = 0f
     private var y = 0f
     private var twoAt = 0L

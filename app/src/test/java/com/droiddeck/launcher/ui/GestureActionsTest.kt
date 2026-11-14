@@ -22,6 +22,7 @@ class GestureActionsTest {
         assertEquals(GestureActionGroup.FUNCTION, gestureActionGroup("key_F12"))
         assertEquals(GestureActionGroup.NUMPAD, gestureActionGroup("key_KP_ENTER"))
         assertEquals(GestureActionGroup.MODIFIERS, gestureActionGroup("key_CTRL_R"))
+        assertEquals(GestureActionGroup.APP, gestureActionGroup("custom_shortcut"))
     }
 
     @Test fun searchCombinesWordsAndCategoryWithoutChangingTheSelection() {

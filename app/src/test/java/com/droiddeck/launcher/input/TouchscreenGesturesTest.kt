@@ -578,7 +578,7 @@ class TouchscreenGesturesTest {
         assertTrue(buttons().isEmpty())
     }
 
-    @Test fun fourToThreeFingersDoesNotReleaseTheThreeFingerHold() {
+    @Test fun addingFourthFingerCancelsTheThreeFingerHold() {
         touch(MotionEvent.ACTION_DOWN, 0, a)
         touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
         touch(MotionEvent.ACTION_POINTER_DOWN, 2, a, b, c)
@@ -586,7 +586,7 @@ class TouchscreenGesturesTest {
         assertTrue(events.contains("key 1 true"))
         touch(MotionEvent.ACTION_POINTER_DOWN, 3, a, b, c, d)
         touch(MotionEvent.ACTION_POINTER_UP, 3, a, b, c, d)
-        assertFalse(events.contains("key 1 false"))
+        assertTrue(events.contains("key 1 false"))
         gestures.cancel()
         assertTrue(events.contains("key 1 false"))
     }
@@ -853,7 +853,7 @@ class TouchscreenGesturesTest {
     }
 
 
-    @Test fun replacingAnOriginalFingerDoesNotInjectThreeFingerPanMotion() {
+    @Test fun addingFourthFingerEndsThreeFingerPanAndSuppressesFurtherMotion() {
         gestures.configure(TouchGestureConfig(threeFingerDragEnabled = true, threeFingerDragAction = "middle_mouse_pan"))
         touch(MotionEvent.ACTION_DOWN, 0, a)
         touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
@@ -869,7 +869,7 @@ class TouchscreenGesturesTest {
         touch(MotionEvent.ACTION_MOVE, 0, movedB, movedC, d)
         assertTrue("No finger moved; observed deltas: $relativeMoves", relativeMoves.isEmpty())
         touch(MotionEvent.ACTION_MOVE, 0, 12 to (690f to 300f), 19 to (890f to 300f), 24 to (1010f to 300f))
-        assertEquals(listOf(10f to 0f), relativeMoves)
+        assertTrue(relativeMoves.isEmpty())
         assertEquals(1, events.count { it == "prepare pan" })
         gestures.cancel()
     }
@@ -916,7 +916,7 @@ class TouchscreenGesturesTest {
         assertTrue("An out-and-back swipe generated: ${buttons()}", buttons().isEmpty())
     }
 
-    @Test fun replacingAFingerDuringDirectDragPreservesPositionAndContinuesMoving() {
+    @Test fun addingFourthFingerDuringDirectDragReleasesAndSuppressesRemainingMotion() {
         gestures.configure(TouchGestureConfig(threeFingerDragEnabled = true, threeFingerDragAction = "right_click_drag"))
         touch(MotionEvent.ACTION_DOWN, 0, a)
         touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
@@ -932,7 +932,7 @@ class TouchscreenGesturesTest {
         touch(MotionEvent.ACTION_MOVE, 0, movedB, movedC, d)
         assertEquals(before, cursor)
         touch(MotionEvent.ACTION_MOVE, 0, 12 to (692f to 300f), 19 to (892f to 300f), 24 to (1012f to 300f))
-        assertEquals(before.first + 12f to before.second, cursor)
+        assertEquals(before, cursor)
         gestures.cancel()
         assertEquals(listOf("button 273 true", "button 273 false"), buttons())
     }

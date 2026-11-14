@@ -232,6 +232,8 @@ class DrawerActions(
     val onMicEnabled: (Boolean) -> Unit = {},
     val backHold: Boolean = true,
     val onBackHold: (Boolean) -> Unit = {},
+    val linuxMultiWindow: Boolean? = null,
+    val onLinuxMultiWindow: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -274,6 +276,8 @@ class DrawerActions(
     val wowChatShown: Boolean = false,
     val wowChat: String? = null,
     val onWowChat: (String?) -> Unit = {},
+    val desktopAutoKeyboard: Boolean? = null,
+    val onDesktopAutoKeyboard: (Boolean) -> Unit = {},
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onAchievements: (() -> Unit)? = null,
@@ -615,7 +619,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.VR -> {
                             SteamVrGroup(a) { key -> focus.track(page, key) }
-                            if (!a.glassesOutput) CardboardGroup(host, a) { key -> focus.track(page, key) }
+                            if (!a.glassesOutput && !com.droiddeck.launcher.session.SteamVrSession.active)
+                                CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -709,6 +714,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     RelativeMouseRow(host, a, focus.track(page, "relative-mouse"))
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
+                                a.desktopAutoKeyboard?.let { enabled ->
+                                    ToggleRow(host, "desktop-auto-keyboard", stringResource(R.string.drawer_auto_keyboard),
+                                        stringResource(R.string.drawer_auto_keyboard_hint), enabled,
+                                        chipModifier = focus.track(page, "desktop-auto-keyboard"),
+                                        onChange = a.onDesktopAutoKeyboard)
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
                                         host.open = null; a.onHardwareKeyboard()
@@ -818,6 +829,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
+                                a.linuxMultiWindow?.let { enabled ->
+                                    ToggleRow(host, "linux-multi-window", stringResource(R.string.linux_windows_toggle),
+                                        stringResource(R.string.linux_windows_hint), enabled,
+                                        chipModifier = focus.track(page, "linux-multi-window"),
+                                        onChange = a.onLinuxMultiWindow)
+                                }
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
                                     stringResource(R.string.drawer_mic_hint), a.micEnabled,
                                     chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)
@@ -1154,7 +1171,11 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
 private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
     SettingsGroup(stringResource(R.string.steamvr_title)) {
         val vrLabel = stringResource(R.string.cardboard_steamvr)
-        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        val panelAvailable = com.droiddeck.launcher.session.SteamVrSession.active
+        val enterLabel = stringResource(
+            if (panelAvailable && a.steamVr == SteamVr.Status.RUNNING) R.string.steamvr_panel_return_vr
+            else if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        if (panelAvailable) SettingsRow(vrLabel, stringResource(R.string.steamvr_panel_keep_hint)) {}
         @Composable fun button(label: String, text: String, action: String) {
             SettingsRow(label, null) {
                 SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
@@ -1165,8 +1186,8 @@ private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
             SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
             SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
             SteamVr.Status.RUNNING -> {
-                if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
-                SettingsRow(vrLabel, null) {
+                if (a.immersiveSteamVr) button(stringResource(R.string.steamvr_panel_view), enterLabel, "start")
+                SettingsRow(stringResource(R.string.steamvr_panel_session), null) {
                     SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
                         modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
                 }

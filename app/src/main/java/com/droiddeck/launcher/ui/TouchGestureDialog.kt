@@ -64,9 +64,10 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
     val config = if (forGame) gameDraft ?: defaults else defaults
     val change: (TouchGestureConfig) -> Unit = { if (forGame) gameDraft = it else defaults = it }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf(R.string.gesture_tab_one, R.string.gesture_tab_two, R.string.gesture_tab_three, R.string.gesture_tab_options)
+    val tabs = listOf(R.string.gesture_tab_one, R.string.gesture_tab_two, R.string.gesture_tab_three, R.string.gesture_tab_four, R.string.gesture_tab_options)
     val mouse = listOf(ACTION_LEFT_CLICK, ACTION_RIGHT_CLICK, ACTION_MIDDLE_CLICK)
-    val actions = mouse + ACTION_SHOW_KEYBOARD + GestureKeys.codes.keys.map { "key_$it" } + ACTION_KEY_TILDE
+    val actions = mouse + ACTION_SHOW_KEYBOARD + GestureKeys.codes.keys.map { "key_$it" } + ACTION_KEY_TILDE + "custom_shortcut"
+    val swipeActions = listOf(TouchGestureConfig.ACTION_NATIVE_SWIPE, TouchGestureConfig.ACTION_NONE) + actions
     val p = LocalPalette.current
 
     GestureDialogFrame(onDismiss,
@@ -138,13 +139,27 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         }
                         GestureCard(R.string.gesture_three_drag, config.threeFingerDragEnabled, { change(config.copy(threeFingerDragEnabled = it)) }) {
                             GestureActionField("three-drag", R.string.gesture_three_drag, config.threeFingerDragAction, PAN_ACTIONS) { change(config.copy(threeFingerDragAction = it)) }
+                            Text(stringResource(R.string.gesture_three_drag_help), style = MaterialTheme.typography.bodySmall)
                         }
                         GestureCard(R.string.gesture_three_hold, config.threeFingerHoldEnabled, { change(config.copy(threeFingerHoldEnabled = it)) }) {
                             GestureActionField("three-hold", R.string.gesture_three_hold, config.threeFingerHoldAction, actions) { change(config.copy(threeFingerHoldAction = it)) }
                             GestureHoldOptions(config.threeFingerHoldAction, config.threeFingerHoldMouseBehavior, config.threeFingerHoldDelay, { change(config.copy(threeFingerHoldMouseBehavior = it)) }, { change(config.copy(threeFingerHoldDelay = it)) })
                         }
+                        Text(stringResource(R.string.gesture_swipe_help), style = MaterialTheme.typography.bodySmall)
+                        GestureSwipeField("three-up", R.string.gesture_swipe_up, config.threeFingerSwipeUp, swipeActions) { change(config.copy(threeFingerSwipeUp = it)) }
+                        GestureSwipeField("three-down", R.string.gesture_swipe_down, config.threeFingerSwipeDown, swipeActions) { change(config.copy(threeFingerSwipeDown = it)) }
+                        GestureSwipeField("three-left", R.string.gesture_swipe_left, config.threeFingerSwipeLeft, swipeActions) { change(config.copy(threeFingerSwipeLeft = it)) }
+                        GestureSwipeField("three-right", R.string.gesture_swipe_right, config.threeFingerSwipeRight, swipeActions) { change(config.copy(threeFingerSwipeRight = it)) }
                     }
                     3 -> {
+                        GestureSection(R.string.gesture_tab_four)
+                        Text(stringResource(R.string.gesture_swipe_help), style = MaterialTheme.typography.bodySmall)
+                        GestureSwipeField("four-up", R.string.gesture_swipe_up, config.fourFingerSwipeUp, swipeActions) { change(config.copy(fourFingerSwipeUp = it)) }
+                        GestureSwipeField("four-down", R.string.gesture_swipe_down, config.fourFingerSwipeDown, swipeActions) { change(config.copy(fourFingerSwipeDown = it)) }
+                        GestureSwipeField("four-left", R.string.gesture_swipe_left, config.fourFingerSwipeLeft, swipeActions) { change(config.copy(fourFingerSwipeLeft = it)) }
+                        GestureSwipeField("four-right", R.string.gesture_swipe_right, config.fourFingerSwipeRight, swipeActions) { change(config.copy(fourFingerSwipeRight = it)) }
+                    }
+                    4 -> {
                         GestureSection(R.string.gesture_tab_options)
                         GestureSettingsCard(R.string.gesture_movement) {
                             GestureChoiceChips(config.mouseDragMovementMode, listOf(MOUSE_DRAG_MOVEMENT_DIRECT to stringResource(R.string.gesture_direct), MOUSE_DRAG_MOVEMENT_RELATIVE to stringResource(R.string.gesture_relative))) { change(config.copy(mouseDragMovementMode = it)) }
@@ -215,6 +230,7 @@ private fun GestureCard(@StringRes title: Int, checked: Boolean, onToggle: (Bool
 @Composable
 private fun GestureActionField(id: String, @StringRes gesture: Int, selected: String, choices: List<String>, onChoose: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    var shortcut by remember { mutableStateOf(false) }
     val p = LocalPalette.current
     Surface(onClick = { open = true }, modifier = Modifier.fillMaxWidth().testTag("gesture-choice-$id").focusGlide(RoundedCornerShape(10.dp)), shape = RoundedCornerShape(10.dp),
         color = p.surfaceVariant, contentColor = p.onBackground, border = BorderStroke(1.dp, p.line2)) {
@@ -226,7 +242,48 @@ private fun GestureActionField(id: String, @StringRes gesture: Int, selected: St
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, modifier = Modifier.size(19.dp), tint = p.onSurfaceVariant)
         }
     }
-    if (open) GestureActionPicker(choices, selected, onDismiss = { open = false }) { open = false; onChoose(it) }
+    if (open) GestureActionPicker(choices, selected, onDismiss = { open = false }) {
+        open = false
+        if (it == "custom_shortcut") shortcut = true else onChoose(it)
+    }
+    if (shortcut) GestureShortcutEditor(selected, onDismiss = { shortcut = false }) { shortcut = false; onChoose(it) }
+}
+
+@Composable
+private fun GestureSwipeField(id: String, @StringRes title: Int, action: String, choices: List<String>, change: (String) -> Unit) {
+    Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
+    GestureActionField(id, title, action, choices, change)
+}
+
+@Composable
+private fun GestureShortcutEditor(selected: String, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+    val initial = selected.removePrefix("shortcut_").split('+')
+    var modifiers by remember { mutableStateOf(initial.filter { it in GestureKeys.modifiers }.toSet()) }
+    var key by remember { mutableStateOf(initial.lastOrNull()?.takeIf { it in GestureKeys.codes && it !in GestureKeys.modifiers }) }
+    var picking by remember { mutableStateOf(false) }
+    GestureDialogFrame(onDismiss, footer = {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
+            Button(onClick = { key?.let { onChoose("shortcut_" + (GestureKeys.modifiers.filter { it in modifiers } + it).joinToString("+")) } },
+                enabled = key != null, modifier = Modifier.testTag("gesture-shortcut-save").focusGlide(CircleShape)) { Text(stringResource(R.string.gesture_save_changes)) }
+        }
+    }) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            GestureSection(R.string.gesture_custom_shortcut)
+            Text(stringResource(R.string.gesture_shortcut_modifiers))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GestureKeys.modifiers.forEach { name ->
+                    GestureFilterChip(name in modifiers, onClick = { modifiers = if (name in modifiers) modifiers - name else modifiers + name },
+                        label = { Text(gestureActionTitle("key_$name")) })
+                }
+            }
+            OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape)) {
+                Text(key?.let { gestureActionTitle("key_$it") } ?: stringResource(R.string.gesture_shortcut_key))
+            }
+            key?.let { Text(gestureActionTitle("shortcut_" + (GestureKeys.modifiers.filter { it in modifiers } + it).joinToString("+"))) }
+        }
+    }
+    if (picking) GestureActionPicker(GestureKeys.codes.keys.filter { it !in GestureKeys.modifiers }.map { "key_$it" },
+        key?.let { "key_$it" } ?: "", onDismiss = { picking = false }) { key = it.removePrefix("key_"); picking = false }
 }
 
 @Composable

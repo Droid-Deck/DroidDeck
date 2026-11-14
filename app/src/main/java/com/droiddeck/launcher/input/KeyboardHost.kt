@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Rect
 import android.os.Build
 import android.text.InputType
 import android.view.KeyCharacterMap
@@ -21,11 +22,16 @@ class KeyboardHost(
 
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private val map: KeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
+    private var inputConnection: KeyConnection? = null
     var shown = false
         private set
     var imeShowing = false
         private set
     var onImeChanged: ((Boolean) -> Unit)? = null
+    var onCommitText: ((String) -> Boolean)? = null
+    var onComposingText: ((String, Int) -> Boolean)? = null
+    var editorInputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
 
     init {
         isFocusable = false
@@ -38,11 +44,31 @@ class KeyboardHost(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         if (!shown) return null
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        outAttrs.inputType = editorInputType
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        return KeyConnection()
+        discardInputConnection()
+        return KeyConnection().also { inputConnection = it }
+    }
+
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+        if (!gainFocus) discardInputConnection()
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        if (!hasWindowFocus) discardInputConnection()
+        super.onWindowFocusChanged(hasWindowFocus)
+    }
+
+    override fun onDetachedFromWindow() {
+        discardInputConnection()
+        super.onDetachedFromWindow()
+    }
+
+    private fun discardInputConnection() {
+        inputConnection?.discardComposition()
+        inputConnection = null
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
@@ -73,6 +99,8 @@ class KeyboardHost(
         rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false
 
     fun show() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && shown && hasFocus() && imeVisible()) return
+        discardInputConnection()
         shown = true
         isFocusable = true
         isFocusableInTouchMode = true
@@ -82,6 +110,7 @@ class KeyboardHost(
     }
 
     fun hide() {
+        discardInputConnection()
         shown = false
         imm.hideSoftInputFromWindow(windowToken, 0)
         isFocusable = false
@@ -112,23 +141,54 @@ class KeyboardHost(
     }
 
     private inner class KeyConnection : BaseInputConnection(this, false) {
+        private var composingText = ""
+        private val active get() = shown && inputConnection === this
+
+        fun discardComposition() { composingText = "" }
+
+        override fun closeConnection() {
+            discardComposition()
+            if (inputConnection === this) inputConnection = null
+            super.closeConnection()
+        }
+
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            if (!active) return false
+            discardComposition()
+            if (text.isNullOrEmpty()) return true
+            onCommitText?.let { return it(text.toString()) }
             type(text)
             return true
         }
 
-        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean = true
-        override fun finishComposingText(): Boolean = true
+        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            if (!active) return false
+            val value = text?.toString().orEmpty()
+            val accepted = onComposingText?.invoke(value, newCursorPosition) ?: true
+            if (accepted && active) composingText = value
+            return accepted
+        }
+
+        override fun finishComposingText(): Boolean {
+            if (!active) return false
+            val committed = commitText(composingText, 1)
+            if (!active) return committed
+            val finished = onComposingText?.invoke("", 0) ?: true
+            return committed && finished
+        }
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            if (!active) return false
             repeat(beforeLength) { tap(KeyEvent.KEYCODE_DEL) }
             repeat(afterLength) { tap(KeyEvent.KEYCODE_FORWARD_DEL) }
             return true
         }
 
-        override fun sendKeyEvent(event: KeyEvent): Boolean = this@KeyboardHost.sendKeyEvent(event)
+        override fun sendKeyEvent(event: KeyEvent): Boolean =
+            active && this@KeyboardHost.sendKeyEvent(event)
 
         override fun performEditorAction(actionCode: Int): Boolean {
+            if (!active) return false
             tap(KeyEvent.KEYCODE_ENTER)
             return true
         }

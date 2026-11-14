@@ -23,7 +23,7 @@ int main() {
     assert(input.stickClick && !input.primaryClick && !input.stickTouch);
     hand.buttons = DROIDDECK_XR_MENU_CLICK;
     assert(xr_touch_input(hand, false).systemClick);
-    assert(!xr_touch_input(hand, true).systemClick);
+    assert(xr_touch_input(hand, true).systemClick);
     hand.buttons = 0;
     assert(!xr_touch_input(hand, false).systemClick);
     hand.buttons = DROIDDECK_XR_TRIGGER_TOUCH | DROIDDECK_XR_STICK_TOUCH | DROIDDECK_XR_PRIMARY_TOUCH |
@@ -32,6 +32,21 @@ int main() {
     input = xr_touch_input(hand, false);
     assert(input.triggerTouch && input.stickTouch && input.primaryTouch && input.secondaryTouch && input.thumbrestTouch);
     assert(!input.triggerClick && !input.gripClick && !input.primaryClick && !input.secondaryClick && !input.stickClick);
+    hand.trigger = hand.squeeze = 0.95f;
+    hand.buttons = DROIDDECK_XR_TRIGGER_CLICK_VALID | DROIDDECK_XR_SQUEEZE_CLICK_VALID;
+    input = xr_touch_input(hand, false);
+    assert(!input.triggerClick && !input.gripClick && input.trigger == 0.95f && input.grip == 0.95f);
+    hand.trigger = hand.squeeze = 0.1f;
+    hand.buttons |= DROIDDECK_XR_TRIGGER_CLICK | DROIDDECK_XR_SQUEEZE_CLICK;
+    input = xr_touch_input(hand, true);
+    assert(input.triggerClick && input.gripClick && input.trigger == 0.1f && input.grip == 0.1f);
+    hand.buttons = DROIDDECK_XR_TRIGGER_CLICK;
+    input = xr_touch_input(hand, true);
+    assert(!input.triggerClick && !input.gripClick);
+    hand.trigger = hand.squeeze = 0.8f;
+    hand.buttons = DROIDDECK_XR_TRIGGER_CLICK_VALID;
+    input = xr_touch_input(hand, true);
+    assert(!input.triggerClick && input.gripClick);
     hand.trigger = 2; hand.squeeze = -2; hand.stick[0] = -3; hand.stick[1] = 3;
     input = xr_touch_input(hand, false);
     assert(input.trigger == 1 && input.grip == 0 && input.stickX == -1 && input.stickY == 1);

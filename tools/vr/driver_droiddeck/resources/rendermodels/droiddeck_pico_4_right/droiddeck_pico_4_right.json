@@ -1,0 +1,164 @@
+{
+  "components": {
+    "part_00": {
+      "filename": "part_00.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_0"
+      }
+    },
+    "part_01": {
+      "filename": "part_01.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_1"
+      }
+    },
+    "part_02": {
+      "filename": "part_02.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_2"
+      }
+    },
+    "part_03": {
+      "filename": "part_03.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_3"
+      }
+    },
+    "part_04": {
+      "filename": "part_04.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_4"
+      }
+    },
+    "part_05": {
+      "filename": "part_05.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_5"
+      }
+    },
+    "part_06": {
+      "filename": "part_06.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_6"
+      }
+    },
+    "part_07": {
+      "filename": "part_07.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_7"
+      }
+    },
+    "part_08": {
+      "filename": "part_08.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_8"
+      }
+    },
+    "part_09": {
+      "filename": "part_09.obj",
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/profile_9"
+      }
+    },
+    "grip": {
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/grip"
+      },
+      "component_local": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "rotate_xyz": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "handgrip": {
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/handgrip"
+      },
+      "component_local": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "rotate_xyz": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "tip": {
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/tip"
+      },
+      "component_local": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "rotate_xyz": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "openxr_grip": {
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/openxr_grip"
+      },
+      "component_local": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "rotate_xyz": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "openxr_aim": {
+      "motion": {
+        "type": "pose_component",
+        "pose_path": "/pose/openxr_aim"
+      },
+      "component_local": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "rotate_xyz": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  }
+}

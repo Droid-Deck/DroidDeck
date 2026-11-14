@@ -1,0 +1,109 @@
+{
+  "license": "MIT, Copyright (c) 2019 Amazon",
+  "models": {
+    "droiddeck_pico_4_left": {
+      "bounds_m": [
+        [
+          -0.04382432839667061,
+          -0.05020576122467729,
+          -0.046912229439924756
+        ],
+        [
+          0.030589122088496623,
+          0.08386418678364334,
+          0.08459796476415589
+        ]
+      ],
+      "components": 10,
+      "sha256": "0a0cc5101dcc192e30007db6fdcf7bd1a04b2c08bd7c05add8608138f30adb53",
+      "source": "packages/assets/profiles/pico-4/left.glb"
+    },
+    "droiddeck_pico_4_right": {
+      "bounds_m": [
+        [
+          -0.03058972290330253,
+          -0.05020576572444259,
+          -0.04691223210939733
+        ],
+        [
+          0.0438237275818647,
+          0.08386418605303633,
+          0.08459796501664757
+        ]
+      ],
+      "components": 10,
+      "sha256": "5b5e334bd9b4ea764e88ddf9ed37183e7d56d01d8493bd50273d9dfae8cc5460",
+      "source": "packages/assets/profiles/pico-4/right.glb"
+    },
+    "droiddeck_pico_4u_left": {
+      "bounds_m": [
+        [
+          -0.0364888571202755,
+          -0.030534751488530087,
+          -0.05527660818412251
+        ],
+        [
+          0.03359105437994003,
+          0.02960010930880225,
+          0.08195993402740373
+        ]
+      ],
+      "components": 8,
+      "sha256": "febc63d7de3acb58dbbdc54759ab87a1c687ab6e1f23a76b8868af3edf97cf91",
+      "source": "packages/assets/profiles/pico-4u/left.glb"
+    },
+    "droiddeck_pico_4u_right": {
+      "bounds_m": [
+        [
+          -0.033213213086128235,
+          -0.03133737293939121,
+          -0.05513941122590714
+        ],
+        [
+          0.036866698414087296,
+          0.03019781926595649,
+          0.08151305843370366
+        ]
+      ],
+      "components": 8,
+      "sha256": "fb3f09849cb1b9d3f4fa434240a57fb475d754fda386ea1b1d36db874f015f8c",
+      "source": "packages/assets/profiles/pico-4u/right.glb"
+    },
+    "droiddeck_pico_neo3_left": {
+      "bounds_m": [
+        [
+          -0.0512549988925457,
+          -0.06405400459313862,
+          -0.07805699437644459
+        ],
+        [
+          0.04207799956202507,
+          0.07563299826110073,
+          0.0864539879268557
+        ]
+      ],
+      "components": 7,
+      "sha256": "68443598d99f3b7273d4f5c4eeeaa7fa47491d7406b8cb3a98ffb1db9b254022",
+      "source": "packages/assets/profiles/pico-neo3/left.glb"
+    },
+    "droiddeck_pico_neo3_right": {
+      "bounds_m": [
+        [
+          -0.04207799956202507,
+          -0.06405400459313862,
+          -0.07805699437644459
+        ],
+        [
+          0.0512549988925457,
+          0.07563299826110073,
+          0.0864539879268557
+        ]
+      ],
+      "components": 7,
+      "sha256": "42191f7075c61d7b338b4c9c4618c3e765519798fee12c29b8e79db4b6bab0a7",
+      "source": "packages/assets/profiles/pico-neo3/right.glb"
+    }
+  },
+  "repository": "https://github.com/immersive-web/webxr-input-profiles",
+  "revision": "f4992299601614adbfefd398dc8e281556bb7444"
+}

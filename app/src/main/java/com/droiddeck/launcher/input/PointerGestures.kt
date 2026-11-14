@@ -12,6 +12,14 @@ class PointerGestures {
         fun onScrollEnd() {}
         fun onZoom(steps: Int) {}
         fun onThreeFingerTap(): Boolean = false
+        fun onPinchBegin(fingers: Int) {}
+        fun onPinchUpdate(dx: Float, dy: Float, scale: Float) {}
+        fun onPinchEnd(cancelled: Boolean) {}
+        fun onSwipeBegin(fingers: Int) {}
+        fun onSwipeUpdate(dx: Float, dy: Float) {}
+        fun onSwipeEnd(cancelled: Boolean) {}
+        fun onKey(code: Int, down: Boolean) {}
+        fun onKeyboard() {}
     }
 
     companion object {

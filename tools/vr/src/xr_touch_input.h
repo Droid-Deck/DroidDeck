@@ -10,7 +10,7 @@ struct XrTouchInput {
     bool triggerTouch = false, stickTouch = false, primaryTouch = false, secondaryTouch = false, thumbrestTouch = false;
 };
 
-inline XrTouchInput xr_touch_input(const DroidDeckXrHand &hand, bool right) {
+inline XrTouchInput xr_touch_input(const DroidDeckXrHand &hand, bool) {
     XrTouchInput input;
     if (!hand.active) return input;
     auto scalar = [](float value, float minimum) { return std::isfinite(value) ? std::clamp(value, minimum, 1.f) : 0.f; };
@@ -18,12 +18,14 @@ inline XrTouchInput xr_touch_input(const DroidDeckXrHand &hand, bool right) {
     input.grip = scalar(hand.squeeze, 0);
     input.stickX = scalar(hand.stick[0], -1);
     input.stickY = scalar(hand.stick[1], -1);
-    input.triggerClick = input.trigger > 0.6f;
-    input.gripClick = input.grip > 0.6f;
+    input.triggerClick = hand.buttons & DROIDDECK_XR_TRIGGER_CLICK_VALID ?
+        (hand.buttons & DROIDDECK_XR_TRIGGER_CLICK) != 0 : input.trigger > 0.6f;
+    input.gripClick = hand.buttons & DROIDDECK_XR_SQUEEZE_CLICK_VALID ?
+        (hand.buttons & DROIDDECK_XR_SQUEEZE_CLICK) != 0 : input.grip > 0.6f;
     input.stickClick = hand.buttons & DROIDDECK_XR_STICK_CLICK;
     input.primaryClick = hand.buttons & DROIDDECK_XR_PRIMARY_CLICK;
     input.secondaryClick = hand.buttons & DROIDDECK_XR_SECONDARY_CLICK;
-    input.systemClick = !right && (hand.buttons & DROIDDECK_XR_MENU_CLICK);
+    input.systemClick = hand.buttons & DROIDDECK_XR_MENU_CLICK;
     input.triggerTouch = hand.buttons & DROIDDECK_XR_TRIGGER_TOUCH;
     input.stickTouch = hand.buttons & DROIDDECK_XR_STICK_TOUCH;
     input.primaryTouch = hand.buttons & DROIDDECK_XR_PRIMARY_TOUCH;

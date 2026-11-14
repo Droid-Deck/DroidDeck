@@ -1,11 +1,16 @@
 package com.droiddeck.launcher.session
 
+import android.content.Context
+import android.content.Intent
 import android.os.Looper
+import android.os.PowerManager
+import java.time.Duration
 import java.util.concurrent.AbstractExecutorService
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,8 +38,15 @@ class SessionSleepRequestTest {
 
     @Before fun setUp() {
         service = Robolectric.buildService(SessionService::class.java).get()
+        shadowOf(service.getSystemService(Context.POWER_SERVICE) as PowerManager).setIsInteractive(true)
+        visibleWindows().clear()
+        pendingClose().clear()
         SessionState.running = true
         SessionState.suspended = false
+        SessionState.suspending = false
+        SessionState.resuming = false
+        SessionState.resumeRequested = false
+        SessionState.manualPause = false
         SessionState.mode = SessionService.MODE_RUN
         ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_NEVER)
         ReflectionHelpers.setField(service, "suspendController", SessionSuspendController(
@@ -44,11 +56,145 @@ class SessionSleepRequestTest {
     }
 
     @After fun tearDown() {
+        visibleWindows().clear()
+        pendingClose().clear()
         SessionState.running = false
         SessionState.suspended = false
+        SessionState.suspending = false
+        SessionState.resuming = false
+        SessionState.resumeRequested = false
+        SessionState.manualPause = false
         SessionState.mode = SessionService.MODE_STEAM
         shadowOf(Looper.getMainLooper()).idle()
         work.clear()
+    }
+
+    private fun visibleWindows(): MutableSet<Int> = ReflectionHelpers.getField(LinuxWindows, "visible")
+
+    private fun pendingClose(): MutableMap<String, String> = ReflectionHelpers.getField(LinuxWindows, "pendingClose")
+
+    private fun returnLinuxWindow() {
+        visibleWindows().add(27)
+        service.onStartCommand(Intent("com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"), 0, 1)
+    }
+
+    private fun backgroundPause() {
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_MANUAL)
+        ReflectionHelpers.setField(service, "manualPauseRequested", true)
+        SessionState.suspended = true
+    }
+
+    @Test fun returningLinuxWindowResumesBackgroundPauseWithMainActivityHidden() {
+        backgroundPause()
+        returnLinuxWindow()
+        assertEquals(1, work.size)
+        assertTrue(SessionState.resuming)
+        assertFalse(ReflectionHelpers.getField(service, "activityVisible"))
+        work.removeFirst().run()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(SessionState.suspended)
+        assertFalse(SessionState.resumeRequested)
+        assertEquals(0, work.size)
+    }
+
+    @Test fun returningLinuxWindowPreservesExplicitPause() {
+        backgroundPause()
+        ReflectionHelpers.setField(service, "manualHold", true)
+        SessionState.manualPause = true
+        returnLinuxWindow()
+        assertTrue(SessionState.suspended)
+        assertTrue(SessionState.manualPause)
+        assertFalse(SessionState.resuming)
+        assertEquals(0, work.size)
+    }
+
+    @Test fun returningLinuxWindowDoesNotResumeWhileScreenIsOff() {
+        backgroundPause()
+        shadowOf(service.getSystemService(Context.POWER_SERVICE) as PowerManager).setIsInteractive(false)
+        returnLinuxWindow()
+        assertTrue(SessionState.suspended)
+        assertFalse(SessionState.resuming)
+        assertEquals(0, work.size)
+    }
+
+    @Test fun hidingLinuxWindowsDoesNotResumeBackgroundPause() {
+        backgroundPause()
+        service.onStartCommand(Intent("com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"), 0, 1)
+        assertTrue(SessionState.suspended)
+        assertFalse(SessionState.resuming)
+        assertEquals(0, work.size)
+    }
+
+    @Test fun browserHandoffKeepsHiddenSessionRunningWhileDisplayIsOff() {
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_MANUAL)
+        shadowOf(service.getSystemService(Context.POWER_SERVICE) as PowerManager).setIsInteractive(false)
+        service.onStartCommand(Intent("com.droiddeck.launcher.BROWSER_HANDOFF"), 0, 1)
+        assertFalse(SessionState.suspending)
+        assertEquals(0, work.size)
+    }
+
+    @Test fun endingBrowserHandoffKeepsVisibleLinuxWindowRunning() {
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_MANUAL)
+        service.onStartCommand(Intent("com.droiddeck.launcher.BROWSER_HANDOFF"), 0, 1)
+        visibleWindows().add(27)
+        service.onStartCommand(Intent("com.droiddeck.launcher.ACTIVITY_VISIBLE"), 0, 1)
+        service.onStartCommand(Intent("com.droiddeck.launcher.ACTIVITY_HIDDEN"), 0, 1)
+        assertFalse(SessionState.suspending)
+        assertEquals(0, work.size)
+
+        visibleWindows().clear()
+        service.onStartCommand(Intent("com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"), 0, 1)
+        assertTrue(SessionState.suspending)
+        assertEquals(1, work.size)
+    }
+
+    @Test fun expiredBrowserHandoffKeepsVisibleLinuxWindowRunning() {
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_MANUAL)
+        service.onStartCommand(Intent("com.droiddeck.launcher.BROWSER_HANDOFF"), 0, 1)
+        visibleWindows().add(27)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(10))
+        assertFalse(SessionState.suspending)
+        assertEquals(0, work.size)
+
+        visibleWindows().clear()
+        service.onStartCommand(Intent("com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"), 0, 1)
+        assertTrue(SessionState.suspending)
+        assertEquals(1, work.size)
+    }
+
+    @Test fun pendingLinuxCloseKeepsSessionRunningAfterBrowserReturn() {
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "suspendPolicy", SessionPrefs.SUSPEND_MANUAL)
+        service.onStartCommand(Intent("com.droiddeck.launcher.BROWSER_HANDOFF"), 0, 1)
+        pendingClose()["test-close"] = "test-window"
+        service.onStartCommand(Intent("com.droiddeck.launcher.ACTIVITY_VISIBLE"), 0, 1)
+        service.onStartCommand(Intent("com.droiddeck.launcher.ACTIVITY_HIDDEN"), 0, 1)
+        assertFalse(SessionState.suspending)
+        assertEquals(0, work.size)
+
+        pendingClose().clear()
+        service.onStartCommand(Intent("com.droiddeck.launcher.LINUX_WINDOWS_VISIBLE"), 0, 1)
+        assertTrue(SessionState.suspending)
+        assertEquals(1, work.size)
+    }
+
+    @Test fun returningLinuxWindowCancelsPendingBackgroundFreeze() {
+        backgroundPause()
+        SessionState.suspended = false
+        ReflectionHelpers.callInstanceMethod<Void>(service, "updateSuspendPolicy")
+        assertEquals(1, work.size)
+        assertTrue(SessionState.suspending)
+        returnLinuxWindow()
+        work.removeFirst().run()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(SessionState.suspended)
+        assertFalse(SessionState.suspending)
+        assertFalse(ReflectionHelpers.getField(service, "suspendAttemptFailed"))
+        assertEquals(0, work.size)
     }
 
     @Test fun cancelledFreezePreservesAndRetriesANewerSteamRequest() {

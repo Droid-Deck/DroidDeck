@@ -49,7 +49,9 @@ internal object GlassesRendering {
         state: GlassesState,
         outputActive: Boolean,
         steamVrRunning: Boolean,
+        openXrOutputActive: Boolean = false,
     ): Cardboard {
+        if (openXrOutputActive && !usesGlasses(state, outputActive, steamVrRunning)) return Cardboard.OFF
         if (!usesGlasses(state, outputActive, steamVrRunning)) {
             return if (steamVrRunning && !base.enabled) base.copy(
                 enabled = true,

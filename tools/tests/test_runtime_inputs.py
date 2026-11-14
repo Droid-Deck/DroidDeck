@@ -118,6 +118,74 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_changed_independent_kwin_source_rejects_old_outputs(self):
+        for name in ['tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/kwin-independent.py',
+                     'tools/ubuntu/kwin-output-layout.h', 'tools/ubuntu/kwin-passthrough.cpp',
+                     'tools/ubuntu/kwin-ahb-output.h', 'tools/ubuntu/kwin-output-opacity.h',
+                     'tools/ubuntu/kwin-independent-filter.h',
+                     'tools/ubuntu/patches/kwin/0001-respect-nested-desktop-scale.patch',
+                     'app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h',
+                     'tools/ubuntu/build-kwin-runtime.sh', 'tools/ubuntu/build_kwin_windows.py']:
+            with self.subTest(source=name):
+                source = self.root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text('current source')
+                runtime.record(self.root)
+                source.write_text('changed source')
+                with self.assertRaisesRegex(ValueError, 'sources changed'):
+                    runtime.verify(self.root)
+
+    def test_changed_vr_wayland_header_rejects_old_outputs(self):
+        source = self.root / 'tools/vr/third_party/wayland/wayland-client-core.h'
+        source.parent.mkdir(parents=True)
+        source.write_text('current header')
+        runtime.record(self.root)
+        source.write_text('changed header')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_changed_store_launcher_or_cipher_rejects_old_outputs(self):
+        for name in ['tools/ubisoft-launcher/src/main.rs', 'tools/rockstar-launcher/src/main.rs',
+                     'app/src/main/resources/rockstar/legacy-cipher.bin']:
+            with self.subTest(source=name):
+                source = self.root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_bytes(b'current source')
+                runtime.record(self.root)
+                source.write_bytes(b'changed source')
+                with self.assertRaisesRegex(ValueError, 'sources changed'):
+                    runtime.verify(self.root)
+
+    def test_missing_independent_kwin_input_cannot_be_attested(self):
+        for name in ['libkwin.so.6', 'kwin.sha256', 'kwin_wayland', 'LICENSE', 'build.json']:
+            with self.subTest(input=name):
+                asset = 'assets/linuxfs/usr/local/lib/droiddeck-kwin/' + name
+                path = self.root / 'app/src/main' / asset
+                content = path.read_bytes()
+                path.unlink()
+                try:
+                    with self.assertRaisesRegex(ValueError, 'Missing runtime inputs') as error:
+                        runtime.record(self.root)
+                    self.assertIn(asset, str(error.exception))
+                finally:
+                    path.write_bytes(content)
+
+    def test_missing_xr_or_native_hook_input_cannot_be_attested(self):
+        for name in ['libddnatv-hook.so',
+                     'usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/xr-display-mode',
+                     'usr/local/lib/droiddeck-vr/layer/libdroiddeck_vr_scheduling.so']:
+            with self.subTest(input=name):
+                asset = 'assets/linuxfs/' + name
+                path = self.root / 'app/src/main' / asset
+                content = path.read_bytes()
+                path.unlink()
+                try:
+                    with self.assertRaisesRegex(ValueError, 'Missing runtime inputs') as error:
+                        runtime.record(self.root)
+                    self.assertIn(asset, str(error.exception))
+                finally:
+                    path.write_bytes(content)
+
     def test_missing_quest_driver_cannot_be_attested(self):
         (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
         with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
@@ -140,6 +208,15 @@ class RuntimeInputsTest(unittest.TestCase):
     def test_modified_prebuilt_binary_is_rejected(self):
         runtime.record(self.root)
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
+        with self.assertRaisesRegex(ValueError, 'changed runtime input'):
+            runtime.verify(self.root)
+
+    def test_imported_store_library_is_attested_and_checked_in_the_apk(self):
+        stores = self.root / 'app/src/main/jniLibs/arm64-v8a/libdroiddeckstores.so'
+        stores.write_bytes(b'verified store engine')
+        apk = self.current_apk(self.root / 'current.apk')
+        runtime.check_apk(apk, self.root)
+        stores.write_bytes(b'changed store engine')
         with self.assertRaisesRegex(ValueError, 'changed runtime input'):
             runtime.verify(self.root)
 
@@ -187,6 +264,12 @@ class RuntimeInputsTest(unittest.TestCase):
         self.assertIn(name, runtime.outputs(self.root))
         apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ service'})
         with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_withdrawn_mesa_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk',
+                               {'assets/linuxfs/usr/local/lib/droiddeck-mesa/libvulkan.so.1': b'withdrawn Mesa'})
+        with self.assertRaisesRegex(ValueError, 'withdrawn desktop Mesa replacement'):
             runtime.check_apk(apk, self.root)
 
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):

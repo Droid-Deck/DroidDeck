@@ -30,9 +30,13 @@ public final class TouchscreenGestures {
         void showKeyboard();
         default void prepareRelativePan() {}
         default void gesture(Gesture gesture) {}
+        default void swipeBegin(int fingers) {}
+        default void swipeUpdate(float dx, float dy) {}
+        default void swipeEnd(boolean cancelled) {}
     }
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Output output;
+    private final MultiFingerInput multi;
     private final float doubleTapSlop;
     private TouchGestureConfig gestureConfig = new TouchGestureConfig();
     private static final int CLICK_DELAYED_TIME = 30;
@@ -56,13 +60,31 @@ public final class TouchscreenGestures {
     public TouchscreenGestures(float doubleTapSlop, Output output) {
         this.output = output;
         this.doubleTapSlop = Math.max(1f, doubleTapSlop);
+        multi = new MultiFingerInput(this.doubleTapSlop, new MultiFingerInput.Output() {
+            public void cancelLower() { handleTsCancel(); }
+            public void click(String action) { queueTapClick(action, threeFingerLastMidX, threeFingerLastMidY); }
+            public void hold(String action, boolean down) {
+                if (down) injectClick(action); else injectRelease(action);
+            }
+            public void swipeBegin(int fingers) { output.swipeBegin(fingers); }
+            public void swipeUpdate(float dx, float dy) { output.swipeUpdate(dx, dy); }
+            public void swipeEnd(boolean cancelled) { output.swipeEnd(cancelled); }
+            public void eventTime(long time) {}
+        }, false);
     }
     public void configure(TouchGestureConfig config) {
         cancel();
         gestureConfig = config;
+        multi.configure(config);
     }
-    public boolean onTouch(MotionEvent event) { return handleGestureTouchscreenEvent(event); }
+    public boolean onTouch(MotionEvent event) {
+        boolean committed = threeFingerHoldTriggered || threeFingerGestureMode != THREE_FINGER_GESTURE_NONE
+            || twoFingerHoldTriggered || twoFingerGestureMode != TWO_FINGER_GESTURE_NONE;
+        if (multi.onTouch(event, committed)) return true;
+        return handleGestureTouchscreenEvent(event);
+    }
     public void cancel() {
+        multi.cancel();
         handleTsCancel();
         handler.removeCallbacksAndMessages(null);
         for (int code : keysDown.keySet()) output.key(code, false);
@@ -1007,11 +1029,11 @@ public final class TouchscreenGestures {
         if (TouchGestureConfig.ACTION_SHOW_KEYBOARD.equals(action)) {
             output.showKeyboard(); return false;
         }
-        if (TouchGestureConfig.ACTION_KEY_TILDE.equals(action)) {
-            pressKey(42); pressKey(41); return true;
+        int[] codes = GestureKeys.actionCodes(action);
+        if (codes.length != 0) {
+            for (int code : codes) pressKey(code);
+            return true;
         }
-        Integer code = actionToKeycode(action);
-        if (code != null) { pressKey(code); return true; }
         MouseButton button = actionToButton(action);
         if (button != null) { pressButton(button); return true; }
         return false;
@@ -1019,9 +1041,11 @@ public final class TouchscreenGestures {
 
     private void injectRelease(String action) {
         if (action == null) return;
-        if (TouchGestureConfig.ACTION_KEY_TILDE.equals(action)) { releaseKey(41); releaseKey(42); return; }
-        Integer code = actionToKeycode(action);
-        if (code != null) { releaseKey(code); return; }
+        int[] codes = GestureKeys.actionCodes(action);
+        if (codes.length != 0) {
+            for (int i = codes.length - 1; i >= 0; i--) releaseKey(codes[i]);
+            return;
+        }
         MouseButton button = actionToButton(action);
         if (button != null) releaseButton(button);
     }

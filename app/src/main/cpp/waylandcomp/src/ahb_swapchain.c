@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "ahb_swapchain.h"
+#include "ahb_broker.h"
 #include "droiddeck_color.h"
 #include "droiddeck_ext.h"
 #include "sc_layer.h"
@@ -43,6 +44,9 @@ struct ahb_buf {
     struct surface *surface;
     struct wl_event_source *fence_src;
     int fence_fd;
+    int brokered;
+    int broker_inflight;
+    int display_release_completed;
     struct wl_list link;
 };
 
@@ -57,7 +61,7 @@ static int g_mode_sent = -1;
 static struct surface *g_announced;
 static volatile int64_t g_last_zero_copy_ns;
 
-struct released { uint64_t id; int fd; };
+struct released { uint64_t id; int fd, completed; };
 static pthread_mutex_t g_rel_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct released *g_rel;
 static int g_rel_n, g_rel_cap;
@@ -107,6 +111,10 @@ static void on_buffer_resource_destroyed(struct wl_listener *l, void *data) {
 
 static void send_deferred_release(struct ahb_buf *ab) {
     if (vkp_completion_unknown()) return;
+    if (ab->broker_inflight) {
+        ahb_broker_released(ab->ahb, ab->display_release_completed);
+        ab->broker_inflight = 0;
+    }
     if (ab->release_pending && ab->resource)
         droiddeck_release_buffer(ab->surface, ab->resource, ab->surface != NULL, ab->deferred_ns);
     ab->release_pending = 0;
@@ -115,6 +123,9 @@ static void send_deferred_release(struct ahb_buf *ab) {
 
 static int on_fence_readable(int fd, uint32_t mask, void *data) {
     struct ahb_buf *ab = data;
+    struct pollfd p = {.fd = fd, .events = POLLIN};
+    ab->display_release_completed = poll(&p, 1, 0) > 0 &&
+        (p.revents & POLLIN) && !(p.revents & (POLLERR | POLLNVAL));
     wl_event_source_remove(ab->fence_src);
     ab->fence_src = NULL;
     close(ab->fence_fd);
@@ -124,25 +135,30 @@ static int on_fence_readable(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
-static void handle_released(uint64_t id, int fd) {
+static void handle_released(uint64_t id, int fd, int completed) {
     struct ahb_buf *ab = find_buf(id);
     if (!ab) { if (fd >= 0) close(fd); return; }
     ab->on_layer = 0;
+    ab->display_release_completed = completed;
     if (fd >= 0) {
         struct droiddeck_dma_buf_sync_file imp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = fd};
         int dmabuf_fd = droiddeck_dmabuf_fd(ab->b);
-        if (dmabuf_fd >= 0 && ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &imp) == 0) {
+        if (!ab->brokered && dmabuf_fd >= 0 &&
+            ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &imp) == 0) {
             close(fd);
         } else {
-            if (!g_import_failed_logged) {
+            if (!ab->brokered && !g_import_failed_logged) {
                 g_import_failed_logged = 1;
                 droiddeck_log("layer", "zero-copy: DMA_BUF_IOCTL_IMPORT_SYNC_FILE failed (%s): releases wait for the display's fence here instead",
                            strerror(errno));
             }
             struct pollfd p = {.fd = fd, .events = POLLIN};
             if (poll(&p, 1, 0) > 0) {
+                ab->display_release_completed = completed &&
+                    (p.revents & POLLIN) && !(p.revents & (POLLERR | POLLNVAL));
                 close(fd);
             } else {
+                ab->display_release_completed = 0;
                 ab->fence_fd = fd;
                 ab->fence_src = wl_event_loop_add_fd(g_loop, fd, WL_EVENT_READABLE, on_fence_readable, ab);
                 if (!ab->fence_src) { close(fd); ab->fence_fd = -1; }
@@ -164,12 +180,12 @@ static int on_release_pipe(int fd, uint32_t mask, void *data) {
         r = g_rel[0];
         memmove(g_rel, g_rel + 1, (size_t)(--g_rel_n) * sizeof(*g_rel));
         pthread_mutex_unlock(&g_rel_lock);
-        handle_released(r.id, r.fd);
+        handle_released(r.id, r.fd, r.completed);
     }
     return 0;
 }
 
-void ahb_swapchain_layer_released(void *token, int release_fd) {
+void ahb_swapchain_layer_released(void *token, int release_fd, int completed) {
     pthread_mutex_lock(&g_rel_lock);
     if (g_rel_n == g_rel_cap) {
         int cap = g_rel_cap ? g_rel_cap * 2 : 16;
@@ -177,7 +193,7 @@ void ahb_swapchain_layer_released(void *token, int release_fd) {
         if (!n) { pthread_mutex_unlock(&g_rel_lock); if (release_fd >= 0) close(release_fd); return; }
         g_rel = n; g_rel_cap = cap;
     }
-    g_rel[g_rel_n++] = (struct released){(uint64_t)(uintptr_t)token, release_fd};
+    g_rel[g_rel_n++] = (struct released){(uint64_t)(uintptr_t)token, release_fd, completed};
     pthread_mutex_unlock(&g_rel_lock);
     if (g_rel_pipe[1] >= 0) { char c = 1; if (write(g_rel_pipe[1], &c, 1) < 0) {} }
 }
@@ -211,6 +227,10 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
     if (r == 1) return 0;
     if (!ab->on_layer) {
         ab->on_layer = 1;
+        if (ab->brokered && !ab->broker_inflight) {
+            ahb_broker_presented(ab->ahb);
+            ab->broker_inflight = 1;
+        }
         g_stat_zero_copy++;
         g_last_zero_copy_ns = now_ns();
     }
@@ -220,6 +240,57 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
         droiddeck_surface_describe(s, name, sizeof(name));
         droiddeck_log("layer", "zero-copy: presenting %s without a copy", name);
     }
+    return 0;
+}
+
+int ahb_swapchain_present_target(struct dmabuf_buffer *b, struct surface *s, struct sc_target *target,
+                                 const int geometry[8], int translucent, int z) {
+    struct ahb_buf *ab = b ? *droiddeck_dmabuf_ahb_slot(b) : NULL;
+    if (!ab || (ab->on_layer && ab->surface && ab->surface != s)) return -1;
+    struct droiddeck_dma_buf_sync_file exp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = -1};
+    if (ioctl(droiddeck_dmabuf_fd(b), DROIDDECK_DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) != 0) {
+        struct pollfd p = {.fd = droiddeck_dmabuf_fd(b), .events = POLLIN};
+        int r;
+        do { r = poll(&p, 1, 0); } while (r < 0 && errno == EINTR);
+        if (r <= 0 || (p.revents & (POLLERR | POLLNVAL))) return 0;
+    }
+    int r = sc_target_present_ahb(target, ab->ahb, exp.fd, (void *)(uintptr_t)ab->id,
+                                  geometry, translucent, z, droiddeck_surface_color(s));
+    if (r > 0) {
+        if (ab->brokered && !ab->broker_inflight) {
+            ahb_broker_presented(ab->ahb);
+            ab->broker_inflight = 1;
+        }
+        ab->on_layer = 1;
+        ab->surface = s;
+        ++g_stat_zero_copy;
+        g_last_zero_copy_ns = now_ns();
+    }
+    return r;
+}
+
+int ahb_swapchain_register(struct dmabuf_buffer *b, struct wl_resource *buffer, AHardwareBuffer *ahb) {
+    if (!g_advertised || !b || !buffer || !ahb || *droiddeck_dmabuf_ahb_slot(b)) return -1;
+    AHardwareBuffer_Desc desc;
+    AHardwareBuffer_describe(ahb, &desc);
+    int w, h;
+    droiddeck_dmabuf_size(b, &w, &h);
+    if (desc.width != (uint32_t)w || desc.height != (uint32_t)h) return -1;
+    struct ahb_buf *ab = calloc(1, sizeof(*ab));
+    if (!ab) return -1;
+    AHardwareBuffer_acquire(ahb);
+    ab->id = g_next_id++;
+    ab->b = b;
+    droiddeck_dmabuf_ref(b);
+    ab->ahb = ahb;
+    ab->w = w; ab->h = h; ab->format = desc.format; ab->stride = desc.stride;
+    ab->resource = buffer;
+    ab->resource_destroy.notify = on_buffer_resource_destroyed;
+    ab->fence_fd = -1;
+    ab->brokered = 1;
+    wl_resource_add_destroy_listener(buffer, &ab->resource_destroy);
+    wl_list_insert(g_bufs.prev, &ab->link);
+    *droiddeck_dmabuf_ahb_slot(b) = ab;
     return 0;
 }
 

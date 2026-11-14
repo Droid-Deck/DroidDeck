@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gesture_tab_four">Four fingers</string>
+    <string name="gesture_swipe_up">Swipe up</string>
+    <string name="gesture_swipe_down">Swipe down</string>
+    <string name="gesture_swipe_left">Swipe left</string>
+    <string name="gesture_swipe_right">Swipe right</string>
+    <string name="gesture_native_swipe">Native Linux swipe</string>
+    <string name="gesture_action_none">No action</string>
+    <string name="gesture_custom_shortcut">Custom keyboard shortcut</string>
+    <string name="gesture_shortcut_modifiers">Modifier keys</string>
+    <string name="gesture_shortcut_key">Choose a key</string>
+    <string name="gesture_swipe_help">Directional swipes share these settings across desktop windows and touchpads. A swipe runs once; four fingers never trigger a three-finger tap.</string>
+    <string name="gesture_three_drag_help">Continuous three-finger drag takes precedence over directional swipes in gesture mode.</string>
+</resources>
