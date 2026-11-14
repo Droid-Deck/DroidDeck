@@ -8,14 +8,14 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 @Composable
 internal fun PenSettingsGroup(
-    host: MenuHost, pen: SessionPrefs.Pen, track: (String) -> Modifier = { Modifier },
+    host: MenuHost, pen: SessionPrefs.Pen, auto: String, note: String? = null, track: (String) -> Modifier = { Modifier },
     onPick: (key: String, value: String) -> Unit,
 ) {
     SettingsGroup(stringResource(R.string.mode_pen)) {
         ChoiceRow(host, "pen", stringResource(R.string.mode_pen), null,
-            listOf(SessionPrefs.PEN_MOUSE to stringResource(R.string.mode_pen_mouse),
+            listOf(SessionPrefs.PEN_AUTO to auto, SessionPrefs.PEN_MOUSE to stringResource(R.string.mode_pen_mouse),
                 SessionPrefs.PEN_TOUCH to stringResource(R.string.mode_pen_touch)),
-            pen.mode, chipModifier = track("pen")) { onPick("pen", it) }
+            pen.mode, note = note, chipModifier = track("pen")) { onPick("pen", it) }
         if (pen.mode != SessionPrefs.PEN_TOUCH) ChoiceRow(host, "pen-button", stringResource(R.string.mode_pen_button), null,
             listOf(SessionPrefs.PEN_BUTTON_RIGHT to stringResource(R.string.gesture_right_click),
                 SessionPrefs.PEN_BUTTON_MIDDLE to stringResource(R.string.gesture_middle_click),

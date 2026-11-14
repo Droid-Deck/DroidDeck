@@ -277,7 +277,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var penSeen by mutableStateOf(false)
     private var penRoute: PenRouter.Route? = null
     private var penDown = false
-    private val penStream = PenStream { flags, x, y -> WaylandCompositor.nativeSendPen(flags, x, y, 0, 0, 0, 0) }
+    private val penStream = PenStream(object : PenStream.Sink {
+        override fun sample(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) =
+            WaylandCompositor.nativeSendPen(flags, x, y, pressure, distance, tiltX, tiltY)
+        override fun capabilities(capabilities: Int) = WaylandCompositor.nativeSendPenCapabilities(capabilities)
+    })
     private var keyboard: KeyboardHost? = null
     private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var lastUserPressMs = 0L
@@ -1455,6 +1459,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onMicEnabled = { SessionService.setMicEnabled(this@SessionActivity, it) },
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             pen = penSettings.takeIf { penSeen },
+            penAuto = getString(if (penAutoIsTablet()) R.string.session_pen_auto_tablet else R.string.session_pen_auto_mouse),
             onPen = { key, value -> SessionPrefs.setPenSetting(this@SessionActivity, key, value); readPrefs() },
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
@@ -2802,6 +2807,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!SessionState.running) SessionEvents.record("compositor.started")
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
+            for (id in InputDevice.getDeviceIds()) InputDevice.getDevice(id)?.let(penStream::announce)
             SessionService.start(
                 this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,
                 intent.getStringExtra(SessionService.EXTRA_PROGRAM),
@@ -4984,6 +4990,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun decidePen(): PenRouter.Route {
         val mode = penSettings.mode
         val route = PenRouter.decide(uiBlocksTouch(), mode, glassesOutputActive, programLocksPointer())
+        penStream.tablet = PenRouter.wantsTablet(route, mode, SessionState.mode)
         if (route != penRoute) {
             if (penRoute == PenRouter.Route.PEN) penStream.cancel()
             Log.i(TAG, "pen route $penRoute -> $route (mode=$mode)")
@@ -5018,6 +5025,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             else -> {}
         }
         return true
+    }
+
+    private fun penAutoIsTablet(): Boolean {
+        val route = PenRouter.decide(false, SessionPrefs.PEN_AUTO, glassesOutputActive, programLocksPointer())
+        return PenRouter.wantsTablet(route, SessionPrefs.PEN_AUTO, SessionState.mode) && CompositorHost.isStarted &&
+            WaylandCompositor.nativeFocusTakesTablet()
     }
 
     private fun penSample(event: MotionEvent, pen: Int): Boolean {

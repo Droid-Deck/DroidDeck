@@ -293,6 +293,7 @@
     <string name="mode_pen">Penna</string>
     <string name="mode_pen_mouse">Mus</string>
     <string name="mode_pen_touch">Pekskärm</string>
+    <string name="mode_pen_note">Auto: ritplatta på skrivbordet i appar som stöder det, annars mus.</string>
     <string name="mode_pen_button">Sidoknapp</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1738,6 +1739,8 @@
     <string name="session_title_game">Spel</string>
     <string name="session_touch_auto_touchpad">pekplatta</string>
     <string name="session_touch_auto_direct">direkt</string>
+    <string name="session_pen_auto_tablet">ritplatta</string>
+    <string name="session_pen_auto_mouse">mus</string>
     <string name="session_swap_failed">Bytet misslyckades: %1$s</string>
     <string name="session_profile_save_failed">Kunde inte spara profilen: %1$s</string>
     <string name="session_desktop_paused">Skrivbordet är pausat</string>

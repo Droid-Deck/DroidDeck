@@ -293,6 +293,7 @@
     <string name="mode_pen">펜</string>
     <string name="mode_pen_mouse">마우스</string>
     <string name="mode_pen_touch">터치</string>
+    <string name="mode_pen_note">자동: 데스크톱에서 지원하는 앱에서는 태블릿, 그 외에는 마우스를 사용합니다.</string>
     <string name="mode_pen_button">측면 버튼</string>
     <string name="mode_osc">화면 컨트롤</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1723,6 +1724,8 @@
     <string name="session_title_game">게임</string>
     <string name="session_touch_auto_touchpad">터치패드</string>
     <string name="session_touch_auto_direct">직접 터치</string>
+    <string name="session_pen_auto_tablet">태블릿</string>
+    <string name="session_pen_auto_mouse">마우스</string>
     <string name="session_swap_failed">교체 실패: %1$s</string>
     <string name="session_profile_save_failed">프로필 저장 실패: %1$s</string>
     <string name="session_desktop_paused">데스크톱이 일시 중지됨</string>

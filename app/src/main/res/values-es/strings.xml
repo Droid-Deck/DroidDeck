@@ -293,6 +293,7 @@
     <string name="mode_pen">Lápiz</string>
     <string name="mode_pen_mouse">Ratón</string>
     <string name="mode_pen_touch">Táctil</string>
+    <string name="mode_pen_note">Auto: tableta en Escritorio en las apps que la admiten, ratón en el resto.</string>
     <string name="mode_pen_button">Botón lateral</string>
     <string name="mode_osc">Controles en pantalla</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1754,6 +1755,8 @@
     <string name="session_title_game">Juego</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">directo</string>
+    <string name="session_pen_auto_tablet">tableta</string>
+    <string name="session_pen_auto_mouse">ratón</string>
     <string name="session_swap_failed">El reemplazo falló: %1$s</string>
     <string name="session_profile_save_failed">No se pudo guardar el perfil: %1$s</string>
     <string name="session_desktop_paused">El escritorio está en pausa</string>

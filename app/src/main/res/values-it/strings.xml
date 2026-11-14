@@ -293,6 +293,7 @@
     <string name="mode_pen">Penna</string>
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Tocco</string>
+    <string name="mode_pen_note">Auto: tavoletta grafica sul Desktop nelle app che la supportano, mouse altrove.</string>
     <string name="mode_pen_button">Tasto laterale</string>
     <string name="mode_osc">Controlli su schermo</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1745,6 +1746,8 @@
     <string name="session_title_game">Gioco</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">diretto</string>
+    <string name="session_pen_auto_tablet">tavoletta</string>
+    <string name="session_pen_auto_mouse">mouse</string>
     <string name="session_swap_failed">Sostituzione non riuscita: %1$s</string>
     <string name="session_profile_save_failed">Salvataggio del profilo non riuscito: %1$s</string>
     <string name="session_desktop_paused">Il desktop è in pausa</string>

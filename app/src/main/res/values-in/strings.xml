@@ -293,6 +293,7 @@
     <string name="mode_pen">Pena</string>
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_note">Otomatis: tablet di Desktop pada aplikasi yang mendukungnya, mouse di tempat lain.</string>
     <string name="mode_pen_button">Tombol samping</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1723,6 +1724,8 @@
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">langsung</string>
+    <string name="session_pen_auto_tablet">tablet</string>
+    <string name="session_pen_auto_mouse">mouse</string>
     <string name="session_swap_failed">Pergantian gagal: %1$s</string>
     <string name="session_profile_save_failed">Penyimpanan profil gagal: %1$s</string>
     <string name="session_desktop_paused">Desktop dijeda</string>

@@ -293,6 +293,7 @@
     <string name="mode_pen">Перо</string>
     <string name="mode_pen_mouse">Миша</string>
     <string name="mode_pen_touch">Сенсорне введення</string>
+    <string name="mode_pen_note">«Авто»: графічний планшет на робочому столі в застосунках, що його підтримують, миша в інших випадках.</string>
     <string name="mode_pen_button">Бічна кнопка</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1770,6 +1771,8 @@
     <string name="session_title_game">Гра</string>
     <string name="session_touch_auto_touchpad">тачпад</string>
     <string name="session_touch_auto_direct">прямий</string>
+    <string name="session_pen_auto_tablet">планшет</string>
+    <string name="session_pen_auto_mouse">миша</string>
     <string name="session_swap_failed">Не вдалося замінити: %1$s</string>
     <string name="session_profile_save_failed">Не вдалося зберегти профіль: %1$s</string>
     <string name="session_desktop_paused">Робочий стіл призупинено</string>

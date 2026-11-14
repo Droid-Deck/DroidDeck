@@ -321,6 +321,7 @@
     <string name="mode_pen">Pen</string>
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_note">Auto: tablet on Desktop in apps that support it, mouse elsewhere.</string>
     <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1945,6 +1946,8 @@
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">direct</string>
+    <string name="session_pen_auto_tablet">tablet</string>
+    <string name="session_pen_auto_mouse">mouse</string>
     <string name="session_swap_failed">Swap failed: %1$s</string>
     <string name="session_profile_save_failed">Profile save failed: %1$s</string>
     <string name="session_desktop_paused">The desktop is paused</string>

@@ -293,6 +293,7 @@
     <string name="mode_pen">Pen</string>
     <string name="mode_pen_mouse">Tetikus</string>
     <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_note">Auto: tablet pada Desktop dalam apl yang menyokongnya, tetikus di tempat lain.</string>
     <string name="mode_pen_button">Butang sisi</string>
     <string name="mode_osc">Kawalan pada skrin</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1723,6 +1724,8 @@
     <string name="session_title_game">Permainan</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">langsung</string>
+    <string name="session_pen_auto_tablet">tablet</string>
+    <string name="session_pen_auto_mouse">tetikus</string>
     <string name="session_swap_failed">Penukaran gagal: %1$s</string>
     <string name="session_profile_save_failed">Penyimpanan profil gagal: %1$s</string>
     <string name="session_desktop_paused">Desktop dijeda</string>

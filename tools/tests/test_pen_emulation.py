@@ -77,6 +77,12 @@ class PenEmulationTest(unittest.TestCase):
                          set(native))
         self.assertEqual(native, kotlin)
 
+    def test_capabilities_match_the_kotlin_pen_stream(self):
+        native = dict(re.findall(r'DROIDDECK_PEN_CAP_([A-Z]+) = 1 << (\d+)', EXTENSION.read_text()))
+        kotlin = dict(re.findall(r'^\s*const val CAP_([A-Z]+) = 1 shl (\d+)$', PEN_STREAM.read_text(), re.MULTILINE))
+        self.assertEqual({'PRESSURE', 'TILT', 'DISTANCE'}, set(native))
+        self.assertEqual(native, kotlin)
+
     def test_hover_moves_the_pointer_in_scene_coordinates(self):
         self.check_case('hover')
 

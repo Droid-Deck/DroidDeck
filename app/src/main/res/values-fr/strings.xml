@@ -293,6 +293,7 @@
     <string name="mode_pen">Stylet</string>
     <string name="mode_pen_mouse">Souris</string>
     <string name="mode_pen_touch">Tactile</string>
+    <string name="mode_pen_note">Auto : tablette graphique sur le bureau dans les applications qui la prennent en charge, souris ailleurs.</string>
     <string name="mode_pen_button">Bouton latéral</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1753,6 +1754,8 @@
     <string name="session_title_game">Jeu</string>
     <string name="session_touch_auto_touchpad">pavé tactile</string>
     <string name="session_touch_auto_direct">direct</string>
+    <string name="session_pen_auto_tablet">tablette</string>
+    <string name="session_pen_auto_mouse">souris</string>
     <string name="session_swap_failed">Échec du remplacement : %1$s</string>
     <string name="session_profile_save_failed">Échec de l\'enregistrement du profil : %1$s</string>
     <string name="session_desktop_paused">Le bureau est en pause</string>

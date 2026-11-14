@@ -293,6 +293,7 @@
     <string name="mode_pen">القلم</string>
     <string name="mode_pen_mouse">الفأرة</string>
     <string name="mode_pen_touch">اللمس</string>
+    <string name="mode_pen_note">تلقائي: لوح رسم على سطح المكتب في التطبيقات التي تدعمه، وفأرة في غير ذلك.</string>
     <string name="mode_pen_button">الزر الجانبي</string>
     <string name="mode_osc">عناصر التحكم على الشاشة</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1802,6 +1803,8 @@
     <string name="session_title_game">لعبة</string>
     <string name="session_touch_auto_touchpad">لوحة اللمس</string>
     <string name="session_touch_auto_direct">مباشر</string>
+    <string name="session_pen_auto_tablet">لوح رسم</string>
+    <string name="session_pen_auto_mouse">فأرة</string>
     <string name="session_swap_failed">فشل التبديل: %1$s</string>
     <string name="session_profile_save_failed">فشل حفظ ملف التعريف: %1$s</string>
     <string name="session_desktop_paused">تم إيقاف سطح المكتب مؤقتًا</string>
