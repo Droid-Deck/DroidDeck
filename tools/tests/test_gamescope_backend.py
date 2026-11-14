@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -121,11 +122,14 @@ class DesktopGamescopeReaperTest(unittest.TestCase):
             reaper = (bin_dir if reaper_on_path else games) / "gamescopereaper"
             reaper.write_text("#!/bin/sh\n")
             reaper.chmod(0o755)
+            date = bin_dir / "date"
+            date.write_text(f"#!/bin/sh\nexec {shutil.which('date')} \"$@\"\n")
+            date.chmod(0o755)
             script = root / "droiddeck-gpu"
             source = DESKTOP_GPU.read_text()
             self.assertIn("for dir in /usr/games ", source)
             script.write_text(source.replace("for dir in /usr/games ", f"for dir in {games} ", 1))
-            start_path = f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin"
+            start_path = str(bin_dir)
             env = {"PATH": start_path, "HOME": directory, "GAMESCOPE_CAPTURE": str(capture),
                    "WAYLAND_DISPLAY": "desktop-0", "BL_DESKTOP_GPU_WINDOW": "0"}
             result = subprocess.run(["/bin/bash", str(script), "demo"], env=env, text=True,
