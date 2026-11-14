@@ -141,6 +141,7 @@ android {
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
+        buildConfigField "String", "UPDATE_CATALOG_BRANCH", "\"${(System.getenv("DROIDDECK_UPDATE_CATALOG_BRANCH") ?: "main").with { it ==~ /[A-Za-z0-9._-]+/ ? it : "main" }}\""
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
