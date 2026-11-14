@@ -178,6 +178,24 @@ class RumbleComponentTest {
         assertFalse("rumble outlived a game that exited right away", pad.vibrating)
     }
 
+    @Test fun aGameStartingRightAfterAnotherHoldIsStillWatched() {
+        val pad = FakeMotors()
+        var game = false
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        effectFrom(SENDER, strong = 0, weak = 0)
+        game = true
+        idle(RumbleComponent.MIN_GAP_MS)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        assertTrue(pad.vibrating)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("a stale no-game result left the hold unwatched", pad.vibrating)
+    }
+
     @Test fun aSenderFirstReadAsUnknownStillStopsItsRumbleWhenItExits() {
         val pad = FakeMotors()
         var start: String? = RumbleComponent.UNKNOWN_START

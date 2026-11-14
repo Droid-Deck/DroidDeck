@@ -150,7 +150,7 @@ class RumbleComponent : SessionPart() {
 
     private fun gameRecently(): Boolean {
         val now = SystemClock.uptimeMillis()
-        if (gameCheckedAt == Long.MIN_VALUE || now - gameCheckedAt >= GAME_CHECK_MS) {
+        if (!gameLastSeen || now - gameCheckedAt >= GAME_CHECK_MS) {
             gameLastSeen = gameRunning()
             gameCheckedAt = now
         }
