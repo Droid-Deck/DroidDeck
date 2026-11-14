@@ -296,7 +296,10 @@ it, the cloud copies before an upload replaces them, under
 A game launched before Proton has made its prefix (a first launch) gets its download deferred: the
 request is answered at once (`result=deferred reason=no-prefix`) and the download runs as soon as
 the prefix's user folder appears, within a minute. Every path logs
-`cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`.
+`cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`. A failure adds
+`detail="..."`: the exception chain with the step (`list`, `get`, `put`), HTTP status, file and the
+start of the server's error body, with URLs cut to their host and tokens, secrets and codes redacted.
+GOG uploads stage their gzip body in the app's cache folder, which is created if it is missing.
 
 - **The folder:** GOG's public remote-config gives a location template per game (by its Galaxy client
   id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`; Epic's catalog gives

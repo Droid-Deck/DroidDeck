@@ -59,6 +59,43 @@ private fun httpDate(s: String?): Long = try {
     SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply { timeZone = TimeZone.getTimeZone("GMT") }.parse(s!!.trim())?.time ?: -1L
 } catch (e: Exception) { -1L }
 
+private val SECRET_PARAM = Regex("(?i)(token|secret|code|password|authorization)([\"']?\\s*[:=]\\s*[\"']?)[^\\s&\"',;}]+")
+private val BEARER = Regex("(?i)bearer\\s+\\S+")
+private val URL_TEXT = Regex("(?i)https?://([^/\\s?#]+)[^\\s]*")
+private val LONG_TOKEN = Regex("[A-Za-z0-9._~+/=-]{32,}")
+private val SPACES = Regex("\\s+")
+private const val DETAIL_MAX = 400
+
+internal fun scrubCloudText(text: String, longTokens: Boolean = true): String = text
+    .replace(BEARER, "Bearer <redacted>")
+    .replace(URL_TEXT) { it.groupValues[1] }
+    .replace(SECRET_PARAM) { it.groupValues[1] + it.groupValues[2] + "<redacted>" }
+    .let { if (longTokens) it.replace(LONG_TOKEN, "<redacted>") else it }
+    .replace(SPACES, " ")
+    .trim()
+
+internal fun cloudFailureDetail(e: Throwable): String {
+    val parts = ArrayList<String>()
+    var t: Throwable? = e
+    while (t != null && parts.size < 3) {
+        val message = t.message?.let { scrubCloudText(it, longTokens = false) }.orEmpty()
+        parts += if (message.isEmpty()) t.javaClass.simpleName else "${t.javaClass.simpleName}: $message"
+        t = t.cause?.takeIf { it !== t }
+    }
+    return parts.joinToString(" <- ").take(DETAIL_MAX)
+}
+
+private fun HttpURLConnection.errorSnippet(): String =
+    runCatching { errorStream?.use { it.readBytes() }?.decodeToString().orEmpty() }.getOrDefault("")
+        .let { scrubCloudText(it) }.take(120)
+
+private fun httpFailure(step: String, name: String?, code: Int, error: String): java.io.IOException =
+    java.io.IOException(buildString {
+        append("GOG cloud ").append(step).append(" HTTP ").append(code)
+        if (name != null) append(" file=").append(name)
+        if (error.isNotEmpty()) append(" body=").append(error)
+    })
+
 internal fun isGzip(data: ByteArray) =
     data.size >= 10 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte() && data[2] == 0x08.toByte()
 
@@ -195,6 +232,7 @@ class GogCloud(
     private val token: String,
     private val location: String? = null,
     baseUrl: String? = null,
+    private val tempDir: File? = null,
 ) : CloudTransport {
     private val base = baseUrl ?: "https://cloudstorage.gog.com/v1/$userId/$clientId"
     private val ua = "GOG Galaxy"
@@ -212,7 +250,7 @@ class GogCloud(
             val err = runCatching { c.errorStream?.readBytes()?.decodeToString().orEmpty() }.getOrDefault("")
             c.disconnect()
             if ("not_enabled_for_client" in err || "disabled" in err) throw NoCloudSaves()
-            throw java.io.IOException("GOG cloud list HTTP $code")
+            throw httpFailure("list", null, code, scrubCloudText(err).take(120))
         }
         val text = c.body().decodeToString().trim()
         c.disconnect()
@@ -255,12 +293,20 @@ class GogCloud(
     override fun get(file: CloudFile): Pair<ByteArray, Long> {
         val c = open("$base/${cloudKey(file.name)}", "GET", token, ua)
         c.setRequestProperty("Accept-Encoding", "identity")
-        if (c.responseCode !in 200..299) { val code = c.responseCode; c.disconnect(); throw java.io.IOException("GOG cloud get HTTP $code") }
+        if (c.responseCode !in 200..299) {
+            val code = c.responseCode
+            val err = c.errorSnippet()
+            c.disconnect()
+            throw httpFailure("get", file.name, code, err)
+        }
         val modified = httpDate(c.getHeaderField("Last-Modified"))
         val encoding = c.getHeaderField("Content-Encoding")
-        val data = c.body()
-        c.disconnect()
-        return gogDecodeCloudBody(data, encoding) to modified
+        val data = try { c.body() } finally { c.disconnect() }
+        return try {
+            gogDecodeCloudBody(data, encoding) to modified
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("GOG cloud get file=${file.name} bytes=${data.size} encoding=$encoding", e)
+        }
     }
 
     override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> = files.mapValues { (name, data) ->
@@ -269,7 +315,11 @@ class GogCloud(
     }
 
     override fun putFiles(files: Map<String, File>, modifiedMs: Map<String, Long>): Map<String, CloudPut> = files.mapValues { (name, file) ->
-        val compressed = File.createTempFile("gog-cloud-", ".gz")
+        val compressed = try {
+            File.createTempFile("gog-cloud-", ".gz", tempDir?.apply { mkdirs() })
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("GOG cloud put file=$name temp file", e)
+        }
         try {
             val gz = gzipFile(file, compressed)
             val modified = putBody(name, compressed.inputStream(), gz.length, gz.etag, modifiedMs[name] ?: file.lastModified())
@@ -288,9 +338,14 @@ class GogCloud(
             c.setRequestProperty("Etag", etag)
             c.setRequestProperty("X-Object-Meta-LocalLastModified", gogStamp(modified))
             c.setFixedLengthStreamingMode(length)
-            c.outputStream.use { out -> source.use { it.copyTo(out, 64 * 1024) } }
+            try {
+                c.outputStream.use { out -> source.use { it.copyTo(out, 64 * 1024) } }
+            } catch (e: java.io.IOException) {
+                val code = runCatching { c.responseCode }.getOrNull()
+                throw java.io.IOException("GOG cloud put file=$name bytes=$length" + (code?.let { " HTTP $it" } ?: ""), e)
+            }
             val code = c.responseCode
-            if (code !in 200..299) throw java.io.IOException("GOG cloud put HTTP $code")
+            if (code !in 200..299) throw httpFailure("put", name, code, c.errorSnippet())
             return CloudFile(name, -1L).also { details(it) }.modifiedMs
         } finally {
             c.disconnect()
