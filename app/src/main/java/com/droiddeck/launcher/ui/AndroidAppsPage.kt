@@ -831,11 +831,13 @@ private fun FolderSheet(
     val ff = LocalFrontFocus.current
     val grid = rememberLazyGridState()
     var closing by remember { mutableStateOf(false) }
+    var inside by remember { mutableStateOf(false) }
     LaunchedEffect(renaming, inputMode) {
         if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
             grid.scrollToItem(0)
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            if (!closing) runCatching { firstApp.requestFocus() }
+            androidx.compose.runtime.withFrameNanos { }
+            // After touch, focus starts outside the page and the first request is turned to the page's own entry, behind the sheet. Ask until it is in here.
+            focusWithinFrames({ inside || closing }) { firstApp }
         }
     }
     val close = {
@@ -861,6 +863,7 @@ private fun FolderSheet(
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
                     .controllerBack(close)
+                    .onFocusChanged { inside = it.hasFocus }
                     .focusProperties {
                         exit = { dir ->
                             if (dir == FocusDirection.Up || dir == FocusDirection.Down || dir == FocusDirection.Left || dir == FocusDirection.Right) FocusRequester.Cancel
