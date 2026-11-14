@@ -17,4 +17,14 @@ class FileManagerNavigationTest {
         assertTrue(canNavigateUp(child, drive))
         assertFalse(canNavigateUp(drive, drive))
     }
+
+    @Test fun backLeavesInsteadOfHoppingBetweenTwoRoots() {
+        val drive = tmp.newFolder("drive")
+        val other = tmp.newFolder("other")
+        val child = File(drive, "folder").apply { mkdir() }
+
+        assertTrue(backExitsAtRootHop(drive, drive, other to other))
+        assertFalse(backExitsAtRootHop(drive, drive, child to other))
+        assertFalse(backExitsAtRootHop(child, drive, other to other))
+    }
 }
