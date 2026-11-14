@@ -63,7 +63,8 @@ class SecondScreenPresentation(
     private var imeSeen = false
     private var fieldKeyboard = false
     private var terminalPanel: SessionTerminalPanel? = null
-    private var controlsView: InputSurfaceView? = null
+    var controlsView: InputSurfaceView? = null
+        private set
     private var created = false
 
     init {
