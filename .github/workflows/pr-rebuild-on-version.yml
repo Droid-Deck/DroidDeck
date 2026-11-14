@@ -47,6 +47,8 @@ jobs:
           fi
           # This run is created right after the push, so a PR build that started earlier may have pinned the old main.
           bumped=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          # A build can finish in the moments between the push and this run's creation.
+          pushed=$(date -u -d "$bumped - 10 minutes" +%Y-%m-%dT%H:%M:%SZ)
           note() {
             local number=$1
             local marker="<!-- droiddeck-rebuild-$now -->"
@@ -89,7 +91,7 @@ jobs:
                 run=$(latest "$sha")
                 [ -n "$run" ] || continue
                 IFS=$'\t' read -r _ status started _ updated <<<"$run"
-                if [[ "$started" < "$bumped" ]] && { [ "$status" != completed ] || [[ ! "$updated" < "$bumped" ]]; }; then
+                if [[ "$started" < "$bumped" ]] && { [ "$status" != completed ] || [[ ! "$updated" < "$pushed" ]]; }; then
                   printf '%s\t?\n' "$number"
                 fi
               done
