@@ -113,6 +113,7 @@ object StoreLaunchRequests {
                 val url = request.optString("url")
                 if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
                 else try {
+                    com.droiddeck.launcher.session.SessionService.holdForBrowserHandoff(app)
                     app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     Log.i(TAG, "open-url: " + StoreLog.redactUrl(url))
                     JSONObject().put("ok", true)
