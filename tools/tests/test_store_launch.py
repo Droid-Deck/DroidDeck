@@ -1,6 +1,8 @@
 import importlib.machinery
 import importlib.util
 import json
+import shlex
+import subprocess
 import os
 from pathlib import Path
 import tempfile
@@ -316,6 +318,33 @@ class Launchers(unittest.TestCase):
         self.assertIn('bl_store_launch "$@"', compat.EXTRA_WRAPPER_SH)
         self.assertIn('bl_store_launch() {', compat.BL_STORE_SETUP)
         self.assertIn('waitforexitandrun', compat.BL_STORE_SETUP)
+
+    def run_store_game(self, game, store_exit=True):
+        with tempfile.TemporaryDirectory() as root:
+            hook = Path(root) / 'hook'
+            record = Path(root) / 'exited'
+            hook.write_text('#!/bin/sh\necho "$@" > "%s"\n' % record)
+            hook.chmod(0o755)
+            setup = compat.BL_STORE_SETUP.replace('/usr/local/bin/droiddeck-store-launch --exited', str(hook) + ' --exited')
+            script = setup + '\nBL_STORE_ARGS=(game.bat)\n%sbl_run sh -c %s\nexit 99\n' % (
+                'BL_STORE_EXIT=1\n' if store_exit else '', shlex.quote(game))
+            done = subprocess.run(['bash', '-c', script], start_new_session=True, timeout=20)
+            return done.returncode, record.read_text().split() if record.exists() else None
+
+    def test_a_store_game_ended_by_a_group_signal_still_reports_its_exit(self):
+        for signal_name, code in (('INT', '130'), ('TERM', '143'), ('HUP', '129')):
+            rc, hook = self.run_store_game('kill -%s 0; sleep 5' % signal_name)
+            self.assertEqual(['--exited', '--code', code, 'game.bat'], hook, signal_name)
+            self.assertEqual(int(code), rc, signal_name)
+
+    def test_a_store_game_that_exits_by_itself_reports_its_code_once(self):
+        self.assertEqual((3, ['--exited', '--code', '3', 'game.bat']), self.run_store_game('exit 3'))
+
+    def test_other_games_still_replace_the_wrapper_without_the_exit_hook(self):
+        self.assertEqual((4, None), self.run_store_game('exit 4', store_exit=False))
+        rc, hook = self.run_store_game('kill -INT 0; sleep 5', store_exit=False)
+        self.assertIsNone(hook)
+        self.assertEqual(-2, rc)
 
 
 if __name__ == '__main__':
