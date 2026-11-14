@@ -28,6 +28,7 @@ import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.BottomDesktop
+import com.droiddeck.launcher.wayland.WaylandCompositor
 
 @SuppressLint("ViewConstructor")
 class BottomDesktopPanel(
@@ -289,10 +290,10 @@ class BottomDesktopPanel(
 
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
             movePointer(x, y)
-            BottomDesktop.sendScene(SCENE_BUTTON, button, if (pressed) 1 else 0)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_BUTTON, button, if (pressed) 1 else 0)
         }
 
-        override fun onWheel(steps: Int) = BottomDesktop.sendScene(SCENE_WHEEL, steps)
+        override fun onWheel(steps: Int) = BottomDesktop.sendScene(WaylandCompositor.SCENE_WHEEL, steps)
 
         override fun onScroll(dx: Float, dy: Float) {
             val (outW, outH) = BottomDesktop.outputSize
@@ -303,18 +304,18 @@ class BottomDesktopPanel(
             if (h == 0 && v == 0) return
             scrollRestX -= h
             scrollRestY -= v
-            BottomDesktop.sendScene(SCENE_AXIS, v, h)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_AXIS_FINGER, v, h)
         }
 
         override fun onScrollEnd() {
             scrollRestX = 0f
             scrollRestY = 0f
-            BottomDesktop.sendScene(SCENE_AXIS, 0, 0)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_AXIS_FINGER, 0, 0)
         }
 
         override fun onZoom(steps: Int) {
             BottomDesktop.sendKey(KEY_LEFTCTRL, true)
-            BottomDesktop.sendScene(SCENE_WHEEL, steps)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_WHEEL, steps)
             BottomDesktop.sendKey(KEY_LEFTCTRL, false)
         }
 
@@ -331,9 +332,6 @@ class BottomDesktopPanel(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private companion object {
-        const val SCENE_BUTTON = 3
-        const val SCENE_WHEEL = 4
-        const val SCENE_AXIS = 12
         const val KEY_LEFTCTRL = 29
         const val AXIS_UNITS_PER_PIXEL = 3f
         const val TEXT_FIELD_TAP_MS = 1_000L
