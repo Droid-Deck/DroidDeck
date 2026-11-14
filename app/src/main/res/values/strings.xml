@@ -322,6 +322,7 @@
     <string name="mode_pen_touch">Touch</string>
     <string name="mode_pen_note">Auto: tablet on Desktop in apps that support it, mouse elsewhere.</string>
     <string name="mode_pen_button">Side button</string>
+    <string name="mode_pen_button_eraser">Eraser while held</string>
     <string name="mode_pen_pressure">Pressure</string>
     <string name="mode_pen_pressure_soft">Soft</string>
     <string name="mode_pen_pressure_normal">Normal</string>

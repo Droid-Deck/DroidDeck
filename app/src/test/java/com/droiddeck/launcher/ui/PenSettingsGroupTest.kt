@@ -47,29 +47,34 @@ class PenSettingsGroupTest {
         }
         compose.onNodeWithText(context.getString(R.string.drawer_touch_auto, tablet)).assertExists()
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.mode_pen_button_eraser)).performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen-pressure").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.mode_pen_pressure_firm)).performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.mode_pen_touch)).performScrollTo().performClick()
         compose.runOnIdle {
-            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "penPressure" to SessionPrefs.PEN_PRESSURE_FIRM,
+            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_ERASER, "penPressure" to SessionPrefs.PEN_PRESSURE_FIRM,
                 "pen" to SessionPrefs.PEN_TOUCH), picks)
         }
     }
 
     @Test fun rowsThatCannotApplyAreHidden() {
-        val pen = mutableStateOf(SessionPrefs.Pen())
+        val pen = mutableStateOf(SessionPrefs.Pen(button = SessionPrefs.PEN_BUTTON_ERASER))
         val desktop = mutableStateOf(false)
+        val eraser = context.getString(R.string.mode_pen_button_eraser)
         compose.setContent {
             DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, "Auto", desktop.value) { _, _ -> } } }
         }
-        compose.onNodeWithTag("setting-pen-button").assertExists()
+        compose.onNodeWithTag("setting-pen-button").assertTextContains(context.getString(R.string.gesture_right_click))
         compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
         compose.runOnIdle { desktop.value = true }
+        compose.onNodeWithTag("setting-pen-button").assertTextContains(eraser)
         compose.onNodeWithTag("setting-pen-pressure").assertExists()
-        compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_MOUSE) }
+        compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_MOUSE, button = SessionPrefs.PEN_BUTTON_ERASER) }
         compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-button").performClick()
+        compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).assertExists()
+        compose.onNodeWithText(eraser).assertDoesNotExist()
         compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH) }
         compose.onNodeWithTag("setting-pen").assertExists()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()

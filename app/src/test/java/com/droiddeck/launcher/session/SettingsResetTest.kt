@@ -91,7 +91,8 @@ class SettingsResetTest {
     @Test fun penSettingsKeepOnlyKnownValues() {
         val settings = mapOf(
             "pen" to listOf(SessionPrefs.PEN_AUTO, SessionPrefs.PEN_MOUSE, SessionPrefs.PEN_TOUCH),
-            "penButton" to listOf(SessionPrefs.PEN_BUTTON_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE, SessionPrefs.PEN_BUTTON_OFF),
+            "penButton" to listOf(SessionPrefs.PEN_BUTTON_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE, SessionPrefs.PEN_BUTTON_ERASER,
+                SessionPrefs.PEN_BUTTON_OFF),
             "penPressure" to listOf(SessionPrefs.PEN_PRESSURE_NORMAL, SessionPrefs.PEN_PRESSURE_SOFT, SessionPrefs.PEN_PRESSURE_FIRM),
         )
         fun read(key: String) = when (key) {

@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">Berøring</string>
     <string name="mode_pen_note">Auto: tegnebrett på Skrivebord i apper som støtter det, ellers mus.</string>
     <string name="mode_pen_button">Sideknapp</string>
+    <string name="mode_pen_button_eraser">Viskelær mens knappen holdes</string>
     <string name="mode_pen_pressure">Trykk</string>
     <string name="mode_pen_pressure_soft">Mykt</string>
     <string name="mode_pen_pressure_normal">Normalt</string>

@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">Táctil</string>
     <string name="mode_pen_note">Auto: tableta en Escritorio en las apps que la admiten, ratón en el resto.</string>
     <string name="mode_pen_button">Botón lateral</string>
+    <string name="mode_pen_button_eraser">Borrador al mantener presionado</string>
     <string name="mode_pen_pressure">Presión</string>
     <string name="mode_pen_pressure_soft">Suave</string>
     <string name="mode_pen_pressure_normal">Normal</string>

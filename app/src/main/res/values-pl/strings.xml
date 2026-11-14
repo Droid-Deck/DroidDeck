@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">Dotyk</string>
     <string name="mode_pen_note">Auto: tablet na pulpicie w aplikacjach, które go obsługują, w pozostałych przypadkach mysz.</string>
     <string name="mode_pen_button">Przycisk boczny</string>
+    <string name="mode_pen_button_eraser">Gumka podczas przytrzymania</string>
     <string name="mode_pen_pressure">Nacisk</string>
     <string name="mode_pen_pressure_soft">Miękki</string>
     <string name="mode_pen_pressure_normal">Normalny</string>

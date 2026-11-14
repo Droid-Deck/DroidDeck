@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">اللمس</string>
     <string name="mode_pen_note">تلقائي: لوح رسم على سطح المكتب في التطبيقات التي تدعمه، وفأرة في غير ذلك.</string>
     <string name="mode_pen_button">الزر الجانبي</string>
+    <string name="mode_pen_button_eraser">ممحاة أثناء الضغط</string>
     <string name="mode_pen_pressure">الضغط</string>
     <string name="mode_pen_pressure_soft">خفيف</string>
     <string name="mode_pen_pressure_normal">عادي</string>

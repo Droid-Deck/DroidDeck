@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">Докосване</string>
     <string name="mode_pen_note">Автоматично: таблет на работния плот в приложенията, които го поддържат, мишка навсякъде другаде.</string>
     <string name="mode_pen_button">Страничен бутон</string>
+    <string name="mode_pen_button_eraser">Гума при задържане</string>
     <string name="mode_pen_pressure">Натиск</string>
     <string name="mode_pen_pressure_soft">Лек</string>
     <string name="mode_pen_pressure_normal">Нормален</string>

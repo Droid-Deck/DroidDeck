@@ -660,16 +660,22 @@ object SessionPrefs {
     const val PEN_TOUCH = "touch"
     const val PEN_BUTTON_RIGHT = "right"
     const val PEN_BUTTON_MIDDLE = "middle"
+    const val PEN_BUTTON_ERASER = "eraser"
     const val PEN_BUTTON_OFF = "off"
     const val PEN_PRESSURE_SOFT = "soft"
     const val PEN_PRESSURE_NORMAL = "normal"
     const val PEN_PRESSURE_FIRM = "firm"
 
-    data class Pen(val mode: String = PEN_AUTO, val button: String = PEN_BUTTON_RIGHT, val pressure: String = PEN_PRESSURE_NORMAL)
+    data class Pen(val mode: String = PEN_AUTO, val button: String = PEN_BUTTON_RIGHT, val pressure: String = PEN_PRESSURE_NORMAL) {
+        fun wantsTablet(desktop: Boolean): Boolean = desktop && mode == PEN_AUTO
+
+        fun sideButton(desktop: Boolean): String =
+            if (button == PEN_BUTTON_ERASER && !wantsTablet(desktop)) PEN_BUTTON_RIGHT else button
+    }
 
     private val PEN_SETTINGS = mapOf(
         "pen" to setOf(PEN_AUTO, PEN_MOUSE, PEN_TOUCH),
-        "penButton" to setOf(PEN_BUTTON_RIGHT, PEN_BUTTON_MIDDLE, PEN_BUTTON_OFF),
+        "penButton" to setOf(PEN_BUTTON_RIGHT, PEN_BUTTON_MIDDLE, PEN_BUTTON_ERASER, PEN_BUTTON_OFF),
         "penPressure" to setOf(PEN_PRESSURE_SOFT, PEN_PRESSURE_NORMAL, PEN_PRESSURE_FIRM),
     )
 

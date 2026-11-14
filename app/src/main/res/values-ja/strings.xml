@@ -294,6 +294,7 @@
     <string name="mode_pen_touch">タッチ</string>
     <string name="mode_pen_note">自動：デスクトップの対応アプリではペンタブレット、それ以外ではマウスとして使います。</string>
     <string name="mode_pen_button">サイドボタン</string>
+    <string name="mode_pen_button_eraser">押している間は消しゴム</string>
     <string name="mode_pen_pressure">筆圧</string>
     <string name="mode_pen_pressure_soft">柔らかめ</string>
     <string name="mode_pen_pressure_normal">普通</string>

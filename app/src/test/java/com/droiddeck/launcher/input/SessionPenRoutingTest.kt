@@ -130,7 +130,7 @@ class SessionPenRoutingTest {
 
     @Test fun theSideButtonSettingDecidesWhatThePrimaryButtonSends() {
         val cases = listOf(SessionPrefs.PEN_BUTTON_RIGHT to PEN_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE to PEN_MIDDLE,
-            SessionPrefs.PEN_BUTTON_OFF to 0)
+            SessionPrefs.PEN_BUTTON_ERASER to PEN_ERASER, SessionPrefs.PEN_BUTTON_OFF to 0)
         for ((step, case) in cases.withIndex()) {
             SessionPrefs.setPenSetting(activity, "penButton", case.first)
             invoke("readPrefs")
@@ -139,6 +139,19 @@ class SessionPenRoutingTest {
                 buttons = MotionEvent.BUTTON_STYLUS_PRIMARY)))
             assertEquals(case.first, listOf(near or case.second), CompositorShadow.pens.map { it.flags })
         }
+    }
+
+    @Test fun aStoredEraserWhileHeldRightClicksWhereItIsNotOffered() {
+        SessionPrefs.setPenSetting(activity, "penButton", SessionPrefs.PEN_BUTTON_ERASER)
+        SessionPrefs.setPenSetting(activity, "pen", SessionPrefs.PEN_MOUSE)
+        invoke("readPrefs")
+        val held = MotionEvent.BUTTON_STYLUS_PRIMARY
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f, buttons = held)))
+        SessionPrefs.setPenSetting(activity, "pen", SessionPrefs.PEN_AUTO)
+        SessionState.mode = SessionService.MODE_STEAM
+        invoke("readPrefs")
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 500f, buttons = held)))
+        assertEquals(listOf(PEN_IN or PEN_RIGHT, 0, PEN_IN or PEN_RIGHT), CompositorShadow.pens.map { it.flags })
     }
 
     @Test fun thePressureSettingCurvesThePenPressure() {
