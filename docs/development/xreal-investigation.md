@@ -280,11 +280,14 @@ turns primarily rotate around corrected Y, and shoulder tilts around corrected Z
 The initial opposite-sign correction mixed these axes; a stationary capture alone
 could not distinguish sensor mounting from the physical angle of the glasses.
 This is a model mounting correction, not individually calibrated tracking. Device
-calibration data and serial numbers are not stored in the repository. Final wearer
-confirmation remains pending; the existing 1S mapping stays unchanged.
+calibration data and serial numbers are not stored in the repository. After the
+corrected build was installed, the wearer confirmed all three rotation directions
+and the horizon were correct. The existing 1S mapping stays unchanged.
 
 The initial APK build and 621 targeted glasses/UI tests completed with zero failures
-and one skipped test. Native dependency checks passed and the APK contains no vendor
+and one skipped test. After correcting the mounting direction, all 73 focused
+XREAL/routing tests passed, including a regression using the measured movement
+axes. Native dependency checks passed and the APK contains no vendor
 SDK libraries. On this phone, background network restrictions interrupted the
 glasses sockets while DroidDeck was away from the foreground; foreground operation
 recovered. Sustained background use needs separate validation.
@@ -300,5 +303,5 @@ DroidDeck tracking, following the official
 [display-mode](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/display-modes/)
 and [Stabilizer](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/stabilizer-transparency/)
 descriptions. The built-in tracking must not be layered over host tracking.
-XREAL Eye, camera capture, and 6DoF are not implemented. Final wearer confirmation
-and long-session stability remain outstanding hardware checks.
+XREAL Eye, camera capture, and 6DoF are not implemented. Long-session stability
+remains an outstanding hardware check.
