@@ -31,6 +31,9 @@ internal class AddonPack(
     val state: StateFlow<State> = mutableState.asStateFlow()
     private val lock = Any()
 
+    @Volatile var failure: String? = null
+        private set
+
     val available: Boolean get() = sha256.isNotEmpty()
     private val tag get() = "pack-$name-${sha256.take(16)}"
     private val urls get() = listOfNotNull(
@@ -67,9 +70,13 @@ internal class AddonPack(
             if (installed(app)) { mutableState.value = State.Ready; return }
             if (mutableState.value is State.Downloading) return
             mutableState.value = State.Downloading(0f)
+            failure = null
         }
         scope.launch {
-            val ok = runCatching { install(app) }.onFailure { Log.w(TAG, "$name: install failed", it) }.getOrDefault(false)
+            val ok = runCatching { install(app) }.onFailure {
+                Log.w(TAG, "$name: install failed", it)
+                failure = it.toString()
+            }.getOrDefault(false)
             mutableState.value = if (ok) State.Ready else State.Failed
             if (ok) onReady(app)
         }
@@ -93,20 +100,28 @@ internal class AddonPack(
 
     private fun install(context: Context): Boolean {
         if (!available) {
-            Log.w(TAG, if (reuseDeviceCopy) "$name: this build has no pack and none is installed" else "$name: this build has no pack")
+            failure = if (reuseDeviceCopy) "this build has no pack and none is installed" else "this build has no pack"
+            Log.w(TAG, "$name: $failure")
             return false
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
+        val problems = mutableListOf<String>()
         val downloaded = bundled(context, archive) || urls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
-                .also { if (!it) archive.delete() }
+                .also { if (!it) { archive.delete(); Downloader.lastFailure()?.let(problems::add) } }
         }
-        if (!downloaded) return false
+        if (!downloaded) {
+            failure = problems.joinToString("; ").ifEmpty { "download failed" }
+            return false
+        }
         val staging = File(root, "$sha256.partial")
         staging.deleteRecursively()
         try {
-            if (!FileInputStream(archive).use { TarZst.extract(it, staging) }) return false
+            if (!FileInputStream(archive).use { TarZst.extract(it, staging) }) {
+                failure = "could not unpack the pack"
+                return false
+            }
             check(required.all { File(staging, it).isFile }) { "$name pack is incomplete" }
             File(staging, COMPLETE).writeText(sha256)
             val target = dir(context)
