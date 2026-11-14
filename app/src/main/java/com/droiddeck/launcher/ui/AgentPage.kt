@@ -234,7 +234,7 @@ private fun AgentPageContent(
                     readingBack = false
                     scope.launch { list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2) }
                 }
-                val hidden = !composer.focused && readingBack && AgentHost.entries.isNotEmpty()
+                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty()
                 var listHeight by remember { mutableIntStateOf(0) }
                 Box(
                     Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onSizeChanged {
@@ -278,6 +278,7 @@ private class ComposerState {
 
     fun open() {
         focusRequests++
+        if (focused) consumeFocusRequest()
     }
 
     fun hasUnconsumedFocusRequest() = focusRequests > consumedFocusRequests
