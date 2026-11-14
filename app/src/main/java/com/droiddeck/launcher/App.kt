@@ -53,6 +53,7 @@ class App : Application() {
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
+        com.droiddeck.launcher.update.UpdateWatch.sync(this, com.droiddeck.launcher.update.AppUpdates.follow(this, null))
         com.droiddeck.launcher.core.DownloadSource.init(this)
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
