@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
 internal class XrealLink internal constructor(
     private val connector: XrealConnector,
     private val listener: Listener,
+    private val model: XrealModel = XrealModel.ONE_S,
 ) : GlassesLink {
     interface Listener {
         fun onReady()
@@ -29,7 +30,8 @@ internal class XrealLink internal constructor(
     private val worker = Thread(::run, "xreal-control").apply { isDaemon = true; start() }
 
     companion object {
-        fun open(context: Context, listener: Listener) = XrealLink(AndroidXrealConnector(context), listener)
+        fun open(context: Context, listener: Listener, model: XrealModel = XrealModel.ONE_S) =
+            XrealLink(AndroidXrealConnector(context), listener, model)
     }
 
     override fun send(msgId: Int, payload: ByteArray): Boolean {
@@ -43,8 +45,8 @@ internal class XrealLink internal constructor(
         if (msgId == VitureProtocol.MSG_GET_IMU) return true
         val valid = when (msgId) {
             VitureProtocol.MSG_GET_DISPLAY -> true
-            VitureProtocol.MSG_DISPLAY -> value in 2..5 || value == XrealModel.NATIVE_60HZ
-            VitureProtocol.MSG_BRIGHTNESS -> value in 0..9
+            VitureProtocol.MSG_DISPLAY -> model.supportsDisplayMode(value)
+            VitureProtocol.MSG_BRIGHTNESS -> value in 0..model.brightnessMax
             VitureProtocol.MSG_FILM -> value in 0..1
             else -> false
         }
@@ -61,12 +63,12 @@ internal class XrealLink internal constructor(
                 channels = connector.connect()
                 connection.set(channels)
                 if (!running) break
-                val control = XrealControl(channels)
+                val control = XrealControl(channels, model = model)
                 listener.onValue(VitureProtocol.MSG_GET_DISPLAY, control.display())
                 val current = channels
                 reports = Thread({
                     try {
-                        var filter = XrealOrientationFilter()
+                        var filter = XrealOrientationFilter(model)
                         var wasTracking = false
                         var lastSensor = System.nanoTime()
                         while (running && connection.get() === current) {
@@ -75,7 +77,7 @@ internal class XrealLink internal constructor(
                             if (sample != null) {
                                 lastSensor = System.nanoTime()
                                 val enabled = tracking
-                                if (enabled && !wasTracking) filter = XrealOrientationFilter()
+                                if (enabled && !wasTracking) filter = XrealOrientationFilter(model)
                                 wasTracking = enabled
                                 if (enabled) filter.update(sample)?.let {
                                     if (running && ready && tracking && connection.get() === current)
@@ -149,7 +151,8 @@ internal class XrealLink internal constructor(
     }
 }
 
-internal class XrealControl(private val channels: XrealChannels, private val settleDelayMs: Long = 150) {
+internal class XrealControl(private val channels: XrealChannels, private val settleDelayMs: Long = 150,
+    private val model: XrealModel = XrealModel.ONE_S) {
     private var transaction = 0
     private fun exchange(command: Int, value: Int? = null): ByteArray {
         transaction = if (transaction == Int.MAX_VALUE) 1 else transaction + 1
@@ -164,10 +167,11 @@ internal class XrealControl(private val channels: XrealChannels, private val set
     }
     fun display(): Int {
         val reply = exchange(XrealProtocol.GET_DISPLAY)
-        return XrealProtocol.numeric(reply)?.takeIf { it in 2..5 || it == XrealModel.NATIVE_60HZ }
+        return XrealProtocol.numeric(reply)?.takeIf(model::supportsDisplayMode)
             ?: throw IOException("Unsupported XREAL display response: ${reply.take(32).joinToString("") { "%02x".format(it) }}")
     }
     fun changeDisplay(mode: Int): Int {
+        require(model.supportsDisplayMode(mode))
         val stereo = mode == 5
         set(XrealProtocol.SET_INPUT, if (stereo) 1 else 0)
         val current = awaitDisplay { (it == 5) == stereo }

@@ -79,7 +79,45 @@ class XrealProtocolTest {
         val reply = byteArrayOf(0x22, 2, 0x10, 0x1d)
         val control = XrealControl(channels(response(0x275e, 1, reply).inputStream(), ByteArrayOutputStream()))
         assertEquals(29, control.display())
-        assertEquals(29, XrealModel.mode(60, false))
+        assertEquals(29, XrealModel.ONE_S.mode(60, false))
+    }
+
+    @Test fun proPlusKeeps1080pModesSeparateFrom1sNative1200p() {
+        val pro = XrealModel.ONE_PRO_PLUS
+        assertEquals(9, pro.mode(60, false))
+        assertEquals(3, pro.mode(90, false))
+        assertEquals(4, pro.mode(120, false))
+        assertEquals(5, pro.mode(120, true))
+        assertFalse(pro.sbs90)
+        assertEquals(listOf(60, 90, 120), pro.rates2d)
+        assertEquals(57f, pro.diagonalFovDeg, 0f)
+        assertEquals(29, XrealModel.ONE_S.mode(60, false))
+        assertEquals(52f, XrealModel.ONE_S.diagonalFovDeg, 0f)
+    }
+
+    @Test fun proPlusRejects1sOnlyDisplayResponsesAndCommands() {
+        for (mode in listOf(2, 29)) {
+            val response = response(XrealProtocol.GET_DISPLAY, 1, byteArrayOf(0x22, 2, 0x10, mode.toByte()))
+            val output = ByteArrayOutputStream()
+            val control = XrealControl(channels(response.inputStream(), output), model = XrealModel.ONE_PRO_PLUS)
+            assertThrows(IOException::class.java) { control.display() }
+            output.reset()
+            assertThrows(IllegalArgumentException::class.java) { control.changeDisplay(mode) }
+            assertEquals(0, output.size())
+        }
+    }
+
+    @Test fun proPlusCanReturnFromStereoToIts1080p60HzMode() {
+        val output = ByteArrayOutputStream()
+        val replies = response(XrealProtocol.SET_INPUT, 1, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.GET_DISPLAY, 2, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.GET_DISPLAY, 3, byteArrayOf(0x22, 2, 0x10, 9))
+        val control = XrealControl(channels(replies.inputStream(), output), 0, XrealModel.ONE_PRO_PLUS)
+        assertEquals(9, control.changeDisplay(XrealModel.ONE_PRO_PLUS.mode(60, false)))
+        val requests = output.toByteArray().inputStream()
+        assertEquals(XrealProtocol.SET_INPUT, XrealProtocol.read(requests).command)
+        repeat(2) { assertEquals(XrealProtocol.GET_DISPLAY, XrealProtocol.read(requests).command) }
+        assertEquals(0, requests.available())
     }
 
     @Test fun stereoWaitsForEdidChangeWithoutSendingASecondModeCommandWhileBusy() {

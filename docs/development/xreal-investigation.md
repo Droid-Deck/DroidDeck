@@ -1,10 +1,14 @@
-# XREAL 1S / One Pro feasibility — 2026-10-14
+# XREAL direct-driver investigation
+
+Experimental native drivers are enabled for XREAL 1S and 1 Pro+. The original
+One Pro remains excluded; it is distinct from 1 Pro+. The dated hardware validation
+sections below record what has actually been verified and what remains pending.
+
+## Initial 1S / One Pro feasibility — 2026-10-14
 
 The user owns XREAL 1S and also wants One Pro support. Supporting these in DroidDeck
 is feasible based on existing open drivers, but the supplied Monado Air driver is
-not their transport. The initial investigation below preceded implementation.
-An experimental native 1S driver is now enabled; see the hardware validation
-section at the end for what has actually been verified.
+not their transport. This initial investigation preceded implementation.
 
 ## Supplied Monado source
 
@@ -240,3 +244,52 @@ extended gameplay stability need hardware validation. One successful view/motion
 check does not establish long-session stability. Users must select Follow mode and disable the glasses' own
 stabilization. Factory calibration and XREAL Eye/6DoF are not implemented.
 One Pro is not enabled or claimed as tested.
+
+## Native 1 Pro+ implementation and hardware validation — 2026-11-13
+
+The attached device identifies as USB `3318:0444`, product `XREAL 1 Pro+`. This exact
+identity enables the experimental 1 Pro+ profile alongside the existing 1S profile.
+The [official specifications](https://tutorials.xreal.com/docs/glasses/pro-plus/specifications/)
+give 1920×1080 per eye and a 57° diagonal field of view. The direct Kotlin driver
+uses the USB-Ethernet control and IMU services; it requires no XREAL SDK or
+ControlGlasses installation and includes no vendor SDK binaries or headers.
+
+Verified on the connected phone and glasses:
+
+| Observation | Result |
+| --- | --- |
+| Control and IMU transport | Individually bound Android Ethernet sockets reach `169.254.2.1:52999` and `:52998` without replacing the default Internet network. |
+| Native display | `GET_DISPLAY` (`0x275e`) returns **9**, with Android reporting **1920×1080 at 60 Hz**. This profile preserves mode 9 for native 60 Hz instead of the 1S's mode 29. |
+| Legacy 60 Hz command | Setting mode **2** is rejected with status **10001**. A rejected command does not count as a successful display switch. |
+| Higher refresh commands | Setting modes **3** and **4** is accepted for the 90/120 Hz compatibility selections. Actual physical refresh through the app still needs verification. |
+| Full SBS | `SET_INPUT` (`0x2822`) with value **1** settles at display mode **5** and Android **3840×1080 at 60 Hz**. Value **0** returns directly to native mode **9**, completing the SBS round trip. |
+| IMU | Type **11** raw sensor reports arrive at approximately **1,000 Hz**, using the existing 128-byte body layout. |
+
+Mode 9 is an observed native display configuration, not a general mapping from
+EDID number to the physical refresh rate selected by every host. The older
+[xr-tools enum](https://github.com/0xcaff/xr-tools/blob/main/packages/xreal_one_driver/src/proto/net/dp_get_current_edid_dsp.rs)
+contains only modes 2–5. The independent
+[one-xr investigation](https://github.com/Skarian/one-xr/blob/main/docs/UNRESOLVED.md)
+also records mode 9 and mode-2 rejection status 10001 on other firmware. This
+supports keeping display mappings per model and confirming output through Android.
+
+The Pro+ profile applies a nominal **−35° rotation around X** to both gyro and
+acceleration before fusion, based on the inspected factory display-to-IMU
+transform. This is a model mounting correction, not a claim of individually
+calibrated tracking. Device calibration data and serial numbers are not stored in
+the repository. Directed yaw, pitch, and roll checks by the wearer remain pending;
+the existing 1S mapping and its earlier wearer validation remain separate.
+
+Brightness remains limited to the known protocol values **0–9**. XREAL's
+[display guide](https://tutorials.xreal.com/docs/glasses/pro-plus/display-sound/)
+documents 14 physical levels in Follow mode with Stabilizer off and 10 in Anchor
+or Spatial Anchor. Those counts do not establish a 0–13 direct-protocol range.
+The wider API mapping, brightness behavior, and dimming still need validation.
+
+Use **Follow** with **Stabilizer off** in the glasses' own menu before using
+DroidDeck tracking, following the official
+[display-mode](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/display-modes/)
+and [Stabilizer](https://tutorials.xreal.com/docs/glasses/pro-plus/spatial-screen/stabilizer-transparency/)
+descriptions. The built-in tracking must not be layered over host tracking.
+XREAL Eye, camera capture, and 6DoF are not implemented. Physical 90/120 Hz output,
+wearer movement, and long-session stability remain outstanding hardware checks.

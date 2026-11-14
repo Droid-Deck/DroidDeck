@@ -306,7 +306,8 @@ class GlassesUsbTest {
         val devices = listOf(device(0x1011), device(0x1019), device(0x1131),
             device(0xaf50, 0x1bbb, "RayNeo Air 4 Pro"),
             device(0xaf50, 0x3941, "RayNeo GT MAX"),
-            device(0x043e, 0x3318, "XREAL 1S"))
+            device(0x043e, 0x3318, "XREAL 1S"),
+            device(0x0444, 0x3318, "XREAL 1 Pro+"))
         try {
             for (device in devices) for (imu in listOf(false, true)) {
                 manager.devices.clear()
@@ -337,13 +338,44 @@ class GlassesUsbTest {
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
-    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
-        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+    @Test fun xrealUsesVerifiedIdentitiesAndExcludesOtherModelsAndRecoveryProducts() {
+        assertEquals(XrealModel.ONE_S, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+        assertEquals(XrealModel.ONE_PRO_PLUS, Glasses.deviceModel(device(0x0444, 0x3318, "XREAL 1 Pro+")))
         assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
-        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
-            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
+        assertTrue(Glasses.isGlassesDisplayName("XREAL 1 Pro+"))
+        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0437, 0x0438, 0x0424, 0xffff)) {
+            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1 Pro+")))
         }
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
+        assertEquals(null, Glasses.deviceModel(device(0x0444, 0x1234, "XREAL 1 Pro+")))
+    }
+
+    @Test fun xrealProPlusUsesEthernetPermissionAndItsOwnOptics() {
+        val pro = device(0x0444, 0x3318, "XREAL 1 Pro+")
+        manager.devices[pro.deviceName] = pro
+        field("linkDevice").set(null, pro)
+        field("link").set(null, object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray) = true
+            override fun close() {}
+        })
+        try {
+            refresh(ask = true)
+            assertEquals("XREAL 1 Pro+", state.value.model)
+            assertEquals(Glasses.Permission.GRANTED, state.value.permission)
+            assertTrue(manager.requests.isEmpty())
+            assertTrue(state.value.canControl)
+            assertTrue(state.value.hardwareControls)
+            assertTrue(state.value.supportsScreen3dof)
+            assertFalse(state.value.supportsSpatial)
+            assertEquals(57f, state.value.diagonalFovDeg, 0f)
+            assertEquals(9, state.value.brightnessMax)
+            assertEquals(0, state.value.volumeMax)
+        } finally {
+            field("link").set(null, null)
+            field("linkDevice").set(null, null)
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+        }
     }
 
     @Test fun rokidMaxRoutesThroughItsOwnModelAndSharedVendorIdNeedsTheName() {

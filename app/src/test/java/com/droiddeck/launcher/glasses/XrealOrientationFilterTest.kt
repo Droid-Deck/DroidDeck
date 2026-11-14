@@ -67,4 +67,76 @@ class XrealOrientationFilterTest {
         val screen = matrix(pose)
         assertTrue(screen[7] > 0.99f)
     }
+
+    @Test fun proPlusMountStartsUprightBeforeRecenter() {
+        val neutral = sample(1000000)
+        val expected = matrix(XrealOrientationFilter().update(neutral)!!)
+        val actual = matrix(XrealOrientationFilter(XrealModel.ONE_PRO_PLUS).update(proPlusSample(neutral))!!)
+        assertArrayEquals(expected, actual, 0.0001f)
+        assertEquals(1f, actual[7], 0.0001f)
+    }
+
+    @Test fun proPlusMountKeepsBothDirectionsOfEveryAxisCorrectThroughBothRecenterModes() {
+        for (axis in listOf("pitch", "yaw", "roll")) for (direction in listOf(-1, 1)) {
+            val ideal = XrealOrientationFilter()
+            val mounted = XrealOrientationFilter(XrealModel.ONE_PRO_PLUS)
+            val initial = sample(1000000)
+            val firstIdeal = matrix(ideal.update(initial)!!)
+            val firstMounted = matrix(mounted.update(proPlusSample(initial))!!)
+            var middleIdeal = firstIdeal
+            var middleMounted = firstMounted
+            var lastIdeal = firstIdeal
+            var lastMounted = firstMounted
+            val rate = direction * (Math.PI / 6).toFloat()
+            repeat(1000) {
+                val angle = rate * (it + 1) / 1000f
+                val accel = when (axis) {
+                    "pitch" -> Vec3(0f, -9.81f * cos(angle), 9.81f * sin(angle))
+                    "yaw" -> Vec3(0f, -9.81f, 0f)
+                    else -> Vec3(-9.81f * sin(angle), -9.81f * cos(angle), 0f)
+                }
+                val gyro = when (axis) {
+                    "pitch" -> Vec3(rate, 0f, 0f)
+                    "yaw" -> Vec3(0f, -rate, 0f)
+                    else -> Vec3(0f, 0f, rate)
+                }
+                val frame = sample((it + 2) * 1000000L, gyro, accel)
+                lastIdeal = matrix(ideal.update(frame)!!)
+                lastMounted = matrix(mounted.update(proPlusSample(frame))!!)
+                if (it == 499) {
+                    middleIdeal = lastIdeal
+                    middleMounted = lastMounted
+                }
+            }
+            for (centerView in listOf(false, true)) {
+                val label = "$axis $direction centerView=$centerView"
+                val idealView = HeadPose.relative(HeadPose.recenter(firstIdeal, centerView), lastIdeal)
+                val mountedView = HeadPose.relative(HeadPose.recenter(firstMounted, centerView), lastMounted)
+                assertArrayEquals(label, axisMatrix(axis, rate), mountedView, 0.002f)
+                assertArrayEquals(label, idealView, mountedView, 0.0001f)
+
+                val idealRecentered = HeadPose.relative(HeadPose.recenter(middleIdeal, centerView), lastIdeal)
+                val mountedRecentered = HeadPose.relative(HeadPose.recenter(middleMounted, centerView), lastMounted)
+                val recenteredAngle = if (centerView || axis == "yaw") rate / 2 else rate
+                assertArrayEquals("$label after mid-turn recenter", axisMatrix(axis, recenteredAngle), mountedRecentered, 0.002f)
+                assertArrayEquals("$label after mid-turn recenter", idealRecentered, mountedRecentered, 0.0001f)
+            }
+        }
+    }
+
+    private fun proPlusSample(sample: XrealProtocol.Sample): XrealProtocol.Sample {
+        val angle = Math.toRadians(35.0).toFloat()
+        fun mounted(v: Vec3) = Vec3(v.x, cos(angle) * v.y - sin(angle) * v.z, sin(angle) * v.y + cos(angle) * v.z)
+        return XrealProtocol.Sample(sample.timeNs, mounted(sample.gyro), mounted(sample.accel))
+    }
+
+    private fun axisMatrix(axis: String, angle: Float): FloatArray {
+        val c = cos(angle)
+        val s = sin(angle)
+        return when (axis) {
+            "pitch" -> floatArrayOf(1f, 0f, 0f, 0f, c, -s, 0f, s, c)
+            "yaw" -> floatArrayOf(c, 0f, s, 0f, 1f, 0f, -s, 0f, c)
+            else -> floatArrayOf(c, s, 0f, -s, c, 0f, 0f, 0f, 1f)
+        }
+    }
 }
