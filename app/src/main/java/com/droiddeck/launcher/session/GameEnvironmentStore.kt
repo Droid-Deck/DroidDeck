@@ -80,6 +80,13 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameResolution(context: Context, scope: String, choice: com.droiddeck.launcher.core.GameResolution.Choice?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameResolution(read(context), scope, choice)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun setDefault(context: Context, scope: String, name: String, value: String): Boolean {
         val config = read(context)
         if (GameEnvironment.hasOverride(config, scope, name)) return false

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Профили ввода</string>
+    <string name="input_profiles">Профили</string>
+    <string name="input_physical">Физический контроллер</string>
+    <string name="input_primary">Основной экран</string>
+    <string name="input_secondary">Второй экран</string>
+    <string name="input_native">Собственный / Steam Input</string>
+    <string name="input_native_target">Собственный: %1$s</string>
+    <string name="input_remap_native">Отправить другую команду контроллера</string>
+    <string name="input_disabled">Отключено</string>
+    <string name="input_keys">Клавиша или сочетание клавиш</string>
+    <string name="input_direction_keys">Клавиши направлений</string>
+    <string name="input_pointer">Двигать указатель</string>
+    <string name="input_pointer_speed">Скорость указателя: %1$d</string>
+    <string name="input_scroll">Прокрутка</string>
+    <string name="input_scroll_vertical">Прокрутка по вертикали</string>
+    <string name="input_mouse_left">Левая кнопка мыши</string>
+    <string name="input_mouse_right">Правая кнопка мыши</string>
+    <string name="input_mouse_middle">Средняя кнопка мыши</string>
+    <string name="input_command_menu">Открыть меню DroidDeck</string>
+    <string name="input_command_keyboard">Показать клавиатуру</string>
+    <string name="input_command_steam">Открыть меню Steam</string>
+    <string name="input_command_qam">Открыть быстрый доступ Steam</string>
+    <string name="input_remove_element">Удалить элемент</string>
+    <string name="input_add_element">Добавить элемент</string>
+    <string name="input_extra_keys">Кнопки конкретного устройства</string>
+    <string name="input_capture">Назначить физическую кнопку</string>
+    <string name="input_capture_confirm">Отпустите кнопку и выберите «Изменить», «Повторить» или «Отмена». B или «Назад» отменяет после отпускания.</string>
+    <string name="input_capture_retry">Повторить</string>
+    <string name="input_capture_hint">Нажмите кнопку, в том числе «Назад», если она передаётся как клавиша. Клавиши громкости и системные клавиши Android зарезервированы. Назначение действует только на этом устройстве.</string>
+    <string name="input_remove_binding">Удалить назначение</string>
+    <string name="input_latency">Диагностика ввода</string>
+    <string name="input_measure">Записывать время отправки ввода</string>
+    <string name="input_read_timing">Прочитать измерения</string>
+    <string name="input_latency_hint">Измеряет путь от диспетчеризации Android до публикации в существующем транспорте ввода. Не учитывает приход по Bluetooth, опрос гостя, отрисовку и задержку экрана. Запись по умолчанию выключена.</string>
+    <string name="input_normal_binding">Использовать обычное назначение ввода</string>
+</resources>

@@ -433,6 +433,13 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
         CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
         save_step ubisoft "${upc_key}" "${upc_out}"
     fi
+    rockstar_out="${repo_root}/app/src/main/resources/rockstar/helpers"
+    rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
+    if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
+        command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        save_step rockstar "${rockstar_key}" "${rockstar_out}"
+    fi
 fi
 python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
