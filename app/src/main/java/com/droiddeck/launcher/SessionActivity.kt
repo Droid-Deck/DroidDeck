@@ -5307,14 +5307,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         if (CompositorHost.isStarted) {
-            // Restore the running game's profile to the live output.
             syncActiveScreenEffectsProfile()
         } else if (screenEffectsTarget == SCREEN_EFFECTS_TARGET_AUTO) {
             effects = SessionPrefs.screenEffects(this, observedScreenEffectsProfileId)
             upscaler = SessionPrefs.screenEffectsUpscaler(this, observedScreenEffectsProfileId)
         }
-
-        // Keep the selected editor profile separate from the live output.
         if (screenEffectsTarget != SCREEN_EFFECTS_TARGET_AUTO) {
             val editorProfileId = screenEffectsProfileIdForTarget(screenEffectsTarget)
             effects = SessionPrefs.screenEffects(this, editorProfileId)
