@@ -2,10 +2,16 @@
 import json
 import os
 import re
+import runpy
 import shutil
 import sys
 import time
 from pathlib import Path
+
+PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
+PE_MACHINES = PE["PE_MACHINES"]
+pe_machine = PE["pe_machine"]
+machine_compatible = PE["machine_compatible"]
 
 STORE = Path("/opt/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
@@ -473,6 +479,15 @@ def save_state(compat, state):
     os.replace(temp, compat / STATE)
 
 
+def foreign_component(rel, path, machines):
+    parts = Path(rel).parts
+    folder = parts[2] if len(parts) > 2 and parts[:2] == ("drive_c", "windows") else None
+    if not machines or folder not in PE_MACHINES or not rel.lower().endswith(".dll"):
+        return False
+    machine = pe_machine(path)
+    return machine is not None and not machine_compatible(path, machines[folder][1], machine)
+
+
 def pending_for(app_id, pending=PENDING):
     try:
         with open(pending, encoding="utf-8") as source:
@@ -514,7 +529,8 @@ def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT,
     return "wincomp: %s waited %dms for %s" % (app_id, waited, ",".join(asked))
 
 
-def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
+def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending,
+          proton=None, env=None):
     compat = Path(compat_path)
     pfx = compat / "pfx"
     waited = wait(app_id, pending, store) if wait else None
@@ -527,6 +543,9 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     installed = []
     values = []
     held = set()
+    skipped = set()
+    placed_stems = set()
+    machines = PE["proton_pe_machines"](proton, env) if proton else None
     saved_overrides = state.get("overrides") if isinstance(state.get("overrides"), dict) else {}
     saved_requires = state.get("requires") if isinstance(state.get("requires"), dict) else {}
     recorded = [c for c in state.get("components", []) if isinstance(c, str) and valid_id(c)]
@@ -566,9 +585,17 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             kept_requires[cid] = list(requires)
         values += [(cid, value) for value in registry]
         for rel, src in files:
-            if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
+            foreign = foreign_component(rel, src, machines)
+            if foreign:
+                skipped.add(Path(rel).stem.lower())
+                changed = False
+            else:
+                changed = place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel)
+                placed_stems.add(Path(rel).stem.lower())
+            if changed:
                 copied += 1
-            keep[rel] = cid
+            if not foreign:
+                keep[rel] = cid
     removed = restored = 0
     for rel, cid in state["files"].items():
         if rel in keep:
@@ -579,6 +606,10 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
         path = existing(pfx / rel)
         saved = compat / BACKUP / rel
         if saved.is_file():
+            if foreign_component(rel, saved, machines):
+                if path is not None and not path.is_symlink():
+                    path.unlink()
+                continue
             target = path or (pfx / rel)
             os.replace(saved, target)
             restored += 1
@@ -590,6 +621,14 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             (compat / "config_info").unlink()
         except FileNotFoundError:
             pass
+    def override_name(entry):
+        name = entry.partition("=")[0].strip().lower()
+        return name[:-4] if name.endswith(".dll") else name
+
+    dropped = skipped - placed_stems
+    overrides = [entry for entry in overrides if override_name(entry) not in dropped]
+    for cid in kept_overrides:
+        kept_overrides[cid] = [entry for entry in kept_overrides[cid] if override_name(entry) not in dropped]
     compat.mkdir(parents=True, exist_ok=True)
     new_state = {"files": keep, "components": installed + sorted(held), "overrides": kept_overrides,
                  "requires": kept_requires, "registry": state.get("registry", {})}

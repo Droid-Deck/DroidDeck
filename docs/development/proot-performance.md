@@ -204,7 +204,7 @@ call can be answered in-process with the 0014 design.
 | syscalls | why proot traps them | can it bypass proot? |
 |---|---|---|
 | `openat`/`open`/`creat`, `newfstatat`/`stat`/`lstat`, `statx`, `faccessat`/`access`, `readlinkat` (exit), `mkdirat`, `unlinkat`, `renameat(2)`, `symlinkat`, `linkat`, `fchmodat`, `fchownat`, `utimensat`, `truncate`, `*xattr`, `inotify_add_watch`, `name_to_handle_at` | path translation (guest → host), plus exit fixups for `readlink` and `rename` | **Yes, through libc wrappers.** The prototype covers open, stat, statx, access, readlink, opendir and fopen; the write family is next. Raw `svc` and glibc's internal callers (ld.so, fts, realpath, nss) still go to proot. |
-| `chdir`/`fchdir`, `getcwd` (exit) | proot emulates the cwd; until 0014 the kernel's cwd never moved | With 0014 the kernel's cwd follows the guest's. `getcwd` stays in proot (cheap, rare). |
+| `chdir`/`fchdir`, `getcwd` (exit) | proot emulates the cwd; until 0014 the kernel's cwd never moved | With 0014 the kernel's cwd follows the guest's. With 0028 `fchdir` takes the path of the open directory from `/proc/<pid>/fd` instead of walking it again. `getcwd` stays in proot (cheap, rare). |
 | `execve`/`execveat` | runs the loader, maps `PT_INTERP` inside the rootfs, shebangs, tracks `/proc/self/exe` | **No.** This is the core of what proot is for. Costs 0.4–0.8 ms per exec; the session scripts already avoid exec-heavy loops (`nap`). |
 | `brk` (entry and exit) | heap emulation: programs are mapped by proot's loader, so the kernel's brk area is the loader's | No (`PR_SET_MM` needs `CAP_SYS_RESOURCE`). **Fewer calls:** `GLIBC_TUNABLES=glibc.malloc.top_pad=…` grows the heap in larger steps. |
 | `bind`, `connect`, `accept(4)`, `getsockname`, `getpeername` | `sun_path` of Unix sockets | Same-path binds (runtime dir, files dir) need no translation, but the filter can't see the address. Possible fast-path candidate. |
@@ -325,7 +325,7 @@ or repeatedly hit a path the wrappers cannot resolve.
 
 ### Opt-in tracer profiling
 
-With **Setup > Diagnostics > Debugging tools** enabled, queue profiling for one session:
+With **Setup > Developer > Debugging tools** enabled, queue profiling for one session:
 
 ```sh
 tools/droiddeckctl proot-profile enable --slow-us 1000

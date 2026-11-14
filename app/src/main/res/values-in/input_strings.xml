@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profil input</string>
+    <string name="input_profiles">Profil</string>
+    <string name="input_physical">Pengontrol fisik</string>
+    <string name="input_primary">Layar utama</string>
+    <string name="input_secondary">Layar sekunder</string>
+    <string name="input_native">Asli / Steam Input</string>
+    <string name="input_native_target">Asli: %1$s</string>
+    <string name="input_remap_native">Kirim kontrol pengontrol lain</string>
+    <string name="input_disabled">Dinonaktifkan</string>
+    <string name="input_keys">Tombol atau kombinasi tombol</string>
+    <string name="input_direction_keys">Tombol arah</string>
+    <string name="input_pointer">Gerakkan penunjuk</string>
+    <string name="input_pointer_speed">Kecepatan penunjuk: %1$d</string>
+    <string name="input_scroll">Gulir</string>
+    <string name="input_scroll_vertical">Gulir vertikal</string>
+    <string name="input_mouse_left">Tombol kiri mouse</string>
+    <string name="input_mouse_right">Tombol kanan mouse</string>
+    <string name="input_mouse_middle">Tombol tengah mouse</string>
+    <string name="input_command_menu">Buka menu DroidDeck</string>
+    <string name="input_command_keyboard">Tampilkan keyboard</string>
+    <string name="input_command_steam">Buka menu Steam</string>
+    <string name="input_command_qam">Buka akses cepat Steam</string>
+    <string name="input_remove_element">Hapus kontrol</string>
+    <string name="input_add_element">Tambah kontrol</string>
+    <string name="input_extra_keys">Tombol khusus perangkat</string>
+    <string name="input_capture">Tetapkan tombol fisik</string>
+    <string name="input_capture_confirm">Lepaskan tombol, lalu pilih Edit, Coba lagi, atau Batal. B atau Kembali membatalkan setelah dilepas.</string>
+    <string name="input_capture_retry">Coba lagi</string>
+    <string name="input_capture_hint">Tekan tombol, termasuk tombol Kembali yang dilaporkan sebagai tombol keyboard. Tombol volume dan sistem Android dicadangkan. Penetapan hanya berlaku untuk perangkat ini.</string>
+    <string name="input_remove_binding">Hapus penetapan</string>
+    <string name="input_latency">Diagnostik input</string>
+    <string name="input_measure">Catat waktu pengiriman input</string>
+    <string name="input_read_timing">Baca pengukuran</string>
+    <string name="input_latency_hint">Mengukur pengiriman dari Android hingga publikasi ke transport input yang ada. Tidak termasuk kedatangan Bluetooth, polling tamu, rendering, dan latensi layar. Perekaman mati secara default.</string>
+    <string name="input_normal_binding">Gunakan penetapan input normal</string>
+</resources>
