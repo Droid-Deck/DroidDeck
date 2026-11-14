@@ -86,6 +86,7 @@ bl_run() {
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
   fi
   if [ -n "${BL_STORE_EXIT:-}" ]; then
+    trap : INT TERM HUP
     "$@"
     rc=$?
     /usr/local/bin/droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}" || true

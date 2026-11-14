@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from test_store_launch import store
+from test_store_launch import game, store
 
 
 class RockstarLaunch(unittest.TestCase):
@@ -181,6 +181,70 @@ class RockstarLaunch(unittest.TestCase):
             self.assertEqual('invalid-game-path', result)
             self.assertEqual([], requests)
             self.assertFalse(config.exists())
+
+    def test_each_launch_starts_a_fresh_launcher_log(self):
+        with tempfile.TemporaryDirectory() as root:
+            stale = []
+
+            def ask(channel, request, timeout):
+                stale.append((config.parent / 'launcher.log').exists())
+                return answer
+
+            folder, sidecar, prefix, service, answer = self.setup_game(root)
+            config = prefix / 'pfx' / store.ROCKSTAR_FOLDER / 'launch.json'
+            config.parent.mkdir(parents=True)
+            (config.parent / 'launcher.log').write_bytes(b'x' * 70000)
+            with patch.object(store, 'ROCKSTAR_SERVICE', service), patch.object(store, 'rockstar_registry', return_value=True):
+                result = store.prepare_rockstar(folder, sidecar, str(prefix), str(Path(root) / 'channel'), ask_app=ask)
+            self.assertEqual('ready', result)
+            self.assertEqual([False], stale)
+
+    def exit_game(self, root, store_id, log_text=None, link=None):
+        folder = game(root, store_id=store_id, ident='gta5')
+        prefix = Path(root) / 'prefix'
+        target = prefix / 'pfx' / store.ROCKSTAR_FOLDER
+        target.mkdir(parents=True)
+        if log_text is not None:
+            (target / 'launcher.log').write_text(log_text)
+        if link is not None:
+            (target / 'launcher.log').symlink_to(link)
+        lines = []
+        with patch.dict(os.environ, {'BL_LAUNCH_DIR': str(Path(root) / 'session'), 'STEAM_COMPAT_DATA_PATH': str(prefix)}), \
+                patch.object(store, 'ask', return_value={'ok': True}), patch.object(store, 'log', lines.append):
+            self.assertEqual(0, store.main(['--exited', str(folder / '.droiddeck-launch.bat')]))
+        return lines, target / 'launcher.log'
+
+    def test_launcher_log_reaches_the_session_log_when_the_game_exits(self):
+        with tempfile.TemporaryDirectory() as root:
+            text = 'launch handoff accepted\r\nlauncher pipes created, identity: none\r\n\r\ngame exited with code 0\r\n'
+            lines, path = self.exit_game(root, 'rockstar', log_text=text)
+            self.assertEqual(['rockstar launcher: launch handoff accepted',
+                              'rockstar launcher: launcher pipes created, identity: none',
+                              'rockstar launcher: game exited with code 0'], lines)
+            self.assertFalse(path.exists())
+
+    def test_launcher_log_relay_does_not_follow_links(self):
+        with tempfile.TemporaryDirectory() as root:
+            outside = Path(root) / 'outside.txt'
+            outside.write_text('private\n')
+            lines, path = self.exit_game(root, 'rockstar', link=outside)
+            self.assertEqual([], lines)
+            self.assertTrue(path.is_symlink())
+            self.assertEqual('private\n', outside.read_text())
+
+    def test_other_stores_do_not_relay_the_launcher_log(self):
+        with tempfile.TemporaryDirectory() as root:
+            lines, path = self.exit_game(root, 'gog', log_text='launch handoff accepted\n')
+            self.assertFalse(any(line.startswith('rockstar launcher:') for line in lines))
+            self.assertTrue(path.exists())
+
+    def test_relay_is_bounded(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root) / 'prefix'
+            target = prefix / 'pfx' / store.ROCKSTAR_FOLDER
+            target.mkdir(parents=True)
+            (target / 'launcher.log').write_text('a' * 10 + '\n' + 'b' * 100 + '\n')
+            self.assertEqual(['a' * 10, 'b' * 5], store.rockstar_launcher_log(str(prefix), limit=16))
 
     def test_writes_both_registry_views_and_escapes_values(self):
         with tempfile.TemporaryDirectory() as root:

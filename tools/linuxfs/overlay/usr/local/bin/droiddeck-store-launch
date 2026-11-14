@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import sys
 import time
 import subprocess
@@ -291,6 +292,8 @@ def exited(argv, code=0):
         compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH")
         if compat_data:
             (Path(compat_data) / "pfx" / ROCKSTAR_FOLDER / "launch.json").unlink(missing_ok=True)
+            for line in rockstar_launcher_log(compat_data):
+                log("rockstar launcher: " + line)
         return 0
     if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
             and os.access(EPIC_CLIENT, os.X_OK):
@@ -317,6 +320,29 @@ ROCKSTAR_SERVICE = Path("/usr/local/lib/droiddeck-rockstar")
 ROCKSTAR_FOLDER = "drive_c/Program Files/Rockstar Games/Launcher"
 ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas",
                    "gta4": "Grand Theft Auto IV", "lanoire": "LANoireMTL"}
+
+
+def rockstar_launcher_log(compat_data, limit=65536):
+    pfx = Path(compat_data) / "pfx"
+    target = pfx / ROCKSTAR_FOLDER
+    if not target.resolve().is_relative_to(pfx.resolve()):
+        return []
+    path = target / "launcher.log"
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return []
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return []
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            data = source.read(limit)
+        path.unlink(missing_ok=True)
+    except OSError:
+        return []
+    finally:
+        os.close(descriptor)
+    return [line.strip() for line in data.decode("utf-8", "replace").splitlines() if line.strip()]
 
 
 def rockstar_sdk(folder, sidecar):
@@ -454,6 +480,7 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
         return "invalid-service-path"
     config = target / "launch.json"
     config.unlink(missing_ok=True)
+    (target / "launcher.log").unlink(missing_ok=True)
     legacy = str(sidecar.get("id")) in ROCKSTAR_TITLES
     sdk = rockstar_sdk(folder, sidecar)
     title = ROCKSTAR_TITLES.get(str(sidecar.get("id")))
