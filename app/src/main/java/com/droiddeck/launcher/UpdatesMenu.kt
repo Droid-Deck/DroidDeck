@@ -44,6 +44,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                 .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
         },
         onDismissPermission = { askPermission = false; pending = null },
+        onSeen = { r -> UpdateWatch.seen(activity, r) },
     )
 
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
@@ -71,7 +72,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                     catalog = it
                     follow = AppUpdates.follow(activity, it)
                     error = null
-                    if (follow.channel == AppUpdates.Channel.TEST) AppUpdates.release(it, follow)?.let { r -> UpdateWatch.seen(activity, r) }
                 }.onFailure { if (force) error = activity.getString(R.string.upd_couldnt_check, it.message ?: it.javaClass.simpleName) }
             }
         }, "app-updates").start()

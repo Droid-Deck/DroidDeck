@@ -55,6 +55,8 @@ object AppUpdates {
         val mergedPr: Int = 0,
         /** The PR's newest commit when the catalog was made; differs from [commit] while a rebuild is pending. */
         val headCommit: String = "",
+        /** When the APK itself was uploaded; release-note edits leave it unchanged. */
+        val builtAt: Long = 0L,
     ) {
         val linkedPr: Int get() = if (pr > 0) pr else mergedPr
         val shortCommit: String get() = commit.take(7)
@@ -201,7 +203,9 @@ object AppUpdates {
 
     /** How many Preview builds landed on main after this test build was made. */
     fun previewsSince(catalog: Catalog, test: Release): Int =
-        catalog.previews.count { (it.committedAt.takeIf { at -> at > 0 } ?: it.publishedAt) > test.publishedAt }
+        catalog.previews.count {
+            (it.committedAt.takeIf { at -> at > 0 } ?: it.publishedAt) > (test.builtAt.takeIf { at -> at > 0 } ?: test.publishedAt)
+        }
 
     fun installable(r: Release, me: Installed = installed()): Boolean =
         me.updatable && installBlock(r, me) == null && !isRunning(r, me)
@@ -274,7 +278,8 @@ object AppUpdates {
         if (stable != null && isRunning(stable, me)) return Guess(Follow(Channel.STABLE), true)
         val publishedPreview = catalog != null && me.updatable && (
             catalog.preview?.let { isRunning(it, me) } == true ||
-                catalog.recentPreviews.any { matchesInstalledCommit(it.commit, me.commit) }
+                catalog.recentPreviews.any { matchesInstalledCommit(it.commit, me.commit) } ||
+                catalog.previewBuilds.any { matchesInstalledCommit(it.commit, me.commit) }
             )
         if (stable?.version?.let { compareVersions(me.version, it) < 0 } == true) return Guess(Follow(Channel.STABLE), !publishedPreview)
         return Guess(Follow(if (publishedPreview) Channel.NIGHTLY else Channel.STABLE), false)
@@ -385,6 +390,7 @@ object AppUpdates {
             o.optLong("committedAt"),
             o.optInt("mergedPr").coerceAtLeast(0),
             o.optString("headCommit").takeIf { Regex("^[0-9a-fA-F]{7,40}$").matches(it) }.orEmpty(),
+            o.optLong("builtAt"),
         )
     }
 
@@ -487,6 +493,7 @@ object AppUpdates {
         .put("committedAt", r.committedAt)
         .put("mergedPr", r.mergedPr)
         .put("headCommit", r.headCommit)
+        .put("builtAt", r.builtAt)
 
     private fun readCachedRelease(o: JSONObject): Release = Release(
         o.getString("tag"),
@@ -513,6 +520,7 @@ object AppUpdates {
         o.optLong("committedAt"),
         o.optInt("mergedPr"),
         o.optString("headCommit"),
+        o.optLong("builtAt"),
     )
 
     internal fun writeCatalog(c: Catalog): JSONObject = JSONObject()

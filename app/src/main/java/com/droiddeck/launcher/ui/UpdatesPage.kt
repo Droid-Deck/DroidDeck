@@ -97,6 +97,7 @@ class UpdatesActions(
     val onInstall: (Release) -> Unit = {},
     val onAllowInstalls: () -> Unit = {},
     val onDismissPermission: () -> Unit = {},
+    val onSeen: (Release) -> Unit = {},
 )
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -208,6 +209,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
             ReleaseFacts(release)
         }
         if (release != null && u.follow.channel == Channel.TEST && catalog != null) {
+            androidx.compose.runtime.LaunchedEffect(release.tag, release.commit, release.apk?.sha256) { ua.onSeen(release) }
             if (!offered) ReleaseFacts(release)
             TestFreshness(catalog, release)
         }
@@ -298,7 +300,7 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: B
     val catalog = u.catalog
     val tests = catalog?.tests.orEmpty()
     val me = remember { AppUpdates.installed() }
-    val ready = tests.count { it.versionCode >= me.versionCode }
+    val ready = tests.count { AppUpdates.installBlock(it, me) == null }
     var showTests by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ChannelCard(
@@ -524,7 +526,7 @@ private fun TestList(tests: List<Release>, me: AppUpdates.Installed, u: UpdatesS
     val followedOld = u.follow.channel == Channel.TEST && old.any { it.pr == u.follow.pr }
     var showOld by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (tests.size > 5) AdbTextField(
+        if (tests.size > 5 || query.isNotEmpty()) AdbTextField(
             value = query, onValueChange = { query = it }, label = stringResource(R.string.upd_tests_find),
             keyboardType = KeyboardType.Text, imeAction = ImeAction.Search, compact = true, showLabel = false,
             placeholder = stringResource(R.string.upd_tests_find), modifier = Modifier.fillMaxWidth(),
@@ -609,7 +611,7 @@ private fun TestRow(t: Release, selected: Boolean, tooOld: Boolean = false, onCl
             val detail = when {
                 t.apk == null -> stringResource(R.string.upd_not_built)
                 tooOld -> stringResource(R.string.upd_tests_old_row, t.versionCode)
-                else -> stringResource(R.string.upd_updated, ago(t.publishedAt))
+                else -> stringResource(R.string.upd_updated, ago(t.builtAt.takeIf { it > 0 } ?: t.publishedAt))
             }
             Text(
                 listOfNotNull(detail, t.author.takeIf { it.isNotEmpty() }?.let { "@$it" }, t.shortCommit).joinToString(" · "),

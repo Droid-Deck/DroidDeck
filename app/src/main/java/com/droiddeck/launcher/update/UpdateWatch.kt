@@ -51,26 +51,30 @@ class UpdateWatch : JobService() {
         }
 
         fun seen(context: Context, release: AppUpdates.Release) {
-            prefs(context).edit().putString(KEY_SEEN, "${release.pr}:${release.commit}").apply()
+            prefs(context).edit().putString(KEY_SEEN, key(release)).apply()
         }
+
+        private fun key(r: AppUpdates.Release) = "${r.pr}:${r.commit}:${r.versionCode}:${r.apk?.sha256.orEmpty()}"
+
 
         internal fun check(context: Context) {
             val catalog = AppUpdates.refresh(context)
             val follow = AppUpdates.follow(context, catalog)
             if (follow.channel != AppUpdates.Channel.TEST) return
             val release = AppUpdates.release(catalog, follow) ?: return
-            val key = "${release.pr}:${release.commit}"
-            if (prefs(context).getString(KEY_SEEN, null) == key) return
+            if (prefs(context).getString(KEY_SEEN, null) == key(release)) return
             if (!AppUpdates.hasUpdate(catalog, follow)) return
-            seen(context, release)
-            post(context, release)
+            if (post(context, release)) seen(context, release)
         }
 
-        private fun post(context: Context, release: AppUpdates.Release) {
-            val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        private fun post(context: Context, release: AppUpdates.Release): Boolean {
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return false
             manager.createNotificationChannel(
                 NotificationChannel(CHANNEL_ID, context.getString(R.string.upd_watch_channel), NotificationManager.IMPORTANCE_DEFAULT),
             )
+            if (!manager.areNotificationsEnabled() ||
+                manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE
+            ) return false
             val open = PendingIntent.getActivity(
                 context, NOTIFICATION_ID,
                 Intent(context, FrontEndActivity::class.java).putExtra(StoreDownloadService.EXTRA_NAV, "updates")
@@ -86,7 +90,7 @@ class UpdateWatch : JobService() {
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .build()
-            runCatching { manager.notify(NOTIFICATION_ID, notification) }
+            return runCatching { manager.notify(NOTIFICATION_ID, notification) }.isSuccess
         }
 
         private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

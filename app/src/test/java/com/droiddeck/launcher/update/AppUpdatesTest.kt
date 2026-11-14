@@ -405,6 +405,8 @@ class AppUpdatesTest {
         val current = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 9, 150L, "", apk(), headCommit = "abcdef1234")
         assertFalse(current.newerCommitPushed)
         assertEquals(2, AppUpdates.previewsSince(withHistory, test))
+        val rebuilt = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 9, 150L, "", apk(), builtAt = 250L)
+        assertEquals(1, AppUpdates.previewsSince(withHistory, rebuilt))
     }
 
     @Test

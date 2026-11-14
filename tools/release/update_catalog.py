@@ -458,6 +458,11 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
                 extra={
                     "author": (pull.get("user") or {}).get("login") or "",
                     "headCommit": (pull.get("head") or {}).get("sha") or "",
+                    "builtAt": max(
+                        (iso_millis(a.get("updated_at") or a.get("created_at"))
+                         for a in release.get("assets") or [] if (a.get("name") or "").endswith(".apk")),
+                        default=0,
+                    ),
                 },
             )
         )

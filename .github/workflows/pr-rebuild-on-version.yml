@@ -10,6 +10,7 @@ on:
 permissions:
   actions: write
   contents: read
+  issues: write
   pull-requests: read
 
 concurrency:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   rebuild:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +44,15 @@ jobs:
               exit 0
             fi
           fi
+          # A build that pinned main before this change still carries the old versionCode.
+          bumped=$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&path=app/build.gradle&per_page=1" --jq '.[0].commit.committer.date')
+          note() {
+            local number=$1
+            local marker="<!-- droiddeck-rebuild-$now -->"
+            gh api "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" --jq '.[].body' | grep -qF "$marker" && return 0
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" -f body="$marker
+          Main is now at versionCode $now, so this PR's test build no longer installs over current DroidDeck, and its last build is too old for GitHub to re-run. Push a commit or merge main to get a new test build." >/dev/null
+          }
           gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
             --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [.tag_name, ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv' |
             while IFS=$'\t' read -r tag built; do
@@ -51,21 +61,32 @@ jobs:
               pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number") || continue
               jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
               head=$(jq -r .head.sha <<<"$pr")
-              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=20" \
-                --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status] | @tsv')
+              runs="repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=20"
+              latest() { gh api "$runs" --jq '[.workflow_runs[] | select(.head_sha == "'"$head"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at] | @tsv'; }
+              run=$(latest)
               if [ -z "$run" ]; then
                 echo "PR #$number: no build of ${head:0:7} to rerun"
                 continue
               fi
-              id=${run%%$'\t'*}
-              status=${run##*$'\t'}
+              IFS=$'\t' read -r id status started <<<"$run"
+              for _ in $(seq 1 90); do
+                [ "$status" = completed ] && break
+                echo "PR #$number: waiting for build $id ($status)"
+                sleep 60
+                IFS=$'\t' read -r id status started <<<"$(latest)"
+              done
               if [ "$status" != completed ]; then
-                echo "PR #$number: build $id is $status"
+                echo "::warning::PR #$number: build $id did not finish"
+                continue
+              fi
+              if [[ "$started" > "$bumped" ]]; then
+                echo "PR #$number: build $id started after the bump"
                 continue
               fi
               if gh run rerun "$id" -R "$GITHUB_REPOSITORY"; then
                 echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
               else
                 echo "::warning::PR #$number: could not rerun build $id"
+                note "$number" || echo "::warning::PR #$number: could not leave a note"
               fi
             done
