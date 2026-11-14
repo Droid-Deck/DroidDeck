@@ -74,9 +74,20 @@ jobs:
             fi
           }
           pending=()
-          while IFS=$'\t' read -r tag built; do
-            [ "$built" -lt "$now" ] || continue
-            number=${tag#pr-}
+          declare -A seen=()
+          candidates() {
+            gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
+              --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [(.tag_name | ltrimstr("pr-")), ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv'
+            # A build already running may have pinned main from before the bump, including a PR's first build.
+            for status in in_progress queued; do
+              gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&status=$status&per_page=100" \
+                --jq '.workflow_runs[] | select(.pull_requests[0] != null and (.run_started_at // .created_at) < "'"$bumped"'") | [(.pull_requests[0].number | tostring), "?"] | @tsv'
+            done
+          }
+          while IFS=$'\t' read -r number built; do
+            [ "$built" = "?" ] || [ "$built" -lt "$now" ] || continue
+            [ -z "${seen[$number]:-}" ] || continue
+            seen[$number]=1
             pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number") || continue
             jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null || continue
             head=$(jq -r .head.sha <<<"$pr")
@@ -88,8 +99,7 @@ jobs:
             else
               pending+=("$number $head $built")
             fi
-          done < <(gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
-            --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [.tag_name, ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv')
+          done < <(candidates)
           # Builds still running are polled together so one slow build cannot hold up the rest.
           deadline=$((SECONDS + 150 * 60))
           while [ ${#pending[@]} -gt 0 ] && [ "$SECONDS" -lt "$deadline" ]; do
