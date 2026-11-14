@@ -121,6 +121,7 @@ step() { :; }
 bl_zram_scan() { :; }
 bl_memory_read() { :; }
 bl_client_pressure() { :; }
+bl_client_pressure_finish() { :; }
 bl_session_pressure() { :; }
 bl_client_can_pageout() { return 0; }
 bl_client_can_readback() { [ "${readback:-1}" = 1 ]; }
