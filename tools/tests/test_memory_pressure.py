@@ -293,6 +293,15 @@ SECONDS=0; bl_session_pressure
 SECONDS=30; bl_session_pressure
 '''))
 
+    def test_a_no_gain_pass_still_skips_memory_the_game_read_back(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:session'], self.run_policy('''
+available_after=512
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
+'''))
+
     def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):
         self.memory(available=512)
         self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
