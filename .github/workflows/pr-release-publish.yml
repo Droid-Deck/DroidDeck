@@ -226,6 +226,8 @@ jobs:
   publish:
     needs: [authorize, sign]
     runs-on: ubuntu-24.04
+    outputs:
+      keep: ${{ steps.publish.outputs.keep }}
     permissions:
       actions: read
       contents: read
@@ -322,12 +324,8 @@ jobs:
           cp pr-packs/* signed/ 2>/dev/null || true
           gh release upload "$tag" signed/* -R "$repo" --clobber
           gh release edit "$tag" -R "$repo" --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
-          keep=$(cd signed && ls | jq -R . | jq -sc .)
-          gh api "repos/$repo/releases/tags/$tag" |
-            jq -r --argjson keep "$keep" '.assets[] | select(.name as $n | $keep | index($n) | not) | .id' |
-            while IFS= read -r id; do
-              gh api --method DELETE "repos/$repo/releases/assets/$id" >/dev/null
-            done
+          # The previous push's files stay until the catalog names these (the prune job), so a download started from the old catalog still finds its APK.
+          echo "keep=$(cd signed && ls | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
 
           published=$(gh release view "$tag" -R "$repo" --json tagName,assets)
           jq -e --arg tag "$tag" '.tagName == $tag and (.assets | length) > 0' <<<"$published" >/dev/null
@@ -417,3 +415,33 @@ jobs:
     if: ${{ always() && needs.publish.result != 'skipped' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit
+
+  prune:
+    needs: [authorize, publish, catalog]
+    if: ${{ always() && needs.publish.result == 'success' && needs.catalog.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Remove the previous push's files
+        env:
+          GH_TOKEN: ${{ steps.ci-token.outputs.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          KEEP: ${{ needs.publish.outputs.keep }}
+        run: |
+          set -euo pipefail
+          repo=Droid-Deck/DroidDeck-CI
+          tag="pr-$PR_NUMBER"
+          # An app that read the catalog just before it changed may still be starting that download.
+          sleep 300
+          gh api "repos/$repo/releases/tags/$tag" |
+            jq -r --argjson keep "$KEEP" '.assets[] | select(.name as $n | $keep | index($n) | not) | .id' |
+            while IFS= read -r id; do
+              gh api --method DELETE "repos/$repo/releases/assets/$id" >/dev/null
+            done
