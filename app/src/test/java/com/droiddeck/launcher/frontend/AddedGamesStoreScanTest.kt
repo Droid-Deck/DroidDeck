@@ -82,6 +82,23 @@ class AddedGamesStoreScanTest {
         assertTrue(listing.contains("\"store\":\"${Store.EPIC.id}\""))
     }
 
+    @Test fun anEaGamesSavedLaunchOptionsReachTheListingAndOtherStoresIgnoreThem() {
+        val ea = install(Store.EA, "Origin.OFR.1", "Burnout Paradise", "bin/Game.exe", launcher = true)
+        val gog = install(Store.GOG, "42", "Plain Gog", "Game.exe")
+        AddedGames.scan(app)
+        AddedGameEdits.setLaunchOptions(app, ea.path, "-dx11")
+        AddedGameEdits.setLaunchOptions(app, gog.path, "-ignored")
+        val games = AddedGames.scan(app)
+        assertEquals("-dx11", games.single { it.folder.absolutePath == ea.absolutePath }.launchOptions)
+        assertEquals("", games.single { it.folder.absolutePath == gog.absolutePath }.launchOptions)
+        assertTrue(AddedGames.writeListing(app, games).readText().contains("\"launch\":\"-dx11\""))
+    }
+
+    @Test fun anEaGameWithoutSavedLaunchOptionsHasNone() {
+        val ea = install(Store.EA, "Origin.OFR.2", "Other EA", "bin/Game.exe", launcher = true)
+        assertEquals("", AddedGames.scan(app).single { it.folder.absolutePath == ea.absolutePath }.launchOptions)
+    }
+
     // GOG runs a task from its declared working directory; the install root when it declares none.
     @Test fun aTaskWorkingDirectoryBecomesTheShortcutsStartIn() {
         val folder = install(Store.GOG, "1207658924", "Witcher Game", "System/witcher.exe", workdir = "System")
