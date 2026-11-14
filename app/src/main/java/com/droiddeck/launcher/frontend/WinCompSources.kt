@@ -9,7 +9,7 @@ import java.io.File
 import java.util.Locale
 
 object WinCompSources {
-    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX }
+    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX, UBISOFT }
 
     data class Finding(val component: String?, val original: String, val origin: Origin, val auto: Boolean, val args: List<String> = emptyList())
 
@@ -83,6 +83,13 @@ object WinCompSources {
         }
     }
 
+    /** The prerequisite installers a Ubisoft manifest lists, with `$INSTALL_DIR` dropped. */
+    internal fun ubisoftInstallRuns(setup: String?): List<String> {
+        val runs = setup?.let { runCatching { org.json.JSONObject(it).optJSONArray("installRuns") }.getOrNull() } ?: return emptyList()
+        return (0 until runs.length()).mapNotNull { runs.optJSONObject(it)?.optString("exe") }
+            .map { it.replace('\\', '/').removePrefix("\$INSTALL_DIR").trimStart('/') }.filter { it.isNotEmpty() }
+    }
+
     fun forGame(context: Context, game: Library.SteamGame): List<Finding> {
         val folder = game.gameFiles
         val out = ArrayList<Finding>()
@@ -111,6 +118,12 @@ object WinCompSources {
                 val original = command.replace('\\', '/').substringAfterLast('/')
                 if (parts.isEmpty()) out += Finding(null, original, Origin.AMAZON, false)
                 parts.forEach { out += Finding(it, original, Origin.AMAZON, true) }
+            }
+            store == Store.UBISOFT -> ubisoftInstallRuns(sidecar?.extra?.get(com.droiddeck.launcher.stores.ubisoft.UbisoftLaunch.SETUP)).forEach { exe ->
+                val parts = installer(exe)
+                val original = exe.substringAfterLast('/')
+                if (parts.isEmpty()) out += Finding(null, original, Origin.UBISOFT, false)
+                parts.forEach { out += Finding(it, original, Origin.UBISOFT, true) }
             }
             else -> {}
         }

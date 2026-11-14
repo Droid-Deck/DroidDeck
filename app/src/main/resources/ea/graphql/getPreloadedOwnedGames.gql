@@ -1,0 +1,69 @@
+query getPreloadedOwnedGames($next: String, $locale: Locale, $limit: Int, $type: [GameProductType!]!, $entitlementEnabled: Boolean, $isMac: Boolean = false, $storefronts: [UserGameProductStorefront!], $ownershipMethods: [OwnershipMethod!], $processorArchitectures: [ProcessorArchitecture!], $platforms: [GamePlatform!]!) {
+  me {
+    id: pd
+    ownedGameProducts(storefronts: $storefronts, locale: $locale, paging: {limit: $limit, next: $next}, productFound: true, orderBy: {field: NAME, direction: ASC}, ownershipMethod: $ownershipMethods, processorArchitectures: $processorArchitectures, type: $type, downloadableOnly: false, entitlementEnabled: $entitlementEnabled, platforms: $platforms) {
+      next
+      totalCount
+      items {
+        ...userGameProductFragment
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment userGameProductFragment on UserGameProduct {
+  id: originOfferId
+  originOfferId
+  status
+  product {
+    ...OwnedGameProductFragment
+    __typename
+  }
+  __typename
+}
+
+fragment OwnedGameProductFragment on GameProduct {
+  id
+  name
+  downloadable
+  gameSlug
+  trialDetails {
+    trialType
+    __typename
+  }
+  baseItem(availabilities: [VISIBLE]) {
+    title
+    id
+    baseGameSlug
+    gameType
+    __typename
+  }
+  gamePlatformDetails @include(if: $isMac) {
+    gamePlatform
+    __typename
+  }
+  processorArchitectureDetails @include(if: $isMac) {
+    processorArchitecture
+    platform
+    __typename
+  }
+  gameProductUser(storefronts: $storefronts) {
+    ownershipMethods
+    initialEntitlementDate
+    entitlementId
+    gameProductUserTrial {
+      trialTimeRemainingSeconds
+      __typename
+    }
+    status
+    __typename
+  }
+  purchaseStatus {
+    repurchasable
+    __typename
+  }
+  __typename
+}
