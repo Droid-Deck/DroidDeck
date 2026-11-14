@@ -23,6 +23,9 @@ object SessionPaths {
     @Volatile
     private var ended: File? = null
 
+    @Volatile
+    private var startedAt = 0L
+
     @Synchronized
     fun beginOrCurrent(context: Context, label: String? = null): File {
         dir?.let { if (it.isDirectory) return it }
@@ -38,6 +41,7 @@ object SessionPaths {
         var made = File(parent, "$day-${"%02d".format(Locale.US, number)}-$what")
         while (made.exists()) made = File(parent, "$day-${"%02d".format(Locale.US, ++number)}-$what")
         EnhancedDiagnostics.clearRecordFor(context, made)
+        startedAt = System.currentTimeMillis()
         if (!made.isDirectory && !made.mkdirs()) Log.e(TAG, "could not create $made")
         dir = made
         if (enhanced && !EnhancedDiagnostics.consumeInto(context, made)) {
@@ -48,6 +52,8 @@ object SessionPaths {
     }
 
     fun current(): File? = dir
+
+    fun startedAt(folder: File): Long = if (dir == folder) startedAt else 0L
 
     fun currentSessionLogsRetained(context: Context): Boolean =
         dir?.let { it.parentFile == SessionFiles.logDirectory(context) } ?: true
