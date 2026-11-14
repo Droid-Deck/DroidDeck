@@ -44,7 +44,7 @@ index a0b1f9e..3843a5f 100644
      }
  
      fprintf(stderr, "ERROR: Could not map host display %p back to guest\n", from);
-@@ -106,6 +113,11 @@ struct X11Manager {
+@@ -106,6 +113,21 @@ struct X11Manager {
      return func(Name);
    }
  
@@ -53,10 +53,20 @@ index a0b1f9e..3843a5f 100644
 +    return func(Handler);
 +  }
 +
++  static void HostXLockDisplay(Display* a) {
++    static auto func = reinterpret_cast<decltype(&XLockDisplay)>(dlsym(GetLibX11(), "XLockDisplay"));
++    func(a);
++  }
++
++  static void HostXUnlockDisplay(Display* a) {
++    static auto func = reinterpret_cast<decltype(&XUnlockDisplay)>(dlsym(GetLibX11(), "XUnlockDisplay"));
++    func(a);
++  }
++
    static XVisualInfo* HostXGetVisualInfo(Display* a, long b, XVisualInfo* c, int* d) {
      static auto func = reinterpret_cast<decltype(&XGetVisualInfo)>(dlsym(GetLibX11(), "XGetVisualInfo"));
      return func(a, b, c, d);
-@@ -114,6 +126,7 @@ struct X11Manager {
+@@ -114,6 +136,7 @@ struct X11Manager {
    // NOTE: Struct pointers are replaced by void* to avoid involving data layout conversion here.
    int (*GuestXSync)(void*, int) = nullptr;
    void* (*GuestXGetVisualInfo)(void*, guest_long, void*, int*) = nullptr;
@@ -108,7 +118,7 @@ diff --git a/ThunkLibs/libGL/libGL_Host.cpp b/ThunkLibs/libGL/libGL_Host.cpp
 index dd3cec4..84efe41 100644
 --- a/ThunkLibs/libGL/libGL_Host.cpp
 +++ b/ThunkLibs/libGL/libGL_Host.cpp
-@@ -66,6 +66,25 @@ static void fexfn_impl_libGL_GL_SetGuestXDisplayString(uintptr_t GuestTarget, ui
+@@ -66,6 +66,28 @@ static void fexfn_impl_libGL_GL_SetGuestXDisplayString(uintptr_t GuestTarget, ui
    MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXDisplayString);
  }
  
@@ -119,8 +129,11 @@ index dd3cec4..84efe41 100644
 +  if (!GuestDisplay || !x11_manager.GuestXErrorForward) {
 +    return HostPreviousXErrorHandler ? HostPreviousXErrorHandler(HostDisplay, Event) : 0;
 +  }
-+  return x11_manager.GuestXErrorForward(GuestDisplay, static_cast<guest_long>(Event->resourceid), Event->error_code, Event->request_code,
-+                                        Event->minor_code);
++  x11_manager.HostXUnlockDisplay(HostDisplay);
++  int Result = x11_manager.GuestXErrorForward(GuestDisplay, static_cast<guest_long>(Event->resourceid), Event->error_code,
++                                              Event->request_code, Event->minor_code);
++  x11_manager.HostXLockDisplay(HostDisplay);
++  return Result;
 +}
 +
 +static void fexfn_impl_libGL_GL_SetGuestXErrorForward(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {

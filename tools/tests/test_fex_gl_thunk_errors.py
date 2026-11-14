@@ -21,11 +21,19 @@ def added(path, start, end):
 HARNESS = r"""
 #include <cstdint>
 #include <cstdio>
+#include <condition_variable>
 #include <cstring>
 #include <map>
 #include <mutex>
+#include <thread>
 #include <X11/Xlibint.h>
 using guest_long = long;
+
+static std::mutex host_user_lock;
+static std::mutex guest_user_lock;
+static void guest_lock(Display*) { guest_user_lock.lock(); }
+static void guest_unlock(Display*) { guest_user_lock.unlock(); }
+static _XLockPtrs guest_lock_fns {guest_lock, guest_unlock};
 
 struct X11Manager {
   MUTEX_SOURCE
@@ -33,6 +41,8 @@ struct X11Manager {
   FORWARD_SOURCE
   FIND_SOURCE
   static XErrorHandler HostXSetErrorHandler(XErrorHandler Handler) { return XSetErrorHandler(Handler); }
+  static void HostXLockDisplay(Display*) { host_user_lock.lock(); }
+  static void HostXUnlockDisplay(Display*) { host_user_lock.unlock(); }
 };
 
 static X11Manager x11_manager;
@@ -72,12 +82,18 @@ static int guest_forward(void* display, guest_long resourceid, int error_code, i
 
 static _XDisplay guest_connection;
 
+static int raise_on_host(XErrorHandler handler, Display* display, XErrorEvent* event) {
+  std::lock_guard held(host_user_lock);
+  return handler(display, event);
+}
+
 int main(int argc, char** argv) {
   auto host = reinterpret_cast<Display*>(uintptr_t {0x1000});
   auto guest = &guest_connection;
   auto other = reinterpret_cast<Display*>(uintptr_t {0x3000});
   guest_connection.request = 44;
   guest_connection.last_request_read = 44;
+  guest_connection.lock_fns = &guest_lock_fns;
   x11_manager.displays[guest] = host;
   pending_forward = guest_forward;
   XSetErrorHandler(previous_handler);
@@ -98,13 +114,38 @@ int main(int argc, char** argv) {
   XSetErrorHandler(app_handler);
   if (argc > 1 && strcmp(argv[1], "reentry") == 0) {
     std::unique_lock lock(x11_manager.mutex);
-    int reentry = installed(host, &event);
+    int reentry = raise_on_host(installed, host, &event);
     printf("reentry=%d app_calls=%d\n", reentry, app_calls);
     return 0;
   }
-  int owned = installed(host, &event);
+  if (argc > 1 && strcmp(argv[1], "crosslock") == 0) {
+    host_user_lock.lock();
+    std::mutex ready_lock;
+    std::unique_lock ready(ready_lock);
+    std::condition_variable guest_held;
+    bool held = false;
+    std::thread other_thread([&] {
+      guest_user_lock.lock();
+      {
+        std::lock_guard notify(ready_lock);
+        held = true;
+      }
+      guest_held.notify_one();
+      host_user_lock.lock();
+      host_user_lock.unlock();
+      guest_user_lock.unlock();
+    });
+    guest_held.wait(ready, [&] { return held; });
+    ready.unlock();
+    int crossed = installed(host, &event);
+    host_user_lock.unlock();
+    other_thread.join();
+    printf("crosslock=%d app_calls=%d\n", crossed, app_calls);
+    return 0;
+  }
+  int owned = raise_on_host(installed, host, &event);
   XErrorHandler after = XSetErrorHandler(installed);
-  int foreign = installed(other, &event);
+  int foreign = raise_on_host(installed, other, &event);
 
   printf("owned=%d app_calls=%d app_display_is_guest=%d serial=%lu error=%d request=%d minor=%d resource=%lx handler_kept=%d guest_set_calls=%d\n",
          owned, app_calls, app_display == guest, app_event.serial, app_event.error_code, app_event.request_code,
@@ -116,7 +157,7 @@ int main(int argc, char** argv) {
 
 
 def compile_cpp(source, output):
-    return subprocess.run(["c++", "-std=c++20", "-O1", "-Wall", "-Werror", "-o", str(output), str(source), "-lX11"],
+    return subprocess.run(["c++", "-std=c++20", "-O1", "-Wall", "-Werror", "-pthread", "-o", str(output), str(source), "-lX11"],
                           capture_output=True, text=True)
 
 
@@ -172,6 +213,9 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
 
     def test_error_while_the_display_lock_is_held_does_not_block(self):
         self.assertEqual(self.run_harness("reentry"), ["reentry=7 app_calls=1"])
+
+    def test_error_while_another_thread_holds_the_programs_display_lock_does_not_deadlock(self):
+        self.assertEqual(self.run_harness("crosslock"), ["crosslock=7 app_calls=1"])
 
     def test_error_on_a_display_the_gl_thunk_does_not_own_keeps_the_previous_handler(self):
         self.assertEqual(self.run_harness()[1], "foreign=3 previous_calls=1 previous_display_is_other=1")
