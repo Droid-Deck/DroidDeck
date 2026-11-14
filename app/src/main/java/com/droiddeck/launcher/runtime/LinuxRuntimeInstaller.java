@@ -145,7 +145,13 @@ public final class LinuxRuntimeInstaller {
         Job job;
         boolean owner;
         synchronized (JOB_LOCK) {
-            if (running != null && (running.removal || running.maintenance)) return false;
+            if (running != null && (running.removal || running.maintenance)) {
+                Job rejected = new Job(false, null);
+                rejected.failure = running.removal ? "Runtime busy: removal in progress" : "Runtime busy: maintenance in progress";
+                Log.w(TAG, rejected.failure);
+                lastInstallJob = rejected;
+                return false;
+            }
             owner = running == null;
             if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; }
             job = running;
@@ -181,6 +187,7 @@ public final class LinuxRuntimeInstaller {
                 lastInstallJob = job;
                 running = null;
             }
+            if (listener != null) job.listeners.remove(listener);
             job.done.countDown();
         }
     }

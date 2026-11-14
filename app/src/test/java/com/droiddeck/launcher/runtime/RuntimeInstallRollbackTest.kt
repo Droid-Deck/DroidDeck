@@ -202,6 +202,36 @@ class RuntimeInstallRollbackTest {
         assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", LinuxRuntimeInstaller.installError())
     }
 
+    @Test fun anInstallRejectedDuringMaintenanceReportsItsOwnReason() {
+        val context = packedContext()
+        failedInstall(context, "HTTP/1.1 403 Forbidden")
+        val maintenance = LinuxRuntimeInstaller.beginMaintenance(context, "maintenance")!!
+        try {
+            assertFalse(LinuxRuntimeInstaller.install(context,
+                LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:1/runtime.tar.zst", "a".repeat(64), 1L), null))
+            assertEquals("Runtime busy: maintenance in progress", LinuxRuntimeInstaller.installError())
+        } finally {
+            assertTrue(maintenance.run(null) { null })
+        }
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", failedInstall(context, "HTTP/1.1 404 Not Found"))
+    }
+
+    @Test fun aFinishedInstallKeepsNoReferenceToItsListener() {
+        val context = packedContext()
+        val server = ServerSocket(0)
+        val thread = serveOnce(server, "HTTP/1.1 403 Forbidden")
+        try {
+            val release = LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", "a".repeat(64), 1L)
+            assertFalse(LinuxRuntimeInstaller.install(context, release) { _, _ -> })
+        } finally {
+            server.close()
+            thread.join(1000)
+        }
+        val job = LinuxRuntimeInstaller::class.java.getDeclaredField("lastInstallJob").apply { isAccessible = true }.get(null)!!
+        val listeners = job.javaClass.getDeclaredField("listeners").apply { isAccessible = true }.get(job) as Collection<*>
+        assertTrue(listeners.isEmpty())
+    }
+
     @Test fun aFailedSwapNamesTheStep() {
         assertFalse(attempt(failRollback = false).result)
         assertTrue(LinuxRuntimeInstaller.installError().orEmpty().startsWith("Cannot carry user data into the new runtime"))
