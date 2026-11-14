@@ -10,7 +10,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
+GAME_PREFIX = "DROIDDECK_GAME_"
+GAME_SPLIT_KEYS = ("TU_DEBUG", "MESA_NO_ERROR")
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
 D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
@@ -385,16 +386,19 @@ def chromium_app(folder):
 
 
 def game_gpu(env, keep=False):
-    if GAME_TU_DEBUG not in env:
+    if not any(GAME_PREFIX + key in env for key in GAME_SPLIT_KEYS):
         return env
     result = env.copy()
-    value = result.pop(GAME_TU_DEBUG)
-    if keep:
-        return result
-    if value:
-        result["TU_DEBUG"] = value
-    else:
-        result.pop("TU_DEBUG", None)
+    for key in GAME_SPLIT_KEYS:
+        if GAME_PREFIX + key not in result:
+            continue
+        value = result.pop(GAME_PREFIX + key)
+        if keep:
+            continue
+        if value:
+            result[key] = value
+        else:
+            result.pop(key, None)
     return result
 
 
