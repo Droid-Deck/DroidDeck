@@ -1,7 +1,16 @@
 diff --git a/ThunkLibs/include/common/X11Manager.h b/ThunkLibs/include/common/X11Manager.h
-index a0b1f9e..af55eb2 100644
+index a0b1f9e..3843a5f 100644
 --- a/ThunkLibs/include/common/X11Manager.h
 +++ b/ThunkLibs/include/common/X11Manager.h
+@@ -24,7 +24,7 @@ using guest_size_t = size_t;
+  * guest display/connection.
+  */
+ struct X11Manager {
+-  std::mutex mutex;
++  std::recursive_mutex mutex;
+ 
+   // Maps guest connection to intermediary host connection
+   std::unordered_map<xcb_connection_t*, xcb_connection_t*> connections;
 @@ -68,18 +68,25 @@ struct X11Manager {
      return it->second;
    }
@@ -51,30 +60,39 @@ index a0b1f9e..af55eb2 100644
    // NOTE: Struct pointers are replaced by void* to avoid involving data layout conversion here.
    int (*GuestXSync)(void*, int) = nullptr;
    void* (*GuestXGetVisualInfo)(void*, guest_long, void*, int*) = nullptr;
-+  int (*GuestXErrorForward)(void*, int, guest_long, guest_long, int, int, int) = nullptr;
++  int (*GuestXErrorForward)(void*, guest_long, int, int, int) = nullptr;
  
    // XDisplayString internally just reads data from _XDisplay's internal struct definition.
    // This breaks when data layout is different, so allow reading from a guest context instead.
 diff --git a/ThunkLibs/libGL/libGL_Guest.cpp b/ThunkLibs/libGL/libGL_Guest.cpp
-index b0eea5b..aef750d 100644
+index b0eea5b..01eb801 100644
 --- a/ThunkLibs/libGL/libGL_Guest.cpp
 +++ b/ThunkLibs/libGL/libGL_Guest.cpp
-@@ -79,11 +79,26 @@ static void* malloc_wrapper(size_t size) {
+@@ -28,6 +28,8 @@ $end_info$
+ 
+ #include "thunkgen_guest_libGL.inl"
+ 
++#include <X11/Xlibint.h>
++
+ typedef void voidFunc();
+ 
+ // Maps OpenGL API function names to the address of a guest function which is
+@@ -79,11 +81,26 @@ static void* malloc_wrapper(size_t size) {
    return malloc(size);
  }
  
-+static int ForwardXError(Display* display, int type, long resourceid, long serial, int error_code, int request_code, int minor_code) {
-+  XErrorEvent event {};
-+  event.type = type;
-+  event.display = display;
-+  event.resourceid = resourceid;
-+  event.serial = serial;
-+  event.error_code = error_code;
-+  event.request_code = request_code;
-+  event.minor_code = minor_code;
-+  auto handler = XSetErrorHandler(nullptr);
-+  XSetErrorHandler(handler);
-+  return handler ? handler(display, &event) : 0;
++static int ForwardXError(Display* display, long resourceid, int error_code, int request_code, int minor_code) {
++  xError error {};
++  error.type = X_Error;
++  error.errorCode = error_code;
++  error.resourceID = resourceid;
++  error.majorCode = request_code;
++  error.minorCode = minor_code;
++  LockDisplay(display);
++  error.sequenceNumber = display->request;
++  int result = _XError(display, &error);
++  UnlockDisplay(display);
++  return result;
 +}
 +
  static void OnInit() {
@@ -87,7 +105,7 @@ index b0eea5b..aef750d 100644
  
  // libGL.so must pull in libX11.so as a dependency. Referencing some libX11
 diff --git a/ThunkLibs/libGL/libGL_Host.cpp b/ThunkLibs/libGL/libGL_Host.cpp
-index dd3cec4..1135708 100644
+index dd3cec4..84efe41 100644
 --- a/ThunkLibs/libGL/libGL_Host.cpp
 +++ b/ThunkLibs/libGL/libGL_Host.cpp
 @@ -66,6 +66,25 @@ static void fexfn_impl_libGL_GL_SetGuestXDisplayString(uintptr_t GuestTarget, ui
@@ -101,8 +119,8 @@ index dd3cec4..1135708 100644
 +  if (!GuestDisplay || !x11_manager.GuestXErrorForward) {
 +    return HostPreviousXErrorHandler ? HostPreviousXErrorHandler(HostDisplay, Event) : 0;
 +  }
-+  return x11_manager.GuestXErrorForward(GuestDisplay, Event->type, static_cast<guest_long>(Event->resourceid),
-+                                        static_cast<guest_long>(Event->serial), Event->error_code, Event->request_code, Event->minor_code);
++  return x11_manager.GuestXErrorForward(GuestDisplay, static_cast<guest_long>(Event->resourceid), Event->error_code, Event->request_code,
++                                        Event->minor_code);
 +}
 +
 +static void fexfn_impl_libGL_GL_SetGuestXErrorForward(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {
