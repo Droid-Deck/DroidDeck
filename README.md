@@ -25,7 +25,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 <p align="center"><img src="docs/media/steam-to-desktop.gif" width="100%" alt="On a Retroid Pocket Duo: Play Steam from the DroidDeck launcher, open Pac-Man in Steam Big Picture and play it, exit the game, then Switch to Desktop from the Power menu"></p>
 
-> DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
+> The official website is [droid-deck.dev](https://droid-deck.dev). Only download DroidDeck from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
 <p align="center">
   <img src="docs/releases/media/0.6.7/library.gif" width="49%" alt="The Library switching source chips, changing the card size and opening the Filter menu">
