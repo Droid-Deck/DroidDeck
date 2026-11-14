@@ -75,6 +75,17 @@ object SessionEvents {
         }
     }
 
+    inline fun <T> step(name: String, block: () -> T): T {
+        val dir = SessionState.logDirectory ?: SessionPaths.current()
+        record("start.step", mapOf("step" to name, "state" to "begin"), dir)
+        val began = android.os.SystemClock.elapsedRealtime()
+        try {
+            return block()
+        } finally {
+            record("start.step", mapOf("step" to name, "state" to "end", "ms" to android.os.SystemClock.elapsedRealtime() - began), dir)
+        }
+    }
+
     fun fail(code: String, message: String, status: Int? = null) {
         synchronized(SessionState) {
             SessionState.phase = SessionPhase.FAILED

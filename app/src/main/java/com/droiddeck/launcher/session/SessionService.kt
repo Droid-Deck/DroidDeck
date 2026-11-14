@@ -533,7 +533,7 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            GameEnvironmentStore.publish(this)
+            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
             stopSession(-1, gen)
@@ -545,22 +545,22 @@ class SessionService : Service() {
         runCatching { sessionLog.appendText(prootLine + "\n") }
             .onFailure { Log.w(TAG, "could not write the proot line to ${sessionLog.path}", it) }
 
-        Log.i(TAG, GpuClockPin.start(this))
-        Log.i(TAG, GameThreadHints.start(this))
+        Log.i(TAG, SessionEvents.step("gpu-clock-pin") { GpuClockPin.start(this) })
+        Log.i(TAG, SessionEvents.step("thread-hints") { GameThreadHints.start(this) })
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
-        runCatching { ComponentsManager.republish(this) }
+        runCatching { SessionEvents.step("components-republish") { ComponentsManager.republish(this) } }
             .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
             .onFailure { Log.w(TAG, "component selections", it) }
         if (steamHere) {
-            runCatching { ComponentsManager.ensureForcedPackages(this) }
+            runCatching { SessionEvents.step("components-forced") { ComponentsManager.ensureForcedPackages(this) } }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(guest, steamHere, agentEnvironment)
+            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment) }
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -570,8 +570,8 @@ class SessionService : Service() {
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
-        val pulse = startAudio(guest, sessionDir, directAudioPack)
-        startVkBridge(guest, sessionDir)
+        val pulse = SessionEvents.step("audio") { startAudio(guest, sessionDir, directAudioPack) }
+        SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
         if (VenusComponent.wanted(this)) {
             components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
         }
@@ -617,20 +617,20 @@ class SessionService : Service() {
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
-            addControllerEnvironment(guest, fakeInputDir, sessionDir)
-            SessionState.padBridge?.syncConnectedControllers()
+            SessionEvents.step("controller-environment") { addControllerEnvironment(guest, fakeInputDir, sessionDir) }
+            SessionEvents.step("controller-sync") { SessionState.padBridge?.syncConnectedControllers() }
         }
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("BL_PIN_CORES=0")
         if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
-            runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this) }
+            runCatching { SessionEvents.step("epic-library") { com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this) } }
                 .onFailure { Log.w(TAG, "Epic library sync failed", it) }
-            runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
+            runCatching { SessionEvents.step("epic-install-dir") { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) } }
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere || noSteamGame) {
-            val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
-            val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
+            val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
+            val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
             guest.add("BL_ADDED_GAMES=" + listing.path)
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
@@ -642,7 +642,7 @@ class SessionService : Service() {
         // Detailed graphics logs: per-game logs and the guest's Vulkan summary (a GPU that is not
         // an Adreno, or Setup's switch), and graphics-report.txt for every session.
         if (GraphicsReport.detailed(this)) guest.add("BL_GAME_LOGS=1")
-        GraphicsReport.begin(this, sessionDir, guest)
+        SessionEvents.step("graphics-report") { GraphicsReport.begin(this, sessionDir, guest) }
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -670,7 +670,7 @@ class SessionService : Service() {
             Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
-        FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
+        SessionEvents.step("shm-clear") { FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm")) }
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val nativeUserland = com.droiddeck.launcher.runtime.NativeGuest.enabled(this)
@@ -776,7 +776,7 @@ class SessionService : Service() {
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
-        val pid = HostProcess.start(line, hostEnv.asArray(), root, { status ->
+        val pid = SessionEvents.step("guest-launch") { HostProcess.start(line, hostEnv.asArray(), root, { status ->
             if (gen != sessionGen) {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
                 return@start
@@ -784,7 +784,7 @@ class SessionService : Service() {
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
             stopSession(program ?: status ?: -1, gen)
-        }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() })
+        }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() }) }
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
