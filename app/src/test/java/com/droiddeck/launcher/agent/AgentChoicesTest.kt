@@ -49,4 +49,14 @@ class AgentChoicesTest {
         val text = "Pick:\n```choices\nA\nB"
         assertEquals(Choices(text, emptyList()), choices(text))
     }
+
+    @Test fun aChoicesExampleInsideAnUnclosedTildeFenceStaysLiteral() {
+        val text = "Example:\n~~~markdown\n```choices\nA\nB\n```"
+        assertEquals(Choices(text, emptyList()), choices(text))
+    }
+
+    @Test fun aChoicesBlockAfterAClosedTildeFenceCounts() {
+        val reply = choices("~~~\ncode\n~~~\nPick:\n```choices\nA\nB\n```")
+        assertEquals(listOf("A", "B"), reply.options)
+    }
 }
