@@ -4909,6 +4909,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         super.onStart()
         if (runtimeRemovalBlocked) return
         started = true
+        coil.Coil.imageLoader(this).memoryCache?.clear()
         if (::hud.isInitialized) hud.setBackgrounded(false)
         refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
