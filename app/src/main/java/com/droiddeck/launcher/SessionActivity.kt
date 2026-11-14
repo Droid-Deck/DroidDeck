@@ -1424,9 +1424,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
                     if (target == screenEffectsTarget) {
                         upscaler = m
-                        if (screenEffectsTargetAppliesToLiveOutput(target)) {
-                            WaylandCompositor.nativeSetUpscaler(m)
-                            WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
+                        if (screenEffectsUpscalerTargetAppliesToLiveOutput(target)) {
+                            val liveProfileId =
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                            val liveUpscaler =
+                                SessionPrefs.screenEffectsUpscaler(this@SessionActivity, liveProfileId)
+                            val liveEffects =
+                                SessionPrefs.screenEffects(this@SessionActivity, liveProfileId)
+                            WaylandCompositor.nativeSetUpscaler(liveUpscaler)
+                            WaylandCompositor.nativeSetLookName(
+                                ScreenEffectLooks.match(liveEffects, liveUpscaler)?.name
+                            )
+                            liveEffects.push(liveUpscaler)
                         }
                     }
                 }
@@ -2144,6 +2153,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 add("game:$id" to (installed[id] ?: getString(R.string.game_env_profile, id)))
             }
         }
+    }
+
+    private fun screenEffectsUpscalerTargetAppliesToLiveOutput(target: String): Boolean {
+        if (target == SCREEN_EFFECTS_TARGET_AUTO) return true
+        val selectedProfileId = screenEffectsProfileIdForTarget(target)
+        val activeProfileId = currentScreenEffectsProfileId()
+        if (selectedProfileId == activeProfileId) return true
+        return selectedProfileId == null &&
+            (activeProfileId == null ||
+                !SessionPrefs.hasScreenEffectsUpscalerOverride(this, activeProfileId))
     }
 
     private fun screenEffectsTargetAppliesToLiveOutput(target: String): Boolean {
