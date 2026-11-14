@@ -601,6 +601,13 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
+    fun integerScaling(context: Context): Boolean =
+        prefs(context).getBoolean("integerScaling", false)
+
+    fun setIntegerScaling(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("integerScaling", enabled).apply()
+    }
+
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
