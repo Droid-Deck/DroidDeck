@@ -1,7 +1,9 @@
 import unittest
 
 from tools.release.update_catalog import (
+    Cache,
     asset_for_suffix,
+    merged_pr,
     ci_description,
     parse_gradle,
     parse_variants,
@@ -10,6 +12,7 @@ from tools.release.update_catalog import (
     recent_previews,
     release_body_value,
     stable_app_release,
+    unique_previews,
 )
 
 
@@ -148,6 +151,25 @@ pubg com.tencent.ig -pubg
         ]
         self.assertEqual("0.2.0", stable_app_release(releases)["tag_name"])
         self.assertIsNone(stable_app_release(releases[:1]))
+
+    def test_merged_pr_comes_from_the_first_paragraph(self):
+        body = "**Merged to main** - [PR #2602](https://github.com/Droid-Deck/DroidDeck/pull/2602): fix: x\n\nSee [PR #9](u)."
+        self.assertEqual(2602, merged_pr({"body": body}))
+        self.assertEqual(0, merged_pr({"body": "**Pushed to main** without a PR - fix: x"}))
+
+    def test_previews_follow_commit_order_not_publish_order(self):
+        older = {"commit": "a" * 40, "committedAt": 100, "publishedAt": 900}
+        newer = {"commit": "b" * 40, "committedAt": 200, "publishedAt": 300}
+        again = {**newer, "publishedAt": 50}
+        self.assertEqual([newer, older], unique_previews([older, again, newer]))
+
+    def test_cache_reuses_commit_facts_from_the_last_catalog(self):
+        class NoNetwork:
+            def get(self, path):
+                raise AssertionError(path)
+
+        cache = Cache({"previews": [{"commit": "A" * 40, "author": "dev", "committedAt": 5}]})
+        self.assertEqual({"author": "dev", "committedAt": 5}, cache.commit(NoNetwork(), "o/r", "a" * 40))
 
 
 if __name__ == "__main__":

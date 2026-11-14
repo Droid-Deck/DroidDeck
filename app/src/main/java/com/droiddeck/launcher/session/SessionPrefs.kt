@@ -201,6 +201,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
     }
 
+    fun soundtracksEnabled(context: Context): Boolean = prefs(context).getBoolean("soundtracksEnabled", true)
+
+    fun setSoundtracksEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("soundtracksEnabled", on).apply()
+    }
+
+    fun soundtracksIngame(context: Context): Boolean = prefs(context).getBoolean("soundtracksIngame", false)
+
+    fun setSoundtracksIngame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("soundtracksIngame", on).apply()
+    }
+
     fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
 
     fun setGameStoresSpeedTier(context: Context, tier: String) {
@@ -253,10 +265,22 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
+    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
+
+    fun setAgentTab(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("agentTab", show).apply()
+    }
+
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
 
     fun setLibraryShowUninstalled(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("libraryShowUninstalled", show).apply()
+    }
+
+    fun libraryFavorites(context: Context): Set<String> = prefs(context).getStringSet("libraryFavorites", null)?.toSet().orEmpty()
+
+    fun setLibraryFavorites(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("libraryFavorites", keys.toSet()).apply()
     }
 
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
@@ -269,6 +293,24 @@ object SessionPrefs {
 
     fun setStoresTabHidden(context: Context, hidden: Set<String>) {
         prefs(context).edit().putString("storesTabHidden", hidden.joinToString(",")).apply()
+    }
+
+    fun navTabOrder(context: Context): List<String> = idList(prefs(context).getString("navTabOrder", null))
+
+    fun setNavTabOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("navTabOrder", order.joinToString(",")).apply()
+    }
+
+    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent")).toSet()
+
+    fun setNavTabShelved(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("navTabShelved", keys.joinToString(",")).apply()
+    }
+
+    fun navTabHidden(context: Context): Set<String> = idList(prefs(context).getString("navTabHidden", null)).toSet()
+
+    fun setNavTabHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
     }
 
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -714,6 +756,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("syncFallback", on).apply()
     }
 
+    fun paceCores(context: Context): Boolean = prefs(context).getBoolean("paceCores", true)
+
+    fun setPaceCores(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("paceCores", on).apply()
+    }
+
     fun gamescopeRealtime(context: Context): Boolean = prefs(context).getBoolean("gamescopeRealtime", false)
 
     fun setGamescopeRealtime(context: Context, on: Boolean) {
@@ -1052,6 +1100,13 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("vac_diagnostics", on).apply()
     }
 
+    fun buildWatermarkEnabled(context: Context): Boolean =
+        BuildWatermarkSetting.enabled(context)
+
+    fun setBuildWatermarkEnabled(context: Context, on: Boolean) {
+        BuildWatermarkSetting.setEnabled(context, on)
+    }
+
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
     fun resolutionChosen(context: Context, mode: String): Boolean =
@@ -1125,6 +1180,11 @@ object SessionPrefs {
     fun setBootMovieVolume(context: Context, percent: Int) { prefs(context).edit().putInt("bootMovieVolume", percent.coerceIn(0, 100)).apply() }
     fun bootMovieSeconds(context: Context): Int = prefs(context).getInt("bootMovieSeconds", 0).coerceAtLeast(0)
     fun setBootMovieSeconds(context: Context, seconds: Int) { prefs(context).edit().putInt("bootMovieSeconds", seconds.coerceAtLeast(0)).apply() }
+    fun skipBootMovie(context: Context): Boolean = prefs(context).getBoolean("skipBootMovie", false)
+    fun setSkipBootMovie(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("skipBootMovie", on).apply()
+        setBootMovieApplyNext(context, true)
+    }
     fun bootMovieApplyNext(context: Context): Boolean = prefs(context).getBoolean("bootMovieApplyNext", false)
     fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
     fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
@@ -1241,6 +1301,11 @@ object SessionPrefs {
 
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+
+    fun addedGameFolders(context: Context): Map<Long, String> = prefs(context).all.mapNotNull { (key, value) ->
+        val id = (value as? Long)?.takeIf { key.startsWith("addedAppId:") && it != 0L } ?: return@mapNotNull null
+        (id and 0xFFFFFFFFL) to key.removePrefix("addedAppId:")
+    }.toMap()
 
     fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
         val p = prefs(context)

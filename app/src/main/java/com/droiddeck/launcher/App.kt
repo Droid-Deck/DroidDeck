@@ -42,12 +42,18 @@ class App : Application() {
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
+        com.droiddeck.launcher.agent.AgentHost.refresh(this)
+        com.droiddeck.launcher.agent.AgentTab.load(this)
+        com.droiddeck.launcher.ui.NavTabs.load(this)
+        com.droiddeck.launcher.ui.AgentPet.install(this)
+        if (com.droiddeck.launcher.agent.AgentTab.visible) com.droiddeck.launcher.lab.LabNotice.openOnInstall = "agent"
         com.droiddeck.launcher.lab.LabNotice.started(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
+        com.droiddeck.launcher.update.UpdateWatch.sync(this, com.droiddeck.launcher.update.AppUpdates.follow(this, null))
         com.droiddeck.launcher.core.DownloadSource.init(this)
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
@@ -68,6 +74,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ubisoft.UbisoftBackend)
         com.droiddeck.launcher.stores.ea.EaBackend.app = this
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ea.EaBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.rockstar.RockstarBackend)
     }
 
     private fun prefetchAddonPacks() {

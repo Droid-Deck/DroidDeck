@@ -357,4 +357,80 @@ class AppUpdatesTest {
         assertEquals(AppUpdates.Channel.TEST, g.follow.channel)
         assertTrue(g.certain)
     }
+
+    private fun preview(commit: String, committedAt: Long, versionCode: Int = 9) = AppUpdates.Release(
+        "main-${commit.take(7)}", commit, "", commit, 0, null, versionCode, committedAt, "", apk(versionCode),
+        committedAt = committedAt,
+    )
+
+    private val history = listOf(
+        preview("1".repeat(40), 300L),
+        preview("2".repeat(40), 200L),
+        preview("3".repeat(40), 100L, versionCode = 8),
+    )
+    private val withHistory = AppUpdates.Catalog(stable, history.first(), emptyList(), 0L, previews = history)
+
+    @Test
+    fun previewOffersOnlyNewerBuildsAsUpdates() {
+        val nightly = Follow(Channel.NIGHTLY)
+        assertEquals(Offer.CURRENT, AppUpdates.offer(withHistory, nightly, me("1".repeat(40))))
+        assertEquals(Offer.UPDATE, AppUpdates.offer(withHistory, nightly, me("2222222")))
+        val newer = Installed("4".repeat(40), 0, "0.2.0", 9, updatable = true, committedAt = 400L)
+        assertEquals(Offer.AHEAD, AppUpdates.offer(withHistory, nightly, newer))
+        val older = Installed("5".repeat(40), 0, "0.2.0", 9, updatable = true, committedAt = 50L)
+        assertEquals(Offer.UPDATE, AppUpdates.offer(withHistory, nightly, older))
+    }
+
+    @Test
+    fun previewHistoryListsEveryBuildAndWhereTheInstalledOneSits() {
+        val behind = AppUpdates.previewHistory(withHistory, me("2".repeat(40), ciBuild = false))!!
+        assertEquals(PreviewHistoryKind.BEHIND, behind.kind)
+        assertEquals(1, behind.installedIndex)
+        assertEquals(3, behind.builds.size)
+        assertEquals(PreviewHistoryKind.RECENT, AppUpdates.previewHistory(withHistory, me("9".repeat(40)))!!.kind)
+    }
+
+    @Test
+    fun anOlderVersionCodePreviewCannotBeInstalledButASameCodeRollbackCan() {
+        val mine = me("1".repeat(40))
+        assertFalse(AppUpdates.installable(history[0], mine))
+        assertTrue(AppUpdates.installable(history[1], mine))
+        assertFalse(AppUpdates.installable(history[2], mine))
+    }
+
+    @Test
+    fun aTestBuildBehindItsPrHeadIsFlaggedAndCountsLaterPreviews() {
+        val test = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 9, 150L, "", apk(), headCommit = "1234567890")
+        assertTrue(test.newerCommitPushed)
+        val current = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 9, 150L, "", apk(), headCommit = "abcdef1234")
+        assertFalse(current.newerCommitPushed)
+        val rebuiltHigher = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 10, 150L, "", apk(10))
+        assertFalse(AppUpdates.isRunning(rebuiltHigher, me("abcdef1234", pr = 7)))
+        assertTrue(AppUpdates.isRunning(current, me("abcdef1234", pr = 7)))
+        assertEquals(2, AppUpdates.previewsSince(withHistory, test))
+        val rebuilt = AppUpdates.Release("pr-7", "t", "", "abcdef1", 7, null, 9, 150L, "", apk(), builtAt = 250L)
+        assertEquals(1, AppUpdates.previewsSince(withHistory, rebuilt))
+    }
+
+    @Test
+    fun publishedCatalogReadsEveryPreviewWithItsAuthorAndKeepsThemInTheCache() {
+        val entry = JSONObject(publishedCatalog().getJSONObject("preview").toString())
+            .put("author", "maxjivi05").put("committedAt", 5L).put("mergedPr", 2602)
+        val bad = JSONObject(entry.toString()).put("commit", "feedbee1234567").put("author", "not a login")
+        val raw = publishedCatalog().put("previews", JSONArray().put(entry).put(bad))
+        val parsed = AppUpdates.readPublishedCatalog(raw, "com.droiddeck.launcher", 1L)
+        assertEquals(2, parsed.previews.size)
+        assertEquals("maxjivi05", parsed.previews[0].author)
+        assertEquals(2602, parsed.previews[0].linkedPr)
+        assertEquals("", parsed.previews[1].author)
+        val cached = AppUpdates.readCachedCatalog(AppUpdates.writeCatalog(parsed))
+        assertEquals(2, cached.previews.size)
+        assertEquals(5L, cached.previews[0].committedAt)
+    }
+
+    @Test
+    fun aCatalogWithoutTheFullListStillOffersItsNewestPreview() {
+        val parsed = AppUpdates.readPublishedCatalog(publishedCatalog(), "com.droiddeck.launcher", 1L)
+        assertEquals(listOf("main-deadbee"), parsed.previewBuilds.map { it.tag })
+    }
 }

@@ -90,11 +90,11 @@ object GameStorage {
 
     fun gamesFolderLibraries(context: Context): List<Library> {
         if (SessionPrefs.gameStorage(context).isNotEmpty()) return emptyList()
-        val card = effective(context)?.let { canonical(File(it.path)) }
-        val added = SteamLibraries.list(context).map { canonical(it.host) }
+        val card = effective(context)?.let { SteamLibraries.canonical(File(it.path)) }
+        val added = SteamLibraries.list(context).map { SteamLibraries.canonical(it.host) }
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
-            val host = canonical(root.host)
+            val host = SteamLibraries.canonical(root.host)
             if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
@@ -108,8 +108,6 @@ object GameStorage {
 
     internal fun hasInstalledGames(root: File): Boolean =
         File(root, "steamapps").listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }?.isNotEmpty() == true
-
-    private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
     fun labelFor(context: Context, path: String): String =
         options(context).firstOrNull { it.path == path }?.name
