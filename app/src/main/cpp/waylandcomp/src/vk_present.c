@@ -413,8 +413,6 @@ static void update_map(int scene_w, int scene_h) {
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
-            /* Use the largest integer upscale when it fits. If the source is
-             * larger than the output, fall back to fit instead of cropping. */
             aspect = m >= 1.0f ? (float)(int)m : m;
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
