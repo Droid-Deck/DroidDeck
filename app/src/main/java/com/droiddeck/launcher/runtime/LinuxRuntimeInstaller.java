@@ -79,6 +79,7 @@ public final class LinuxRuntimeInstaller {
     private static Job running;
     private static volatile String removalError;
     private static volatile String installError;
+    private static final ThreadLocal<String> CATALOG_ERROR = new ThreadLocal<>();
 
     private LinuxRuntimeInstaller() {}
 
@@ -106,19 +107,34 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Release fetchRelease() {
-        String body = Downloader.downloadString(catalogUrl());
-        if (body == null || body.isEmpty()) return null;
+        return fetchRelease(catalogUrl());
+    }
+
+    public static String catalogError() { return CATALOG_ERROR.get(); }
+
+    static Release fetchRelease(String catalogUrl) {
+        CATALOG_ERROR.remove();
+        String body = Downloader.downloadString(catalogUrl);
+        if (body == null) return catalogFailed(Downloader.lastFailure());
+        if (body.isEmpty()) return catalogFailed("empty catalog");
         try {
             JSONObject json = new JSONObject(body);
             String version = json.optString("version", "");
             String url = json.optString("url", "");
             String sha256 = json.optString("sha256", "");
-            if (version.isEmpty() || url.isEmpty() || sha256.isEmpty()) return null;
+            if (version.isEmpty() || url.isEmpty() || sha256.isEmpty()) {
+                return catalogFailed("catalog lacks version, url or sha256");
+            }
             return new Release(version, url, sha256, json.optLong("size", 0L));
         } catch (Exception e) {
-            Log.w(TAG, "catalog: " + e);
-            return null;
+            return catalogFailed("invalid catalog: " + e);
         }
+    }
+
+    private static Release catalogFailed(String reason) {
+        CATALOG_ERROR.set(reason);
+        Log.w(TAG, "catalog: " + reason);
+        return null;
     }
 
     private static final String USER_DATA = "root";
