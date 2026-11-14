@@ -56,11 +56,11 @@ jobs:
           }
           latest() {
             gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$1&per_page=20" \
-              --jq '[.workflow_runs[] | select(.head_sha == "'"$1"'")] | sort_by(.created_at) | last // empty | [.id, .status, .run_started_at, .created_at] | @tsv'
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$1"'")] | sort_by(.created_at) | last // empty | [.id, .status, (.run_started_at // .created_at), .created_at, .updated_at] | @tsv'
           }
           consider() {
-            local number=$1 head=$2 built=$3 id status started created
-            IFS=$'\t' read -r id status started created <<<"$4"
+            local number=$1 head=$2 built=$3 id status started created updated
+            IFS=$'\t' read -r id status started created updated <<<"$4"
             if [[ "$started" > "$bumped" ]]; then
               echo "PR #$number: build $id started after the bump"
             elif ! gh api "repos/$GITHUB_REPOSITORY/pulls/$number" |
@@ -81,25 +81,17 @@ jobs:
           candidates() {
             gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
               --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [(.tag_name | ltrimstr("pr-")), ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv'
-            # A build that started before the bump and was still running at it may have pinned the old main,
-            # including a PR's first build and fork builds, whose pull_requests list GitHub leaves empty.
-            # Unfinished runs are listed whatever their age; finished ones from the last day.
-            since=$(date -u -d "$bumped - 24 hours" +%Y-%m-%dT%H:%M:%SZ)
-            {
-              for status in queued in_progress waiting pending requested; do
-                gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
-                  -f event=pull_request -f status=$status -f per_page=100 --jq '.workflow_runs[]'
-              done
-              gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
-                -f event=pull_request -f status=completed -f created=">=$since" -f per_page=100 --jq '.workflow_runs[]'
-            } | jq -r 'select((.run_started_at // .created_at) < "'"$bumped"'" and (.status != "completed" or .updated_at >= "'"$bumped"'"))
-                | [(.pull_requests[0].number // 0 | tostring), .head_repository.full_name, .head_branch, .head_sha] | @tsv' |
-              while IFS=$'\t' read -r number repo branch sha; do
-                if [ "$number" = 0 ]; then
-                  number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f state=open -f base=main -f "head=${repo%%/*}:$branch" \
-                    --jq '.[] | select(.head.sha == "'"$sha"'") | .number' | head -1) || true
+            # The latest build of every open PR: one that started before the bump and was still running at it
+            # may have pinned the old main. This also covers a PR's first build and fork builds.
+            gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/pulls" -f state=open -f base=main -f per_page=100 \
+              --jq '.[] | select(.draft | not) | [(.number | tostring), .head.sha] | @tsv' |
+              while IFS=$'\t' read -r number sha; do
+                run=$(latest "$sha")
+                [ -n "$run" ] || continue
+                IFS=$'\t' read -r _ status started _ updated <<<"$run"
+                if [[ "$started" < "$bumped" ]] && { [ "$status" != completed ] || [[ ! "$updated" < "$bumped" ]]; }; then
+                  printf '%s\t?\n' "$number"
                 fi
-                if [ -n "$number" ]; then printf '%s\t?\n' "$number"; fi
               done
           }
           found=$(mktemp)
