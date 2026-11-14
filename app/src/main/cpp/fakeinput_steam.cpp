@@ -157,6 +157,8 @@ struct FakeController {
   bool closed = false;
   bool needs_keyframe = true;
   bool mouse = false;
+  int playing_ff = -1;
+  pid_t owner = getpid();
 
   ~FakeController() {
     if (ring) munmap(ring, mapping_size);
@@ -411,20 +413,47 @@ __attribute__((visibility("hidden"))) static void send_ff_effect(const struct ff
     send_vibration(effect.u.periodic.magnitude, effect.u.periodic.magnitude, duration, slot);
 }
 
+static std::unordered_map<int, const FakeController *> &ff_players() {
+  static auto *players = new std::unordered_map<int, const FakeController *>();
+  return *players;
+}
+
+__attribute__((visibility("hidden"))) static void ff_played(FakeController &controller, int id) {
+  controller.playing_ff = id;
+  controller.owner = getpid();
+  ff_players()[controller.slot] = &controller;
+}
+
+__attribute__((visibility("hidden"))) static bool ff_release(FakeController &controller) {
+  auto player = ff_players().find(controller.slot);
+  bool current = player != ff_players().end() && player->second == &controller;
+  if (current) ff_players().erase(player);
+  controller.playing_ff = -1;
+  return current;
+}
+
 __attribute__((visibility("hidden"))) static void
-check_ff_event(const struct input_event *ev, uint16_t slot) {
+check_ff_event(const struct input_event *ev, FakeController &controller) {
   if (ev->type != EV_FF)
     return;
 
+  uint16_t slot = static_cast<uint16_t>(controller.slot);
   int id = ev->code;
   if (ev->value > 0) {
     auto it = ff_effects().find(id);
     if (it == ff_effects().end())
       return;
     send_ff_effect(it->second, slot);
+    ff_played(controller, id);
   } else {
     send_vibration(0, 0, 0, slot);
+    ff_release(controller);
   }
+}
+
+__attribute__((visibility("hidden"))) static void stop_ff(FakeController &controller) {
+  bool playing = controller.playing_ff >= 0 && controller.owner == getpid();
+  if (ff_release(controller) && playing) send_vibration(0, 0, 0, static_cast<uint16_t>(controller.slot));
 }
 
 __attribute__((visibility("hidden"))) char *
@@ -3657,10 +3686,12 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
       effect->id = next_ff_id++;
     ff_effects()[effect->id] = *effect;
     send_ff_effect(*effect, static_cast<uint16_t>(event_number));
+    ff_played(*controller->second, effect->id);
     return 0;
   } else if (type == 0x45 && number == 0x81) {
     int id = (intptr_t)argp;
     ff_effects().erase(id);
+    if (controller->second->playing_ff == id) stop_ff(*controller->second);
     return 0;
   } else if (type == 0x45 && number == 0x84) {
     int max_effects = 16;
@@ -3740,6 +3771,7 @@ EXPORT int close(int fd) {
   if (controller != controller_map().end()) {
     Logger::log("Removing controller, fd %d event %s\n", controller->first,
                 controller->second->event ? controller->second->event : "(unknown)");
+    stop_ff(*controller->second);
     controller->second->closed = true;
     controller_map().erase(fd);
   }
@@ -3937,12 +3969,8 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
       return -1;
     }
 
-    const struct input_event *ev = nullptr;
-    uint16_t slot = static_cast<uint16_t>(controller->second->slot);
-    if (count == sizeof(struct input_event)) {
-      ev = static_cast<const struct input_event *>(buf);
-      check_ff_event(ev, slot);
-    }
+    if (count == sizeof(struct input_event))
+      check_ff_event(static_cast<const struct input_event *>(buf), *controller->second);
 
     return static_cast<ssize_t>(count);
   }
@@ -3982,14 +4010,10 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
       return -1;
     }
 
-    uint16_t slot = static_cast<uint16_t>(controller->second->slot);
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
-      if (iov[i].iov_len == sizeof(struct input_event)) {
-        const struct input_event *ev =
-            static_cast<const struct input_event *>(iov[i].iov_base);
-        check_ff_event(ev, slot);
-      }
+      if (iov[i].iov_len == sizeof(struct input_event))
+        check_ff_event(static_cast<const struct input_event *>(iov[i].iov_base), *controller->second);
       total += static_cast<ssize_t>(iov[i].iov_len);
     }
     return total;
