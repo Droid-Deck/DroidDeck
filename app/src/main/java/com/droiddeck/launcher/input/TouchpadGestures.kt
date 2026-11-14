@@ -239,7 +239,9 @@ class TouchpadGestures(
                     lastX = event.getX(it); lastY = event.getY(it)
                 }
                 if (desktop && scrolled && event.pointerCount == 2) listener.onScrollEnd()
-                if (fingers >= 3) {
+                if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
+                    secondWasTap = false
+                } else if (fingers >= 3) {
                     if (event.pointerCount == 2 && secondWasTap && !scrolled && event.eventTime - downAt < TouchTiming.TAP_MS * 2 &&
                         !listener.onThreeFingerTap())
                         click(PointerGestures.BTN_MIDDLE)
@@ -252,7 +254,7 @@ class TouchpadGestures(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPress)
-                val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL
+                val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
                 when {
                     dragging -> listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
                     twoFingers -> {

@@ -4691,6 +4691,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var lockedSwipeX = 0f
     private var lockedSwipeY = 0f
     private var dismissTouch = false
+    private var fingersCancelled = false
     private var sessionTouchDown = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -4701,6 +4702,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             MotionEvent.ACTION_DOWN -> {
                 sessionTouchDown = true
                 dismissTouch = false
+                fingersCancelled = false
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> sessionTouchDown = false
         }
@@ -4716,6 +4718,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             return true
         }
         if (penRouted != null) return onPenTouch(event, pen, penRouted)
+        if (fingersCancelled) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) fingersCancelled = false
+            return true
+        }
+        if (event.flags and MotionEvent.FLAG_CANCELED != 0 &&
+            (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_POINTER_UP)) {
+            val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+            try { routeFingers(cancel) } finally { cancel.recycle() }
+            fingersCancelled = event.actionMasked == MotionEvent.ACTION_POINTER_UP
+            return true
+        }
+        return routeFingers(event)
+    }
+
+    private fun routeFingers(event: MotionEvent): Boolean {
         val uiBlocking = uiBlocksTouch()
         if (event.actionMasked == MotionEvent.ACTION_DOWN && !uiBlocking && routedTouchMode != SessionPrefs.TOUCH_GESTURES) {
             scrollTouchGesture = scrollTouchMode()
@@ -4821,12 +4838,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             PenRouter.Route.PEN -> penSample(event, pen)
             PenRouter.Route.RELATIVE -> {
                 val split = if (event.pointerCount == 1) MotionEvent.obtain(event) else event.pointerSubset(1 shl event.getPointerId(pen))
-                split?.let {
-                    try {
-                        if (it.actionMasked == MotionEvent.ACTION_UP && it.flags and MotionEvent.FLAG_CANCELED != 0) it.action = MotionEvent.ACTION_CANCEL
-                        touchpadTouch(it)
-                    } finally { it.recycle() }
-                }
+                split?.let { try { touchpadTouch(it) } finally { it.recycle() } }
             }
             else -> {}
         }

@@ -63,14 +63,19 @@ class TouchpadGesturesTest {
         assertEquals(listOf("three tap"), events)
     }
 
-    private fun threeFingerTap() {
+    @Test fun aCancelledThirdFingerNeitherTapsNorClicks() {
+        threeFingerTap(thirdFlags = MotionEvent.FLAG_CANCELED)
+        assertEquals(emptyList<String>(), events)
+    }
+
+    private fun threeFingerTap(thirdFlags: Int = 0) {
         touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
         advance(10)
         touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
         advance(10)
         touch(MotionEvent.ACTION_POINTER_DOWN, 2, 1 to (400f to 300f), 2 to (600f to 310f), 3 to (800f to 320f))
         advance(60)
-        touch(MotionEvent.ACTION_POINTER_UP, 2, 1 to (400f to 300f), 2 to (600f to 310f), 3 to (800f to 320f))
+        touch(MotionEvent.ACTION_POINTER_UP, 2, 1 to (400f to 300f), 2 to (600f to 310f), 3 to (800f to 320f), flags = thirdFlags)
         touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 300f), 2 to (600f to 310f))
         touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
         advance(100)
@@ -273,7 +278,7 @@ class TouchpadGesturesTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
     }
 
-    private fun touch(action: Int, index: Int, vararg pointers: Pair<Int, Pair<Float, Float>>) {
+    private fun touch(action: Int, index: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0) {
         if (action == MotionEvent.ACTION_DOWN) downTime = time
         val properties = pointers.map { (id, _) ->
             MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER }
@@ -282,7 +287,7 @@ class TouchpadGesturesTest {
             MotionEvent.PointerCoords().apply { x = at.first; y = at.second; pressure = 1f; size = 1f }
         }.toTypedArray()
         val masked = action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
-        val event = MotionEvent.obtain(downTime, time, masked, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
+        val event = MotionEvent.obtain(downTime, time, masked, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, flags)
         touchpad.onTouch(event)
         event.recycle()
     }
