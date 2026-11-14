@@ -332,7 +332,7 @@ mod tests {
         );
         executable(
             &root.join("A.exe"),
-            &["gtavlauncher_pipe", "ELauncherPipe", "FLauncherPipe"],
+            &["gtavLauncher_Pipe", "ELauncherPipe", "FLauncherPipe"],
         );
         executable(
             &root.join("B.exe"),
