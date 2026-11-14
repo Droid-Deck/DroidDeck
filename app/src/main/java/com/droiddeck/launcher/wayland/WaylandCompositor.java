@@ -153,7 +153,7 @@ public final class WaylandCompositor {
 
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
-                                                     String nativeLibDir);
+                                                     String nativeLibDir, boolean allowDriverFallback);
 
     public static native void nativeSetSurface(Surface surface);
     public static native boolean nativeWaitSurface(int timeoutMs);

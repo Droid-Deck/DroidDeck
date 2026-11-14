@@ -282,6 +282,12 @@ public final class TurnipDriver {
             }
         }
         if (chosen != null && !chosen.isEmpty()) {
+            if (SessionPrefs.GPU_DRIVERS_AUTO.equals(SessionPrefs.INSTANCE.gpuDriverMode(context))
+                    && SessionPrefs.INSTANCE.gpuAutoInstalled(context).contains(chosen)
+                    && gpuDetector.get().getFamily() == GpuInfo.Family.A7XX_LOW) {
+                Log.i(TAG, "Auto-selected display driver does not cover Adreno 710/720/722; leaving the display driver to the system");
+                return null;
+            }
             if (BUNDLED.contains(chosen)) {
                 Log.i(TAG, "driver pinned by the user: " + chosen);
                 return chosen;
@@ -316,6 +322,10 @@ public final class TurnipDriver {
         GpuInfo gpu = gpuDetector.get();
         if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO || gpu.getFamily().getMali()) {
             Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");
+            return null;
+        }
+        if (gpu.getFamily() == GpuInfo.Family.A7XX_LOW) {
+            Log.i(TAG, "no bundled display driver covers Adreno 710/720/722; leaving the display driver to the system");
             return null;
         }
         int model = gpu.getModel();
