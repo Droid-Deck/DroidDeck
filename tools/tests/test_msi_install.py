@@ -33,6 +33,62 @@ def installer(tables, out="/tmp/unused", summary=None):
     return MSI["Installer"]("fake.msi", out, FakePackage(tables, summary))
 
 
+class ChoosePackagesTest(unittest.TestCase):
+
+    def choose(self, platforms):
+        class Stub:
+            def __init__(self, path):
+                self.summary = {"template": platforms[Path(path).name] + ";1033"}
+
+        root = Path(tempfile.mkdtemp())
+        found = []
+        for name in platforms:
+            (root / name).write_bytes(b"")
+            found.append(root / name)
+        choose = MSI["choose_packages"]
+        previous = choose.__globals__["Package"]
+        choose.__globals__["Package"] = Stub
+        try:
+            return [entry.name for entry in choose(found, root)]
+        finally:
+            choose.__globals__["Package"] = previous
+
+    def test_arm_packages_are_dropped_beside_native_ones(self):
+        self.assertEqual(self.choose({"a.msi": "x64", "b.msi": "Arm64", "c.msi": "Intel"}), ["a.msi", "c.msi"])
+
+    def test_an_all_arm64_bundle_is_kept(self):
+        self.assertEqual(self.choose({"min.msi": "Arm64", "extra.msi": "Arm64"}), ["min.msi", "extra.msi"])
+
+
+class InstallWrapperTest(unittest.TestCase):
+
+    def wrap(self, count):
+        wrap = MSI["install_wrapper"]
+        names = wrap.__globals__
+        saved = {key: names[key] for key in ("unpack_installer", "packages_in", "choose_packages", "Installer")}
+
+        class Empty:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def install(self):
+                raise MSI["MsiError"]("the package installs nothing here")
+
+        names["unpack_installer"] = lambda path, dest: "bundle"
+        names["packages_in"] = lambda dest: []
+        names["choose_packages"] = lambda found, root: [Path("p%d.msi" % index) for index in range(count)]
+        names["Installer"] = Empty
+        root = Path(tempfile.mkdtemp())
+        try:
+            return wrap(root / "setup.exe", root / "out")
+        finally:
+            names.update(saved)
+
+    def test_a_bundle_whose_packages_all_install_nothing_is_rejected(self):
+        with self.assertRaises(MSI["MsiError"]):
+            self.wrap(2)
+
+
 class ToolsTest(unittest.TestCase):
     def test_the_tools_find_their_own_libraries(self):
         paths = MSI["tool_env"]()["LD_LIBRARY_PATH"].split(":")
@@ -117,6 +173,39 @@ class LayoutTest(unittest.TestCase):
         })
         inst.select()
         self.assertEqual(inst.included_components, {"Up", "Wide"})
+
+    def architecture_package(self, platform, key="SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", name="PROCESSOR_ARCHITECTURE"):
+        return installer({
+            "Feature": rows("Feature Feature_Parent Level", ("Main", "", "1")),
+            "AppSearch": rows("Property Signature_", ("ARM64CHECK", "arch"), ("OTHER", "unrelated")),
+            "RegLocator": rows("Signature_ Root Key Name Type",
+                               ("arch", "2", key, name, "2"),
+                               ("unrelated", "2", "SOFTWARE\\Vendor", "Path", "2")),
+            "Component": rows("Component Directory_ Attributes Condition",
+                              ("Native", "TARGETDIR", "256", 'ARM64CHECK = "ARM64"'),
+                              ("Always", "TARGETDIR", "256", "")),
+            "FeatureComponents": rows("Feature_ Component_", ("Main", "Native"), ("Main", "Always")),
+        }, summary={"template": "%s;1033" % platform})
+
+    def test_the_architecture_lookup_enables_arm64_components_in_an_arm64_package(self):
+        inst = self.architecture_package("Arm64")
+        inst.run_app_search()
+        inst.select()
+        self.assertEqual(inst.included_components, {"Native", "Always"})
+        self.assertNotIn("OTHER", inst.props)
+
+    def test_the_architecture_lookup_ignores_registry_name_case(self):
+        inst = self.architecture_package("Arm64", "System\\CurrentControlSet\\Control\\Session Manager\\Environment\\", "Processor_Architecture")
+        inst.run_app_search()
+        inst.select()
+        self.assertEqual(inst.props["ARM64CHECK"], "ARM64")
+        self.assertEqual(inst.included_components, {"Native", "Always"})
+
+    def test_the_architecture_lookup_leaves_other_packages_alone(self):
+        inst = self.architecture_package("x64")
+        inst.run_app_search()
+        inst.select()
+        self.assertEqual(inst.included_components, {"Always"})
 
     def test_a_duplicate_onto_the_file_itself_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
