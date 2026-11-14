@@ -75,6 +75,10 @@ private val HANDLE_WIDTH = 40.dp
 private const val RESET_HOLD_MS = 5_000
 private const val TAP_HOLD_MS = 400
 private val HINT_LABEL_WIDTH = 92.dp
+private val HINT_KEY_SIZE = 18.dp
+private val HINT_GAP = 8.dp
+private val HINT_LABEL_MIN = 24.dp
+private val HINT_ROOM = HINT_LABEL_MIN + HINT_KEY_SIZE + HINT_GAP
 
 @Composable
 internal fun ResetHold(held: Boolean, onFire: () -> Unit): Float {
@@ -107,7 +111,7 @@ private fun HudKeyHints(grabbed: String?, resetFill: Float) {
 private fun KeyHint(key: String, label: String, fill: Float = 0f) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(HINT_GAP),
     ) {
         Text(
             label,
@@ -120,7 +124,7 @@ private fun KeyHint(key: String, label: String, fill: Float = 0f) {
         )
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(18.dp).clip(RoundedCornerShape(5.dp))
+            modifier = Modifier.size(HINT_KEY_SIZE).clip(RoundedCornerShape(5.dp))
                 .background(
                     if (fill > 0f) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f + 0.55f * fill)
                     else MaterialTheme.colorScheme.surfaceVariant,
@@ -197,7 +201,7 @@ internal fun HudReadingsDialog(
     val before = remember { mutableStateListOf<String>() }
     val grab = {
         val target = focusedKey ?: order.firstOrNull()
-        if (target != null && grabbed == null) {
+        if (target != null && grabbed == null && dragging < 0) {
             before.clear()
             before.addAll(order)
             grabbed = target
@@ -221,12 +225,13 @@ internal fun HudReadingsDialog(
         } else {
             null
         },
+        sideRoom = HINT_ROOM,
     ) {
         val state = rememberLazyListState()
         val scope = rememberCoroutineScope()
         val handlePx = with(LocalDensity.current) { HANDLE_WIDTH.toPx() }
         Column(
-            Modifier.fillMaxSize().focusRequester(panelFocus).focusable()
+            Modifier.fillMaxWidth().weight(1f).focusRequester(panelFocus).focusable()
                 .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 val down = key.action == KeyEvent.ACTION_DOWN
@@ -255,7 +260,9 @@ internal fun HudReadingsDialog(
                         resetHeld = down
                         true
                     }
-                    key.keyCode == KeyEvent.KEYCODE_BUTTON_A -> {
+                    key.keyCode == KeyEvent.KEYCODE_BUTTON_A ||
+                        key.keyCode == KeyEvent.KEYCODE_ENTER ||
+                        key.keyCode == KeyEvent.KEYCODE_SPACE -> {
                         val target = focusedKey
                         when {
                             held != null -> {
@@ -303,7 +310,7 @@ internal fun HudReadingsDialog(
                         val item = state.layoutInfo.visibleItemsInfo.firstOrNull {
                             it.offset <= down.position.y && down.position.y < it.offset + it.size
                         }
-                        if (item == null || down.position.x > handlePx) return@awaitEachGesture
+                        if (item == null || down.position.x > handlePx || grabbed != null) return@awaitEachGesture
                         val start = item.index
                         dragging = start
                         dragOffset = 0f
