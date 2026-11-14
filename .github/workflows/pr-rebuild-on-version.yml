@@ -96,6 +96,8 @@ jobs:
                 if [ -n "$number" ]; then printf '%s\t?\n' "$number"; fi
               done
           }
+          found=$(mktemp)
+          candidates > "$found"
           while IFS=$'\t' read -r number built; do
             [ "$built" = "?" ] || [ "$built" -lt "$now" ] || continue
             [ -z "${seen[$number]:-}" ] || continue
@@ -111,7 +113,7 @@ jobs:
             else
               pending+=("$number $head $built")
             fi
-          done < <(candidates)
+          done < "$found"
           # Builds still running are polled together so one slow build cannot hold up the rest.
           deadline=$((SECONDS + 150 * 60))
           while [ ${#pending[@]} -gt 0 ] && [ "$SECONDS" -lt "$deadline" ]; do
