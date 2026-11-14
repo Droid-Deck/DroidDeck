@@ -127,6 +127,7 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
           retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-corresponding-source
@@ -135,6 +136,7 @@ jobs:
             app/build/xbox/runtime/*-source.tar.xz
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
 
   components-runner:
     needs: source
@@ -330,6 +332,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+          overwrite: true
 
   build-runner:
     needs: [components]
@@ -664,6 +667,7 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+          overwrite: true
 
       - name: Unit tests
         id: unit-tests
@@ -687,6 +691,7 @@ jobs:
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+          overwrite: true
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
