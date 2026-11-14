@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -39,6 +40,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -55,7 +58,9 @@ import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 
 @Composable
-internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, onRevise: () -> Unit = {}) {
+internal fun AgentEntry(
+    entry: Entry, running: Boolean, last: Boolean = false, changes: Changes? = null, turn: List<Entry> = emptyList(), onRevise: () -> Unit = {},
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     when (entry) {
@@ -73,10 +78,10 @@ internal fun AgentEntry(entry: Entry, running: Boolean, last: Boolean = false, c
         is Entry.Finished -> when {
             last && AgentHost.answerless(AgentHost.entries) -> AgentNoReply()
             last && entry.planned -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AgentTurnEnd(entry, changes)
+                AgentTurnEnd(entry, changes, turn)
                 AgentPlanActions(onRevise)
             }
-            else -> AgentTurnEnd(entry, changes)
+            else -> AgentTurnEnd(entry, changes, turn)
         }
     }
 }
@@ -106,12 +111,17 @@ internal data class Changes(val files: Int, val added: Int, val removed: Int)
 /** The edits of the turn that ends at [end], or null when it changed no file. */
 internal fun turnChanges(entries: List<Entry>, end: Int): Changes? {
     val start = entries.subList(0, end).indexOfLast { it is Entry.Asked }
-    // Plan mode saves its plan as a file of its own, which is not a change to anything.
-    val edits = entries.subList(start + 1, end).filterIsInstance<Entry.Used>().filter { !it.failed }.mapNotNull { diffOf(it) }
-        .filter { !it.path.contains("/.claude/plans/") }
+    val edits = turnEdits(entries.subList(start + 1, end))
     if (edits.isEmpty()) return null
     return Changes(edits.map { it.path }.distinct().size, edits.sumOf { it.added }, edits.sumOf { it.removed })
 }
+
+/** The edits in [turn] that took, in order. Plan mode saves its plan as a file of its own, which is not a change to anything. */
+internal fun turnEdits(turn: List<Entry>): List<Diff> =
+    turn.filterIsInstance<Entry.Used>().filter { !it.failed }.mapNotNull { diffOf(it) }.filter { !it.path.contains("/.claude/plans/") }
+
+/** What the agent said in [turn], to copy as one text. */
+internal fun turnReply(turn: List<Entry>): String = turn.filterIsInstance<Entry.Said>().joinToString("\n\n") { it.text }
 
 internal class Diff(val path: String, val lines: List<String>) {
     val added = lines.count { it.startsWith("+") }
@@ -129,9 +139,11 @@ internal fun diffOf(entry: Entry.Used): Diff? {
 }
 
 @Composable
-private fun AgentTurnEnd(entry: Entry.Finished, changes: Changes?) {
+private fun AgentTurnEnd(entry: Entry.Finished, changes: Changes?, turn: List<Entry>) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    val reply = remember(turn.size) { turnReply(turn) }
     val text = when {
         entry.stopped -> stringResource(R.string.agent_stopped)
         entry.error != null -> stringResource(R.string.agent_failed, entry.error)
@@ -143,18 +155,38 @@ private fun AgentTurnEnd(entry: Entry.Finished, changes: Changes?) {
             }.joinToString(" · ")
         }
     }
-    if (text.isNullOrEmpty() && changes == null) return
+    if (text.isNullOrEmpty() && changes == null && reply.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
         if (changes != null) Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 9.dp, vertical = 4.dp).testTag("agent-changes"),
+            modifier = Modifier.clip(Shape12).background(if (open) pal.primary.copy(alpha = 0.2f) else pal.surfaceVariant).clickable { open = !open }
+                .padding(horizontal = 9.dp, vertical = 4.dp).testTag("agent-changes"),
         ) {
             Text(pluralStringResource(R.plurals.agent_files_changed, changes.files, changes.files), fontSize = 12.sp, color = pal.onSurfaceVariant)
             Text("+${changes.added}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.good)
             Text("−${changes.removed}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.error)
+            Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }
-        if (!text.isNullOrEmpty()) Text(text, fontSize = 12.sp, color = if (entry.error != null && !entry.stopped) colors.error else pal.onSurfaceVariant)
+        if (!text.isNullOrEmpty()) Text(text, fontSize = 12.sp, color = if (entry.error != null && !entry.stopped) colors.error else pal.onSurfaceVariant,
+            modifier = Modifier.weight(1f, fill = false))
+        if (reply.isNotEmpty()) CopyButton(reply, stringResource(R.string.agent_copy_reply))
     }
+    if (open && changes != null) Column(Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (diff in turnEdits(turn)) {
+            Text(diff.path, fontSize = 11.5.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            DiffBox(diff)
+        }
+    }
+}
+
+@Composable
+private fun CopyButton(text: String, label: String) {
+    val clipboard = LocalClipboardManager.current
+    val pal = LocalPalette.current
+    Icon(
+        Icons.Outlined.ContentCopy, label, tint = pal.onSurfaceVariant,
+        modifier = Modifier.size(28.dp).clip(Shape12).clickable { clipboard.setText(AnnotatedString(text)) }.padding(6.dp).testTag("agent-copy"),
+    )
 }
 
 @Composable
@@ -289,7 +321,11 @@ private fun DiffBox(diff: Diff) {
 private fun CodeBox(label: String, text: String, color: Color) {
     val pal = LocalPalette.current
     Column {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = pal.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = pal.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(bottom = 3.dp))
+            CopyButton(text, stringResource(R.string.agent_copy))
+        }
         SelectionContainer {
             Text(
                 text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = color, lineHeight = 17.sp,
