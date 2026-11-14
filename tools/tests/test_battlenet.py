@@ -1441,6 +1441,51 @@ class AgentJobTest(Harness):
         self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 1)
         self.assertEqual(self.lines[-1][0], "ERROR")
 
+    def test_a_job_that_stops_moving_is_ended_as_stalled_and_its_agent_stopped(self):
+        self.install()
+        self.files = {".json": json.dumps({"state": 1003, "paused": True, "download_current": [10, 0, 0], "download_total": [99, 0, 0]})}
+        killed = []
+        stopped = []
+
+        class Hung:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                base = cmd[-1][2:].replace("\\", "/")
+                with open(base + ".json", "wb") as f:
+                    f.write(self_files[".json"].encode("utf-16"))
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                killed.append(True)
+
+            def wait(self):
+                return -9
+
+        self_files = self.files
+        with mock.patch.object(BNET["subprocess"], "Popen", Hung), \
+                mock.patch.dict(BNET, {"wine_processes": lambda pfx: [(5, ["agent.exe"])], "stop": lambda p: stopped.append(p)}):
+            code = BNET["agent_job"](self.root, "install", "s1", "s1", str(self.tmp / "S1"), "enUS", "USA", "US", poll=0, stall=0.05)
+        self.assertEqual(code, 6)
+        self.assertEqual(killed, [True])
+        self.assertEqual(stopped, [[(5, ["agent.exe"])]])
+        self.assertEqual(self.lines[-1], ("ERROR", "stalled"))
+
+    def test_a_moving_job_is_not_ended_as_stalled(self):
+        self.install()
+        self.files = {".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
+                      ".game": json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})}
+        self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=0), 0)
+        self.assertNotIn(("ERROR", "stalled"), self.lines)
+
+    def test_only_a_real_job_reply_counts_as_started(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn("if (state == 1000 || state == 1003 || job(s) && !complete) started = true;", script)
+        self.assertIn('return /"state"\\s*:\\s*\\d+/.test(bare) || /"download_current"\\s*:/.test(bare);', script)
+        self.assertIn('if (/"error"\\s*:\\s*[1-9]/.test(text)) return false;', script)
+
     def test_the_driver_only_stops_once_the_agent_has_really_run(self):
         script = BNET["AGENT_SCRIPT"]
         self.assertIn("if (started && (state == 1004 || complete && /\"playable\"\\s*:\\s*true/.test(s))) break;", script)
