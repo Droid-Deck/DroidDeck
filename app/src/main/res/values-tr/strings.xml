@@ -2493,6 +2493,7 @@
     <string name="bnet_dl_queued">Diğer Battle.net indirmesi bekleniyor…</string>
     <string name="bnet_dl_client_first">Battle.net\'i açıp bir kez oturum açın, ardından oyunlarını buradan yükleyin.</string>
     <string name="bnet_dl_failed">Blizzard indiricisi durdu: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzard indiricisi ilerlemeyi durdurdu.</string>
     <string name="bnet_dl_agent_error">Blizzard hatası %1$s</string>
     <string name="bnet_update">Güncelle</string>
     <string name="bnet_store">Blizzard oyunları</string>

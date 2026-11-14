@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">Várakozás a másik Battle.net-letöltésre…</string>
     <string name="bnet_dl_client_first">Nyisd meg a Battle.netet, és jelentkezz be egyszer, majd innen telepítsd a játékait.</string>
     <string name="bnet_dl_failed">A Blizzard letöltője leállt: %1$s</string>
+    <string name="bnet_dl_stalled">A Blizzard letöltője nem halad tovább.</string>
     <string name="bnet_dl_agent_error">Blizzard-hiba: %1$s</string>
     <string name="bnet_update">Frissítés</string>
     <string name="bnet_store">Blizzard-játékok</string>

@@ -2493,6 +2493,7 @@
     <string name="bnet_dl_queued">Warten auf den anderen Battle.net-Download…</string>
     <string name="bnet_dl_client_first">Öffne Battle.net und melde dich einmal an, dann installiere seine Spiele hier.</string>
     <string name="bnet_dl_failed">Blizzards Downloader wurde beendet: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzards Downloader kommt nicht mehr voran.</string>
     <string name="bnet_dl_agent_error">Blizzard-Fehler %1$s</string>
     <string name="bnet_update">Aktualisieren</string>
     <string name="bnet_store">Blizzard-Spiele</string>
