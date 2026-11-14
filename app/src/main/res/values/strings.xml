@@ -1014,6 +1014,8 @@
     <string name="dual_typing_done">Done</string>
     <string name="setup_default_home">Default Home app</string>
     <string name="setup_choose_home">Choose a Home app</string>
+    <string name="setup_hide_home_from_recents">Hide launcher from Recents while idle</string>
+    <string name="setup_hide_home_from_recents_hint">Only applies when DroidDeck is the default Home app and no session is running.</string>
     <string name="setup_choose">Choose</string>
     <string name="setup_linux_apps">Linux apps (beta)</string>
     <string name="setup_tool_files">Files</string>

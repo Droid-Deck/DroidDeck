@@ -147,6 +147,7 @@ internal fun SetupPanel(
 ) {
     val host = rememberMenuHost()
     val ctx = LocalContext.current
+    var hideHomeFromRecents by remember { mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.hideHomeFromRecents(ctx)) }
     var processLimitBusy by remember { mutableStateOf(false) }
     var processLimitMessage by remember { mutableStateOf<String?>(null) }
     val setProcessLimit: (Boolean) -> Unit = { enabled ->
@@ -470,6 +471,13 @@ internal fun SetupPanel(
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
                                     ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
+                                    ToggleRow(
+                                        host, "hide-home-from-recents", stringResource(R.string.setup_hide_home_from_recents),
+                                        stringResource(R.string.setup_hide_home_from_recents_hint), hideHomeFromRecents,
+                                    ) { hidden ->
+                                        hideHomeFromRecents = hidden
+                                        com.droiddeck.launcher.core.AppUiPrefs.setHideHomeFromRecents(ctx, hidden)
+                                    }
                                     ChoiceRow(
                                         host, "home-page", stringResource(R.string.setup_home_page), stringResource(R.string.setup_home_page_hint),
                                         com.droiddeck.launcher.core.AppUiPrefs.homePageOptions.map { (value, label) -> value to stringResource(label) },
