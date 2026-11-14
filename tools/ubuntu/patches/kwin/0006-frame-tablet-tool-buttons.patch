@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alien2003 <11610652+alien2003@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 09:10:00 +0000
+Subject: [PATCH] Frame tablet tool buttons and accept a tool at the origin
+
+Clients apply tablet tool events on the next frame, so a side button
+did nothing until the tool moved; send a frame after the button. A tool
+at the top-left corner, (0, 0), also counted as having no position, so
+KWin found no window under it; track whether a tool has reported one.
+---
+ src/input.cpp        | 1 +
+ src/tablet_input.cpp | 4 ++++
+ src/tablet_input.h   | 3 ++-
+ 3 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/input.cpp b/src/input.cpp
+index a79bb3a..3216636 100644
+--- a/src/input.cpp
++++ b/src/input.cpp
+@@ -2500,6 +2500,7 @@ public:
+             return false;
+         }
+         tool->sendButton(event->button, event->pressed);
++        tool->sendFrame(std::chrono::duration_cast<std::chrono::milliseconds>(event->time).count());
+         return true;
+     }
+ 
+diff --git a/src/tablet_input.cpp b/src/tablet_input.cpp
+index 9726a83..488c5b4 100644
+--- a/src/tablet_input.cpp
++++ b/src/tablet_input.cpp
+@@ -221,6 +221,7 @@ void TabletInputRedirection::tabletToolAxisEvent(const QPointF &pos, qreal press
+     }
+ 
+     ensureTabletTool(tool);
++    m_hasPosition = true;
+ 
+     m_lastPosition = pos;
+     m_cursorByTool[tool]->setPos(m_lastPosition);
+@@ -256,6 +257,7 @@ void TabletInputRedirection::tabletToolAxisEventRelative(const QPointF &delta,
+     }
+ 
+     ensureTabletTool(tool);
++    m_hasPosition = true;
+ 
+     m_lastPosition += delta;
+ 
+@@ -294,6 +296,7 @@ void TabletInputRedirection::tabletToolProximityEvent(const QPointF &pos, qreal
+     }
+ 
+     ensureTabletTool(tool);
++    m_hasPosition = true;
+ 
+     if (!device->tabletToolIsRelative()) {
+         m_lastPosition = pos;
+@@ -331,6 +334,7 @@ void TabletInputRedirection::tabletToolTipEvent(const QPointF &pos, qreal pressu
+     }
+ 
+     ensureTabletTool(tool);
++    m_hasPosition = true;
+ 
+     if (!device->tabletToolIsRelative()) {
+         m_lastPosition = pos;
+diff --git a/src/tablet_input.h b/src/tablet_input.h
+index 990ed21..159ca88 100644
+--- a/src/tablet_input.h
++++ b/src/tablet_input.h
+@@ -52,7 +52,7 @@ public:
+ 
+     bool positionValid() const override
+     {
+-        return !m_lastPosition.isNull();
++        return m_hasPosition;
+     }
+     void init() override;
+ 
+@@ -78,6 +78,7 @@ private:
+     QHash<InputDeviceTabletTool *, Cursor *> m_cursorByTool;
+     bool m_tipDown = false;
+     bool m_buttonDown = false;
++    bool m_hasPosition = false;
+ };
+ 
+ }

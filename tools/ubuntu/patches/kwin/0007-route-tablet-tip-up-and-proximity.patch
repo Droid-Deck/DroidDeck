@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alien2003 <11610652+alien2003@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 09:20:00 +0000
+Subject: [PATCH] Route tablet tip-up and proximity to the right surface
+
+The focus moved to the window under the pen before a tip release was
+delivered, so the release went there instead of to the window that got
+the press; update the focus after the release. A tool that moved onto a
+decoration, an internal window or the empty desktop also stayed on the
+client surface: send proximity_out there and proximity_in on return.
+---
+ src/input.cpp        | 10 ++++++++++
+ src/tablet_input.cpp | 21 ++++++++++++++-------
+ 2 files changed, 24 insertions(+), 7 deletions(-)
+
+diff --git a/src/input.cpp b/src/input.cpp
+index 3216636..e627343 100644
+--- a/src/input.cpp
++++ b/src/input.cpp
+@@ -2368,12 +2368,17 @@ public:
+         TabletV2Interface *tablet = seat->tablet(event->device);
+ 
+         const auto [surface, surfaceLocalPos] = window->surface()->mapToInputSurface(window->mapToLocal(event->position));
++        const bool surfaceChanged = tool->currentSurface() != surface;
++        const quint32 proximitySerial = tool->proximitySerial();
+         tool->setCurrentSurface(surface);
+ 
+         if (!tool->isClientSupported() || !tablet->isSurfaceSupported(surface)) {
+             return emulateTabletEvent(event);
+         }
+ 
++        if (surfaceChanged && tool->proximitySerial() == proximitySerial) {
++            tool->sendProximityIn(tablet);
++        }
+         tool->sendMotion(surfaceLocalPos);
+ 
+         if (tool->hasCapability(TabletToolV2Interface::Pressure)) {
+@@ -2408,12 +2413,17 @@ public:
+         TabletV2Interface *tablet = seat->tablet(event->device);
+ 
+         const auto [surface, surfaceLocalPos] = window->surface()->mapToInputSurface(window->mapToLocal(event->position));
++        const bool surfaceChanged = tool->currentSurface() != surface;
++        const quint32 proximitySerial = tool->proximitySerial();
+         tool->setCurrentSurface(surface);
+ 
+         if (!tool->isClientSupported() || !tablet->isSurfaceSupported(surface)) {
+             return emulateTabletEvent(event);
+         }
+ 
++        if (surfaceChanged && tool->proximitySerial() == proximitySerial) {
++            tool->sendProximityIn(tablet);
++        }
+         if (event->type == TabletToolTipEvent::Press) {
+             tool->sendMotion(surfaceLocalPos);
+             tool->sendDown();
+diff --git a/src/tablet_input.cpp b/src/tablet_input.cpp
+index 488c5b4..773a246 100644
+--- a/src/tablet_input.cpp
++++ b/src/tablet_input.cpp
+@@ -344,14 +344,11 @@ void TabletInputRedirection::tabletToolTipEvent(const QPointF &pos, qreal pressu
+         m_cursorByTool[tool]->setPos(m_lastPosition);
+     }
+ 
+-    if (!tipDown) {
+-        m_tipDown = false;
+-    }
+-
+-    update();
+-
+     if (tipDown) {
++        update();
+         m_tipDown = true;
++    } else {
++        m_tipDown = false;
+     }
+ 
+     workspace()->setActiveOutput(m_lastPosition);
+@@ -378,6 +375,8 @@ void TabletInputRedirection::tabletToolTipEvent(const QPointF &pos, qreal pressu
+         if (auto f = focus()) {
+             f->setLastUsageSerial(waylandServer()->seat()->display()->serial());
+         }
++    } else {
++        update();
+     }
+ }
+ 
+@@ -527,7 +526,15 @@ void TabletInputRedirection::cleanupDecoration(Decoration::DecoratedWindowImpl *
+ 
+ void TabletInputRedirection::focusUpdate(Window *focusOld, Window *focusNow)
+ {
+-    // This method is left blank intentionally.
++    if (focusNow && focusNow->surface()) {
++        return;
++    }
++    TabletSeatV2Interface *tabletSeat = findTabletSeat();
++    for (auto it = m_cursorByTool.cbegin(); it != m_cursorByTool.cend(); ++it) {
++        TabletToolV2Interface *tool = tabletSeat->tool(it.key());
++        tool->sendProximityOut();
++        tool->sendFrame(0);
++    }
+ }
+ 
+ }
