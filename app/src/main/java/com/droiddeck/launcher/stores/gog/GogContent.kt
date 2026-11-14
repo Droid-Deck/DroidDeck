@@ -16,6 +16,7 @@ internal object GogContent {
 
     fun token(context: Context) = GogAuth.validToken(context) ?: error("Sign in to GOG and retry")
 
+    @JvmStatic
     fun builds(id: String, token: String): JSONObject {
         val result = json("$SYSTEM/products/$id/os/windows/builds?generation=2", token)
         if (result.optJSONArray("items")?.length() != 0) return result
@@ -23,6 +24,36 @@ internal object GogContent {
     }
 
     fun product(id: String, token: String): JSONObject = json("https://api.gog.com/products/$id?expand=downloads", token)
+
+    @JvmStatic
+    fun ownedProductIds(token: String): Set<String>? = runCatching {
+        val body = StoreNet.get("https://embed.gog.com/user/data/games", bearer = token) ?: return@runCatching null
+        JSONObject(body).optJSONArray("owned")?.strings()?.toSet() ?: emptySet()
+    }.getOrNull()
+
+    @JvmStatic
+    fun depotProducts(depot: JSONObject, baseProductId: String): List<String> =
+        depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId").ifEmpty { baseProductId })
+
+    @JvmStatic
+    fun clientCredentials(manifest: JSONObject): Pair<String, String>? {
+        val clientId = manifest.optString("clientId")
+        val clientSecret = manifest.optString("clientSecret")
+        return clientId.takeIf { it.isNotBlank() }?.let { id -> clientSecret.takeIf { it.isNotBlank() }?.let { id to it } }
+    }
+
+    @JvmStatic
+    fun tempExecutable(manifest: JSONObject): String? = manifest.optJSONArray("products")?.optJSONObject(0)
+        ?.optString("temp_executable")?.takeIf { it.isNotBlank() }
+
+    @JvmStatic
+    fun installProducts(baseProductId: String, depots: JSONArray, installed: List<String>, token: String,
+        ownership: (String) -> Set<String>? = { ownedProductIds(it) }): Set<String> {
+        val listed = depots.objects().flatMap { depotProducts(it, baseProductId) }.distinct()
+        val owned = if (listed.any { it != baseProductId } || installed.any { it != baseProductId }) ownership(token) else emptySet()
+        check(installed.all { it == baseProductId || owned?.contains(it) == true }) { "Could not confirm ownership of installed GOG DLC" }
+        return (listOf(baseProductId) + installed + listed.filter { it == baseProductId || owned?.contains(it) == true }).toSet()
+    }
 
     fun downloadFilename(url: String): String = java.net.URLDecoder.decode(URL(url).path.substringAfterLast('/').replace("+", "%2B"), "UTF-8")
 
@@ -42,6 +73,7 @@ internal object GogContent {
         } finally { connection.disconnect() }
     })
 
+    @JvmStatic
     fun json(url: String, token: String? = null): JSONObject {
         require(URL(url).protocol == "https") { "GOG metadata requires HTTPS" }
         val connection = URL(url).openConnection() as HttpURLConnection
@@ -61,21 +93,21 @@ internal object GogContent {
     }
 
     fun snapshot(old: GogInstallRecord, build: GogBuild, token: String,
-        metadata: (String, String?) -> JSONObject = ::json): GogInstallRecord {
+        ownership: (String) -> Set<String>? = { ownedProductIds(it) },
+        metadata: (String, String?) -> JSONObject = ::json,
+        onManifest: (JSONObject) -> Unit = {}): GogInstallRecord {
         check(build.link.isNotBlank()) { "GOG build manifest is unavailable" }
         val manifest = metadata(build.link, token)
+        onManifest(manifest)
         val files = JSONArray()
         val depots = if (build.generation == 1) manifest.optJSONObject("product")?.optJSONArray("depots") ?: manifest.optJSONArray("depot") else manifest.optJSONArray("depots")
         check(depots != null) { "GOG build has no depot list" }
         val resolvedLanguage = StoreLanguage.pick(StoreLanguage.codesFromDepots(depots), old.language)
         val selectedBitness = if (depots.objects().any { it.optJSONArray("osBitness")?.strings()?.contains("64") == true }) "64" else "32"
-        val owned = if (old.products.any { it != old.id }) StoreNet.get("https://embed.gog.com/user/data/games", bearer = token)?.let { JSONObject(it).optJSONArray("owned")?.strings()?.toSet() } else emptySet()
-        val products = old.products.filter { it == old.id || owned?.contains(it) == true }
-        check(old.products.all { it == old.id || owned?.contains(it) == true }) { "Could not confirm ownership of installed GOG DLC" }
+        val products = installProducts(old.id, depots, old.products, token, ownership)
         for (depot in depots.objects()) {
             if (depot.has("redist")) continue
-            val ids = depot.optJSONArray("gameIDs")?.strings() ?: listOf(depot.optString("productId", old.id))
-            val product = ids.firstOrNull { it in products } ?: continue
+            val product = depotProducts(depot, old.id).firstOrNull { it in products } ?: continue
             val languages = depot.optJSONArray("languages")?.strings().orEmpty()
             if (!languageSelected(languages, resolvedLanguage)) continue
             val bitness = depot.optJSONArray("osBitness")?.strings().orEmpty()
@@ -108,7 +140,7 @@ internal object GogContent {
         }
         check(files.length() > 0) { "GOG build contains no matching files" }
         return old.copy(source = "depot", generation = build.generation, build = build.id, version = build.version,
-            branch = build.branch, language = resolvedLanguage, manifest = sanitize(manifest), files = files, products = products, verified = true)
+            branch = build.branch, language = resolvedLanguage, manifest = sanitize(manifest), files = files, products = products.toList(), verified = true)
     }
 
     fun languageSelected(list: List<String>, selected: String): Boolean = list.any { it.equals("Neutral", true) } || StoreLanguage.depotMatchesResolved(list.toTypedArray(), selected)

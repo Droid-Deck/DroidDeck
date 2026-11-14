@@ -259,6 +259,29 @@ class BattleNetTest {
             BattleNet.hostFolder(context, "Z:/root/Games/Stores/Battle.net/Hearthstone/"))
     }
 
+    @Test fun aMappedWineDriveResolvesThroughItsLink() {
+        val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        java.nio.file.Files.createSymbolicLink(File(devices, "e:").toPath(), java.nio.file.Paths.get("../drive_c"))
+        assertEquals(File(LinuxRuntime.rootDir(context), "root/Games/Card/Battle.net/Hearthstone"),
+            BattleNet.hostFolder(context, "D:\\Battle.net\\Hearthstone"))
+        assertEquals(File(BattleNet.prefix(context), "pfx/drive_c/Games/X"), BattleNet.hostFolder(context, "E:\\Games\\X"))
+        assertNull(BattleNet.hostFolder(context, "F:\\Games\\X"))
+        assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
+    }
+
+    @Test fun aDriveLinkTheNativeUserlandMadeRelativeStillResolvesInTheGuest() {
+        val root = LinuxRuntime.rootDir(context)
+        val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        java.nio.file.Files.createSymbolicLink(File(devices, "g:").toPath(), java.nio.file.Paths.get("../../../../../../../../../../.."))
+        NativeGuest.relinkAbsoluteSymlinks(context, root)
+        assertFalse(java.nio.file.Files.readSymbolicLink(File(devices, "d:").toPath()).isAbsolute)
+        assertEquals(File(root, "root/Games/Card/Battle.net/Hearthstone"),
+            BattleNet.hostFolder(context, "D:\\Battle.net\\Hearthstone"))
+        assertNull(BattleNet.hostFolder(context, "G:\\etc\\passwd"))
+    }
+
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
@@ -349,6 +372,20 @@ class BattleNetTest {
         assertFalse(BattleNet.notInstalled(BattleNet.title("osi")!!, listOf("osic")))
         assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
 
+    }
+
+    @Test fun aScannedGamesShortcutReusesTheKeptRankingInsteadOfWalkingItsFolder() {
+        val added = com.droiddeck.launcher.frontend.AddedGames
+        val folder = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Kept Game").apply { mkdirs() }
+        File(folder, "Game.exe").writeBytes(byteArrayOf(0x4d, 0x5a))
+        val kept = File(folder, "Other.exe").apply { writeBytes(byteArrayOf(0x4d, 0x5a)) }
+        com.droiddeck.launcher.frontend.AddedGamesCache(File(context.filesDir, com.droiddeck.launcher.frontend.AddedGamesCache.FILE)).apply {
+            keepRank(folder, com.droiddeck.launcher.frontend.GameExePicker.Ranking(listOf(kept), listOf(10), false))
+            save()
+        }
+        added.scan(context)
+        assertEquals(kept, BattleNet.shortcut(context, BattleNet.Game("fenris", "Kept Game", "Fen", folder))!!.exe)
+        assertEquals("Game.exe", added.candidates(folder).first().name)
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {
