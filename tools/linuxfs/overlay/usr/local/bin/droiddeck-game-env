@@ -16,7 +16,7 @@ CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapsh
 D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
-PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
+PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "BL_SEMPOOL")
 
 
 # Prefixes several games share; the game itself is the Steam app being launched.
