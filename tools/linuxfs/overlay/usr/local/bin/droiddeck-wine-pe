@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import re
 from pathlib import Path
 
 
@@ -75,8 +76,16 @@ def pe_has_arm64ec_metadata(path):
     return False
 
 
+# Only x64 code and members of the same runtime family import these, so an x64 copy loads in an
+# ARM64EC prefix, and games check for a newer version than Wine's builtins report.
+VC_RUNTIME = re.compile(r"(msvc[pr]\d.*|vcruntime\d.*|vcomp\d*|vcamp\d.*|vccorlib\d.*|concrt\d.*|mfcm?\d.*)\.dll",
+                        re.IGNORECASE)
+
+
 def machine_compatible(path, machines, machine=None):
     machine = pe_machine(path) if machine is None else machine
+    if machine == 0x8664 and 0xA641 in machines and VC_RUNTIME.fullmatch(Path(path).name):
+        return True
     if machine == 0x8664 and pe_has_arm64ec_metadata(path):
         return 0xA641 in machines
     return machine in machines

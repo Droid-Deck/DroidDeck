@@ -92,6 +92,18 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(names, ["ucrtbase"])
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
 
+    def test_x64_visual_cpp_runtime_is_placed_in_arm64_system32(self):
+        proton = self.proton()
+        self.component("vc", ["msvcp140", "vcruntime140_1"], {
+            "system32/msvcp140.dll": self.pe_image(0x8664),
+            "system32/vcruntime140_1.dll": self.pe_image(0x8664),
+        })
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["msvcp140", "vcruntime140_1"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/msvcp140.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140_1.dll"), 0x8664)
+
     def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
         proton = self.proton()
         self.component("vc", ["ucrtbase"], {
