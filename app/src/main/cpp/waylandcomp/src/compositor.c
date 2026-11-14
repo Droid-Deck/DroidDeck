@@ -682,7 +682,7 @@ static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 #define PEN_TILT (1 << 6)
 #define PEN_BIT(button) (1 << ((button) - BTN_LEFT))
 enum pen_route { PEN_ROUTE_NONE, PEN_ROUTE_POINTER, PEN_ROUTE_TABLET };
-struct pen_state { int route, stroke, tool, buttons; double x, y; struct surface *target, *grab; };
+struct pen_state { int route, stroke, tool, buttons, warp_due; double x, y; struct surface *target, *grab; };
 static struct pen_state g_pen;
 static atomic_int g_pen_caps;
 static void touch_cancel_surface(struct surface *surface);
@@ -3917,6 +3917,14 @@ static void pen_end_route(void) {
     g_pen.route = PEN_ROUTE_NONE;
 }
 
+static int pen_warp(void) {
+    if (pointer_locked_for_cursor()) return 0;
+    g_raw_valid = 0;
+    pointer_event(g_pen.x, g_pen.y, 0, 0);
+    g_raw_valid = 0;
+    return 1;
+}
+
 static void pen_pointer(const struct input_msg *m) {
     int held = pen_buttons(m->p1);
     if (g_pen.buttons) g_grab = g_pen.grab;
@@ -3947,7 +3955,9 @@ static void pen_tablet(const struct input_msg *m) {
 
 static void deliver_pen(const struct input_msg *m) {
     if (!(m->p1 & PEN_IN)) {
+        const int tablet = g_pen.route == PEN_ROUTE_TABLET;
         pen_end_route();
+        if (tablet) pen_warp();
         g_pen = (struct pen_state){.x = g_pen.x, .y = g_pen.y};
         publish_query_state();
         return;
@@ -3967,6 +3977,9 @@ static void deliver_pen(const struct input_msg *m) {
         if (route != g_pen.route) {
             pen_end_route();
             if (route == PEN_ROUTE_POINTER) g_raw_valid = 0;
+            g_pen.warp_due = route == PEN_ROUTE_TABLET && !pen_warp();
+        } else if (g_pen.warp_due) {
+            g_pen.warp_due = !pen_warp();
         }
         g_pen.route = route;
         g_pen.target = target;

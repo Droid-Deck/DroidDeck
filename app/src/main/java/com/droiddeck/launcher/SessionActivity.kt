@@ -98,6 +98,7 @@ import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.input.DirectTouchHold
 import com.droiddeck.launcher.input.GestureTouchStreamGate
+import com.droiddeck.launcher.input.PenCursorPolicy
 import com.droiddeck.launcher.input.PenRouter
 import com.droiddeck.launcher.input.PenStream
 import com.droiddeck.launcher.input.PointerGestures
@@ -323,9 +324,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var penSeen by mutableStateOf(false)
     private var penRoute: PenRouter.Route? = null
     private var penDown = false
+    private val penCursor = PenCursorPolicy()
+    private var penLeftAt = androidx.compose.ui.geometry.Offset.Zero
     private val penStream = PenStream(object : PenStream.Sink {
-        override fun sample(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) =
+        override fun sample(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) {
             WaylandCompositor.nativeSendPen(flags, x, y, pressure, distance, tiltX, tiltY)
+            if (flags and PenStream.PEN_IN == 0) penCursorLeft()
+        }
         override fun capabilities(capabilities: Int) = WaylandCompositor.nativeSendPenCapabilities(capabilities)
     })
     private var keyboard: KeyboardHost? = null
@@ -4221,6 +4226,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         uiHandler.removeCallbacks(cursorHide)
         mouseOwnsCursor = false
         cursorVisible = false
+        penCursor.changed(PenCursorPolicy.Overlay(visible = false, mouseOwns = false))
     }
 
     private fun moveCapturedMouse(dx: Float, dy: Float) {
@@ -4235,6 +4241,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun showCursor(x: Float, y: Float, fromMouse: Boolean = false) {
+        placeCursor(x, y, fromMouse)
+        penCursor.changed(PenCursorPolicy.Overlay(cursorVisible, mouseOwnsCursor))
+    }
+
+    private fun placeCursor(x: Float, y: Float, fromMouse: Boolean) {
         cursorPos = androidx.compose.ui.geometry.Offset(x, y)
         syncClientCursor()
         mouseOwnsCursor = fromMouse
@@ -5313,11 +5324,31 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val area = pointerSurfaceRect() ?: return false
         val view = outputView()
         if (!penStream.onMotion(event, pen, area, view.width, view.height)) return false
-        if (penStream.inProximity) {
-            if (pointerLocked) releaseDesktopMouseGrab()
-            showCursor(event.getX(pen).coerceIn(area.left, area.right), event.getY(pen).coerceIn(area.top, area.bottom), fromMouse = true)
+        if (!penStream.inProximity) return true
+        if (pointerLocked) releaseDesktopMouseGrab()
+        val x = event.getX(pen).coerceIn(area.left, area.right)
+        val y = event.getY(pen).coerceIn(area.top, area.bottom)
+        val tablet = penStream.tablet && WaylandCompositor.nativeFocusTakesTablet()
+        if (penCursor.followsPen(tablet, PenCursorPolicy.Overlay(cursorVisible, mouseOwnsCursor))) {
+            showCursor(x, y, fromMouse = true)
+        } else {
+            uiHandler.removeCallbacks(cursorResync)
+            mouseOwnsCursor = false
+            cursorVisible = false
+            penLeftAt = androidx.compose.ui.geometry.Offset(x, y)
         }
         return true
+    }
+
+    private fun penCursorLeft() {
+        val restore = penCursor.restoreOnLeave() ?: return
+        if (!pointerLocked) cursorPos = penLeftAt
+        mouseOwnsCursor = restore.mouseOwns
+        cursorVisible = restore.visible && !pointerLocked
+        if (!restore.mouseOwns && !restore.visible) return
+        cursorResyncIdle = 0
+        uiHandler.removeCallbacks(cursorResync)
+        uiHandler.postDelayed(cursorResync, 60)
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {
@@ -5496,7 +5527,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun dropMouseCursor() {
-        if (!mouseOwnsCursor || mouseAttached()) return
+        if (mouseAttached()) return
+        penCursor.mouseRemoved()
+        if (!mouseOwnsCursor) return
         mouseOwnsCursor = false
         uiHandler.removeCallbacks(cursorResync)
         cursorVisible = false

@@ -47,7 +47,7 @@ static atomic_int g_cursor_composite;
 enum { ENTER, LEAVE, PRESS, RELEASE, FRAME, OUT };
 struct event { int kind; struct wl_resource *pointer, *surface; uint32_t button; };
 static struct event events[32];
-static int nevents, motions, ensures, tablet_caps, tools_known;
+static int nevents, motions, relatives, ensures, tablet_caps, tools_known;
 static struct droiddeck_pen last_pen;
 static struct wl_client *tablet_taker, *gamescope;
 
@@ -114,6 +114,7 @@ static struct wl_client *wl_resource_get_client(struct wl_resource *r) { return 
 static wl_fixed_t wl_fixed_from_double(double d) { return (wl_fixed_t)(d * 256); }
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     (void)client; (void)dx; (void)dy;
+    relatives++;
     return 0;
 }
 static void wl_pointer_send_enter(struct wl_resource *p, uint32_t serial, struct wl_resource *s,
@@ -256,8 +257,8 @@ static void frozen(void) {
     assert(nevents == 1 && !g_grab);
     button(0, RELEASE, &pointer_a, BTN_LEFT);
     pen(T, 1500);
-    assert(nevents == 1 && g_pen.route == PEN_ROUTE_TABLET && g_pen.target == &b);
-    frame(0, &surface_b);
+    assert(nevents == 3 && g_pen.route == PEN_ROUTE_TABLET && g_pen.target == &b);
+    left(0, &pointer_a, &surface_a); focus(1, &pointer_b, &surface_b); frame(2, &surface_b);
     assert(last_pen.x == 500 && last_pen.y == 100 && !last_pen.down);
     pen(T | PEN_TIP, 1500);
     pen(T | PEN_TIP, 500);
@@ -267,8 +268,8 @@ static void frozen(void) {
     assert(nevents == 1 && !last_pen.down);
     frame(0, &surface_b);
     pen(T, 500);
-    assert(nevents == 1 && g_pen.route == PEN_ROUTE_POINTER);
-    out(0);
+    assert(nevents == 3 && g_pen.route == PEN_ROUTE_POINTER);
+    out(0); left(1, &pointer_b, &surface_b); focus(2, &pointer_a, &surface_a);
 }
 
 static void no_tablet(void) {
@@ -299,17 +300,17 @@ static void no_tablet(void) {
 static void route_switch(void) {
     tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
     pen(T, 1500);
-    assert(nevents == 1);
-    frame(0, &surface_b);
+    assert(nevents == 2);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
     pen(T, 500);
-    assert(nevents == 2 && g_pen.route == PEN_ROUTE_POINTER);
-    out(0); focus(1, &pointer_a, &surface_a);
-    pen(T, 1500);
-    assert(nevents == 1 && g_pen.route == PEN_ROUTE_TABLET && !g_raw_valid);
-    frame(0, &surface_b);
-    pen(PEN_IN, 1500);
     assert(nevents == 3 && g_pen.route == PEN_ROUTE_POINTER);
-    out(0); left(1, &pointer_a, &surface_a); focus(2, &pointer_b, &surface_b);
+    out(0); left(1, &pointer_b, &surface_b); focus(2, &pointer_a, &surface_a);
+    pen(T, 1500);
+    assert(nevents == 3 && g_pen.route == PEN_ROUTE_TABLET && !g_raw_valid);
+    left(0, &pointer_a, &surface_a); focus(1, &pointer_b, &surface_b); frame(2, &surface_b);
+    pen(PEN_IN, 1500);
+    assert(nevents == 1 && g_pen.route == PEN_ROUTE_POINTER);
+    out(0);
     pen(T, 1500);
     pen(0, 1500);
     assert(nevents == 1 && g_pen.route == PEN_ROUTE_NONE);
@@ -319,8 +320,8 @@ static void route_switch(void) {
 static void axes(void) {
     tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE | DROIDDECK_PEN_CAP_TILT);
     send_pen(T | PEN_TILT | PEN_TIP | PEN_RIGHT | PEN_MIDDLE, 1500, 200, 40000, 7, -4500, 9000);
-    assert(nevents == 1);
-    frame(0, &surface_b);
+    assert(nevents == 2);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
     assert(last_pen.tool == BTN_TOOL_PEN && last_pen.x == 500 && last_pen.y == 200 && last_pen.down);
     assert(last_pen.pressure == 40000 && last_pen.distance == 7);
     assert(last_pen.has_tilt && last_pen.tilt_x == -45 && last_pen.tilt_y == 90);
@@ -355,8 +356,8 @@ static void target_order(void) {
     g_desktop = NULL;
     tablet_taker = &client_b;
     pen(T, 500);
-    assert(nevents == 1 && g_pen.target == &b && last_pen.x == -500);
-    frame(0, &surface_b);
+    assert(nevents == 2 && g_pen.target == &b && last_pen.x == -500);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
     pen(0, 500);
     g_grab = NULL;
     pen(T, 1500);
@@ -367,8 +368,8 @@ static void target_order(void) {
 static void orphan(void) {
     tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
     pen(T | PEN_TIP, 1500);
-    assert(nevents == 1 && g_pen.target == &b);
-    frame(0, &surface_b);
+    assert(nevents == 2 && g_pen.target == &b);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
     g_pen.target = NULL;
     pen(T | PEN_TIP, 1600);
     pen(T, 1600);
@@ -423,9 +424,10 @@ static void refused(void) {
 static void tool_switch(void) {
     tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
     pen(T | PEN_RIGHT, 1500);
-    assert(nevents == 1 && ensures == 1 && tools_known == 1);
-    frame(0, &surface_b);
+    assert(nevents == 2 && ensures == 1 && tools_known == 1);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
     assert(last_pen.tool == BTN_TOOL_PEN && last_pen.buttons == DROIDDECK_PEN_RIGHT);
+    int moved = motions;
     pen(T | PEN_ERASER | PEN_RIGHT, 1500);
     assert(nevents == 1 && ensures == 2 && tools_known == 3 && g_pen.target == &b);
     frame(0, &surface_b);
@@ -435,16 +437,80 @@ static void tool_switch(void) {
     pen(T, 1600);
     assert(nevents == 1 && g_pen.route == PEN_ROUTE_TABLET && last_pen.tool == BTN_TOOL_PEN && !last_pen.buttons);
     frame(0, &surface_b);
+    assert(motions == moved && g_ptr_x == scene_x(1500));
     pen(0, 1600);
-    assert(nevents == 1);
+    assert(nevents == 1 && motions == moved + 1);
     out(0);
+}
+
+static void warp(void) {
+    struct constraint lock = {1, &b};
+    tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
+    g_ptr_x = 123; g_ptr_y = 45;
+    g_raw_valid = 1; g_raw_x = 7; g_raw_y = 8;
+    send_pen(T | PEN_TIP, 1500, 200, 0, 0, 0, 0);
+    assert(nevents == 2);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
+    assert(g_ptr_x == scene_x(1500) && g_ptr_y == 200 && g_ptr_known && !g_raw_valid && !g_grab);
+    int moved = motions;
+    send_pen(T, 1600.5, 125, 0, 0, 0, 0);
+    assert(nevents == 1 && motions == moved && g_ptr_x == scene_x(1500));
+    pen(0, 500);
+    assert(nevents == 1 && motions == moved + 1 && !g_raw_valid && !g_grab);
+    out(0);
+    assert(g_ptr_x == scene_x(1600.5) && g_ptr_y == 125);
+    pen(0, 500);
+    assert(nevents == 0 && motions == moved + 1);
+    g_active_constraint = &lock;
+    int sent = relatives;
+    pen(T, 1700);
+    pen(0, 1700);
+    assert(motions == moved + 1 && relatives == sent && g_ptr_x == scene_x(1600.5));
+}
+
+static void unlock(void) {
+    struct constraint lock = {1, &b};
+    tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
+    g_ptr_x = 123; g_ptr_y = 45;
+    g_active_constraint = &lock;
+    pen(T, 1500);
+    assert(nevents == 1 && g_pen.route == PEN_ROUTE_TABLET && g_ptr_x == 123);
+    frame(0, &surface_b);
+    g_active_constraint = NULL;
+    pen(T, 1600);
+    assert(nevents == 2 && g_ptr_x == scene_x(1600) && g_ptr_y == 100);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
+    int moved = motions;
+    pen(T, 1700);
+    assert(nevents == 1 && motions == moved && g_ptr_x == scene_x(1600));
+    frame(0, &surface_b);
+}
+
+static void unlock_pressed(void) {
+    struct constraint lock = {1, &b};
+    tablet_for(&client_b, DROIDDECK_PEN_CAP_PRESSURE);
+    g_ptr_x = 123; g_ptr_y = 45;
+    g_active_constraint = &lock;
+    pen(T, 1500);
+    pen(T | PEN_RIGHT, 1500);
+    g_active_constraint = NULL;
+    pen(T | PEN_RIGHT, 1600);
+    assert(nevents == 1 && g_ptr_x == 123);
+    frame(0, &surface_b);
+    pen(T, 1700);
+    assert(nevents == 1 && g_ptr_x == 123 && !last_pen.buttons);
+    frame(0, &surface_b);
+    pen(T | PEN_TIP, 1800);
+    assert(nevents == 2 && g_ptr_x == scene_x(1800) && last_pen.down);
+    focus(0, &pointer_b, &surface_b); frame(1, &surface_b);
 }
 
 int main(int argc, char **argv) {
     static const struct { const char *name; void (*run)(void); } cases[] = {
         {"side", side}, {"swap", swap}, {"mouse", mouse}, {"gone", gone}, {"frozen", frozen}, {"notablet", no_tablet},
         {"switch", route_switch}, {"axes", axes}, {"target", target_order}, {"orphan", orphan},
-        {"query", query}, {"gamescope", refused}, {"tool", tool_switch},
+        {"query", query}, {"gamescope", refused}, {"tool", tool_switch}, {"warp", warp},
+        {"unlock", unlock}, {"unlockpressed", unlock_pressed},
     };
     assert(argc == 2);
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
