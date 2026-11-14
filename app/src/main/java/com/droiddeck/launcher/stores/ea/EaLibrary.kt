@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreNet
-import com.droiddeck.launcher.stores.StoreShelves
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.mergeItems
 import org.json.JSONArray
@@ -36,13 +36,14 @@ data class EaGame(
     val masterTitleId: String = "",
     val cloudSaves: String = "",
     val locales: List<String> = emptyList(),
+    val productName: String = "",
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("offerId", offerId).put("contentId", contentId).put("title", title).put("slug", slug)
         .put("tall", tall).put("wide", wide).put("logo", logo).put("version", version)
         .put("executePath", executePath).put("installCheck", installCheck).put("parameters", parameters)
         .put("multiplayerId", multiplayerId).put("masterTitleId", masterTitleId).put("cloudSaves", cloudSaves)
-        .put("locales", JSONArray(locales))
+        .put("locales", JSONArray(locales)).put("productName", productName)
 
     companion object {
         fun fromJson(o: JSONObject): EaGame? {
@@ -63,14 +64,15 @@ data class EaGame(
                 masterTitleId = o.optString("masterTitleId"),
                 cloudSaves = o.optString("cloudSaves"),
                 locales = (0 until (locales?.length() ?: 0)).map { locales!!.optString(it) },
+                productName = o.optString("productName"),
             )
         }
     }
 }
 
 object EaLibrary {
-    private const val KEY_CACHE = "library_cache_v2"
-    private const val KEY_SYNCED_AT = "library_synced_at_v2"
+    private const val KEY_CACHE = "library_cache_v3"
+    private const val KEY_SYNCED_AT = "library_synced_at_v3"
     private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
     private const val ART_TTL_MS = 7 * 24 * 60 * 60 * 1000L
     private const val ART_THREADS = 4
@@ -118,7 +120,7 @@ object EaLibrary {
             owned = true,
             sizeBytes = prefs.getLong("size_${g.offerId}", 0L),
             storeUrl = STORE_URL,
-            extra = mapOf("contentId" to g.contentId, "slug" to g.slug, "version" to g.version),
+            extra = mapOf("contentId" to g.contentId, "slug" to g.slug, "version" to g.version, "productName" to g.productName),
             logoUrl = g.logo.ifEmpty { null },
         )
     }
@@ -199,8 +201,7 @@ object EaLibrary {
         StoresState.post {
             if (gen != generation.get()) return@post
             StoresState.library[store] = mergeItems(StoresState.library[store], items)
-            val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
-            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
+            StoresState.shelves[store]?.let { StoresState.shelves[store] = StoreFront.markOwned(it, items, EaStore::sameGame) }
         }
     }
 
@@ -271,6 +272,7 @@ object EaLibrary {
                     tall = img?.tall.orEmpty(), wide = img?.wide.orEmpty(), logo = img?.logo.orEmpty(), version = offer.gameVersion,
                     executePath = offer.executePathOverride, installCheck = offer.installCheckOverride, parameters = offer.executeParameters,
                     multiplayerId = offer.multiplayerId, masterTitleId = offer.masterTitleId, cloudSaves = offer.cloudSaves, locales = offer.locales,
+                    productName = o.productName,
                 )
             }
             if (!storeCache(app, games, gen)) return

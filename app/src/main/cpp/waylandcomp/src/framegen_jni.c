@@ -50,6 +50,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFrameGenCapsReason(J
     return (*env)->NewStringUTF(env, r ? r : "");
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFrameGenActive(JNIEnv *env, jclass clazz) {
+    (void)env; (void)clazz;
+    return vkp_framegen_active() ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jfloatArray JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFrameGenStats(JNIEnv *env, jclass clazz) {
     (void)clazz;

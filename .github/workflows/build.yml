@@ -127,6 +127,7 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
           retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-corresponding-source
@@ -135,6 +136,7 @@ jobs:
             app/build/xbox/runtime/*-source.tar.xz
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
 
   components-runner:
     needs: source
@@ -330,6 +332,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+          overwrite: true
 
   build-runner:
     needs: [components]
@@ -562,6 +565,12 @@ jobs:
           command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
           bash tools/ubisoft-launcher/build.sh
 
+      - name: Rockstar launcher service (32-bit and 64-bit)
+        run: |
+          set -euo pipefail
+          command -v i686-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-i686; }
+          bash tools/rockstar-launcher/build.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: xbox-arm64
@@ -658,6 +667,7 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+          overwrite: true
 
       - name: Unit tests
         id: unit-tests
@@ -681,6 +691,7 @@ jobs:
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+          overwrite: true
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -718,6 +729,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -726,6 +738,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -797,9 +810,11 @@ jobs:
           set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
-      - name: Ubisoft launcher service host unit tests
+      - name: Windows launcher service host unit tests
         timeout-minutes: 10
-        run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
+        run: |
+          cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
+          cargo test --locked --manifest-path tools/rockstar-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests
@@ -922,7 +937,7 @@ jobs:
       pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
-      KEEP: 10
+      KEEP_DAYS: 14
     steps:
       - uses: actions/checkout@v4
         with:
