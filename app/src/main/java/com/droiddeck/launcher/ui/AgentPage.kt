@@ -97,7 +97,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -253,10 +253,12 @@ private fun AgentPageContent(
                 val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty()
                 var listHeight by remember { mutableIntStateOf(0) }
                 Box(
-                    Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onSizeChanged {
+                    Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onGloballyPositioned {
                         // The editor sliding in or the keyboard rising shrinks the list from below; a list following the latest keeps it in view, even mid-drag.
-                        val shrunk = listHeight - it.height
-                        listHeight = it.height
+                        // Scrolling remeasures the list, which Compose refuses during a measure pass, so this runs once positioning is done.
+                        val height = it.size.height
+                        val shrunk = listHeight - height
+                        listHeight = height
                         if (shrunk > 0 && !readingBack) list.dispatchRawDelta(shrunk.toFloat())
                     },
                 ) {
