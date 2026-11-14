@@ -416,6 +416,7 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, following
                 entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex,
                 children = if (entry is Entry.Used) AgentHost.entries.filter { it is Entry.Used && it.parent == entry.id && entry.id.isNotEmpty() }.map { it as Entry.Used } else emptyList(),
                 changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null,
+                turn = if (entry is Entry.Finished) AgentHost.entries.subList(AgentHost.entries.subList(0, i).indexOfLast { it is Entry.Asked } + 1, i) else emptyList(),
                 answerable = !working && i > start && AgentHost.queue.isEmpty(), onRevise = onRevise,
             )
         }
