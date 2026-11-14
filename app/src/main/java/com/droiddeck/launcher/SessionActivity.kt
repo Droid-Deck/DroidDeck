@@ -824,7 +824,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     scrollRestY = 0f
                 }
                 override fun replay(event: MotionEvent) {
-                    drawnRect()?.let { forwardTouch(event, it) }
+                    if (directTouchTapsOff && !programLocksPointer()) moveDirectPointer(event.x, event.y)
+                    else drawnRect()?.let { forwardTouch(event, it) }
                 }
                 override fun rightClick(x: Float, y: Float) {
                     pointerListener.onLongPress()
@@ -4311,7 +4312,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) gesturePointerReady = false
                 touchscreenGestures.onTouch(event)
             }
-            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> scrollTouch.onTouch(event)
+            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) scrollTouch.tapClicks = !onScreenMouseButtonShown()
+                scrollTouch.onTouch(event)
+            }
             else -> {
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active && event.actionMasked != MotionEvent.ACTION_DOWN
@@ -4334,6 +4338,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     }
                     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                         touchpad.desktop = SessionState.mode == SessionService.MODE_DESKTOP
+                        touchpad.tapClicks = !onScreenMouseButtonShown()
                         placeTouchpadAtGuest(rect)
                     }
                     touchpad.onTouch(event)
@@ -4342,6 +4347,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
             }
         }
+    }
+
+    private fun onScreenMouseButtonShown(): Boolean {
+        if (steamTouchControls?.visibility == View.VISIBLE) return false
+        val primary = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
+            .filter { it.visibility == View.VISIBLE }.map { it.shownElements() } +
+            listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
+        val secondary = secondScreenPresentation?.shownControlElements().orEmpty() +
+            swappedControls?.takeIf { it.isShown }?.shownElements().orEmpty()
+        return primary.any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) } ||
+            inputProfile.hasMouseButton(InputRole.SECONDARY, secondary)
     }
 
     private val directTouchSink = object : DirectTouchHold.Touch {
@@ -4360,6 +4376,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         showCursor(cx, cy)
     }
 
+    private var directTouchTapsOff = false
+    private var swappedControls: com.droiddeck.launcher.ui.InputSurfaceView? = null
+
+    private fun moveDirectPointer(x: Float, y: Float) {
+        if (pointerLocked) gestureOutput.moveTo(x, y) else movePointer(x, y)
+    }
+
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
@@ -4372,8 +4395,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
             return true
         }
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            directTouchTapsOff = onScreenMouseButtonShown()
+            if (::twoFingerGestures.isInitialized) twoFingerGestures.tapClicks = !directTouchTapsOff
+            if (directTouchTapsOff && !programLocksPointer()) {
+                gesturePointerReady = false
+                directTouchHold.cancel()
+                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            }
+        }
+        if (directTouchTapsOff && !programLocksPointer()) {
+            lockedSwipeX = event.x
+            lockedSwipeY = event.y
+            val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
+            if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
+                moveDirectPointer(event.x, event.y)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
+            return true
+        }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true
-        return forwardTouch(event, rect)
+        val forwarded = forwardTouch(event, rect)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
+        return forwarded
     }
 
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
@@ -4406,7 +4449,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
             }
         }
-        directTouchHold.onTouch(event)
+        if (!directTouchTapsOff) directTouchHold.onTouch(event)
         return true
     }
 
@@ -5446,7 +5489,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         androidx.compose.runtime.key(profileLayout) {
                             androidx.compose.ui.viewinterop.AndroidView(
                                 factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
-                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()) },
+                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+                                    .also { swappedControls = it } },
+                                onRelease = { if (swappedControls === it) swappedControls = null },
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                             )
                         }
