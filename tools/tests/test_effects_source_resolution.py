@@ -28,7 +28,8 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         functions = '\n'.join(function(source, signature) for signature in (
             'static void release_external_client_image(', 'static void release_external_client_draws(',
             'static int map_draw(', 'static int draw_to_blit(',
-            'static int draw_to_scene_blit(', 'static int effects_source_draw(',
+            'static int draw_to_scene_blit(', 'static int find_opaque_cover(',
+            'static int scene_fully_replaced(', 'static int effects_source_draw(',
             'static void effects_source_note(',
             'static void effects_overlay_draws(',
             'static int render_impl(', 'static int pass_begin_impl('))

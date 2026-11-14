@@ -1525,6 +1525,25 @@ static int draw_to_scene_blit(const struct vkp_draw *d, int scene_w, int scene_h
     return map_draw(d, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, (float)scene_w, (float)scene_h, blit);
 }
 
+static int find_opaque_cover(const struct vkp_draw *draws, int n, int scene_w, int scene_h,
+                             int to_scene, VkImageBlit *blit) {
+    for (int i = n - 1; i >= 0; i--) {
+        const struct vkp_draw *d = &draws[i];
+        if (!d->img || d->blend || d->dx > 0 || d->dy > 0 || d->dx + d->dw < scene_w ||
+            d->dy + d->dh < scene_h) continue;
+        if (to_scene ? draw_to_scene_blit(d, scene_w, scene_h, blit) : draw_to_blit(d, blit))
+            return 1;
+    }
+    return 0;
+}
+
+static int scene_fully_replaced(const struct vkp_draw *draws, int n, int w, int h) {
+    VkImageBlit blit;
+    return n == 1 && find_opaque_cover(draws, n, w, h, 1, &blit) &&
+           blit.dstOffsets[0].x == 0 && blit.dstOffsets[0].y == 0 &&
+           blit.dstOffsets[1].x == w && blit.dstOffsets[1].y == h;
+}
+
 static int effects_source_draw(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                                struct vkp_draw *out) {
     if (!draws) return 0;
@@ -1705,8 +1724,10 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
                               .srcAccessMask = VK_ACCESS_SHADER_READ_BIT, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                             0, 0, NULL, 0, NULL, 1, &b);
-    VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
-    g_vk.CmdClearColorImage(cmd, g_mixed.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+    if (!scene_fully_replaced(draws, n, scene_w, scene_h)) {
+        VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
+        g_vk.CmdClearColorImage(cmd, g_mixed.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+    }
     VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                           .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, NULL, 0, NULL);
@@ -2096,17 +2117,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     free(bars);
 
     VkImage target = pass ? scene_img : g_images[img];
-    int covered = 0;
     VkImageBlit cover_blit;
-    if (!(hf && pass)) {
-        for (int i = draw_n - 1; i >= 0 && !covered; i--) {
-            const struct vkp_draw *d = pass ? &pass_draws[i] : &draws[i];
-            const int target_w = pass ? input_w : scene_w, target_h = pass ? input_h : scene_h;
-            if (!d->img || d->blend || d->dx > 0 || d->dy > 0 || d->dx + d->dw < target_w ||
-                d->dy + d->dh < target_h) continue;
-            covered = pass ? draw_to_scene_blit(d, input_w, input_h, &cover_blit) : draw_to_blit(d, &cover_blit);
-        }
-    }
+    const int covered = !(hf && pass) &&
+        find_opaque_cover(pass ? pass_draws : draws, draw_n,
+                          pass ? input_w : scene_w, pass ? input_h : scene_h, pass, &cover_blit);
     const int cleared = covered && (pass || record_bars_clear(cmd, target, &cover_blit));
     if (!cleared) {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
@@ -2622,8 +2636,10 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         }
         if (vkp_effects_active()) vkp_effects_set_formats(HDR_FMT, HDR_FMT);
     } else {
-        VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
-        g_vk.CmdClearColorImage(cmd, g_scene.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+        if (n != 1 || !scene_fully_replaced(pass_draws, pass_n, input_w, input_h)) {
+            VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
+            g_vk.CmdClearColorImage(cmd, g_scene.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+        }
         VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
                               .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                               .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
