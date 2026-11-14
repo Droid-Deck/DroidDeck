@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Sentuhan</string>
     <string name="mode_pen_note">Auto: tablet pada Desktop dalam apl yang menyokongnya, tetikus di tempat lain.</string>
     <string name="mode_pen_button">Butang sisi</string>
+    <string name="mode_pen_pressure">Tekanan</string>
+    <string name="mode_pen_pressure_soft">Lembut</string>
+    <string name="mode_pen_pressure_normal">Biasa</string>
+    <string name="mode_pen_pressure_firm">Kuat</string>
     <string name="mode_osc">Kawalan pada skrin</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto memaparkan kawalan apabila tiada pengawal disambungkan.</string>

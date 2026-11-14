@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Aanraken</string>
     <string name="mode_pen_note">Automatisch: tekentablet op Desktop in apps die het ondersteunen, elders muis.</string>
     <string name="mode_pen_button">Zijknop</string>
+    <string name="mode_pen_pressure">Druk</string>
+    <string name="mode_pen_pressure_soft">Zacht</string>
+    <string name="mode_pen_pressure_normal">Normaal</string>
+    <string name="mode_pen_pressure_firm">Stevig</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>

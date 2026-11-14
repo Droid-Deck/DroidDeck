@@ -99,6 +99,7 @@ import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.input.DirectTouchHold
 import com.droiddeck.launcher.input.GestureTouchStreamGate
 import com.droiddeck.launcher.input.PenCursorPolicy
+import com.droiddeck.launcher.input.PenPressure
 import com.droiddeck.launcher.input.PenRouter
 import com.droiddeck.launcher.input.PenStream
 import com.droiddeck.launcher.input.PointerGestures
@@ -2654,6 +2655,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (penSettings != nextPen) cancelPen()
         penSettings = nextPen
         penStream.sideButton = nextPen.button
+        penStream.pressureCurve = PenPressure.forPreset(nextPen.pressure)
         if (!penSeen && (SessionPrefs.penSeen(this) || PenStream.penConnected())) notePenSeen()
         val nextRoutedTouchMode = effectiveTouchMode()
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()

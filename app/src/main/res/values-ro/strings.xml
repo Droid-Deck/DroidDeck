@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Atingere</string>
     <string name="mode_pen_note">Automat: tabletă grafică pe Desktop în aplicațiile care o acceptă, mouse în rest.</string>
     <string name="mode_pen_button">Buton lateral</string>
+    <string name="mode_pen_pressure">Presiune</string>
+    <string name="mode_pen_pressure_soft">Ușoară</string>
+    <string name="mode_pen_pressure_normal">Normală</string>
+    <string name="mode_pen_pressure_firm">Fermă</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>

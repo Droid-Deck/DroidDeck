@@ -322,6 +322,10 @@
     <string name="mode_pen_touch">Touch</string>
     <string name="mode_pen_note">Auto: tablet on Desktop in apps that support it, mouse elsewhere.</string>
     <string name="mode_pen_button">Side button</string>
+    <string name="mode_pen_pressure">Pressure</string>
+    <string name="mode_pen_pressure_soft">Soft</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Firm</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="osc_rear_buttons">Rear buttons</string>

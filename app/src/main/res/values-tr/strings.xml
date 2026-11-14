@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Dokunma</string>
     <string name="mode_pen_note">Otomatik: Masaüstünde destekleyen uygulamalarda tablet, diğer yerlerde fare.</string>
     <string name="mode_pen_button">Yan düğme</string>
+    <string name="mode_pen_pressure">Basınç</string>
+    <string name="mode_pen_pressure_soft">Yumuşak</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Sert</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>

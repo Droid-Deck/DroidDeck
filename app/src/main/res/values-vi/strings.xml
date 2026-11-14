@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Chạm</string>
     <string name="mode_pen_note">Tự động: bảng vẽ ở Desktop trong các ứng dụng hỗ trợ, chuột ở những nơi khác.</string>
     <string name="mode_pen_button">Nút bên</string>
+    <string name="mode_pen_pressure">Lực nhấn</string>
+    <string name="mode_pen_pressure_soft">Nhẹ</string>
+    <string name="mode_pen_pressure_normal">Bình thường</string>
+    <string name="mode_pen_pressure_firm">Mạnh</string>
     <string name="mode_osc">Điều khiển trên màn hình</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Tự động hiện các nút điều khiển khi không có tay cầm kết nối.</string>

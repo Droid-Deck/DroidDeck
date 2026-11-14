@@ -44,6 +44,8 @@ class PenStream(private val sink: Sink) {
 
     var tablet = false
 
+    var pressureCurve: PenPressure? = null
+
     var inProximity = false
         private set
 
@@ -193,7 +195,7 @@ class PenStream(private val sink: Sink) {
     private fun sample(event: MotionEvent, pointer: Int, h: Int, area: RectF, width: Int, height: Int) {
         x = InputSpace.fixedX(event.axis(MotionEvent.AXIS_X, pointer, h).coerceIn(area.left, area.right), width)
         y = InputSpace.fixedY(event.axis(MotionEvent.AXIS_Y, pointer, h).coerceIn(area.top, area.bottom), height)
-        pressure = PenAxes.pressure(event.axis(MotionEvent.AXIS_PRESSURE, pointer, h))
+        pressure = PenAxes.pressure(event.axis(MotionEvent.AXIS_PRESSURE, pointer, h), pressureCurve)
         distance = PenAxes.distance(event.axis(MotionEvent.AXIS_DISTANCE, pointer, h), distanceMin, distanceMax)
         tilted = PenAxes.tilt(event.axis(MotionEvent.AXIS_TILT, pointer, h),
             event.axis(MotionEvent.AXIS_ORIENTATION, pointer, h), tilt)

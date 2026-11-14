@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Toque</string>
     <string name="mode_pen_note">Automático: mesa digitalizadora no Ambiente de trabalho nas apps que a suportam, rato no resto.</string>
     <string name="mode_pen_button">Botão lateral</string>
+    <string name="mode_pen_pressure">Pressão</string>
+    <string name="mode_pen_pressure_soft">Suave</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Firme</string>
     <string name="mode_osc">Controlos no ecrã</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Em Automático, os controlos aparecem quando não há nenhum comando ligado.</string>

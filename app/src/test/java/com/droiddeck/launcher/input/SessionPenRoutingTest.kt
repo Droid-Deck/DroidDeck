@@ -141,6 +141,19 @@ class SessionPenRoutingTest {
         }
     }
 
+    @Test fun thePressureSettingCurvesThePenPressure() {
+        val cases = listOf(SessionPrefs.PEN_PRESSURE_FIRM to 0.3162, SessionPrefs.PEN_PRESSURE_SOFT to 0.6838,
+            SessionPrefs.PEN_PRESSURE_NORMAL to 0.5)
+        for ((step, case) in cases.withIndex()) {
+            SessionPrefs.setPenSetting(activity, "penPressure", case.first)
+            invoke("readPrefs")
+            CompositorShadow.clear()
+            assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10L + 10 * step, pen to 500f)))
+            assertEquals(case.first, listOf(near or PEN_TIP), CompositorShadow.pens.map { it.flags })
+            assertEquals(case.first, case.second, CompositorShadow.pressures.single() / PenAxes.AXIS_MAX.toDouble(), 1e-4)
+        }
+    }
+
     @Test fun penContactInMouseModeHoldsTheTipUntilItLifts() {
         steamDirect(SessionPrefs.PEN_MOUSE)
         assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f)))
@@ -467,15 +480,17 @@ class SessionPenRoutingTest {
     class CompositorShadow {
         companion object {
             val pens = mutableListOf<Pen>()
+            val pressures = mutableListOf<Int>()
             val capabilities = mutableListOf<Int>()
             val touches = mutableListOf<Touch>()
             val pointers = mutableListOf<Triple<Int, Int, Int>>()
             val keys = mutableListOf<Pair<Int, Int>>()
             var takesTablet = false
-            fun clear() { pens.clear(); capabilities.clear(); touches.clear(); pointers.clear(); keys.clear(); takesTablet = false }
+            fun clear() { pens.clear(); pressures.clear(); capabilities.clear(); touches.clear(); pointers.clear(); keys.clear(); takesTablet = false }
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendPen(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) {
                 pens += Pen(flags, x, y)
+                pressures += pressure
             }
             @JvmStatic @Implementation fun nativeSendPenCapabilities(capabilities: Int) { this.capabilities += capabilities }
             @JvmStatic @Implementation fun nativeFocusTakesTablet(): Boolean = takesTablet

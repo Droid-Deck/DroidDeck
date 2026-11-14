@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Tocco</string>
     <string name="mode_pen_note">Auto: tavoletta grafica sul Desktop nelle app che la supportano, mouse altrove.</string>
     <string name="mode_pen_button">Tasto laterale</string>
+    <string name="mode_pen_pressure">Pressione</string>
+    <string name="mode_pen_pressure_soft">Leggera</string>
+    <string name="mode_pen_pressure_normal">Normale</string>
+    <string name="mode_pen_pressure_firm">Decisa</string>
     <string name="mode_osc">Controlli su schermo</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto mostra i controlli quando non è collegato nessun controller.</string>

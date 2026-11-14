@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 object PenAxes {
     const val AXIS_MAX = 65535
 
-    fun pressure(value: Float): Int = scale(value)
+    fun pressure(value: Float, curve: PenPressure? = null): Int = scale(curve?.map(value) ?: value)
 
     fun distance(value: Float, min: Float, max: Float): Int = if (max <= min) 0 else scale((value - min) / (max - min))
 

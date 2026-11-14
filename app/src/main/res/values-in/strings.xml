@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Sentuhan</string>
     <string name="mode_pen_note">Otomatis: tablet di Desktop pada aplikasi yang mendukungnya, mouse di tempat lain.</string>
     <string name="mode_pen_button">Tombol samping</string>
+    <string name="mode_pen_pressure">Tekanan</string>
+    <string name="mode_pen_pressure_soft">Lembut</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Kuat</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>

@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">Сенсорне введення</string>
     <string name="mode_pen_note">«Авто»: графічний планшет на робочому столі в застосунках, що його підтримують, миша в інших випадках.</string>
     <string name="mode_pen_button">Бічна кнопка</string>
+    <string name="mode_pen_pressure">Натиск</string>
+    <string name="mode_pen_pressure_soft">М\'який</string>
+    <string name="mode_pen_pressure_normal">Звичайний</string>
+    <string name="mode_pen_pressure_firm">Жорсткий</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">«Авто» показує екранне керування, коли контролер не під’єднано.</string>

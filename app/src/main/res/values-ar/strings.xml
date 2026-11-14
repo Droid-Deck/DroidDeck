@@ -294,6 +294,10 @@
     <string name="mode_pen_touch">اللمس</string>
     <string name="mode_pen_note">تلقائي: لوح رسم على سطح المكتب في التطبيقات التي تدعمه، وفأرة في غير ذلك.</string>
     <string name="mode_pen_button">الزر الجانبي</string>
+    <string name="mode_pen_pressure">الضغط</string>
+    <string name="mode_pen_pressure_soft">خفيف</string>
+    <string name="mode_pen_pressure_normal">عادي</string>
+    <string name="mode_pen_pressure_firm">قوي</string>
     <string name="mode_osc">عناصر التحكم على الشاشة</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">يعرض الخيار «تلقائي» عناصر التحكم عند عدم توصيل وحدة تحكم.</string>

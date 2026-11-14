@@ -34,6 +34,7 @@ class PenSettingsGroupTest {
         compose.onNodeWithTag("setting-touch").assertExists()
         compose.onNodeWithTag("setting-pen").assertDoesNotExist()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
     }
 
     @Test fun theDrawerShowsWhatAutoGivesAndSavesPenPicks() {
@@ -47,20 +48,32 @@ class PenSettingsGroupTest {
         compose.onNodeWithText(context.getString(R.string.drawer_touch_auto, tablet)).assertExists()
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
+        compose.onNodeWithTag("setting-pen-pressure").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.mode_pen_pressure_firm)).performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.mode_pen_touch)).performScrollTo().performClick()
         compose.runOnIdle {
-            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "pen" to SessionPrefs.PEN_TOUCH), picks)
+            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "penPressure" to SessionPrefs.PEN_PRESSURE_FIRM,
+                "pen" to SessionPrefs.PEN_TOUCH), picks)
         }
     }
 
-    @Test fun theSideButtonRowIsHiddenInTouchMode() {
+    @Test fun rowsThatCannotApplyAreHidden() {
         val pen = mutableStateOf(SessionPrefs.Pen())
-        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, "Auto") { _, _ -> } } } }
+        val desktop = mutableStateOf(false)
+        compose.setContent {
+            DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, "Auto", desktop.value) { _, _ -> } } }
+        }
         compose.onNodeWithTag("setting-pen-button").assertExists()
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
+        compose.runOnIdle { desktop.value = true }
+        compose.onNodeWithTag("setting-pen-pressure").assertExists()
+        compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_MOUSE) }
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
         compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH) }
         compose.onNodeWithTag("setting-pen").assertExists()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
     }
 
     @Test fun theControlsTabShowsThePenGroupAfterTheTouchRowsOnceAPenIsKnown() {
