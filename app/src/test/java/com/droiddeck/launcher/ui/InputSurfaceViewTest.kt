@@ -58,6 +58,16 @@ class InputSurfaceViewTest {
         } finally { root.removeAllViews(); bridge.stop(); controller.pause().stop().destroy() }
     }
 
+    @Test fun keyedDirectionsAreLabelledWithTheirKeysAndOtherActionsAreNot() {
+        val context = RuntimeEnvironment.getApplication()
+        val wasd = InputAction.Directions(17, 32, 31, 30, listOf(18, 0, 0, 16))
+        assertEquals(listOf((0f to -1f) to "W", (1f to 0f) to "D", (0f to 1f) to "S", (-1f to 0f) to "A"),
+            InputSurfaceView.directionLabels(context, wasd, cardinalOnly = true))
+        assertEquals(listOf("W", "D", "S", "A", "E", "Q"), InputSurfaceView.directionLabels(context, wasd, cardinalOnly = false).map { it.second })
+        assertEquals(listOf("W", "A"), InputSurfaceView.directionLabels(context, InputAction.Directions(17, 0, 0, 30), cardinalOnly = false).map { it.second })
+        assertTrue(InputSurfaceView.directionLabels(context, null, cardinalOnly = false).isEmpty())
+    }
+
     @Test fun takesTouchAtMatchesWhatATouchDoes() {
         val directory = Files.createTempDirectory("deck-panel").toFile()
         try {

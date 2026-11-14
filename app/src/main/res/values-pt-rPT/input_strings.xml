@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Perfis de entrada</string>
+    <string name="input_profiles">Perfis</string>
+    <string name="input_physical">Comando físico</string>
+    <string name="input_primary">Ecrã principal</string>
+    <string name="input_secondary">Ecrã secundário</string>
+    <string name="input_native">Nativo / Steam Input</string>
+    <string name="input_native_target">Nativo: %1$s</string>
+    <string name="input_remap_native">Enviar outro controlo do comando</string>
+    <string name="input_disabled">Desativado</string>
+    <string name="input_keys">Tecla ou combinação de teclas</string>
+    <string name="input_direction_keys">Teclas direcionais</string>
+    <string name="input_pointer">Mover o ponteiro</string>
+    <string name="input_pointer_speed">Velocidade do ponteiro: %1$d</string>
+    <string name="input_scroll">Deslocar</string>
+    <string name="input_scroll_vertical">Deslocar verticalmente</string>
+    <string name="input_mouse_left">Botão esquerdo do rato</string>
+    <string name="input_mouse_right">Botão direito do rato</string>
+    <string name="input_mouse_middle">Botão do meio do rato</string>
+    <string name="input_command_menu">Abrir o menu do DroidDeck</string>
+    <string name="input_command_keyboard">Mostrar teclado</string>
+    <string name="input_command_steam">Abrir o menu do Steam</string>
+    <string name="input_command_qam">Abrir o acesso rápido do Steam</string>
+    <string name="input_remove_element">Remover controlo</string>
+    <string name="input_add_element">Adicionar controlo</string>
+    <string name="input_extra_keys">Botões específicos do dispositivo</string>
+    <string name="input_capture">Atribuir um botão físico</string>
+    <string name="input_capture_confirm">Largue o botão e escolha Editar, Repetir ou Cancelar. B ou Voltar cancela após largar.</string>
+    <string name="input_capture_retry">Repetir</string>
+    <string name="input_capture_hint">Prima um botão, incluindo um botão Voltar reportado como tecla. As teclas de volume e do sistema Android estão reservadas. A atribuição aplica-se apenas a este dispositivo.</string>
+    <string name="input_remove_binding">Remover atribuição</string>
+    <string name="input_latency">Diagnóstico de entrada</string>
+    <string name="input_measure">Registar o tempo de envio da entrada</string>
+    <string name="input_read_timing">Ler medições</string>
+    <string name="input_latency_hint">Mede o envio do Android até à publicação no transporte de entrada existente. Exclui a chegada por Bluetooth, a sondagem do convidado, a renderização e a latência do ecrã. A gravação está desativada por predefinição.</string>
+    <string name="input_normal_binding">Usar a atribuição de entrada normal</string>
+</resources>

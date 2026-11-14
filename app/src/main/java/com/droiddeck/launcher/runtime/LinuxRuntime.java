@@ -139,21 +139,37 @@ public final class LinuxRuntime {
     public static List<String> command(Context context, File sessionRoot, File runtimeDir,
                                        File externalStorage, List<String> extraBinds,
                                        List<String> guestCommand) {
+        return command(context, sessionRoot, runtimeDir, externalStorage, extraBinds, guestCommand, false);
+    }
+
+    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
+                                       File externalStorage, List<String> extraBinds,
+                                       List<String> guestCommand, boolean fakeRoot) {
         File root = rootDir(context);
         List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
         if (sessionRoot != null) lastBinds = binds;
-        return commandWithBinds(context, root, binds, guestCommand);
+        return commandWithBinds(context, root, binds, guestCommand, fakeRoot);
     }
 
     public static List<String> commandWithBinds(Context context, File root, List<String> binds,
                                                 List<String> guestCommand) {
-        List<String> cmd = prootPrefix(context, root, "/root");
+        return commandWithBinds(context, root, binds, guestCommand, false);
+    }
+
+    public static List<String> commandWithBinds(Context context, File root, List<String> binds,
+                                                List<String> guestCommand, boolean fakeRoot) {
+        List<String> cmd = fakeRoot ? rootPrefix(context, root, "/root") : prootPrefix(context, root, "/root");
         for (String spec : binds) bind(cmd, spec);
         cmd.addAll(guestCommand);
         return cmd;
     }
 
     private static volatile List<String> lastBinds;
+
+    /** The mounts of a session started without proot, which sandboxes and root helpers see too. */
+    public static void rememberSessionBinds(List<String> binds) {
+        lastBinds = binds;
+    }
 
     public static List<String> lastBinds(Context context) {
         List<String> binds = lastBinds;
@@ -163,6 +179,12 @@ public final class LinuxRuntime {
 
     public static List<String> prootPrefix(Context context, File root, String cwd) {
         return prootPrefix(context, root, cwd, false);
+    }
+
+    public static List<String> rootPrefix(Context context, File root, String cwd) {
+        List<String> cmd = prootPrefix(context, root, cwd, true);
+        cmd.add(1, "--link2symlink");
+        return cmd;
     }
 
     public static List<String> prootPrefix(Context context, File root, String cwd, boolean fakeRoot) {
@@ -306,7 +328,17 @@ public final class LinuxRuntime {
 
     private static boolean unreadablePciDevice() {
         File[] devices = new File("/sys/bus/pci/devices").listFiles();
-        if (devices == null) return false;
+        if (devices == null) {
+            // The directory is there but the app may not list it (Android 13 on the AYN Thor): libpci then
+            // aborts the whole program with "Cannot open /sys/bus/pci/devices", which Chromium's GPU
+            // initialisation runs into. Not there at all (no PCI bus) is fine as it is.
+            try {
+                android.system.Os.stat("/sys/bus/pci/devices");
+                return true;
+            } catch (android.system.ErrnoException e) {
+                return e.errno == android.system.OsConstants.EACCES;
+            }
+        }
         for (File device : devices) {
             if (!new File(device, "vendor").canRead()) return true;
         }

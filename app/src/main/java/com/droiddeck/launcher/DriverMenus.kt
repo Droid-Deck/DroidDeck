@@ -603,11 +603,19 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     fun selectDriver(id: String, linux: Boolean) {
+        if (!linux && id == TurnipDriver.AUTO) {
+            DriverBundle.selectDisplay(activity, id)
+            pairModeOpen = false
+            lastAutoCheck = 0L
+            setMode(auto = true)
+            refreshDrivers()
+            return
+        }
         val bundle = DriverBundle.containing(activity, id, linux)
         when {
             bundle != null -> useBundle(bundle)
             linux -> SessionPrefs.setLinuxDriver(activity, id)
-            else -> SessionPrefs.setAndroidDriver(activity, id)
+            else -> DriverBundle.selectDisplay(activity, id)
         }
         pairModeOpen = false
         setMode(auto = false, mix = true)

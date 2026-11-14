@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -1655,6 +1656,7 @@ static void reply_attr(struct nl_reply *out, unsigned char *message, int type,
         return;
     }
     attr = (struct rtattr *) (message + offset);
+    memset(attr, 0, total);
     attr->rta_type = (unsigned short) type;
     attr->rta_len = (unsigned short) RTA_LENGTH(len);
     if (len > 0) memcpy(RTA_DATA(attr), data, len);
@@ -2154,4 +2156,30 @@ ssize_t send(int fd, const void *buffer, size_t length, int flags) {
         return -1;
     }
     return real(fd, buffer, length, flags);
+}
+
+ssize_t write(int fd, const void *buffer, size_t length) {
+    static ssize_t (*real)(int, const void *, size_t);
+    ssize_t rc;
+    if (bl_nl_owns(fd) && deliver(fd, buffer, length, 0, &rc)) return rc;
+    if (real == NULL) real = (ssize_t (*)(int, const void *, size_t)) dlsym(RTLD_NEXT, "write");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, buffer, length);
+}
+
+ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
+    static ssize_t (*real)(int, const struct iovec *, int);
+    if (iovcnt >= 0 && bl_nl_owns(fd)) {
+        struct msghdr msg = { .msg_iov = (struct iovec *) iov, .msg_iovlen = (size_t) iovcnt };
+        return sendmsg_request(fd, &msg, 0);
+    }
+    if (real == NULL) real = (ssize_t (*)(int, const struct iovec *, int)) dlsym(RTLD_NEXT, "writev");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, iov, iovcnt);
 }

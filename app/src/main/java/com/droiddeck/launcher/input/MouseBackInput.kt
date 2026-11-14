@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input
 
+import android.os.Build
 import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -7,7 +8,7 @@ import android.view.KeyEvent
 /**
  * Some firmware turns a mouse's right button into Back. Most report it from the mouse itself; REDMAGIC's
  * cast mode injects it from no device and without the virtual-hard-key flag that the navigation bar and
- * back gesture set, so that form only counts while a mouse is connected.
+ * back gesture set, so that form only counts while an external mouse is connected.
  */
 class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouseAttached: () -> Boolean) {
     private val held = mutableSetOf<Int>()
@@ -45,6 +46,21 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
     }
 
     companion object {
+        fun isExternalMouse(device: InputDevice?): Boolean {
+            if (device == null || device.isVirtual || PadBridge.isSystemVirtualInputName(device.name) ||
+                declaresVirtual(device.name) ||
+                PadBridge.isFromController(device) ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !device.isExternal)) return false
+            return (device.supportsSource(InputDevice.SOURCE_MOUSE) ||
+                device.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE)) &&
+                !device.supportsSource(InputDevice.SOURCE_TOUCHPAD) &&
+                !device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
+        }
+
+        private val VIRTUAL_NAME = Regex("\\bvirtual\\b", RegexOption.IGNORE_CASE)
+
+        fun declaresVirtual(name: String?): Boolean = name != null && VIRTUAL_NAME.containsMatchIn(name)
+
         fun isFromMouse(event: KeyEvent): Boolean =
             event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)
 

@@ -7,7 +7,18 @@ import kotlin.math.max
 import kotlin.math.min
 
 object OnScreenLayout {
-    data class Dock(val portrait: Boolean, val grips: Boolean)
+    data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
+        companion object {
+            fun deck(portrait: Boolean, gamepad: SavedInputLayout?): Dock {
+                fun side(right: Boolean) = gamepad?.elements?.firstOrNull {
+                    (it.kind == InputElementKind.STICK || it.kind == InputElementKind.TRACKPAD) && (it.x + it.width / 2f >= .5f) == right
+                }?.kind
+                val left = if (side(false) == InputElementKind.TRACKPAD) InputControl.LEFT_PAD else InputControl.LS
+                val right = if (side(true) == InputElementKind.STICK) InputControl.RS else InputControl.RIGHT_PAD
+                return Dock(portrait, true, left, right)
+            }
+        }
+    }
 
     private const val TOLERANCE = .01f
     private const val KEYBOARD_ID = "builtin:keyboard"
@@ -17,13 +28,13 @@ object OnScreenLayout {
         val stored = layout?.elements ?: return emptyList()
         if (width <= 0 || height <= 0) return stored
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
-        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored)
         val (reference, generated) = reference(context, layout, width, height)
+        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
-        val others = fit(stored.filterNot { generated && isGamepad(it) }, reference.first, reference.second, width, height, safe)
+        val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val placed = when {
             gamepad.isEmpty() -> emptyList()
-            dock != null -> generator.dock(gamepad, dock.portrait, dock.grips)
+            dock != null -> generator.dock(gamepad, dock.portrait, dock.grips, dock.left, dock.right)
             else -> generator.regenerate(gamepad)
         }
         val byId = (placed + others).associateBy { it.id }

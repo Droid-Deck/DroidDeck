@@ -21,7 +21,7 @@ object GameRemoval {
     fun steamFiles(game: Library.SteamGame): SteamFiles? {
         val dir = game.gameFiles ?: return null
         val common = dir.parentFile ?: return null
-        if (common.name != "common") return null
+        if (common.name != (if (game.soundtrack) "music" else "common")) return null
         val steamapps = common.parentFile ?: return null
         if (steamapps.name != "steamapps") return null
         val manifest = File(steamapps, "appmanifest_${game.appId}.acf")

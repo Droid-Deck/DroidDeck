@@ -40,7 +40,7 @@ internal object LegacyScreenKeyMigration {
             if (result.profiles.any { it.id == id }) continue
             val converted = convert(context, set.second, metrics.widthPixels, metrics.heightPixels, metrics.density)
             if (converted.isEmpty()) continue
-            val layout = SavedInputLayout("$id.layout", set.first, converted.map { it.first }, style = style, screen = InputLayoutScreen.MAIN,
+            val layout = SavedInputLayout("$id.layout", set.first, converted.map { it.first.copy(alwaysShown = true) }, style = style, screen = InputLayoutScreen.MAIN,
                 aspect = (metrics.widthPixels.coerceAtLeast(1).toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(.05f, 20f))
             val bindings = SavedInputBindings("$id.bindings", set.first, false, layout.id, elements = converted.associate { it.first.id to it.second })
             val base = library.profile(library.steam)
@@ -66,6 +66,17 @@ internal object LegacyScreenKeyMigration {
                 .withPreset(preset.copy(elements = added + preset.elements))
         }
         return result.validate()
+    }
+
+    fun pin(library: InputLibrary): InputLibrary {
+        val keys = library.layouts.firstOrNull { it.id == "$SHOWN.layout" }?.elements.orEmpty()
+        return library.copy(layouts = library.layouts.map { layout ->
+            val imported = layout.id.startsWith("migrated.screenkeys.")
+            layout.copy(elements = layout.elements.map { e ->
+                val key = e.id.startsWith("imported:") && (imported || keys.any { it.id == e.id && it.kind == e.kind && it.name == e.name })
+                if (key) e.copy(alwaysShown = true) else e
+            })
+        })
     }
 
     internal fun convert(context: Context, raw: String, width: Int, height: Int, density: Float): List<Pair<InputSurfaceElement, InputAction>> =

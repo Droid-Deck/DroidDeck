@@ -225,7 +225,8 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         )
     }
 
-    fun dock(stored: List<InputSurfaceElement>, portrait: Boolean, grips: Boolean): List<InputSurfaceElement> {
+    fun dock(stored: List<InputSurfaceElement>, portrait: Boolean, grips: Boolean, left: InputControl = InputControl.LS,
+        right: InputControl = InputControl.RS): List<InputSurfaceElement> {
         val boxes = GamepadGeometry.layout(width.toFloat(), height.toFloat(), resources.displayMetrics.density, portrait)
         val placed = mutableListOf<InputSurfaceElement>()
         fun box(control: InputControl, slot: GamepadGeometry.Slot, shape: InputButtonShape) {
@@ -243,9 +244,9 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
                     b.cx + direction.first * spread, b.cy + direction.second * spread, radius)
             }
         }
-        box(InputControl.LS, GamepadGeometry.Slot.LEFT_MAIN, InputButtonShape.CIRCLE)
+        box(left, GamepadGeometry.Slot.LEFT_MAIN, InputButtonShape.CIRCLE)
         cross(DPAD_ORDER, GamepadGeometry.Slot.LEFT_SECOND)
-        box(InputControl.RS, GamepadGeometry.Slot.RIGHT_MAIN, InputButtonShape.CIRCLE)
+        box(right, GamepadGeometry.Slot.RIGHT_MAIN, InputButtonShape.CIRCLE)
         cross(FACE_ORDER, GamepadGeometry.Slot.RIGHT_SECOND)
         box(InputControl.LT, GamepadGeometry.Slot.LEFT_OUTER_SHOULDER, InputButtonShape.PILL)
         box(InputControl.LB, GamepadGeometry.Slot.LEFT_INNER_SHOULDER, InputButtonShape.PILL)
@@ -254,7 +255,8 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         box(InputControl.SELECT, GamepadGeometry.Slot.VIEW, InputButtonShape.PILL)
         box(InputControl.START, GamepadGeometry.Slot.MENU, InputButtonShape.PILL)
         if (grips) GRIPS.forEach { (control, slot) -> box(control, slot, InputButtonShape.ROUNDED) }
-        return withGeometry(stored, placed) + placed.filter { p -> GRIPS.any { it.first == p.control } && stored.none { it.id == p.id } }
+        val surfaces = listOf(left, right).filter { it.isTrackpad }
+        return withGeometry(stored, placed) + placed.filter { p -> (GRIPS.any { it.first == p.control } || p.control in surfaces) && stored.none { it.id == p.id } }
     }
 
     private fun circle(e: InputSurfaceElement, cx: Float, cy: Float, radius: Float) =

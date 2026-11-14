@@ -383,9 +383,10 @@ class InputSettingsTest {
 
     @Test fun elementPropertiesEditOpacityLabelsAndOfferImages() {
         val element = mutableStateOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "custom", name = "Custom button"))
+        val action = mutableStateOf<InputAction?>(null)
         compose.setContent { DroidDeckTheme {
             androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-                InputElementProperties(element.value) { element.value = it }
+                InputElementProperties(element.value, action.value) { element.value = it }
             }
         } }
         compose.onNodeWithTag("setting-element-opacity").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(60f) }
@@ -399,6 +400,17 @@ class InputSettingsTest {
         compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LEFT_PAD, .1f, .1f, .4f, .4f, "pad", InputElementKind.TRACKPAD, "Pad") }
         compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
         compose.onNodeWithTag("setting-element-opacity").assertExists()
+        for (kind in listOf(InputElementKind.DPAD, InputElementKind.STICK)) {
+            compose.runOnIdle { element.value = InputSurfaceElement(kind.control, .1f, .1f, .4f, .4f, "imported:0", kind, "WASD"); action.value = InputAction.Directions(17, 32, 31, 30) }
+            compose.onNodeWithTag("setting-element-label").performScrollTo().performClick()
+            compose.runOnIdle { assertFalse(element.value.showLabel); action.value = InputAction.Native() }
+            compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
+            compose.runOnIdle { action.value = InputAction.Directions(0, 0, 0, 0, listOf(16, 18, 44, 46)) }
+            if (kind == InputElementKind.STICK) compose.onNodeWithTag("setting-element-label").assertExists()
+            else compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
+        }
+        compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LS, .1f, .1f, .4f, .4f, "legacy:left-stick", InputElementKind.STICK, "Move") }
+        compose.onNodeWithTag("setting-element-label").assertExists()
     }
 
     @Test fun editorScalesEveryControlAndRestoresStockPositions() {
@@ -419,6 +431,23 @@ class InputSettingsTest {
         compose.onNodeWithText(context.getString(R.string.input_reset_positions)).performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
         compose.runOnIdle { assertEquals(layout.elements, InputLibraries.read(context).layouts.first { it.id == layout.id }.elements) }
+    }
+
+    @Test fun editorSnapChoiceIsRemembered() {
+        com.droiddeck.launcher.input.ControllerPrefs.setSnap(context, true)
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } } }
+        val snap = isToggleable() and hasAnySibling(hasText(context.getString(R.string.ctrl_editor_snap)))
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNode(snap).performScrollTo().assertIsOn().performClick()
+        compose.runOnIdle { assertFalse(com.droiddeck.launcher.input.ControllerPrefs.snap(context)) }
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNode(snap).performScrollTo().assertIsOff()
+        com.droiddeck.launcher.input.ControllerPrefs.setSnap(context, true)
     }
 
     @Test fun quickButtonTogglesHideBuiltInButtonsWithoutDeletingThem() {

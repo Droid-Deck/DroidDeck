@@ -191,6 +191,7 @@ public final class SystemVulkanDriver {
 
     /** Collect abandoned stages, and obsolete versions once older guests can no longer load them. */
     public static synchronized void pruneUnused(Context context, boolean guestsStopped) throws IOException {
+        if (!AddonPack.POWERVR.installed(context)) return;
         pruneUnused(runtimeDirectory(context), guestsStopped);
     }
 

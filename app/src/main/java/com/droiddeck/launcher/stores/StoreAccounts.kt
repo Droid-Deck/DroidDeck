@@ -67,8 +67,8 @@ object StoreAccounts {
     fun write(context: Context, store: Store, json: JSONObject) {
         unavailable.remove(store)
         val f = credentialsFile(context, store)
-        if (seal(f, json, retry = store == Store.XBOX) == null) {
-            check(store != Store.XBOX) { "Android Keystore is unavailable for Xbox credentials" }
+        if (seal(f, json, retry = store == Store.XBOX || store == Store.ROCKSTAR) == null) {
+            check(store != Store.XBOX && store != Store.ROCKSTAR) { "Android Keystore is unavailable for ${store.label} credentials" }
             put(f, json.toString())
         }
     }

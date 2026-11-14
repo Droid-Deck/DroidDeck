@@ -101,6 +101,33 @@ class DriverBundleTest {
         assertTrue(DriverBundle.all(context).isEmpty())
     }
 
+    @Test fun aDisplayPickedAwayFromABundleTakesItsRuntimeHalfWithIt() {
+        val b = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, TurnipDriver.AUTO)
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertNull(DriverBundle.active(context))
+
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, "turnip25.1.0")
+        assertEquals("turnip25.1.0", SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+    }
+
+    @Test fun aDisplayPickOutsideABundleKeepsTheChosenRuntime() {
+        SessionPrefs.setLinuxDriver(context, "my-linux-driver")
+        SessionPrefs.setAndroidDriver(context, "turnip25.1.0")
+        DriverBundle.selectDisplay(context, TurnipDriver.AUTO)
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+        assertEquals("my-linux-driver", SessionPrefs.linuxDriver(context))
+
+        val b = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, b.androidId)
+        assertEquals(b.linuxId, SessionPrefs.linuxDriver(context))
+    }
+
     @Test fun aRefusedHalfLeavesNothingInstalled() {
         try {
             DriverBundle.install(context, bundle(linuxLibc = "libc.so"))

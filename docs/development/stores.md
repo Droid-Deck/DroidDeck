@@ -244,6 +244,15 @@ self-extractor stops at "Path not found", so the values it installs are applied 
 `witcher.exe` exits during startup. The language comes from the installed product's
 `goggame-<id>.info`, and a script's own `setRegistry` entries always win over the built-in table.
 
+The script's `supportData` actions run right after: files and folders from the game folder
+(`{app}`) or its support files (`{supportDir}`, `support/<id>/`) are copied to `{userdocs}` and
+`{localappdata}` in the prefix, and `type: folder` without a source creates the folder. Mods such
+as one-click editions ship their `Plugins.txt` and INI files this way. Paths match without regard
+to case, links are copied as links, and a path outside those folders is refused. A file the
+player already has is replaced only when the action says `overwrite`. `.droiddeck-gog-support` in
+the prefix holds the actions' hash, so they run once per script revision and a player's later
+edits stay.
+
 A GOG game's exe comes from its own manifest first: `goggame-<id>.info`'s play task in category
 `game` (`isPrimary` first), or a primary `launcher` task for launcher games, whose `path` stays
 inside the folder; any other `goggame-*.info` in the folder supplies the task only when the

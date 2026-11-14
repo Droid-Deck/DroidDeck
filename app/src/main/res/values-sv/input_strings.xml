@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Inmatningsprofiler</string>
+    <string name="input_profiles">Profiler</string>
+    <string name="input_physical">Fysisk handkontroll</string>
+    <string name="input_primary">Huvudskärm</string>
+    <string name="input_secondary">Sekundär skärm</string>
+    <string name="input_native">Inbyggd / Steam Input</string>
+    <string name="input_native_target">Inbyggd: %1$s</string>
+    <string name="input_remap_native">Skicka en annan handkontrollsstyrning</string>
+    <string name="input_disabled">Inaktiverad</string>
+    <string name="input_keys">Tangent eller tangentkombination</string>
+    <string name="input_direction_keys">Riktningstangenter</string>
+    <string name="input_pointer">Flytta pekaren</string>
+    <string name="input_pointer_speed">Pekarhastighet: %1$d</string>
+    <string name="input_scroll">Rulla</string>
+    <string name="input_scroll_vertical">Rulla lodrätt</string>
+    <string name="input_mouse_left">Vänster musknapp</string>
+    <string name="input_mouse_right">Höger musknapp</string>
+    <string name="input_mouse_middle">Mitten musknapp</string>
+    <string name="input_command_menu">Öppna DroidDeck-menyn</string>
+    <string name="input_command_keyboard">Visa tangentbord</string>
+    <string name="input_command_steam">Öppna Steam-menyn</string>
+    <string name="input_command_qam">Öppna Steams snabbåtkomst</string>
+    <string name="input_remove_element">Ta bort kontroll</string>
+    <string name="input_add_element">Lägg till kontroll</string>
+    <string name="input_extra_keys">Enhetsspecifika knappar</string>
+    <string name="input_capture">Tilldela en fysisk knapp</string>
+    <string name="input_capture_confirm">Släpp knappen och välj Redigera, Försök igen eller Avbryt. B eller Tillbaka avbryter efter släpp.</string>
+    <string name="input_capture_retry">Försök igen</string>
+    <string name="input_capture_hint">Tryck på en knapp, även en Tillbaka-knapp som rapporteras som tangent. Volym- och Android-systemtangenter är reserverade. Tilldelningen gäller bara den här enheten.</string>
+    <string name="input_remove_binding">Ta bort tilldelning</string>
+    <string name="input_latency">Indatadiagnostik</string>
+    <string name="input_measure">Spela in indatasändningstid</string>
+    <string name="input_read_timing">Läs mätningar</string>
+    <string name="input_latency_hint">Mäter sändningen från Android till publicering i den befintliga indatatransporten. Bluetoothankomst, gästpollning, rendering och skärmfördröjning ingår inte. Inspelning är av som standard.</string>
+    <string name="input_normal_binding">Använd normal indatatilldelning</string>
+</resources>

@@ -224,6 +224,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
                         "bottom" to stringResource(R.string.display_position_bottom),
+                        "left" to stringResource(R.string.display_position_left),
+                        "right" to stringResource(R.string.display_position_right),
                         "center" to stringResource(R.string.display_position_center)),
                     position, onPick = a.onPicturePosition)
             }

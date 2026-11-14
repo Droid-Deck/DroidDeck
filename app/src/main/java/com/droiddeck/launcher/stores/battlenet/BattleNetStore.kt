@@ -192,6 +192,7 @@ object BattleNetBackend : StoreBackend {
     override fun install(context: Context, item: CatalogItem, root: File) {
         if (!BattleNetInstall.headless(item)) return BattleNetClient.installGame(context, item.id, root)
         val app = context.applicationContext
+        BattleNetInstall.updateFolder(item)?.let { return BattleNetInstall.enqueue(app, item, it, update = true) }
         BattleNetInstall.enqueue(app, item, StoreInstallRoot.folderFor(app, store, item.id, item.title, root))
     }
 
@@ -204,7 +205,8 @@ object BattleNetBackend : StoreBackend {
     fun installedGames(context: Context): List<InstalledStoreGame> = installed(context).map { game ->
         val art = BattleNet.art(context, game.title)
         val cover = art.cover?.let { Uri.fromFile(it).toString() }
-        InstalledStoreGame(StoreGameSidecar(store, game.title.uid, game.name, "", cover = cover, hero = art.header?.let { Uri.fromFile(it).toString() } ?: cover), game.folder)
+        InstalledStoreGame(StoreGameSidecar(store, game.title.uid, game.name, "", installedAt = game.folder.lastModified(),
+            cover = cover, hero = art.header?.let { Uri.fromFile(it).toString() } ?: cover), game.folder)
     }
 
     private fun shelves(context: Context): StoreShelves {

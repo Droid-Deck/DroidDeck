@@ -34,6 +34,7 @@ data class InputSurfaceElement(
     val opacity: Float = 1f,
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
+    val alwaysShown: Boolean = false,
 ) {
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 

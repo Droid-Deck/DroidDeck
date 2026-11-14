@@ -15,7 +15,9 @@ int vkp_quest_layer_presentation(void);
 
 enum vkp_scale_mode { VKP_MODE_OFF = 0, VKP_MODE_FIT = 1, VKP_MODE_STRETCH = 2, VKP_MODE_FILL = 3,
                       VKP_MODE_INTEGER = 4 };
-enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2, VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4 };
+enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2,
+                  VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4,
+                  VKP_ALIGN_PICTURE_LEFT = 5, VKP_ALIGN_PICTURE_RIGHT = 6 };
 void vk_present_set_scale_mode(int mode, int alignment);
 int vkp_game_picture_rect(float rect[4]);
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);

@@ -38,6 +38,7 @@ object StoreLaunchRequests {
 
     fun stop() {
         com.droiddeck.launcher.stores.xbox.XboxRuntime.stop()
+        com.droiddeck.launcher.stores.ea.EaLsx.stop()
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
@@ -58,6 +59,12 @@ object StoreLaunchRequests {
             "xbox-renew" -> JSONObject().put("ok", com.droiddeck.launcher.stores.xbox.XboxRuntime.renew(app, request.optString("id"), request.optString("lease")))
             "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
+            "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
+                .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "ea-exited" -> {
+                com.droiddeck.launcher.stores.ea.EaLsx.stop(request.optString("id"))
+                JSONObject().put("ok", true)
+            }
             "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }
                 .getOrElse { JSONObject().put("ok", false).put("ready", false).put("reason", "service-unavailable") }
             "epic-code" -> {
@@ -67,6 +74,23 @@ object StoreLaunchRequests {
                     lastLaunched = Store.EPIC to id
                     val code = StoreLaunch.epicCode(app, id)
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
+                }
+            }
+            "rockstar-launch" -> runCatching {
+                lastLaunched = Store.ROCKSTAR to request.optString("id")
+                com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
+            }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "rockstar-exited" -> {
+                if (lastLaunched == (Store.ROCKSTAR to request.optString("id"))) lastLaunched = null
+                JSONObject().put("ok", true)
+            }
+            "ubisoft-launch" -> {
+                val id = request.optString("id")
+                if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
+                else {
+                    lastLaunched = Store.UBISOFT to id
+                    runCatching { com.droiddeck.launcher.stores.ubisoft.UbisoftLaunch.prepare(app, id) }
+                        .getOrElse { JSONObject().put("ok", false).put("reason", it.javaClass.simpleName) }
                 }
             }
             "cloud-down" -> {
@@ -90,6 +114,7 @@ object StoreLaunchRequests {
                 if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
                 else try {
                     app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    com.droiddeck.launcher.session.SessionService.holdForBrowserHandoff(app)
                     Log.i(TAG, "open-url: " + StoreLog.redactUrl(url))
                     JSONObject().put("ok", true)
                 } catch (e: Exception) {

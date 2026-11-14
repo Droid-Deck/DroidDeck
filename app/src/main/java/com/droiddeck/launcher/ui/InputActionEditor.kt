@@ -16,7 +16,7 @@ import com.droiddeck.launcher.input.*
 internal fun InputActionEditor(
     control: InputControl, current: InputAction, title: String, onBack: () -> Unit, onSave: (InputAction) -> Unit,
     element: InputSurfaceElement? = null, nativeTargets: Boolean = true, detail: String? = null,
-    properties: (@Composable ColumnScope.() -> Unit)? = null,
+    properties: (@Composable ColumnScope.(InputAction) -> Unit)? = null,
     click: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -46,7 +46,7 @@ internal fun InputActionEditor(
     SettingsPage(host, title, onBack, eyebrow = stringResource(R.string.input_properties), lede = detail,
         action = { PrimaryButton(stringResource(R.string.gesture_save_changes), enabled = valid(draft),
             modifier = Modifier.testTag("input-action-save")) { onSave(draft) } }) {
-        properties?.invoke(this)
+        properties?.invoke(this, draft)
         Spacer(Modifier.height(12.dp))
         SheetChips(listOf(stringResource(R.string.input_route_controller), stringResource(R.string.input_route_local), stringResource(R.string.input_disabled)), route) {
             when (it) {

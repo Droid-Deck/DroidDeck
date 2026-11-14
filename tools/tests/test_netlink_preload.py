@@ -118,6 +118,7 @@ PROGRAM = r"""
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -317,6 +318,8 @@ static void *ordinary_traffic(void *argument) {
     probe_end(counts);
     require(counts[0] == 0, "ordinary setup avoids netlink lock");
 
+    int pipes[2];
+    require(pipe(pipes) == 0, "ordinary pipe setup");
     probe_begin(0);
     const int rounds = 32;
     for (int round = 0; round < rounds; round++) {
@@ -338,6 +341,15 @@ static void *ordinary_traffic(void *argument) {
         message.msg_name = &source;
         message.msg_namelen = sizeof(source);
         require(recvmsg(server, &message, 0) == 1 && buffer == 'z', "ordinary recvmsg");
+        require(write(client, "w", 1) == 1, "ordinary write");
+        require(read(server, &buffer, 1) == 1 && buffer == 'w', "ordinary read");
+        char pair[2];
+        struct iovec pieces[2] = {{.iov_base = "v", .iov_len = 1}, {.iov_base = "u", .iov_len = 1}};
+        require(writev(client, pieces, 2) == 2, "ordinary writev");
+        require(recv(server, pair, 2, MSG_WAITALL) == 2 && pair[0] == 'v' && pair[1] == 'u',
+                "ordinary writev data");
+        require(write(pipes[1], "p", 1) == 1 && read(pipes[0], &buffer, 1) == 1 && buffer == 'p',
+                "ordinary pipe");
         length = sizeof(source);
         require(getpeername(client, (struct sockaddr *)&source, &length) == 0, "ordinary peer");
         const int options[] = {SO_TYPE, SO_DOMAIN, SO_PROTOCOL};
@@ -368,6 +380,8 @@ static void *ordinary_traffic(void *argument) {
     require(counts[2] == (unsigned)rounds, "ordinary traffic has only requested getpeername");
     require(counts[3] == 0, "ordinary traffic avoids restoration fstat");
     require(counts[4] == (unsigned)rounds * 3, "ordinary socket options use one syscall each");
+    close(pipes[0]);
+    close(pipes[1]);
     close(client);
     close(server);
     if (server != listener) close(listener);
@@ -798,6 +812,52 @@ static void connect_test(void) {
     close(descriptor);
 }
 
+static ssize_t link_reply(int descriptor, const char *path, unsigned char *buffer, size_t capacity) {
+    struct {
+        struct nlmsghdr header;
+        struct ifinfomsg info;
+    } query = {
+        .header = {.nlmsg_len = sizeof(query), .nlmsg_type = RTM_GETLINK,
+                   .nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK, .nlmsg_seq = 42},
+        .info = {.ifi_index = 1}
+    };
+    struct iovec parts[2] = {{.iov_base = &query.header, .iov_len = sizeof(query.header)},
+                             {.iov_base = &query.info, .iov_len = sizeof(query.info)}};
+    struct msghdr message = {.msg_iov = parts, .msg_iovlen = 2};
+    ssize_t sent;
+    if (!strcmp(path, "send")) sent = send(descriptor, &query, sizeof(query), 0);
+    else if (!strcmp(path, "sendmsg")) sent = sendmsg(descriptor, &message, 0);
+    else if (!strcmp(path, "write")) sent = write(descriptor, &query, sizeof(query));
+    else sent = writev(descriptor, parts, 2);
+    require(sent == sizeof(query), path);
+    ssize_t received = read(descriptor, buffer, capacity);
+    require(received > 0, "read reply");
+    return received;
+}
+
+static void write_test(void) {
+    const char *paths[] = {"send", "sendmsg", "write", "writev"};
+    unsigned char expected[4096];
+    int descriptor = route_socket();
+    ssize_t expected_length = link_reply(descriptor, paths[0], expected, sizeof(expected));
+    struct nlmsghdr *header = (struct nlmsghdr *)expected;
+    require(header->nlmsg_type == RTM_NEWLINK && header->nlmsg_seq == 42
+            && header->nlmsg_pid == port_of(descriptor), "send reply");
+    require(expected_length > (ssize_t)NLMSG_ALIGN(header->nlmsg_len), "acknowledged reply");
+    struct nlmsghdr *acknowledgement = (struct nlmsghdr *)(expected + NLMSG_ALIGN(header->nlmsg_len));
+    require(acknowledgement->nlmsg_type == NLMSG_ERROR
+            && ((struct nlmsgerr *)NLMSG_DATA(acknowledgement))->error == 0, "send acknowledgement");
+    for (size_t index = 1; index < sizeof(paths) / sizeof(paths[0]); index++) {
+        unsigned char buffer[4096];
+        ssize_t length = link_reply(descriptor, paths[index], buffer, sizeof(buffer));
+        require(length == expected_length, "reply length");
+        require(!memcmp(buffer, expected, length), "reply bytes");
+    }
+    require(recv(descriptor, expected, sizeof(expected), MSG_DONTWAIT) == -1 && errno == EAGAIN,
+            "no extra replies");
+    close(descriptor);
+}
+
 static void receive_test(void) {
     int descriptor = route_socket();
     send_link(descriptor, 1, 0);
@@ -985,6 +1045,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "nonblocking")) send_timeout_test(1);
     else if (!strcmp(argv[1], "connect")) connect_test();
     else if (!strcmp(argv[1], "receive")) receive_test();
+    else if (!strcmp(argv[1], "write")) write_test();
     else if (!strcmp(argv[1], "replace")) replacement_test(0);
     else if (!strcmp(argv[1], "raw_replace")) replacement_test(1);
     else if (!strcmp(argv[1], "shared")) shared_test(0);
@@ -1159,6 +1220,9 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_kernel_connect_and_disconnect(self):
         self.run_program("connect")
+
+    def test_write_and_writev_requests_get_the_same_replies_as_send(self):
+        self.run_program("write")
 
     def test_receive_sources_and_truncation(self):
         self.run_program("receive")

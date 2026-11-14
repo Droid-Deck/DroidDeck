@@ -29,6 +29,9 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         private set
     var isQuickHidden = false
         private set
+    var isPinnedOnly = false
+        private set
+    val hasPinned get() = layout?.elements?.any { it.alwaysShown } == true
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }
@@ -61,6 +64,13 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         render()
     }
 
+    fun setPinnedOnly(enabled: Boolean) {
+        if (isPinnedOnly == enabled) return
+        releaseAll()
+        isPinnedOnly = enabled
+        render()
+    }
+
     private data class Placement(val layout: SavedInputLayout?, val width: Int, val height: Int, val safe: Rect, val buttonsOnly: Boolean)
 
     private fun placed(): List<InputSurfaceElement> {
@@ -72,12 +82,16 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     private fun render() {
         val elements = placed()
-        surface.updateCustomLayout(if (isQuickHidden) elements.filter { it.id == "builtin:keyboard" } else elements)
+        surface.updateCustomLayout(when {
+            isPinnedOnly -> elements.filter { it.alwaysShown }
+            isQuickHidden -> elements.filter { it.id == "builtin:keyboard" || it.alwaysShown }
+            else -> elements
+        })
         val style = layout?.style ?: InputSurfaceStyle()
         surface.updateStyle(style)
         quickToggle.tint = style.tint
         quickToggle.alpha = style.opacity / 100f
-        quickToggle.visibility = if (isButtonsOnly || layout == null || dock != null) GONE else VISIBLE
+        quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
         quickToggle.invalidate()
     }
 

@@ -387,6 +387,193 @@ def set_registry(**arguments):
     return {'install': {'action': 'setRegistry', 'arguments': arguments}, 'name': 'setRegistry'}
 
 
+def support_data(**arguments):
+    return {'install': {'action': 'supportData', 'arguments': arguments}, 'name': 'supportData'}
+
+
+class GogSupportData(unittest.TestCase):
+    def prefix(self, root):
+        user = Path(root) / 'compat/pfx/drive_c/users/steamuser'
+        user.mkdir(parents=True)
+        return user
+
+    def test_support_files_reach_the_prefix_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            support = folder / 'support/9'
+            (support / 'Docs').mkdir(parents=True)
+            (support / 'Docs/Fallout4.ini').write_text('[Archive]\n')
+            (support / 'Plugins.txt').write_text('*LondonWorldSpace.esm\n')
+            (folder / '__AppData/Saves').mkdir(parents=True)
+            (folder / '__AppData/Saves/a.txt').write_text('a')
+            gog_script(folder, '9', [
+                set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string'),
+                support_data(type='folder', target='{userdocs}/My Games/Fallout4'),
+                support_data(type='file', overwrite=True, source='{supportDir}/docs/Fallout4.ini',
+                             target='{userdocs}/My Games/Fallout4/Fallout4.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt',
+                             target='{localappdata}/Fallout4/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/Fallout4'),
+            ])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('copied=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+            self.assertTrue((user / 'Documents/My Games/Fallout4').is_dir())
+            self.assertEqual('[Archive]\n', (user / 'Documents/My Games/Fallout4/Fallout4.ini').read_text())
+            self.assertEqual('*LondonWorldSpace.esm\n', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+            self.assertEqual('a', (user / 'AppData/Local/Fallout4/Saves/a.txt').read_text())
+            (user / 'AppData/Local/Fallout4/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+
+    def test_a_source_the_build_lacks_does_not_recopy_the_rest_every_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/Plugins.txt').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt', target='{localappdata}/G/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+            ])
+            self.assertEqual('copied=1 missing=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (user / 'AppData/Local/G/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/G/Plugins.txt').read_text())
+
+    def test_a_link_never_carries_a_copy_outside(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            gog_script(folder, '9', [
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{localappdata}/G/linked/a.ini'),
+                support_data(type='file', overwrite=True, source='{app}/__AppData/linked/secret.ini', target='{userdocs}/secret.ini'),
+            ])
+            self.assertEqual('copied=1 skipped=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual(['secret.ini'], sorted(p.name for p in outside.iterdir()))
+            self.assertFalse((user / 'Documents/secret.ini').exists())
+
+    def test_a_linked_source_folder_is_copied_as_a_link(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / 'linked').symlink_to(outside)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/linked', target='{userdocs}/G')])
+            store.gog_support_data(folder, root + '/compat', '/proton')
+            self.assertTrue((user / 'Documents/G').is_symlink())
+            self.assertEqual(outside, Path(os.readlink(user / 'Documents/G')))
+
+    def test_a_players_own_links_stay_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9/Saves').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            (folder / 'support/9/Saves/b.ini').write_text('b')
+            (user / 'Documents/G').mkdir(parents=True)
+            (user / 'Documents/a.ini').symlink_to(user / 'mine.ini')
+            (user / 'Documents/G/b.ini').symlink_to(user / 'gone.ini')
+            gog_script(folder, '9', [
+                support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini'),
+                support_data(type='folder', source='{supportDir}/Saves', target='{userdocs}/G'),
+            ])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual(user / 'mine.ini', Path(os.readlink(user / 'Documents/a.ini')))
+            self.assertEqual(user / 'gone.ini', Path(os.readlink(user / 'Documents/G/b.ini')))
+
+    def test_a_changed_script_applies_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('1')
+            action = support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/a.ini')
+            gog_script(folder, '9', [action])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (folder / 'support/9/b.ini').write_text('2')
+            gog_script(folder, '9', [action, support_data(type='file', overwrite=True, source='{supportDir}/b.ini',
+                                                          target='{userdocs}/b.ini')])
+            self.assertEqual('copied=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('2', (user / 'Documents/b.ini').read_text())
+
+    def test_a_players_file_is_kept_unless_the_script_overwrites_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('default')
+            (user / 'Documents').mkdir()
+            (user / 'Documents/a.ini').write_text('mine')
+            gog_script(folder, '9', [support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini')])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('mine', (user / 'Documents/a.ini').read_text())
+
+    def test_paths_outside_the_known_folders_are_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/../../../../escape.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='C:/escape.ini'),
+                support_data(type='folder', target='{windir}/x'),
+            ])
+            self.assertEqual('copied=0 skipped=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual([], list(Path(root).rglob('escape.ini')))
+            self.assertFalse((Path(root) / 'compat/pfx' / store.GOG_SUPPORT_MARK).exists())
+
+    def test_links_in_a_support_folder_are_copied_as_links(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.txt').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside, target_is_directory=True)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G')])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual('s', (outside / 'secret.txt').read_text())
+
+    def test_without_support_data_no_prefix_is_made(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string')])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('none', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+
+    def test_a_missing_prefix_is_made_first(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [support_data(type='folder', target='{userdocs}/My Games/G')])
+            with patch.object(store, 'create_prefix', return_value='failed') as create:
+                self.assertEqual('no-prefix', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_called_once_with(root + '/compat', '/proton')
+
+            def made(compat_data, proton):
+                self.prefix(root)
+                return 'created'
+            with patch.object(store, 'create_prefix', side_effect=made):
+                self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((Path(root) / 'compat/pfx/drive_c/users/steamuser/Documents/My Games/G').is_dir())
+
+
 class GogRegistry(unittest.TestCase):
     def test_patch_registration_uses_authentic_build_and_the_prefix_registry_executable(self):
         with tempfile.TemporaryDirectory() as root:
@@ -605,6 +792,107 @@ class GogRegistry(unittest.TestCase):
             folder = game(root, store_id='gog')
             with patch.dict(os.environ, {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat/', 'BL_STORE_PROTON': '/chosen/proton'}), \
                     patch.object(store, 'prepare_gog', return_value=False), patch.object(store, 'ask', return_value=None), \
-                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply:
+                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply, \
+                    patch.object(store, 'gog_support_data', return_value='ready') as support:
                 store.main([str(folder / store.LAUNCHER)])
                 apply.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+                support.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+
+
+class Ubisoft(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.compat_data = self.root / 'compatdata/2929927072'
+        (self.compat_data / 'pfx').mkdir(parents=True)
+        (self.compat_data / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
+        (self.compat_data / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
+        self.folder = self.root / 'Games/Stores/Ubisoft/Splinter Cell'
+        (self.folder / 'system').mkdir(parents=True)
+        self.sidecar = {'store': 'ubisoft', 'id': 'space-1', 'exe': 'system/SplinterCell.exe', 'extra': {'productId': '109'}}
+        service = self.root / 'droiddeck-upc.exe'
+        service.write_bytes(b'MZ')
+        for patcher in (patch.object(store, 'UBISOFT_SERVICE', service), patch.object(store, 'UBISOFT_CACHE', self.root / 'cache'),
+                        patch.object(store, 'wait_for_server', return_value=True)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def runtime(self):
+        folder = store.ubisoft_runtime_dir(self.compat_data)
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in store.UBISOFT_RUNTIME:
+            (folder / name).write_bytes(b'MZ')
+
+    def answer(self, *_args, **_kwargs):
+        return {'ok': True, 'ticket': 'PC', 'owned': [82, 109], 'appId': 'app',
+                'account': {'userId': 'u1', 'username': 'name', 'nameOnPlatform': 'name', 'email': 'e@x', 'country': 'US'}}
+
+    def prepare(self, ask_app):
+        return store.prepare_ubisoft(self.folder, self.sidecar, str(self.compat_data), str(self.root / 'launch'), '/proton', ask_app=ask_app)
+
+    def test_an_extracted_runtime_is_not_extracted_again(self):
+        self.runtime()
+        with patch.object(store.subprocess, 'run') as run:
+            self.assertEqual('present', store.install_runtime(str(self.compat_data)))
+        run.assert_not_called()
+
+    def test_the_runtime_comes_from_the_installer_through_7z(self):
+        installer = self.root / 'UbisoftConnectInstaller.exe'
+
+        def run(command, **_kwargs):
+            self.assertEqual(['7z', 'e', '-y'], command[:3])
+            self.assertEqual(str(installer), command[4])
+            out = Path(command[3][2:])
+            for name in command[5:]:
+                (out / name).write_bytes(b'MZ')
+
+        (self.root / 'cache').mkdir()
+        with patch.object(store, 'fetch_installer', return_value=installer), patch.object(store.subprocess, 'run', side_effect=run):
+            self.assertEqual('installed', store.install_runtime(str(self.compat_data)))
+        self.assertTrue(store.ubisoft_runtime_ready(str(self.compat_data)))
+
+    def test_a_launch_registers_the_game_and_writes_the_session_for_the_service(self):
+        self.runtime()
+        result = self.prepare(self.answer)
+        self.assertEqual('runtime present, registered 109, 0 manifest value(s), session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        for view in ('[Software\\\\Ubisoft\\\\Launcher]', '[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher]'):
+            self.assertIn(view, reg)
+        self.assertIn('[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\109]', reg)
+        self.assertIn('"InstallDir"="C:\\\\Program Files (x86)\\\\Ubisoft\\\\Ubisoft Game Launcher\\\\"', reg)
+        launch = json.loads((self.folder / store.UBISOFT_LAUNCH).read_text())
+        self.assertEqual(109, launch['productId'])
+        self.assertEqual('PC', launch['ticket'])
+        self.assertEqual([82, 109], launch['owned'])
+        self.assertEqual(store.windows_path(str(self.folder / 'system/SplinterCell.exe')), launch['exe'])
+        self.assertEqual('C:/users/steamuser/Saved Games/Ubisoft/u1/109/', launch['saves'])
+        self.assertTrue((self.compat_data / 'pfx/drive_c/users/steamuser/Saved Games/Ubisoft/u1/109').is_dir())
+
+    def test_without_a_session_the_launch_file_is_removed_and_the_game_starts_as_is(self):
+        self.runtime()
+        (self.folder / store.UBISOFT_LAUNCH).write_text('{}')
+        result = self.prepare(lambda *_a, **_k: {'ok': False, 'reason': 'signed-out'})
+        self.assertEqual('runtime present, registered 109, session signed-out', result)
+        self.assertFalse((self.folder / store.UBISOFT_LAUNCH).exists())
+
+    def test_a_game_without_a_product_is_left_alone(self):
+        self.sidecar['extra'] = {}
+        self.assertEqual('no-product', self.prepare(self.answer))
+
+    def test_the_manifest_registry_lands_in_both_views_with_the_install_folder_and_language(self):
+        self.runtime()
+        registry = [{'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Launcher\Installs\109\Language',
+                     'values': [{'name': 'French', 'value': 'fr-FR'}, {'name': 'English', 'value': 'en-US'}]},
+                    {'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Splinter Cell\GamePath', 'values': [{'name': '$INSTALL_DIR', 'value': ''}]}]
+        answer = dict(self.answer(), registry=registry, language='en-US')
+        result = self.prepare(lambda *_a, **_k: answer)
+        self.assertEqual('runtime present, registered 109, 4 manifest value(s), session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        self.assertIn(r'[SOFTWARE\\Wow6432Node\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn(r'[SOFTWARE\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn('"Language"="en-US"', reg)
+        folder = store.windows_path(str(self.folder)).replace('\\', '\\\\')
+        self.assertIn('"GamePath"="%s\\\\"' % folder, reg)

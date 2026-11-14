@@ -111,6 +111,38 @@ class AddedGamesCacheTest {
         assertEquals("Bastion", AddedGamesCache(file).name("named"))
     }
 
+    @Test fun aRewrittenManifestIsReadAgain() {
+        val folder = tmp.newFolder("Game")
+        val first = File(folder, "First.exe").apply { writeText("first") }
+        val second = File(folder, "Second.exe").apply { writeText("second") }
+        val manifest = File(folder, "MicrosoftGame.config").apply { writeText("<Executable Name=\"First.exe\"/>") }
+        val files = tmp.newFolder("files")
+        val context = object : android.content.ContextWrapper(app) {
+            override fun getFilesDir() = files
+        }
+        AddedGames.scan(context)
+        assertEquals(first, AddedGames.rank(folder).exes.first())
+        val modified = folder.lastModified()
+        manifest.writeText("<Executable Name=\"Second.exe\"/>")
+        folder.setLastModified(modified)
+        assertEquals(second, AddedGames.rank(folder, reuse = true).exes.first())
+    }
+
+    @Test fun aDeclaredExecutableThatArrivesLaterIsPicked() {
+        val folder = tmp.newFolder("Game")
+        val guessed = File(folder, "Game.exe").apply { writeText("game") }
+        val inner = File(folder, "Content").apply { mkdirs() }
+        File(folder, "MicrosoftGame.config").writeText("<Executable Name=\"Content\\Late.exe\"/>")
+        val files = tmp.newFolder("files")
+        val context = object : android.content.ContextWrapper(app) {
+            override fun getFilesDir() = files
+        }
+        AddedGames.scan(context)
+        assertEquals(guessed, AddedGames.rank(folder).exes.first())
+        val late = File(inner, "Late.exe").apply { writeText("late") }
+        assertEquals(late, AddedGames.rank(folder, reuse = true).exes.first())
+    }
+
     @Test fun aRankingAScanReusedIsNotHandedToAFreshLookup() {
         val folder = tmp.newFolder("Game")
         val walked = File(folder, "Game.exe").apply { writeText("game") }

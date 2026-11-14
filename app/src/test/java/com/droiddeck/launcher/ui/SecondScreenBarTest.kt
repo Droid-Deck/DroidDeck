@@ -99,7 +99,7 @@ class SecondScreenBarTest {
         } finally { panel.closeControls() }
     }
 
-    @Test fun deckPanelHasTheBarWithSwapAndTabsAndProfileControlsStayFullScreen() {
+    @Test fun deckPanelHasTheBarWithSwapAndTabsAndProfileControlsKeepTheBar() {
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.deckPad = true
         var swaps = 0
@@ -116,8 +116,14 @@ class SecondScreenBarTest {
             assertEquals(DeckPanel.entries.map { context.getString(it.label) }, bar.tabs!!.labels)
             assertEquals(DeckPanel.BOTH.ordinal, bar.tabs!!.selected)
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
-            assertNull(panel.barModel(SecondScreenMode.CUSTOM_CONTROLS))
-            assertTrue(rootChildren(panel)[0] is InputSurfaceView)
+            val profile = panel.barModel(SecondScreenMode.CUSTOM_CONTROLS)!!
+            assertEquals(context.getString(R.string.input_profile_controls_mode), profile.title)
+            assertEquals(listOf(context.getString(R.string.swap_screens)), profile.extras.map { it.description })
+            assertNotNull(profile.onClose); assertNotNull(profile.onMenu)
+            profile.extras.single().onClick()
+            assertEquals(2, swaps)
+            assertTrue(rootChildren(panel)[0] is ComposeView)
+            assertTrue(rootChildren(panel)[1] is InputSurfaceView)
         } finally { panel.closeControls() }
         val noSwap = presentation(swap = null)
         try {
@@ -219,6 +225,47 @@ class SecondScreenBarTest {
         compose.onNodeWithTag("bottom-bar-tabs").assertIsDisplayed()
         compose.onNodeWithTag("bottom-bar-steam").assertDoesNotExist()
         compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
+    }
+
+    @Test fun swappedTopScreenProfileControlsHaveTheBarWithSwap() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate").value = SecondScreenMode.CUSTOM_CONTROLS
+        val method = SessionActivity::class.java.getDeclaredMethod("SwappedTopPanel", androidx.compose.runtime.Composer::class.java, Int::class.javaPrimitiveType)
+        method.isAccessible = true
+        compose.setContent { DroidDeckTheme { method.invoke(activity, currentComposer, 0) } }
+        compose.onNodeWithText(context.getString(R.string.input_profile_controls_mode)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(context.getString(R.string.swap_screens)).assertIsDisplayed()
+        compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
+    }
+
+    @Test fun theBottomPanelWaitsUnderAnOpenInputEditorAndReturnsWhenItCloses() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1280dp-h960dp")
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val displays = activity.getSystemService(DisplayManager::class.java)
+        org.robolectric.Shadows.shadowOf(displays.getDisplay(id)).setFlags(Display.FLAG_PRESENTATION)
+        ReflectionHelpers.setField(activity, "displayManager", displays)
+        ReflectionHelpers.setField(activity, "started", true)
+        ReflectionHelpers.getField<MutableState<Int>>(activity, "selectedSecondScreenDisplay\$delegate").value = id
+        val mode = ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate")
+        mode.value = SecondScreenMode.KEYBOARD_TRACKPAD
+        fun panel() = ReflectionHelpers.getField<SecondScreenPresentation?>(activity, "secondScreenPresentation")
+        fun show() = ReflectionHelpers.callInstanceMethod<Unit>(activity, "showSecondScreen",
+            ReflectionHelpers.ClassParameter.from(SecondScreenMode::class.java, SecondScreenMode.KEYBOARD_TRACKPAD))
+        activity.inputWindowShown(Display.DEFAULT_DISPLAY)
+        activity.inputWindowShown(id)
+        activity.inputWindowShown(id)
+        show()
+        assertNull(panel())
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, mode.value)
+        activity.inputWindowClosed(id)
+        assertNull(panel())
+        activity.inputWindowClosed(id)
+        try {
+            assertEquals(id, panel()!!.display.displayId)
+            assertTrue(panel()!!.isShowing)
+        } finally { panel()?.closeControls() }
     }
 
     @Test fun unfoldedControlsGetTheSessionBar() {

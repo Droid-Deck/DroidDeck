@@ -760,17 +760,49 @@ class Watcher:
     def __init__(self, files):
         self.files = files
         self.fd = -1
+        self.libc = None
+        wanted = {os.path.dirname(f) for f in files}
+        self.missing = {d for d in wanted if not os.path.isdir(d)}
+        self.watched = set()
         try:
             libc = ctypes.CDLL(None, use_errno=True)
             fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
-            dirs = sorted({os.path.dirname(f) for f in files if os.path.isdir(os.path.dirname(f))})
+            dirs = sorted((wanted - self.missing) | {self.existing_parent(d) for d in self.missing} - {""})
             if fd >= 0 and dirs and all(libc.inotify_add_watch(fd, d.encode(), self.MASK) >= 0 for d in dirs):
+                self.watched = set(dirs)
                 self.fd = fd
+                self.libc = libc
             elif fd >= 0:
                 os.close(fd)
         except (OSError, AttributeError):
             self.fd = -1
         self.stamp = self.snapshot()
+
+    @staticmethod
+    def existing_parent(path):
+        while path and not os.path.isdir(path):
+            parent = os.path.dirname(path)
+            if parent == path:
+                return ""
+            path = parent
+        return path
+
+    def watch_new_dirs(self):
+        appeared = False
+        progressed = True
+        while progressed:
+            progressed = False
+            for d in sorted(self.missing):
+                parent = d if os.path.isdir(d) else self.existing_parent(d)
+                if not parent or parent in self.watched:
+                    continue
+                if self.libc.inotify_add_watch(self.fd, parent.encode(), self.MASK) >= 0:
+                    self.watched.add(parent)
+                    progressed = True
+                    appeared = appeared or parent == d
+        for d in [d for d in self.missing if d in self.watched]:
+            self.missing.discard(d)
+        return appeared
 
     def snapshot(self):
         stamp = []
@@ -803,8 +835,9 @@ class Watcher:
                     at += 16 + size
         except BlockingIOError:
             pass
+        appeared = self.watch_new_dirs() if self.missing else False
         wanted = {os.path.basename(f) for f in self.files}
-        return any(n in wanted or n.startswith("appmanifest_") for n in names)
+        return appeared or any(n in wanted or n.startswith("appmanifest_") for n in names)
 
 
 class XMessage(ctypes.Structure):
@@ -1078,10 +1111,13 @@ class Helper:
             wanted = COMPAT["requested_tool"](request, catalog)
             newer = isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
             waiting = newer and wanted is not None and wanted not in self.known
-            default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
+            listed = [t["name"] for t in live]
+            default, state = COMPAT["choose_default"](COMPAT["built_from"](top["selected"], catalog, listed) or top["selected"],
+                                                     state, request, catalog, apply_request=not waiting, listed=listed)
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
+            tools = COMPAT["tool_platforms"](self.steam_root)
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
@@ -1089,7 +1125,7 @@ class Helper:
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             picked = COMPAT["picked_apps"](state)
             runnable = {t["name"].lower() for t in live}
-            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices | set(tools), key=COMPAT["app_order"])
             asked = [app for app, request in COMPAT["game_requests"]().items() if COMPAT["valid_game_request"](app, request)]
             apps = sorted(set(apps) | set(asked), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
@@ -1103,6 +1139,7 @@ class Helper:
                 if isinstance(state.get("auto"), dict):
                     state["auto"] = prior_auto
                 native_choices -= refused
+                tools = {app: platforms for app, platforms in tools.items() if app not in refused}
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](
@@ -1123,13 +1160,20 @@ class Helper:
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
+            moved = COMPAT["rebuilt_picks"](current, catalog, set(prior_auto) | picked, listed)
+            if moved:
+                following = COMPAT["followers"](state, current)
+                state["auto"] = {app: name for app, name in following.items() if app not in moved} if isinstance(following, dict) else {}
+                prior_auto = {app: name for app, name in prior_auto.items() if app not in moved}
+                current.update(moved)
             requests = COMPAT["settled_game_requests"](state, current, catalog)
-            overrides = COMPAT["requested_games"](requests or {}, catalog, [t["name"] for t in live])
+            overrides = COMPAT["requested_games"](requests or {}, catalog, listed)
             overrides = {app: tool for app, tool in overrides.items() if app not in refused}
             changes, auto = COMPAT["plan_mapping"](
-                current, installed, [t["name"] for t in live], default,
+                current, installed, listed, default,
                 COMPAT["followers"](state, current), native, picks, overrides,
-                prior_auto.keys(), native_choices)
+                prior_auto.keys(), native_choices, tools)
+            changes = dict(moved, **changes)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
@@ -1137,7 +1181,7 @@ class Helper:
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
-                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True,
+                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True, written=default,
                 games_applied=COMPAT["applied_game_requests"](requests, overrides, state))
             state.pop("native", None)
             if waiting:
@@ -1292,7 +1336,8 @@ def main():
                 failures += 1
             time.sleep(min(2 * max(failures, 1), 10))
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
-    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
+    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json"),
+                       os.path.join(steam_root, "appcache", "appinfo.vdf")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
     steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
     helper = Helper(steam_root, port, steamos)

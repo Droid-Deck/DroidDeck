@@ -1,5 +1,5 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 17bae3a..c468fb3 100644
+index 17bae3a..91ec0be 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -32,6 +32,7 @@
@@ -18,7 +18,7 @@ index 17bae3a..c468fb3 100644
  static bool relative_mouse_forced();
  
  void MouseCursor::checkSuspension()
-@@ -3083,12 +3085,89 @@ static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
+@@ -3083,12 +3085,101 @@ static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
  "0 = Leave it to the game and the nested hints. 1 = Send host pointer motion as relative movement, for games that confine the cursor and warp it back to read movement. 2 = Never go relative." );
  static bool relative_mouse_forced()
  {
@@ -34,16 +34,28 @@ index 17bae3a..c468fb3 100644
 +	static double s_flLastX = 0.0;
 +	static double s_flLastY = 0.0;
 +
-+	int nRootX = 0;
-+	int nRootY = 0;
++	int nClientX = 0;
++	int nClientY = 0;
 +	if ( bAllowed && pFocus->cursor )
-+		pFocus->cursor->QueryRootPosition( &nRootX, &nRootY );
++		pFocus->cursor->QueryRootPosition( &nClientX, &nClientY );
 +	else
 +		bAllowed = false;
++
++	steamcompmgr_win_t *pInputWindow = pFocus->inputFocusWindow;
++	if ( pInputWindow && pInputWindow->type == steamcompmgr_win_type_t::XWAYLAND )
++	{
++		nClientX -= pInputWindow->xwayland().a.x;
++		nClientY -= pInputWindow->xwayland().a.y;
++	}
 +
 +	wlserver_lock();
 +	const double flX = wlserver.mouse_surface_cursorx;
 +	const double flY = wlserver.mouse_surface_cursory;
++	if ( s_bFollowClientPointer && !wlserver.bFollowClientPointer )
++	{
++		s_nAwayFrames = 0;
++		s_bFollowClientPointer = false;
++	}
 +	if ( !bAllowed )
 +	{
 +		s_nAwayFrames = 0;
@@ -53,7 +65,7 @@ index 17bae3a..c468fb3 100644
 +	else if ( !s_bFollowClientPointer )
 +	{
 +		const bool bMoved = flX != s_flLastX || flY != s_flLastY;
-+		if ( bMoved && ( std::abs( nRootX - flX ) > 48.0 || std::abs( nRootY - flY ) > 48.0 ) )
++		if ( bMoved && ( std::abs( nClientX - flX ) > 48.0 || std::abs( nClientY - flY ) > 48.0 ) )
 +		{
 +			const uint64_t ulNow = get_time_in_nanos();
 +			if ( ulNow - s_ulLastAway > 500'000'000ul )
@@ -70,12 +82,12 @@ index 17bae3a..c468fb3 100644
 +			wlserver.bFollowClientPointer = true;
 +			wlserver.flFollowDX = 0.0;
 +			wlserver.flFollowDY = 0.0;
-+			wlserver_mousewarp( nRootX, nRootY, 0, true );
++			wlserver_mousewarp( nClientX, nClientY, 0, true );
 +		}
 +	}
 +	else
 +	{
-+		const bool bWarped = std::abs( nRootX - flX ) > 2.0 || std::abs( nRootY - flY ) > 2.0;
++		const bool bWarped = std::abs( nClientX - flX ) > 2.0 || std::abs( nClientY - flY ) > 2.0;
 +		const double flDX = std::trunc( wlserver.flFollowDX );
 +		const double flDY = std::trunc( wlserver.flFollowDY );
 +		if ( bWarped )
@@ -87,9 +99,9 @@ index 17bae3a..c468fb3 100644
 +		{
 +			wlserver.flFollowDX -= flDX;
 +			wlserver.flFollowDY -= flDY;
-+			wlserver_mousewarp( nRootX, nRootY, 0, true );
++			wlserver_mousewarp( nClientX, nClientY, 0, true );
 +			if ( flDX != 0.0 || flDY != 0.0 )
-+				wlserver_mousewarp( nRootX + flDX, nRootY + flDY, 0, true );
++				wlserver_mousewarp( nClientX + flDX, nClientY + flDY, 0, true );
 +		}
 +
 +		if ( s_nQuietFrames >= 60 )
@@ -110,7 +122,7 @@ index 17bae3a..c468fb3 100644
  		return true;
  
  	global_focus_t *pFocus = GetCurrentFocus();
-@@ -10892,9 +10971,15 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10892,9 +10983,15 @@ steamcompmgr_main(int argc, char **argv)
  				const int nRelativeMouse = cv_relative_mouse.Get();
  				const bool bForcedRelativeMouse = nRelativeMouse == 1 && !window_is_steam( pPaintFocus->inputFocusWindow );
  
@@ -128,7 +140,7 @@ index 17bae3a..c468fb3 100644
  				static bool s_bRelativeMouseMode = false;
  				if ( s_bRelativeMouseMode && !bRelativeMouseMode && pPaintFocus->cursor &&
 diff --git a/src/wlserver.cpp b/src/wlserver.cpp
-index 5733871..cc75f8a 100644
+index 5733871..df23f8a 100644
 --- a/src/wlserver.cpp
 +++ b/src/wlserver.cpp
 @@ -1,3 +1,4 @@
@@ -153,7 +165,7 @@ index 5733871..cc75f8a 100644
  	if ( !wlserver_apply_constraint( &dx, &dy ) )
  	{
  		wlr_seat_pointer_notify_frame( wlserver.wlr.seat );
-@@ -3110,10 +3121,18 @@ void wlserver_mousemotion( double dx, double dy, uint32_t time )
+@@ -3110,10 +3121,22 @@ void wlserver_mousemotion( double dx, double dy, uint32_t time )
  	wlr_seat_pointer_notify_frame( wlserver.wlr.seat );
  }
  
@@ -163,7 +175,11 @@ index 5733871..cc75f8a 100644
  	assert( wlserver_is_lock_held() );
  
 +	if ( !bSynthetic && wlserver.bFollowClientPointer )
-+		return;
++	{
++		if ( !bFromTouch )
++			return;
++		wlserver.bFollowClientPointer = false;
++	}
 +
 +	const double flStepX = x - wlserver.mouse_surface_cursorx;
 +	const double flStepY = y - wlserver.mouse_surface_cursory;
@@ -173,7 +189,7 @@ index 5733871..cc75f8a 100644
  	wlserver.mouse_surface_cursorx = x;
  	wlserver.mouse_surface_cursory = y;
  
-@@ -3304,7 +3323,7 @@ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool
+@@ -3304,7 +3327,7 @@ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool
  		{
  			g_bPendingTouchMovement = true;
  
@@ -182,7 +198,7 @@ index 5733871..cc75f8a 100644
  		}
  	}
  
-@@ -3352,7 +3371,7 @@ void wlserver_touchdown( double x, double y, int touch_id, uint32_t time, gamesc
+@@ -3352,7 +3375,7 @@ void wlserver_touchdown( double x, double y, int touch_id, uint32_t time, gamesc
  
  			if ( eMode != gamescope::TouchClickModes::Trackpad )
  			{

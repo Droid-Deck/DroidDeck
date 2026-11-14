@@ -17,6 +17,19 @@ class GesturePrefsTest {
         assertEquals(TouchGestureConfig.RELATIVE_MOUSE_AUTO, TouchGestureConfig.fromJson("{}").relativeMouseMode)
     }
 
+    @Test fun autoNeverGoesRelativeForDirectTouchWithoutAMouse() {
+        val auto = TouchGestureConfig.RELATIVE_MOUSE_AUTO
+        assertEquals(TouchGestureConfig.RELATIVE_MOUSE_OFF, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = false, touchpad = false))
+        assertEquals(auto, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = true, touchpad = false))
+        assertEquals(auto, TouchGestureConfig.gamescopeRelativeMouse(auto, mouseAttached = false, touchpad = true))
+    }
+
+    @Test fun aChosenRelativeMouseModeIsSentAsIs() {
+        for (mode in listOf(TouchGestureConfig.RELATIVE_MOUSE_ON, TouchGestureConfig.RELATIVE_MOUSE_OFF))
+            for (mouse in listOf(false, true)) for (pad in listOf(false, true))
+                assertEquals(mode, TouchGestureConfig.gamescopeRelativeMouse(mode, mouse, pad))
+    }
+
     @Test fun removedOptionsAreIgnoredWhenLoadingExistingSettings() {
         val old = """{"holdMouseButtonWhileTouchingEnabled":true,"holdMouseButtonWhileTouchingAction":"right_click",
             "showClickHighlight":true,"showCursorInTouchscreenMode":true,"tapAction":"key_E","longPressDelay":650}"""

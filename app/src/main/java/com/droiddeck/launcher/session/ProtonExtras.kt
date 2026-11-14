@@ -48,10 +48,18 @@ object ProtonExtras {
 
     internal fun installedIn(dir: File, tool: Tool): List<String> =
         dir.listFiles()
-            ?.filter { it.isDirectory && it.name.startsWith(tool.prefix) && File(it, "toolmanifest.vdf").isFile }
+            ?.filter { it.isDirectory && it.name.startsWith(tool.prefix) && usable(it) }
             ?.map { it.name }
             ?.sortedWith { a, b -> compareVersions(a, b) }
             ?: emptyList()
+
+    private fun usable(dir: File): Boolean {
+        val manifest = runCatching { File(dir, "toolmanifest.vdf").readText() }.getOrNull() ?: return false
+        val command = Regex("\\\"commandline\\\"\\s+\\\"/?([^\\\" ]+)").find(manifest)?.groupValues?.getOrNull(1) ?: return false
+        val compat = runCatching { File(dir, "compatibilitytool.vdf").readText() }.getOrNull() ?: return false
+        return Regex("\\\"from_oslist\\\"\\s+\\\"[^\\\"]*windows", RegexOption.IGNORE_CASE).containsMatchIn(compat) &&
+            File(dir, command).isFile && File(dir, command).canExecute()
+    }
 
     private val ARCH = Regex("(?i)aarch64|arm64|x86_64|x86-64|amd64")
     private val NUMBER = Regex("\\d+")
@@ -275,14 +283,20 @@ object ProtonExtras {
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
-            val command = LinuxRuntime.command(context, null, runtimeDir, null, guest)
-            val process = ProcessBuilder(command)
-                .directory(root)
-                .redirectErrorStream(true)
-            val hostEnv = process.environment()
-            hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-            hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+            val process = if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
+                com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
+                    LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
+            } else {
+                ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
+                    .directory(root)
+                    .redirectErrorStream(true)
+                    .also { builder ->
+                        val hostEnv = builder.environment()
+                        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
+                        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
+                        LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+                    }
+            }
             val child = process.start()
             var placed: String? = null
             child.inputStream.bufferedReader().useLines { lines ->

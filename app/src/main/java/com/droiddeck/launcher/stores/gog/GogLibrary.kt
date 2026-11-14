@@ -58,16 +58,17 @@ object GogLibrary {
             val token = GogAuth.validToken(app) ?: return SyncResult.NotLoggedIn
             onStatus(app.getString(R.string.stores_sync_game_list))
             val listing = ownedListing(token)
+            val account = ownedIds(token)
             val listed: List<GogGame> = listing?.games
-                ?: ownedIds(token)?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
+                ?: account?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
                 ?: return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreachable))
             val named = listing != null
-            StoresState.logLine(if (named) "GOG: listing ${listed.size} games" else "GOG: listing unreadable, ${listed.size} owned ids")
-            val ownedSet = listing?.owned ?: listed.mapTo(HashSet()) { it.gameId }
             val cachedList = cached(app)
+            val cachedIds = cachedList.mapTo(HashSet()) { it.gameId }
+            val ownedSet = ownedSet(listing?.owned ?: listed.mapTo(HashSet()) { it.gameId }, account, cachedIds)
+            StoresState.logLine(if (named) "GOG: listing ${listed.size} games, ${ownedSet.size} owned ids" else "GOG: listing unreadable, ${listed.size} owned ids")
             val stale = System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) >= THROTTLE_MS
             val heavy = force || cachedList.isEmpty() || stale
-            val cachedIds = cachedList.mapTo(HashSet()) { it.gameId }
             val skipped = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
             skipped.addAll(p.getStringSet(SKIPPED_KEY, emptySet()).orEmpty())
             val idsToFetch = if (heavy) ownedSet.toList() else ownedSet.filter { it !in cachedIds && it !in skipped }
@@ -132,6 +133,9 @@ object GogLibrary {
         }
         return all.ifEmpty { null }?.let { Listing(it, owned) }
     }
+
+    fun ownedSet(listed: Set<String>, account: List<String>?, cached: Set<String> = emptySet()): Set<String> =
+        if (account == null) listed + cached else listed + account
 
     private fun ownedIds(token: String): List<String>? {
         val json = StoreNet.get(OWNED_URL, bearer = token, userAgent = GogAuth.GALAXY_UA) ?: return null

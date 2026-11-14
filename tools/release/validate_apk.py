@@ -63,6 +63,10 @@ def main():
         expected = run["head_sha"]
         if run["event"] == "pull_request":
             prs = api(f"repos/{repo}/commits/{expected}/pulls")
+            owner = (run.get("head_repository") or {}).get("owner", {}).get("login")
+            if not prs and owner and run.get("head_branch"):
+                query = urlencode({"state": "open", "head": f"{owner}:{run['head_branch']}"})
+                prs = api(f"repos/{repo}/pulls?{query}")
             pr_number = next((pr["number"] for pr in prs
                               if pr["state"] == "open" and pr["head"]["sha"] == expected), None)
             if pr_number is None:
