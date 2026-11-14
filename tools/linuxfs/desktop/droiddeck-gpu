@@ -42,6 +42,14 @@ export BL_DESKTOP_GPU_CHILD=1
 export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
 [ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
 export APPIMAGE_EXTRACT_AND_RUN=1
+if ! command -v gamescopereaper >/dev/null 2>&1; then
+  for dir in /usr/games /usr/local/games /usr/bin; do
+    if [ -x "$dir/gamescopereaper" ]; then
+      export PATH=${PATH:+$PATH:}$dir
+      break
+    fi
+  done
+fi
 if [ "$window" = 1 ]; then
   export BL_GPU_CHILD_WSI=${MESA_VK_WSI_DEBUG:-}
   SDL_VIDEODRIVER=wayland MESA_VK_WSI_DEBUG=sw gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
