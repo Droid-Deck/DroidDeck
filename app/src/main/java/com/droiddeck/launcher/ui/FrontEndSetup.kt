@@ -436,6 +436,7 @@ internal fun SetupPanel(
                                 }
                                 if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
+                                if (s.theme == Themes.TRUE_BLACK) HighlightColorRow()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
                                     com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
@@ -1175,6 +1176,16 @@ private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit
 private fun RgbSpeedRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
     SliderRow(stringResource(R.string.theme_rgb_speed), stringResource(R.string.theme_rgb_speed_hint), Themes.rgbSpeed, 1..Themes.RGB_SPEEDS) { Themes.setRgbSpeed(ctx, it) }
+}
+
+@Composable
+private fun HighlightColorRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val highlight = Themes.trueBlackHighlight
+    var picking by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.theme_true_black_highlight)
+    SettingsRow(label, stringResource(R.string.theme_true_black_highlight_hint)) { ColorCube(androidx.compose.ui.graphics.Color(highlight), label) { picking = true } }
+    if (picking) ColorPickerDialog(label, highlight, onDismiss = { picking = false }) { argb -> Themes.setTrueBlackHighlight(ctx, argb) }
 }
 
 @Composable

@@ -4023,6 +4023,10 @@
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
 
+    <string name="theme_true_black">True black</string>
+    <string name="theme_true_black_detail">Pure black page and panels, so an OLED screen switches those pixels off. You pick the highlight color.</string>
+    <string name="theme_true_black_highlight">Highlight</string>
+    <string name="theme_true_black_highlight_hint">The color of everything selected.</string>
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="rail_soundtracks">Soundtracks</string>
