@@ -1516,7 +1516,7 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
-        if (pendingSteamGameId == null) pendingSteamPreviousGameId = SessionState.gameId
+        if (pendingSteamPreviousGameId == null) pendingSteamPreviousGameId = SessionState.gameId
         if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
         pendingSteamGameExitWatchToken = ++gameExitWatchToken
         SessionState.gameId = accepted
@@ -1582,15 +1582,19 @@ class SessionService : Service() {
             return
         }
         pendingSteamGameId = null
-        pendingSteamPreviousGameId = null
         pendingSteamGameGeneration = -1
         pendingSteamGameExitWatchToken = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
-        watchGameExit(gameId, gen, exitWatchToken)
+        watchGameExit(gameId, gen, exitWatchToken, pendingSteamPreviousGameId)
         Log.i(TAG, "queued Steam game $gameId for the running client")
     }
 
-    private fun watchGameExit(gameId: String, gen: Int, token: Int) {
+    private fun watchGameExit(
+        gameId: String,
+        gen: Int,
+        token: Int,
+        previousGameId: String? = null
+    ) {
         Thread({
             val startBy = android.os.SystemClock.elapsedRealtime() + GAME_START_TIMEOUT_MS
             var seen = false
@@ -1598,13 +1602,41 @@ class SessionService : Service() {
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (steamGameRunning(gameId)) {
-                    if (!seen) Log.i(TAG, "game $gameId started; tracking its exit")
+                    if (!seen) {
+                        Log.i(TAG, "game $gameId started; tracking its exit")
+                        mainHandler.post {
+                            if (token == gameExitWatchToken && gen == sessionGen &&
+                                pendingSteamPreviousGameId == previousGameId) {
+                                pendingSteamPreviousGameId = null
+                            }
+                        }
+                    }
                     seen = true
                     goneSince = 0L
                 } else if (!seen) {
                     if (now > startBy) {
-                        Log.i(TAG, "game $gameId did not start; clearing its screen effects profile")
-                        mainHandler.post { clearActiveScreenEffectsProfile(gameId, gen, token) }
+                        mainHandler.post {
+                            if (token != gameExitWatchToken || gen != sessionGen ||
+                                !SessionState.running || SessionState.stopRequested) {
+                                return@post
+                            }
+
+                            if (previousGameId != null && steamGameRunning(previousGameId)) {
+                                Log.w(TAG, "game $gameId did not start; restoring previous game $previousGameId")
+                                SessionState.gameId = previousGameId
+                                val previousProfileId =
+                                    SessionPrefs.screenEffectsProfileId(MODE_STEAM, previousGameId, null)
+                                SessionPrefs.setActiveScreenEffectsProfile(this@SessionService, previousProfileId)
+                                SessionPrefs.screenEffects(this@SessionService, previousProfileId)
+                                    .push(SessionPrefs.screenEffectsUpscaler(this@SessionService, previousProfileId))
+                                pendingSteamPreviousGameId = null
+                                watchGameExit(previousGameId, gen, token)
+                            } else {
+                                Log.i(TAG, "game $gameId did not start; clearing its screen effects profile")
+                                pendingSteamPreviousGameId = null
+                                clearActiveScreenEffectsProfile(gameId, gen, token)
+                            }
+                        }
                         return@Thread
                     }
                 } else if (goneSince == 0L) {
