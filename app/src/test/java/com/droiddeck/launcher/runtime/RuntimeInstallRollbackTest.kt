@@ -170,6 +170,38 @@ class RuntimeInstallRollbackTest {
         assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", failedInstall(context, "HTTP/1.1 404 Not Found"))
     }
 
+    @Test fun anInstallInFlightKeepsTheLastFailureReadable() {
+        val context = packedContext()
+        val first = failedInstall(context, "HTTP/1.1 403 Forbidden")
+        val server = ServerSocket(0)
+        val accepted = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val stall = Thread {
+            runCatching {
+                server.accept().use { socket ->
+                    accepted.countDown()
+                    release.await()
+                    socket.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                }
+            }
+        }.apply { isDaemon = true; start() }
+        val second = Thread {
+            LinuxRuntimeInstaller.install(context,
+                LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", "a".repeat(64), 1L), null)
+        }.apply { isDaemon = true; start() }
+        try {
+            assertTrue(accepted.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            assertTrue(LinuxRuntimeInstaller.isInstalling())
+            assertEquals(first, LinuxRuntimeInstaller.installError())
+        } finally {
+            release.countDown()
+            second.join(10000)
+            server.close()
+            stall.join(1000)
+        }
+        assertEquals("Cannot download the runtime: 127.0.0.1: HTTP 404", LinuxRuntimeInstaller.installError())
+    }
+
     @Test fun aFailedSwapNamesTheStep() {
         assertFalse(attempt(failRollback = false).result)
         assertTrue(LinuxRuntimeInstaller.installError().orEmpty().startsWith("Cannot carry user data into the new runtime"))

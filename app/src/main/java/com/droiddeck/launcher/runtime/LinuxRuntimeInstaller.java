@@ -70,6 +70,7 @@ public final class LinuxRuntimeInstaller {
         volatile Step step = Step.OTHER;
         volatile int percent = -1;
         volatile boolean ok;
+        volatile String failure;
         final boolean removal;
         boolean maintenance;
         Job(boolean removal, String stage) { this.removal = removal; this.stage = stage; }
@@ -78,7 +79,8 @@ public final class LinuxRuntimeInstaller {
     private static final Object JOB_LOCK = new Object();
     private static Job running;
     private static volatile String removalError;
-    private static volatile String installError;
+    private static volatile Job lastInstallJob;
+    private static final ThreadLocal<Job> CURRENT_INSTALL = new ThreadLocal<>();
     private static final ThreadLocal<String> CATALOG_ERROR = new ThreadLocal<>();
 
     private LinuxRuntimeInstaller() {}
@@ -145,11 +147,12 @@ public final class LinuxRuntimeInstaller {
         synchronized (JOB_LOCK) {
             if (running != null && (running.removal || running.maintenance)) return false;
             owner = running == null;
-            if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; installError = null; }
+            if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; }
             job = running;
             if (listener != null) job.listeners.add(listener);
         }
         if (!owner) return join(job, listener);
+        CURRENT_INSTALL.set(job);
         try {
             Context app = context.getApplicationContext();
             ProgressListener progress = new ProgressListener() {
@@ -173,7 +176,9 @@ public final class LinuxRuntimeInstaller {
             if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
         } finally {
+            CURRENT_INSTALL.remove();
             synchronized (JOB_LOCK) {
+                lastInstallJob = job;
                 running = null;
             }
             job.done.countDown();
@@ -264,11 +269,16 @@ public final class LinuxRuntimeInstaller {
 
     public static String removalError() { return removalError; }
 
-    public static String installError() { return installError; }
+    public static String installError() {
+        Job job = lastInstallJob;
+        return job == null ? null : job.failure;
+    }
 
     private static boolean fail(String step, String detail) {
-        installError = detail == null || detail.isEmpty() ? step : step + ": " + detail;
-        Log.w(TAG, installError);
+        String reason = detail == null || detail.isEmpty() ? step : step + ": " + detail;
+        Job job = CURRENT_INSTALL.get();
+        if (job != null) job.failure = reason;
+        Log.w(TAG, reason);
         return false;
     }
 
