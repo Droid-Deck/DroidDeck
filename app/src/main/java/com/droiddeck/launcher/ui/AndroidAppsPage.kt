@@ -341,7 +341,28 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
         openFolder = f.id
     }
 
-    Box(modifier) {
+    val ff = LocalFrontFocus.current
+    var holdFocus by remember { mutableStateOf<String?>(null) }
+    var pageFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(holdFocus) {
+        val key = "tile:folder:${holdFocus ?: return@LaunchedEffect}"
+        // A folder closed from its name field: the platform field and the fading sheet both drop focus after the sheet asked for the tile, so keep asking until the sheet is gone.
+        val until = System.nanoTime() + 400_000_000L
+        while (System.nanoTime() < until) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (ff != null && !(ff.last == key && pageFocused)) runCatching { ff.items[key]?.requestFocus() }
+        }
+        holdFocus = null
+    }
+    Box(
+        modifier.onFocusChanged { pageFocused = it.hasFocus }
+            // A fresh press means the user is moving on, so the hold must not pull focus back to the folder.
+            .onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (holdFocus != null && k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) holdFocus = null
+                false
+            },
+    ) {
         Column(Modifier.fillMaxSize().imePadding()) {
             Box(Modifier.fillMaxWidth().padding(start = padH, end = padH, top = if (narrow) 8.dp else 12.dp)) {
                 ModeHeader(
@@ -443,7 +464,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }, onHoldFocus = { holdFocus = f.id }) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -813,7 +834,7 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
 private fun FolderSheet(
     folder: HomeFolders.Folder, apps: List<HomeApp.LaunchableApp>, renameFirst: Boolean,
     onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
-    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onClose: () -> Unit,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onHoldFocus: () -> Unit, onClose: () -> Unit,
 ) {
     SwipeLock()
     val ctx = LocalContext.current
@@ -839,12 +860,14 @@ private fun FolderSheet(
         }
     }
     val close = {
+        val wasRenaming = renaming
         closing = true
         if (renaming) commit()
         onClose()
         if (inputMode == InputMode.Keyboard && ff != null) {
             runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
                 .onFailure { runCatching { ff.firstTile.requestFocus() } }
+            if (wasRenaming) onHoldFocus()
         }
     }
     BackHandler { close() }
