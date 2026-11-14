@@ -4130,4 +4130,15 @@
     <string name="soundtracks_no_tracks">V tomto soundtracku nejsou žádné zvukové soubory</string>
     <string name="stores_rockstar_launch_unavailable">Spuštění není dostupné</string>
     <string name="agent_browser_unavailable">K otevření tohoto odkazu není k dispozici žádný webový prohlížeč.</string>
+    <string name="hud_hint_grab">Uchopit</string>
+    <string name="hud_hint_drop">Pustit</string>
+    <string name="hud_hint_save">Uložit</string>
+    <string name="hud_hint_reset">Podrž pro obnovení</string>
+    <string name="setup_stores">Obchody</string>
+    <string name="hud_metric_latency">Doba snímku</string>
+    <string name="hud_metric_avg">Průměrná snímková frekvence</string>
+    <string name="hud_metric_display">Zobrazovací server</string>
+    <string name="hud_metric_hdr">Stav HDR</string>
+    <string name="hud_readings_shown">Zobrazeno</string>
+    <string name="hud_readings_count">%1$d z %2$d</string>
 </resources>

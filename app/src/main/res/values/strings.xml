@@ -4089,4 +4089,15 @@
     <string name="soundtracks_no_tracks">No audio files found in this soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Launch unavailable</string>
     <string name="agent_browser_unavailable">No web browser is available to open this link.</string>
+    <string name="hud_hint_grab">Grab</string>
+    <string name="hud_hint_drop">Drop</string>
+    <string name="hud_hint_save">Save</string>
+    <string name="hud_hint_reset">Hold to reset</string>
+    <string name="setup_stores">Stores</string>
+    <string name="hud_metric_latency">Frame time</string>
+    <string name="hud_metric_avg">Average frame rate</string>
+    <string name="hud_metric_display">Display server</string>
+    <string name="hud_metric_hdr">HDR state</string>
+    <string name="hud_readings_shown">Shown</string>
+    <string name="hud_readings_count">%1$d of %2$d</string>
 </resources>

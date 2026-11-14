@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Tässä soundtrackissa ei ole äänitiedostoja</string>
     <string name="stores_rockstar_launch_unavailable">Käynnistäminen ei ole mahdollista</string>
     <string name="agent_browser_unavailable">Tämän linkin avaamiseen ei ole käytettävissä verkkoselainta.</string>
+    <string name="hud_hint_grab">Tartu</string>
+    <string name="hud_hint_drop">Pudota</string>
+    <string name="hud_hint_save">Tallenna</string>
+    <string name="hud_hint_reset">Pidä palauttaaksesi</string>
+    <string name="setup_stores">Kaupat</string>
+    <string name="hud_metric_latency">Kuvan aika</string>
+    <string name="hud_metric_avg">Keskimääräinen kuvataajuus</string>
+    <string name="hud_metric_display">Näyttöpalvelin</string>
+    <string name="hud_metric_hdr">HDR-tila</string>
+    <string name="hud_readings_shown">Näkyvissä</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

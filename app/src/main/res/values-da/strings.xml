@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Ingen lydfiler i dette soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Start er ikke tilgængelig</string>
     <string name="agent_browser_unavailable">Der er ingen tilgængelig webbrowser til at åbne dette link.</string>
+    <string name="hud_hint_grab">Tag</string>
+    <string name="hud_hint_drop">Slip</string>
+    <string name="hud_hint_save">Gem</string>
+    <string name="hud_hint_reset">Hold for at nulstille</string>
+    <string name="setup_stores">Butikker</string>
+    <string name="hud_metric_latency">Billedtid</string>
+    <string name="hud_metric_avg">Gennemsnitlig billedhastighed</string>
+    <string name="hud_metric_display">Visningsserver</string>
+    <string name="hud_metric_hdr">HDR-status</string>
+    <string name="hud_readings_shown">Vist</string>
+    <string name="hud_readings_count">%1$d af %2$d</string>
 </resources>

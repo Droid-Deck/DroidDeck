@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,7 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.StripMetric
@@ -55,30 +59,34 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
         ChoiceRow(host, "hud-outline-color", stringResource(R.string.hud_outline_color), null,
             listOf("0" to stringResource(R.string.hud_outline_gray), "1" to stringResource(R.string.hud_outline_theme)),
             if (cfg["hudOutlineAccent"] == "0") "0" else "1", chipModifier = track("hud-outline-color")) { a.onHudSetting("hudOutlineAccent", it) }
+        ToggleRow(host, "hud-fps-decimal", stringResource(R.string.hud_metric_decimal), null, on("fpsDecimal"),
+            chipModifier = track("hud-fps-decimal")) { a.onHudSetting("fpsDecimal", flag(it)) }
+        ToggleRow(host, "hud-clock", stringResource(R.string.hud_metric_clock), null, on("showClock"),
+            chipModifier = track("hud-clock")) { a.onHudSetting("showClock", flag(it)) }
+        ToggleRow(host, "hud-graph", stringResource(R.string.hud_metric_graph), null, on("showFPSGraph"),
+            chipModifier = track("hud-graph")) { a.onHudSetting("showFPSGraph", flag(it)) }
     }
 
-    val size = DroidDeckHudSize.from(cfg["hudSize"])
-    val chips = size.supportedChips() + EXTRA[size].orEmpty()
+    var editing by remember { mutableStateOf(false) }
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
-        for (metric in METRICS) {
-            if (metric.chip !in chips || metric.chip in HIDDEN[size].orEmpty()) continue
-            ToggleRow(host, "hud-${metric.key}", stringResource(metric.label), null, on(metric.key),
-                chipModifier = track("hud-${metric.key}")) { a.onHudSetting(metric.key, flag(it)) }
-            if (metric.key == "showBattery" && size != DroidDeckHudSize.MINIMAL) {
-                ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
-                    chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
-            }
+        ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.common_edit),
+            onClick = { editing = true }, modifier = track("hud-readings"))
+        val rows = DroidDeckHudSize.rowsFor(DroidDeckHudSize.from(cfg["hudSize"]), cfg)
+        SettingsRow(stringResource(R.string.hud_readings_shown), null) {
+            Text(stringResource(R.string.hud_readings_count, rows.count { on(it) }, rows.size),
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-
-        if (size == DroidDeckHudSize.MINIMAL && "Battery time" in chips &&
-            "Battery time" !in HIDDEN[size].orEmpty()) {
-            ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
-                chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
-        }
+        if (editing) HudReadingsDialog(
+            visible = rows,
+            initialOrder = rows,
+            initialOn = rows.associateWith { on(it) },
+            onDismiss = { editing = false },
+            onSave = { switches, order -> a.onHudOrder(switches, order) },
+            onReset = a.onHudOrderReset,
+        )
     }
 
-    val tempsShown = ("Temp" in chips && on("showTemp")) || ("GPU temp" in chips && on("showGpuTemp"))
-    if (tempsShown) SettingsGroup(stringResource(R.string.hud_group_temps)) {
+    if (on("showTemp") || on("showGpuTemp") || on("showBatteryTemp")) SettingsGroup(stringResource(R.string.hud_group_temps)) {
         ChoiceRow(host, "hud-temp-unit", stringResource(R.string.hud_temp_unit), null,
             listOf("c" to "°C", "f" to "°F"), if (cfg["tempUnit"].equals("f", true)) "f" else "c",
             chipModifier = track("hud-temp-unit")) { a.onHudSetting("tempUnit", it) }
@@ -155,37 +163,39 @@ private val BOTTOM_STRIP_ROWS = listOf(
     StripMetric.CLOCK to R.string.hud_metric_clock,
 )
 
-private val EXTRA = mapOf(DroidDeckHudSize.PILL to setOf("Temp", "Power"))
+private class HudMetric(val key: String, val label: Int)
 
-private class HudMetric(val chip: String, val key: String, val label: Int)
-
+// Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
-    HudMetric("FPS", "showFPS", R.string.drawer_hud_fps),
-    HudMetric("FPS graph", "showFPSGraph", R.string.hud_metric_graph),
-    HudMetric("FPS .1", "fpsDecimal", R.string.hud_metric_decimal),
-    HudMetric("1% low", "showLow1", R.string.hud_metric_low1),
-    HudMetric("0.1% low", "showLow01", R.string.hud_metric_low01),
-    HudMetric("0.01% low", "showLow001", R.string.hud_metric_low001),
-    HudMetric("Engine", "showEngine", R.string.hud_metric_engine),
-    HudMetric("GPU model", "showGpuModel", R.string.hud_metric_gpu_model),
-    HudMetric("GPU", "showGPULoad", R.string.hud_metric_gpu),
-    HudMetric("GPU temp", "showGpuTemp", R.string.hud_metric_gpu_temp),
-    HudMetric("CPU", "showCPUUsage", R.string.hud_metric_cpu),
-    HudMetric("Per-core", "showPerCore", R.string.hud_metric_per_core),
-    HudMetric("Temp", "showTemp", R.string.hud_metric_temp),
-    HudMetric("RAM", "showRAM", R.string.hud_metric_ram),
-    HudMetric("VRAM", "showVram", R.string.hud_metric_vram),
-    HudMetric("Swap", "showSwap", R.string.hud_metric_swap),
-    HudMetric("Battery", "showBattery", R.string.hud_metric_battery),
-    HudMetric("Power", "showPower", R.string.hud_metric_power),
-    HudMetric("Network", "showNet", R.string.hud_metric_network),
-    HudMetric("Resolution", "showResolution", R.string.hud_metric_resolution),
-    HudMetric("Proton", "showProton", R.string.hud_metric_proton),
-    HudMetric("Session", "showSession", R.string.hud_metric_session),
-    HudMetric("Clock", "showClock", R.string.hud_metric_clock),
+    HudMetric("showGpuModel", R.string.hud_metric_gpu_model),
+    HudMetric("showGPULoad", R.string.hud_metric_gpu),
+    HudMetric("showCPUUsage", R.string.hud_metric_cpu),
+    HudMetric("showPerCore", R.string.hud_metric_per_core),
+    HudMetric("showTemp", R.string.hud_metric_temp),
+    HudMetric("showBatteryTemp", R.string.drawer_hud_battery),
+    HudMetric("showGpuTemp", R.string.hud_metric_gpu_temp),
+    HudMetric("showVram", R.string.hud_metric_vram),
+    HudMetric("showRAM", R.string.hud_metric_ram),
+    HudMetric("showSwap", R.string.hud_metric_swap),
+    HudMetric("showBattery", R.string.hud_metric_battery),
+    HudMetric("showBatteryTime", R.string.hud_metric_battery_time),
+    HudMetric("showPower", R.string.hud_metric_power),
+    HudMetric("showFPS", R.string.drawer_hud_fps),
+    HudMetric("showFPSGraph", R.string.hud_metric_graph),
+    HudMetric("showLatency", R.string.hud_metric_latency),
+    HudMetric("showAvg", R.string.hud_metric_avg),
+    HudMetric("showLow1", R.string.hud_metric_low1),
+    HudMetric("showLow01", R.string.hud_metric_low01),
+    HudMetric("showLow001", R.string.hud_metric_low001),
+    HudMetric("showEngine", R.string.hud_metric_engine),
+    HudMetric("showDisplay", R.string.hud_metric_display),
+    HudMetric("showHdr", R.string.hud_metric_hdr),
+    HudMetric("showNet", R.string.hud_metric_network),
+    HudMetric("showResolution", R.string.hud_metric_resolution),
+    HudMetric("showProton", R.string.hud_metric_proton),
+    HudMetric("showSession", R.string.hud_metric_session),
+    HudMetric("showClock", R.string.hud_metric_clock),
 )
 
-private val HIDDEN = mapOf(
-    DroidDeckHudSize.PILL to setOf("FPS graph"),
-    DroidDeckHudSize.TILES to setOf("FPS graph", "0.1% low", "0.01% low"),
-)
+internal fun hudMetricLabel(key: String): Int? =
+    METRICS.firstOrNull { it.key == key }?.label

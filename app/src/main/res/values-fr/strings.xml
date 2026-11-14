@@ -4089,4 +4089,15 @@
     <string name="soundtracks_no_tracks">Aucun fichier audio dans cette bande originale</string>
     <string name="stores_rockstar_launch_unavailable">Lancement indisponible</string>
     <string name="agent_browser_unavailable">Aucun navigateur Web n’est disponible pour ouvrir ce lien.</string>
+    <string name="hud_hint_grab">Saisir</string>
+    <string name="hud_hint_drop">Déposer</string>
+    <string name="hud_hint_save">Enregistrer</string>
+    <string name="hud_hint_reset">Maintenir pour réinitialiser</string>
+    <string name="setup_stores">Boutiques</string>
+    <string name="hud_metric_latency">Temps de frame</string>
+    <string name="hud_metric_avg">Frequence moyenne des images</string>
+    <string name="hud_metric_display">Serveur graphique</string>
+    <string name="hud_metric_hdr">État HDR</string>
+    <string name="hud_readings_shown">Affichés</string>
+    <string name="hud_readings_count">%1$d sur %2$d</string>
 </resources>

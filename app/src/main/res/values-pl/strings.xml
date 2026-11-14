@@ -4130,4 +4130,15 @@
     <string name="soundtracks_no_tracks">Brak plików audio w tej ścieżce dźwiękowej</string>
     <string name="stores_rockstar_launch_unavailable">Uruchomienie niedostępne</string>
     <string name="agent_browser_unavailable">Brak przeglądarki internetowej do otwarcia tego linku.</string>
+    <string name="hud_hint_grab">Chwyć</string>
+    <string name="hud_hint_drop">Upuść</string>
+    <string name="hud_hint_save">Zapisz</string>
+    <string name="hud_hint_reset">Przytrzymaj, aby zresetować</string>
+    <string name="setup_stores">Sklepy</string>
+    <string name="hud_metric_latency">Czas klatki</string>
+    <string name="hud_metric_avg">Średnia liczba klatek</string>
+    <string name="hud_metric_display">Serwer wyświetlania</string>
+    <string name="hud_metric_hdr">Stan HDR</string>
+    <string name="hud_readings_shown">Pokazane</string>
+    <string name="hud_readings_count">%1$d z %2$d</string>
 </resources>

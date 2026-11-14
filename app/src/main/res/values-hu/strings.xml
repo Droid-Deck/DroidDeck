@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Nincs hangfájl ebben a soundtrackben</string>
     <string name="stores_rockstar_launch_unavailable">Indítás nem elérhető</string>
     <string name="agent_browser_unavailable">Nincs elérhető webböngésző a hivatkozás megnyitásához.</string>
+    <string name="hud_hint_grab">Megfogás</string>
+    <string name="hud_hint_drop">Elengedés</string>
+    <string name="hud_hint_save">Mentés</string>
+    <string name="hud_hint_reset">Tartsd nyomva a visszaállításhoz</string>
+    <string name="setup_stores">Áruházak</string>
+    <string name="hud_metric_latency">Képkockaidő</string>
+    <string name="hud_metric_avg">Átlagos képkockasebesség</string>
+    <string name="hud_metric_display">Megjelenítő kiszolgáló</string>
+    <string name="hud_metric_hdr">HDR állapot</string>
+    <string name="hud_readings_shown">Megjelenítve</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

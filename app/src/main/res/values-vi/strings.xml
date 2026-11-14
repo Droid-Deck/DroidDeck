@@ -4020,4 +4020,15 @@
     <string name="soundtracks_no_tracks">Không có tệp âm thanh trong nhạc nền này</string>
     <string name="stores_rockstar_launch_unavailable">Không thể khởi chạy</string>
     <string name="agent_browser_unavailable">Không có trình duyệt web nào để mở liên kết này.</string>
+    <string name="hud_hint_grab">Nắm</string>
+    <string name="hud_hint_drop">Thả</string>
+    <string name="hud_hint_save">Lưu</string>
+    <string name="hud_hint_reset">Giữ để đặt lại</string>
+    <string name="setup_stores">Cửa hàng</string>
+    <string name="hud_metric_latency">Thời gian khung hình</string>
+    <string name="hud_metric_avg">Tốc độ khung hình trung bình</string>
+    <string name="hud_metric_display">Máy chủ hiển thị</string>
+    <string name="hud_metric_hdr">Trạng thái HDR</string>
+    <string name="hud_readings_shown">Đang hiển thị</string>
+    <string name="hud_readings_count">%1$d trên %2$d</string>
 </resources>

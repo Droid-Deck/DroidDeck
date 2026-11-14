@@ -4020,4 +4020,15 @@
     <string name="soundtracks_no_tracks">此原声音乐中没有音频文件</string>
     <string name="stores_rockstar_launch_unavailable">无法启动</string>
     <string name="agent_browser_unavailable">没有可用的浏览器来打开此链接。</string>
+    <string name="hud_hint_grab">抓取</string>
+    <string name="hud_hint_drop">放下</string>
+    <string name="hud_hint_save">保存</string>
+    <string name="hud_hint_reset">长按重置</string>
+    <string name="setup_stores">游戏商店</string>
+    <string name="hud_metric_latency">帧时间</string>
+    <string name="hud_metric_avg">平均帧率</string>
+    <string name="hud_metric_display">显示服务器</string>
+    <string name="hud_metric_hdr">HDR 状态</string>
+    <string name="hud_readings_shown">已显示</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

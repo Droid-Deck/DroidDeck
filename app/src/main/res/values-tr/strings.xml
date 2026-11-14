@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Bu oyun müziğinde ses dosyası yok</string>
     <string name="stores_rockstar_launch_unavailable">Başlatma kullanılamıyor</string>
     <string name="agent_browser_unavailable">Bu bağlantıyı açmak için kullanılabilir bir web tarayıcısı yok.</string>
+    <string name="hud_hint_grab">Tut</string>
+    <string name="hud_hint_drop">Bırak</string>
+    <string name="hud_hint_save">Kaydet</string>
+    <string name="hud_hint_reset">Sıfırlamak için basılı tut</string>
+    <string name="setup_stores">Mağazalar</string>
+    <string name="hud_metric_latency">Kare süresi</string>
+    <string name="hud_metric_avg">Ortalama kare hızı</string>
+    <string name="hud_metric_display">Görüntü sunucusu</string>
+    <string name="hud_metric_hdr">HDR durumu</string>
+    <string name="hud_readings_shown">Gösterilen</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

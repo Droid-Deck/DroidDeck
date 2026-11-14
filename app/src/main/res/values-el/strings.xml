@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Η εκκίνηση δεν είναι διαθέσιμη</string>
     <string name="agent_browser_unavailable">Δεν είναι διαθέσιμο πρόγραμμα περιήγησης ιστού για το άνοιγμα αυτού του συνδέσμου.</string>
+    <string name="hud_hint_grab">Πιάσε</string>
+    <string name="hud_hint_drop">Άφησε</string>
+    <string name="hud_hint_save">Αποθήκευση</string>
+    <string name="hud_hint_reset">Κράτησε για επαναφορά</string>
+    <string name="setup_stores">Καταστήματα</string>
+    <string name="hud_metric_latency">Χρόνος καρέ</string>
+    <string name="hud_metric_avg">Μέσος ρυθμός καρέ</string>
+    <string name="hud_metric_display">Διακομιστής προβολής</string>
+    <string name="hud_metric_hdr">Κατάσταση HDR</string>
+    <string name="hud_readings_shown">Εμφανίζονται</string>
+    <string name="hud_readings_count">%1$d από %2$d</string>
 </resources>

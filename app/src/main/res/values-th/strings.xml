@@ -4020,4 +4020,15 @@
     <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
     <string name="stores_rockstar_launch_unavailable">ไม่สามารถเปิดได้</string>
     <string name="agent_browser_unavailable">ไม่มีเว็บเบราว์เซอร์ที่เปิดลิงก์นี้ได้</string>
+    <string name="hud_hint_grab">หยิบ</string>
+    <string name="hud_hint_drop">วาง</string>
+    <string name="hud_hint_save">บันทึก</string>
+    <string name="hud_hint_reset">กดค้างเพื่อรีเซ็ต</string>
+    <string name="setup_stores">สโตร์</string>
+    <string name="hud_metric_latency">เวลาเฟรม</string>
+    <string name="hud_metric_avg">อัตราเฟรมเฉลี่ย</string>
+    <string name="hud_metric_display">เซิร์ฟเวอร์แสดงผล</string>
+    <string name="hud_metric_hdr">สถานะ HDR</string>
+    <string name="hud_readings_shown">ที่แสดง</string>
+    <string name="hud_readings_count">%1$d จาก %2$d</string>
 </resources>

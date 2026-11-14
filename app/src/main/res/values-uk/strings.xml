@@ -4130,4 +4130,15 @@
     <string name="soundtracks_no_tracks">У цьому саундтреку немає аудіофайлів</string>
     <string name="stores_rockstar_launch_unavailable">Запуск недоступний</string>
     <string name="agent_browser_unavailable">Немає веббраузера, щоб відкрити це посилання.</string>
+    <string name="hud_hint_grab">Взяти</string>
+    <string name="hud_hint_drop">Відпустити</string>
+    <string name="hud_hint_save">Зберегти</string>
+    <string name="hud_hint_reset">Утримуйте для скидання</string>
+    <string name="setup_stores">Магазини</string>
+    <string name="hud_metric_latency">Час кадру</string>
+    <string name="hud_metric_avg">Середня частота кадрів</string>
+    <string name="hud_metric_display">Сервер виводу</string>
+    <string name="hud_metric_hdr">Стан HDR</string>
+    <string name="hud_readings_shown">Показано</string>
+    <string name="hud_readings_count">%1$d з %2$d</string>
 </resources>

@@ -4050,4 +4050,15 @@
     <string name="soundtracks_no_tracks">Inga ljudfiler i detta soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Kan inte starta</string>
     <string name="agent_browser_unavailable">Ingen webbläsare är tillgänglig för att öppna den här länken.</string>
+    <string name="hud_hint_grab">Greppa</string>
+    <string name="hud_hint_drop">Släpp</string>
+    <string name="hud_hint_save">Spara</string>
+    <string name="hud_hint_reset">Håll för att återställa</string>
+    <string name="setup_stores">Butiker</string>
+    <string name="hud_metric_latency">Bildtid</string>
+    <string name="hud_metric_avg">Genomsnittlig bildfrekvens</string>
+    <string name="hud_metric_display">Visningsserver</string>
+    <string name="hud_metric_hdr">HDR-status</string>
+    <string name="hud_readings_shown">Visade</string>
+    <string name="hud_readings_count">%1$d av %2$d</string>
 </resources>
