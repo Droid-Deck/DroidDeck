@@ -19,6 +19,7 @@ class WinComponentsTest(unittest.TestCase):
         self.compat = root / "compatdata/2571976725"
         self.selection = root / "wincomponents.json"
         self.pfx = self.compat / "pfx/drive_c/windows"
+        self.mono_proton = root / "mono-proton"
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -35,8 +36,12 @@ class WinComponentsTest(unittest.TestCase):
     def pick(self, *ids):
         self.selection.write_text(json.dumps({"version": 1, "games": {"2571976725": list(ids)}}))
 
+    def mono(self, *names, home="files/share/wine/mono/wine-mono"):
+        for name in names:
+            (self.mono_proton / home / "lib/mono/gac" / name / "4.0.0.0__b77a5c561934e089").mkdir(parents=True)
+
     def apply(self, proton=None, env=None):
-        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store, proton=proton, env=env)
+        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store, proton=proton or self.mono_proton / "proton", env=env)
 
     def proton(self, arm=True):
         root = Path(self.tmp.name) / ("arm-proton" if arm else "x64-proton")
@@ -378,6 +383,24 @@ class WinComponentsTest(unittest.TestCase):
             self.assertEqual(GAME_ENV["win_components"](str(self.compat) + "/", "2571976725"), "openal32=n,b")
             self.assertEqual(GAME_ENV["win_components"]("", "2571976725"), "")
 
+    def test_game_env_hands_proton_to_the_mono_check(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
+        })
+        self.mono("System")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("framework")
+        globals_ = GAME_ENV["win_components"].__globals__
+        real = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
+        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None, None, None)
+        with mock.patch.dict(globals_, {"runpy": mock.Mock(run_path=lambda _path: real)}):
+            self.assertEqual(GAME_ENV["win_components"](str(self.compat), "2571976725", str(self.mono_proton / "proton")),
+                             "mscoree=n,b")
+        registry = MODULE["RegistryFile"](user)
+        self.assertEqual(registry.get("Software\\Wine\\Mono\\AsmOverrides", "System"), '"System"="Gac=n"')
+
     def test_bundle_brings_its_parts_and_catalog_names_with_dots_work(self):
         self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
         self.component("dsound", ["dsound=n"], {"syswow64/dsound.dll": b"ds"})
@@ -421,6 +444,135 @@ class WinComponentsTest(unittest.TestCase):
         names, notes = self.apply()
         self.assertEqual(MODULE["overrides_value"](names), "mscoree=n,b")
         self.assertIn("mscoree=n has no native DLL in the prefix; using n,b", notes)
+
+    def test_framework_gac_component_disables_windows_gac_for_mono(self):
+        self.component("dotnet48", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4.0_4.0.0.0__b77a5c561934e089/System.dll": b"system",
+        })
+        self.mono("System")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("dotnet48")
+        self.apply()
+        self.assertIn(
+            '"System"="Gac=n"',
+            user.read_text(),
+        )
+        self.pick()
+        self.apply()
+        self.assertNotIn('"System"="Gac=n"', user.read_text())
+
+    def test_msi_clr2_and_unsuffixed_gac_assemblies_disable_windows_gac_for_mono(self):
+        self.component("dotnet", ["mscoree=n"], {
+            "drive_c/windows/assembly/GAC_MSIL/System/v2.0.0.0__b77a5c561934e089/System.dll": b"system",
+            "drive_c/windows/assembly/GAC/Legacy/v1.0.0.0__1234567890abcdef/Legacy.dll": b"legacy",
+        })
+        self.mono("System", "Legacy", home="dist/share/wine/mono/wine-mono-7.4.0")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("dotnet")
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        self.assertEqual(registry.get(key, "System"), '"System"="Gac=n"')
+        self.assertEqual(registry.get(key, "Legacy"), '"Legacy"="Gac=n"')
+
+    def test_framework_gac_override_keeps_other_assemblies_and_explicit_component_values(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System.Core/v4/System.Core.dll": b"core",
+        })
+        self.mono("System", "System.Core")
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        (self.store / "framework/registry.json").write_text(json.dumps({"values": [
+            {"hive": "HKCU", "key": key, "name": "System", "type": "sz", "data": "Gac=y"},
+        ]}))
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        original = ('WINE REGISTRY Version 2\n\n' + MODULE["reg_key_line"](key)
+                    + ' 1\n"*"="Gac=y"\n"Microsoft.Xna.Framework"="Gac=y"\n')
+        user.write_text(original)
+        self.pick("framework")
+        names, _ = self.apply()
+        self.assertEqual(names, ["mscoree=n,b"])
+        registry = MODULE["RegistryFile"](user)
+        self.assertEqual(registry.get(key, "System"), '\"System\"=\"Gac=y\"')
+        self.assertEqual(registry.get(key, "System.Core"), '\"System.Core\"=\"Gac=n\"')
+        self.assertEqual(registry.get(key, "*"), '\"*\"=\"Gac=y\"')
+        self.assertEqual(registry.get(key, "Microsoft.Xna.Framework"),
+                         '\"Microsoft.Xna.Framework\"=\"Gac=y\"')
+        self.pick()
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        self.assertIsNone(registry.get(key, "System"))
+        self.assertIsNone(registry.get(key, "System.Core"))
+        self.assertEqual(registry.get(key, "*"), '\"*\"=\"Gac=y\"')
+
+    def test_unselected_framework_and_non_framework_components_do_not_change_mono(self):
+        gac = "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll"
+        self.component("framework", ["mscoree=n"], {gac: b"system"})
+        self.component("other", ["other=n"], {gac: b"other"})
+        self.mono("System")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        original = "WINE REGISTRY Version 2\n"
+        user.write_text(original)
+        self.pick("other")
+        self.apply()
+        self.assertEqual(user.read_text(), original)
+        self.pick()
+        self.apply()
+        self.assertEqual(user.read_text(), original)
+
+    def test_gac_assemblies_missing_from_mono_keep_the_windows_gac(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4.0_4.0.0.0__b77a5c561934e089/System.dll": b"system",
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/Vendor.Engine/v4.0_1.0.0.0__0123456789abcdef/Vendor.Engine.dll": b"vendor",
+            "drive_c/windows/assembly/GAC/stdole/7.0.3300.0__b03f5f7f11d50a3a/stdole.dll": b"stdole",
+        })
+        self.mono("System")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("framework")
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        self.assertEqual(registry.get(key, "System"), '"System"="Gac=n"')
+        self.assertIsNone(registry.get(key, "Vendor.Engine"))
+        self.assertIsNone(registry.get(key, "stdole"))
+
+    def test_no_mono_runtime_found_leaves_mono_settings_alone(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4.0_4.0.0.0__b77a5c561934e089/System.dll": b"system",
+        })
+        (self.mono_proton / "files/share/wine/mono/wine-mono/lib/mono/gac").mkdir(parents=True)
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        original = "WINE REGISTRY Version 2\n"
+        user.write_text(original)
+        self.pick("framework")
+        names, _ = self.apply()
+        self.assertEqual(names, ["mscoree=n,b"])
+        self.assertEqual(user.read_text(), original)
+
+    def test_a_prefix_mono_install_is_used_before_protons(self):
+        self.component("framework", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System.Core/v4/System.Core.dll": b"core",
+        })
+        self.mono("System", "System.Core")
+        (self.pfx / "Mono/mono-2.0/lib/mono/gac/System/4.0.0.0__b77a5c561934e089").mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("framework")
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        self.assertEqual(registry.get(key, "System"), '"System"="Gac=n"')
+        self.assertIsNone(registry.get(key, "System.Core"))
 
     def test_a_wine_placeholder_file_is_not_a_native_dll(self):
         self.component("dotnet48", ["mscoree=n"], {})
