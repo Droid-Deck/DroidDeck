@@ -1537,8 +1537,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
-        pendingSteamPreviousGameId = SessionState.gameId
-        if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
+        if (pendingSteamGameId == null) {
+            pendingSteamPreviousGameId = SessionState.gameId
+        } else {
+            Log.i(TAG, "replacing queued game ${pendingSteamGameId} with $accepted")
+        }
         pendingSteamGameExitWatchToken = ++gameExitWatchToken
         SessionState.gameId = accepted
         val effectsProfileId = SessionPrefs.screenEffectsProfileId(MODE_STEAM, accepted, null)

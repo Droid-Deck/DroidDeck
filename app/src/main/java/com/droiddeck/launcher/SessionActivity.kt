@@ -1388,24 +1388,40 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
             onUpscaler = { m ->
-                SessionPrefs.setUpscaler(this@SessionActivity, m)
+                val target = effectsEditorTarget ?: screenEffectsTarget
                 val activeProfileId =
                     SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
-                val activeEffects =
-                    SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
-                val activeUpscaler =
-                    SessionPrefs.screenEffectsUpscaler(this@SessionActivity, activeProfileId)
 
-                if ((effectsEditorTarget ?: screenEffectsTarget) == SCREEN_EFFECTS_TARGET_AUTO) {
+                if (target == SCREEN_EFFECTS_TARGET_AUTO &&
+                    activeProfileId != effectsEditorProfileId) {
+                    Log.w(TAG, "Screen effects profile changed while editing; discarding stale upscaler edit")
+                    observedScreenEffectsProfileId = activeProfileId
+                    val activeEffects = SessionPrefs.screenEffects(this@SessionActivity, activeProfileId)
+                    val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this@SessionActivity, activeProfileId)
                     effects = activeEffects
                     upscaler = activeUpscaler
-                }
+                    activeEffects.push(activeUpscaler)
+                } else {
+                    val profileId = screenEffectsProfileIdForTarget(target)
+                    SessionPrefs.setScreenEffectsUpscaler(this@SessionActivity, profileId, m)
 
-                WaylandCompositor.nativeSetUpscaler(activeUpscaler)
-                WaylandCompositor.nativeSetLookName(
-                    ScreenEffectLooks.match(activeEffects, activeUpscaler)?.name
-                )
-                activeEffects.push(activeUpscaler)
+                    if (target == screenEffectsTarget) {
+                        upscaler = m
+                        if (screenEffectsUpscalerTargetAppliesToLiveOutput(target)) {
+                            val liveProfileId =
+                                SessionPrefs.activeScreenEffectsProfileId(this@SessionActivity)
+                            val liveUpscaler =
+                                SessionPrefs.screenEffectsUpscaler(this@SessionActivity, liveProfileId)
+                            val liveEffects =
+                                SessionPrefs.screenEffects(this@SessionActivity, liveProfileId)
+                            WaylandCompositor.nativeSetUpscaler(liveUpscaler)
+                            WaylandCompositor.nativeSetLookName(
+                                ScreenEffectLooks.match(liveEffects, liveUpscaler)?.name
+                            )
+                            liveEffects.push(liveUpscaler)
+                        }
+                    }
+                }
             },
             onPresetUpscaler = { m ->
                 val target = effectsEditorTarget ?: screenEffectsTarget
