@@ -36,6 +36,28 @@ class CiChecksTest(unittest.TestCase):
         result = subprocess.check_output(['jq', '-r', query], input=json.dumps(comments), text=True)
         self.assertEqual(result.strip(), '2')
 
+    def test_fork_report_preserves_failure_details_without_comment_permission(self):
+        if not shutil.which('bash'):
+            self.skipTest('bash required to execute the build report')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            gh = root / 'gh'
+            gh.write_text('#!/bin/sh\ntouch "$GH_CALLED"\nexit 1\n')
+            gh.chmod(0o755)
+            summary = root / 'summary.md'
+            called = root / 'called'
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
+                       CAN_COMMENT_PR='false', GH_CALLED=str(called), GITHUB_STEP_SUMMARY=str(summary),
+                       BUILD_OUTCOME='success', UNIT_TEST_OUTCOME='failure', APK_OUTCOME='skipped',
+                       TEST_DIAGNOSTICS_URL='https://example.invalid/test-results',
+                       RUN_URL='https://example.invalid/run')
+            result = subprocess.run(['bash', str(ROOT / 'tools/release/report-build.sh')],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(called.exists())
+            self.assertIn('Unit tests failed', summary.read_text())
+            self.assertIn('https://example.invalid/test-results', summary.read_text())
+
     def test_build_and_tests_use_identical_generated_metadata(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         steps = {step.get('id'): step for step in jobs['build']['steps']}
@@ -48,11 +70,11 @@ class CiChecksTest(unittest.TestCase):
 
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
-        for name in ('xbox', 'python-tests', 'components-runner'):
+        for name in ('xbox', 'kwin', 'python-tests', 'components-runner'):
             self.assertEqual(jobs[name]['needs'], 'source')
         self.assertEqual(set(jobs['components']['needs']), {'source', 'components-runner'})
         self.assertEqual(jobs['build-runner']['needs'], ['components'])
-        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox', 'build-runner'})
+        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox', 'kwin', 'build-runner'})
 
     def test_dependency_update_errors_block_installation(self):
         with tempfile.TemporaryDirectory() as directory:

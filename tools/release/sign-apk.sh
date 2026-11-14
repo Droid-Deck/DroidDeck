@@ -29,7 +29,8 @@ else
     "$P=$pkg" "$P.androidx-startup=$pkg.androidx-startup" "$P.logs=$pkg.logs" \
     "$P.pairingguide=$pkg.pairingguide" "$P.devicecode=$pkg.devicecode" "$P.pin=$pkg.pin" \
     "$P.documents=$pkg.documents" "$P.home=$pkg.home" "$P.agent=$pkg.agent" \
-    "$P.vr_recovery=$pkg.vr_recovery" "$P.dualscreen=$pkg.dualscreen" "$P.typing=$pkg.typing" "$P.keeptop=$pkg.keeptop" \
+    "$P.xr=$pkg.xr" "$P.linuxwindow=$pkg.linuxwindow" \
+    "$P.vr_recovery=$pkg.vr_recovery" "$P.dualscreen=$pkg.dualscreen" "$P.typing=$pkg.typing" \
     "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$pkg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 fi
 got=$("$BUILD_TOOLS/aapt" dump badging "$work/renamed.apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
@@ -40,37 +41,23 @@ if [ "$pkg" != "$P" ]; then
     && die "$variant: the manifest still names $P in an authority or task"
 fi
 
+"$BUILD_TOOLS/zipalign" -p -f 4 "$work/renamed.apk" "$work/aligned.apk"
+
 "$BUILD_TOOLS/apksigner" rotate --out "$work/lineage" \
   --old-signer --ks "$TESTKEY" --ks-type PKCS12 --ks-pass env:TESTKEY_PASSWORD \
     --ks-key-alias testkey --key-pass env:TESTKEY_PASSWORD --set-rollback false \
   --new-signer --ks "$RELEASE_KEYSTORE" --ks-type PKCS12 --ks-pass env:RELEASE_STORE_PASSWORD \
     --ks-key-alias "$RELEASE_KEY_ALIAS" --key-pass env:RELEASE_STORE_PASSWORD
 
-sign() {
-  "$BUILD_TOOLS/apksigner" sign \
-    --ks "$TESTKEY" --ks-type PKCS12 --ks-pass env:TESTKEY_PASSWORD \
-      --ks-key-alias testkey --key-pass env:TESTKEY_PASSWORD \
-    --next-signer --ks "$RELEASE_KEYSTORE" --ks-type PKCS12 --ks-pass env:RELEASE_STORE_PASSWORD \
-      --ks-key-alias "$RELEASE_KEY_ALIAS" --key-pass env:RELEASE_STORE_PASSWORD \
-    --lineage "$work/lineage" --rotation-min-sdk-version 28 \
-    --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
-    --out "$2" "$1"
-  rm -f "$2.idsig"
-}
-
-companion=assets/shortcuts.apk
-if unzip -l "$work/renamed.apk" "$companion" >/dev/null 2>&1; then
-  mkdir -p "$work/companion/assets"
-  unzip -p "$work/renamed.apk" "$companion" > "$work/companion-in.apk"
-  sign "$work/companion-in.apk" "$work/companion/$companion"
-  companion_v3=$("$BUILD_TOOLS/apksigner" verify --min-sdk-version 28 --print-certs "$work/companion/$companion" | sed -n 's/^.*Signer.* certificate SHA-256 digest: //p' | sort -u)
-  [ "$companion_v3" = "$expected" ] || die "$variant: the system keys companion is not signed with DroidDeck's key"
-  (cd "$work/companion" && zip -q -0 "$work/renamed.apk" "$companion")
-fi
-
-"$BUILD_TOOLS/zipalign" -p -f 4 "$work/renamed.apk" "$work/aligned.apk"
-
-sign "$work/aligned.apk" "$out"
+"$BUILD_TOOLS/apksigner" sign \
+  --ks "$TESTKEY" --ks-type PKCS12 --ks-pass env:TESTKEY_PASSWORD \
+    --ks-key-alias testkey --key-pass env:TESTKEY_PASSWORD \
+  --next-signer --ks "$RELEASE_KEYSTORE" --ks-type PKCS12 --ks-pass env:RELEASE_STORE_PASSWORD \
+    --ks-key-alias "$RELEASE_KEY_ALIAS" --key-pass env:RELEASE_STORE_PASSWORD \
+  --lineage "$work/lineage" --rotation-min-sdk-version 28 \
+  --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+  --out "$out" "$work/aligned.apk"
+rm -f "$out.idsig"
 
 "$BUILD_TOOLS/apksigner" verify --min-sdk-version 26 "$out" >/dev/null || die "$variant: does not verify"
 listing=$(unzip -l "$out")
