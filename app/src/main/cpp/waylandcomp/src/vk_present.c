@@ -413,8 +413,7 @@ static void update_map(int scene_w, int scene_h) {
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
-            aspect = (float)(int)m;
-            if (aspect < 1.0f) aspect = 1.0f;
+            aspect = m >= 1.0f ? (float)(int)m : m;
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
@@ -426,7 +425,7 @@ static void update_map(int scene_w, int scene_h) {
     else if (align == VKP_ALIGN_PICTURE_RIGHT) g_map.off_x = W - scene_w * g_map.kx;
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
-    g_game_picture_placed = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
+    g_game_picture_placed = mode == VKP_MODE_INTEGER || align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
     g_game_picture_rect[0] = g_map.off_x;
     g_game_picture_rect[1] = g_map.off_y;
     g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;

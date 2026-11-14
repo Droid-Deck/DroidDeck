@@ -82,6 +82,7 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
     val picturePosition: String? = null,
+    val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
@@ -137,6 +138,7 @@ class ModeSettingsActions(
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onPicturePosition: (String) -> Unit = {},
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
@@ -240,6 +242,18 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
+            s.integerScaling?.let { enabled ->
+                ChoiceRow(
+                    host, "integer-scaling",
+                    stringResource(R.string.display_integer_scaling),
+                    stringResource(R.string.display_integer_scaling_hint),
+                    listOf(
+                        false to stringResource(R.string.display_scaling_fit),
+                        true to stringResource(R.string.display_scaling_auto),
+                    ),
+                    enabled, onPick = a.onIntegerScaling,
+                )
+            }
             ChoiceRow(
                 host, "upscaler", stringResource(R.string.display_filter), null,
                 SessionPrefs.upscalerChoices(LocalContext.current), s.upscaler,

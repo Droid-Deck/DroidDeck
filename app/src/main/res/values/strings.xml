@@ -2576,6 +2576,10 @@
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
+    <string name="display_integer_scaling">Integer scaling</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. If the source is too large, fits the full image to avoid cropping. Resolution is configured separately.</string>
+    <string name="display_scaling_fit">Fit</string>
+    <string name="display_scaling_auto">Auto</string>
     <string name="display_filter">Scaling filter</string>
     <string name="display_filter_hint">Shared by Steam and Desktop.</string>
     <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>

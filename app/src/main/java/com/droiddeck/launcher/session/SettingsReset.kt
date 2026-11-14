@@ -18,7 +18,7 @@ object SettingsReset {
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition", "railLabels", "agentTab", "navTabOrder", "navTabShelved", "navTabHidden", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
+        "stretch16x9", "picturePosition", "integerScaling", "railLabels", "agentTab", "navTabOrder", "navTabShelved", "navTabHidden", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "paceCores", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",

@@ -167,6 +167,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
+    private var integerScaling by mutableStateOf(false)
 
     private fun applyGameAlignment() {
         if (!CompositorHost.isStarted) return
@@ -179,7 +180,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             "right" -> ALIGN_PICTURE_RIGHT
             else -> ALIGN_CENTER
         }
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
+        WaylandCompositor.nativeSetScaleMode(if (active && integerScaling) SCALE_INTEGER else SCALE_FIT, alignment)
     }
     private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
     private var unfoldedColumn: android.widget.LinearLayout? = null
@@ -1014,7 +1015,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     secondScreenPresentation?.closeFieldKeyboard()
                 }
             }
-            androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
+            androidx.compose.runtime.LaunchedEffect(picturePosition, integerScaling, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -2056,6 +2057,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
+        integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
@@ -2297,7 +2299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+        applyGameAlignment()
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
@@ -4869,7 +4871,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     heldButtons.set(1, it, false)
                 }
-                WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+                applyGameAlignment()
             }
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -5813,6 +5815,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         private val steamVrWorker = java.util.concurrent.ThreadPoolExecutor(0, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
             java.util.concurrent.LinkedBlockingQueue()) { Thread(it, "steamvr") }
         private const val SCALE_FIT = 1
+        private const val SCALE_INTEGER = 4
         private const val ALIGN_CENTER = 0
         private const val ALIGN_PICTURE_TOP = 3
         private const val ALIGN_PICTURE_BOTTOM = 4
