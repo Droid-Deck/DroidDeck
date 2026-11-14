@@ -756,6 +756,61 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
 
+    def test_keyboard_helper_is_off_unless_steam_keyboard_or_the_user_wants_it(self):
+        cases = (
+            ({}, "tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtipx=d"}, "tabtipx=d;tabtip.exe=d"),
+            ({"SteamDeck": "0"}, "tabtip.exe=d"),
+            ({"SteamDeck": "1"}, None),
+            ({"SteamDeck": "1", "WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip.EXE=n,b"}, "dxgi=n; TabTip.EXE=n,b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip=n,b"}, "dxgi=n; TabTip=n,b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe"}, "d3d11 tabtip.exe;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe;dxgi=n"}, "tabtip.exe;dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11,tabtip.exe=b"}, "d3d11,tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe=b"}, "d3d11 tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip.exe=b"}, "d3d11\ttabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 dxgi=n"}, "d3d11 dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "*tabtip.exe=b"}, "*tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "TabTip.exe.DLL=b"}, "TabTip.exe.DLL=b"),
+            ({"WINEDLLOVERRIDES": "d3d11,*tabtip.exe.dll=n"}, "d3d11,*tabtip.exe.dll=n"),
+            ({"WINEDLLOVERRIDES": "*tabtip=b"}, "*tabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.dll=b"}, "tabtip.dll=b;tabtip.exe=d"),
+        )
+        for before, overrides in cases:
+            with self.subTest(env=before):
+                env = dict(before)
+                note = MODULE["keyboard_helper_off"](env)
+                self.assertEqual(env.get("WINEDLLOVERRIDES"), overrides)
+                self.assertEqual(note is not None, overrides != before.get("WINEDLLOVERRIDES"))
+
+    def test_game_launch_turns_the_keyboard_helper_off_and_keeps_user_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', 'unset'))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            cases = (
+                ("waitforexitandrun", {}, "tabtip.exe=d"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+                ("waitforexitandrun", {"SteamDeck": "1"}, "unset"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+                ("run", {}, "unset"),
+            )
+            for verb, profile, expected in cases:
+                with self.subTest(verb=verb, profile=profile):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
+                    env = {k: v for k, v in os.environ.items() if k not in ("SteamDeck", "WINEDLLOVERRIDES")}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), verb],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip().splitlines()[-1], expected)
+
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
