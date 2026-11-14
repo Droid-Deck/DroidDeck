@@ -1,14 +1,18 @@
 package com.droiddeck.launcher.input
 
 import android.graphics.RectF
+import android.hardware.input.InputManager
 import android.os.Looper
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.droiddeck.launcher.input.PenStream.Companion.PEN_ERASER
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_IN
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_MIDDLE
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_RIGHT
+import com.droiddeck.launcher.input.PenStream.Companion.PEN_TABLET
+import com.droiddeck.launcher.input.PenStream.Companion.PEN_TILT
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_TIP
 import com.droiddeck.launcher.session.SessionPrefs
 import java.time.Duration
@@ -16,17 +20,27 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.InputDeviceBuilder
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class PenStreamTest {
-    data class Record(val flags: Int, val x: Int, val y: Int)
-    data class Sample(val time: Long, val x: Float, val y: Float = 300f)
+    data class Record(val flags: Int, val x: Int, val y: Int, val pressure: Int = 0, val distance: Int = 0, val tiltX: Int = 0,
+        val tiltY: Int = 0)
+    data class Sample(val time: Long, val x: Float, val y: Float = 300f, val pressure: Float = 0f, val distance: Float = 0f,
+        val tilt: Float = 0f, val orientation: Float = 0f)
 
     private val records = mutableListOf<Record>()
-    private val stream = PenStream { flags, x, y -> records += Record(flags, x, y) }
+    private val capabilities = mutableListOf<Int>()
+    private val stream = PenStream(object : PenStream.Sink {
+        override fun sample(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) {
+            records += Record(flags, x, y, pressure, distance, tiltX, tiltY)
+        }
+        override fun capabilities(capabilities: Int) { this@PenStreamTest.capabilities += capabilities }
+    })
     private val area = RectF(0f, 0f, 1000f, 600f)
 
     @Test fun hoverEntersMovesAndLeavesProximity() {
@@ -39,6 +53,7 @@ class PenStreamTest {
         grace()
         assertEquals(listOf(PEN_IN, PEN_IN, 0), flags())
         assertEquals(listOf(100f, 200f).map(::x), records.take(2).map { it.x })
+        assertEquals(listOf(PenStream.CAP_PRESSURE), capabilities)
         assertFalse(stream.inProximity)
     }
 
@@ -91,10 +106,11 @@ class PenStreamTest {
         assertEquals(listOf(PEN_IN, 0), flags())
     }
 
-    @Test fun historicalSamplesGoOutOldestFirst() {
-        send(MotionEvent.ACTION_DOWN, Sample(100, 10f))
-        send(MotionEvent.ACTION_MOVE, Sample(103, 20f), Sample(106, 30f), Sample(109, 40f))
+    @Test fun historicalSamplesGoOutOldestFirstWithTheirOwnPressure() {
+        send(MotionEvent.ACTION_DOWN, Sample(100, 10f, pressure = 0.1f))
+        send(MotionEvent.ACTION_MOVE, Sample(103, 20f, pressure = 0.2f), Sample(106, 30f, pressure = 0.4f), Sample(109, 40f, pressure = 1f))
         assertEquals(listOf(10f, 20f, 30f, 40f).map(::x), records.map { it.x })
+        assertEquals(listOf(6554, 13107, 26214, 65535), records.map { it.pressure })
         assertTrue(records.all { it.flags == PEN_IN or PEN_TIP })
         assertEquals(y(300f), records.last().y)
     }
@@ -271,6 +287,24 @@ class PenStreamTest {
         assertEquals(listOf(PEN_IN or PEN_TIP, PEN_IN or PEN_TIP), flags())
     }
 
+    @Test fun tiltIsSentOnlyWithSamplesThatCarryIt() {
+        send(MotionEvent.ACTION_HOVER_ENTER, Sample(10, 100f))
+        send(MotionEvent.ACTION_HOVER_MOVE, Sample(20, 100f, tilt = (Math.PI / 6).toFloat(), orientation = (-Math.PI / 2).toFloat()))
+        assertEquals(listOf(PEN_IN, PEN_IN or PEN_TILT), flags())
+        assertEquals(3000 to 0, records[1].tiltX to records[1].tiltY)
+    }
+
+    @Test fun theTabletWishAndTheEraserGoWithEveryRecordInProximity() {
+        stream.tablet = true
+        send(MotionEvent.ACTION_HOVER_ENTER, Sample(10, 100f))
+        send(MotionEvent.ACTION_HOVER_MOVE, Sample(20, 110f), tool = MotionEvent.TOOL_TYPE_ERASER)
+        send(MotionEvent.ACTION_DOWN, Sample(30, 110f), tool = MotionEvent.TOOL_TYPE_ERASER)
+        send(MotionEvent.ACTION_HOVER_MOVE, Sample(40, 110f))
+        stream.cancel()
+        val near = PEN_IN or PEN_TABLET
+        assertEquals(listOf(near, near or PEN_ERASER, near or PEN_ERASER or PEN_TIP, near, 0), flags())
+    }
+
     @Test fun lifecycleCancelEndsEverythingOnce() {
         send(MotionEvent.ACTION_DOWN, Sample(10, 100f))
         stream.cancel()
@@ -284,6 +318,30 @@ class PenStreamTest {
         assertTrue(stream.inProximity)
         stream.deviceRemoved(6)
         assertEquals(listOf(PEN_IN, 0), flags())
+    }
+
+    @Config(sdk = [34])
+    @Test fun sessionStartAnnouncesAPenDeviceFromItsMotionRanges() {
+        val pen = InputDevice.SOURCE_TOUCHSCREEN or InputDevice.SOURCE_STYLUS
+        stream.announce(device(InputDevice.SOURCE_KEYBOARD, tilt = true))
+        stream.announce(InputDeviceBuilder.newBuilder().setId(7).setSources(pen).build())
+        assertTrue(capabilities.isEmpty())
+        stream.announce(device(pen, tilt = true, distance = 1f))
+        stream.announce(device(pen, tilt = true))
+        assertEquals(listOf(PenStream.CAP_PRESSURE or PenStream.CAP_TILT), capabilities)
+        stream.announce(device(pen, distance = 255f))
+        send(MotionEvent.ACTION_HOVER_ENTER, Sample(10, 100f))
+        assertEquals(listOf(PenStream.CAP_PRESSURE or PenStream.CAP_TILT,
+            PenStream.CAP_PRESSURE or PenStream.CAP_TILT or PenStream.CAP_DISTANCE), capabilities)
+    }
+
+    @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredMotionEvent::class])
+    @Test fun theFirstPenEventReadsCapabilitiesAndDistanceFromItsDevice() {
+        shadowOf(RuntimeEnvironment.getApplication().getSystemService(InputManager::class.java))
+            .addInputDevice(device(InputDevice.SOURCE_TOUCHSCREEN or InputDevice.SOURCE_STYLUS, tilt = true, distance = 255f))
+        send(MotionEvent.ACTION_HOVER_ENTER, Sample(10, 100f, distance = 127.5f), device = 7)
+        assertEquals(listOf(PenStream.CAP_PRESSURE or PenStream.CAP_TILT or PenStream.CAP_DISTANCE), capabilities)
+        assertEquals(32768, records.single().distance)
     }
 
     @Test fun aPenNextToAFingerKeepsItsOwnStroke() {
@@ -344,6 +402,15 @@ class PenStreamTest {
         }
     }
 
+    private fun device(sources: Int, tilt: Boolean = false, distance: Float? = null): InputDevice {
+        val builder = InputDeviceBuilder.newBuilder().setId(7).setName("pen").setSources(sources)
+            .addMotionRange(MotionEvent.AXIS_X, sources, 0f, 1000f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_PRESSURE, sources, 0f, 1f, 0f, 0f, 0f)
+        if (tilt) builder.addMotionRange(MotionEvent.AXIS_TILT, sources, 0f, 1.5f, 0f, 0f, 0f)
+        if (distance != null) builder.addMotionRange(MotionEvent.AXIS_DISTANCE, sources, 0f, distance, 0f, 0f, 0f)
+        return builder.build()
+    }
+
     private fun flags() = records.map { it.flags }
     private fun x(position: Float) = InputSpace.fixedX(position, 1000)
     private fun y(position: Float) = InputSpace.fixedY(position, 600)
@@ -353,8 +420,9 @@ class PenStreamTest {
     private fun key(action: Int, time: Long, repeat: Int = 0) =
         KeyEvent(time, time, action, KeyEvent.KEYCODE_UNKNOWN, repeat, 0, 10, 191, 0, InputDevice.SOURCE_KEYBOARD)
 
-    private fun send(action: Int, vararg samples: Sample, buttons: Int = 0, flags: Int = 0, device: Int = 6) {
-        val event = event(action, samples.toList(), MotionEvent.TOOL_TYPE_STYLUS, buttons, flags, device = device)
+    private fun send(action: Int, vararg samples: Sample, tool: Int = MotionEvent.TOOL_TYPE_STYLUS, buttons: Int = 0, flags: Int = 0,
+        device: Int = 6) {
+        val event = event(action, samples.toList(), tool, buttons, flags, device = device)
         try { stream.onMotion(event, 0, area, 1000, 600) } finally { event.recycle() }
     }
 
@@ -375,6 +443,10 @@ class PenStreamTest {
         fun coords(sample: Sample) = arrayOf(MotionEvent.PointerCoords().apply {
             x = sample.x
             y = sample.y
+            pressure = sample.pressure
+            setAxisValue(MotionEvent.AXIS_DISTANCE, sample.distance)
+            setAxisValue(MotionEvent.AXIS_TILT, sample.tilt)
+            setAxisValue(MotionEvent.AXIS_ORIENTATION, sample.orientation)
         })
         val first = samples.first()
         val event = MotionEvent.obtain(0, first.time, action, 1, properties, coords(first), 0, buttons, 1f, 1f, device, 0, source, flags)

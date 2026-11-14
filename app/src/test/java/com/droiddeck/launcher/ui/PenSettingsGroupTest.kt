@@ -36,13 +36,15 @@ class PenSettingsGroupTest {
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
     }
 
-    @Test fun theDrawerSavesPenPicks() {
+    @Test fun theDrawerShowsWhatAutoGivesAndSavesPenPicks() {
         val picks = mutableListOf<Pair<String, String>>()
+        val tablet = context.getString(R.string.session_pen_auto_tablet)
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen()) { k, v -> picks += k to v })
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen(), tablet) { k, v -> picks += k to v })
             }
         }
+        compose.onNodeWithText(context.getString(R.string.drawer_touch_auto, tablet)).assertExists()
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen").performScrollTo().performClick()
@@ -54,7 +56,7 @@ class PenSettingsGroupTest {
 
     @Test fun theSideButtonRowIsHiddenInTouchMode() {
         val pen = mutableStateOf(SessionPrefs.Pen())
-        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value) { _, _ -> } } } }
+        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, "Auto") { _, _ -> } } } }
         compose.onNodeWithTag("setting-pen-button").assertExists()
         compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH) }
         compose.onNodeWithTag("setting-pen").assertExists()
@@ -86,11 +88,11 @@ class PenSettingsGroupTest {
         compose.runOnIdle { assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE), picks) }
     }
 
-    private fun actions(pen: SessionPrefs.Pen?, onPen: (String, String) -> Unit = { _, _ -> }) =
+    private fun actions(pen: SessionPrefs.Pen?, penAuto: String = "", onPen: (String, String) -> Unit = { _, _ -> }) =
         DrawerActions(steam = false, desktop = true, isHomeApp = false, androidApps = emptyList(), hudOn = false,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
-            touchMode = "auto", touchAuto = "touchpad", pen = pen, onPen = onPen, fexPreset = "default",
+            touchMode = "auto", touchAuto = "touchpad", pen = pen, penAuto = penAuto, onPen = onPen, fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = emptyList(), selectedSecondScreenDisplay = 1,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},

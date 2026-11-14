@@ -292,6 +292,7 @@
     <string name="mode_pen">Stilou</string>
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Atingere</string>
+    <string name="mode_pen_note">Automat: tabletă grafică pe Desktop în aplicațiile care o acceptă, mouse în rest.</string>
     <string name="mode_pen_button">Buton lateral</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1750,6 +1751,8 @@
     <string name="session_title_game">Joc</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">direct</string>
+    <string name="session_pen_auto_tablet">tabletă</string>
+    <string name="session_pen_auto_mouse">mouse</string>
     <string name="session_swap_failed">Comutarea a eșuat: %1$s</string>
     <string name="session_profile_save_failed">Salvarea profilului a eșuat: %1$s</string>
     <string name="session_desktop_paused">Desktopul este pus pe pauză</string>

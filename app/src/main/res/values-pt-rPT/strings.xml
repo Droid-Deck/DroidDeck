@@ -292,6 +292,7 @@
     <string name="mode_pen">Caneta</string>
     <string name="mode_pen_mouse">Rato</string>
     <string name="mode_pen_touch">Toque</string>
+    <string name="mode_pen_note">Automático: mesa digitalizadora no Ambiente de trabalho nas apps que a suportam, rato no resto.</string>
     <string name="mode_pen_button">Botão lateral</string>
     <string name="mode_osc">Controlos no ecrã</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1741,6 +1742,8 @@
     <string name="session_title_game">Jogo</string>
     <string name="session_touch_auto_touchpad">painel tátil</string>
     <string name="session_touch_auto_direct">direto</string>
+    <string name="session_pen_auto_tablet">mesa digitalizadora</string>
+    <string name="session_pen_auto_mouse">rato</string>
     <string name="session_swap_failed">Falha na troca: %1$s</string>
     <string name="session_profile_save_failed">Falha ao guardar o perfil: %1$s</string>
     <string name="session_desktop_paused">O ambiente de trabalho está em pausa</string>

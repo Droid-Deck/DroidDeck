@@ -292,6 +292,7 @@
     <string name="mode_pen">Pen</string>
     <string name="mode_pen_mouse">Mus</string>
     <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_note">Auto: tegneplade på Skrivebord i apps, der understøtter det, ellers mus.</string>
     <string name="mode_pen_button">Sideknap</string>
     <string name="mode_osc">Kontroller på skærmen</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1734,6 +1735,8 @@
     <string name="session_title_game">Spil</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">direkte</string>
+    <string name="session_pen_auto_tablet">tegneplade</string>
+    <string name="session_pen_auto_mouse">mus</string>
     <string name="session_swap_failed">Udskiftning mislykkedes: %1$s</string>
     <string name="session_profile_save_failed">Lagring af profil mislykkedes: %1$s</string>
     <string name="session_desktop_paused">Skrivebordet er sat på pause</string>

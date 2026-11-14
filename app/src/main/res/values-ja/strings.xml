@@ -292,6 +292,7 @@
     <string name="mode_pen">ペン</string>
     <string name="mode_pen_mouse">マウス</string>
     <string name="mode_pen_touch">タッチ</string>
+    <string name="mode_pen_note">自動：デスクトップの対応アプリではペンタブレット、それ以外ではマウスとして使います。</string>
     <string name="mode_pen_button">サイドボタン</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1719,6 +1720,8 @@
     <string name="session_title_game">ゲーム</string>
     <string name="session_touch_auto_touchpad">トラックパッド</string>
     <string name="session_touch_auto_direct">ダイレクト</string>
+    <string name="session_pen_auto_tablet">タブレット</string>
+    <string name="session_pen_auto_mouse">マウス</string>
     <string name="session_swap_failed">置き換えに失敗しました：%1$s</string>
     <string name="session_profile_save_failed">プロファイルの保存に失敗しました：%1$s</string>
     <string name="session_desktop_paused">デスクトップは一時停止中です</string>

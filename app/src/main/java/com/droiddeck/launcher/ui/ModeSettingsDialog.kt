@@ -375,7 +375,9 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             PhysicalShortcutRows()
         }
-        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen) }
+        s.pen?.let {
+            PenSettingsGroup(host, it, stringResource(R.string.common_auto), stringResource(R.string.mode_pen_note), onPick = a.onPen)
+        }
     }
     if (tab == SheetTab.AUDIO && steam) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {

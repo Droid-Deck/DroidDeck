@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.input
 
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
 
 object PenRouter {
     enum class Route { BLOCKED, PEN, RELATIVE, TOUCH }
@@ -11,4 +12,7 @@ object PenRouter {
         glasses || programLock -> Route.RELATIVE
         else -> Route.PEN
     }
+
+    fun wantsTablet(route: Route, mode: String, session: String): Boolean =
+        route == Route.PEN && mode == SessionPrefs.PEN_AUTO && session == SessionService.MODE_DESKTOP
 }

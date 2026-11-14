@@ -292,6 +292,7 @@
     <string name="mode_pen">Pen</string>
     <string name="mode_pen_mouse">Muis</string>
     <string name="mode_pen_touch">Aanraken</string>
+    <string name="mode_pen_note">Automatisch: tekentablet op Desktop in apps die het ondersteunen, elders muis.</string>
     <string name="mode_pen_button">Zijknop</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
@@ -1734,6 +1735,8 @@
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">direct</string>
+    <string name="session_pen_auto_tablet">tekentablet</string>
+    <string name="session_pen_auto_mouse">muis</string>
     <string name="session_swap_failed">Wisselen mislukt: %1$s</string>
     <string name="session_profile_save_failed">Profiel opslaan mislukt: %1$s</string>
     <string name="session_desktop_paused">De desktop is gepauzeerd</string>

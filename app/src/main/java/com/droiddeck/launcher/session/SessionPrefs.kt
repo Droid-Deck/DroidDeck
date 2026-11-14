@@ -655,16 +655,17 @@ object SessionPrefs {
         prefs(context).edit().putString("touch", mode).apply()
     }
 
+    const val PEN_AUTO = "auto"
     const val PEN_MOUSE = "mouse"
     const val PEN_TOUCH = "touch"
     const val PEN_BUTTON_RIGHT = "right"
     const val PEN_BUTTON_MIDDLE = "middle"
     const val PEN_BUTTON_OFF = "off"
 
-    data class Pen(val mode: String = PEN_MOUSE, val button: String = PEN_BUTTON_RIGHT)
+    data class Pen(val mode: String = PEN_AUTO, val button: String = PEN_BUTTON_RIGHT)
 
     private val PEN_SETTINGS = mapOf(
-        "pen" to setOf(PEN_MOUSE, PEN_TOUCH),
+        "pen" to setOf(PEN_AUTO, PEN_MOUSE, PEN_TOUCH),
         "penButton" to setOf(PEN_BUTTON_RIGHT, PEN_BUTTON_MIDDLE, PEN_BUTTON_OFF),
     )
 
@@ -676,7 +677,7 @@ object SessionPrefs {
         prefs(context).edit().putString(key, value).apply()
     }
 
-    fun penMode(context: Context): String = penSetting(context, "pen", PEN_MOUSE)
+    fun penMode(context: Context): String = penSetting(context, "pen", PEN_AUTO)
     fun penButton(context: Context): String = penSetting(context, "penButton", PEN_BUTTON_RIGHT)
 
     fun pen(context: Context): Pen = Pen(penMode(context), penButton(context))
