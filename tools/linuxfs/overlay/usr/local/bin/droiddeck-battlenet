@@ -1439,6 +1439,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 os.replace(output, output + ".1")
         except OSError:
             pass
+        before = {pid for pid, _ in wine_processes(pfx)}
         with open(output, "ab") as log:
             try:
                 child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
@@ -1467,8 +1468,10 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 break
             time.sleep(POLL if poll is None else poll)
         leftovers = wine_processes(pfx)
-        if leftovers and (stalled or idle(leftovers)):
+        if leftovers and idle(leftovers):
             stop(leftovers)
+        elif stalled:
+            stop([(pid, argv) for pid, argv in leftovers if pid not in before and program(argv) == AGENT])
         if stalled:
             emit("ERROR", "stalled")
             return 6

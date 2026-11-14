@@ -1473,11 +1473,65 @@ class AgentJobTest(Harness):
         self.assertEqual(stopped, [[(5, ["agent.exe"])]])
         self.assertEqual(self.lines[-1], ("ERROR", "stalled"))
 
+    def test_a_stalled_job_leaves_a_game_or_client_in_the_prefix_running(self):
+        self.install()
+        self.files = {".json": json.dumps({"state": 1003, "download_current": [10, 0, 0], "download_total": [99, 0, 0]})}
+        stopped = []
+        calls = []
+
+        class Hung:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                calls.append(True)
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                pass
+
+            def wait(self):
+                return -9
+
+        def processes(pfx):
+            if not calls:
+                return [(3, ["agent.exe"])]
+            return [(3, ["agent.exe"]), (5, ["Agent.exe"]), (6, ["wineserver"]), (7, ["Wow.exe"])]
+
+        with mock.patch.object(BNET["subprocess"], "Popen", Hung), \
+                mock.patch.dict(BNET, {"wine_processes": processes, "stop": lambda p: stopped.append(p)}):
+            code = BNET["agent_job"](self.root, "install", "s1", "s1", str(self.tmp / "S1"), "enUS", "USA", "US", poll=0, stall=0.05)
+        self.assertEqual(code, 6)
+        self.assertEqual(stopped, [[(5, ["Agent.exe"])]])
+
     def test_a_moving_job_is_not_ended_as_stalled(self):
         self.install()
-        self.files = {".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
-                      ".game": json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})}
-        self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=0), 0)
+        done = json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})
+        clock = [0.0]
+
+        class Moving:
+            returncode = 0
+
+            def __init__(self, cmd, **kwargs):
+                self.base = cmd[-1][2:].replace("\\", "/")
+                self.polls = 0
+
+            def poll(self):
+                self.polls += 1
+                clock[0] += 10
+                with open(self.base + ".json", "wb") as f:
+                    f.write(json.dumps({"state": 1003, "download_current": [self.polls, 0, 0], "download_total": [9, 0, 0]}).encode("utf-16"))
+                if self.polls < 6:
+                    return None
+                with open(self.base + ".game", "wb") as f:
+                    f.write(done.encode("utf-16"))
+                return 0
+
+        fake = mock.Mock(monotonic=lambda: clock[0], sleep=lambda s: None)
+        with mock.patch.object(BNET["subprocess"], "Popen", Moving), mock.patch.dict(BNET, {"time": fake}):
+            code = BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=15)
+        self.assertEqual(code, 0)
         self.assertNotIn(("ERROR", "stalled"), self.lines)
 
     def test_only_a_real_job_reply_counts_as_started(self):
