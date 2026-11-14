@@ -41,6 +41,7 @@ import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
+import com.droiddeck.launcher.session.QuestExperimental
 
 @Composable
 fun PhantomProcessGatePage(
@@ -63,6 +64,7 @@ fun PhantomProcessGatePage(
         }
     }
     val hasToggle = PhantomProcessLimit.hasDeveloperToggle()
+    val sideQuest = QuestExperimental.isSupported()
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val compact = maxWidth < 620.dp && maxHeight < 500.dp
@@ -78,12 +80,13 @@ fun PhantomProcessGatePage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wide = maxWidth >= 620.dp
                 val fix: @Composable ColumnScope.() -> Unit = {
-                    FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
+                    if (sideQuest) SideQuestGroup(compact, onCopyCommand)
+                    else FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
                         onOpenNotificationSettings, onCancel = { WirelessAdbPairingService.cancel(context) })
                 }
                 val side: @Composable ColumnScope.() -> Unit = {
                     StatusGroup(status, compact)
-                    OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onEnterAddressManually, onCopyCommand)
+                    if (!sideQuest) OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onEnterAddressManually, onCopyCommand)
                 }
                 if (wide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
@@ -246,14 +249,33 @@ private fun OtherWays(
             Body(stringResource(R.string.gate_manual_hint))
             SecondaryButton(stringResource(R.string.gate_enter_manually), compact = true, onClick = onEnterAddressManually)
             Body(stringResource(R.string.gate_from_computer))
-            Text(
-                PhantomProcessLimit.adbCommand(),
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            AdbCommand()
             SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
         }
     }
+}
+
+@Composable
+private fun SideQuestGroup(compact: Boolean, onCopyCommand: () -> Unit) {
+    SettingsGroup(stringResource(R.string.gate_sidequest), compact = compact) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Body(stringResource(R.string.gate_sidequest_steps))
+            AdbCommand()
+            PrimaryButton(stringResource(R.string.gate_copy_command), compact = compact, onClick = onCopyCommand)
+        }
+    }
+}
+
+@Composable
+private fun AdbCommand() {
+    Text(
+        PhantomProcessLimit.adbCommand(),
+        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
