@@ -148,7 +148,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + rememberXboxCloudRows(s)
+    val games = s.steamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
@@ -280,7 +280,7 @@ internal fun GameDetail(
 }
 
 @Composable
-private fun SourceBadge(source: String) {
+internal fun SourceBadge(source: String) {
     val c = sourceColours(source)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -309,7 +309,7 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
         item?.accessible == true -> listOf(stringResource(R.string.stores_eyebrow_library))
         else -> listOf(stringResource(R.string.stores_eyebrow_store))
     }
-    val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else (item?.sizeBytes ?: 0L).takeIf { it > 0 }
+    val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else catalogSize(item).takeIf { it > 0 }
     val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
     val muted = colors.onBackground.copy(alpha = 0.78f)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -399,6 +399,7 @@ internal fun GameActions(
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
     val cloud = game?.library == Library.XBOX_CLOUD && installed == null
+    val downloadBytes = catalogSize(item)
     Actions {
         when {
             s.shortcutPicker && game != null -> {
@@ -430,6 +431,7 @@ internal fun GameActions(
                         openUrl(ctx, item?.storeUrl.orEmpty().ifBlank { GameJoltApi.pageUrl("game", installed.sidecar.id) })
                     }
                 }
+                if (store == Store.EA && installed != null) EaUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
@@ -473,7 +475,7 @@ internal fun GameActions(
                 if (item?.installable == true && item.xboxPc) {
                     SecondaryButton(
                         if (StoresState.isUnfinished(item)) stringResource(R.string.stores_resume_install)
-                        else if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes))
+                        else if (downloadBytes > 0) stringResource(R.string.stores_install_size, formatBytes(downloadBytes))
                         else stringResource(R.string.stores_install),
                     ) { StoresState.requestInstall(ctx, item) }
                 }
@@ -491,7 +493,7 @@ internal fun GameActions(
             }
             item?.installable == true -> {
                 InstallButton(
-                    if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                    if (downloadBytes > 0) stringResource(R.string.stores_install_size, formatBytes(downloadBytes)) else stringResource(R.string.stores_install),
                     leadOn,
                 ) { StoresState.requestInstall(ctx, item) }
                 if (store == Store.XBOX && item.xboxCloud) {
@@ -504,7 +506,12 @@ internal fun GameActions(
                 InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
                 SecondaryButton(stringResource(R.string.stores_view_on, item.store.shortLabel)) { openStoreUrl(ctx, item) }
             }
-            item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
+            item != null && item.isFree -> {
+                val adding = StoresState.claiming[item.key] == true
+                PrimaryButton(stringResource(if (adding) R.string.stores_claiming else R.string.stores_get_free), enabled = !adding, main = true, modifier = leadOn) {
+                    if (StoresState.canClaim(item)) StoresState.claim(ctx, item) { openStoreUrl(ctx, item) } else openStoreUrl(ctx, item)
+                }
+            }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
         if (cloud && (download != null || failed != null)) {
@@ -567,13 +574,13 @@ private fun buyLabel(item: CatalogItem): String = when {
 }
 
 @Composable
-private fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
+internal fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) } }
     game.protonPrefix?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) } }
 }
 
 @Composable
-private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
+internal fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     Box {
         SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { open = !open }
@@ -586,7 +593,7 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
+internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     val ctx = LocalContext.current
     val folder = g.gameFiles
     return when {
@@ -600,7 +607,7 @@ private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
 }
 
 @Composable
-private fun EditArtButton(g: Library.SteamGame) {
+internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
     IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
 }
@@ -657,7 +664,7 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
+internal fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id && installed?.sidecar?.id?.let(BattleNetInstall::product) == null) return
@@ -915,7 +922,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 
 @Composable
 private fun CloudRows(g: Library.SteamGame) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
@@ -1008,6 +1015,13 @@ internal fun FactRow(label: String, value: String, labelWidth: androidx.compose.
         Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(labelWidth))
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
+}
+
+@Composable
+internal fun catalogSize(item: CatalogItem?): Long {
+    val ctx = LocalContext.current
+    if (item != null) LaunchedEffect(item.key, item.accessible) { StoreSizes.request(ctx, item) }
+    return item?.let { StoreSizes.size(it) } ?: 0L
 }
 
 @Composable

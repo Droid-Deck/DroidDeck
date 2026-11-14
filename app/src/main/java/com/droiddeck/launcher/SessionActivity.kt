@@ -121,6 +121,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
+import com.droiddeck.launcher.session.SessionLoadingDecision
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -150,7 +151,7 @@ import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
-class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
+class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -158,6 +159,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private lateinit var pip: com.droiddeck.launcher.session.SessionPipController
     private var pipUi by mutableStateOf(false)
+
+    override val petBlocked: Boolean get() = drawerOpenState || pipUi || pcKeyboardOpen
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
@@ -172,6 +175,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val alignment = if (!active) ALIGN_CENTER else when (picturePosition) {
             "top" -> ALIGN_PICTURE_TOP
             "bottom" -> ALIGN_PICTURE_BOTTOM
+            "left" -> ALIGN_PICTURE_LEFT
+            "right" -> ALIGN_PICTURE_RIGHT
             else -> ALIGN_CENTER
         }
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
@@ -286,6 +291,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var relativeMouseMode by mutableIntStateOf(0)
     @Volatile private var appliedRelativeMouseMode: Int? = null
+    private val agentReadyListener: () -> Unit = { relativeMouseRetries = 0; requestRelativeMouse() }
     private val appTextFocus get() = wowChat.request != null
     private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
     private var wowChatBottom: SecondScreenPresentation? = null
@@ -387,8 +393,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
     private val mouseBackInput = com.droiddeck.launcher.input.MouseBackInput(
         sendRight = { down -> heldButtons.set(32, PointerGestures.BTN_RIGHT, down) },
-        mouseAttached = ::mouseAttached,
+        mouseAttached = ::externalMouseAttached,
     )
+    private var lastExternalMouse: InputDevice? = null
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
     private var drawerDirectionDeviceId = -1
@@ -447,6 +454,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerDefaultProton by mutableStateOf<String?>(null)
     private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
+    private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -455,7 +463,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET,
         )) || SessionState.mode == SessionService.MODE_DESKTOP
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
-    private var drawerGameInventoryRevision = 0L
+    @Volatile private var drawerGameInventoryRevision = 0L
     private var drawerGameFexPresetSaving by mutableStateOf(false)
     private var drawerGameNoSteamSaving by mutableStateOf(false)
     private val drawerGameProfileFollowState = GameProfileFollowState()
@@ -551,8 +559,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
+    private var frameGenActiveGameId by mutableStateOf<Long?>(null)
+    private var frameGenActiveGameName by mutableStateOf<String?>(null)
+    private var frameGenHasGameOverride by mutableStateOf(false)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
+    private val frameGenActivityGeneration = synchronized(frameGenGlobalLock) {
+        frameGenGlobalGeneration.incrementAndGet()
+    }
+    @Volatile private var frameGenActivityActive = true
+    private val frameGenForcePending = java.util.concurrent.atomic.AtomicBoolean()
+    @Volatile private var frameGenInventoryIds: Set<Long>? = null
+    @Volatile private var frameGenInventoryRevision = -1L
+    private val frameGenInventoryLock = Any()
+    @Volatile private var frameGenInventoryLastAttemptAt = 0L
+    private val frameGenInventoryRetryScheduled = java.util.concurrent.atomic.AtomicBoolean()
+    private val frameGenInventoryRefreshScheduled = java.util.concurrent.atomic.AtomicBoolean()
+
+    @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
+    @Volatile private var appliedFrameGenHz: Float? = null
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
@@ -636,6 +661,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             padBridge?.syncConnectedControllers()
             refreshControls()
             updatePointerCapture()
+            requestRelativeMouse()
             updateHandCamera()
             refreshSecondScreenDisplays()
         }
@@ -651,12 +677,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (::padMouse.isInitialized) padMouse.reset()
             refreshControls()
             updatePointerCapture()
+            requestRelativeMouse()
             updateHandCamera()
             refreshSecondScreenDisplays()
         }
         override fun onInputDeviceChanged(deviceId: Int) {
             joyConVr?.refresh()
             refreshControls()
+            requestRelativeMouse()
             refreshSecondScreenDisplays()
         }
     }
@@ -665,6 +693,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AgentGuest.readyListener = agentReadyListener
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -850,7 +879,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
-            if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
+            CompositorHost.rearmFrameGen { applyFrameGen(force = true) }
         }
         if (SessionState.running && SessionState.firstFrameSeen) {
             loading.visible = false
@@ -883,8 +912,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } }
         glassesScope.launch { com.droiddeck.launcher.handtracking.HandTracking.settings.collect { updateHandCamera() } }
         glassesScope.launch {
+            var lastRunGameId: String? = null
             while (true) {
                 updateTrackingRecovery()
+                if (SessionState.mode == SessionService.MODE_RUN) {
+                    val gameId = SessionState.gameId
+                        ?.takeIf { it.toLongOrNull() != null }
+                        ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+                            ?.takeIf { it.toLongOrNull() != null }
+                    if (gameId != lastRunGameId) {
+                        lastRunGameId = gameId
+                        if (drawerGameProfileFollowState.followsSteam) {
+                            loadFrameGenFor(gameId?.toLongOrNull())
+                        }
+                        applyFrameGen()
+                    }
+                } else {
+                    lastRunGameId = null
+                }
                 kotlinx.coroutines.delay(100)
             }
         }
@@ -947,7 +992,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
                 if (pipUi != frameGenPip) {
                     frameGenPip = pipUi
-                    if (FrameGen.engine(this@SessionActivity) != FrameGen.ENGINE_OFF && ::surfaceView.isInitialized) applyFrameGen()
+                    if (::surfaceView.isInitialized) applyFrameGen()
                 }
             }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
@@ -1023,7 +1068,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
                     },
                 )
-                LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
+                LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty(), drawerGameInventoryRevision) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1036,10 +1081,39 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             }
                         }
                     }
+                    if (SessionState.mode == SessionService.MODE_STEAM) {
+                        val target = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val games = LibraryCache.load(this@SessionActivity)
+                            val cachedIds = games.mapNotNull { it.profileKey.toLongOrNull() }.toSet()
+                            val inventoryIds = synchronized(frameGenInventoryLock) {
+                                frameGenInventoryIds
+                            }.orEmpty()
+                            val id = AgentGuest.activeSteamAppId(
+                                this@SessionActivity, cachedIds + inventoryIds
+                            )
+                            val name = id?.let { activeId ->
+                                games.firstOrNull { it.profileKey == activeId.toString() }?.name
+                            }
+                            id to name
+                        }
+                        if (target.first != frameGenActiveGameId) {
+                            frameGenActiveGameId = target.first
+                            if (drawerGameProfileFollowState.followsSteam) {
+                                loadFrameGenFor(target.first)
+                            }
+                        }
+                        frameGenActiveGameName = target.second
+                    }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
                         refreshGestureConfig()
+                    }
+                    if (
+                        SessionState.mode == SessionService.MODE_STEAM &&
+                        CompositorHost.isStarted
+                    ) {
+                        applyFrameGen()
                     }
                     if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
@@ -1225,6 +1299,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
             textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
             frameGen = frameGen,
+            frameGenTargetGameId = frameGenTargetGameId()?.toString(),
+            frameGenTargetGameName = when {
+                !drawerGameProfileFollowState.followsSteam ->
+                    drawerGameProfileRefresh.data?.profiles
+                        ?.firstOrNull { it.first == frameGenTargetGameId() }?.second
+                SessionState.mode == SessionService.MODE_STEAM -> frameGenActiveGameName
+                SessionState.mode == SessionService.MODE_RUN ->
+                    com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program)
+                else -> drawerGameProfileRefresh.data?.profiles
+                    ?.firstOrNull { it.first == frameGenTargetGameId() }?.second
+            },
+            hasGameOverride = frameGenHasGameOverride,
             lossless = lossless,
             oscMode = oscMode, suspendPolicy = suspendPolicy,
             steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
@@ -1284,9 +1370,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
             },
             onFrameGenPick = { mode ->
-                FrameGen.set(this@SessionActivity, mode)
+                val appId = frameGenTargetGameId()
+
+                if (appId == null) FrameGen.set(this@SessionActivity, mode)
+                else FrameGen.setForGame(this@SessionActivity, appId.toString(), mode)
+                loadFrameGenFor(appId)
                 readPrefs()
-                applyFrameGen()
+                applyFrameGen(force = true)
+            },
+            onFrameGenReset = {
+                val appId = frameGenTargetGameId()
+
+                if (appId == null) FrameGen.clearGlobal(this@SessionActivity)
+                else FrameGen.clearGame(this@SessionActivity, appId.toString())
+                loadFrameGenFor(appId)
+                readPrefs()
+                applyFrameGen(force = true)
             },
             onImportLossless = {
                 pickLossless.launch(InAppFilePicker.buildIntent(
@@ -1619,9 +1718,35 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "drawer-components").start()
     }
 
+    private fun frameGenTargetGameId(): Long? {
+        if (!drawerGameProfileFollowState.followsSteam) {
+            return drawerGameProfileId
+        }
+        if (SessionState.mode == SessionService.MODE_RUN) {
+            return (
+                SessionState.gameId?.toLongOrNull()
+                    ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.toLongOrNull()
+            )
+        }
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            return frameGenActiveGameId
+        }
+        return drawerGameProfileId
+    }
+
+    private fun loadFrameGenFor(appId: Long?) {
+        val profileId = appId?.toString()
+        frameGen = FrameGen.mode(this, profileId)
+        frameGenHasGameOverride = appId?.let {
+            FrameGen.hasGameOverride(this, it.toString())
+        } == true
+    }
+
     private fun selectDrawerGameProfile(appId: Long?) {
         drawerGameProfileFollowState.selectManually()
+        drawerGameProfileSelectionMade = true
         drawerGameProfileId = appId
+        loadFrameGenFor(frameGenTargetGameId())
         drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
         readDrawerTextureFiltering(appId)
         refreshDrawerGameProfile()
@@ -1694,6 +1819,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (refresh.followsSteam) {
             if (drawerGameProfileFollowState.followsSteam) {
                 drawerGameProfileId = result.selectedAppId
+                loadFrameGenFor(result.selectedAppId)
                 readDrawerTextureFiltering(result.selectedAppId)
             }
         }
@@ -1718,6 +1844,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             gameProtonId = ProtonDefault.gameSelectedId(this, game.profileKey, protons),
             gameComponents = ComponentsManager.gameComponents(this, game.profileKey),
             gameWindowsComponents = WinComponents.picks(this, game.profileKey),
+            frameGenMode = FrameGen.mode(this, game.profileKey),
+            frameGenInherited = !FrameGen.hasGameOverride(this, game.profileKey),
         )
     }
 
@@ -1960,7 +2088,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val nextRoutedTouchMode = effectiveTouchMode()
         if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
         routedTouchMode = nextRoutedTouchMode
-        frameGen = FrameGen.mode(this)
+        requestRelativeMouse()
+        loadFrameGenFor(frameGenTargetGameId())
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
@@ -2247,7 +2376,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resized) {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
-            CompositorHost.resize(holder.surface) { applyFrameGen() }
+            CompositorHost.resize(holder.surface) { applyFrameGen(force = true) }
             resizeOutputForWindow(width, height)
         }
     }
@@ -2388,17 +2517,161 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun applyFrameGen() {
+    private fun frameGenModeForActiveGame(request: Int): FrameGen.Mode {
+        if (SessionState.mode == SessionService.MODE_RUN) {
+            val activeAppId = (
+                SessionState.gameId?.takeIf { it.toLongOrNull() != null }
+                    ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID)
+            )?.toLongOrNull()
+            return FrameGen.mode(this, activeAppId?.toString())
+        }
+
+        val cachedIds = LibraryCache.load(this)
+            .mapNotNull { it.profileKey.toLongOrNull() }
+            .toSet()
+
+        var inventoryRevision = drawerGameInventoryRevision
+        var ids = synchronized(frameGenInventoryLock) {
+            if (frameGenInventoryRevision != inventoryRevision) {
+                frameGenInventoryIds = null
+                frameGenInventoryRevision = inventoryRevision
+                frameGenInventoryLastAttemptAt = 0L
+            }
+            frameGenInventoryIds
+        }
+        if (ids == null) {
+            val now = SystemClock.elapsedRealtime()
+            val shouldScan = synchronized(frameGenInventoryLock) {
+                val currentRevision = drawerGameInventoryRevision
+                if (frameGenInventoryRevision != currentRevision) {
+                    frameGenInventoryIds = null
+                    frameGenInventoryRevision = currentRevision
+                    frameGenInventoryLastAttemptAt = 0L
+                }
+                inventoryRevision = currentRevision
+                if (frameGenInventoryIds != null) {
+                    false
+                } else if (
+                    frameGenInventoryLastAttemptAt != 0L &&
+                    now - frameGenInventoryLastAttemptAt < 15_000L
+                ) {
+                    false
+                } else {
+                    frameGenInventoryLastAttemptAt = now
+                    true
+                }
+            }
+
+            if (shouldScan) {
+                val currentIds = runCatching {
+                    Library.launchableGames(this, strictRead = true)
+                        .mapNotNull { it.profileKey.toLongOrNull() }
+                        .toSet()
+                }.getOrNull()
+
+                if (currentIds == null) {
+                    if (frameGenInventoryRetryScheduled.compareAndSet(false, true)) {
+                        uiHandler.postDelayed({
+                            frameGenInventoryRetryScheduled.set(false)
+                            val retry = synchronized(frameGenInventoryLock) {
+                                frameGenInventoryIds == null
+                            }
+                            if (retry && !isFinishing && !isDestroyed) {
+                                applyFrameGen()
+                            }
+                        }, 15_000L)
+                    }
+                } else {
+                    var published = false
+                    synchronized(frameGenInventoryLock) {
+                        if (drawerGameInventoryRevision == inventoryRevision &&
+                            frameGenInventoryRevision == inventoryRevision
+                        ) {
+                            ids = cachedIds + currentIds
+                            frameGenInventoryIds = ids
+                            published = true
+                        }
+                    }
+                    if (published) {
+                        if (frameGenInventoryRefreshScheduled.compareAndSet(false, true)) {
+                            uiHandler.postDelayed({
+                                frameGenInventoryRefreshScheduled.set(false)
+                                if (frameGenActivityActive && !isFinishing && !isDestroyed) {
+                                    synchronized(frameGenInventoryLock) {
+                                        frameGenInventoryIds = null
+                                        frameGenInventoryLastAttemptAt = 0L
+                                    }
+                                    applyFrameGen()
+                                }
+                            }, 15_000L)
+                        }
+                        if (frameGenRequests.get() != request) {
+                            applyFrameGen()
+                        }
+                    }
+                }
+            }
+
+            if (ids == null) {
+                ids = synchronized(frameGenInventoryLock) {
+                    frameGenInventoryIds
+                } ?: emptySet()
+            }
+        }
+
+        val activeAppId = AgentGuest.activeSteamAppId(
+            this, cachedIds + (ids ?: emptySet())
+        )
+        if (activeAppId == null) return FrameGen.Mode.OFF
+        return FrameGen.mode(this, activeAppId.toString())
+    }
+
+    private fun applyFrameGen(force: Boolean = false) {
+        val request = synchronized(frameGenGlobalLock) {
+            if (force) frameGenForcePending.set(true)
+            frameGenRequests.incrementAndGet()
+        }
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
-        val request = frameGenRequests.incrementAndGet()
         Thread({
-            val problem = synchronized(frameGenRequests) {
+            val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame(request)
+            val needsApply = synchronized(frameGenGlobalLock) {
+                if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@Thread
                 if (request != frameGenRequests.get()) return@Thread
-                if (pip) FrameGen.apply(this, FrameGen.Mode.OFF, hz) else FrameGen.apply(this, hz)
+                if (!frameGenActivityActive || isFinishing || isDestroyed) return@Thread
+                val lastAppliedHz = appliedFrameGenHz
+                frameGenForcePending.get() || appliedFrameGenMode == null ||
+                    mode != appliedFrameGenMode || lastAppliedHz == null ||
+                    kotlin.math.abs(lastAppliedHz - hz) > 0.1f
+            }
+            val prepared = if (needsApply) FrameGen.prepareApply(this, mode) else null
+            val problem = synchronized(frameGenGlobalLock) {
+                if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@Thread
+                if (request != frameGenRequests.get()) return@Thread
+                if (!frameGenActivityActive || isFinishing || isDestroyed) return@Thread
+                val forcePending = frameGenForcePending.get()
+                val lastAppliedHz = appliedFrameGenHz
+                if (!forcePending && appliedFrameGenMode != null && mode == appliedFrameGenMode &&
+                    lastAppliedHz != null && kotlin.math.abs(lastAppliedHz - hz) <= 0.1f
+                ) {
+                    null
+                } else {
+                    val ready = prepared ?: return@Thread
+                    frameGenForcePending.set(false)
+                    FrameGen.applyPrepared(this, ready, hz).also { problem ->
+                        if (problem == null) {
+                            appliedFrameGenMode = mode
+                            appliedFrameGenHz = hz
+                        } else {
+                            appliedFrameGenMode = null
+                            appliedFrameGenHz = null
+                        }
+                    }
+                }
             }
             val state = Lossless.state(this)
             runOnUiThread {
+                if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@runOnUiThread
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
             }
@@ -2415,12 +2688,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun importLossless(dll: File) {
         Thread({
-            val message = Lossless.message(this, Lossless.import(this, dll))
+            val result = Lossless.import(this, dll)
+            val message = Lossless.message(this, result)
             val state = Lossless.state(this)
             runOnUiThread {
                 lossless = state
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                if (FrameGen.engine(this) == FrameGen.ENGINE_LSFG) applyFrameGen()
+                applyFrameGen(force = result == Lossless.ImportResult.UPDATED)
             }
         }, "lossless-import").start()
     }
@@ -2429,6 +2703,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun watchSession() {
         val handler = Handler(Looper.getMainLooper())
         var ticks = 0
+        val loadingStartedAt = SystemClock.elapsedRealtime()
         val poll = object : Runnable {
             override fun run() {
                 if (!watching) return
@@ -2438,6 +2713,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionState.stopRequested = false
                     SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
                     collectStartArtifacts("session start cancelled")
+                    finish()
+                    return
+                }
+                if (loading.visible && !loading.ended && !SessionState.running && !installingRuntime &&
+                    SessionLoadingDecision.shouldReturnToLauncher(
+                        loadingStartedAt, SystemClock.elapsedRealtime(), SessionState.running, SessionState.phase)) {
                     finish()
                     return
                 }
@@ -2465,8 +2746,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val hint = sessionExitHint(status)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (status == 0) SessionState.relaunch?.let { next ->
-                    SessionState.relaunch = null
+                if (status == 0) SessionState.takeRelaunch()?.let { next ->
                     next.putExtra(EXTRA_RETURN_HOME, intent.getBooleanExtra(EXTRA_RETURN_HOME, false))
                     next.putExtra(EXTRA_LINK_TASK, intent.getIntExtra(EXTRA_LINK_TASK, -1))
                     setIntent(next)
@@ -2621,6 +2901,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
                 val steamVolume =
@@ -2668,7 +2949,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         val mouseToGuest = !pipUi && !appTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen &&
             !SessionState.suspended && !(::loading.isInitialized && (loading.visible || loading.ended))
-        if (mouseBackInput.onKeyEvent(event, mouseToGuest)) return true
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            com.droiddeck.launcher.input.MouseBackInput.isInjectedBack(event)) lastExternalMouse = null
+        val mouseBackHandled = mouseBackInput.onKeyEvent(event, mouseToGuest)
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            com.droiddeck.launcher.input.MouseBackInput.isInjectedBack(event) && mouseToGuest) {
+            val device = lastExternalMouse
+            if (mouseBackHandled && device != null) {
+                Log.i(TAG, String.format(java.util.Locale.ROOT,
+                    "injected Back right-click mouse=\"%s\" (%04x:%04x, id %d, sources 0x%x, external=%s, virtual=%s)",
+                    device.name, device.vendorId, device.productId, device.id, device.sources,
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || device.isExternal, device.isVirtual))
+            } else if (!mouseBackHandled) {
+                Log.i(TAG, "injected Back no external mouse found")
+            }
+        }
+        if (mouseBackHandled) return true
         val backToQam = !pipUi && !appTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             !inputSettingsOpen && !gestureSettingsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
@@ -2981,7 +3277,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun applyRelativeMouse() {
-        val mode = desiredRelativeMouseMode
+        val wanted = desiredRelativeMouseMode
+        val touchpadRoute = com.droiddeck.launcher.input.TouchRouter.decide(com.droiddeck.launcher.input.TouchRouter.Snapshot(
+            uiBlocking = false,
+            mode = routedTouchMode,
+            scrollLayer = false,
+            steamSession = SessionState.mode == SessionService.MODE_STEAM,
+            steamDesktopUi = SessionState.steamUi == "desktop",
+        )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
+        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
         if (appliedRelativeMouseMode == mode) return
         val request = org.json.JSONObject()
             .put("kind", "exec")
@@ -2997,7 +3301,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
             if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
         }
-        if (desiredRelativeMouseMode != mode) requestRelativeMouse()
+        if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
     }
 
     private fun refreshGestureConfig() {
@@ -3192,12 +3496,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             cursorVisible = false
             return
         }
-        val rect = drawnRect() ?: return
+        val rect = if (glassesOutputActive) pointerSurfaceRect() else drawnRect()
+        val pointerRect = rect ?: return
         val position = cursorPos
-        val x = if (position.x >= 0f) position.x.coerceIn(rect.left, rect.right) else rect.centerX()
-        val y = if (position.y >= 0f) position.y.coerceIn(rect.top, rect.bottom) else rect.centerY()
+        val x = if (position.x >= 0f) position.x.coerceIn(pointerRect.left, pointerRect.right) else pointerRect.centerX()
+        val y = if (position.y >= 0f) position.y.coerceIn(pointerRect.top, pointerRect.bottom) else pointerRect.centerY()
         val out = SessionState.outputSize
-        movePointer(x + dx * rect.width() / out.first, y + dy * rect.height() / out.second)
+        val nextX = (x + dx * pointerRect.width() / out.first)
+            .coerceIn(pointerRect.left, pointerRect.right)
+        val nextY = (y + dy * pointerRect.height() / out.second)
+            .coerceIn(pointerRect.top, pointerRect.bottom)
+        movePointer(nextX, nextY)
         // Make frame-callback updates visible to drawing before this frame's traversal.
         androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
     }
@@ -3445,49 +3754,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
-        openSettings = ::openSettingsBelow,
         runningGame = { gestureGame },
     ))
-
-    private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
-        val presentation = secondScreenPresentation
-        if (presentation == null) {
-            if (!bottomOutputActive) return
-            listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
-                runCatching { startActivity(android.content.Intent(it)) }
-                    .onFailure { e -> Log.w(TAG, "could not open ${it.action}", e) }
-                    .isSuccess
-            }
-            return
-        }
-        val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
-        val opened = listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
-            runCatching { startActivity(android.content.Intent(it).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK), options.toBundle()) }
-                .onFailure { e -> Log.w(TAG, "could not open ${it.action} on display ${presentation.display.displayId}", e) }
-                .isSuccess
-        }
-        if (!opened) return
-        presentation.hide()
-        var checks = 0
-        fun showAgain() {
-            try {
-                presentation.show()
-            } catch (e: Exception) {
-                Log.w(TAG, "could not show the dashboard again", e)
-                if (secondScreenPresentation === presentation) closeSecondScreen(reset = true)
-            }
-        }
-        uiHandler.postDelayed(object : Runnable {
-            override fun run() {
-                if (secondScreenPresentation !== presentation || presentation.isShowing) return
-                if (done()) {
-                    showAgain()
-                    return
-                }
-                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS) else showAgain()
-            }
-        }, SETTINGS_WATCH_MS)
-    }
 
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {
         val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
@@ -3854,6 +4122,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
         gestureTouchStreamGate.reset()
         routedTouchMode = next
+        requestRelativeMouse()
         if (directTouchCursorHidden()) cursorVisible = false
     }
 
@@ -3946,8 +4215,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val width = outputView().width.takeIf { it > 0 } ?: return null
         val height = outputView().height.takeIf { it > 0 } ?: return null
         topPictureMapped = CompositorHost.isStarted && WaylandCompositor.nativeGamePictureRect(gamePictureBounds)
-        if (topPictureMapped) return android.graphics.RectF(
-            gamePictureBounds[0], gamePictureBounds[1], gamePictureBounds[2], gamePictureBounds[3])
+        if (topPictureMapped) {
+            val rect = android.graphics.RectF(
+                gamePictureBounds[0], gamePictureBounds[1],
+                gamePictureBounds[2], gamePictureBounds[3]
+            )
+
+            if (glassesOutputActive) {
+                val mode = glassesScreen?.display?.mode ?: return null
+                val outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
+                val outputHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
+                val scaleX = width.toFloat() / outputWidth
+                val scaleY = height.toFloat() / outputHeight
+
+                return android.graphics.RectF(
+                    rect.left * scaleX,
+                    rect.top * scaleY,
+                    rect.right * scaleX,
+                    rect.bottom * scaleY
+                )
+            }
+
+            return rect
+        }
         val out = SessionState.outputSize
         val scale = minOf(width / out.first.toFloat(), height / out.second.toFloat())
         val drawnW = out.first * scale
@@ -4152,6 +4442,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
         isHardwareMouse(d) && d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) != true
+    }
+
+    private fun externalMouseAttached(): Boolean {
+        lastExternalMouse = InputDevice.getDeviceIds().map { InputDevice.getDevice(it) }
+            .firstOrNull { device -> device != null && com.droiddeck.launcher.input.MouseBackInput.isExternalMouse(device) }
+        return lastExternalMouse != null
     }
 
     private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && InputDevice.getDeviceIds().any { id ->
@@ -4677,12 +4973,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        drawerGameInventoryRevision++
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
         }
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
+        if (CompositorHost.isStarted) applyFrameGen(force = true)
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
@@ -5360,6 +5658,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        synchronized(frameGenGlobalLock) {
+            frameGenActivityActive = false
+            frameGenRequests.incrementAndGet()
+        }
+        if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
@@ -5470,11 +5773,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val PAUSED_FRAME_REDRAW_MS = 150L
-        private const val SETTINGS_WATCH_MS = 1_000L
-        private const val SETTINGS_WATCH_CHECKS = 600
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"
+        private val frameGenGlobalLock = Any()
+        private val frameGenGlobalGeneration = java.util.concurrent.atomic.AtomicLong(0L)
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
@@ -5513,6 +5816,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val ALIGN_CENTER = 0
         private const val ALIGN_PICTURE_TOP = 3
         private const val ALIGN_PICTURE_BOTTOM = 4
+        private const val ALIGN_PICTURE_LEFT = 5
+        private const val ALIGN_PICTURE_RIGHT = 6
         private val RUNTIME_LINES = PackageLines(
             R.string.session_runtime_downloading, R.string.session_runtime_downloading_mb,
             R.string.session_runtime_checking, R.string.session_runtime_unpacking,

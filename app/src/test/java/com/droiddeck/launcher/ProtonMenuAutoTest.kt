@@ -83,7 +83,9 @@ class ProtonMenuAutoTest {
 
     private fun install(name: String): File = File(root, "root/.local/share/Steam/compatibilitytools.d/$name").apply {
         mkdirs()
-        File(this, "toolmanifest.vdf").writeText("manifest")
+        File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
+        File(this, "compatibilitytool.vdf").writeText("\"from_oslist\" \"windows\"")
+        File(this, "proton").apply { writeText(""); setExecutable(true) }
     }
 
     private fun waitUntil(done: () -> Boolean) {

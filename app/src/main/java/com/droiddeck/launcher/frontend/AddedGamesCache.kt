@@ -7,7 +7,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 internal class AddedGamesCache(val file: File) {
-    private class Rank(val modified: Long, val at: Long, val ranking: GameExePicker.Ranking)
+    private class Rank(val modified: Long, val declared: Long, val at: Long, val ranking: GameExePicker.Ranking)
     private class Name(val name: String, val at: Long)
 
     private val ranks = ConcurrentHashMap<String, Rank>()
@@ -22,7 +22,7 @@ internal class AddedGamesCache(val file: File) {
                 val exes = o.getJSONArray("exes")
                 val scores = o.getJSONArray("scores")
                 require(exes.length() > 0 && exes.length() == scores.length())
-                ranks[path] = Rank(o.getLong("modified"), o.getLong("at"), GameExePicker.Ranking(
+                ranks[path] = Rank(o.getLong("modified"), o.optLong("declared"), o.getLong("at"), GameExePicker.Ranking(
                     List(exes.length()) { File(exes.getString(it)) }, List(scores.length()) { scores.getInt(it) }, o.optBoolean("uncertain"),
                 ))
             }
@@ -32,19 +32,19 @@ internal class AddedGamesCache(val file: File) {
         }
     }
 
-    fun rank(folder: File): GameExePicker.Ranking? {
+    fun rank(folder: File, declared: Long = 0): GameExePicker.Ranking? {
         val kept = ranks[folder.path] ?: return null
         val age = System.currentTimeMillis() - kept.at
         val top = kept.ranking.exes.first()
-        return kept.ranking.takeIf { kept.modified == folder.lastModified() && age in 0 until KEEP_MS && top.isFile }
+        return kept.ranking.takeIf { kept.modified == folder.lastModified() && kept.declared == declared && age in 0 until KEEP_MS && top.isFile }
     }
 
-    fun keepRank(folder: File, ranking: GameExePicker.Ranking) {
+    fun keepRank(folder: File, ranking: GameExePicker.Ranking, declared: Long = 0) {
         if (ranking.exes.isEmpty()) {
             if (ranks.remove(folder.path) != null) changed = true
             return
         }
-        ranks[folder.path] = Rank(folder.lastModified(), System.currentTimeMillis(), ranking)
+        ranks[folder.path] = Rank(folder.lastModified(), declared, System.currentTimeMillis(), ranking)
         changed = true
     }
 
@@ -62,7 +62,7 @@ internal class AddedGamesCache(val file: File) {
         val oldest = System.currentTimeMillis() - KEEP_MS
         val keptRanks = JSONObject()
         ranks.forEach { (path, r) ->
-            if (r.at >= oldest) keptRanks.put(path, JSONObject().put("modified", r.modified).put("at", r.at)
+            if (r.at >= oldest) keptRanks.put(path, JSONObject().put("modified", r.modified).put("declared", r.declared).put("at", r.at)
                 .put("exes", JSONArray(r.ranking.exes.map { it.path })).put("scores", JSONArray(r.ranking.scores))
                 .put("uncertain", r.ranking.uncertain))
         }

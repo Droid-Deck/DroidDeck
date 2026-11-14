@@ -39,6 +39,7 @@ object BottomDesktop {
         val sessionDir: File,
         val generation: Int,
         val installed: Boolean,
+        val nativeUserland: Boolean,
     )
 
     @Volatile private var launch: Launch? = null
@@ -89,10 +90,11 @@ object BottomDesktop {
         root: File,
         sessionDir: File,
         generation: Int,
+        nativeUserland: Boolean,
         stillCurrent: () -> Boolean,
     ) {
         val prepared = Launch(ArrayList(guest), ArrayList(binds), sessionRoot, hostEnvironment.copyOf(), root, sessionDir, generation,
-            DesktopCatalog.desktopInstalled(root))
+            DesktopCatalog.desktopInstalled(root), nativeUserland)
         synchronized(launchLock) { if (stillCurrent()) launch = prepared }
     }
 
@@ -320,9 +322,17 @@ object BottomDesktop {
                 add("BL_IME_DIR=" + imeDir.path)
                 add(SCRIPT)
             }
-            val command = LinuxRuntime.commandWithBinds(context, current.root, binds, guest)
+            val command = if (current.nativeUserland) {
+                com.droiddeck.launcher.runtime.NativeGuest.command(current.root, guest.first(), guest.drop(1))
+            } else {
+                LinuxRuntime.commandWithBinds(context, current.root, binds, guest)
+            }
+            val environment = if (current.nativeUserland) {
+                com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(current.root, binds, SessionPrefs.guestHostname(context))
+                    .map { (k, v) -> "$k=$v" }.toTypedArray()
+            } else current.hostEnvironment
             val line = command.joinToString(" ") { it.replace("\\", "\\\\").replace(" ", "\\ ") }
-            val pid = HostProcess.start(line, current.hostEnvironment, current.root, { status ->
+            val pid = HostProcess.start(line, environment, current.root, { status ->
                 main.post {
                     if (generation != guestGeneration) return@post
                     Log.i(TAG, "the desktop ended ($status)")

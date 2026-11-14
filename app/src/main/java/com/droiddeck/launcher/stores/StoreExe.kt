@@ -3,7 +3,8 @@ package com.droiddeck.launcher.stores
 import java.io.File
 
 object StoreExe {
-    private val SKIP = listOf("redist", "unins", "setup", "crash", "report", "helper", "dotnet", "vcredist", "directx", "eac", "easyanticheat", "battleye", "launcher", "updater", "config")
+    private val SKIP = listOf("redist", "unins", "setup", "crash", "report", "helper", "dotnet", "vcredist", "directx", "eac", "easyanticheat", "battleye", "launcher", "updater", "config", "installer", "autorun")
+    private val SKIP_DIRS = setOf("installer_resources", "redist", "_commonredist", "support")
 
     fun pick(folder: File, hint: String?, title: String): String {
         val hinted = hint?.takeIf { it.isNotBlank() }?.replace('\\', '/')?.trimStart('/')?.let { File(folder, it) }
@@ -28,7 +29,7 @@ object StoreExe {
                 if (SKIP.none { lower.contains(it) }) out.add(f)
             }
         }
-        for (f in files) if (f.isDirectory && !f.name.startsWith(".")) collect(f, out, depth + 1)
+        for (f in files) if (f.isDirectory && !f.name.startsWith(".") && f.name.lowercase() !in SKIP_DIRS) collect(f, out, depth + 1)
     }
 
     private fun depth(root: File, f: File): Int = relative(root, f).count { it == '/' }
