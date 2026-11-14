@@ -1322,14 +1322,14 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
 
         surface_drop_idle(s);
         buf_trace_attach(buffer);
-        if (s->role == ROLE_CURSOR) {
+        if (s->role == ROLE_CURSOR && s == g_cursor_surface) {
             if (!buffer) {
                 cursor_publish_hidden();
             } else {
                 cursor_publish_buffer(s, buffer);
                 send_buffer_release(buffer);
             }
-        } else if (s->role == ROLE_NONE) {
+        } else if (s->role == ROLE_NONE || s->role == ROLE_CURSOR) {
             if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
             take_dmabuf(s, db, buffer);
