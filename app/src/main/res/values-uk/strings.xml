@@ -1470,11 +1470,6 @@
     <string name="rail_more">Ще</string>
     <string name="more_edit_tabs">Редагувати вкладки</string>
     <string name="setup_group_tabs">Вкладки</string>
-    <string name="tabs_place_bar">Показано</string>
-    <string name="tabs_place_more">У «Ще»</string>
-    <string name="tabs_place_hidden">Приховано</string>
-    <string name="tabs_move_up">Перемістити %1$s вгору</string>
-    <string name="tabs_move_down">Перемістити %1$s вниз</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Продовжити %1$s</string>
     <string name="roms_text">У кожному сеансі з’являється як /root/ROMs. Внутрішня пам’ять доступна в /root/Storage.</string>

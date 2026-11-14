@@ -1454,11 +1454,6 @@
     <string name="rail_more">Mer</string>
     <string name="more_edit_tabs">Redigera flikar</string>
     <string name="setup_group_tabs">Flikar</string>
-    <string name="tabs_place_bar">Visas</string>
-    <string name="tabs_place_more">I Mer</string>
-    <string name="tabs_place_hidden">Dold</string>
-    <string name="tabs_move_up">Flytta upp %1$s</string>
-    <string name="tabs_move_down">Flytta ner %1$s</string>
     <string name="rail_percent">%1$d %%</string>
     <string name="rail_resume_named">Återuppta %1$s</string>
     <string name="roms_text">Visas som /root/ROMs i varje session. Det interna lagringsutrymmet finns på /root/Storage.</string>
