@@ -42,6 +42,59 @@ class SessionSuspendControllerTest {
         assertFalse(File(fixture.control.parentFile, ".bl-zram.ack.$GAME").exists())
     }
 
+    @Test fun pageOutSkipsSessionsThatWouldFillTheSwap() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 8_000_000L
+        fixture.swapFreeKb = 5_999_999L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertEquals(listOf(Triple(0, 4_000_000L, 0L)), fixture.pagedOut)
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertEquals("0", fixture.control.readText())
+    }
+
+    @Test fun pageOutSkipsWhenSwapIsUnavailable() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 0L
+        fixture.swapFreeKb = 0L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        fixture.controller.resume { assertTrue(it) }
+        assertEquals("0", fixture.control.readText())
+    }
+
+    @Test fun pageOutProceedsWhenTheSwapKeepsItsReserve() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 8_000_000L
+        fixture.swapFreeKb = 6_000_000L
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertEquals(listOf(GAME), fixture.signals.filter { it.signal == URG }.map { it.pid })
+    }
+
+    @Test fun pageOutSkipsCandidatesWithoutResidentMemoryReadings() {
+        val fixture = fixture(17)
+        fixture.groups += fixture.extra
+        fixture.control.writeText("0")
+        fixture.swapTotalKb = 8_000_000L
+        fixture.swapFreeKb = 6_000_000L
+        fixture.missingGameResident = true
+        fixture.sync()
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertEquals(listOf(EXTRA), fixture.signals.filter { it.signal == URG }.map { it.pid })
+        assertEquals(listOf(Triple(1, 1_000_000L, 1_000_000L)), fixture.pagedOut)
+        assertEquals(0, fixture.unacknowledged)
+        assertEquals(4_000_000L, fixture.residentKb.getValue(GAME))
+        assertEquals(0L, fixture.swapKb.getValue(GAME))
+    }
+
     @Test fun unchangedSwapIsNotTakenForAFinishedPageOut() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -464,6 +517,7 @@ class SessionSuspendControllerTest {
     private class Fixture(val proc: File, tmp: File, count: Int, executor: QueueExecutor) {
         val root = Group(ROOT, 9000, 0, mutableListOf(Task(ROOT, 1000, 'S')))
         val game = Group(GAME, ROOT, ROOT, MutableList(count) { Task(GAME + it, 2000L + it, 'S') })
+        val extra = Group(EXTRA, ROOT, ROOT, mutableListOf(Task(EXTRA, 3000, 'S')))
         val groups = mutableListOf(root, game)
         val helpers = mutableListOf<Int>()
         val signals = mutableListOf<SentSignal>()
@@ -474,6 +528,7 @@ class SessionSuspendControllerTest {
         var neverStop = false
         var blockGameContinue = false
         var missingGameStat = false
+        var missingGameResident = false
         var missingGameTasks = false
         var emptyGameTasks = false
         var rootGone = false
@@ -487,10 +542,12 @@ class SessionSuspendControllerTest {
         var availableKb = 8_000_000L
         var totalKb = 16_000_000L
         var readBackAllowed = true
-        private var gameResidentKb = 4_000_000L
-        private var gameSwapKb = 0L
-        private var pagingOut = false
-        private var pagingIn = false
+        var swapTotalKb = 16_000_000L
+        var swapFreeKb = 16_000_000L
+        val residentKb = mutableMapOf(GAME to 4_000_000L, EXTRA to 2_000_000L)
+        val swapKb = mutableMapOf(GAME to 0L, EXTRA to 0L)
+        private val pagingOut = mutableSetOf<Int>()
+        private val pagingIn = mutableSetOf<Int>()
         var unacknowledged = -1
         var handlerStalls = false
         var handlerReplaced = false
@@ -522,7 +579,7 @@ class SessionSuspendControllerTest {
                     it.state !in listOf('T', 't', 'Z', 'X') && !(neverStop && it == game.threads.last())
                 }?.state = 't'
             } else if (signal == URG) {
-                if (control.readText() == "0") { pagingOut = false; pagingIn = true } else pagingOut = true
+                if (control.readText() == "0") { pagingOut -= pid; pagingIn += pid } else pagingOut += pid
             } else if (signal == CONT) {
                 if (clockAtContinue == null && clock.isFile) {
                     clockAtContinue = ByteBuffer.wrap(clock.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long
@@ -544,23 +601,24 @@ class SessionSuspendControllerTest {
 
         private fun sleep(millis: Long) {
             now += millis
-            if (pagingOut && !handlerReplaced) {
-                File(control.parentFile, "${control.name}.ack.$GAME").apply { if (!exists()) writeText("") }
-            }
-            if (pagingOut && !handlerStalls && !handlerReplaced) {
-                if (gameResidentKb > 1_000_000L) {
-                    gameResidentKb -= 1_000_000L
-                    gameSwapKb += 1_000_000L
+            for (pid in pagingOut.toList()) {
+                if (handlerReplaced) continue
+                val ack = File(control.parentFile, "${control.name}.ack.$pid")
+                if (!ack.exists()) ack.writeText("")
+                if (handlerStalls) continue
+                if (residentKb.getValue(pid) > 1_000_000L) {
+                    residentKb[pid] = residentKb.getValue(pid) - 1_000_000L
+                    swapKb[pid] = swapKb.getValue(pid) + 1_000_000L
                 } else {
-                    File(control.parentFile, "${control.name}.ack.$GAME").writeText("1")
-                    pagingOut = false
+                    ack.writeText("1")
+                    pagingOut -= pid
                 }
             }
-            if (pagingIn) {
-                val moved = minOf(gameSwapKb, 1_000_000L)
-                gameSwapKb -= moved
-                gameResidentKb += moved
-                if (gameSwapKb == 0L) pagingIn = false
+            for (pid in pagingIn.toList()) {
+                val moved = minOf(swapKb.getValue(pid), 1_000_000L)
+                swapKb[pid] = swapKb.getValue(pid) - moved
+                residentKb[pid] = residentKb.getValue(pid) + moved
+                if (swapKb.getValue(pid) == 0L) pagingIn -= pid
             }
             if (root.threads.first().state != 'T' && !continuing) game.threads.forEach {
                 if (it.state != 'Z') { it.state = 'S'; it.cpu++ }
@@ -570,7 +628,7 @@ class SessionSuspendControllerTest {
         }
 
         fun sync() {
-            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n")
+            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\nSwapTotal:\t$swapTotalKb kB\nSwapFree:\t$swapFreeKb kB\n")
             for (group in groups) {
                 val dir = File(proc, group.pid.toString())
                 if (group == root && rootGone) { dir.deleteRecursively(); continue }
@@ -578,11 +636,15 @@ class SessionSuspendControllerTest {
                 val stat = File(dir, "stat")
                 if (group == game && missingGameStat) stat.delete()
                 else stat.writeText(stat(group, group.threads.first()))
-                File(dir, "status").writeText(
-                    "TracerPid: ${group.tracer}\n" +
-                        if (group == game) "VmRSS:\t$gameResidentKb kB\nVmSwap:\t$gameSwapKb kB\n" else "",
-                )
-                if (group == game) File(dir, "maps").writeText("7f00000000-7f00001000 r-xp 00000000 fe:05 42  /usr/local/lib/libblsession.so\n")
+                val memory = when {
+                    group == game && missingGameResident -> "VmSwap:\t${swapKb[GAME]} kB\n"
+                    group.pid in residentKb -> "VmRSS:\t${residentKb[group.pid]} kB\nVmSwap:\t${swapKb[group.pid]} kB\n"
+                    else -> ""
+                }
+                File(dir, "status").writeText("TracerPid: ${group.tracer}\n$memory")
+                if (group == game || group == extra) {
+                    File(dir, "maps").writeText("7f00000000-7f00001000 r-xp 00000000 fe:05 42  /usr/local/lib/libblsession.so\n")
+                }
                 val taskDir = File(dir, "task")
                 if (group == game && missingGameTasks) { taskDir.deleteRecursively(); continue }
                 taskDir.mkdirs()
@@ -629,6 +691,7 @@ class SessionSuspendControllerTest {
     private companion object {
         const val ROOT = 100
         const val GAME = 200
+        const val EXTRA = 300
         const val STOP = 19
         const val CONT = 18
         const val URG = 23

@@ -47,6 +47,8 @@ internal class SessionSuspendController(
         val tracer: Int,
     )
 
+    private data class ProcessMemory(val residentKb: Long?, val swapKb: Long?)
+
     private data class TaskIdentity(val process: ProcessRecord, val tid: Int, val started: Long)
 
     @Volatile private var closing = false
@@ -284,14 +286,20 @@ internal class SessionSuspendController(
         } catch (_: IOException) {
             return
         }
-        val targets = records.values.filter { record ->
+        val preloaded = records.values.filter { record ->
             try {
                 File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libblsession.so") } }
             } catch (_: IOException) {
                 false
             }
         }
-        if (targets.isEmpty()) return
+        if (preloaded.isEmpty()) return
+        val targets = withinSwapBudget(preloaded)
+        if (targets.isEmpty()) {
+            val swap = memoryKb(preloaded)
+            pagedOut(0, 0, swap.first, swap.second, swap.second, 0)
+            return
+        }
         pagedOutTargets = (pagedOutTargets + targets).distinct()
         val acks = targets.associateWith { File(control.parentFile, "${control.name}.ack.${it.pid}") }
         acks.values.forEach { it.delete() }
@@ -315,7 +323,14 @@ internal class SessionSuspendController(
         val targets = pagedOutTargets.filterNot { isGone(it) }
         pagedOutTargets = emptyList()
         val control = zramControl?.takeIf { it.isFile } ?: return
-        if (targets.isEmpty() || closing) return
+        if (closing) return
+        if (targets.isEmpty()) {
+            try {
+                control.writeText("0")
+            } catch (_: IOException) {
+            }
+            return
+        }
         val before = memoryKb(targets).second
         val (total, available) = meminfoKb()
         if (!readBackAllowed() || !canTake(before, total, available)) {
@@ -345,21 +360,36 @@ internal class SessionSuspendController(
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
     }
 
+    private fun withinSwapBudget(candidates: List<ProcessRecord>): List<ProcessRecord> {
+        val residents = candidates.mapNotNull { record ->
+            processMemoryKb(record)?.residentKb?.let { record to it }
+        }
+        val (total, free) = swapKb()
+        if (total <= 0L || free <= 0L) return emptyList()
+        var budget = free - total * SWAP_RESERVE_PERCENT / 100
+        return residents.sortedByDescending { it.second }.filter { (_, resident) ->
+            (resident <= budget).also { if (it) budget -= resident }
+        }.map { it.first }
+    }
+
     private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
         availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
             availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
 
-    private fun meminfoKb(): Pair<Long, Long> = try {
-        val values = HashMap<String, Long>()
-        File(procRoot, "meminfo").forEachLine { line ->
-            val name = line.substringBefore(':')
-            if (name == "MemTotal" || name == "MemAvailable") {
-                line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
-            }
-        }
-        (values["MemTotal"] ?: 0L) to (values["MemAvailable"] ?: 0L)
+    private fun memoryInfo() = try {
+        MemoryReadout.parseMeminfo(File(procRoot, "meminfo").readText())
     } catch (_: IOException) {
-        0L to 0L
+        null
+    }
+
+    private fun meminfoKb(): Pair<Long, Long> {
+        val info = memoryInfo() ?: return 0L to 0L
+        return info.totalKb to info.availableKb
+    }
+
+    private fun swapKb(): Pair<Long, Long> {
+        val info = memoryInfo() ?: return 0L to 0L
+        return info.swapTotalKb to info.swapFreeKb
     }
 
     private fun isGone(record: ProcessRecord): Boolean =
@@ -369,17 +399,25 @@ internal class SessionSuspendController(
         var resident = 0L
         var swap = 0L
         for (record in records) {
-            try {
-                File(procRoot, "${record.pid}/status").useLines { lines ->
-                    for (line in lines) {
-                        val kb = line.substringAfter(':').trim().substringBefore(' ').toLongOrNull() ?: continue
-                        if (line.startsWith("VmRSS:")) resident += kb else if (line.startsWith("VmSwap:")) swap += kb
-                    }
-                }
-            } catch (_: IOException) {
-            }
+            val memory = processMemoryKb(record) ?: continue
+            resident += memory.residentKb ?: 0L
+            swap += memory.swapKb ?: 0L
         }
         return resident to swap
+    }
+
+    private fun processMemoryKb(record: ProcessRecord): ProcessMemory? = try {
+        var resident: Long? = null
+        var swap: Long? = null
+        File(procRoot, "${record.pid}/status").useLines { lines ->
+            for (line in lines) {
+                val kb = line.substringAfter(':').trim().substringBefore(' ').toLongOrNull() ?: continue
+                if (line.startsWith("VmRSS:")) resident = kb else if (line.startsWith("VmSwap:")) swap = kb
+            }
+        }
+        ProcessMemory(resident, swap)
+    } catch (_: IOException) {
+        null
     }
 
     private fun stop(records: List<ProcessRecord>) {
@@ -459,6 +497,7 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val SWAP_RESERVE_PERCENT = 25L
         const val READ_BACK_POLL_MS = 100L
         const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L
