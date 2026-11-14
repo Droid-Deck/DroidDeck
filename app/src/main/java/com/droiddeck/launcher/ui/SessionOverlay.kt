@@ -709,7 +709,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             a.pen?.let {
-                                PenSettingsGroup(host, it, stringResource(R.string.drawer_touch_auto, a.penAuto),
+                                PenSettingsGroup(host, it, stringResource(R.string.drawer_touch_auto, a.penAuto), a.desktop,
                                     track = { key -> focus.track(page, key) }, onPick = a.onPen)
                             }
                             SettingsGroup(stringResource(R.string.input_screen_visibility)) {

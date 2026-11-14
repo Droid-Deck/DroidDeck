@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Kosketus</string>
     <string name="mode_pen_note">Automaattinen: piirtopöytä Työpöydällä sitä tukevissa sovelluksissa, muualla hiiri.</string>
     <string name="mode_pen_button">Sivupainike</string>
+    <string name="mode_pen_pressure">Paine</string>
+    <string name="mode_pen_pressure_soft">Pehmeä</string>
+    <string name="mode_pen_pressure_normal">Normaali</string>
+    <string name="mode_pen_pressure_firm">Jäykkä</string>
     <string name="mode_osc">Näytön ohjaimet</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaattinen näyttää ohjaimet, kun yhtään ohjainta ei ole kytketty.</string>

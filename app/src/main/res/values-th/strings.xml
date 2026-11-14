@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">การสัมผัส</string>
     <string name="mode_pen_note">อัตโนมัติ: แท็บเล็ตในแอปที่รองรับบนเดสก์ท็อป เมาส์ในกรณีอื่น</string>
     <string name="mode_pen_button">ปุ่มด้านข้าง</string>
+    <string name="mode_pen_pressure">แรงกด</string>
+    <string name="mode_pen_pressure_soft">เบา</string>
+    <string name="mode_pen_pressure_normal">ปกติ</string>
+    <string name="mode_pen_pressure_firm">หนัก</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>

@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Dotyk</string>
     <string name="mode_pen_note">Auto: tablet na pulpicie w aplikacjach, które go obsługują, w pozostałych przypadkach mysz.</string>
     <string name="mode_pen_button">Przycisk boczny</string>
+    <string name="mode_pen_pressure">Nacisk</string>
+    <string name="mode_pen_pressure_soft">Miękki</string>
+    <string name="mode_pen_pressure_normal">Normalny</string>
+    <string name="mode_pen_pressure_firm">Twardy</string>
     <string name="mode_osc">Sterowanie ekranowe</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto pokazuje sterowanie, gdy nie jest podłączony żaden kontroler.</string>

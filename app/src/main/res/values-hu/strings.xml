@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Érintés</string>
     <string name="mode_pen_note">Automatikus: rajztábla az Asztalon az ezt támogató alkalmazásokban, máshol egér.</string>
     <string name="mode_pen_button">Oldalsó gomb</string>
+    <string name="mode_pen_pressure">Nyomás</string>
+    <string name="mode_pen_pressure_soft">Lágy</string>
+    <string name="mode_pen_pressure_normal">Normál</string>
+    <string name="mode_pen_pressure_firm">Erős</string>
     <string name="mode_osc">Képernyőn megjelenő vezérlők</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Az Automatikus megjeleníti a vezérlőket, ha nincs csatlakoztatott kontroller.</string>

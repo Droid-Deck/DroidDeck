@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Докосване</string>
     <string name="mode_pen_note">Автоматично: таблет на работния плот в приложенията, които го поддържат, мишка навсякъде другаде.</string>
     <string name="mode_pen_button">Страничен бутон</string>
+    <string name="mode_pen_pressure">Натиск</string>
+    <string name="mode_pen_pressure_soft">Лек</string>
+    <string name="mode_pen_pressure_normal">Нормален</string>
+    <string name="mode_pen_pressure_firm">Силен</string>
     <string name="mode_osc">Екранни контроли</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>

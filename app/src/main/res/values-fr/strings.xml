@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Tactile</string>
     <string name="mode_pen_note">Auto : tablette graphique sur le bureau dans les applications qui la prennent en charge, souris ailleurs.</string>
     <string name="mode_pen_button">Bouton latéral</string>
+    <string name="mode_pen_pressure">Pression</string>
+    <string name="mode_pen_pressure_soft">Douce</string>
+    <string name="mode_pen_pressure_normal">Normale</string>
+    <string name="mode_pen_pressure_firm">Ferme</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>

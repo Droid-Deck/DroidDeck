@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Berøring</string>
     <string name="mode_pen_note">Auto: tegneplade på Skrivebord i apps, der understøtter det, ellers mus.</string>
     <string name="mode_pen_button">Sideknap</string>
+    <string name="mode_pen_pressure">Tryk</string>
+    <string name="mode_pen_pressure_soft">Blødt</string>
+    <string name="mode_pen_pressure_normal">Normalt</string>
+    <string name="mode_pen_pressure_firm">Fast</string>
     <string name="mode_osc">Kontroller på skærmen</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollerne, når ingen controller er tilsluttet.</string>

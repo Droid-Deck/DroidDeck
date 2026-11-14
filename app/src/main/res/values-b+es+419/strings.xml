@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Táctil</string>
     <string name="mode_pen_note">Auto: tableta en Escritorio en las apps que la admiten, ratón en el resto.</string>
     <string name="mode_pen_button">Botón lateral</string>
+    <string name="mode_pen_pressure">Presión</string>
+    <string name="mode_pen_pressure_soft">Suave</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Firme</string>
     <string name="mode_osc">Controles en pantalla</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto muestra los controles en pantalla cuando no hay ningún control conectado.</string>

@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">Touch</string>
     <string name="mode_pen_note">Auto: Grafiktablett auf dem Desktop in Apps, die es unterstützen, sonst Maus.</string>
     <string name="mode_pen_button">Seitentaste</string>
+    <string name="mode_pen_pressure">Druck</string>
+    <string name="mode_pen_pressure_soft">Weich</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Fest</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>

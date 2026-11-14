@@ -295,6 +295,10 @@
     <string name="mode_pen_touch">タッチ</string>
     <string name="mode_pen_note">自動：デスクトップの対応アプリではペンタブレット、それ以外ではマウスとして使います。</string>
     <string name="mode_pen_button">サイドボタン</string>
+    <string name="mode_pen_pressure">筆圧</string>
+    <string name="mode_pen_pressure_soft">柔らかめ</string>
+    <string name="mode_pen_pressure_normal">普通</string>
+    <string name="mode_pen_pressure_firm">硬め</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>

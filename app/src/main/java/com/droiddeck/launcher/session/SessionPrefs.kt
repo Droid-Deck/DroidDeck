@@ -630,12 +630,16 @@ object SessionPrefs {
     const val PEN_BUTTON_RIGHT = "right"
     const val PEN_BUTTON_MIDDLE = "middle"
     const val PEN_BUTTON_OFF = "off"
+    const val PEN_PRESSURE_SOFT = "soft"
+    const val PEN_PRESSURE_NORMAL = "normal"
+    const val PEN_PRESSURE_FIRM = "firm"
 
-    data class Pen(val mode: String = PEN_AUTO, val button: String = PEN_BUTTON_RIGHT)
+    data class Pen(val mode: String = PEN_AUTO, val button: String = PEN_BUTTON_RIGHT, val pressure: String = PEN_PRESSURE_NORMAL)
 
     private val PEN_SETTINGS = mapOf(
         "pen" to setOf(PEN_AUTO, PEN_MOUSE, PEN_TOUCH),
         "penButton" to setOf(PEN_BUTTON_RIGHT, PEN_BUTTON_MIDDLE, PEN_BUTTON_OFF),
+        "penPressure" to setOf(PEN_PRESSURE_SOFT, PEN_PRESSURE_NORMAL, PEN_PRESSURE_FIRM),
     )
 
     private fun penSetting(context: Context, key: String, default: String): String =
@@ -648,8 +652,9 @@ object SessionPrefs {
 
     fun penMode(context: Context): String = penSetting(context, "pen", PEN_AUTO)
     fun penButton(context: Context): String = penSetting(context, "penButton", PEN_BUTTON_RIGHT)
+    fun penPressure(context: Context): String = penSetting(context, "penPressure", PEN_PRESSURE_NORMAL)
 
-    fun pen(context: Context): Pen = Pen(penMode(context), penButton(context))
+    fun pen(context: Context): Pen = Pen(penMode(context), penButton(context), penPressure(context))
 
     fun penSeen(context: Context): Boolean = prefs(context).getBoolean("penSeen", false)
 
