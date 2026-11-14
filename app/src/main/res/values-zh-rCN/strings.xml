@@ -1224,7 +1224,6 @@
     <string name="agent_plan_untouched">尚未更改</string>
     <string name="agent_plan_go_message">按计划执行。</string>
     <string name="agent_send_now">立即发送</string>
-    <string name="agent_message">消息</string>
     <string name="agent_more">更多</string>
     <string name="agent_close">关闭</string>
     <string name="agent_latest">最新</string>
@@ -2613,7 +2612,6 @@
     <string name="setup_agent_pet_float">显示在其他应用上层</string>
     <string name="setup_agent_pet_float_hint">让 DeeDee 悬浮在所有应用上层，并在那里打开聊天</string>
     <string name="setup_agent_pet_allow">允许</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">与 DeeDee 聊天</string>
     <string name="library_display">显示</string>
     <string name="library_display_larger">较大卡片</string>

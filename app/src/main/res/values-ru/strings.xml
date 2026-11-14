@@ -1150,7 +1150,6 @@
     <string name="agent_plan_untouched">Изменений пока нет</string>
     <string name="agent_plan_go_message">Действуйте по плану.</string>
     <string name="agent_send_now">Отправить сейчас</string>
-    <string name="agent_message">Сообщение</string>
     <string name="agent_more">Ещё</string>
     <string name="agent_close">Закрыть</string>
     <string name="agent_latest">Последняя версия</string>
@@ -2613,7 +2612,6 @@
     <string name="setup_agent_pet_float">Поверх других приложений</string>
     <string name="setup_agent_pet_float_hint">Разрешить DeeDee отображаться поверх всех приложений и открывать там чат с DeeDee</string>
     <string name="setup_agent_pet_allow">Разрешить</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Чат с DeeDee</string>
     <string name="library_display">Вид</string>
     <string name="library_display_larger">Крупные карточки</string>

@@ -1206,7 +1206,6 @@
     <string name="agent_plan_untouched">Nothing changed yet</string>
     <string name="agent_plan_go_message">Go ahead with the plan.</string>
     <string name="agent_send_now">Send now</string>
-    <string name="agent_message">Message</string>
     <string name="agent_more">More</string>
     <string name="agent_close">Close</string>
     <string name="agent_latest">Latest</string>
@@ -2707,7 +2706,6 @@
     <string name="setup_agent_pet_float">Over other apps</string>
     <string name="setup_agent_pet_float_hint">Let DeeDee float over every app and open its chat there</string>
     <string name="setup_agent_pet_allow">Allow</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chat with DeeDee</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>

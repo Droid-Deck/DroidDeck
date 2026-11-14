@@ -1150,7 +1150,6 @@
     <string name="agent_plan_untouched">Nic jeszcze nie zmieniono</string>
     <string name="agent_plan_go_message">Wykonaj plan.</string>
     <string name="agent_send_now">Wyślij teraz</string>
-    <string name="agent_message">Wiadomość</string>
     <string name="agent_more">Więcej</string>
     <string name="agent_close">Zamknij</string>
     <string name="agent_latest">Najnowsze</string>
@@ -2613,7 +2612,6 @@
     <string name="setup_agent_pet_float">Nad innymi aplikacjami</string>
     <string name="setup_agent_pet_float_hint">Pozwól DeeDee wyświetlać się nad każdą aplikacją i otwierać tam jej czat</string>
     <string name="setup_agent_pet_allow">Zezwól</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Czat z DeeDee</string>
     <string name="library_display">Wyświetlanie</string>
     <string name="library_display_larger">Większe karty</string>

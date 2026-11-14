@@ -1141,7 +1141,6 @@
     <string name="agent_plan_untouched">아직 변경된 내용 없음</string>
     <string name="agent_plan_go_message">계획대로 진행해 주세요.</string>
     <string name="agent_send_now">지금 보내기</string>
-    <string name="agent_message">메시지</string>
     <string name="agent_more">더보기</string>
     <string name="agent_close">닫기</string>
     <string name="agent_latest">최신</string>
@@ -2536,7 +2535,6 @@
     <string name="setup_agent_pet_float">다른 앱 위에 표시</string>
     <string name="setup_agent_pet_float_hint">DeeDee가 모든 앱 위에 표시되도록 허용하고 해당 앱에서 채팅을 열 수 있게 합니다.</string>
     <string name="setup_agent_pet_allow">허용</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">DeeDee와 채팅하기</string>
     <string name="library_display">표시</string>
     <string name="library_display_larger">카드 크게</string>

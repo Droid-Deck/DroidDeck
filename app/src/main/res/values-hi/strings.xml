@@ -1144,7 +1144,6 @@
     <string name="agent_plan_untouched">अभी तक कुछ नहीं बदला</string>
     <string name="agent_plan_go_message">योजना के साथ आगे बढ़ें।</string>
     <string name="agent_send_now">अभी भेजें</string>
-    <string name="agent_message">संदेश</string>
     <string name="agent_more">अधिक</string>
     <string name="agent_close">बंद करें</string>
     <string name="agent_latest">नवीनतम</string>
@@ -2561,7 +2560,6 @@
     <string name="setup_agent_pet_float">अन्य ऐप्स के ऊपर दिखाएँ</string>
     <string name="setup_agent_pet_float_hint">DeeDee को हर ऐप के ऊपर दिखने दें और वहीं इसकी चैट खोलें</string>
     <string name="setup_agent_pet_allow">अनुमति दें</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">DeeDee के साथ चैट करें</string>
     <string name="library_display">डिस्प्ले</string>
     <string name="library_display_larger">बड़े कार्ड</string>

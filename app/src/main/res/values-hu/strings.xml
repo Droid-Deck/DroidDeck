@@ -1144,7 +1144,6 @@
     <string name="agent_plan_untouched">Még semmi sem változott</string>
     <string name="agent_plan_go_message">Hajtsd végre a tervet.</string>
     <string name="agent_send_now">Küldés most</string>
-    <string name="agent_message">Üzenet</string>
     <string name="agent_more">Továbbiak</string>
     <string name="agent_close">Bezárás</string>
     <string name="agent_latest">Legújabb</string>
@@ -2561,7 +2560,6 @@
     <string name="setup_agent_pet_float">Más alkalmazások felett</string>
     <string name="setup_agent_pet_float_hint">Engedd, hogy DeeDee minden alkalmazás felett lebegjen és ott nyissa meg a csevegést</string>
     <string name="setup_agent_pet_allow">Engedélyezés</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Csevegés DeeDee-vel</string>
     <string name="library_display">Megjelenítés</string>
     <string name="library_display_larger">Nagyobb kártyák</string>

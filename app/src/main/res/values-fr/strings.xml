@@ -1147,7 +1147,6 @@
     <string name="agent_plan_untouched">Rien n’a encore changé</string>
     <string name="agent_plan_go_message">Exécute le plan.</string>
     <string name="agent_send_now">Envoyer maintenant</string>
-    <string name="agent_message">Message</string>
     <string name="agent_more">Plus</string>
     <string name="agent_close">Fermer</string>
     <string name="agent_latest">Dernier</string>
@@ -2586,7 +2585,6 @@
     <string name="setup_agent_pet_float">Au-dessus des autres applications</string>
     <string name="setup_agent_pet_float_hint">Autorise DeeDee à flotter au-dessus de toutes les applications et à y ouvrir sa discussion</string>
     <string name="setup_agent_pet_allow">Autoriser</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Discuter avec DeeDee</string>
     <string name="library_display">Affichage</string>
     <string name="library_display_larger">Cartes plus grandes</string>

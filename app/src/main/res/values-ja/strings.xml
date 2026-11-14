@@ -1141,7 +1141,6 @@
     <string name="agent_plan_untouched">まだ変更はありません</string>
     <string name="agent_plan_go_message">計画を進めてください。</string>
     <string name="agent_send_now">今すぐ送信</string>
-    <string name="agent_message">メッセージ</string>
     <string name="agent_more">その他</string>
     <string name="agent_close">閉じる</string>
     <string name="agent_latest">最新</string>
@@ -2536,7 +2535,6 @@
     <string name="setup_agent_pet_float">他のアプリの上に表示</string>
     <string name="setup_agent_pet_float_hint">DeeDee をすべてのアプリの上に表示し、そこでチャットを開けるようにします</string>
     <string name="setup_agent_pet_allow">許可</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">DeeDee とチャット</string>
     <string name="library_display">表示</string>
     <string name="library_display_larger">大きいカード</string>

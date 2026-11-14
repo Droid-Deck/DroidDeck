@@ -1144,7 +1144,6 @@
     <string name="agent_plan_untouched">Nog niets gewijzigd</string>
     <string name="agent_plan_go_message">Ga door met het plan.</string>
     <string name="agent_send_now">Nu verzenden</string>
-    <string name="agent_message">Bericht</string>
     <string name="agent_more">Meer</string>
     <string name="agent_close">Sluiten</string>
     <string name="agent_latest">Nieuwste</string>
@@ -2561,7 +2560,6 @@
     <string name="setup_agent_pet_float">Boven andere apps</string>
     <string name="setup_agent_pet_float_hint">Laat DeeDee boven elke app zweven en open daar de chat</string>
     <string name="setup_agent_pet_allow">Toestaan</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chatten met DeeDee</string>
     <string name="library_display">Weergave</string>
     <string name="library_display_larger">Grotere kaarten</string>

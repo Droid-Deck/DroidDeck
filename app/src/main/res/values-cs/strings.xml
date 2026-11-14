@@ -1150,7 +1150,6 @@
     <string name="agent_plan_untouched">Zatím se nic nezměnilo</string>
     <string name="agent_plan_go_message">Proveď plán.</string>
     <string name="agent_send_now">Odeslat nyní</string>
-    <string name="agent_message">Zpráva</string>
     <string name="agent_more">Více</string>
     <string name="agent_close">Zavřít</string>
     <string name="agent_latest">Nejnovější</string>
@@ -2613,7 +2612,6 @@
     <string name="setup_agent_pet_float">Nad ostatními aplikacemi</string>
     <string name="setup_agent_pet_float_hint">Umožněte DeeDee zobrazovat se nad všemi aplikacemi a otevírat v nich chat.</string>
     <string name="setup_agent_pet_allow">Povolit</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chat s DeeDee</string>
     <string name="library_display">Zobrazení</string>
     <string name="library_display_larger">Větší karty</string>

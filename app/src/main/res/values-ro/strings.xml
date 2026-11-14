@@ -1147,7 +1147,6 @@
     <string name="agent_plan_untouched">Nimic nu s-a schimbat încă</string>
     <string name="agent_plan_go_message">Continuă cu planul.</string>
     <string name="agent_send_now">Trimite acum</string>
-    <string name="agent_message">Mesaj</string>
     <string name="agent_more">Mai multe</string>
     <string name="agent_close">Închide</string>
     <string name="agent_latest">Cele mai recente</string>
@@ -2587,7 +2586,6 @@
     <string name="setup_agent_pet_float">Peste alte aplicații</string>
     <string name="setup_agent_pet_float_hint">Permite ca DeeDee să plutească peste orice aplicație și să deschidă chatul acolo</string>
     <string name="setup_agent_pet_allow">Permite</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Discută cu DeeDee</string>
     <string name="library_display">Afișare</string>
     <string name="library_display_larger">Carduri mai mari</string>
