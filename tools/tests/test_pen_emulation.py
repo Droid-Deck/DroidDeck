@@ -43,6 +43,7 @@ class PenEmulationTest(unittest.TestCase):
             'static int pen_buttons(int flags) {',
             'static void pen_release(int buttons) {',
             'static void pen_end_route(void) {',
+            'static int pen_warp(void) {',
             'static void pen_pointer(const struct input_msg *m) {',
             'static void pen_tablet(const struct input_msg *m) {',
             'static void deliver_pen(const struct input_msg *m) {')))
@@ -142,6 +143,15 @@ class PenEmulationTest(unittest.TestCase):
 
     def test_a_tool_switch_keeps_the_route_and_announces_the_new_tool(self):
         self.check_case('tool', self.pointer_binary)
+
+    def test_the_pointer_moves_to_the_pen_as_it_comes_and_where_it_leaves(self):
+        self.check_case('warp', self.pointer_binary)
+
+    def test_a_pointer_lock_that_ends_while_the_pen_hovers_moves_the_pointer_to_it(self):
+        self.check_case('unlock', self.pointer_binary)
+
+    def test_a_pointer_lock_that_ends_during_a_press_moves_the_pointer_once_the_pen_hovered(self):
+        self.check_case('unlockpressed', self.pointer_binary)
 
 
 if __name__ == '__main__':
