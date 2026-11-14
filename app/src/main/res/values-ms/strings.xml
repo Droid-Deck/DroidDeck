@@ -2476,6 +2476,7 @@
     <string name="bnet_dl_queued">Menunggu muat turun Battle.net yang lain…</string>
     <string name="bnet_dl_client_first">Buka Battle.net dan log masuk sekali, kemudian pasang permainannya dari sini.</string>
     <string name="bnet_dl_failed">Pemuat turun Blizzard berhenti: %1$s</string>
+    <string name="bnet_dl_stalled">Pemuat turun Blizzard berhenti bergerak.</string>
     <string name="bnet_dl_agent_error">Ralat Blizzard %1$s</string>
     <string name="bnet_update">Kemas kini</string>
     <string name="bnet_store">Permainan Blizzard</string>

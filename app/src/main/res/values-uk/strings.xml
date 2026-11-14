@@ -2553,6 +2553,7 @@
     <string name="bnet_dl_queued">Очікування іншого завантаження Battle.net…</string>
     <string name="bnet_dl_client_first">Відкрийте Battle.net і увійдіть один раз, потім встановлюйте його ігри тут.</string>
     <string name="bnet_dl_failed">Завантажувач Blizzard зупинився: %1$s</string>
+    <string name="bnet_dl_stalled">Завантажувач Blizzard перестав просуватися.</string>
     <string name="bnet_dl_agent_error">Помилка Blizzard %1$s</string>
     <string name="bnet_update">Оновити</string>
     <string name="bnet_store">Ігри Blizzard</string>

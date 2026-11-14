@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">Wachten op de andere Battle.net-download…</string>
     <string name="bnet_dl_client_first">Open Battle.net en meld je één keer aan, installeer daarna de games hier.</string>
     <string name="bnet_dl_failed">Blizzards downloader is gestopt: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzards downloader maakt geen voortgang meer.</string>
     <string name="bnet_dl_agent_error">Blizzard-fout %1$s</string>
     <string name="bnet_update">Bijwerken</string>
     <string name="bnet_store">Blizzard-games</string>

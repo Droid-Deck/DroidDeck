@@ -2526,6 +2526,7 @@
     <string name="bnet_dl_queued">En attente de l\'autre téléchargement Battle.net…</string>
     <string name="bnet_dl_client_first">Ouvrez Battle.net et connectez-vous une fois, puis installez ses jeux ici.</string>
     <string name="bnet_dl_failed">Le téléchargeur de Blizzard s\'est arrêté : %1$s</string>
+    <string name="bnet_dl_stalled">Le téléchargeur de Blizzard n\'avance plus.</string>
     <string name="bnet_dl_agent_error">Erreur Blizzard %1$s</string>
     <string name="bnet_update">Mettre à jour</string>
     <string name="bnet_store">Jeux Blizzard</string>

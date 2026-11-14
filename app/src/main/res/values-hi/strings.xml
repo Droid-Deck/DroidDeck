@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">दूसरे Battle.net डाउनलोड का इंतज़ार…</string>
     <string name="bnet_dl_client_first">Battle.net खोलें और एक बार साइन इन करें, फिर इसके गेम यहाँ से इंस्टॉल करें।</string>
     <string name="bnet_dl_failed">Blizzard का डाउनलोडर रुक गया: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzard का डाउनलोडर आगे नहीं बढ़ रहा।</string>
     <string name="bnet_dl_agent_error">Blizzard त्रुटि %1$s</string>
     <string name="bnet_update">अपडेट करें</string>
     <string name="bnet_store">Blizzard के गेम</string>

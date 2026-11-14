@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">Изчакване на другото изтегляне от Battle.net…</string>
     <string name="bnet_dl_client_first">Отворете Battle.net и влезте веднъж, след това инсталирайте игрите му оттук.</string>
     <string name="bnet_dl_failed">Програмата за изтегляне на Blizzard спря: %1$s</string>
+    <string name="bnet_dl_stalled">Програмата за изтегляне на Blizzard спря да напредва.</string>
     <string name="bnet_dl_agent_error">Грешка на Blizzard %1$s</string>
     <string name="bnet_update">Актуализиране</string>
     <string name="bnet_store">Игри на Blizzard</string>

@@ -2501,6 +2501,7 @@
     <string name="bnet_dl_queued">Odotetaan toista Battle.net-latausta…</string>
     <string name="bnet_dl_client_first">Avaa Battle.net ja kirjaudu sisään kerran, asenna sitten sen pelit täältä.</string>
     <string name="bnet_dl_failed">Blizzardin latausohjelma pysähtyi: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzardin latausohjelma lakkasi etenemästä.</string>
     <string name="bnet_dl_agent_error">Blizzard-virhe %1$s</string>
     <string name="bnet_update">Päivitä</string>
     <string name="bnet_store">Blizzardin pelit</string>

@@ -2,12 +2,15 @@ package com.droiddeck.launcher.stores.battlenet
 
 import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreGameSidecar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.nio.file.Files
 import java.util.Locale
 
@@ -88,5 +91,14 @@ class BattleNetInstallTest {
         assertEquals(BattleNetInstall.Step.APPLYING, BattleNetInstall.step(1003, 500, 6746574227, 6746574227))
         assertEquals(BattleNetInstall.Step.APPLYING, BattleNetInstall.step(1003, 2000, 1, 9))
         assertEquals(BattleNetInstall.Step.APPLYING, BattleNetInstall.step(1004, 1000, 0, 0))
+    }
+
+    @Test fun aSavedUpdateComesBackAsAnUpdateOfItsOwnFolder() {
+        val folder = File("/data/Games/Stores/Battle.net/World of Warcraft")
+        val game = InstalledStoreGame(StoreGameSidecar(Store.BATTLENET, "wow", "World of Warcraft", "Wow.exe"), folder)
+        val item = BattleNetInstall.updateItem(game, "wow_enus")
+        assertEquals("wow_enus", item.extra[BattleNetInstall.INSTALL_UID])
+        assertEquals(folder, BattleNetInstall.updateFolder(item))
+        assertNull(BattleNetInstall.updateFolder(CatalogItem(Store.BATTLENET, "wow", "World of Warcraft", null)))
     }
 }

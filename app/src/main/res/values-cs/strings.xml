@@ -2553,6 +2553,7 @@
     <string name="bnet_dl_queued">Čekání na druhé stahování z Battle.net…</string>
     <string name="bnet_dl_client_first">Otevřete Battle.net a jednou se přihlaste, pak instalujte jeho hry odsud.</string>
     <string name="bnet_dl_failed">Stahovač Blizzardu se zastavil: %1$s</string>
+    <string name="bnet_dl_stalled">Stahovač Blizzardu přestal postupovat.</string>
     <string name="bnet_dl_agent_error">Chyba Blizzardu %1$s</string>
     <string name="bnet_update">Aktualizovat</string>
     <string name="bnet_store">Hry od Blizzardu</string>

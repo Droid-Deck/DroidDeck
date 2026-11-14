@@ -2476,6 +2476,7 @@
     <string name="bnet_dl_queued">もう一つの Battle.net のダウンロードを待っています…</string>
     <string name="bnet_dl_client_first">Battle.net を開いて一度サインインしてから、ここでゲームをインストールしてください。</string>
     <string name="bnet_dl_failed">Blizzard のダウンローダーが停止しました: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzard のダウンローダーが進まなくなりました。</string>
     <string name="bnet_dl_agent_error">Blizzard エラー %1$s</string>
     <string name="bnet_update">アップデート</string>
     <string name="bnet_store">Blizzard のゲーム</string>
