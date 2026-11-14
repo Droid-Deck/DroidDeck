@@ -59,6 +59,24 @@ class PhantomProcessLimitTest {
     }
 
     @Test
+    fun android12LKeepsTheFlagAndNotTheCountLimit() {
+        assertFalse(PhantomProcessLimit.usesDeviceConfig(32))
+        assertEquals(
+            listOf("settings put global settings_enable_monitor_phantom_procs false"),
+            PhantomProcessLimit.shellCommands(enabled = false, sdk = 32),
+        )
+    }
+
+    @Test
+    fun android12KeepsTheCountLimitBecauseItHasNoFlag() {
+        assertTrue(PhantomProcessLimit.usesDeviceConfig(31))
+        assertTrue(
+            PhantomProcessLimit.shellCommands(enabled = false, sdk = 31)
+                .any { it.startsWith("device_config put activity_manager max_phantom_processes") }
+        )
+    }
+
+    @Test
     fun developerToggleStartsAtAndroid14() {
         assertFalse(PhantomProcessLimit.hasDeveloperToggle(33))
         assertTrue(PhantomProcessLimit.hasDeveloperToggle(34))
