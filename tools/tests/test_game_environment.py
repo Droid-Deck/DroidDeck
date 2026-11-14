@@ -840,6 +840,9 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
             script = root / "legacycompat/evaluatorscript_409710.vdf"
             script.parent.mkdir(parents=True)
             script.write_text("{}")
@@ -847,14 +850,127 @@ class GameEnvironmentTest(unittest.TestCase):
             run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
             MODULE["mark_install_scripts"].__globals__["subprocess"].run = lambda args, **kw: calls.append((args, kw["env"]))
             try:
-                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}
-                MODULE["mark_install_scripts"](["/proton", "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+                MODULE["mark_install_scripts"](evaluator, env)
                 MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
+                self.assertEqual(len(calls), 3)
+                self.assertEqual(calls[0][0], [str(root / "proton"), "run", "cmd.exe", "/c", "exit", "0"])
+                self.assertEqual(calls[0][1], env)
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[1][1]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                self.assertEqual(calls[1][1].get("DROIDDECK_SEED_SCRIPTS"), None)
+                self.assertEqual(calls[2][0][1], str(root))
+                self.assertEqual(calls[2][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+                (root / "compatdata/409710/pfx").mkdir(parents=True)
+                (root / "compatdata/409710/pfx/system.reg").write_text("")
+                calls.clear()
+                MODULE["mark_install_scripts"](evaluator, env)
+                self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
             finally:
                 MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(calls[0][0][1], str(root))
-            self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+
+    def test_the_install_script_seeder_runs_when_prefix_probe_times_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            calls = []
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+
+            def fake_run(args, **kwargs):
+                calls.append((args, kwargs["env"]))
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(args, 120)
+
+            MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+            try:
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                MODULE["mark_install_scripts"]([str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
+            finally:
+                MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def test_the_install_script_seeder_skips_failed_wineserver_waits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            wineserver = str(root / "files/bin-arm64/wineserver")
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+            for failure in (subprocess.TimeoutExpired([wineserver, "-w"], 120), OSError("cannot start"),
+                            subprocess.CalledProcessError(1, [wineserver, "-w"])):
+                with self.subTest(failure=type(failure).__name__):
+                    calls = []
+
+                    def fake_run(args, **kwargs):
+                        calls.append((args, kwargs))
+                        if len(calls) == 2:
+                            self.assertTrue(kwargs["check"])
+                            raise failure
+
+                    MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+                    try:
+                        self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+                        self.assertEqual(len(calls), 2)
+                        self.assertEqual(calls[1][0], [wineserver, "-w"])
+                        self.assertEqual(calls[1][1]["env"]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                    finally:
+                        MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def run_install_marker(self, root, env):
+        script = root / "legacycompat/evaluatorscript_409710.vdf"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("{}")
+        calls = []
+        module = MODULE["mark_install_scripts"].__globals__["subprocess"]
+        run = module.run
+        module.run = lambda args, **kw: calls.append((args, kw["env"]))
+        try:
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+        finally:
+            module.run = run
+        return calls
+
+    def test_the_install_script_wait_finds_wineserver_in_files_bin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin").mkdir(parents=True)
+            (root / "files/bin/wineserver").write_text("")
+            (root / "files/bin/wineserver").chmod(0o755)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                                   "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
+            self.assertEqual(calls[1][0], [str(root / "files/bin/wineserver"), "-w"])
+            self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
+
+    def test_the_install_script_seeder_skips_the_probe_without_compat_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)})
+            self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+
+    def test_the_install_script_seeder_skips_the_probe_when_proton_has_a_template_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for template in ("default_pfx", "default_pfx_arm64"):
+                with self.subTest(template=template):
+                    reg = root / "files/share" / template / "system.reg"
+                    reg.parent.mkdir(parents=True)
+                    reg.write_text("")
+                    calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                                           "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
+                    self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+                    reg.unlink()
+                    reg.parent.rmdir()
 
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
