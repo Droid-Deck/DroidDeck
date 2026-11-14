@@ -168,11 +168,11 @@ echo <childPid> > /sys/fs/cgroup/uid_<uid>/cgroup.procs
 
 # from the app's own shell: end the probe processes
 kill <childPids>
-# restore each recorded value that was set
+# restore the flag first: put the recorded value, or delete the key if it was "null"
 adb shell settings put global settings_enable_monitor_phantom_procs <recordedFlag>
-adb shell device_config put activity_manager max_phantom_processes <recordedLimit>
-# or delete each key whose recorded value was "null", in the same order
 adb shell settings delete global settings_enable_monitor_phantom_procs
+# then the limit: put the recorded value, or delete the key if it was "null"
+adb shell device_config put activity_manager max_phantom_processes <recordedLimit>
 adb shell device_config delete activity_manager max_phantom_processes
 ```
 
