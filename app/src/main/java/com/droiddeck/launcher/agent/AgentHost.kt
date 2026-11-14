@@ -667,10 +667,30 @@ object AgentHost {
 /** A reply split into its text and the options of a trailing choices block. */
 internal data class Choices(val text: String, val options: List<String>)
 
-private val CHOICES = Regex("""(?:^|\n)(`{3,})choices[ \t]*\n((?:(?![ \t]*\1`*[ \t]*(?:\n|$))[^\n]*(?:\n|$))*?)[ \t]*\1`*\s*$""")
+private val FENCE = Regex("""[ \t]{0,3}(`{3,})(.*)""")
 
+/** Walks Markdown fences so a choices block counts only at the top level and only as the last thing in the reply. */
 internal fun choices(reply: String): Choices {
-    val match = CHOICES.find(reply) ?: return Choices(reply, emptyList())
-    val options = match.groupValues[2].lines().map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
-    return Choices(reply.substring(0, match.range.first).trimEnd(), options)
+    val lines = reply.split('\n')
+    var open = 0
+    var opener = -1
+    var openChoices = false
+    var block: IntRange? = null
+    lines.forEachIndexed { i, line ->
+        val fence = FENCE.matchEntire(line)
+        if (open == 0) {
+            if (fence != null) {
+                open = fence.groupValues[1].length
+                opener = i
+                openChoices = fence.groupValues[2].trim() == "choices"
+                block = null
+            } else if (line.isNotBlank()) block = null
+        } else if (fence != null && fence.groupValues[1].length >= open && fence.groupValues[2].isBlank()) {
+            block = if (openChoices) opener..i else null
+            open = 0
+        }
+    }
+    val found = block?.takeIf { open == 0 } ?: return Choices(reply, emptyList())
+    val options = lines.subList(found.first + 1, found.last).map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
+    return Choices(lines.subList(0, found.first).joinToString("\n").trimEnd(), options)
 }

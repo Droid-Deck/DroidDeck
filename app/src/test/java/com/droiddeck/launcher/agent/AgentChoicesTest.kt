@@ -39,4 +39,14 @@ class AgentChoicesTest {
         val reply = choices("````choices\nA\n```\nB\n````")
         assertEquals(listOf("A", "```", "B"), reply.options)
     }
+
+    @Test fun aChoicesExampleInsideACodeBlockStaysLiteral() {
+        val text = "Example:\n````markdown\n```choices\nA\nB\n````"
+        assertEquals(Choices(text, emptyList()), choices(text))
+    }
+
+    @Test fun anUnclosedChoicesBlockIsNotAQuestion() {
+        val text = "Pick:\n```choices\nA\nB"
+        assertEquals(Choices(text, emptyList()), choices(text))
+    }
 }
