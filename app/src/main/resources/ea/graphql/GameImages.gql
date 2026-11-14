@@ -1,0 +1,69 @@
+query GameImages($gameSlug: String!, $locale: Locale!) {
+  game(slug: $gameSlug, locale: $locale) {
+    id
+    slug
+    title
+    keyArt {
+      ...imageRenditionData
+      __typename
+    }
+    packArt {
+      ...PackArt
+      __typename
+    }
+    ...PrimaryLogo
+    __typename
+  }
+}
+
+fragment imageRenditionData on ImageRendition {
+  path
+  aspect9x16Image {
+    path
+    __typename
+  }
+  aspect16x9Image {
+    path
+    __typename
+  }
+  aspect1x1Image {
+    path
+    __typename
+  }
+  largestImage {
+    path
+    __typename
+  }
+  rawImages {
+    path
+    __typename
+  }
+  __typename
+}
+
+fragment PrimaryLogo on GameV2 {
+  primaryLogo(uiClientContexts: ["juno-web-game-tile"]) {
+    path
+    title
+    largestImage {
+      path
+      width
+      height
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+
+fragment PackArt on ImageRendition {
+  aspect2x1Image {
+    path
+    __typename
+  }
+  aspect9x16Image {
+    path
+    __typename
+  }
+  __typename
+}

@@ -15,6 +15,7 @@ object BootMovie {
     const val DROIDDECK_30 = "dd30"
     const val DROIDDECK_60 = "dd60"
     const val CUSTOM = "custom"
+    private const val SKIP = "skip"
     const val MAX_BYTES = 50L shl 20
     const val MAX_CONVERT_SECONDS = 60
     val PICKER_EXTENSIONS = listOf("webm", "mkv", "mp4", "mov", "m4v", "3gp")
@@ -22,6 +23,7 @@ object BootMovie {
     private val ASSETS = mapOf(
         DROIDDECK_30 to "droiddeck-startup.webm",
         DROIDDECK_60 to "droiddeck-startup-60.webm",
+        SKIP to "skip-startup.webm",
     )
 
     internal val VIDEO_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1)
@@ -74,6 +76,7 @@ object BootMovie {
 
     fun prepare(context: Context): File? {
         BootMovieLibrary.restore(context)
+        if (SessionPrefs.skipBootMovie(context)) return assetFile(context, SKIP)
         val source = sourceOf(context, choice(context)) ?: return null
         return variant(context, source)
     }

@@ -182,6 +182,7 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
+        withoutRootfsSettings(env, rootfs)
         val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
         if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
@@ -189,6 +190,24 @@ object BwrapSpawner {
         zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
         return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env, envTool ?: "/usr/bin/env")
+    }
+
+    private val ROOTFS_PIPEWIRE = listOf("PIPEWIRE_MODULE_DIR", "SPA_PLUGIN_DIR", "PIPEWIRE_CONFIG_DIR")
+
+    /**
+     * The session's Flatpak passes settings for the session's own root on: the native hook's,
+     * DroidDeck's PipeWire build, which a runtime does not have (its apps found no PipeWire plugins),
+     * and the session's video driver for SDL.
+     */
+    internal fun withoutRootfsSettings(env: MutableMap<String, String>, rootfs: String) {
+        env.keys.removeAll { it.startsWith("DDNATV_") }
+        for (key in ROOTFS_PIPEWIRE) if (env[key]?.startsWith("/usr/local/lib/droiddeck-pipewire") == true) env.remove(key)
+        // the session's choice of X11 for SDL, in an app that Flatpak gave Wayland and no X display
+        if (env["SDL_VIDEODRIVER"] == "x11" && env["DISPLAY"].isNullOrEmpty() && !env["WAYLAND_DISPLAY"].isNullOrEmpty()) env.remove("SDL_VIDEODRIVER")
+        env["LD_PRELOAD"]?.let { preload ->
+            val kept = preload.split(':').filter { it.isNotEmpty() && it != rootfs && !it.startsWith("$rootfs/") }
+            if (kept.isEmpty()) env.remove("LD_PRELOAD") else env["LD_PRELOAD"] = kept.joinToString(":")
+        }
     }
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
@@ -347,22 +366,201 @@ object BwrapSpawner {
         try { Os.chmod(f.path, mode) } catch (e: Exception) {   }
     }
 
+    private val SANDBOX_LOADERS = listOf("/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1", "/usr/lib/ld-linux-aarch64.so.1",
+        "/lib/ld-linux-aarch64.so.1", "/lib64/ld-linux-aarch64.so.1")
+    private val SANDBOX_LIBCS = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/usr/lib/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6")
+    private val SANDBOX_LIB_DIRS = listOf("/app/lib/aarch64-linux-gnu", "/app/lib", "/usr/lib/aarch64-linux-gnu", "/usr/lib")
+    private val seccompPatched = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * The sandbox started by the runtime's own glibc loader with the native hook, which maps the
+     * sandbox's mounts; null when the runtime cannot load the hook (older glibc), so proot runs it.
+     */
+    private fun nativeLaunch(context: Context, plan: Plan): Pair<List<String>, Map<String, String>>? {
+        val rootfs = LinuxRuntime.rootDir(context)
+        val sandbox = plan.root.path
+        fun host(guest: String) = File(hostPath(plan.binds, sandbox, guest))
+        if (!hasEnvTool(plan)) {
+            val program = plan.argv.firstOrNull()?.takeIf { it.startsWith("/") }?.let(::host)?.canonicalFile
+                ?.takeIf { it.isFile && isStaticElf(it) } ?: return null
+            if (!linkMounts(plan)) return null
+            return (listOf(program.path) + plan.argv.drop(1)) to plan.env
+        }
+        val loader = SANDBOX_LOADERS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
+        val libc = SANDBOX_LIBCS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
+        val hook = NativeGuest.hook(rootfs)
+        val need = glibcMinor(hook, GLIBC_NEED) { it.maxOrNull() } ?: return null
+        val have = glibcMinor(libc, GLIBC_RELEASE) { it.firstOrNull() } ?: return null
+        if (have < need) {
+            Log.i(TAG, "native userland: this runtime's glibc 2.$have cannot load the hook (2.$need); proot runs the sandbox")
+            return null
+        }
+        for (file in listOf(loader, libc)) {
+            val key = "${file.path}:${file.length()}:${file.lastModified()}"
+            if (key in seccompPatched) continue
+            // an unpatched loader or libc dies under Android's filter before the hook loads: proot runs it
+            val patched = runCatching { ElfSeccompPatch.patchFile(file) }
+                .onFailure { Log.e(TAG, "native userland: could not patch $file for Android's seccomp filter; proot runs the sandbox", it) }
+            if (patched.isFailure) return null
+            seccompPatched.add("${file.path}:${file.length()}:${file.lastModified()}")
+        }
+        val program = host(plan.envTool).canonicalFile.takeIf { it.isFile } ?: return null
+        if (!linkMounts(plan)) return null
+        writeRunpathConf(plan, ::host)
+        val launch = listOf(loader.path, "--argv0", program.name, program.path, "-i") +
+            plan.env.map { (k, v) -> "$k=$v" } + plan.argv
+        val env = linkedMapOf(
+            "DDNATV_ROOT" to sandbox,
+            "DDNATV_LINK_ROOT" to rootfs.path,
+            "DDNATV_BINDS" to plan.binds.joinToString("|") { "${it.host}:${it.guest}" },
+            "DDNATV_HOSTNAME" to SessionPrefs.guestHostname(context),
+            "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },
+            "LD_PRELOAD" to hook.path,
+        ).filterValues { it.isNotEmpty() }
+        return (NativeGuest.simulator(rootfs)?.let { it + launch } ?: launch) to env
+    }
+
+    private val runpathDirs = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * ld.so opens a library's absolute RUNPATH (libpulse's pulseaudio/ directory) without the hook,
+     * on Android's own filesystem, so those directories are listed for the hook in the sandbox's
+     * ld.so.conf too, as [NativeGuest.syncLibraryDirs] does for the rootfs. A checkout never changes.
+     */
+    private fun writeRunpathConf(plan: Plan, host: (String) -> File) {
+        val confDir = inRoot(plan.root, "/run/flatpak/ld.so.conf.d")?.takeIf { it.isDirectory } ?: return
+        val dirs = sortedSetOf<String>()
+        for (top in listOf("/usr/lib", "/app/lib")) {
+            val real = host(top).takeIf { it.isDirectory }?.canonicalFile ?: continue
+            dirs += runpathDirs.getOrPut(real.path) {
+                real.walkTopDown().maxDepth(4).onEnter { !Files.isSymbolicLink(it.toPath()) }
+                    .filter { it.isFile && ".so" in it.name && !Files.isSymbolicLink(it.toPath()) }
+                    .flatMap { runCatching { ElfRunpath.read(it) }.getOrDefault(emptyList()) }
+                    .filter { it.startsWith("/usr/") || it.startsWith("/app/") || it.startsWith("/lib") }
+                    .distinct().toList()
+            }
+        }
+        if (dirs.isEmpty()) return
+        runCatching { File(confDir, "runtime-999-droiddeck-runpath.conf").writeText(dirs.joinToString("\n", postfix = "\n")) }
+    }
+
+    /** A runtime extension's apply_extra runs in a sandbox with nothing but the extension itself. */
+    private fun hasEnvTool(plan: Plan): Boolean =
+        File(hostPath(plan.binds, plan.root.path, plan.envTool)).let { it.exists() || Files.isSymbolicLink(it.toPath()) }
+
+    internal fun isStaticElf(file: File): Boolean = try {
+        java.io.RandomAccessFile(file, "r").use { f ->
+            val head = ByteArray(64).also { f.readFully(it) }
+            if (head[0] != 0x7f.toByte() || head[1] != 'E'.code.toByte() || head[4] != 2.toByte() || head[5] != 1.toByte()) return false
+            val le = java.nio.ByteBuffer.wrap(head).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            val phoff = le.getLong(32)
+            val phentsize = le.getShort(54).toInt() and 0xffff
+            val phnum = le.getShort(56).toInt() and 0xffff
+            val entry = ByteArray(4)
+            (0 until phnum).none { i ->
+                f.seek(phoff + i.toLong() * phentsize)
+                f.readFully(entry)
+                java.nio.ByteBuffer.wrap(entry).order(java.nio.ByteOrder.LITTLE_ENDIAN).int == 3 // PT_INTERP
+            }
+        }
+    } catch (_: java.io.IOException) {
+        false
+    }
+
+    /**
+     * The kernel follows paths the hook does not see (ld.so, symbolic links), so each top-level
+     * mount of the sandbox is also a link to its source in the sandbox's own root, and the
+     * sandbox's links with absolute guest targets are made relative, which reaches them through those.
+     * False when a mount's place could not be made; proot then runs the sandbox, whose mounts hide
+     * whatever was left at their places.
+     */
+    private fun linkMounts(plan: Plan): Boolean {
+        val root = plan.root.toPath()
+        plan.root.walkTopDown().onEnter { !Files.isSymbolicLink(it.toPath()) }.map { it.toPath() }
+            .filter { Files.isSymbolicLink(it) }.toList().forEach { link ->
+                runCatching {
+                    val target = Files.readSymbolicLink(link).toString()
+                    if (!target.startsWith("/")) return@runCatching
+                    Files.delete(link)
+                    Files.createSymbolicLink(link, link.parent.relativize(root.resolve(target.removePrefix("/"))))
+                }
+            }
+        // a mount inside another mount (a GL extension at /usr/lib/aarch64-linux-gnu/GL) needs its own
+        // place: the links of the mounts it is in become directories of links to their entries
+        val entryLinks = HashSet<java.nio.file.Path>()
+        for (bind in plan.binds.sortedBy { it.guest.length }) {
+            if (bind.guest == "/") continue
+            val at = try {
+                mountPlace(plan.root, bind.guest, entryLinks)?.also { at ->
+                    val path = at.toPath()
+                    if (path in entryLinks) {
+                        Files.delete(path)
+                        entryLinks.remove(path)
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                Log.e(TAG, "native userland: could not make a place for ${bind.guest}; proot runs the sandbox", e)
+                return false
+            } ?: continue
+            val path = at.toPath()
+            if (at.exists() || Files.isSymbolicLink(path)) continue
+            at.parentFile?.mkdirs()
+            runCatching { Files.createSymbolicLink(path, java.nio.file.Paths.get(bind.host)) }
+        }
+        return true
+    }
+
+    private fun mountPlace(root: File, guest: String, entryLinks: MutableSet<java.nio.file.Path>): File? {
+        val parts = guest.split('/').filter { it.isNotEmpty() }
+        var f = root
+        for ((i, part) in parts.withIndex()) {
+            if (part == "..") return null
+            f = File(f, part)
+            val path = f.toPath()
+            if (i == parts.lastIndex || !Files.isSymbolicLink(path)) continue
+            val target = Files.readSymbolicLink(path)
+            // a link of the sandbox's own tree, made relative above, is not a mount
+            if (!target.isAbsolute) return null
+            Files.delete(path)
+            entryLinks.remove(path)
+            Files.createDirectory(path)
+            target.toFile().listFiles()?.forEach { entry ->
+                val link = path.resolve(entry.name)
+                Files.createSymbolicLink(link, entry.toPath())
+                entryLinks.add(link)
+            }
+        }
+        return f
+    }
+
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
-        val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
-        if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
-        plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
-        cmd.add(plan.envTool)
-        cmd.add("-i")
-        plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
-        cmd.addAll(plan.argv)
-        val builder = ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root)
-        builder.environment().apply {
-            clear()
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+        val native = if (NativeGuest.forSession(context)) nativeLaunch(context, plan) else null
+        val builder = if (native != null) {
+            ProcessBuilder(native.first).redirectErrorStream(true)
+                .directory(File(hostPath(plan.binds, plan.root.path, plan.cwd)).takeIf { it.isDirectory } ?: plan.root)
+                .also { b -> b.environment().apply { clear(); putAll(native.second) } }
+        } else {
+            val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
+            if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
+            plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
+            val envTool = hasEnvTool(plan)
+            if (envTool) {
+                cmd.add(plan.envTool)
+                cmd.add("-i")
+                plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
+            }
+            cmd.addAll(plan.argv)
+            ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root).also { b ->
+                b.environment().apply {
+                    clear()
+                    if (!envTool) putAll(plan.env)
+                    put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                    put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
+                    if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+                }
+            }
         }
         val process = builder.start()
         val pid = HostProcess.pidOf(process)

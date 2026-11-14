@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">입력 프로필</string>
+    <string name="input_profiles">프로필</string>
+    <string name="input_physical">물리 컨트롤러</string>
+    <string name="input_primary">기본 화면</string>
+    <string name="input_secondary">보조 화면</string>
+    <string name="input_native">네이티브 / Steam Input</string>
+    <string name="input_native_target">네이티브: %1$s</string>
+    <string name="input_remap_native">다른 컨트롤러 입력 보내기</string>
+    <string name="input_disabled">사용 안 함</string>
+    <string name="input_keys">키 또는 키 조합</string>
+    <string name="input_direction_keys">방향 키</string>
+    <string name="input_pointer">포인터 이동</string>
+    <string name="input_pointer_speed">포인터 속도: %1$d</string>
+    <string name="input_scroll">스크롤</string>
+    <string name="input_scroll_vertical">세로로 스크롤</string>
+    <string name="input_mouse_left">마우스 왼쪽 버튼</string>
+    <string name="input_mouse_right">마우스 오른쪽 버튼</string>
+    <string name="input_mouse_middle">마우스 가운데 버튼</string>
+    <string name="input_command_menu">DroidDeck 메뉴 열기</string>
+    <string name="input_command_keyboard">키보드 표시</string>
+    <string name="input_command_steam">Steam 메뉴 열기</string>
+    <string name="input_command_qam">Steam 빠른 액세스 열기</string>
+    <string name="input_remove_element">컨트롤 제거</string>
+    <string name="input_add_element">컨트롤 추가</string>
+    <string name="input_extra_keys">기기별 버튼</string>
+    <string name="input_capture">물리 버튼 지정</string>
+    <string name="input_capture_confirm">버튼을 놓은 다음 편집, 다시 시도 또는 취소를 선택하세요. B 또는 뒤로는 놓은 후 취소합니다.</string>
+    <string name="input_capture_retry">다시 시도</string>
+    <string name="input_capture_hint">버튼을 누르세요. 키보드 키로 보고되는 뒤로 버튼도 포함됩니다. 볼륨 및 Android 시스템 키는 예약되어 있습니다. 지정은 이 기기에만 적용됩니다.</string>
+    <string name="input_remove_binding">지정 제거</string>
+    <string name="input_latency">입력 진단</string>
+    <string name="input_measure">입력 전달 시간 기록</string>
+    <string name="input_read_timing">측정값 읽기</string>
+    <string name="input_latency_hint">Android 전달부터 기존 입력 전송으로의 게시까지 측정합니다. Bluetooth 도착, 게스트 폴링, 렌더링 및 디스플레이 지연은 포함되지 않습니다. 기록은 기본적으로 꺼져 있습니다.</string>
+    <string name="input_normal_binding">일반 입력 지정 사용</string>
+</resources>

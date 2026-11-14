@@ -14,11 +14,12 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
+          'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/kwin-independent.py',
                 'tools/ubuntu/kwin-output-layout.h',
@@ -32,11 +33,11 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/ubuntu/build_kwin_windows.py',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/third_party', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
-                'tools/gpuload',
+                'tools/gpuload', 'app/src/main/resources/rockstar/legacy-cipher.bin',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
@@ -91,7 +92,7 @@ def required():
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]
@@ -226,7 +227,8 @@ def pack_digests(root, name):
 
 def check_apk(apk, root=ROOT):
     data = verify(root)
-    packs = {name: pack_digests(root, name) for name in PACK_NAMES}
+    packs = {name: pack_digests(root, name) for name in PACK_NAMES
+             if name != 'ubisoft' or (root / PACKS / 'ubisoft.tar.zst').is_file()}
     with ZipFile(apk) as package:
         names = set(package.namelist())
         if any(name.startswith('assets/linuxfs/usr/local/lib/droiddeck-mesa/') for name in names):
@@ -248,7 +250,7 @@ def check_apk(apk, root=ROOT):
             if prefix:
                 if name in names:
                     raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
-                if packs[PACKED[prefix]].get(name[len(prefix):]) != output['sha256']:
+                if packs.get(PACKED[prefix], {}).get(name[len(prefix):]) != output['sha256']:
                     raise ValueError('Add-on pack ' + PACKED[prefix] + ' is missing or has a stale ' + name)
                 continue
             try:

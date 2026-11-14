@@ -26,6 +26,14 @@ static char *join_features(const char *have, const char *add) {
   return strcat(out, add);
 }
 
+static int electron_node_mode(char *const envp[]) {
+  static const char variable[] = "ELECTRON_RUN_AS_NODE=";
+  for (int i = 0; envp && envp[i]; i++)
+    if (!strncmp(envp[i], variable, sizeof variable - 1))
+      return envp[i][sizeof variable - 1] != 0;
+  return 0;
+}
+
 static char *const *chromium_argv(const char *path, char *const argv[]) {
   const char *slash = path ? strrchr(path, '/') : NULL;
   if (!slash || !argv || !argv[0]) return argv;
@@ -48,7 +56,9 @@ static char *const *chromium_argv(const char *path, char *const argv[]) {
   return out;
 }
 
-__attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char *path, char *const argv[]) {
+__attribute__((visibility("hidden")))
+char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]) {
+  if (electron_node_mode(envp)) return argv;
   if (!is_webhelper_browser(path, argv)) return chromium_argv(path, argv);
   const char *spec = getenv("BL_WEBHELPER_ARGS");
   if (!spec || !*spec) spec = WEBHELPER_DEFAULT;

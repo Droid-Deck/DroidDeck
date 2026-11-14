@@ -1,0 +1,66 @@
+query getLegacyCatalogDefs($offerIds: [String!]!, $locale: Locale) {
+    legacyOffers(offerIds: $offerIds, locale: $locale) {
+        offerId: id
+        contentId
+        basePlatform
+        primaryMasterTitleId
+        mdmProjectNumber
+        achievementSetOverride
+        gameLauncherURL
+        gameLauncherURLClientID
+        stagingKeyPath
+        mdmTitleIds
+        multiplayerId
+        executePathOverride
+        installationDirectory
+        installCheckOverride
+        monitorPlay
+        displayName
+        displayType
+        igoBrowserDefaultUrl
+        executeParameters
+        softwareLocales
+        dipManifestRelativePath
+        metadataInstallLocation
+        distributionSubType
+        downloads {
+            igoApiEnabled
+            downloadType
+            version
+            executeElevated
+            buildReleaseVersion
+            buildLiveDate
+            buildMetaData
+            gameVersion
+            treatUpdatesAsMandatory
+            enableDifferentialUpdate
+            __typename
+        }
+        locale
+        greyMarketControls
+        isDownloadable
+        isPreviewDownload
+        downloadStartDate
+        releaseDate
+        useEndDate
+        subscriptionUnlockDate
+        subscriptionUseEndDate
+        softwarePlatform
+        softwareId
+        downloadPackageType
+        installerPath
+        processorArchitecture
+        macBundleID
+        gameEditionTypeFacetKeyRankDesc
+        appliedCountryCode
+        cloudSaveConfigurationOverride
+        firstParties{
+            partner
+            partnerId
+            partnerIdType
+            __typename
+        }
+        suppressedOfferIds
+        __typename
+    }
+}

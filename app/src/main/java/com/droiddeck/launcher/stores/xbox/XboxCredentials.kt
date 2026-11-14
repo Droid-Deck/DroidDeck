@@ -64,13 +64,30 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         if (root <= 0 || pid <= 0) return null
         val status = java.io.File("/proc/$pid/status").readLines()
         val tracer = status.first { it.startsWith("TracerPid:") }.substringAfter(':').trim().toInt()
-        val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
-            .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
-        if (tracerGroup != root) return null
+        if (tracer != 0) {
+            // under proot, every guest process is traced by the proot the app started
+            val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
+                .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
+            if (tracerGroup != root) return null
+        } else if (!descendsFrom(pid, root)) {
+            // without proot, the process the app started is the backend itself (or its parent)
+            return null
+        }
         val executable = android.system.Os.stat(binary.path)
         if (!mapsBackend(java.io.File("/proc/$pid/maps").readText(), binary.path, executable.st_ino))
             return null
         return java.io.File("/proc/$pid/stat").readText().substringAfterLast(") ").split(' ')[19] + ":${executable.st_dev}:${executable.st_ino}"
+    }
+
+    private fun descendsFrom(pid: Int, root: Int): Boolean {
+        var current = pid
+        repeat(32) {
+            if (current == root) return true
+            if (current <= 1) return false
+            current = java.io.File("/proc/$current/status").readLines()
+                .firstOrNull { it.startsWith("PPid:") }?.substringAfter(':')?.trim()?.toIntOrNull() ?: return false
+        }
+        return false
     }
 
     fun signalBackend(signal: Int) {

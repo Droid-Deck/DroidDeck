@@ -35,8 +35,146 @@ class WinComponentsTest(unittest.TestCase):
     def pick(self, *ids):
         self.selection.write_text(json.dumps({"version": 1, "games": {"2571976725": list(ids)}}))
 
-    def apply(self):
-        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store)
+    def apply(self, proton=None, env=None):
+        return MODULE["apply"](self.compat, "2571976725", self.selection, self.store, proton=proton, env=env)
+
+    def proton(self, arm=True):
+        root = Path(self.tmp.name) / ("arm-proton" if arm else "x64-proton")
+        (root / "files/lib/wine" / ("aarch64-unix" if arm else "x86_64-unix")).mkdir(parents=True)
+        return root / "proton"
+
+    def pe_image(self, machine):
+        head = bytearray(64)
+        head[:2] = b"MZ"
+        head[60:64] = (64).to_bytes(4, "little")
+        return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 32
+
+    def arm64ec_pe_image(self):
+        image = bytearray(0x400)
+        image[:2] = b"MZ"
+        image[60:64] = (64).to_bytes(4, "little")
+        image[64:68] = b"PE\0\0"
+        coff = 68
+        image[coff:coff + 2] = (0x8664).to_bytes(2, "little")
+        image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+        image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+        optional = coff + 20
+        image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+        image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+        directory = optional + 112 + 10 * 8
+        image[directory:directory + 4] = (0x1000).to_bytes(4, "little")
+        image[directory + 4:directory + 8] = (0xD0).to_bytes(4, "little")
+        section = optional + 240
+        image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+        image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+        image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+        image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+        image[0x200:0x204] = (0xD0).to_bytes(4, "little")
+        image[0x2C8:0x2D0] = (0x10000000).to_bytes(8, "little")
+        return bytes(image)
+
+    def test_foreign_component_dll_is_skipped_and_override_dropped(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, [])
+        self.assertFalse((self.pfx / "system32/ucrtbase.dll").exists())
+        names, notes = self.apply(proton)
+        self.assertEqual(names, [])
+        self.assertEqual(notes, [])
+
+    def test_component_final_arm64ec_dll_is_placed_and_keeps_its_override(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.arm64ec_pe_image()})
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
+
+    def test_x64_visual_cpp_runtime_is_placed_in_arm64_system32(self):
+        proton = self.proton()
+        self.component("vc", ["msvcp140", "vcruntime140_1"], {
+            "system32/msvcp140.dll": self.pe_image(0x8664),
+            "system32/vcruntime140_1.dll": self.pe_image(0x8664),
+        })
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["msvcp140", "vcruntime140_1"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/msvcp140.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140_1.dll"), 0x8664)
+
+    def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {
+            "system32/ucrtbase.dll": self.pe_image(0x8664),
+            "syswow64/ucrtbase.dll": self.pe_image(0x14C),
+        })
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertFalse((self.pfx / "system32/ucrtbase.dll").exists())
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "syswow64/ucrtbase.dll"), 0x14C)
+
+    def test_existing_foreign_component_dll_is_removed_for_repair(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/ucrtbase.dll").write_bytes(self.pe_image(0x8664))
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"drive_c/windows/system32/ucrtbase.dll": "vc"}, "components": ["vc"]}))
+        self.apply(proton)
+        self.assertFalse((self.pfx / "system32/ucrtbase.dll").exists())
+        self.assertEqual([], GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton)))
+        self.assertEqual([], GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton)))
+
+    def test_foreign_component_restore_does_not_override_repair_with_native_override(self):
+        proton = self.proton()
+        builtin = Path(self.tmp.name) / "arm-proton/files/lib/wine/aarch64-windows/ucrtbase.dll"
+        builtin.parent.mkdir(parents=True, exist_ok=True)
+        builtin.write_bytes(self.pe_image(0xAA64))
+        system32 = self.pfx / "system32"
+        system32.mkdir(parents=True)
+        dll = system32 / "ucrtbase.dll"
+        dll.write_bytes(self.pe_image(0x8664))
+        backup = self.compat / ".droiddeck-wincomponents-backup/drive_c/windows/system32/ucrtbase.dll"
+        backup.parent.mkdir(parents=True)
+        backup.write_bytes(self.pe_image(0x8664))
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"drive_c/windows/system32/ucrtbase.dll": "vc"}, "components": ["vc"]}))
+        self.compat.joinpath("pfx/user.reg").parent.mkdir(parents=True, exist_ok=True)
+        self.compat.joinpath("pfx/user.reg").write_text(
+            'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"ucrtbase"="native,builtin"\n')
+        fixed = GAME_ENV["repair_foreign_system_dlls"](str(self.compat), str(proton))
+        self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+        self.apply(proton)
+        self.assertTrue(dll.is_symlink())
+        self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
+
+    def test_matching_component_dll_is_placed(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0xAA64)})
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0xAA64)
+
+    def test_x64_proton_places_x64_component_dll(self):
+        proton = self.proton(arm=False)
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
+
+    def test_arm_proton_with_x64_selection_places_x64_component_dll(self):
+        proton = self.proton()
+        self.component("vc", ["ucrtbase"], {"system32/ucrtbase.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        names, _ = self.apply(proton, {"PROTON_USE_ARM64": "0"})
+        self.assertEqual(names, ["ucrtbase"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
 
     def test_places_files_before_the_prefix_exists_and_returns_overrides(self):
         self.component("openal", ["openal32"], {"syswow64/OpenAL32.dll": b"x86", "system32/OpenAL32.dll": b"x64"})
@@ -235,7 +373,7 @@ class WinComponentsTest(unittest.TestCase):
         self.pick("openal")
         globals_ = GAME_ENV["win_components"].__globals__
         real = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
-        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None)
+        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None, None, None)
         with mock.patch.dict(globals_, {"runpy": mock.Mock(run_path=lambda _path: real)}):
             self.assertEqual(GAME_ENV["win_components"](str(self.compat) + "/", "2571976725"), "openal32=n,b")
             self.assertEqual(GAME_ENV["win_components"]("", "2571976725"), "")

@@ -63,6 +63,15 @@ jobs:
       artifact: droiddeck-release
     secrets: inherit
 
+  scan:
+    needs: sign
+    permissions:
+      contents: read
+    uses: ./.github/workflows/scan.yml
+    with:
+      artifact: droiddeck-release
+    secrets: inherit
+
   packs:
     needs: find
     permissions:

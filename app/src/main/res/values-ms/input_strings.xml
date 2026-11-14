@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profil input</string>
+    <string name="input_profiles">Profil</string>
+    <string name="input_physical">Pengawal fizikal</string>
+    <string name="input_primary">Skrin utama</string>
+    <string name="input_secondary">Skrin kedua</string>
+    <string name="input_native">Asli / Steam Input</string>
+    <string name="input_native_target">Asli: %1$s</string>
+    <string name="input_remap_native">Hantar kawalan pengawal lain</string>
+    <string name="input_disabled">Dinyahdayakan</string>
+    <string name="input_keys">Kekunci atau gabungan kekunci</string>
+    <string name="input_direction_keys">Kekunci arah</string>
+    <string name="input_pointer">Gerakkan penuding</string>
+    <string name="input_pointer_speed">Kelajuan penuding: %1$d</string>
+    <string name="input_scroll">Tatal</string>
+    <string name="input_scroll_vertical">Tatal menegak</string>
+    <string name="input_mouse_left">Butang kiri tetikus</string>
+    <string name="input_mouse_right">Butang kanan tetikus</string>
+    <string name="input_mouse_middle">Butang tengah tetikus</string>
+    <string name="input_command_menu">Buka menu DroidDeck</string>
+    <string name="input_command_keyboard">Tunjukkan papan kekunci</string>
+    <string name="input_command_steam">Buka menu Steam</string>
+    <string name="input_command_qam">Buka akses pantas Steam</string>
+    <string name="input_remove_element">Alih keluar kawalan</string>
+    <string name="input_add_element">Tambah kawalan</string>
+    <string name="input_extra_keys">Butang khusus peranti</string>
+    <string name="input_capture">Tetapkan butang fizikal</string>
+    <string name="input_capture_confirm">Lepaskan butang, kemudian pilih Edit, Cuba lagi atau Batal. B atau Kembali membatalkan selepas dilepaskan.</string>
+    <string name="input_capture_retry">Cuba lagi</string>
+    <string name="input_capture_hint">Tekan butang, termasuk butang Kembali yang dilaporkan sebagai kekunci. Kekunci kelantangan dan sistem Android dikhaskan. Penetapan hanya terpakai pada peranti ini.</string>
+    <string name="input_remove_binding">Alih keluar penetapan</string>
+    <string name="input_latency">Diagnostik input</string>
+    <string name="input_measure">Rakam masa penghantaran input</string>
+    <string name="input_read_timing">Baca ukuran</string>
+    <string name="input_latency_hint">Mengukur penghantaran dari Android hingga penerbitan ke pengangkutan input sedia ada. Tidak termasuk ketibaan Bluetooth, pengundian tetamu, pemaparan dan kependaman skrin. Rakaman dimatikan secara lalai.</string>
+    <string name="input_normal_binding">Gunakan penetapan input biasa</string>
+</resources>

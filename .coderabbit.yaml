@@ -18,7 +18,7 @@ reviews:
     enabled: true
     auto_incremental_review: true
     auto_pause_after_reviewed_commits: 0
-    drafts: false
+    drafts: true
   pre_merge_checks:
     docstrings:
       mode: "off"

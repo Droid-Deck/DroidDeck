@@ -5,6 +5,9 @@ import android.util.Log
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.concurrent.atomic.AtomicInteger
 
 object SessionLogCapture {
     private const val TAG = "SessionLogCapture"
@@ -102,6 +105,55 @@ object SessionLogCapture {
             )
         } catch (e: Exception) {
             Log.w(TAG, "could not dump the crash buffer", e)
+        }
+    }
+
+    fun dumpMemoryPressure(target: File) {
+        var temporary: File? = null
+        try {
+            val staged = File.createTempFile(target.name, ".part", target.parentFile).also { temporary = it }
+            val lines = StringBuilder()
+            val done = java.util.concurrent.CountDownLatch(1)
+            val outputDone = java.util.concurrent.CountDownLatch(1)
+            val exitStatus = AtomicInteger(Int.MIN_VALUE)
+            val pid = HostProcess.start(
+                "/system/bin/logcat -b events -d -v threadtime -t 800", null, target.parentFile,
+                { status -> exitStatus.set(status); done.countDown() },
+                { line -> synchronized(lines) { lines.append(line).append('\n') } },
+                null,
+                outputDone::countDown,
+            )
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
+            val finished = if (pid == -1) false else {
+                val exitTime = deadline - System.nanoTime()
+                exitTime > 0 && done.await(exitTime, java.util.concurrent.TimeUnit.NANOSECONDS) &&
+                    (deadline - System.nanoTime()).let { it > 0 && outputDone.await(it, java.util.concurrent.TimeUnit.NANOSECONDS) }
+            }
+            val body = synchronized(lines) { lines.toString() }
+            val status = exitStatus.get()
+            val pressure = runCatching { File("/proc/pressure/memory").readText() }.getOrDefault("unavailable\n")
+            val meminfo = runCatching { File("/proc/meminfo").readText() }.getOrDefault("unavailable\n")
+            val gpu = runCatching { File("/sys/class/kgsl/kgsl/page_alloc").readText() }.getOrDefault("unavailable\n")
+            staged.writeText(
+                "Android memory events:\n" +
+                    when {
+                        pid == -1 -> "(logcat could not be started at all)\n"
+                        status != Int.MIN_VALUE && status != 0 -> "(logcat failed with exit status $status; no Android memory events were captured)\n" +
+                            if (body.isEmpty()) "" else "\nlogcat command output:\n$body"
+                        !finished -> if (body.isEmpty()) "(logcat did not finish within 10 s; nothing captured)\n"
+                        else body + "(logcat did not finish within 10 s; later events may be missing)\n"
+                        body.isNotEmpty() -> body
+                        else -> "(no readable events were returned)\n"
+                    } +
+                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
+            )
+            Files.move(
+                staged.toPath(), target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (e: Exception) {
+            temporary?.delete()
+            Log.w(TAG, "could not dump memory pressure diagnostics", e)
         }
     }
 }

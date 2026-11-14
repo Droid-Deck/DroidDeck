@@ -1,0 +1,9 @@
+query availableBuilds($offerId: String!) {
+    availableBuilds(offerId: $offerId) {
+        buildId
+        downloadType
+        gameVersion
+        buildLiveDate
+        __typename
+    }
+}
