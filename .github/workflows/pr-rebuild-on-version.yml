@@ -63,6 +63,9 @@ jobs:
             IFS=$'\t' read -r id status started created <<<"$4"
             if [[ "$started" > "$bumped" ]]; then
               echo "PR #$number: build $id started after the bump"
+            elif ! gh api "repos/$GITHUB_REPOSITORY/pulls/$number" |
+              jq -e --arg head "$head" '.state == "open" and .draft == false and .base.ref == "main" and .head.sha == $head' >/dev/null; then
+              echo "PR #$number: moved on since the scan, its own build covers it"
             elif gh run rerun "$id" -R "$GITHUB_REPOSITORY"; then
               echo "PR #$number: rebuilding ${head:0:7} on main (versionCode $built -> $now)"
             else
@@ -78,11 +81,20 @@ jobs:
           candidates() {
             gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" \
               --jq '.[] | select(.tag_name | test("^pr-[0-9]+$")) | [(.tag_name | ltrimstr("pr-")), ((.body // "") | capture("(?m)^VersionCode: (?<v>[0-9]+)").v // "0")] | @tsv'
-            # A build already running may have pinned main from before the bump, including a PR's first build.
-            for status in in_progress queued; do
-              gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&status=$status&per_page=100" \
-                --jq '.workflow_runs[] | select(.pull_requests[0] != null and (.run_started_at // .created_at) < "'"$bumped"'") | [(.pull_requests[0].number | tostring), "?"] | @tsv'
-            done
+            # A build that started before the bump and was still running at it may have pinned the old main,
+            # including a PR's first build and fork builds, whose pull_requests list GitHub leaves empty.
+            since=$(date -u -d "$bumped - 6 hours" +%Y-%m-%dT%H:%M:%SZ)
+            gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+              -f event=pull_request -f created=">=$since" -f per_page=100 \
+              --jq '.workflow_runs[] | select((.run_started_at // .created_at) < "'"$bumped"'" and (.status != "completed" or .updated_at >= "'"$bumped"'"))
+                | [(.pull_requests[0].number // 0 | tostring), .head_repository.full_name, .head_branch, .head_sha] | @tsv' |
+              while IFS=$'\t' read -r number repo branch sha; do
+                if [ "$number" = 0 ]; then
+                  number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f state=open -f base=main -f "head=${repo%%/*}:$branch" \
+                    --jq '.[] | select(.head.sha == "'"$sha"'") | .number' | head -1) || true
+                fi
+                if [ -n "$number" ]; then printf '%s\t?\n' "$number"; fi
+              done
           }
           while IFS=$'\t' read -r number built; do
             [ "$built" = "?" ] || [ "$built" -lt "$now" ] || continue

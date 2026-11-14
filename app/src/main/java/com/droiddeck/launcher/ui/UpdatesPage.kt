@@ -300,7 +300,7 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: B
     val catalog = u.catalog
     val tests = catalog?.tests.orEmpty()
     val me = remember { AppUpdates.installed() }
-    val ready = tests.count { me.updatable && AppUpdates.installBlock(it, me) == null }
+    val ready = tests.count { AppUpdates.installable(it, me) }
     var showTests by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ChannelCard(
