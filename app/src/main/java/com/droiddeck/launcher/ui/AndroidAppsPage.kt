@@ -827,12 +827,28 @@ private fun FolderSheet(
         renaming = false
     }
     val firstApp = remember { FocusRequester() }
+    val title = remember { FocusRequester() }
+    // Backing out of the name field lands on the title, not on the first app.
+    var toTitle by remember { mutableStateOf(false) }
+    val sheetView = androidx.compose.ui.platform.LocalView.current
+    val leaveName = {
+        if (renaming) {
+            (ctx.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(sheetView.windowToken, 0)
+            toTitle = true
+            commit()
+        }
+    }
     val inputMode = LocalInputModeManager.current.inputMode
     val ff = LocalFrontFocus.current
     val grid = rememberLazyGridState()
     var closing by remember { mutableStateOf(false) }
     LaunchedEffect(renaming, inputMode) {
-        if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
+        if (!renaming && !closing && toTitle) {
+            toTitle = false
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            if (!closing) runCatching { title.requestFocus() }
+        } else if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
             grid.scrollToItem(0)
             repeat(2) { androidx.compose.runtime.withFrameNanos { } }
             if (!closing) runCatching { firstApp.requestFocus() }
@@ -860,6 +876,13 @@ private fun FolderSheet(
                     .clip(Shape16).background(pal.surfaceVariant.copy(alpha = 0.97f))
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
+                    // In the name field B leaves the field; the sheet must not take that press as its own B and close.
+                    .onPreviewKeyEvent { event ->
+                        val k = event.nativeKeyEvent
+                        if (!renaming || k.keyCode != KeyEvent.KEYCODE_BUTTON_B) return@onPreviewKeyEvent false
+                        if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) leaveName()
+                        true
+                    }
                     .controllerBack(close)
                     .focusProperties {
                         exit = { dir ->
@@ -875,7 +898,7 @@ private fun FolderSheet(
                         AdbTextField(
                             value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.apps_folder_name),
                             keyboardType = KeyboardType.Text, imeAction = ImeAction.Done, compact = true, showLabel = false,
-                            placeholder = folder.name, focusOnShow = true, onDone = { commit() },
+                            placeholder = folder.name, focusOnShow = true, onDone = { commit() }, onBack = leaveName,
                         )
                     } else {
                         val src = remember { MutableInteractionSource() }
@@ -888,6 +911,7 @@ private fun FolderSheet(
                             modifier = Modifier.clip(Shape12)
                                 .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.onBackground.copy(alpha = 0.07f))
                                 .glideBorder(hot, Shape12, pal.signal)
+                                .focusRequester(title)
                                 .hoverable(src)
                                 .clickable(interactionSource = src, indication = LocalIndication.current, onClickLabel = stringResource(R.string.apps_folder_rename), role = Role.Button, onClick = rename)
                                 .controllerConfirm(onClick = rename)
