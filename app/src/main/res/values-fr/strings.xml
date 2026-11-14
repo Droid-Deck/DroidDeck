@@ -709,6 +709,10 @@
     <string name="hud_export_failed">Impossible d\'enregistrer le rapport du HUD.</string>
     <string name="hud_reset">Réinitialiser les paramètres du HUD</string>
     <string name="hud_reset_button">Réinitialiser</string>
+    <string name="hud_hint_grab">Saisir</string>
+    <string name="hud_hint_drop">Déposer</string>
+    <string name="hud_hint_save">Enregistrer</string>
+    <string name="hud_hint_reset">Maintenir pour réinitialiser</string>
     <string name="drawer_scaling">Mode de mise à l\'échelle</string>
     <string name="drawer_scaling_sharpness">Netteté de la mise à l\'échelle</string>
     <string name="drawer_effects">Effets d\'écran</string>

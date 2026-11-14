@@ -709,6 +709,10 @@
     <string name="hud_export_failed">Não foi possível guardar o relatório do HUD.</string>
     <string name="hud_reset">Repor definições do HUD</string>
     <string name="hud_reset_button">Repor</string>
+    <string name="hud_hint_grab">Agarrar</string>
+    <string name="hud_hint_drop">Largar</string>
+    <string name="hud_hint_save">Guardar</string>
+    <string name="hud_hint_reset">Mantenha para repor</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
     <string name="drawer_effects">Efeitos de ecrã</string>

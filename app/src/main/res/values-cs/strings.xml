@@ -711,6 +711,10 @@
     <string name="hud_export_failed">Zprávu HUD se nepodařilo uložit.</string>
     <string name="hud_reset">Obnovit nastavení HUD</string>
     <string name="hud_reset_button">Obnovit</string>
+    <string name="hud_hint_grab">Uchopit</string>
+    <string name="hud_hint_drop">Pustit</string>
+    <string name="hud_hint_save">Uložit</string>
+    <string name="hud_hint_reset">Podrž pro obnovení</string>
     <string name="drawer_scaling">Režim škálování</string>
     <string name="drawer_scaling_sharpness">Ostrost škálování</string>
     <string name="drawer_effects">Efekty obrazovky</string>

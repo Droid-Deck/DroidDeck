@@ -705,6 +705,10 @@
     <string name="hud_export_failed">Không thể lưu báo cáo HUD.</string>
     <string name="hud_reset">Đặt lại thiết lập HUD</string>
     <string name="hud_reset_button">Đặt lại</string>
+    <string name="hud_hint_grab">Nắm</string>
+    <string name="hud_hint_drop">Thả</string>
+    <string name="hud_hint_save">Lưu</string>
+    <string name="hud_hint_reset">Giữ để đặt lại</string>
     <string name="drawer_scaling">Chế độ chia tỷ lệ</string>
     <string name="drawer_scaling_sharpness">Độ sắc nét khi chia tỷ lệ</string>
     <string name="drawer_effects">Hiệu ứng màn hình</string>

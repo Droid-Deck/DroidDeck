@@ -707,6 +707,10 @@
     <string name="hud_export_failed">HUD रिपोर्ट सेव नहीं हो सकी।</string>
     <string name="hud_reset">HUD सेटिंग रीसेट करें</string>
     <string name="hud_reset_button">रीसेट करें</string>
+    <string name="hud_hint_grab">पकड़ें</string>
+    <string name="hud_hint_drop">छोड़ें</string>
+    <string name="hud_hint_save">सेव करें</string>
+    <string name="hud_hint_reset">रीसेट के लिए दबाए रखें</string>
     <string name="drawer_scaling">स्केलिंग मोड</string>
     <string name="drawer_scaling_sharpness">स्केलिंग शार्पनेस</string>
     <string name="drawer_effects">स्क्रीन इफ़ेक्ट</string>

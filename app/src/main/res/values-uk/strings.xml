@@ -711,6 +711,10 @@
     <string name="hud_export_failed">Не вдалося зберегти звіт HUD.</string>
     <string name="hud_reset">Скинути налаштування HUD</string>
     <string name="hud_reset_button">Скинути</string>
+    <string name="hud_hint_grab">Взяти</string>
+    <string name="hud_hint_drop">Відпустити</string>
+    <string name="hud_hint_save">Зберегти</string>
+    <string name="hud_hint_reset">Утримуйте для скидання</string>
     <string name="drawer_scaling">Режим масштабування</string>
     <string name="drawer_scaling_sharpness">Чіткість масштабування</string>
     <string name="drawer_effects">Ефекти екрана</string>

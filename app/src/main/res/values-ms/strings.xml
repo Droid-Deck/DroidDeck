@@ -705,6 +705,10 @@
     <string name="hud_export_failed">Tidak dapat menyimpan laporan HUD.</string>
     <string name="hud_reset">Set semula tetapan HUD</string>
     <string name="hud_reset_button">Set semula</string>
+    <string name="hud_hint_grab">Ambil</string>
+    <string name="hud_hint_drop">Lepas</string>
+    <string name="hud_hint_save">Simpan</string>
+    <string name="hud_hint_reset">Tahan untuk set semula</string>
     <string name="drawer_scaling">Mod penskalaan</string>
     <string name="drawer_scaling_sharpness">Ketajaman penskalaan</string>
     <string name="drawer_effects">Kesan skrin</string>

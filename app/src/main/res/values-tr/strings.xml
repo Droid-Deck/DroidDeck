@@ -707,6 +707,10 @@
     <string name="hud_export_failed">HUD raporu kaydedilemedi.</string>
     <string name="hud_reset">HUD ayarlarını sıfırla</string>
     <string name="hud_reset_button">Sıfırla</string>
+    <string name="hud_hint_grab">Tut</string>
+    <string name="hud_hint_drop">Bırak</string>
+    <string name="hud_hint_save">Kaydet</string>
+    <string name="hud_hint_reset">Sıfırlamak için basılı tut</string>
     <string name="drawer_scaling">Ölçekleme modu</string>
     <string name="drawer_scaling_sharpness">Ölçekleme keskinliği</string>
     <string name="drawer_effects">Ekran efektleri</string>

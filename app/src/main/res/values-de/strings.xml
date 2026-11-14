@@ -707,6 +707,10 @@
     <string name="hud_export_failed">Der HUD-Bericht konnte nicht gespeichert werden.</string>
     <string name="hud_reset">HUD-Einstellungen zurücksetzen</string>
     <string name="hud_reset_button">Zurücksetzen</string>
+    <string name="hud_hint_grab">Greifen</string>
+    <string name="hud_hint_drop">Loslassen</string>
+    <string name="hud_hint_save">Speichern</string>
+    <string name="hud_hint_reset">Halten zum Zurücksetzen</string>
     <string name="drawer_scaling">Skalierungsmodus</string>
     <string name="drawer_scaling_sharpness">Skalierungsschärfe</string>
     <string name="drawer_effects">Bildschirmeffekte</string>

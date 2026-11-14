@@ -309,6 +309,7 @@ internal fun AppDialog(
     back: (() -> Unit)? = null,
     scrollable: Boolean = true,
     scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
+    side: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -350,6 +351,17 @@ internal fun AppDialog(
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     content = content,
                 )
+            }
+            if (side != null) {
+                AnimatedVisibility(
+                    visibleState = shown,
+                    enter = fadeIn(Motion.tw(180)),
+                    exit = fadeOut(Motion.tw(140)),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp),
+                    label = "$label-side",
+                ) {
+                    Box(Modifier.blockTouches()) { side() }
+                }
             }
         }
       }

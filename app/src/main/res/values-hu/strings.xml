@@ -707,6 +707,10 @@
     <string name="hud_export_failed">Nem sikerült menteni a HUD-jelentést.</string>
     <string name="hud_reset">HUD-beállítások visszaállítása</string>
     <string name="hud_reset_button">Visszaállítás</string>
+    <string name="hud_hint_grab">Megfogás</string>
+    <string name="hud_hint_drop">Elengedés</string>
+    <string name="hud_hint_save">Mentés</string>
+    <string name="hud_hint_reset">Tartsd nyomva a visszaállításhoz</string>
     <string name="drawer_scaling">Méretezési mód</string>
     <string name="drawer_scaling_sharpness">Méretezési élesség</string>
     <string name="drawer_effects">Képernyőeffektek</string>

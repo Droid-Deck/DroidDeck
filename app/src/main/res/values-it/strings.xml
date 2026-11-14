@@ -709,6 +709,10 @@
     <string name="hud_export_failed">Impossibile salvare il rapporto dell\'HUD.</string>
     <string name="hud_reset">Ripristina impostazioni HUD</string>
     <string name="hud_reset_button">Ripristina</string>
+    <string name="hud_hint_grab">Afferra</string>
+    <string name="hud_hint_drop">Rilascia</string>
+    <string name="hud_hint_save">Salva</string>
+    <string name="hud_hint_reset">Tieni premuto per ripristinare</string>
     <string name="drawer_scaling">Modalità di ridimensionamento</string>
     <string name="drawer_scaling_sharpness">Nitidezza del ridimensionamento</string>
     <string name="drawer_effects">Effetti schermo</string>

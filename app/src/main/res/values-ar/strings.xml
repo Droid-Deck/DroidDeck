@@ -715,6 +715,10 @@
     <string name="hud_export_failed">تعذّر حفظ تقرير HUD.</string>
     <string name="hud_reset">إعادة ضبط إعدادات HUD</string>
     <string name="hud_reset_button">إعادة ضبط</string>
+    <string name="hud_hint_grab">التقاط</string>
+    <string name="hud_hint_drop">إفلات</string>
+    <string name="hud_hint_save">حفظ</string>
+    <string name="hud_hint_reset">اضغط مطولاً لإعادة الضبط</string>
     <string name="drawer_scaling">وضع التحجيم</string>
     <string name="drawer_scaling_sharpness">حدة التحجيم</string>
     <string name="drawer_effects">مؤثرات الشاشة</string>

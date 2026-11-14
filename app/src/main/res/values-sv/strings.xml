@@ -707,6 +707,10 @@
     <string name="hud_export_failed">Det gick inte att spara HUD-rapporten.</string>
     <string name="hud_reset">Återställ HUD-inställningar</string>
     <string name="hud_reset_button">Återställ</string>
+    <string name="hud_hint_grab">Greppa</string>
+    <string name="hud_hint_drop">Släpp</string>
+    <string name="hud_hint_save">Spara</string>
+    <string name="hud_hint_reset">Håll för att återställa</string>
     <string name="drawer_scaling">Skalningsläge</string>
     <string name="drawer_scaling_sharpness">Skalningsskärpa</string>
     <string name="drawer_effects">Skärmeffekter</string>

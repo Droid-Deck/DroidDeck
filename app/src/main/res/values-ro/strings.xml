@@ -709,6 +709,10 @@
     <string name="hud_export_failed">Raportul HUD nu a putut fi salvat.</string>
     <string name="hud_reset">Resetează setările HUD</string>
     <string name="hud_reset_button">Resetează</string>
+    <string name="hud_hint_grab">Prinde</string>
+    <string name="hud_hint_drop">Lasă</string>
+    <string name="hud_hint_save">Salvează</string>
+    <string name="hud_hint_reset">Ține apăsat pentru resetare</string>
     <string name="drawer_scaling">Mod de scalare</string>
     <string name="drawer_scaling_sharpness">Claritatea scalării</string>
     <string name="drawer_effects">Efecte de ecran</string>

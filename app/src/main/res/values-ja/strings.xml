@@ -705,6 +705,10 @@
     <string name="hud_export_failed">HUDレポートを保存できませんでした。</string>
     <string name="hud_reset">HUD設定をリセット</string>
     <string name="hud_reset_button">リセット</string>
+    <string name="hud_hint_grab">掴む</string>
+    <string name="hud_hint_drop">離す</string>
+    <string name="hud_hint_save">保存</string>
+    <string name="hud_hint_reset">長押しでリセット</string>
     <string name="drawer_scaling">スケーリングモード</string>
     <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
     <string name="drawer_effects">画面エフェクト</string>

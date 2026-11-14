@@ -707,6 +707,10 @@
     <string name="hud_export_failed">HUD-raporttia ei voitu tallentaa.</string>
     <string name="hud_reset">Palauta HUD-asetukset</string>
     <string name="hud_reset_button">Palauta</string>
+    <string name="hud_hint_grab">Tartu</string>
+    <string name="hud_hint_drop">Pudota</string>
+    <string name="hud_hint_save">Tallenna</string>
+    <string name="hud_hint_reset">Pidä palauttaaksesi</string>
     <string name="drawer_scaling">Skaalaustila</string>
     <string name="drawer_scaling_sharpness">Skaalauksen terävyys</string>
     <string name="drawer_effects">Näyttötehosteet</string>

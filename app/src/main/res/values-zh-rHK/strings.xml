@@ -705,6 +705,10 @@
     <string name="hud_export_failed">無法儲存 HUD 報告。</string>
     <string name="hud_reset">重設 HUD 設定</string>
     <string name="hud_reset_button">重設</string>
+    <string name="hud_hint_grab">抓取</string>
+    <string name="hud_hint_drop">放下</string>
+    <string name="hud_hint_save">儲存</string>
+    <string name="hud_hint_reset">長按重設</string>
     <string name="drawer_scaling">縮放模式</string>
     <string name="drawer_scaling_sharpness">縮放銳利度</string>
     <string name="drawer_effects">畫面效果</string>

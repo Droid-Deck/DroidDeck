@@ -730,6 +730,10 @@
     <string name="hud_export_failed">Не удалось сохранить отчет HUD.</string>
     <string name="hud_reset">Сбросить настройки HUD</string>
     <string name="hud_reset_button">Сбросить</string>
+    <string name="hud_hint_grab">Взять</string>
+    <string name="hud_hint_drop">Отпустить</string>
+    <string name="hud_hint_save">Сохранить</string>
+    <string name="hud_hint_reset">Удерживайте для сброса</string>
     <string name="drawer_scaling">Режим масштабирования</string>
     <string name="drawer_scaling_sharpness">Резкость масштабирования</string>
     <string name="drawer_effects">Экранные эффекты</string>
