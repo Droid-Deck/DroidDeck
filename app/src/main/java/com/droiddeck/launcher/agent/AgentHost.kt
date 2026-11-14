@@ -71,7 +71,9 @@ object AgentHost {
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
         "The restart ends this process, and this conversation continues on the new build. " +
         "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments. " +
-        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note."
+        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note. " +
+        "To have the user pick between options, end your reply with a fenced code block whose language is choices, one short option per line, " +
+        "and end your turn: DroidDeck shows them as buttons and sends the one picked as the next message."
 
     val entries = mutableStateListOf<Entry>()
     val queue = mutableStateListOf<Queued>()
@@ -142,6 +144,7 @@ object AgentHost {
 
     fun seen() {
         unseen = false
+        appContext?.let { AgentNotice.clear(it) }
     }
 
     fun refresh(context: Context) {
@@ -462,7 +465,19 @@ object AgentHost {
         if (!stopped && queue.isNotEmpty()) {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)
+        } else if (!stopped) notifyEnded(app, error)
+    }
+
+    private fun notifyEnded(app: Context, error: String?) {
+        val start = entries.indexOfLast { it is Entry.Asked }
+        val said = entries.subList(start + 1, entries.size).lastOrNull { it is Entry.Said } as? Entry.Said
+        val reply = said?.let { choices(it.text) }
+        val kind = when {
+            error != null -> AgentNotice.Kind.FAILED
+            !reply?.options.isNullOrEmpty() -> AgentNotice.Kind.QUESTION
+            else -> AgentNotice.Kind.DONE
         }
+        AgentNotice.post(app, kind, error ?: reply?.text?.takeIf { it.isNotBlank() }?.let { firstLine(it) } ?: "")
     }
 
     /** A message typed or retried by the user replaces the automatic resend. */
@@ -644,4 +659,15 @@ object AgentHost {
     private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
+}
+
+/** A reply split into its text and the options of a trailing choices block. */
+internal data class Choices(val text: String, val options: List<String>)
+
+private val CHOICES = Regex("""\n?```choices[ \t]*\n(.*?)\n?```\s*$""", RegexOption.DOT_MATCHES_ALL)
+
+internal fun choices(reply: String): Choices {
+    val match = CHOICES.find(reply) ?: return Choices(reply, emptyList())
+    val options = match.groupValues[1].lines().map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
+    return Choices(reply.substring(0, match.range.first).trimEnd(), options)
 }
