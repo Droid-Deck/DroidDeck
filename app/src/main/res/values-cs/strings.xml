@@ -572,6 +572,8 @@
     <string name="perf_game_cores_group">Jádra pro hru</string>
     <string name="perf_game_cores">Jádra pro hru</string>
     <string name="perf_game_cores_hint">Jádra pro hry. Se všemi vybranými plánuje Android volně.</string>
+    <string name="perf_pace_cores">Šetřit energii u stabilních her</string>
+    <string name="perf_pace_cores_hint">Spouští hru na pomalejších jádrech, dokud drží stabilní snímkovou frekvenci, a vrátí ji na obvyklá jádra, jakmile začne zaostávat.</string>
     <string name="perf_client_ui">Rozhraní klienta</string>
     <string name="perf_glthread">Vícevláknové GL</string>
     <string name="perf_glthread_hint">Může zrychlit odezvu nabídek Steamu.</string>
@@ -690,6 +692,7 @@
     <string name="hud_metric_vram">Grafická paměť</string>
     <string name="hud_metric_swap">Odkládací paměť</string>
     <string name="hud_metric_battery">Stav baterie</string>
+    <string name="hud_metric_battery_time">Zbývající výdrž baterie</string>
     <string name="hud_metric_power">Příkon</string>
     <string name="hud_metric_network">Síť</string>
     <string name="hud_metric_resolution">Rozlišení</string>

@@ -1183,6 +1183,10 @@ case $mode in
        && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
+    if [ "${BL_PACE_CORES:-1}" != 0 ] && [ -n "${DROIDDECK_HUD_FRAMES:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
+       && [ -x /usr/local/bin/droiddeck-pace-cores ]; then
+      /usr/local/bin/droiddeck-pace-cores "$DROIDDECK_HUD_FRAMES" 2>&1 &
+    fi
 
     if [ "$steam_x64" = 0 ]; then
     step "registering the app's game library with Steam"

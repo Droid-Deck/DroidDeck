@@ -37,12 +37,14 @@ class MangoReadingsTest {
         assertEquals(100, m.cpu(stat)!!.percent)
     }
 
-    private fun battery(status: String, chargeNow: Long, chargeFull: Long, powerUw: Long) {
+    private fun battery(status: String, chargeNow: Long, chargeFull: Long, powerUw: Long, currentUa: Long = 1_000_000L) {
         val dir = File(tmp.root, "sys/power_supply/BAT1").apply { mkdirs() }
         File(dir, "status").writeText("$status\n")
         File(dir, "charge_now").writeText("$chargeNow\n")
         File(dir, "charge_full").writeText("$chargeFull\n")
         File(dir, "power_now").writeText("$powerUw\n")
+        File(dir, "current_now").writeText("$currentUa\n")
+        File(dir, "voltage_now").writeText("4000000\n")
     }
 
     @Test fun batteryHidesWattsWhileChargingAsMangoHudDoes() {
@@ -50,11 +52,40 @@ class MangoReadingsTest {
         val discharging = readings().battery()!!
         assertEquals(94, discharging.percent)
         assertEquals(8.76f, discharging.watts, 0.001f)
+        assertEquals("3 hrs 37 mins", discharging.runtimeText)
         assertFalse(discharging.charging)
         battery("Charging", 3_622_942, 3_854_193, 8_760_000)
         val charging = readings().battery()!!
         assertEquals(0f, charging.watts, 0f)
+        assertEquals("Charging", charging.runtimeText)
         assertTrue(charging.charging)
+    }
+
+    @Test fun dualBatteryRuntimeSumsBothPacksAndBothCurrents() {
+        battery("Discharging", 2_000_000, 3_000_000, 2_000_000, 500_000)
+        val second = File(tmp.root, "sys/power_supply/BAT2").apply { mkdirs() }
+        File(second, "status").writeText("Discharging\n")
+        File(second, "charge_now").writeText("2000000\n")
+        File(second, "charge_full").writeText("3000000\n")
+        File(second, "power_now").writeText("2000000\n")
+        File(second, "current_now").writeText("500000\n")
+        File(second, "voltage_now").writeText("4000000\n")
+        val result = readings().battery()!!
+        assertEquals(67, result.percent)
+        assertEquals("4 hrs", result.runtimeText)
+        assertEquals(4f, result.watts, 0.001f)
+    }
+
+    @Test fun energyOnlyBatteryConvertsEnergyToChargeBeforeEstimatingRuntime() {
+        val dir = File(tmp.root, "sys/power_supply/BAT1").apply { mkdirs() }
+        File(dir, "status").writeText("Discharging\n")
+        File(dir, "energy_now").writeText("4000000\n")
+        File(dir, "energy_full").writeText("5000000\n")
+        File(dir, "current_now").writeText("1000000\n")
+        File(dir, "voltage_now").writeText("4000000\n")
+        val result = readings().battery()!!
+        assertEquals(80, result.percent)
+        assertEquals("1 hr", result.runtimeText)
     }
 
     @Test fun noBatteryFolderMeansNoReading() {

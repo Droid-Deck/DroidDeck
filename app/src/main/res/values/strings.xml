@@ -616,6 +616,8 @@
     <string name="perf_game_cores_group">Game cores</string>
     <string name="perf_game_cores">Game cores</string>
     <string name="perf_game_cores_hint">Cores for games. With all selected, Android schedules freely.</string>
+    <string name="perf_pace_cores">Save power on steady games</string>
+    <string name="perf_pace_cores_hint">Runs a game on the slower cores while it holds a steady frame rate, and back on its usual cores once it falls behind.</string>
     <string name="perf_client_ui">Client interface</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">May make Steam menus more responsive.</string>
@@ -737,6 +739,7 @@
     <string name="hud_metric_vram">Graphics memory</string>
     <string name="hud_metric_swap">Swap</string>
     <string name="hud_metric_battery">Battery level</string>
+    <string name="hud_metric_battery_time">Battery life remaining</string>
     <string name="hud_metric_power">Power draw</string>
     <string name="hud_metric_network">Network</string>
     <string name="hud_metric_resolution">Resolution</string>
@@ -1014,6 +1017,8 @@
     <string name="dual_typing_done">Done</string>
     <string name="setup_default_home">Default Home app</string>
     <string name="setup_choose_home">Choose a Home app</string>
+    <string name="setup_hide_home_from_recents">Hide launcher from Recents while idle</string>
+    <string name="setup_hide_home_from_recents_hint">Only applies when DroidDeck is the default Home app and no session is running.</string>
     <string name="setup_choose">Choose</string>
     <string name="setup_linux_apps">Linux apps (beta)</string>
     <string name="setup_tool_files">Files</string>

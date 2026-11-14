@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">गेम कोर</string>
     <string name="perf_game_cores">गेम कोर</string>
     <string name="perf_game_cores_hint">गेम के लिए कोर। सभी चुने होने पर, Android खुद शेड्यूल करता है।</string>
+    <string name="perf_pace_cores">स्थिर गेम में बिजली बचाएँ</string>
+    <string name="perf_pace_cores_hint">जब तक गेम स्थिर फ़्रेम रेट बनाए रखता है, उसे धीमे कोर पर चलाता है, और पिछड़ते ही उसके सामान्य कोर पर लौटा देता है।</string>
     <string name="perf_client_ui">क्लाइंट इंटरफ़ेस</string>
     <string name="perf_glthread">थ्रेडेड GL</string>
     <string name="perf_glthread_hint">Steam मेनू को ज़्यादा रिस्पॉन्सिव बना सकता है।</string>
@@ -686,6 +688,7 @@
     <string name="hud_metric_vram">ग्राफ़िक्स मेमोरी</string>
     <string name="hud_metric_swap">स्वैप</string>
     <string name="hud_metric_battery">बैटरी लेवल</string>
+    <string name="hud_metric_battery_time">बैटरी का शेष समय</string>
     <string name="hud_metric_power">पावर खपत</string>
     <string name="hud_metric_network">नेटवर्क</string>
     <string name="hud_metric_resolution">रिज़ॉल्यूशन</string>

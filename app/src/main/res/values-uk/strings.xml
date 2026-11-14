@@ -572,6 +572,8 @@
     <string name="perf_game_cores_group">Ядра для ігор</string>
     <string name="perf_game_cores">Ядра для ігор</string>
     <string name="perf_game_cores_hint">Ядра для ігор. Якщо вибрано всі, Android розподіляє навантаження вільно.</string>
+    <string name="perf_pace_cores">Заощаджувати енергію в стабільних іграх</string>
+    <string name="perf_pace_cores_hint">Запускає гру на повільніших ядрах, поки вона тримає стабільну частоту кадрів, і повертає її на звичні ядра, щойно вона відстає.</string>
     <string name="perf_client_ui">Інтерфейс клієнта</string>
     <string name="perf_glthread">Багатопотоковий GL</string>
     <string name="perf_glthread_hint">Меню Steam можуть реагувати швидше.</string>
@@ -690,6 +692,7 @@
     <string name="hud_metric_vram">Відеопам\'ять</string>
     <string name="hud_metric_swap">Підкачка</string>
     <string name="hud_metric_battery">Заряд батареї</string>
+    <string name="hud_metric_battery_time">Залишковий час роботи батареї</string>
     <string name="hud_metric_power">Споживана потужність</string>
     <string name="hud_metric_network">Мережа</string>
     <string name="hud_metric_resolution">Роздільна здатність</string>

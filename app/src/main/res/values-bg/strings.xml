@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">Ядра за игри</string>
     <string name="perf_game_cores">Ядра за игри</string>
     <string name="perf_game_cores_hint">Ядра за игри. Когато всички са избрани, Android ги разпределя свободно.</string>
+    <string name="perf_pace_cores">Пестене на енергия при стабилни игри</string>
+    <string name="perf_pace_cores_hint">Пуска играта на по-бавните ядра, докато държи стабилна кадрова честота, и я връща на обичайните ѝ ядра, щом изостане.</string>
     <string name="perf_client_ui">Интерфейс на клиента</string>
     <string name="perf_glthread">Многонишков GL</string>
     <string name="perf_glthread_hint">Може да направи менютата на Steam по-отзивчиви.</string>
@@ -686,6 +688,7 @@
     <string name="hud_metric_vram">Графична памет</string>
     <string name="hud_metric_swap">Swap памет</string>
     <string name="hud_metric_battery">Ниво на батерията</string>
+    <string name="hud_metric_battery_time">Оставащо време на батерията</string>
     <string name="hud_metric_power">Консумация на енергия</string>
     <string name="hud_metric_network">Мрежа</string>
     <string name="hud_metric_resolution">Разделителна способност</string>

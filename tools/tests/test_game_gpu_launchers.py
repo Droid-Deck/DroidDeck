@@ -9,7 +9,7 @@ from pathlib import Path
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 KEYS = ("TU_DEBUG", "DROIDDECK_GAME_TU_DEBUG", "MESA_LOADER_DRIVER_OVERRIDE", "GALLIUM_DRIVER",
-        "LIBGL_KOPPER_DRI2", "VK_ICD_FILENAMES", "VK_DRIVER_FILES")
+        "LIBGL_KOPPER_DRI2", "VK_ICD_FILENAMES", "VK_DRIVER_FILES", "MESA_NO_ERROR", "DROIDDECK_GAME_MESA_NO_ERROR")
 SESSION = {"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""}
 GPU_SESSION = {"MESA_LOADER_DRIVER_OVERRIDE": "zink", "GALLIUM_DRIVER": "zink",
                "LIBGL_KOPPER_DRI2": "true", "VK_ICD_FILENAMES": "/runtime/turnip.json",
@@ -67,6 +67,15 @@ class GameGpuLaunchersTest(unittest.TestCase):
         self.assertEqual("unset", self.wrapper("--for", str(self.app / "files"))["TU_DEBUG"])
         self.chromium()
         self.assertEqual("sysmem", self.wrapper("--for", str(self.app / "files"))["TU_DEBUG"])
+
+    def test_programs_get_gl_error_checks_back_while_chromium_keeps_the_client_setting(self):
+        session = dict(GPU_SESSION, MESA_NO_ERROR="1", DROIDDECK_GAME_MESA_NO_ERROR="")
+        values = self.wrapper(session=session)
+        self.assertEqual(("unset", "unset"), (values["MESA_NO_ERROR"], values["DROIDDECK_GAME_MESA_NO_ERROR"]))
+        self.assertEqual(GPU_SESSION, {key: values[key] for key in GPU_SESSION})
+        self.assertEqual("1", self.wrapper("--chromium", session=session)["MESA_NO_ERROR"])
+        self.assertEqual("unset", self.flatpak(session)["MESA_NO_ERROR"])
+        self.assertEqual("1", self.wrapper(session={"MESA_NO_ERROR": "1"})["MESA_NO_ERROR"])
 
     def test_without_the_game_setting_the_wrapper_changes_nothing(self):
         self.assertEqual("sysmem", self.wrapper(session={"TU_DEBUG": "sysmem"})["TU_DEBUG"])

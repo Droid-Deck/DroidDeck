@@ -568,6 +568,8 @@
     <string name="perf_game_cores_group">Spilkerner</string>
     <string name="perf_game_cores">Spilkerner</string>
     <string name="perf_game_cores_hint">Kerner til spil. Med alle valgt planlægger Android frit.</string>
+    <string name="perf_pace_cores">Spar strøm i stabile spil</string>
+    <string name="perf_pace_cores_hint">Kører et spil på de langsommere kerner, mens det holder en stabil billedfrekvens, og flytter det tilbage til sine vante kerner, når det halter bagefter.</string>
     <string name="perf_client_ui">Klientgrænseflade</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">Kan gøre Steam-menuer mere lydhøre.</string>
@@ -686,6 +688,7 @@
     <string name="hud_metric_vram">Grafikhukommelse</string>
     <string name="hud_metric_swap">Swap-hukommelse</string>
     <string name="hud_metric_battery">Batteriniveau</string>
+    <string name="hud_metric_battery_time">Resterende batteritid</string>
     <string name="hud_metric_power">Strømforbrug</string>
     <string name="hud_metric_network">Netværk</string>
     <string name="hud_metric_resolution">Opløsning</string>

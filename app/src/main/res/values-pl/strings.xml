@@ -572,6 +572,8 @@
     <string name="perf_game_cores_group">Rdzenie gier</string>
     <string name="perf_game_cores">Rdzenie gier</string>
     <string name="perf_game_cores_hint">Rdzenie dla gier. Gdy wszystkie są zaznaczone, Android swobodnie przydziela zadania.</string>
+    <string name="perf_pace_cores">Oszczędzaj energię w stabilnych grach</string>
+    <string name="perf_pace_cores_hint">Uruchamia grę na wolniejszych rdzeniach, dopóki utrzymuje stabilną liczbę klatek, a gdy zaczyna nie nadążać, przywraca jej zwykłe rdzenie.</string>
     <string name="perf_client_ui">Interfejs klienta</string>
     <string name="perf_glthread">Wielowątkowy GL</string>
     <string name="perf_glthread_hint">Może poprawić responsywność menu Steam.</string>
@@ -690,6 +692,7 @@
     <string name="hud_metric_vram">Pamięć graficzna</string>
     <string name="hud_metric_swap">Pamięć wymiany</string>
     <string name="hud_metric_battery">Poziom baterii</string>
+    <string name="hud_metric_battery_time">Pozostały czas pracy baterii</string>
     <string name="hud_metric_power">Pobór mocy</string>
     <string name="hud_metric_network">Sieć</string>
     <string name="hud_metric_resolution">Rozdzielczość</string>

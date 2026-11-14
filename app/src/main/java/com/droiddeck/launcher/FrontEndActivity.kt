@@ -179,6 +179,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var syncFallback by mutableStateOf(true)
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
+    private var paceCores by mutableStateOf(true)
     private var ramCapMb by mutableStateOf(0)
     private var zramClient by mutableStateOf(true)
     private var vramCapMb by mutableStateOf(0)
@@ -2624,7 +2625,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun PerformanceHost() {
         PerformancePage(
             cores = CpuCores.all.map { c -> CoreRow(c, "cpu$c" + (CpuCores.maxGhz(c)?.let { String.format(java.util.Locale.US, " · %.1f GHz", it) } ?: "")) },
-            clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores,
+            clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores, paceCores = paceCores,
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
             fastSync = fastSync,
             syncFallback = syncFallback,
@@ -2638,6 +2639,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
+            onPaceCores = { on -> SessionPrefs.setPaceCores(this, on); paceCores = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
             onZinkLazy = { on -> SessionPrefs.setZinkLazy(this, on); zinkLazy = on },
             onGlThread = { on -> SessionPrefs.setGlThread(this, on); glThread = on },
@@ -2944,6 +2946,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         syncFallback = SessionPrefs.syncFallback(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
+        paceCores = SessionPrefs.paceCores(this)
         ramCapMb = SessionPrefs.ramCapMb(this)
         zramClient = SessionPrefs.zramClient(this)
         vramCapMb = SessionPrefs.vramCapMb(this)

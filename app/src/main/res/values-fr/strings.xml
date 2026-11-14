@@ -570,6 +570,8 @@
     <string name="perf_game_cores_group">Cœurs de jeu</string>
     <string name="perf_game_cores">Cœurs de jeu</string>
     <string name="perf_game_cores_hint">Cœurs utilisés par les jeux. Si tous sont sélectionnés, Android planifie librement.</string>
+    <string name="perf_pace_cores">Économiser l\'énergie dans les jeux stables</string>
+    <string name="perf_pace_cores_hint">Fait tourner un jeu sur les cœurs plus lents tant qu\'il tient une fréquence d\'images stable, et le remet sur ses cœurs habituels dès qu\'il prend du retard.</string>
     <string name="perf_client_ui">Interface du client</string>
     <string name="perf_glthread">Multithread GL</string>
     <string name="perf_glthread_hint">Peut rendre les menus Steam plus réactifs.</string>
@@ -688,6 +690,7 @@
     <string name="hud_metric_vram">Mémoire graphique</string>
     <string name="hud_metric_swap">Mémoire d\'échange</string>
     <string name="hud_metric_battery">Niveau de batterie</string>
+    <string name="hud_metric_battery_time">Autonomie restante de la batterie</string>
     <string name="hud_metric_power">Consommation</string>
     <string name="hud_metric_network">Réseau</string>
     <string name="hud_metric_resolution">Résolution</string>

@@ -570,6 +570,8 @@
     <string name="perf_game_cores_group">Núcleos de juegos</string>
     <string name="perf_game_cores">Núcleos de juegos</string>
     <string name="perf_game_cores_hint">Núcleos para los juegos. Con todos seleccionados, Android los asigna libremente.</string>
+    <string name="perf_pace_cores">Ahorrar energía en juegos estables</string>
+    <string name="perf_pace_cores_hint">Ejecuta un juego en los núcleos más lentos mientras mantiene una tasa de fotogramas estable, y lo devuelve a sus núcleos habituales cuando se queda atrás.</string>
     <string name="perf_client_ui">Interfaz del cliente</string>
     <string name="perf_glthread">GL con subprocesos</string>
     <string name="perf_glthread_hint">Puede hacer los menús de Steam más ágiles.</string>
@@ -688,6 +690,7 @@
     <string name="hud_metric_vram">Memoria gráfica</string>
     <string name="hud_metric_swap">Memoria de intercambio</string>
     <string name="hud_metric_battery">Nivel de batería</string>
+    <string name="hud_metric_battery_time">Tiempo de batería restante</string>
     <string name="hud_metric_power">Consumo de energía</string>
     <string name="hud_metric_network">Red</string>
     <string name="hud_metric_resolution">Resolución</string>
