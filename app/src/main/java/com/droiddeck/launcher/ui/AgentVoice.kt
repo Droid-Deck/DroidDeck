@@ -10,18 +10,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** Dictation into the Agent editor: what is heard so far follows the text already typed. */
-internal class AgentVoice(private val context: Context, private val onText: (String) -> Unit) {
+/** Dictation into the Agent editor: what is heard so far follows the text already typed, until the user edits the draft. */
+internal class AgentVoice(private val context: Context, private val draft: () -> String, private val onText: (String) -> Unit) {
     var listening by mutableStateOf(false)
         private set
     private var recognizer: SpeechRecognizer? = null
     private var base = ""
+    private var written = ""
 
     fun start(typed: String) {
         stop()
         val speech = runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull() ?: return
         recognizer = speech
         base = typed.trimEnd().let { if (it.isEmpty()) it else "$it " }
+        written = typed
         speech.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) { listening = true }
             override fun onBeginningOfSpeech() {}
@@ -46,7 +48,9 @@ internal class AgentVoice(private val context: Context, private val onText: (Str
 
     private fun heard(results: Bundle?) {
         val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() } ?: return
-        onText(base + spoken)
+        if (draft() != written) return stop()
+        written = base + spoken
+        onText(written)
     }
 
     /** Ends listening but keeps the recognizer until its final result arrives. */

@@ -661,7 +661,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var draft by draftState
-    val voice = remember { AgentVoice(context.applicationContext) { draftState.value = it } }
+    val voice = remember { AgentVoice(context.applicationContext, { draftState.value }) { draftState.value = it } }
     val voiceAvailable = remember { AgentVoice.available(context) }
     DisposableEffect(voice) { onDispose { voice.stop() } }
     LaunchedEffect(visible) { if (!visible) voice.stop() }

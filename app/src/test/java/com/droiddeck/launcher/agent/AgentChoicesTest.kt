@@ -28,4 +28,15 @@ class AgentChoicesTest {
         val text = "```choices\nA\nB\n```\nMore after it."
         assertEquals(Choices(text, emptyList()), choices(text))
     }
+
+    @Test fun backticksInsideAChoiceAreKept() {
+        val reply = choices("How?\n```choices\nUse ``` for code\nUse indentation\n```")
+        assertEquals("How?", reply.text)
+        assertEquals(listOf("Use ``` for code", "Use indentation"), reply.options)
+    }
+
+    @Test fun aLongerOpenerNeedsAClosingFenceAsLong() {
+        val reply = choices("````choices\nA\n```\nB\n````")
+        assertEquals(listOf("A", "```", "B"), reply.options)
+    }
 }
