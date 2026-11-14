@@ -41,6 +41,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentChats
 import com.droiddeck.launcher.agent.AgentHarness
@@ -100,44 +109,85 @@ internal fun AgentHistory(modifier: Modifier, onOpened: () -> Unit) {
         }
         return
     }
+    var query by rememberSaveable { mutableStateOf("") }
+    val found by produceState<List<AgentChats.Chat>?>(null, chats, query) {
+        if (query.isNotBlank()) delay(250)
+        value = withContext(Dispatchers.IO) { AgentChats.search(context, chats, query) }
+    }
     val working = AgentHost.state == AgentHost.State.WORKING
-    LazyColumn(modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
-        items(chats, key = { it.id }) { chat ->
-            var armed by remember(chat.id) { mutableStateOf(false) }
-            val current = chat.id == AgentHost.chat
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp)
-                    .clickable(enabled = !working || current) {
-                        AgentHost.open(context, chat.id)
-                        onOpened()
-                    }
-                    .background(if (current) pal.primary.copy(alpha = 0.12f) else colors.surface)
-                    .padding(horizontal = 14.dp, vertical = 10.dp).testTag("agent-chat"),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(chat.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        if (armed) stringResource(R.string.agent_history_delete_warning)
-                        else AgentHarness.byId(chat.harness).name + " · " + when {
-                            System.currentTimeMillis() - chat.updated < 60_000 -> stringResource(R.string.agent_just_now)
-                            else -> DateUtils.getRelativeTimeSpanString(chat.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
-                        },
-                        fontSize = 12.5.sp, color = if (armed) AttentionAmber else pal.onSurfaceVariant,
-                    )
-                }
-                SecondaryButton(
-                    stringResource(if (armed) R.string.agent_storage_confirm else R.string.agent_history_delete), compact = true,
-                    enabled = !(current && working),
-                ) {
-                    if (armed) {
-                        AgentHost.delete(context, chat.id)
-                        version++
-                    } else armed = true
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    Column(modifier.fillMaxWidth()) {
+        AgentHistorySearch(query) { query = it }
+        val shown = found ?: chats
+        if (shown.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.agent_history_no_match), fontSize = 15.sp, color = pal.onSurfaceVariant)
+        } else LazyColumn(Modifier.weight(1f).fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+            items(shown, key = { it.id }) { chat -> AgentHistoryRow(chat, working, onOpened) { version++ } }
         }
+    }
+}
+
+@Composable
+private fun AgentHistorySearch(query: String, onQuery: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).height(44.dp).clip(Shape14).background(colors.surface)
+            .border(1.dp, pal.line, Shape14).padding(horizontal = 12.dp),
+    ) {
+        Icon(Icons.Outlined.Search, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Box(Modifier.weight(1f).padding(start = 8.dp)) {
+            if (query.isEmpty()) Text(stringResource(R.string.agent_history_search), fontSize = 15.sp, color = pal.onSurfaceVariant, maxLines = 1)
+            BasicTextField(
+                query, onQuery, singleLine = true, textStyle = TextStyle(fontSize = 15.sp, color = colors.onSurface),
+                cursorBrush = SolidColor(pal.primary), modifier = Modifier.fillMaxWidth().testTag("agent-history-search"),
+            )
+        }
+        if (query.isNotEmpty()) Icon(Icons.Outlined.Close, stringResource(R.string.agent_close), tint = pal.onSurfaceVariant,
+            modifier = Modifier.size(28.dp).clip(CircleShape).clickable { onQuery("") }.padding(5.dp))
+    }
+}
+
+@Composable
+private fun AgentHistoryRow(chat: AgentChats.Chat, working: Boolean, onOpened: () -> Unit, onDeleted: () -> Unit) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column {
+        var armed by remember(chat.id) { mutableStateOf(false) }
+        val current = chat.id == AgentHost.chat
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp)
+                .clickable(enabled = !working || current) {
+                    AgentHost.open(context, chat.id)
+                    onOpened()
+                }
+                .background(if (current) pal.primary.copy(alpha = 0.12f) else colors.surface)
+                .padding(horizontal = 14.dp, vertical = 10.dp).testTag("agent-chat"),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(chat.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (armed) stringResource(R.string.agent_history_delete_warning)
+                    else AgentHarness.byId(chat.harness).name + " · " + when {
+                        System.currentTimeMillis() - chat.updated < 60_000 -> stringResource(R.string.agent_just_now)
+                        else -> DateUtils.getRelativeTimeSpanString(chat.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
+                    },
+                    fontSize = 12.5.sp, color = if (armed) AttentionAmber else pal.onSurfaceVariant,
+                )
+            }
+            SecondaryButton(
+                stringResource(if (armed) R.string.agent_storage_confirm else R.string.agent_history_delete), compact = true,
+                enabled = !(current && working),
+            ) {
+                if (armed) {
+                    AgentHost.delete(context, chat.id)
+                    onDeleted()
+                } else armed = true
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
     }
 }
 

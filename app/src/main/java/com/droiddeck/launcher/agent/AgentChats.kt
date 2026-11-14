@@ -37,6 +37,21 @@ object AgentChats {
         }
         .sortedByDescending { it.updated }
 
+    /** The chats among [chats] where the user or the agent wrote [query], ignoring case. */
+    fun search(context: Context, chats: List<Chat>, query: String): List<Chat> {
+        val q = query.trim()
+        if (q.isEmpty()) return chats
+        return chats.filter { chat ->
+            chat.title.contains(q, ignoreCase = true) || read(file(context, chat.id)).entries.any { matches(it, q) }
+        }
+    }
+
+    internal fun matches(entry: Entry, query: String) = when (entry) {
+        is Entry.Asked -> entry.text.contains(query, ignoreCase = true)
+        is Entry.Said -> entry.text.contains(query, ignoreCase = true)
+        else -> false
+    }
+
     fun delete(context: Context, id: String) {
         file(context, id).delete()
         File(AgentAttachments.hostDir(context), id).deleteRecursively()
