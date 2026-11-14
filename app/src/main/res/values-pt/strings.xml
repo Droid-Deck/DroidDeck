@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direto</string>
     <string name="mode_touch_note">Automático: touchpad na Área de trabalho, direto na Steam.</string>
+    <string name="mode_pen">Caneta</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Toque</string>
+    <string name="mode_pen_button">Botão lateral</string>
     <string name="mode_osc">Controles na tela</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">No Automático, os controles na tela aparecem quando não há um controle conectado.</string>

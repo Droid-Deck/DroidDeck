@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Érintőpad</string>
     <string name="mode_touch_direct">Közvetlen</string>
     <string name="mode_touch_note">Automatikus: érintőpad az Asztalon, közvetlen a Steamben.</string>
+    <string name="mode_pen">Toll</string>
+    <string name="mode_pen_mouse">Egér</string>
+    <string name="mode_pen_touch">Érintés</string>
+    <string name="mode_pen_button">Oldalsó gomb</string>
     <string name="mode_osc">Képernyőn megjelenő vezérlők</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Az Automatikus megjeleníti a vezérlőket, ha nincs csatlakoztatott kontroller.</string>

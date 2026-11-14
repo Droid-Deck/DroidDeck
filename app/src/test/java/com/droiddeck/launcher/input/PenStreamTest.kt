@@ -331,6 +331,19 @@ class PenStreamTest {
         assertFalse(PenStream.isPenKeyboard(null, keyboard, external = true, alphabetic = false))
     }
 
+    @Test fun aTouchscreenCountsAsAPenDeviceOnlyWhereAndroidSetsTheStylusBitForPens() {
+        val screen = InputDevice.SOURCE_TOUCHSCREEN or InputDevice.SOURCE_STYLUS
+        assertFalse(PenStream.isPenDevice(screen, sdk = 33))
+        assertTrue(PenStream.isPenDevice(screen, sdk = 34))
+        for (sdk in listOf(26, 33, 34)) {
+            assertTrue(PenStream.isPenDevice(InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_STYLUS, sdk))
+            assertTrue(PenStream.isPenDevice(InputDevice.SOURCE_BLUETOOTH_STYLUS, sdk))
+            assertTrue(PenStream.isPenDevice(InputDevice.SOURCE_STYLUS, sdk))
+            assertFalse(PenStream.isPenDevice(InputDevice.SOURCE_TOUCHSCREEN, sdk))
+            assertFalse(PenStream.isPenDevice(InputDevice.SOURCE_MOUSE, sdk))
+        }
+    }
+
     private fun flags() = records.map { it.flags }
     private fun x(position: Float) = InputSpace.fixedX(position, 1000)
     private fun y(position: Float) = InputSpace.fixedY(position, 600)

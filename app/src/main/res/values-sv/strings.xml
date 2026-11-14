@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Pekplatta</string>
     <string name="mode_touch_direct">Direkt</string>
     <string name="mode_touch_note">Auto: pekplatta på skrivbordet, direkt i Steam.</string>
+    <string name="mode_pen">Penna</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Pekskärm</string>
+    <string name="mode_pen_button">Sidoknapp</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>

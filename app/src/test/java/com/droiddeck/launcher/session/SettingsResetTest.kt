@@ -36,6 +36,7 @@ class SettingsResetTest {
         SessionPrefs.setBackDoubleTapMs(app, 100)
         SessionPrefs.setPenSetting(app, "pen", SessionPrefs.PEN_TOUCH)
         SessionPrefs.setPenSetting(app, "penButton", SessionPrefs.PEN_BUTTON_OFF)
+        SessionPrefs.setPenSeen(app)
         SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)
         session.edit().putInt("fpsLimit.steam", 30).commit()
@@ -61,6 +62,7 @@ class SettingsResetTest {
         assertEquals("graphite", SessionPrefs.theme(app))
         assertEquals(500, SessionPrefs.backDoubleTapMs(app))
         assertEquals(SessionPrefs.Pen(), SessionPrefs.pen(app))
+        assertTrue(SessionPrefs.penSeen(app))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
         assertFalse(session.contains("fpsLimit.steam"))
@@ -102,6 +104,7 @@ class SettingsResetTest {
             assertEquals(key, values.first(), read(key))
             assertThrows(IllegalArgumentException::class.java) { SessionPrefs.setPenSetting(app, key, "left") }
         }
+        assertFalse(SettingsReset.isSessionSetting("penSeen"))
     }
 
     @Test fun aFailedDebugOptOutDoesNotHideTheEnabledPreference() {

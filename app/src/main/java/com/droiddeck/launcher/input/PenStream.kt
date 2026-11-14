@@ -206,6 +206,14 @@ class PenStream(private val sink: Sink) {
             else -> false
         }
 
+        fun penConnected(): Boolean =
+            InputDevice.getDeviceIds().any { id -> InputDevice.getDevice(id)?.let { isPenDevice(it.sources) } == true }
+
+        // Before Android 14 a touchscreen that declares ABS_MT_TOOL_TYPE reports SOURCE_STYLUS without any pen.
+        fun isPenDevice(sources: Int, sdk: Int = Build.VERSION.SDK_INT): Boolean =
+            sources and InputDevice.SOURCE_STYLUS == InputDevice.SOURCE_STYLUS &&
+                (sources and InputDevice.SOURCE_TOUCHSCREEN != InputDevice.SOURCE_TOUCHSCREEN || sdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+
         fun penIndex(event: MotionEvent): Int {
             for (index in 0 until event.pointerCount) if (isPen(event, index)) return index
             return -1

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Trực tiếp</string>
     <string name="mode_touch_note">Tự động: touchpad ở Desktop, trực tiếp ở Steam.</string>
+    <string name="mode_pen">Bút</string>
+    <string name="mode_pen_mouse">Chuột</string>
+    <string name="mode_pen_touch">Chạm</string>
+    <string name="mode_pen_button">Nút bên</string>
     <string name="mode_osc">Điều khiển trên màn hình</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Tự động hiện các nút điều khiển khi không có tay cầm kết nối.</string>

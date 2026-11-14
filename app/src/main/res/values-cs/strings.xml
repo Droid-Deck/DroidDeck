@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Přímé</string>
     <string name="mode_touch_note">Automaticky: touchpad na Ploše, přímo ve Steamu.</string>
+    <string name="mode_pen">Pero</string>
+    <string name="mode_pen_mouse">Myš</string>
+    <string name="mode_pen_touch">Dotyk</string>
+    <string name="mode_pen_button">Boční tlačítko</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>

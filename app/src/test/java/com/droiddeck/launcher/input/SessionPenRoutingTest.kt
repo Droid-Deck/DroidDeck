@@ -30,6 +30,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.shadows.InputDeviceBuilder
+import org.robolectric.shadows.ShadowInputDevice
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
@@ -305,6 +306,40 @@ class SessionPenRoutingTest {
             invoke("readPrefs")
             assertEquals(setting.first, 0, CompositorShadow.pens.last().flags)
         }
+    }
+
+    @Test fun theFirstPenEventRemembersThatThePhoneHasAPen() {
+        invoke("readPrefs")
+        assertFalse(state<Boolean>("penSeen").value)
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f)))
+        assertTrue(state<Boolean>("penSeen").value)
+        assertTrue(SessionPrefs.penSeen(activity))
+    }
+
+    @Config(sdk = [34])
+    @Test fun aConnectedStylusDeviceCountsAsSeenBeforeAnyPenEvent() {
+        invoke("readPrefs")
+        assertFalse(state<Boolean>("penSeen").value)
+        shadowOf(activity.getSystemService(InputManager::class.java)).addInputDevice(
+            InputDeviceBuilder.newBuilder().setId(42).setName("digitizer").setSources(stylusScreen).build())
+        invoke("readPrefs")
+        assertTrue(state<Boolean>("penSeen").value)
+        assertTrue(SessionPrefs.penSeen(activity))
+    }
+
+    @Config(sdk = [33])
+    @Test fun beforeAndroid14ATouchscreenWithTheStylusBitWaitsForAPenEvent() {
+        shadowOf(activity.getSystemService(InputManager::class.java)).addInputDevice(
+            ShadowInputDevice.makeInputDeviceNamed("touchscreen").also {
+                ReflectionHelpers.setField(it, "mId", 42)
+                ReflectionHelpers.setField(it, "mSources", stylusScreen)
+            })
+        assertEquals(listOf(42), InputDevice.getDeviceIds().toList())
+        invoke("readPrefs")
+        assertFalse(state<Boolean>("penSeen").value)
+        assertFalse(SessionPrefs.penSeen(activity))
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f)))
+        assertTrue(state<Boolean>("penSeen").value)
     }
 
     @Config(sdk = [34])

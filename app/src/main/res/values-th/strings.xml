@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">ทัชแพด</string>
     <string name="mode_touch_direct">โดยตรง</string>
     <string name="mode_touch_note">อัตโนมัติ: ทัชแพดในเดสก์ท็อป โดยตรงใน Steam</string>
+    <string name="mode_pen">ปากกา</string>
+    <string name="mode_pen_mouse">เมาส์</string>
+    <string name="mode_pen_touch">การสัมผัส</string>
+    <string name="mode_pen_button">ปุ่มด้านข้าง</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>

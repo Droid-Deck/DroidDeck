@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Langsung</string>
     <string name="mode_touch_note">Otomatis: touchpad di Desktop, langsung di Steam.</string>
+    <string name="mode_pen">Pena</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_button">Tombol samping</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>

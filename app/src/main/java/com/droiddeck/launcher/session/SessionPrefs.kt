@@ -540,6 +540,12 @@ object SessionPrefs {
 
     fun pen(context: Context): Pen = Pen(penMode(context), penButton(context))
 
+    fun penSeen(context: Context): Boolean = prefs(context).getBoolean("penSeen", false)
+
+    fun setPenSeen(context: Context) {
+        if (!penSeen(context)) prefs(context).edit().putBoolean("penSeen", true).apply()
+    }
+
     const val SHAPE_AUTO = "auto"
     const val SHAPE_WIDE = "16:9"
     const val SHAPE_EXACT = "exact"

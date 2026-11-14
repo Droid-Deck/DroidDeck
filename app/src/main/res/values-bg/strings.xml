@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Тъчпад</string>
     <string name="mode_touch_direct">Директно</string>
     <string name="mode_touch_note">Автоматично: тъчпад на работния плот, директно в Steam.</string>
+    <string name="mode_pen">Писалка</string>
+    <string name="mode_pen_mouse">Мишка</string>
+    <string name="mode_pen_touch">Докосване</string>
+    <string name="mode_pen_button">Страничен бутон</string>
     <string name="mode_osc">Екранни контроли</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>

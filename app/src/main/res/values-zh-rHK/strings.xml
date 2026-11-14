@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">觸控板</string>
     <string name="mode_touch_direct">直接</string>
     <string name="mode_touch_note">自動：桌面使用觸控板，Steam 使用直接觸控。</string>
+    <string name="mode_pen">觸控筆</string>
+    <string name="mode_pen_mouse">滑鼠</string>
+    <string name="mode_pen_touch">觸控</string>
+    <string name="mode_pen_button">側鍵</string>
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>

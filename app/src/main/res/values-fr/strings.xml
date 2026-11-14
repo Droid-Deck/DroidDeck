@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Pavé tactile</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto : pavé tactile pour le bureau, tactile direct pour Steam.</string>
+    <string name="mode_pen">Stylet</string>
+    <string name="mode_pen_mouse">Souris</string>
+    <string name="mode_pen_touch">Tactile</string>
+    <string name="mode_pen_button">Bouton latéral</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>
