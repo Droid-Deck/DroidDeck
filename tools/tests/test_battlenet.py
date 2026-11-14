@@ -1505,6 +1505,37 @@ class AgentJobTest(Harness):
         self.assertEqual(code, 6)
         self.assertEqual(stopped, [[(5, ["Agent.exe"])]])
 
+    def test_only_a_changing_rate_or_estimate_does_not_hold_off_the_stall(self):
+        self.install()
+        clock = [0.0]
+
+        class Spinning:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                self.base = cmd[-1][2:].replace("\\", "/")
+                self.polls = 0
+
+            def poll(self):
+                self.polls += 1
+                clock[0] += 10
+                with open(self.base + ".json", "wb") as f:
+                    f.write(json.dumps({"state": 1003, "download_current": [4, 0, 0], "download_total": [9, 0, 0],
+                                        "download_rate": self.polls, "estimated_time_in_sec": self.polls}).encode("utf-16"))
+                return None
+
+            def kill(self):
+                pass
+
+            def wait(self):
+                return -9
+
+        fake = mock.Mock(monotonic=lambda: clock[0], sleep=lambda s: None)
+        with mock.patch.object(BNET["subprocess"], "Popen", Spinning), mock.patch.dict(BNET, {"time": fake, "stop": lambda p: None}):
+            code = BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=25)
+        self.assertEqual(code, 6)
+        self.assertEqual(self.lines[-1], ("ERROR", "stalled"))
+
     def test_a_moving_job_is_not_ended_as_stalled(self):
         self.install()
         done = json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})

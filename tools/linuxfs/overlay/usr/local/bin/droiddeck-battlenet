@@ -89,6 +89,7 @@ REGION = re.compile(r"[A-Z]{2}")
 REPORT = "BNET"
 ETA_LIMIT = 30 * 86400
 STALL = 600
+MOVING = ("download_current", "download_total", "progress", "playable_progress", "state", "phase", "paused", "error")
 DONE_STATE = 1004
 REPORTED = ("progress", "playable_progress", "download_rate", "download_remaining", "estimated_time_in_sec", "state",
             "playable", "paused", "download_complete", "installed", "error")
@@ -1447,6 +1448,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 emit("ERROR", "stopped gamescope: %s" % error)
                 return 1
         seen = None
+        mark = None
         moved = time.monotonic()
         stalled = False
         while True:
@@ -1457,6 +1459,9 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 if brief != seen:
                     emit("PROGRESS", json.dumps(brief, sort_keys=True))
                     seen = brief
+                signature = tuple(brief.get(key) for key in MOVING)
+                if signature != mark:
+                    mark = signature
                     moved = time.monotonic()
             if done:
                 break
