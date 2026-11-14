@@ -688,6 +688,7 @@
     <string name="hud_metric_vram">Grafisch geheugen</string>
     <string name="hud_metric_swap">Swapgeheugen</string>
     <string name="hud_metric_battery">Accuniveau</string>
+    <string name="hud_metric_battery_time">Resterende batterijduur</string>
     <string name="hud_metric_power">Stroomverbruik</string>
     <string name="hud_metric_network">Netwerk</string>
     <string name="hud_metric_resolution">Resolutie</string>

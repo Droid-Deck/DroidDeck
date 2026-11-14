@@ -692,6 +692,7 @@
     <string name="hud_metric_vram">Grafická paměť</string>
     <string name="hud_metric_swap">Odkládací paměť</string>
     <string name="hud_metric_battery">Stav baterie</string>
+    <string name="hud_metric_battery_time">Zbývající výdrž baterie</string>
     <string name="hud_metric_power">Příkon</string>
     <string name="hud_metric_network">Síť</string>
     <string name="hud_metric_resolution">Rozlišení</string>

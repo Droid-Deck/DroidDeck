@@ -686,6 +686,7 @@
     <string name="hud_metric_vram">顯示記憶體</string>
     <string name="hud_metric_swap">交換空間</string>
     <string name="hud_metric_battery">電池電量</string>
+    <string name="hud_metric_battery_time">剩餘電池續航時間</string>
     <string name="hud_metric_power">功耗</string>
     <string name="hud_metric_network">網路</string>
     <string name="hud_metric_resolution">解析度</string>

@@ -686,6 +686,7 @@
     <string name="hud_metric_vram">显存</string>
     <string name="hud_metric_swap">交换空间</string>
     <string name="hud_metric_battery">电池电量</string>
+    <string name="hud_metric_battery_time">剩余电池续航时间</string>
     <string name="hud_metric_power">功耗</string>
     <string name="hud_metric_network">网络</string>
     <string name="hud_metric_resolution">分辨率</string>

@@ -696,6 +696,7 @@
     <string name="hud_metric_vram">ذاكرة الرسومات</string>
     <string name="hud_metric_swap">ذاكرة التبديل</string>
     <string name="hud_metric_battery">مستوى البطارية</string>
+    <string name="hud_metric_battery_time">الوقت المتبقي لعمر البطارية</string>
     <string name="hud_metric_power">استهلاك الطاقة</string>
     <string name="hud_metric_network">الشبكة</string>
     <string name="hud_metric_resolution">الدقة</string>

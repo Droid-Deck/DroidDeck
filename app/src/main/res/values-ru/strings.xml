@@ -711,6 +711,7 @@
     <string name="hud_metric_vram">Видеопамять</string>
     <string name="hud_metric_swap">Подкачка</string>
     <string name="hud_metric_battery">Заряд батареи</string>
+    <string name="hud_metric_battery_time">Оставшееся время работы батареи</string>
     <string name="hud_metric_power">Потребляемая мощность</string>
     <string name="hud_metric_network">Сеть</string>
     <string name="hud_metric_resolution">Разрешение</string>

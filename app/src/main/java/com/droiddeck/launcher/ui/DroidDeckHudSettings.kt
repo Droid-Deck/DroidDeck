@@ -64,6 +64,16 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             if (metric.chip !in chips || metric.chip in HIDDEN[size].orEmpty()) continue
             ToggleRow(host, "hud-${metric.key}", stringResource(metric.label), null, on(metric.key),
                 chipModifier = track("hud-${metric.key}")) { a.onHudSetting(metric.key, flag(it)) }
+            if (metric.key == "showBattery" && size != DroidDeckHudSize.MINIMAL) {
+                ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
+                    chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
+            }
+        }
+
+        if (size == DroidDeckHudSize.MINIMAL && "Battery time" in chips &&
+            "Battery time" !in HIDDEN[size].orEmpty()) {
+            ToggleRow(host, "hud-showBatteryTime", stringResource(R.string.hud_metric_battery_time), null, on("showBatteryTime"),
+                chipModifier = track("hud-showBatteryTime")) { a.onHudSetting("showBatteryTime", flag(it)) }
         }
     }
 
@@ -176,8 +186,6 @@ private val METRICS = listOf(
 )
 
 private val HIDDEN = mapOf(
-    DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
-    DroidDeckHudSize.MINIMAL to setOf("FPS"),
+    DroidDeckHudSize.PILL to setOf("FPS graph"),
     DroidDeckHudSize.TILES to setOf("FPS graph", "0.1% low", "0.01% low"),
-    DroidDeckHudSize.STRIP to setOf("FPS"),
 )

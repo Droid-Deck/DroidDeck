@@ -688,6 +688,7 @@
     <string name="hud_metric_vram">Grafik belleği</string>
     <string name="hud_metric_swap">Takas alanı</string>
     <string name="hud_metric_battery">Pil seviyesi</string>
+    <string name="hud_metric_battery_time">Kalan pil süresi</string>
     <string name="hud_metric_power">Güç tüketimi</string>
     <string name="hud_metric_network">Ağ</string>
     <string name="hud_metric_resolution">Çözünürlük</string>
