@@ -5,6 +5,7 @@ import json
 import os
 import runpy
 import shutil
+import stat
 import struct
 import subprocess
 import tempfile
@@ -449,6 +450,72 @@ class PrepareTest(FexTestCase):
         os.utime(provider / "usr-mtree.txt.gz", ns=(1, 1))
         self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
         self.assertEqual(sorted(os.listdir(root.parent)), ["config", "lock", "rootfs", "status.json"])
+
+    def test_the_built_x86_runtime_holds_nothing_that_leaves_it(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        os.chmod(sniper / "files/share/ca", 0o750)
+        self.quiet(FEX["prepare"])
+        root = (self.home / ".local/share/droiddeck-fex/rootfs").resolve()
+        self.assertEqual(stat.S_IMODE(os.stat(root / "share/ca").st_mode), 0o750)
+        entries = 0
+        for directory, dirs, files in os.walk(root):
+            for name in dirs + files:
+                path = Path(directory) / name
+                entries += 1
+                if path.is_symlink():
+                    self.assertFalse(os.path.isabs(os.readlink(path)), path)
+                    self.assertTrue(path.resolve().is_relative_to(root), path)
+        self.assertGreater(entries, 10)
+        self.assertEqual((root / "bin/[").read_bytes(), b"blob")
+        self.assertEqual((root / "share/ca/real.crt").read_bytes(), b"cert")
+        self.assertFalse(os.path.lexists(root / "ab"))
+
+    def test_guest_writes_do_not_mutate_runtime_blob_files(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        self.quiet(FEX["prepare"])
+        root = self.home / ".local/share/droiddeck-fex/rootfs"
+        marker = root / ".droiddeck-fex"
+        stamp = marker.read_text()
+        marker.write_text("3\n" + stamp.partition("\n")[2])
+        source = sniper / "files/ab/cdef-1.bin"
+        guest = root / "bin/["
+        guest.unlink()
+        os.link(source, guest)
+        self.assertEqual(os.stat(source).st_ino, os.stat(guest).st_ino)
+        self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        self.assertNotEqual(os.stat(source).st_ino, os.stat(guest).st_ino)
+        guest.write_bytes(b"guest mutation")
+        self.assertEqual(source.read_bytes(), b"blob")
+        self.assertEqual(guest.read_bytes(), b"guest mutation")
+
+    def test_a_rebuilt_x86_runtime_refreshes_the_steam_client_links_and_drops_read_only_trees(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper)
+        base = sniper / "files"
+        (base / str(self.home).lstrip("/") / ".steam").mkdir(parents=True)
+        os.symlink(self.steam / "linuxarm64", base / str(self.home).lstrip("/") / ".steam/sdk64")
+        self.write(self.steam / "linuxarm64/steamclient.so", elf(183))
+        os.chmod(base / "share/ca", 0o500)
+        self.addCleanup(os.chmod, base / "share/ca", 0o700)
+        self.quiet(FEX["prepare"])
+        rootfs = self.home / ".local/share/droiddeck-fex/rootfs"
+        os.chmod(rootfs / "share/ca", 0o000)
+        self.write(self.steam / "linux64/steamclient.so", elf(62))
+        self.write(self.steam / "linux32/steamclient.so", elf(3))
+        os.utime(self.steam / "steamapps/common/SteamLinuxRuntime_4/steamrt4_platform_4.0.20260928.262390/usr-mtree.txt.gz", ns=(1, 1))
+        self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        guest = rootfs / str(self.home).lstrip("/") / ".steam"
+        self.assertEqual(os.readlink(guest / "sdk64"), str(self.steam / "linux64"))
+        self.assertEqual(os.readlink(guest / "sdk32"), str(self.steam / "linux32"))
+        self.assertEqual(sorted(os.listdir(rootfs.parent)), ["config", "lock", "rootfs", "status.json"])
 
     def test_a_runtime_that_is_not_newer_is_left_out(self):
         self.fex_tool()
