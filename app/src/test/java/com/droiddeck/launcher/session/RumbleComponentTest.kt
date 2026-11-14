@@ -196,6 +196,27 @@ class RumbleComponentTest {
         assertFalse("a stale no-game result left the hold unwatched", pad.vibrating)
     }
 
+    @Test fun aSenderOfOurOwnUserThatExitedBeforeItsFirstLookupStopsItsRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { null }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS, ownUser = true)
+        assertTrue(pad.vibrating)
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived a sender that was already gone", pad.vibrating)
+    }
+
+    @Test fun anUnseenSenderOfAnotherUserKeepsItsRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { null }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS, ownUser = false)
+        idle(RumbleComponent.KEEPALIVE_MS * 3 + 100)
+        assertTrue("a sender the app can't see lost its rumble", pad.vibrating)
+    }
+
     @Test fun aSenderFirstReadAsUnknownStillStopsItsRumbleWhenItExits() {
         val pad = FakeMotors()
         var start: String? = RumbleComponent.UNKNOWN_START
@@ -387,10 +408,10 @@ class RumbleComponentTest {
             .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
 
-    private fun effectFrom(sender: Int, strong: Int = 40000, weak: Int = 20000, slot: Int = 0, ms: Int = 5000) {
+    private fun effectFrom(sender: Int, strong: Int = 40000, weak: Int = 20000, slot: Int = 0, ms: Int = 5000, ownUser: Boolean = false) {
         val int = Int::class.javaPrimitiveType
-        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int, int)
-            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot, sender)
+        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int, int, Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot, sender, ownUser)
     }
 
     private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))

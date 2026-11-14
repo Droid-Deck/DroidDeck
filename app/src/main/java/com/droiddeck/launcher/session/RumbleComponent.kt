@@ -71,8 +71,9 @@ class RumbleComponent : SessionPart() {
                 try {
                     val bytes = ByteArray(8)
                     DataInputStream(client.inputStream).readFully(bytes)
-                    val sender = runCatching { client.peerCredentials.pid }.getOrDefault(0)
-                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6), sender)
+                    val peer = runCatching { client.peerCredentials }.getOrNull()
+                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6), peer?.pid ?: 0,
+                        peer?.uid == android.os.Process.myUid())
                 } catch (e: Exception) {
                 } finally {
                     try { client.close() } catch (e: Exception) {   }
@@ -100,9 +101,9 @@ class RumbleComponent : SessionPart() {
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
-    private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) = buzz(strong, weak, ms, slot, 0)
+    private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) = buzz(strong, weak, ms, slot, 0, false)
 
-    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int, sender: Int) {
+    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int, sender: Int, ownUser: Boolean) {
         if (!enabled || quiet) return
         val target = target(slot)
         val previous = playing[slot]
@@ -118,7 +119,7 @@ class RumbleComponent : SessionPart() {
         val effect = effects.getOrPut(slot) { Effect(slot) }
         val held = effect.hold
         effect.want(strong, weak, ms)
-        if (effect.hold && (!held || effect.owner != sender)) effect.claim(sender)
+        if (effect.hold && (!held || effect.owner != sender)) effect.claim(sender, ownUser)
         val now = SystemClock.uptimeMillis()
         if (effect.playing(now)) return
         handler.removeCallbacks(effect)
@@ -205,10 +206,10 @@ class RumbleComponent : SessionPart() {
         var armed = false
         val hold get() = ms == HOLD_MS
 
-        fun claim(sender: Int) {
+        fun claim(sender: Int, ownUser: Boolean) {
             owner = sender
             val start = if (sender > 0) processStart(sender) else null
-            ownerSeen = start != null
+            ownerSeen = sender > 0 && (start != null || ownUser)
             ownerStart = start?.takeIf { it != UNKNOWN_START }
             duringGame = gameRecently()
             armed = false
