@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Invoerprofielen</string>
+    <string name="input_profiles">Profielen</string>
+    <string name="input_physical">Fysieke controller</string>
+    <string name="input_primary">Hoofdscherm</string>
+    <string name="input_secondary">Secundair scherm</string>
+    <string name="input_native">Native / Steam Input</string>
+    <string name="input_native_target">Native: %1$s</string>
+    <string name="input_remap_native">Een andere controllerbesturing sturen</string>
+    <string name="input_disabled">Uitgeschakeld</string>
+    <string name="input_keys">Toets of toetscombinatie</string>
+    <string name="input_direction_keys">Richtingtoetsen</string>
+    <string name="input_pointer">Aanwijzer verplaatsen</string>
+    <string name="input_pointer_speed">Aanwijzersnelheid: %1$d</string>
+    <string name="input_scroll">Scrollen</string>
+    <string name="input_scroll_vertical">Verticaal scrollen</string>
+    <string name="input_mouse_left">Linkermuisknop</string>
+    <string name="input_mouse_right">Rechtermuisknop</string>
+    <string name="input_mouse_middle">Middelste muisknop</string>
+    <string name="input_command_menu">DroidDeck-menu openen</string>
+    <string name="input_command_keyboard">Toetsenbord tonen</string>
+    <string name="input_command_steam">Steam-menu openen</string>
+    <string name="input_command_qam">Steam-sneltoegang openen</string>
+    <string name="input_remove_element">Besturing verwijderen</string>
+    <string name="input_add_element">Besturing toevoegen</string>
+    <string name="input_extra_keys">Apparaatspecifieke knoppen</string>
+    <string name="input_capture">Een fysieke knop toewijzen</string>
+    <string name="input_capture_confirm">Laat de knop los en kies Bewerken, Opnieuw of Annuleren. B of Terug annuleert na loslaten.</string>
+    <string name="input_capture_retry">Opnieuw</string>
+    <string name="input_capture_hint">Druk op een knop, ook een Terug-knop die als toets wordt gemeld. Volumetoetsen en Android-systeemtoetsen zijn gereserveerd. De toewijzing geldt alleen voor dit apparaat.</string>
+    <string name="input_remove_binding">Toewijzing verwijderen</string>
+    <string name="input_latency">Invoerdiagnose</string>
+    <string name="input_measure">Invoerverzendtijd opnemen</string>
+    <string name="input_read_timing">Metingen lezen</string>
+    <string name="input_latency_hint">Meet de verzending van Android tot publicatie in het bestaande invoertransport. Bluetooth-aankomst, gastpolling, weergave en schermvertraging vallen er niet onder. Opnemen staat standaard uit.</string>
+    <string name="input_normal_binding">Normale invoertoewijzing gebruiken</string>
+</resources>
