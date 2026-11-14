@@ -1516,7 +1516,7 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
-        if (pendingSteamPreviousGameId == null) pendingSteamPreviousGameId = SessionState.gameId
+        pendingSteamPreviousGameId = SessionState.gameId
         if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
         pendingSteamGameExitWatchToken = ++gameExitWatchToken
         SessionState.gameId = accepted
