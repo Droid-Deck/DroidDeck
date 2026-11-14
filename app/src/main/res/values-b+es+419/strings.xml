@@ -4012,12 +4012,6 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se pudo importar esta disposición</string>
-    <string name="input_hide_tools">Ocultar herramientas</string>
-    <string name="input_tools">Herramientas</string>
-    <string name="input_editor_add">+ Añadir</string>
-    <string name="input_editor_undo">Deshacer</string>
-    <string name="input_editor_done">Listo</string>
-    <string name="input_editor_hint">Arrastra para mover. Arrastra una esquina para cambiar el tamaño. Toca Propiedades para asignar una acción.</string>
     <string name="theme_white_red">Nieve escarlata</string>
     <string name="theme_white_red_detail">Superficies blancas con acentos rojos.</string>
     <string name="rail_soundtracks">Bandas sonoras</string>

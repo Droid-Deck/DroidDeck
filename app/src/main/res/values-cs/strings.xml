@@ -4079,12 +4079,6 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
-    <string name="input_hide_tools">Skrýt nástroje</string>
-    <string name="input_tools">Nástroje</string>
-    <string name="input_editor_add">+ Přidat</string>
-    <string name="input_editor_undo">Zpět</string>
-    <string name="input_editor_done">Hotovo</string>
-    <string name="input_editor_hint">Přetažením přesunete. Přetažením za roh změníte velikost. Klepnutím na Vlastnosti přiřadíte akci.</string>
 
     <string name="theme_white_red">Šarlatový sníh</string>
     <string name="theme_white_red_detail">Bílé povrchy s červenými akcenty.</string>

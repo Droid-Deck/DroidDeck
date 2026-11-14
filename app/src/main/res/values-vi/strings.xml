@@ -3969,12 +3969,6 @@
     <string name="input_reset_positions">Đặt lại vị trí</string>
     <string name="input_show_label">Hiện nhãn</string>
     <string name="input_layout_import_failed">Không thể nhập bố cục này</string>
-    <string name="input_hide_tools">Ẩn công cụ</string>
-    <string name="input_tools">Công cụ</string>
-    <string name="input_editor_add">+ Thêm</string>
-    <string name="input_editor_undo">Hoàn tác</string>
-    <string name="input_editor_done">Xong</string>
-    <string name="input_editor_hint">Kéo để di chuyển. Kéo một góc để đổi kích thước. Nhấn Thuộc tính để gán thao tác.</string>
 
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
     <string name="theme_white_red_detail">Bề mặt trắng với điểm nhấn màu đỏ.</string>
