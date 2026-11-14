@@ -1,0 +1,86 @@
+diff --git a/dxvk.conf b/dxvk.conf
+index ba4bc20..26d3127 100644
+--- a/dxvk.conf
++++ b/dxvk.conf
+@@ -336,6 +336,15 @@
+ 
+ # d3d11.disableMsaa = False
+ 
++# Forces D3D9 surfaces to single-sample after validating the original request.
++# The effective surface description reports D3DMULTISAMPLE_NONE; MSAA quality,
++# alpha-to-coverage and per-sample masks are consequently disabled. This is an
++# opt-in compatibility override for games with broken MSAA rendering.
++#
++# Supported values: True, False
++
++# d3d9.forceSingleSample = False
++
+ 
+ # Forces insertion of memory and control barriers after writes to group-shared
+ # memory in compute shaders. This is only intended to be used as a workaround
+diff --git a/src/d3d9/d3d9_common_texture.cpp b/src/d3d9/d3d9_common_texture.cpp
+index 9d5fe38..629fea3 100644
+--- a/src/d3d9/d3d9_common_texture.cpp
++++ b/src/d3d9/d3d9_common_texture.cpp
+@@ -212,6 +212,15 @@ namespace dxvk {
+       return D3DERR_INVALIDCALL;
+     }
+ 
++    // Keep original request validation above. This opt-in override changes
++    // the effective surface description as well as the backing image.
++    // All surface descriptors and resolves then see the actual sample count.
++    if (ResourceType == D3DRTYPE_SURFACE && options->forceSingleSample
++     && sampleCount != VK_SAMPLE_COUNT_1_BIT) {
++      pDesc->MultiSample = D3DMULTISAMPLE_NONE;
++      pDesc->MultisampleQuality = 0;
++    }
++
+     // Using MANAGED pool with DYNAMIC usage is illegal
+     if (IsPoolManaged(pDesc->Pool) && (pDesc->Usage & D3DUSAGE_DYNAMIC))
+       return D3DERR_INVALIDCALL;
+diff --git a/src/d3d9/d3d9_options.cpp b/src/d3d9/d3d9_options.cpp
+index e46864e..0cab7dc 100644
+--- a/src/d3d9/d3d9_options.cpp
++++ b/src/d3d9/d3d9_options.cpp
+@@ -59,6 +59,7 @@ namespace dxvk {
+     this->memoryTrackTest               = config.getOption<bool>        ("d3d9.memoryTrackTest",               false);
+     this->forceSamplerTypeSpecConstants = config.getOption<bool>        ("d3d9.forceSamplerTypeSpecConstants", false);
+     this->forceSampleRateShading        = config.getOption<bool>        ("d3d9.forceSampleRateShading",        false);
++    this->forceSingleSample             = config.getOption<bool>        ("d3d9.forceSingleSample",             false);
+     this->forceAspectRatio              = config.getOption<std::string> ("d3d9.forceAspectRatio",              "");
+     this->forceRefreshRate              = config.getOption<int32_t>     ("d3d9.forceRefreshRate",              0u);
+     this->modeCountCompatibility        = config.getOption<bool>        ("d3d9.modeCountCompatibility",        false);
+diff --git a/src/d3d9/d3d9_options.h b/src/d3d9/d3d9_options.h
+index e69a39a..4478420 100644
+--- a/src/d3d9/d3d9_options.h
++++ b/src/d3d9/d3d9_options.h
+@@ -113,6 +113,9 @@ namespace dxvk {
+     /// Forces sample rate shading
+     bool forceSampleRateShading;
+ 
++    /// Optional compatibility override: report and render surfaces as single-sample.
++    bool forceSingleSample;
++
+     /// Allow D3DLOCK_DISCARD
+     bool allowDiscard;
+ 
+diff --git a/src/d3d9/d3d9_swapchain.cpp b/src/d3d9/d3d9_swapchain.cpp
+--- a/src/d3d9/d3d9_swapchain.cpp
++++ b/src/d3d9/d3d9_swapchain.cpp
+@@ -1055,1 +1055,16 @@ namespace dxvk {
++    if (m_parent->GetOptions()->forceSingleSample) {
++      // Backbuffers bypass the normal surface-creation entry points. Validate
++      // the application's request, then apply the same effective sample count.
++      // IsLockable above is an internal GDI fallback requirement, not the
++      // application's lockability request used by MSAA validation.
++      auto requestedDesc = desc;
++      requestedDesc.IsLockable = (Flags & D3DPRESENTFLAG_LOCKABLE_BACKBUFFER) != 0;
++      HRESULT hr = D3D9CommonTexture::NormalizeTextureProperties(
++        m_parent, D3DRTYPE_SURFACE, &requestedDesc);
++      if (FAILED(hr))
++        return hr;
++      desc.MultiSample = requestedDesc.MultiSample;
++      desc.MultisampleQuality = requestedDesc.MultisampleQuality;
++    }
++
+     const bool isExtended = m_parent->IsD3DCompatibile(D3DCompatibility::D3D9Ex);

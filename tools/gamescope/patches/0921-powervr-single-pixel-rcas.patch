@@ -1,0 +1,15 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -996,8 +996,9 @@
+ 	SHADER(BLUR, cs_composite_blur);
+ 	SHADER(BLUR_COND, cs_composite_blur_cond);
+ 	SHADER(BLUR_FIRST_PASS, cs_gaussian_blur_horizontal);
+-	// The one pixel layout is only measured on Adreno, every other vendor keeps the quad swizzle.
+-	if (m_uVendorID == 0x5143) /* Qualcomm */
++	// PowerVR rejects the quad-swizzled RCAS for 3+ layers with YCbCr mask 2.
++	// The existing one-pixel shader compiles those variants and covers the same 16x16 tile.
++	if (m_uVendorID == 0x5143 || m_uVendorID == 0x1010) /* Qualcomm or Imagination */
+ 	{
+ 		SHADER(RCAS, cs_composite_rcas_1px);
+ 	}

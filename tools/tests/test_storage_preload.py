@@ -81,7 +81,7 @@ class StoragePreloadTest(unittest.TestCase):
         (build / "program.c").write_text(PROGRAM)
         cls.storage = build / "storage.so"
         cls.fake = build / "fake.so"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(cls.storage), str(PRELOAD / "storage.c"), "-ldl"], check=True)
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(cls.storage), str(PRELOAD / "storage.c"), str(PRELOAD / "owner.c"), "-ldl"], check=True)
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(cls.fake), str(build / "fake.c")], check=True)
         cls.steam = cls.dir / "steamrtarm64/steam"
         cls.steam.parent.mkdir()

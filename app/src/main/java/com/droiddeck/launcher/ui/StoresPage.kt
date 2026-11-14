@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -130,6 +131,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState
 import com.droiddeck.launcher.stores.itch.ItchBrowseState
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreTab
@@ -253,13 +255,17 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val ids = tabs.filter { it.shown }.map { it.store.id }
         if (ids.isEmpty()) return
         val at = ids.indexOf(chip)
-        pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
+        val id = ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size]
+        chip = id; openGame = null; query = ""
+        move("item:storechip:$id")
     }
     fun openModes(st: Store) {
         if (chip != st.id) pickChip(st.id) else move("first")
     }
     BackHandler(enabled = openGame != null) { closeGame() }
     BackHandler(enabled = arranging) { arranging = false }
+    var contentFocused by remember { mutableStateOf(false) }
+    BackHandler(enabled = contentFocused && openGame == null && !arranging) { move("item:storechip:$chip") }
     LaunchedEffect(arranging) {
         val focus = ff ?: return@LaunchedEffect
         if (!arranging || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
@@ -348,7 +354,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 else scroll.value > 0
             },
             onDetailFocus = { detailFocused = it },
-            modifier = Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportH = with(density) { it.height.toDp() } },
+            modifier = Modifier.fillMaxWidth().weight(1f).onFocusChanged { contentFocused = it.hasFocus }.onSizeChanged { viewportH = with(density) { it.height.toDp() } },
             bleedHorizontal = padH,
             wrap = { key, content -> StoreTheme(Store.byId(key.substringBefore(':')) ?: store) { content() } },
             grid = {
@@ -385,13 +391,13 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                     }
                 }
             },
-        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }) }
+        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }, inStore = true) }
     }
     FlightLayer(hostAt)
     StoresMotion.step?.let { ask ->
         key(ask) {
             StepOut(
-                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), side = ask.side, accent = ask.accent,
+                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), preferredSide = ask.side, accent = ask.accent,
                 onDismiss = { StoresMotion.fold() }, onClosed = { StoresMotion.closed(ask) },
                 pillCorner = ask.pillCorner, maxWidth = ask.maxWidth, items = ask.items, handle = ask.handle, content = ask.content,
             )
@@ -804,14 +810,6 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     }
 }
 
-@Composable
-internal fun StoreLogo(store: Store, size: Dp) {
-    val c = sourceColours(store.id)
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).clip(Shape14).background(c.fill).border(1.dp, c.dot.copy(alpha = 0.5f), Shape14)) {
-        Text(store.shortLabel, fontSize = (size.value / 4).sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1)
-    }
-}
-
 
 @Composable
 private fun Storefront(
@@ -831,8 +829,10 @@ private fun Storefront(
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
-    val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
-    val browseItems = if (browsing) ItchBrowseState.items else emptyList()
+    val gameJolt = store == Store.GAMEJOLT
+    LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
+    val browsing = q.isEmpty() && ((store == Store.ITCH && ItchBrowseState.active) || gameJolt)
+    val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
     val catalog = store == Store.BATTLENET && q.isEmpty()
     val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
         if (catalog) shelf(shelves?.trending) ?: emptyList()
@@ -844,8 +844,10 @@ private fun Storefront(
             .filter { (it.title.lowercase().contains(q) || it.key in foundKeys) && shown(it) }
     }
     val nothing = stringResource(when {
-        browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
-        browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        browsing && gameJolt && GameJoltBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && gameJolt && GameJoltBrowseState.failed -> R.string.stores_gamejolt_browse_failed
+        browsing && !gameJolt && ItchBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && !gameJolt && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
         catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
@@ -858,11 +860,11 @@ private fun Storefront(
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val searching = q.isNotEmpty() || browsing || catalog
-    // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0) + (if (catalog) 1 else 0)
+    val gameJoltBar = gameJolt && q.isEmpty()
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -885,7 +887,7 @@ private fun Storefront(
                         val visibleTarget = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!visibleTarget || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            grid.scrollToItem(targetIndex)
+                            launch { grid.revealRow(headerItems + index, targetIndex, direction, with(density) { 10.dp.toPx() }) }
                             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: androidx.compose.ui.focus.FocusRequester.Default }
                         }
                     }
@@ -911,12 +913,14 @@ private fun Storefront(
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (gameJoltBar) item(key = "gamejolt-browse-bar", span = { GridItemSpan(maxLineSpan) }) { GameJoltBrowseBar(s.storesShowMature) }
         if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
             Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
         }
         if (searching) {
             storeGrid(visible, nothing, card)
-            if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
+            if (browsing && gameJolt) item(key = "gamejolt-more", span = { GridItemSpan(maxLineSpan) }) { GameJoltLoadMore() }
+            else if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
         } else item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column {
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
@@ -1069,12 +1073,20 @@ internal fun ModeHeader(
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
+    // Closing takes the field away with focus still in it; the search button gets it once it is back on screen.
+    val searchIcon = remember { FocusRequester() }
+    var toIcon by remember { mutableStateOf(false) }
     val close = {
         searching = false
         focusOnOpen = false
+        toIcon = true
         if (query.isNotEmpty()) onQuery("")
     }
     BackHandler(enabled = searching && !clearSearchFocus) { close() }
+    LaunchedEffect(toIcon, searching, open <= 0.01f) {
+        if (searching) toIcon = false
+        else if (toIcon && open <= 0.01f) { focusSoon { searchIcon }; toIcon = false }
+    }
     val heading: @Composable () -> Unit = {
         if (lead != null) lead()
         else Text(
@@ -1090,7 +1102,7 @@ internal fun ModeHeader(
                 Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                     AdbTextField(
                         value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        placeholder = placeholder, compact = true, showLabel = false, focusOnShow = focusOnOpen,
                         clearFocus = clearSearchFocus || !searching,
                         onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                     )
@@ -1100,7 +1112,7 @@ internal fun ModeHeader(
         }
     }
     val searchButton: @Composable () -> Unit = {
-        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+        Box(Modifier.focusRequester(searchIcon)) { SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true } }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth
@@ -1152,7 +1164,11 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
         Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
+        Store.GAMEJOLT -> Color(0xFFCCFF00) to Color(0xFFA3CC00)
         Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
+        Store.UBISOFT -> Color(0xFF2E7DFF) to Color(0xFF1A5BD6)
+        Store.EA -> Color(0xFFFF4747) to Color(0xFFE03030)
+        Store.ROCKSTAR -> Color(0xFFFCAF17) to Color(0xFFD98E00)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1419,15 +1435,6 @@ internal fun ConfirmButton(label: String, confirm: String, compact: Boolean = fa
     SecondaryButton(if (armed) confirm else label, compact = compact) { if (!armed) armed = true else { armed = false; onConfirm() } }
 }
 
-@Composable
-internal fun stageLabel(stage: DownloadStage): String = when (stage) {
-    DownloadStage.MANIFEST -> stringResource(R.string.stores_stage_manifest)
-    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_download)
-    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verify)
-    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_install)
-    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
-}
-
 internal fun openStoreUrl(ctx: android.content.Context, item: CatalogItem) = openUrl(ctx, item.storeUrl)
 
 internal fun openUrl(ctx: android.content.Context, url: String) {
@@ -1435,18 +1442,7 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
+internal fun launchStoreGame(store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
     val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
-    if (game != null) {
-        a.onSteamGame(game)
-        return
-    }
-    val app = ctx.applicationContext
-    Thread({
-        val installed = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
-        StoresState.post {
-            if (installed == null) android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
-            else a.onSteamGame(installed)
-        }
-    }, "store-play").start()
+    if (game != null) a.onSteamGame(game) else a.onStoreGame(store, id)
 }

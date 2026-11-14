@@ -2,9 +2,8 @@ package com.droiddeck.launcher.input
 
 import android.view.MotionEvent
 
-/** Keeps split Android touch targets from restarting one shared gesture recognizer. */
 internal class GestureTouchStreamGate {
-    enum class Source { SURFACE, SCREEN_KEYS, ON_SCREEN_CONTROLS }
+    enum class Source { SURFACE, ON_SCREEN_CONTROLS }
 
     private var owner: Source? = null
 

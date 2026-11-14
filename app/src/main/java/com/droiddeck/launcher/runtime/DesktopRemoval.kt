@@ -18,8 +18,11 @@ internal object DesktopRemoval {
     private fun protected(context: Context, root: File) =
         DesktopFileRemoval.runtimeFiles(root) + lines(context, "emulators-keep.txt.gzip")
 
-    fun installedSize(context: Context): Long =
-        lines(context, "kde-remove.tsv.gzip").sumOf { line -> line.split('\t').getOrNull(1)?.toLongOrNull() ?: 0L }
+    fun installedSize(context: Context): Long {
+        val root = LinuxRuntime.rootDir(context)
+        if (DesktopPack.info(root) != null) return DesktopPack.installedSize(root)
+        return lines(context, "kde-remove.tsv.gzip").sumOf { line -> line.split('\t').getOrNull(1)?.toLongOrNull() ?: 0L }
+    }
 
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) {
         val root = LinuxRuntime.rootDir(context)
@@ -40,8 +43,12 @@ internal object DesktopRemoval {
         Log.i("DesktopRemoval", "LXQt: $result")
     }
 
-    fun remove(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? = try {
+    fun remove(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? {
         val root = LinuxRuntime.rootDir(context)
+        return if (DesktopPack.info(root) != null) removePack(context, root, listener) else removeLegacy(context, root, listener)
+    }
+
+    private fun removeLegacy(context: Context, root: File, listener: LinuxRuntimeInstaller.ProgressListener): String? = try {
         val pending = File(root, PENDING)
         val marker = File(root, ".droiddeck-pkg-${DesktopCatalog.DESKTOP_ID}")
         val installing = DesktopCatalog.interrupted(root).firstOrNull { it.id == DesktopCatalog.DESKTOP_ID }
@@ -50,12 +57,14 @@ internal object DesktopRemoval {
         check(version in versions && (installing == null || installing.version in versions)) { context.getString(R.string.desktop_removal_unknown) }
         val entries = lines(context, "kde-remove.tsv.gzip").map(DesktopFileRemoval.Entry::parse)
         val keep = protected(context, root)
+        val records = DesktopFileRemoval.desktopRecords(root)
         cleanLegacy(context, listener)
         FileUtils.writeString(pending, version!!)
         check(FileUtils.readString(pending)?.trim() == version) { "Could not reserve desktop removal" }
         if (marker.exists() && !marker.delete()) error("Could not clear desktop marker")
         val removing = context.getString(R.string.desktop_removing)
         val result = DesktopFileRemoval.remove(root, entries, keep) { listener.onProgress(removing, it) }
+        DesktopFileRemoval.removeRecords(root, records)
         for ((asset, path) in com.droiddeck.launcher.session.SessionFiles.DESKTOP_FILES) {
             val target = DesktopFileRemoval.safeFile(root, path) ?: continue
             if (!isRegularFile(target)) continue
@@ -73,6 +82,30 @@ internal object DesktopRemoval {
         Log.e("DesktopRemoval", "remove", e)
         e.message ?: context.getString(R.string.deskpkg_install_failed)
     }
+
+    private fun removePack(context: Context, root: File, listener: LinuxRuntimeInstaller.ProgressListener): String? = try {
+        val pending = File(root, PENDING)
+        val marker = File(root, ".droiddeck-pkg-${DesktopCatalog.DESKTOP_ID}")
+        FileUtils.writeString(pending, DesktopPack.info(root)!!.tag)
+        check(pending.isFile) { "Could not reserve desktop removal" }
+        if (marker.exists() && !marker.delete()) error("Could not clear desktop marker")
+        val removing = context.getString(R.string.desktop_removing)
+        for ((_, path) in com.droiddeck.launcher.session.SessionFiles.DESKTOP_FILES) {
+            DesktopFileRemoval.safeFile(root, path)?.takeIf { isRegularFile(it) }?.delete()
+        }
+        for (path in DESKTOP_STATE) DesktopPack.inside(root, path)?.let(FileUtils::delete)
+        val result = if (DesktopPack.installed(root)) DesktopPack.remove(root) { listener.onProgress(removing, it) } else null
+        DesktopCatalog.discardDesktopInstall(context)
+        if (!pending.delete()) error("Could not finish desktop removal")
+        Log.i("DesktopRemoval", "pack: $result")
+        listener.onProgress(context.getString(R.string.desktop_removed), 100)
+        null
+    } catch (e: Exception) {
+        Log.e("DesktopRemoval", "remove", e)
+        e.message ?: context.getString(R.string.deskpkg_install_failed)
+    }
+
+    private val DESKTOP_STATE = listOf("var/lib/PackageKit", "var/cache/swcatalog")
 
     private fun isRegularFile(file: File) = java.nio.file.Files.isRegularFile(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
 }

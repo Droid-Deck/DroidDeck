@@ -14,6 +14,14 @@ kickoff.currentConfigGroup = ["Shortcuts"];
 kickoff.writeConfig("global", "Alt+F1");
 kickoff.currentConfigGroup = ["General"];
 kickoff.writeConfig("icon", "distributor-logo-steamdeck");
+kickoff.writeConfig("favorites", [
+    "preferred://browser",
+    "applications:org.kde.dolphin.desktop",
+    "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
+    "applications:org.kde.discover.desktop",
+    "applications:systemsettings.desktop",
+]);
 
 panel.addWidget("org.kde.plasma.pager");
 
@@ -24,6 +32,7 @@ tasks.writeConfig("launchers", [
     "preferred://filemanager",
     "preferred://browser",
     "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
 ]);
 
 panel.addWidget("org.kde.plasma.marginsseparator");

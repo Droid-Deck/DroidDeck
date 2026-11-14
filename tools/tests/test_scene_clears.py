@@ -11,32 +11,39 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "app/src/main/cpp/waylandcomp/src/vk_present.c"
 NATIVE = SOURCE.parent
 
-# Original d1bd23df with run_case defaults: non-clear trace and modeled content/layout/write-mask hashes.
+# Main 50fbcf8b with run_case defaults: non-clear trace and modeled content/layout/write-mask hashes.
 BASELINE = {
-    (0, 0): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
-    (0, 1): ("a50ed826e2d17ffe", "3953b4ca9b2592e0"),
-    (0, 2): ("275348f56492c01b", "d5e0acadf785f8de"),
-    (0, 3): ("a7cbcb8672519761", "e4081aa0e9bca81a"),
-    (0, 4): ("e1caff9151f6c66d", "34b5cdfb9e550963"),
-    (0, 5): ("1a2d0fc5ac5690c3", "48d658ad74f7b6e3"),
-    (0, 6): ("1346518d9e7fe012", "214f3292c3bcdc77"),
-    (0, 7): ("9f5fd34765ba8d2c", "5a6a71625b036e2f"),
-    (0, 8): ("fe28dcf086d153f5", "d68847118a4e54fd"),
-    (0, 9): ("b8097160d0d54799", "827a69cc9478e973"),
-    (0, 10): ("b65d32d200647225", "827a69cc9478e973"),
-    (0, 11): ("b65d32d200647225", "827a69cc9478e973"),
-    (0, 12): ("b8097160d0d54799", "827a69cc9478e973"),
+    (0, 0): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 1): ("a50ed826e2d17ffe", "47798eae109d3a79"),
+    (0, 2): ("275348f56492c01b", "27c52286756dbf47"),
+    (0, 3): ("a7cbcb8672519761", "7d4d1d9d46f346bb"),
+    (0, 4): ("e1caff9151f6c66d", "437e02073c9e2f52"),
+    (0, 5): ("1a2d0fc5ac5690c3", "01b7b3b10e779c52"),
+    (0, 6): ("1346518d9e7fe012", "fae6c2b3b2fabe9e"),
+    (0, 7): ("9f5fd34765ba8d2c", "d8f7cba57943b196"),
+    (0, 8): ("fe28dcf086d153f5", "6932884730762204"),
+    (0, 9): ("b8097160d0d54799", "d3b66fa4a14a75e2"),
+    (0, 10): ("b65d32d200647225", "d3b66fa4a14a75e2"),
+    (0, 11): ("b65d32d200647225", "d3b66fa4a14a75e2"),
+    (0, 12): ("b8097160d0d54799", "d3b66fa4a14a75e2"),
     (0, 13): ("372d8006dd7d2f7a", "315446a086a23133"),
-    (0, 14): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 14): ("741cbd3ad6812688", "c744140970070a9a"),
     (0, 15): ("4eadfbfbff805afc", "315446a086a23133"),
-    (0, 16): ("907d9936d748cd3c", "9c35dcbcbf986fcb"),
-    (0, 17): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
-    (0, 18): ("43bfaf7478097095", "07500677d89c744b"),
-    (0, 19): ("c8bb5ee1b59dbceb", "9c35dcbcbf986fcb"),
-    (0, 20): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
-    (0, 21): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
-    (0, 22): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
-    (0, 23): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 16): ("907d9936d748cd3c", "c744140970070a9a"),
+    (0, 17): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 18): ("43bfaf7478097095", "ac3fd24d380b43ea"),
+    (0, 19): ("c8bb5ee1b59dbceb", "c744140970070a9a"),
+    (0, 20): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 21): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 22): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 23): ("741cbd3ad6812688", "c744140970070a9a"),
+    (0, 24): ("52a76febec2e7643", "f99271dca2c975a5"),
+    (0, 25): ("935b39c284dfdc82", "91ae8555012bc885"),
+    (0, 26): ("9215a6a9bd122ed0", "211ecb5667a475fa"),
+    (0, 27): ("4e77ffaa2afb03d8", "f451b849a63cfe42"),
+    (0, 28): ("461f0d204c17a33c", "26d548e86a409237"),
+    (0, 29): ("d216d632ec3bd5eb", "74137ab5b3575932"),
+    (0, 30): ("922046665c01fb22", "989917dbf735b8b2"),
     (1, 0): ("f543d2f121929bb3", "0c18bb2cd5738723"),
     (1, 1): ("9d84fae448fc68fc", "e67d95f5e9ba1f0d"),
     (1, 2): ("8977a324f3c4c6ea", "ebc7691a9f619ca5"),
@@ -61,30 +68,44 @@ BASELINE = {
     (1, 21): ("72da445d54589bb3", "0c18bb2cd5738723"),
     (1, 22): ("3605cf4f8f129f5c", "0c18bb2cd5738723"),
     (1, 23): ("f543d2f121929bb3", "0c18bb2cd5738723"),
-    (2, 0): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
-    (2, 1): ("33c3c6185ef9ed47", "92ef62d60985568b"),
-    (2, 2): ("95ccbb983aa00155", "3890b8f97d41ccbf"),
-    (2, 3): ("5dc9af97dcbb7d5f", "b04060060f4035cf"),
-    (2, 4): ("099b42ad4070ae2b", "46742fd399940cbf"),
-    (2, 5): ("2c2d126e195dd2f9", "542fad5bccba053f"),
-    (2, 6): ("f3a8af54fd9e78b0", "fe01a50b184f0eb7"),
-    (2, 7): ("f86e8e44819188de", "aa6abec68c34c4e7"),
-    (2, 8): ("7c9a2356e807cb23", "d93ce7a1e9c4163b"),
-    (2, 9): ("ceb40c736a37fc74", "a0c864e3daccb1bf"),
-    (2, 10): ("9906632972d9a7a0", "a0c864e3daccb1bf"),
-    (2, 11): ("9906632972d9a7a0", "a0c864e3daccb1bf"),
+    (1, 24): ("8725ada7bd5219ca", "c8d5ead06f5009e3"),
+    (1, 25): ("1ba3c298e0131f9a", "51fc861aea2b5715"),
+    (1, 26): ("087b0f3ba62cf86b", "9d2d9c48b6cb5c53"),
+    (1, 27): ("85e4a7cf39175796", "029cf6d2b3a66dc3"),
+    (1, 28): ("1ba3c298e0131f9a", "51fc861aea2b5715"),
+    (1, 29): ("8725ada7bd5219ca", "c8d5ead06f5009e3"),
+    (1, 30): ("9ac2f88cd83c611d", "6dac0fddab0c5f33"),
+    (2, 0): ("ae39a333d3dc79ee", "d7f366992ee9e576"),
+    (2, 1): ("33c3c6185ef9ed47", "873884075a64e45a"),
+    (2, 2): ("95ccbb983aa00155", "a21f5ca5b563cefe"),
+    (2, 3): ("5dc9af97dcbb7d5f", "6a5f59bd759e6386"),
+    (2, 4): ("099b42ad4070ae2b", "7e2585f9eff72366"),
+    (2, 5): ("2c2d126e195dd2f9", "7f8cf9e5b171d166"),
+    (2, 6): ("f3a8af54fd9e78b0", "721ec3dda5693aa6"),
+    (2, 7): ("f86e8e44819188de", "4790950b21953776"),
+    (2, 8): ("7c9a2356e807cb23", "70c2b2ec861a6c8a"),
+    (2, 9): ("ceb40c736a37fc74", "3417a28b2770ef96"),
+    (2, 10): ("9906632972d9a7a0", "3417a28b2770ef96"),
+    (2, 11): ("9906632972d9a7a0", "3417a28b2770ef96"),
     (2, 12): ("894af32e456cc49c", "a4d3b125a4a290d3"),
     (2, 13): ("0d2cc6f362a2f72a", "315446a086a23133"),
     (2, 14): ("6c265880f9c84956", "2b6db527b5cacfb7"),
     (2, 15): ("4eadfbfbff805afc", "315446a086a23133"),
-    (2, 16): ("94d5fa655b3c3da8", "0f09de2a9b99db4f"),
-    (2, 17): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
-    (2, 18): ("69633b050002470a", "4412c8d19a457cbf"),
-    (2, 19): ("31feb4295875027d", "0f09de2a9b99db4f"),
+    (2, 16): ("94d5fa655b3c3da8", "d7f366992ee9e576"),
+    (2, 17): ("ae39a333d3dc79ee", "d7f366992ee9e576"),
+    (2, 18): ("69633b050002470a", "e01162e162b79b86"),
+    (2, 19): ("31feb4295875027d", "d7f366992ee9e576"),
     (2, 20): ("ecbe737bc085aed4", "315446a086a23133"),
-    (2, 21): ("62d8aa6738ca79ee", "0f09de2a9b99db4f"),
-    (2, 22): ("7bcb0acade8523c3", "0f09de2a9b99db4f"),
-    (2, 23): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
+    (2, 21): ("62d8aa6738ca79ee", "d7f366992ee9e576"),
+    (2, 22): ("7bcb0acade8523c3", "d7f366992ee9e576"),
+    (2, 23): ("ae39a333d3dc79ee", "d7f366992ee9e576"),
+    (2, 24): ("6343219bc1a71c05", "83a87d9a0bc5b216"),
+    (2, 25): ("a86797a8285fd2ae", "70cf2f4d5e0a9626"),
+    (2, 26): ("58572aad6524690e", "2252209537ac2926"),
+    (2, 27): ("abaeac9d91b89d1d", "a70f328faf55aad6"),
+    (2, 28): ("a86797a8285fd2ae", "70cf2f4d5e0a9626"),
+    (2, 29): ("6343219bc1a71c05", "83a87d9a0bc5b216"),
+    (2, 30): ("26986d5224886c14", "6857727d8de4be06"),
 }
 
 
@@ -99,6 +120,7 @@ def build_harness(source, folder, compiler, headers, sanitize=False):
     android = folder / "android"
     android.mkdir(exist_ok=True)
     (android / "native_window.h").write_text("typedef struct ANativeWindow ANativeWindow;\n")
+    (android / "hardware_buffer.h").write_text("typedef struct AHardwareBuffer AHardwareBuffer;\n")
     declarations = []
     for name in ("struct vkp_image {", "struct vkp_img_slot {"):
         start = source.index(name)
@@ -108,11 +130,15 @@ def build_harness(source, folder, compiler, headers, sanitize=False):
     for name in ("SCENE_FMT", "HDR_FMT", "FG_HDR_FMT"):
         declarations.append(re.search(r"^#define " + name + r" .+$", source, re.MULTILINE).group())
     (folder / "present_types.inc").write_text("\n".join(declarations))
-    names = ["static int map_draw(", "static int draw_to_blit(", "static int draw_to_scene_blit("]
+    names = ["int vkp_image_is_dmabuf(", "static void release_external_client_image(",
+             "static void release_external_client_draws(", "static int map_draw(",
+             "static int draw_to_blit(", "static int draw_to_scene_blit("]
     helpers = "static int find_opaque_cover(" in source
     if helpers:
         names += ["static int find_opaque_cover(", "static int scene_fully_replaced("]
-    names += ["static void record_draw(", "static int compose_hdr(", "static int pass_begin_impl(",
+    names += ["static int effects_source_draw(", "static void effects_source_note(",
+              "static void record_draw(", "static void effects_overlay_draws(",
+              "static int compose_hdr(", "static int pass_begin_impl(",
               "int vkp_pass_begin(", "int vkp_pass_begin_hdr("]
     (folder / "present_functions.inc").write_text(
         "#define HAS_COVER_HELPERS %d\n" % helpers + "\n".join(function(source, name) for name in names))
@@ -224,6 +250,14 @@ class SceneClearTest(unittest.TestCase):
                 with self.subTest(path=path, case=case):
                     result = self.run_case(path, case, frames=3)
                     self.assertEqual(result["clears"], 3 if case in (1, 2, 8) else 0)
+
+    def test_upscaling_checks_actual_input_dimensions_and_preserves_multi_layer_clears(self):
+        for case in range(24, 31):
+            with self.subTest(case=case):
+                result = self.run_case(0, case)
+                self.assertEqual(result["clears"], 1 if case in (25, 26, 27, 28) else 0)
+                self.assertEqual(result["input_w"], 4 if case in (24, 25) else 8)
+                self.assertEqual(result["input_h"], 3 if case in (24, 25) else 6)
 
 
 if __name__ == "__main__":

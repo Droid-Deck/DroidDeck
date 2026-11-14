@@ -1,0 +1,44 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 18b799e..b803ee0 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -1850,16 +1850,23 @@ import_commit (
+ 		commit->fifo = false;
+ 	}
+ 
+-	if ( gamescope::OwningRc<CVulkanTexture> pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
++	struct wlr_dmabuf_attributes dmabuf = {0};
++	const bool bDmabuf = wlr_buffer_get_dmabuf( buf, &dmabuf );
++
++	// Only a dma-buf's texture shows the buffer itself. A shm buffer's texture is a copy taken at
++	// import, and Xwayland without glamor commits the same shm buffers again with new pixels.
++	if ( bDmabuf )
+ 	{
+-		// Going from OwningRc -> Rc now.
+-		commit->vulkanTex = pTexture;
+-		return commit;
++		if ( gamescope::OwningRc<CVulkanTexture> pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
++		{
++			// Going from OwningRc -> Rc now.
++			commit->vulkanTex = pTexture;
++			return commit;
++		}
+ 	}
+ 
+-	struct wlr_dmabuf_attributes dmabuf = {0};
+ 	gamescope::OwningRc<gamescope::IBackendFb> pBackendFb;
+-	if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
++	if ( bDmabuf )
+ 	{
+ 		pBackendFb = GetBackend()->ImportDmabufToBackend( &dmabuf );
+ 	}
+@@ -1873,7 +1880,8 @@ import_commit (
+ 
+ 	commit->vulkanTex = pOwnedTexture;
+ 
+-	s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
++	if ( bDmabuf )
++		s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
+ 
+ 	return commit;
+ }

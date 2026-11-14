@@ -189,7 +189,6 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
 
     companion object {
         private const val TAG = "DeviceControls"
-        // AudioService sends these on every stream step; the Settings observer and 250 ms poll lag a held volume key.
         private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
         private const val STREAM_MUTE_CHANGED_ACTION = "android.media.STREAM_MUTE_CHANGED_ACTION"
         private const val PERMISSION_CHANNEL = "brightness_permission"

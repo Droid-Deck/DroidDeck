@@ -23,8 +23,6 @@ static void wl_pointer_send_button(struct wl_resource *r, uint32_t serial,
     r->held &= ~(1u << (button - 0x110));
     r->releases++;
 }
-/* The old dispatcher calls this even for releases, emitting stale coordinates.
- * Recording this boundary detects that unwanted motion/focus routing path. */
 static void pointer_input(double x, double y, int relative, uint32_t button, int pressed) {
     assert(x == 0 && y == 0 && relative == 1 && button >= 0x110 && button <= 0x112);
     assert(pressed == 1);

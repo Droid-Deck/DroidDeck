@@ -36,6 +36,19 @@ class PadState {
         buttons = 0
     }
 
+    fun merge(other: PadState) {
+        buttons = buttons or other.buttons
+        up = up || other.up; right = right || other.right; down = down || other.down; left = left || other.left
+        leftTrigger = maxOf(leftTrigger, other.leftTrigger)
+        rightTrigger = maxOf(rightTrigger, other.rightTrigger)
+        if (other.leftX * other.leftX + other.leftY * other.leftY > leftX * leftX + leftY * leftY) {
+            leftX = other.leftX; leftY = other.leftY
+        }
+        if (other.rightX * other.rightX + other.rightY * other.rightY > rightX * rightX + rightY * rightY) {
+            rightX = other.rightX; rightY = other.rightY
+        }
+    }
+
     companion object {
         const val A = 0
         const val B = 1

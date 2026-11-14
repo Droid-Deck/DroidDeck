@@ -115,8 +115,6 @@ class RayNeoCalibrationTest {
         val upright = RayNeoOrientationFilter(profile.rotationXDeg, profile.gtMaxAxes, saved)
             .update(sample(floatArrayOf(-0.02f, 8.819f, 4.106f), reading.gyroDps))
         assertArrayEquals(floatArrayOf(1f, 0f, 0f, 0f), upright, 0.001f)
-        // This was the reported failure: the same physical pose cannot calibrate
-        // through the Max's permutation and 35-degree mounting correction.
         assertNull(finish(RayNeoCalibrationCollector(RayNeoSensorAxes(35f, true), 0), sample = reading))
     }
 

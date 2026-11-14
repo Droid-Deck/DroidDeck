@@ -1,4 +1,3 @@
-"""Check the engine before modifying build assets; never rebuild for a daemon error."""
 import os
 from pathlib import Path
 import subprocess
@@ -18,7 +17,7 @@ if __name__ == '__main__':
         sys.exit('Docker is unavailable: ' + engine.stderr.strip())
     image = run('image', 'inspect', sys.argv[1])
     if image.returncode:
-        if 'No such image' not in image.stderr and 'image not known' not in image.stderr:  # Docker, Podman
+        if 'No such image' not in image.stderr and 'image not known' not in image.stderr:
             sys.exit('Cannot inspect the build image: ' + image.stderr.strip())
         repo = Path(__file__).resolve().parents[1]
         subprocess.run(['docker', 'build', '--platform', os.environ.get('DROIDDECK_DOCKER_PLATFORM', 'linux/amd64'), '-t', sys.argv[1],

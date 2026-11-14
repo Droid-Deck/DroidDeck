@@ -26,6 +26,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.shape.CircleShape
@@ -262,6 +263,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
@@ -287,6 +289,20 @@ fun AnchoredMenu(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+      TrackKeyWindow()
+      val popupInput = LocalInputModeManager.current
+      LaunchedEffect(open, inputMode) {
+          if (!open || inputMode != InputMode.Keyboard) return@LaunchedEffect
+          popupInput.requestInputMode(InputMode.Keyboard)
+          repeat(8) {
+              androidx.compose.runtime.withFrameNanos { }
+              if (runCatching { firstItemFocus.captureFocus() }.getOrDefault(false)) {
+                  firstItemFocus.freeFocus()
+                  return@LaunchedEffect
+              }
+              runCatching { firstItemFocus.requestFocus() }
+          }
+      }
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
         AnimatedVisibility(
             visibleState = state,
@@ -371,11 +387,12 @@ fun MenuItem(
             .background(if (hot && enabled) Color.White.copy(alpha = 0.07f) else Color.Transparent)
             .glideBorder(hot && enabled, RoundedCornerShape(8.dp), pal.signal)
             .alpha(if (enabled) 1f else 0.4f)
+            .semantics { selected = checked }
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
-        Text("✓", fontSize = 12.sp, color = pal.signal, modifier = Modifier.width(18.dp).alpha(if (checked) 1f else 0f))
+        Text("✓", fontSize = 12.sp, color = pal.signal, modifier = Modifier.width(18.dp).alpha(if (checked) 1f else 0f).clearAndSetSemantics {})
         if (leading != null) {
             leading()
             Spacer(Modifier.width(8.dp))
@@ -489,18 +506,26 @@ fun <T> ChoiceRow(
     options: List<Pair<T, String>>, selected: T, enabled: Boolean = true, note: String? = null,
     chipModifier: Modifier = Modifier,
     hintLines: Int? = null,
+    stacked: Boolean = false,
     onPick: (T) -> Unit,
 ) {
+    SettingsRow(label, hint, highlighted = host.open == key, hintLines = hintLines, stacked = stacked) {
+        ChoiceChip(host, key, label, options, selected, enabled, note, chipModifier, onPick)
+    }
+}
+
+@Composable
+internal fun <T> ChoiceChip(host: MenuHost, key: String, label: String, options: List<Pair<T, String>>, selected: T,
+    enabled: Boolean = true, note: String? = null, modifier: Modifier = Modifier, onPick: (T) -> Unit) {
     val open = host.open == key
-    SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
-        Box {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
-            AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
-                options.forEachIndexed { index, (value, text) ->
-                    MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
-                        onPick(value)
-                        host.open = null
-                    }
+    Box {
+        ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled,
+            modifier = modifier.testTag("setting-$key")) { host.open = if (open) null else key }
+        AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
+            options.forEachIndexed { index, (value, text) ->
+                MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
+                    onPick(value)
+                    host.open = null
                 }
             }
         }
@@ -696,6 +721,7 @@ fun SettingsPage(
     scroll: androidx.compose.foundation.ScrollState? = null,
     scrollContent: Boolean = true,
     compactLayout: Boolean = false,
+    showBack: Boolean = true,
     header: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
@@ -718,7 +744,7 @@ fun SettingsPage(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
                     if (header != null) Box(Modifier.weight(1f)) { header() }
                 }
             }
@@ -728,7 +754,7 @@ fun SettingsPage(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(bottom = 6.dp),
                 ) {
-                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
                     Text(
                         title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -740,7 +766,7 @@ fun SettingsPage(
         } else {
             Rise(0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
                     if (eyebrow != null) {
                         Spacer(Modifier.width(10.dp))
                         Eyebrow(eyebrow)

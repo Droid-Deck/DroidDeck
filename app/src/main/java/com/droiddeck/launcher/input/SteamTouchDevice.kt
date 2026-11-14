@@ -74,8 +74,6 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
             Log.i(TAG, "steam touch: " + if (value) "plugged in" else "unplugged")
         }
 
-    fun setBattery(percent: Int) = buffer.putInt(OFF_BATTERY, percent.coerceIn(0, 100))
-
     fun state(): State {
         repeat(8) {
             val seq = buffer.getLong(OFF_STATE_SEQ)

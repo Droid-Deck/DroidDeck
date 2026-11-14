@@ -981,8 +981,6 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     for (;;) {
         uint64_t local = 0;
         if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
-        /* Only the poller mirrors shared values. A second host signal here can
-         * race its signal and submit the same timeline value twice. */
         if (now_us() >= until) break;
         usleep(100);
     }
@@ -1073,7 +1071,7 @@ static void *completer(void *arg) {
         if (pending) {
             struct timespec until;
             clock_gettime(CLOCK_REALTIME, &until);
-            until.tv_nsec += 1000000; /* Poll pending GPU work at most every 1 ms. */
+            until.tv_nsec += 1000000;
             if (until.tv_nsec >= 1000000000) { until.tv_sec++; until.tv_nsec -= 1000000000; }
             pthread_cond_timedwait(&g_trk_cond, &g_trk_lock, &until);
         } else {
@@ -1345,8 +1343,6 @@ static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, 
     VkImageCreateInfo compatible = *ci;
     VkExternalMemoryImageCreateInfo shared;
     const VkBaseInStructure *first = ci->pNext;
-    // SteamVR's OpenXR stereo arrays omit a format list, while DXVK adds one on import.
-    // Leave single-layer OpenVR images alone: the application owns their export layout.
     if (dev_for(d)->quest_images && ci->arrayLayers > 1 && (ci->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) && ci->tiling == VK_IMAGE_TILING_OPTIMAL
         && first && first->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
         const VkBaseInStructure *second = first->pNext;

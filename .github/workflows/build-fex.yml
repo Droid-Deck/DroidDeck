@@ -1,8 +1,5 @@
 name: Build FEX (x86-64 Steam client)
 
-# Checks tools/fex: the same build DroidDeck-Components' build-fex.yml runs from this repository to publish FEX
-# (its single `fex` release and fex.json, which the app follows). Nothing is published from here.
-
 on:
   push:
     paths:
@@ -31,7 +28,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Build in Arch Linux ARM
-        # Inputs reach the shell as environment variables, never pasted into the script.
         env:
           FEX_EXTRA_CXXFLAGS: ${{ inputs.cxxflags }}
           FEX_THUNKS: ${{ inputs.thunks == 'true' && '1' || '0' }}

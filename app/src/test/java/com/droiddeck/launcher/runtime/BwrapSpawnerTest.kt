@@ -55,6 +55,26 @@ class BwrapSpawnerTest {
         assertTrue(Bind("/rootfs/etc/droiddeck/proc/stat", "/newproc/stat") in binds)
     }
 
+    @Test fun theSessionsRootfsSettingsStayOutOfTheSandbox() {
+        val rootfs = "/data/app/linuxfs"
+        val env = mutableMapOf(
+            "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
+            "SPA_PLUGIN_DIR" to "/usr/local/lib/droiddeck-pipewire/lib/spa-0.2",
+            "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so:$rootfs/usr/local/lib/libblsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+        )
+        BwrapSpawner.withoutRootfsSettings(env, rootfs)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so"), env)
+        val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
+        BwrapSpawner.withoutRootfsSettings(onlySession, rootfs)
+        assertTrue(onlySession.isEmpty())
+        val wayland = mutableMapOf("SDL_VIDEODRIVER" to "x11", "WAYLAND_DISPLAY" to "wayland-0")
+        BwrapSpawner.withoutRootfsSettings(wayland, rootfs)
+        assertEquals(mapOf("WAYLAND_DISPLAY" to "wayland-0"), wayland)
+        val x11 = mutableMapOf("SDL_VIDEODRIVER" to "x11", "WAYLAND_DISPLAY" to "wayland-0", "DISPLAY" to ":99")
+        BwrapSpawner.withoutRootfsSettings(x11, rootfs)
+        assertEquals("x11", x11["SDL_VIDEODRIVER"])
+    }
+
     @Test fun normalizeResolvesDotsLexically() {
         assertEquals("/usr/lib/x", BwrapSpawner.normalize("/usr/lib/GL/../x"))
         assertEquals("/", BwrapSpawner.normalize("/../.."))
@@ -119,6 +139,27 @@ class BwrapSpawnerPlanTest {
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
     }
 
+    @Test fun sandboxesStartThroughTheirOwnEnvByDefault() {
+        val plan = BwrapSpawner.plan(RuntimeEnvironment.getApplication(), request(op("t" to "dir", "dest" to "/tmp")), dir)
+        assertEquals("/usr/bin/env", plan.envTool)
+    }
+
+    @Test fun fexSandboxesStartThroughTheEnvTheyBringAndSkipArmPreloads() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp"))
+                .put("envTool", "/run/droiddeck-fex/bin/env"), dir)
+            assertEquals("/run/droiddeck-fex/bin/env", plan.envTool)
+            assertFalse(plan.env.containsKey("LD_PRELOAD"))
+            assertFalse(plan.binds.any { it.guest.startsWith("/run/droiddeck-preload") })
+        } finally {
+            listOf(lib, preload).forEach { it.delete() }
+        }
+    }
+
     @Test fun sandboxedAppsSeeTheSessionsNetworkLink() {
         val context = RuntimeEnvironment.getApplication()
         val rootfs = LinuxRuntime.rootDir(context)
@@ -159,5 +200,26 @@ class BwrapSpawnerPlanTest {
 
         assertFalse(plan.binds.any { it.guest.startsWith("/app/bin/") })
         assertFalse(File(dir, "zypak-wrapper").exists())
+    }
+
+    @Test fun preloadsStayOutOfSandboxesWithAnOlderGlibc() {
+        val base = Files.createTempDirectory("glibc").toFile()
+        try {
+            val rootfs = File(base, "rootfs")
+            File(rootfs, "usr/local/lib").mkdirs()
+            File(rootfs, "etc").mkdirs()
+            File(rootfs, "etc/ld.so.preload").writeText("/usr/local/lib/libone.so\n/usr/local/lib/libtwo.so\n")
+            File(rootfs, "usr/local/lib/libone.so").writeText("x GLIBC_2.17 y GLIBC_2.34 z")
+            File(rootfs, "usr/local/lib/libtwo.so").writeText("GLIBC_2.38 GLIBC_2.25")
+            val old = File(base, "old-libc").apply { writeText("GNU C Library (Ubuntu GLIBC 2.23-0ubuntu11) stable release version 2.23, by Roland") }
+            val new = File(base, "new-libc").apply { writeText("GNU C Library (Ubuntu GLIBC 2.43-0ubuntu1) stable release version 2.43.") }
+            val same = File(base, "same-libc").apply { writeText("stable release version 2.38.") }
+            assertFalse(BwrapSpawner.preloadFits(rootfs.path, old.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, new.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, same.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, File(base, "missing").path))
+        } finally {
+            base.deleteRecursively()
+        }
     }
 }

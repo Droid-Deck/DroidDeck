@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Extract only pinned Windows GDK modules; Linux Wine stays ARM64."""
 import hashlib
 import json
 from pathlib import Path
@@ -35,7 +34,6 @@ def download(name, expected, algorithm):
     return target
 
 archive = download(lock['archive'], lock['sha512'], 'sha512')
-# Keep corresponding source available beside the build cache for redistribution.
 source = lock['source']
 download(source['name'], source['sha256'], 'sha256')
 remaining = set(lock['dlls'])
@@ -49,8 +47,6 @@ with tarfile.open(archive) as tar:
         data = tar.extractfile(member).read()
         if hashlib.sha256(data).hexdigest() != lock['dlls'][name] or data[:2] != b'MZ':
             raise RuntimeError('Xbox Windows runtime module checksum mismatch')
-        # Wine rejects builtin-tagged PE files when WINEDLLOVERRIDES selects native.
-        # These standalone Windows modules must use the native x64 loader on ARM64EC.
         if data[64:80] == b'Wine builtin DLL':
             data = data[:64] + b'DroidDeck native' + data[80:]
         (output / name).write_bytes(data)

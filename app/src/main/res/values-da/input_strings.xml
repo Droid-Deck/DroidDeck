@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Inputprofiler</string>
+    <string name="input_profiles">Profiler</string>
+    <string name="input_physical">Fysisk controller</string>
+    <string name="input_primary">Hovedskærm</string>
+    <string name="input_secondary">Sekundær skærm</string>
+    <string name="input_native">Indbygget / Steam Input</string>
+    <string name="input_native_target">Indbygget: %1$s</string>
+    <string name="input_remap_native">Send en anden controllerstyring</string>
+    <string name="input_disabled">Deaktiveret</string>
+    <string name="input_keys">Tast eller tastekombination</string>
+    <string name="input_direction_keys">Retningstaster</string>
+    <string name="input_pointer">Flyt markøren</string>
+    <string name="input_pointer_speed">Markørhastighed: %1$d</string>
+    <string name="input_scroll">Rul</string>
+    <string name="input_scroll_vertical">Rul lodret</string>
+    <string name="input_mouse_left">Venstre museknap</string>
+    <string name="input_mouse_right">Højre museknap</string>
+    <string name="input_mouse_middle">Midterste museknap</string>
+    <string name="input_command_menu">Åbn DroidDeck-menuen</string>
+    <string name="input_command_keyboard">Vis tastatur</string>
+    <string name="input_command_steam">Åbn Steam-menuen</string>
+    <string name="input_command_qam">Åbn Steams hurtigadgang</string>
+    <string name="input_remove_element">Fjern kontrol</string>
+    <string name="input_add_element">Tilføj kontrol</string>
+    <string name="input_extra_keys">Enhedsspecifikke knapper</string>
+    <string name="input_capture">Tildel en fysisk knap</string>
+    <string name="input_capture_confirm">Slip knappen, og vælg Rediger, Prøv igen eller Annuller. B eller Tilbage annullerer efter slip.</string>
+    <string name="input_capture_retry">Prøv igen</string>
+    <string name="input_capture_hint">Tryk på en knap, også en Tilbage-knap der rapporteres som tast. Lydstyrke- og Android-systemtaster er reserveret. Tildelingen gælder kun denne enhed.</string>
+    <string name="input_remove_binding">Fjern tildeling</string>
+    <string name="input_latency">Inputdiagnostik</string>
+    <string name="input_measure">Optag inputafsendelsestid</string>
+    <string name="input_read_timing">Læs målinger</string>
+    <string name="input_latency_hint">Måler afsendelsen fra Android til offentliggørelse i den eksisterende inputtransport. Bluetoothankomst, gæstepolling, rendering og skærmforsinkelse er ikke medtaget. Optagelse er slået fra som standard.</string>
+    <string name="input_normal_binding">Brug normal inputtildeling</string>
+</resources>

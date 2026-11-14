@@ -2,64 +2,68 @@ package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
 import android.app.Presentation
-import android.content.ClipboardManager
-import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.Display
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.droiddeck.launcher.input.DeckPanel
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridge
-import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
-import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.BottomDesktop
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.session.SessionTerminal
-import com.termux.terminal.TerminalEmulator
-import com.termux.terminal.TerminalSession
-import com.termux.terminal.TerminalSessionClient
-import com.termux.view.TerminalView
-import com.termux.view.TerminalViewClient
 
 class SecondScreenPresentation(
     private val sessionActivity: SessionActivity,
     display: Display,
-    private val sendPointer: (x: Float, y: Float, width: Float, height: Float) -> Unit,
-    private val sendButton: (button: Int, pressed: Boolean) -> Unit,
-    private val sendWheel: (steps: Int) -> Unit,
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
     private val onClose: () -> Unit,
     private val pad: PadBridge? = null,
+    private val onKeyboardClosed: () -> Unit = {},
+    private val onMenu: (() -> Unit)? = null,
+    private val menu: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+    private val dashboard: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+    private val onSwap: (() -> Unit)? = null,
+    private val onMenuTouched: () -> Unit = {},
+    private val onDeckPanel: (DeckPanel) -> Unit = { SessionPrefs.setDeckPanel(sessionActivity, it) },
 ) : Presentation(sessionActivity, display) {
+    private val frame = FrameLayout(context)
+    private var menuView: androidx.compose.ui.platform.ComposeView? = null
+    private var dashboardView: androidx.compose.ui.platform.ComposeView? = null
+    private var chatView: androidx.compose.ui.platform.ComposeView? = null
+    private var chatLost: (() -> Unit)? = null
+    var menuShown = false
+        private set
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.rgb(15, 18, 22))
+        setBackgroundColor(Color.BLACK)
         isFocusableInTouchMode = true
     }
     private var currentMode = SecondScreenMode.NONE
     private var keyboardHost: KeyboardHost? = null
-    private var terminalSession: TerminalSession? = null
-    private var terminalView: TerminalView? = null
-    private var terminalPid = -1
-    private var ctrlActive = false
-    private var altActive = false
+    private val keyboardShown = androidx.compose.runtime.mutableStateOf(false)
+    private val deckPanel = androidx.compose.runtime.mutableStateOf(DeckPanel.BOTH)
+    private var keyboardPending = false
+    private var imeSeen = false
+    private var fieldKeyboard = false
+    private var terminalPanel: SessionTerminalPanel? = null
+    private var controlsView: InputSurfaceView? = null
     private var created = false
 
     init {
@@ -73,9 +77,49 @@ class SecondScreenPresentation(
         created = true
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        setContentView(root)
+        frame.addView(root, FrameLayout.LayoutParams(-1, -1))
+        setContentView(frame)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            root.setOnApplyWindowInsetsListener { view, insets ->
+                if (insets.isVisible(WindowInsets.Type.ime())) imeSeen = true
+                else if (imeSeen && chatView == null) keyboardClosed()
+                view.onApplyWindowInsets(insets)
+            }
+        }
         applyImmersiveMode()
         renderMode()
+    }
+
+    fun requestKeyboard(forField: Boolean = false) {
+        if (!showsKeyboard || keyboardHost == null) return
+        if (forField) fieldKeyboard = true
+        keyboardPending = true
+        if (window?.decorView?.hasWindowFocus() == true) showPendingKeyboard()
+    }
+
+    private fun showPendingKeyboard() {
+        keyboardPending = false
+        keyboardShown.value = true
+        val host = keyboardHost ?: return
+        for (delay in longArrayOf(150L, 450L)) root.postDelayed({
+            if (keyboardHost === host && keyboardShown.value && !imeSeen && showsKeyboard) host.show()
+        }, delay)
+    }
+
+    val fieldKeyboardOpen: Boolean get() = fieldKeyboard
+
+    fun closeFieldKeyboard() {
+        if (!fieldKeyboard) return
+        keyboardPending = false
+        keyboardClosed()
+    }
+
+    private fun keyboardClosed() {
+        fieldKeyboard = false
+        imeSeen = false
+        keyboardHost?.takeIf { it.shown }?.hide()
+        keyboardShown.value = false
+        onKeyboardClosed()
     }
 
     fun showMode(mode: SecondScreenMode) {
@@ -84,18 +128,130 @@ class SecondScreenPresentation(
         if (created) renderMode()
     }
 
+    fun retryTerminal() {
+        if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalPanel?.ready != true) renderMode()
+    }
+
+    fun showChat(onLost: () -> Unit, content: @androidx.compose.runtime.Composable () -> Unit) {
+        if (!showsKeyboard || chatView != null) return
+        keyboardHost?.takeIf { it.shown }?.hide()
+        keyboardShown.value = false
+        keyboardPending = false
+        fieldKeyboard = false
+        chatLost = onLost
+        ownComposeViews()
+        val view = androidx.compose.ui.platform.ComposeView(context).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setContent { content() }
+        }
+        chatView = view
+        root.addView(view, 1.coerceAtMost(root.childCount), LinearLayout.LayoutParams(-1, -2))
+    }
+
+    fun hideChat() {
+        chatLost = null
+        dropChat()
+    }
+
+    private fun dropChat() {
+        val view = chatView ?: return
+        chatView = null
+        chatLost?.let { lost -> chatLost = null; sessionActivity.runOnUiThread(lost) }
+        imeSeen = false
+        root.removeView(view)
+        view.disposeComposition()
+    }
+
+    val showsKeyboard: Boolean get() = isShowing && !menuShown && currentMode.controls
+
+    val showsControls: Boolean get() = isShowing && currentMode != SecondScreenMode.NONE
+
+    fun showMenu(on: Boolean) {
+        if (on == menuShown) return
+        val content = menu ?: return
+        menuShown = on
+        if (on) {
+            keyboardHost?.takeIf { it.shown }?.hide()
+            keyboardShown.value = false
+            ownComposeViews()
+            val view = menuView ?: androidx.compose.ui.platform.ComposeView(context).apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                defaultFocusHighlightEnabled = false
+                setContent { content() }
+                frame.addView(this, FrameLayout.LayoutParams(-1, -1))
+                menuView = this
+            }
+            view.visibility = View.VISIBLE
+            root.visibility = View.INVISIBLE
+            view.requestFocus()
+        } else {
+            menuView?.let { frame.removeView(it); it.disposeComposition() }
+            menuView = null
+            root.visibility = View.VISIBLE
+        }
+    }
+
+    private fun ownComposeViews() {
+        window?.decorView?.let { decor ->
+            decor.setViewTreeLifecycleOwner(sessionActivity)
+            decor.setViewTreeViewModelStoreOwner(sessionActivity)
+            decor.setViewTreeSavedStateRegistryOwner(sessionActivity)
+            decor.setViewTreeOnBackPressedDispatcherOwner(sessionActivity)
+        }
+    }
+
+    fun focusMenu(): Boolean = menuView?.requestFocus() == true
+
+    fun dispatchMenuKey(event: KeyEvent): Boolean {
+        KeyWindows.topOn(display.displayId)?.let { return it.rootView.dispatchKeyEvent(event) }
+        return menuView?.dispatchKeyEvent(event) == true
+    }
+
     fun closeControls() {
+        showMenu(false)
+        closeDashboard()
         closeTerminal()
+        dropChat()
         keyboardHost?.hide()
         keyboardHost = null
+        controlsView = null
         dismiss()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (currentMode == SecondScreenMode.KEYBOARD_TRACKPAD) {
-            if (sessionActivity.dispatchKeyEvent(event)) return true
-        }
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
+            currentMode == SecondScreenMode.DESKTOP
+        val back = event.keyCode == KeyEvent.KEYCODE_BACK && currentMode == SecondScreenMode.DASHBOARD
+        val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
+        if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (menuShown && event.actionMasked == MotionEvent.ACTION_DOWN) onMenuTouched()
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (PadBridge.isControllerMotionEvent(event) && sessionActivity.dispatchGenericMotionEvent(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    fun refreshControls() {
+        if (!created || !currentMode.controls) return
+        val controls = controlsView ?: return
+        val layout = panelLayout(currentMode)
+        controls.updateCustomLayout(layout?.elements.orEmpty())
+        controls.updateStyle(layout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+    }
+
+    fun showKeyboard(): Boolean {
+        val host = keyboardHost ?: return false
+        host.toggle()
+        keyboardShown.value = host.shown
+        return true
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -103,192 +259,119 @@ class SecondScreenPresentation(
         if (hasFocus) {
             applyImmersiveMode()
             sessionActivity.refreshClipboard()
+            if (keyboardPending) showPendingKeyboard()
         }
     }
 
     private fun renderMode() {
+        dropChat()
+        fieldKeyboard = false
         keyboardHost?.hide()
         keyboardHost = null
+        keyboardShown.value = false
+        keyboardPending = false
+        imeSeen = false
         closeTerminal()
+        closeDashboard()
         root.removeAllViews()
-        val mode = if (currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) SecondScreenMode.NONE
-        else currentMode
+        controlsView = null
+        ownComposeViews()
+        val requested = currentMode
+        val mode = when {
+            requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
+            requested == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
+            requested == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
+            else -> requested
+        }
         if (mode == SecondScreenMode.NONE) return
 
         when (mode) {
-            SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
-            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad), weightParams())
+            SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS -> {
+                if (mode == SecondScreenMode.DECK_CONTROLS) deckPanel.value = SessionPrefs.deckPanel(context)
+                bar(mode)
+                val layout = panelLayout(mode)
+                val controls = InputSurfaceView(context, pad, layout?.elements.orEmpty(),
+                    surfaceStyle = layout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+                controlsView = controls
+                root.addView(controls, weightParams())
+                attachKeyboard()
+            }
+            SecondScreenMode.DASHBOARD -> renderDashboard()
+            SecondScreenMode.DESKTOP -> {
+                root.addView(BottomDesktopPanel(context, onClose, onMenu,
+                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
+            }
             SecondScreenMode.NONE -> Unit
         }
     }
 
-    private fun renderKeyboardAndTrackpad() {
-        val panel = FrameLayout(context)
-        panel.addView(trackpadView(), FrameLayout.LayoutParams(-1, -1))
-        val controls = LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            setBackgroundColor(0xE6191E24.toInt())
+    private fun panelLayout(mode: SecondScreenMode) = com.droiddeck.launcher.input.InputLibraries.read(context)
+        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context))
+
+    private fun bar(mode: SecondScreenMode) {
+        val first = barModel(mode) ?: return
+        root.addView(bottomScreenBarView(context) { barModel(mode) ?: first }, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    internal fun barModel(mode: SecondScreenMode): BottomBarModel? {
+        val swap = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) })
+        fun model(extras: List<BarExtra>, tabs: BarTabs? = null) =
+            sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras, tabs)
+        return when (mode) {
+            SecondScreenMode.KEYBOARD_TRACKPAD -> model(listOf(BarExtra(
+                context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
+                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }))
+            SecondScreenMode.DECK_CONTROLS -> model(swap, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
+            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(swap)
+            SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
+                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }))
+            else -> null
         }
-        controls.addView(Button(context).apply {
-            text = "×"
-            contentDescription = context.getString(R.string.deck_close)
-            minWidth = dp(48)
-            setOnClickListener { onClose() }
-        })
-        controls.addView(TextView(context).apply {
-            text = context.getString(R.string.second_trackpad)
-            textSize = 14f
-            setTextColor(Color.WHITE)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        val keyboardButton = Button(context).apply {
-            text = context.getString(R.string.second_show_keyboard)
-            setOnClickListener {
-                val host = keyboardHost ?: return@setOnClickListener
-                if (host.shown) {
-                    host.hide()
-                    text = context.getString(R.string.second_show_keyboard)
-                } else {
-                    host.show()
-                    text = context.getString(R.string.second_hide_keyboard)
-                }
-            }
+    }
+
+    private fun selectDeckPanel(panel: DeckPanel) {
+        if (deckPanel.value == panel) return
+        deckPanel.value = panel
+        onDeckPanel(panel)
+        refreshControls()
+    }
+
+    private fun renderDashboard() {
+        val content = dashboard ?: return
+        bar(SecondScreenMode.DASHBOARD)
+        val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { content() } }
+        dashboardView = view
+        root.addView(view, weightParams())
+    }
+
+    private fun closeDashboard() {
+        dashboardView?.disposeComposition()
+        dashboardView = null
+    }
+
+    private fun attachKeyboard() {
+        val host = KeyboardHost(context) { event ->
+            val handled = sessionActivity.dispatchKeyEvent(event)
+            if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
+                (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
+            handled
         }
-        controls.addView(keyboardButton)
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            controls.addView(Button(context).apply {
-                text = "STEAM"
-                contentDescription = context.getString(R.string.deck_open_steam_menu)
-                setOnClickListener { onSteamMenu() }
-            })
-            controls.addView(Button(context).apply {
-                text = "…"
-                contentDescription = context.getString(R.string.drawer_open_qam)
-                setOnClickListener { onQam() }
-            })
-        }
-        panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        root.addView(panel, weightParams())
-        val host = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }
+        host.onImeChanged = { visible -> if (!visible && keyboardShown.value) keyboardClosed() }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))
     }
 
-    private fun trackpadView(): View = TrackpadView(context)
-
     private fun renderTerminal() {
-        val bar = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            setBackgroundColor(Color.rgb(27, 32, 38))
-        }
-        bar.addView(Button(context).apply {
-            text = "×"
-            contentDescription = context.getString(R.string.deck_close)
-            minWidth = dp(48)
-            setOnClickListener { onClose() }
-        })
-        bar.addView(TextView(context).apply {
-            text = context.getString(R.string.second_terminal)
-            textSize = 14f
-            setTextColor(Color.WHITE)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(Button(context).apply {
-            text = context.getString(R.string.drawer_keyboard)
-            setOnClickListener { showTerminalKeyboard() }
-        })
-        root.addView(bar, LinearLayout.LayoutParams(-1, -2))
-
-        val terminalClient = TerminalClient()
-        val view = TerminalView(context, null).apply {
-            setTerminalViewClient(terminalClient)
-            setTextSize(dp(14))
-            isFocusable = true
-            isFocusableInTouchMode = true
-        }
-        terminalView = view
-        val session = SessionTerminal.create(terminalClient)
-        if (session == null) {
-            root.addView(TextView(context).apply {
-                text = context.getString(R.string.second_terminal_not_ready)
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(-1, 0, 1f))
-            return
-        }
-        terminalSession = session
-
-        val keyStrip = HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false }
-        val keys = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(2), dp(4), dp(2)) }
-        fun key(label: String, input: String, onClick: ((Button) -> Unit)? = null) {
-            val button = Button(context).apply {
-                text = label
-                setOnClickListener { if (onClick != null) onClick(this) else session.write(input) }
-            }
-            keys.addView(button)
-        }
-        val ctrl = context.getString(R.string.pckb_key_ctrl)
-        val alt = context.getString(R.string.pckb_key_alt)
-        key(context.getString(R.string.pckb_key_esc), "\u001b")
-        key(context.getString(R.string.second_key_tab), "\t")
-        key(ctrl, "") { button ->
-            ctrlActive = !ctrlActive
-            button.text = if (ctrlActive) context.getString(R.string.second_key_on, ctrl) else ctrl
-        }
-        key(alt, "") { button ->
-            altActive = !altActive
-            button.text = if (altActive) context.getString(R.string.second_key_on, alt) else alt
-        }
-        key("↑", "\u001b[A")
-        key("↓", "\u001b[B")
-        key("←", "\u001b[D")
-        key("→", "\u001b[C")
-        key(context.getString(R.string.second_key_ctrl_c), "\u0003")
-        key(context.getString(R.string.second_key_ctrl_d), "\u0004")
-        keyStrip.addView(keys)
-        root.addView(keyStrip, LinearLayout.LayoutParams(-1, -2))
-
-        root.addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
-        view.attachSession(session)
-
-        view.post {
-            registerTerminalPid()
-            view.requestFocus()
-            showTerminalKeyboard()
-        }
-    }
-
-    private fun showTerminalKeyboard() {
-        terminalView?.let { view ->
-            view.requestFocus()
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-        }
-    }
-
-    private fun registerTerminalPid() {
-        val pid = terminalSession?.pid ?: -1
-        if (pid > 1 && pid != terminalPid) {
-            terminalPid = pid
-            SessionService.registerTerminalProcess(context, pid)
-        }
+        bar(SecondScreenMode.TERMINAL)
+        val panel = SessionTerminalPanel(context)
+        terminalPanel = panel
+        root.addView(panel, weightParams())
     }
 
     private fun closeTerminal() {
-        terminalView?.let { view ->
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .hideSoftInputFromWindow(view.windowToken, 0)
-        }
-        val pid = terminalPid.takeIf { it > 1 } ?: (terminalSession?.pid ?: -1)
-        if (pid > 1) SessionService.stopTerminalProcess(context, pid)
-        terminalPid = -1
-        terminalSession = null
-        terminalView = null
-        ctrlActive = false
-        altActive = false
+        terminalPanel?.close()
+        terminalPanel = null
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
@@ -303,94 +386,5 @@ class SecondScreenPresentation(
             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-    }
-
-    private inner class TrackpadView(context: Context) : View(context) {
-        private val gestures = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
-            object : PointerGestures.Listener {
-                override fun onMove(x: Float, y: Float) {
-                    sendPointer(x, y, width.toFloat(), height.toFloat())
-                    invalidate()
-                }
-
-                override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-                    sendPointer(x, y, width.toFloat(), height.toFloat())
-                    sendButton(button, pressed)
-                }
-
-                override fun onWheel(steps: Int) = sendWheel(steps)
-                override fun onLongPress() { performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS) }
-            })
-
-        init { isFocusable = true }
-
-        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            gestures.bounds = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
-            if (oldw == 0 || oldh == 0) gestures.place(w / 2f, h / 2f)
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            canvas.drawColor(Color.BLACK)
-        }
-
-        override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouch(event)
-    }
-
-    private inner class TerminalClient : TerminalSessionClient, TerminalViewClient {
-        override fun onTextChanged(changedSession: TerminalSession) {
-            terminalView?.onScreenUpdated()
-        }
-        override fun onTitleChanged(changedSession: TerminalSession) = Unit
-        override fun onSessionFinished(finishedSession: TerminalSession) {
-            val pid = terminalPid.takeIf { it > 1 } ?: finishedSession.pid
-            if (pid > 1) SessionService.terminalProcessExited(context, pid)
-            terminalPid = -1
-            terminalView?.onScreenUpdated()
-        }
-        override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
-            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(android.content.ClipData.newPlainText("Terminal", text))
-        }
-        override fun onPasteTextFromClipboard(session: TerminalSession) {
-            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
-            if (clip != null && clip.itemCount > 0) session.write(clip.getItemAt(0).coerceToText(context).toString())
-        }
-        override fun onBell(session: TerminalSession) {
-            terminalView?.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-        }
-        override fun onColorsChanged(changedSession: TerminalSession) {
-            terminalView?.invalidate()
-        }
-        override fun onTerminalCursorStateChange(state: Boolean) {
-            terminalView?.setTerminalCursorBlinkerRate(if (state) 600 else 0)
-        }
-        override fun getTerminalCursorStyle(): Int = TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK
-        override fun logError(tag: String, message: String) { Log.e(tag, message) }
-        override fun logWarn(tag: String, message: String) { Log.w(tag, message) }
-        override fun logInfo(tag: String, message: String) { Log.i(tag, message) }
-        override fun logDebug(tag: String, message: String) { Log.d(tag, message) }
-        override fun logVerbose(tag: String, message: String) { Log.v(tag, message) }
-        override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) { Log.e(tag, message, e) }
-        override fun logStackTrace(tag: String, e: Exception) { Log.e(tag, e.message, e) }
-
-        override fun onScale(scale: Float): Float = 1f
-        override fun onSingleTapUp(e: MotionEvent) = showTerminalKeyboard()
-        override fun shouldBackButtonBeMappedToEscape(): Boolean = true
-        override fun shouldEnforceCharBasedInput(): Boolean = false
-        override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
-        override fun isTerminalViewSelected(): Boolean = true
-        override fun copyModeChanged(copyMode: Boolean) = Unit
-        override fun onKeyDown(keyCode: Int, e: KeyEvent, session: TerminalSession): Boolean = false
-        override fun onKeyUp(keyCode: Int, e: KeyEvent): Boolean = false
-        override fun onLongPress(event: MotionEvent): Boolean = false
-        override fun readControlKey(): Boolean = ctrlActive
-        override fun readAltKey(): Boolean = altActive
-        override fun readShiftKey(): Boolean = false
-        override fun readFnKey(): Boolean = false
-        override fun onCodePoint(codePoint: Int, ctrlDown: Boolean, session: TerminalSession): Boolean = false
-        override fun onEmulatorSet() {
-            terminalView?.onScreenUpdated()
-            registerTerminalPid()
-        }
     }
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Kotlin/resource-only loop: reuses the assets build_local.sh already prepared, then signs and installs.
 set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "${repo_root}"
+"${repo_root}/tools/seed_worktree.sh"
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 export ANDROID_HOME=${sdk_dir} ANDROID_SDK_ROOT=${sdk_dir}
 export JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}
@@ -23,7 +23,7 @@ while IFS= read -r dir; do
 done < <(ls -d "${sdk_dir}"/build-tools/* 2>/dev/null | sort -rV)
 [[ -n "${build_tools}" ]] || { echo "No build-tools with aapt, zipalign and apksigner under ${sdk_dir}." >&2; exit 1; }
 
-./gradlew -q :app:assembleRelease
+./gradlew -q -PallowStaleRuntime=true :app:assembleRelease
 (
     cd "$(dirname "${signing_env}")"
     set -a; . "${signing_env}"; set +a

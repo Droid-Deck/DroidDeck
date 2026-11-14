@@ -395,7 +395,6 @@ extern "C" VkResult droiddeck_wsi_present(VkDevice device, VkQueue queue, const 
     VkResult result = it->second->Capture(queue, present->pImageIndices[0], *present, &completion);
     if (result) return result;
     if (!completion) return next(queue, present);
-    // Reacquiring this swapchain image also proves its previous present wait semaphore is reusable.
     VkPresentInfoKHR copy = *present; copy.waitSemaphoreCount = 1; copy.pWaitSemaphores = &completion;
     return next(queue, &copy);
 } catch (...) {

@@ -1,0 +1,123 @@
+From 771667d739c8501729b4037a7377793fd16e908e Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 14:12:37 -0400
+Subject: [PATCH] execve: show the linked name as /proc/self/exe for
+ link2symlink files
+
+---
+ src/execve/enter.c | 92 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 92 insertions(+)
+
+diff --git a/src/execve/enter.c b/src/execve/enter.c
+index c562d14..f185e9a 100644
+--- a/src/execve/enter.c
++++ b/src/execve/enter.c
+@@ -592,6 +592,96 @@ static inline const char *get_loader_path(const Tracee *tracee)
+  * translate_load_*().  This function returns -errno if an error
+  * occured, otherwise 0.
+  */
++static bool is_l2s_name(const char *path)
++{
++	const char *name = strrchr(path, '/');
++
++	name = name != NULL ? name + 1 : path;
++	return strncmp(name, ".l2s.", 5) == 0 || strncmp(name, ".proot.l2s.", 11) == 0;
++}
++
++static void lexical_path(char path[PATH_MAX])
++{
++	char result[PATH_MAX];
++	char *component;
++	char *next;
++	size_t length = 0;
++
++	for (component = path; *component != '\0'; component = next) {
++		size_t size;
++
++		while (*component == '/')
++			component++;
++		next = strchrnul(component, '/');
++		size = next - component;
++		if (size == 0 || (size == 1 && component[0] == '.'))
++			continue;
++		if (size == 2 && component[0] == '.' && component[1] == '.') {
++			while (length > 0 && result[length - 1] != '/')
++				length--;
++			if (length > 0)
++				length--;
++			continue;
++		}
++		result[length++] = '/';
++		memcpy(result + length, component, size);
++		length += size;
++	}
++	if (length == 0)
++		result[length++] = '/';
++	result[length] = '\0';
++	strcpy(path, result);
++}
++
++static void visible_exe(Tracee *tracee, const char *user_path, char exe[PATH_MAX])
++{
++	char path[PATH_MAX];
++	char host[PATH_MAX];
++	char target[PATH_MAX];
++	char *slash;
++	ssize_t length;
++	int i;
++
++	if (user_path[0] == '/') {
++		if (strlen(user_path) >= PATH_MAX)
++			return;
++		strcpy(path, user_path);
++	}
++	else if (join_paths(2, path, tracee->fs->cwd, user_path) < 0)
++		return;
++	lexical_path(path);
++
++	for (i = 0; i < 40; i++) {
++		if (translate_path(tracee, host, AT_FDCWD, path, false) < 0)
++			return;
++		if (is_l2s_name(host))
++			break;
++		length = readlink(host, target, PATH_MAX - 1);
++		if (length < 0)
++			return;
++		target[length] = '\0';
++		if (is_l2s_name(target))
++			break;
++		if (target[0] == '/')
++			strcpy(path, target);
++		else {
++			slash = strrchr(path, '/');
++			*slash = '\0';
++			if (translate_path(tracee, host, AT_FDCWD, path[0] != '\0' ? path : "/", true) < 0)
++				return;
++			if (detranslate_path(tracee, host, NULL) < 0)
++				return;
++			if (join_paths(2, path, host, target) < 0)
++				return;
++		}
++		lexical_path(path);
++	}
++	if (i == 40)
++		return;
++
++	strcpy(exe, path);
++}
++
+ int translate_execve_enter(Tracee *tracee)
+ {
+ 	char user_path[PATH_MAX];
+@@ -642,6 +732,8 @@ int translate_execve_enter(Tracee *tracee)
+ 	strcpy(new_exe, host_path);
+ 	status = detranslate_path(tracee, new_exe, NULL);
+ 	if (status >= 0) {
++		if (is_l2s_name(new_exe))
++			visible_exe(tracee, user_path, new_exe);
+ 		talloc_unlink(tracee, tracee->new_exe);
+ 		tracee->new_exe = talloc_strdup(tracee, new_exe);
+ 	}
+-- 
+2.43.0
+

@@ -8,8 +8,6 @@ object RayNeoModel {
 
     fun model(vid: Int, pid: Int, name: String?): GlassesModel? {
         if (!isVendor(vid)) return null
-        // GT's identity is confirmed by verncat's SDK; do not claim other products
-        // from that vendor just because their name resembles a supported model.
         val gt = RayNeoProtocol.isGt(vid, pid)
         if (vid == RayNeoProtocol.GT_VENDOR_ID && !gt) return null
         if (!(vid == RayNeoProtocol.VENDOR_ID && pid == RayNeoProtocol.PRODUCT_ID) &&
@@ -23,8 +21,6 @@ object RayNeoModel {
         name.contains("rayneo", ignoreCase = true) || name.contains("ray neo", ignoreCase = true) ||
             modelName.containsMatchIn(name)
 
-    // Observed on GT Max: Android exposes an unbranded EDID monitor name.
-    // Match its product metadata, not every display called SmartGlasses/TCL.
     fun isDisplayProduct(name: String?, manufacturer: String?, productId: String?): Boolean =
         name?.trim().equals("SmartGlasses", ignoreCase = true) &&
             manufacturer.equals("TCL", ignoreCase = true) && productId == "980"
@@ -33,7 +29,7 @@ object RayNeoModel {
         override val controllable = true
         override val brightnessMax = 0
         override val volumeMax = 0
-        override val diagonalFovDeg = 46f // Conservative existing default, not a calibrated model profile.
+        override val diagonalFovDeg = 46f
         override val sbs90 = false
         override fun mode(hz: Int, sbs: Boolean) =
             if (sbs) RayNeoProtocol.CMD_SWITCH_TO_3D else RayNeoProtocol.CMD_SWITCH_TO_2D

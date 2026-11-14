@@ -1,0 +1,317 @@
+#!/usr/bin/python3
+import fcntl
+import glob
+import os
+import re
+import runpy
+import stat
+import struct
+import subprocess
+import sys
+import zlib
+
+HOME = os.environ.get("HOME", "/root")
+STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HOME, ".local/share/Steam")
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+OPEN = os.path.join(BIN_DIR, "droiddeck-open")
+APPS_DIR = os.path.join(HOME, ".local/share/applications")
+PLACED = os.path.join(HOME, ".local/share/droiddeck/desktop-programs-placed")
+PREFIX = "droiddeck-program-"
+SHORTCUT_BIT = 0x80000000
+WINDOWS_DESKTOPS = ("users/Public/Desktop", "users/steamuser/Desktop")
+NOT_PROGRAMS = re.compile(r"(?i)^unins")
+ABSENT = (FileNotFoundError, NotADirectoryError, IsADirectoryError)
+
+_run = None
+
+
+def present(path, regular=False):
+    try:
+        mode = os.stat(path).st_mode
+    except ABSENT:
+        return False
+    return stat.S_ISREG(mode) if regular else True
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except ABSENT:
+        return None
+
+
+def proton_run():
+    global _run
+    if _run is None:
+        _run = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-proton-run"))
+    return _run
+
+
+def shortcut_ids(root):
+    tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
+    # account_dir takes either of these as missing when it cannot be read.
+    read(os.path.join(root, "config", "loginusers.vdf"))
+    listing(os.path.join(root, "userdata"))
+    account = tool["account_dir"](root)
+    if account:
+        try:
+            with open(os.path.join(account, "config", "shortcuts.vdf"), "rb") as f:
+                tool["parse"](f.read())
+        except ABSENT:
+            pass
+        except (ValueError, IndexError, KeyError, struct.error) as error:
+            raise OSError("Steam's shortcuts.vdf cannot be read: %s" % error) from error
+    return {appid for appid, _, _ in proton_run()["shortcut_entries"](root)}
+
+
+def runs_here(pfx, exe):
+    target = proton_run()["prefix_of"](exe)
+    return target is not None and os.path.realpath(target.compatdata) == os.path.realpath(os.path.dirname(pfx))
+
+
+def listing(folder, suffix=""):
+    try:
+        names = os.listdir(folder)
+    except ABSENT:
+        return None
+    return sorted(os.path.join(folder, name) for name in names if name.lower().endswith(suffix))
+
+
+def prefixes(root):
+    compatdata = os.path.join(root, "steamapps", "compatdata")
+    names = listing(compatdata)
+    if names is None:
+        return []
+    owned = shortcut_ids(root)
+    found = []
+    for name in (os.path.basename(path) for path in names):
+        if not re.fullmatch(r"-?[0-9]+", name):
+            continue
+        appid = int(name) % 2 ** 32
+        pfx = os.path.join(compatdata, name, "pfx")
+        if appid & SHORTCUT_BIT and appid not in owned and listing(os.path.join(pfx, "drive_c", "proton_shortcuts")) is not None:
+            found.append((appid, pfx))
+    return found
+
+
+def zero_terminated(data, start, wide):
+    if wide:
+        end = start
+        while data[end:end + 2] not in (b"\0\0", b""):
+            end += 2
+        return data[start:end].decode("utf-16-le", "replace")
+    end = data.find(b"\0", start)
+    return data[start:end if end >= 0 else len(data)].decode("cp1252", "replace")
+
+
+def link_target(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read(1 << 16)
+        size, = struct.unpack_from("<I", data, 0)
+        flags, = struct.unpack_from("<I", data, 0x14)
+        pos, target = size, None
+        if flags & 0x1:
+            pos += 2 + struct.unpack_from("<H", data, pos)[0]
+        if flags & 0x2:
+            info_size, header, info_flags, _, local, _, suffix = struct.unpack_from("<7I", data, pos)
+            if info_flags & 0x1:
+                if header >= 0x24:
+                    local_wide, suffix_wide = struct.unpack_from("<2I", data, pos + 0x1C)
+                    target = zero_terminated(data, pos + local_wide, True) + zero_terminated(data, pos + suffix_wide, True)
+                else:
+                    target = zero_terminated(data, pos + local, False) + zero_terminated(data, pos + suffix, False)
+            pos += info_size
+        args = ""
+        wide = bool(flags & 0x80)
+        for bit in (0x4, 0x8, 0x10, 0x20, 0x40):
+            if flags & bit:
+                count, = struct.unpack_from("<H", data, pos)
+                end = pos + 2 + count * (2 if wide else 1)
+                if bit == 0x20:
+                    args = data[pos + 2:end].decode("utf-16-le" if wide else "cp1252", "replace").rstrip("\0")
+                pos = end
+        return target, args
+    except ABSENT + (struct.error, ValueError):
+        return None, ""
+
+
+def host_path(pfx, windows):
+    found = re.fullmatch(r"([A-Za-z]):\\?(.*)", windows or "")
+    if not found:
+        return None
+    path = os.path.realpath(os.path.join(pfx, "dosdevices", found.group(1).lower() + ":"))
+    for part in (p for p in found.group(2).split("\\") if p):
+        exact = os.path.join(path, part)
+        if not os.path.lexists(exact):
+            try:
+                exact = next((os.path.join(path, name) for name in os.listdir(path) if name.lower() == part.lower()), exact)
+            except ABSENT:
+                return None
+        path = exact
+    return path if present(path) else None
+
+
+def value(text, key):
+    found = re.search(r"^%s=(.*)$" % re.escape(key), text, re.M)
+    return found.group(1).strip() if found else ""
+
+
+def windows_link(exec_value):
+    if len(exec_value) >= 2 and exec_value[0] == exec_value[-1] == '"':
+        exec_value = exec_value[1:-1]
+    # A desktop file escapes a backslash once for the key and again inside a quoted Exec argument.
+    return exec_value.replace("\\\\", "\\").replace("\\\\", "\\")
+
+
+def icon(shortcuts, name):
+    best, size = "system-run", 0
+    for apps in glob.glob(os.path.join(glob.escape(shortcuts), "icons", "*", "apps")):
+        found = re.fullmatch(r"(\d+)x\d+", os.path.basename(os.path.dirname(apps)))
+        path = os.path.join(apps, name + ".png")
+        if name and found and int(found.group(1)) > size and os.path.isfile(path):
+            best, size = path, int(found.group(1))
+    return best
+
+
+def program(pfx, link):
+    target, args = link_target(link)
+    exe = host_path(pfx, target)
+    if (exe and exe.lower().endswith(".exe") and not NOT_PROGRAMS.match(os.path.basename(exe)) and present(exe, regular=True)
+            and runs_here(pfx, exe)):
+        return exe, args
+    return None, ""
+
+
+def programs(pfx):
+    shortcuts = os.path.join(pfx, "drive_c", "proton_shortcuts")
+    found = {}
+    for entry in listing(shortcuts, ".desktop") or []:
+        text = read(entry) or ""
+        link = host_path(pfx, windows_link(value(text, "Exec")))
+        if not link or not link.lower().endswith(".lnk"):
+            continue
+        exe, args = program(pfx, link)
+        if exe:
+            found[exe] = dict(name=value(text, "Name") or os.path.splitext(os.path.basename(entry))[0], args=args,
+                              icon=icon(shortcuts, value(text, "Icon")), wm_class=value(text, "StartupWMClass"))
+    return found
+
+
+def on_windows_desktop(pfx):
+    found = set()
+    for folder in WINDOWS_DESKTOPS:
+        for link in listing(os.path.join(pfx, "drive_c", folder), ".lnk") or []:
+            exe, _ = program(pfx, link)
+            if exe:
+                found.add(exe)
+    return found
+
+
+def windows_args(text):
+    args, current, started, quoted, slashes = [], "", False, False, 0
+    for ch in text:
+        if ch == "\\":
+            slashes += 1
+            started = True
+        elif ch == '"':
+            current += "\\" * (slashes // 2) + ('"' if slashes % 2 else "")
+            if slashes % 2 == 0:
+                quoted = not quoted
+            slashes, started = 0, True
+        else:
+            current += "\\" * slashes
+            slashes = 0
+            if ch in " \t" and not quoted:
+                if started:
+                    args.append(current)
+                current, started = "", False
+            else:
+                current += ch
+                started = True
+    if started:
+        args.append(current + "\\" * slashes)
+    return args
+
+
+def quoted(arg):
+    escaped = re.sub(r'([\\"`$])', r"\\\1", arg).replace("%", "%%")
+    return '"%s"' % escaped.replace("\\", "\\\\")
+
+
+def entry(exe, found):
+    args = windows_args(found["args"])
+    lines = ["[Desktop Entry]", "Type=Application", "Name=%s" % found["name"].replace("\n", " "),
+             "Comment=Windows program installed from the desktop",
+             "Exec=%s" % " ".join(quoted(arg) for arg in [OPEN, exe] + args),
+             "Icon=%s" % found["icon"], "Terminal=false", "Categories=Game;"]
+    if found["wm_class"]:
+        lines.append("StartupWMClass=%s" % found["wm_class"])
+    return "\n".join(lines) + "\n"
+
+
+def desktop_dir():
+    try:
+        path = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        path = ""
+    return path if path and path != HOME else os.path.join(HOME, "Desktop")
+
+
+def sync(directory, wanted, mode=0o644):
+    os.makedirs(directory, exist_ok=True)
+    for name in os.listdir(directory):
+        if name.startswith(PREFIX) and name.endswith(".desktop") and name not in wanted:
+            os.unlink(os.path.join(directory, name))
+    for name, body in wanted.items():
+        path = os.path.join(directory, name)
+        if read(path) != body:
+            try:
+                with open(path + ".tmp", "w", encoding="utf-8") as f:
+                    f.write(body)
+                os.chmod(path + ".tmp", mode)
+                os.replace(path + ".tmp", path)
+            except OSError:
+                if os.path.lexists(path + ".tmp"):
+                    os.unlink(path + ".tmp")
+                raise
+
+
+def main():
+    os.makedirs(os.path.dirname(PLACED), exist_ok=True)
+    with open(PLACED + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            refresh()
+        except OSError as error:
+            print("droiddeck-desktop-programs: the menu is left as it was (%s)" % error)
+
+
+def refresh():
+    menu, desktop_wanted = {}, set()
+    for appid, pfx in prefixes(STEAM_ROOT):
+        on_desktop = on_windows_desktop(pfx)
+        for exe, found in programs(pfx).items():
+            name = "%s%d-%08x.desktop" % (PREFIX, appid, zlib.crc32(exe.encode("utf-8")))
+            menu[name] = entry(exe, found)
+            if exe in on_desktop:
+                desktop_wanted.add(name)
+    placed = set((read(PLACED) or "").split())
+    sync(APPS_DIR, menu)
+    desktop = desktop_dir()
+    shown = {name: menu[name] for name in sorted(desktop_wanted)
+             if name not in placed or present(os.path.join(desktop, name), regular=True)}
+    try:
+        sync(desktop, shown, 0o755)
+    finally:
+        written = {name for name in shown if present(os.path.join(desktop, name), regular=True)}
+        with open(PLACED + ".tmp", "w", encoding="utf-8") as f:
+            f.write("".join(name + "\n" for name in sorted((placed | written) & set(menu))))
+        os.replace(PLACED + ".tmp", PLACED)
+    print("droiddeck-desktop-programs: %d program%s in the menu, %d on the desktop" % (
+        len(menu), "" if len(menu) == 1 else "s", len(shown)))
+
+
+if __name__ == "__main__":
+    main()

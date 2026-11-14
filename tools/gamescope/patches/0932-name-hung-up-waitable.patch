@@ -1,0 +1,57 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index a927f69..2c9bd73 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -2882,7 +2882,22 @@ namespace gamescope
+             abort();
+         }
+ 
+-        CFunctionWaitable waitable( nFD );
++        // The compositor's connection: a hang-up says why (the protocol error, if one was posted).
++        class CDisplayWaitable final : public IWaitable
++        {
++        public:
++            CDisplayWaitable( int nFD, wl_display *pDisplay ) : m_nFD{ nFD }, m_pDisplay{ pDisplay } {}
++            int GetFD() final { return m_nFD; }
++            void OnPollHangUp() final
++            {
++                LogDisplayError( "The Wayland compositor closed gamescope's connection (input thread)", m_pDisplay );
++                IWaitable::OnPollHangUp();
++            }
++        private:
++            int m_nFD;
++            wl_display *m_pDisplay;
++        };
++        CDisplayWaitable waitable( nFD, m_pBackend->GetDisplay() );
+         m_Waiter.AddWaitable( &waitable );
+ 
+         int nRet = 0;
+diff --git a/src/waitable.h b/src/waitable.h
+index be54d46..b9116fe 100644
+--- a/src/waitable.h
++++ b/src/waitable.h
+@@ -9,6 +9,8 @@
+ 
+ #include <functional>
+ #include <mutex>
++#include <typeinfo>
++#include <stdio.h>
+ 
+ #include "log.hpp"
+ 
+@@ -30,7 +32,14 @@ namespace gamescope
+         virtual void OnPollPri() {}
+         virtual void OnPollHangUp()
+         {
+-            g_WaitableLog.errorf( "IWaitable hung up. Aborting." );
++            // Which one: its class and what its descriptor is (a socket, a pipe, an eventfd...).
++            int nFD = GetFD();
++            char szPath[64], szTarget[256] = "?";
++            snprintf( szPath, sizeof( szPath ), "/proc/self/fd/%d", nFD );
++            ssize_t nLen = nFD >= 0 ? readlink( szPath, szTarget, sizeof( szTarget ) - 1 ) : -1;
++            if ( nLen >= 0 )
++                szTarget[nLen] = '\0';
++            g_WaitableLog.errorf( "IWaitable hung up: %s, fd %d -> %s. Aborting.", typeid( *this ).name(), nFD, szTarget );
+             abort();
+         }
+ 

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# assemble.sh <extracted packages root> <out.tzst>
-# Packs the video side of SteamOS's PipeWire and WirePlumber: no audio plugins, no JACK.
 set -euo pipefail
 src=$1
 out=$2

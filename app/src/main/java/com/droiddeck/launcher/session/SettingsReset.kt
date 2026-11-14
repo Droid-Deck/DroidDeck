@@ -5,31 +5,33 @@ import android.util.Log
 import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.runtime.LinuxRuntime
 
 object SettingsReset {
     private const val TAG = "SettingsReset"
 
     internal val SESSION_KEYS = setOf(
-        "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
-        "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
+        "orientation", "launcherFullscreen", "animations", "lowStorageWarning", "theme", "runSteamAtStartup", "startupSession", "addedGamesArt",
+        "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls", "androidTextFieldKeyboard",
+        "gameStoresEnabled", "soundtracksEnabled", "soundtracksIngame", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
-        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "fusionHud", "fusionHudPos", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
+        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition",
+        "stretch16x9", "picturePosition", "railLabels", "agentTab", "navTabOrder", "navTabShelved", "navTabHidden", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
-        "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "ramCapMb", "vramCapMb", "zramClient",
+        "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "paceCores", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
-        "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "cursorComposite",
-        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "storageDiagnostics",
+        "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
+        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
-        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
+        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
         "bootMovieApplyNext", "bootMovieSteamSeen",
-        "questDefaultsV1",
+        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )
 
     internal val SESSION_PREFIXES = listOf(
-        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "performanceMode.", "suspendPolicy.",
+        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "performanceMode.", "suspendPolicy.", "componentMode.",
     )
 
     private val STEAM_TOUCH_KEYS = listOf("feedback", "autoFade", "gyro", "shake")
@@ -41,7 +43,9 @@ object SettingsReset {
         var ok = true
         val session = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         session.edit().apply { session.all.keys.filter { isSessionSetting(it) }.forEach { remove(it) } }.commit()
+        BuildWatermarkSetting.setEnabled(context, true)
         ControllerPrefs.resetAll(context)
+        InputProfiles.resetAll(context)
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("steam_touch", Context.MODE_PRIVATE).edit()

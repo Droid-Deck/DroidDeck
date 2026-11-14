@@ -4,7 +4,6 @@ plugins {
 apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
-// Machine-specific tooling and optional CI-prepared inputs stay out of version control.
 def localBuildOptions = new Properties()
 def localBuildOptionsFile = rootProject.layout.projectDirectory.file('local.properties')
 if (localBuildOptionsFile.asFile.exists()) {
@@ -78,6 +77,10 @@ def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
+def prTitle = providers.environmentVariable('DROIDDECK_PR_TITLE').getOrNull() ?: ''
+def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.trim()
+    ?: gitValue(['branch', '--show-current']) ?: ''
+def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
@@ -90,12 +93,10 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
-        // A source build that did not compile proot still pins a published pack, so the app
-        // downloads the patched binary instead of falling back to the rootfs copy.
         if (name == 'proot' && prootPackPin.PROOT_PACK_SHA256) {
             return [(name): [sha256: prootPackPin.PROOT_PACK_SHA256, size: (prootPackPin.PROOT_PACK_SIZE ?: '0') as long]]
         }
@@ -130,11 +131,13 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 28
-        versionCode 15
-        versionName "0.6.0"
+        versionCode 19
+        versionName "0.7.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
+        buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
+        buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
@@ -202,8 +205,7 @@ android {
     }
 
     androidResources {
-        // aapt's default ignore list, plus the trees shipped as add-on packs (tools/packs).
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>directaudio:<dir>hybris'
     }
 
     packagingOptions {
@@ -213,7 +215,6 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            // Shipped in the proot and tracking packs (tools/packs) and run or loaded from there.
             excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
@@ -232,7 +233,6 @@ android {
                 outputs.upToDateWhen { false }
                 outputs.doNotCacheIf('CI executes the test suite on every run') { true }
             }
-            // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
             maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
@@ -247,6 +247,11 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+}
+
+// No instrumented tests; the unused androidTest variant breaks the VS Code Kotlin import.
+androidComponents {
+    beforeVariants(selector().all()) { it.androidTest.enable = false }
 }
 
 // Vendor binaries remain in the user's SDK directory; never vendor them into Git.
@@ -272,6 +277,8 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
     from(rootProject.file('tools/linuxfs/innoextract'))
+    from(rootProject.file('tools')) { include 'droiddeckctl', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
+    from(rootProject.file('docs/agent-control.md')) { into('agent/ctl') }
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
 }
@@ -294,10 +301,21 @@ def stageGogNotices = tasks.register('stageGogNotices', Copy) {
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
 tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
+if (!ciBuild) {
+    def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
+        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        into(layout.buildDirectory.dir('localPackAssets/packs'))
+    }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets'))
+    tasks.named('preBuild').configure { dependsOn(stageLocalPacks) }
+}
+
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
+    def allowStale = (project.findProperty('allowStaleRuntime')
+        ?: localBuildOptions.getProperty('droiddeck.allowStaleRuntime', 'false')).toString().toBoolean()
+    commandLine([pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'] + (allowStale ? ['--allow-stale-sources'] : []))
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
@@ -335,6 +353,21 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+def maliBridgeDir = rootProject.file('external/MaliBridge')
+def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')
+def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
+    description = 'Builds the Vulkan bridge server (libvkbridge_server.so) with the NDK.'
+    inputs.dir(new File(maliBridgeDir, 'common'))
+    inputs.dir(new File(maliBridgeDir, 'server'))
+    inputs.dir(new File(maliBridgeDir, 'third_party'))
+    inputs.file(new File(maliBridgeDir, 'scripts/build-server-android.sh'))
+    outputs.dir(vkbridgeJniLibsDir)
+    commandLine 'bash', new File(maliBridgeDir, 'scripts/build-server-android.sh').absolutePath,
+        android.ndkDirectory.absolutePath, vkbridgeJniLibsDir.get().asFile.absolutePath
+}
+android.sourceSets.main.jniLibs.srcDir(vkbridgeJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }
+
 dependencies {
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
@@ -349,6 +382,11 @@ dependencies {
     implementation 'androidx.activity:activity-compose:1.8.2'
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'io.coil-kt:coil-compose:2.6.0'
+    implementation 'io.noties.markwon:core:4.6.2'
+    implementation 'io.noties.markwon:ext-strikethrough:4.6.2'
+    implementation 'io.noties.markwon:ext-tables:4.6.2'
+    implementation 'io.noties.markwon:ext-tasklist:4.6.2'
+    implementation 'com.atlassian.commonmark:commonmark-ext-autolink:0.13.0'
     implementation 'com.caverock:androidsvg-aar:1.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'com.flyfishxu:kadb-android:1.2.1'
@@ -356,11 +394,14 @@ dependencies {
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
     implementation 'androidx.webkit:webkit:1.12.1'
-    // Google's WebRTC (BSD) for the native Xbox Cloud Gaming player (XboxNativePlayerActivity).
+    implementation 'androidx.palette:palette:1.0.0'
     implementation 'io.github.webrtc-sdk:android:125.6422.07'
     implementation("com.google.mediapipe:tasks-vision:${trackingPack.MEDIAPIPE_VERSION}") {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'androidx.media3:media3-exoplayer:1.3.1'
+    implementation 'androidx.media3:media3-session:1.3.1'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'

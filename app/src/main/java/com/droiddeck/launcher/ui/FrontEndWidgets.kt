@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -149,6 +150,27 @@ internal fun Chip(t: String, ok: Boolean) {
 
 @Composable
 internal fun rememberHot(src: MutableInteractionSource): Boolean = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+
+@Composable
+internal fun DialogToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val flip = { onChange(!checked) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12)
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, Shape12)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = null, role = Role.Switch, onClick = flip)
+            .controllerConfirm(onClick = flip)
+            .padding(start = 14.dp, end = 4.dp),
+    ) {
+        Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+        ToggleSwitch(checked, label = label, modifier = Modifier.focusProperties { canFocus = false }) { onChange(it) }
+    }
+}
 
 @Composable
 internal fun PrimaryButton(
@@ -264,23 +286,3 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
     }
 }
 
-@Composable
-internal fun Cog(size: androidx.compose.ui.unit.Dp = 48.dp, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    var spins by remember { mutableIntStateOf(0) }
-    val rot by animateFloatAsState((if (hot) 90f else 0f) + spins * 180f, Motion.sp(0.55f), label = "cog")
-    val pal = LocalPalette.current
-    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
-    val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { (if (size > 48.dp) 14.dp else 12.dp).toPx() }
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("cog").downToFirstTile().size(size).onGloballyPositioned { placed[0] = it }.clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).glideBorder(hot, if (size > 48.dp) Shape14 else Shape12, pal.signal, pal.line2)
-            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current) {
-                placed[0]?.takeIf { it.isAttached }?.let { PageOrigin.mark(Origin(it.boundsInRoot(), cornerPx)) }
-                spins++
-                onClick()
-            },
-    ) { Icon(Icons.Filled.Settings, stringResource(R.string.drawer_page_settings), tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(if (size > 48.dp) 20.dp else 18.dp).rotate(rot)) }
-}

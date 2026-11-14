@@ -240,6 +240,30 @@ class BackQamInputTest {
         assertTrue(taps.isEmpty())
     }
 
+    @Test fun withHoldsOffTapsStillWorkButHoldsAndChordsDoNothing() {
+        val noHold = BackQamInput(changes::add, taps::add, holds = { false })
+        fun press(action: Int) = noHold.onKeyEvent(KeyEvent(action, KeyEvent.KEYCODE_BACK), true)
+        press(KeyEvent.ACTION_DOWN)
+        press(KeyEvent.ACTION_UP)
+        advance(500)
+        assertEquals(listOf(false), taps)
+        press(KeyEvent.ACTION_DOWN)
+        press(KeyEvent.ACTION_UP)
+        press(KeyEvent.ACTION_DOWN)
+        press(KeyEvent.ACTION_UP)
+        assertEquals(listOf(false, true), taps)
+        taps.clear()
+        press(KeyEvent.ACTION_DOWN)
+        advance(2000)
+        assertTrue(press(KeyEvent.ACTION_UP))
+        press(KeyEvent.ACTION_DOWN)
+        noHold.onChordInput()
+        press(KeyEvent.ACTION_UP)
+        advance(1000)
+        assertTrue(changes.isEmpty())
+        assertTrue(taps.isEmpty())
+    }
+
     private fun advance(millis: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(millis))
 
     private fun send(action: Int, repeat: Int = 0, device: Int = 4, enabled: Boolean = true) =

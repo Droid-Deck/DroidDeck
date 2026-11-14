@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+import hashlib
+import os
+import shutil
+import sys
+
+SHARE = "/usr/share/droiddeck/pacman"
+LIB = "/var/lib/pacman"
+STATE = os.path.join(LIB, "droiddeck-desktop")
+
+
+def digest(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def main():
+    for path in ("/var/cache/pacman/pkg", os.path.join(LIB, "sync"), "/etc/pacman.d/hooks", "/var/log"):
+        os.makedirs(path, exist_ok=True)
+    stamp = digest(os.path.join(SHARE, "desktop-packages.txt")) + " " + digest(os.path.join(SHARE, "droiddeck.db"))
+    try:
+        with open(STATE) as f:
+            if f.read().strip() == stamp:
+                return 0
+    except OSError:
+        pass
+    want = dict(line.split() for line in open(os.path.join(SHARE, "desktop-packages.txt")) if line.strip())
+    local = os.path.join(LIB, "local")
+    for entry in os.listdir(local):
+        desc = os.path.join(local, entry, "desc")
+        if not os.path.isfile(desc):
+            continue
+        name = version = None
+        with open(desc, encoding="utf-8", errors="replace") as f:
+            lines = f.read().split("\n")
+        for i, line in enumerate(lines[:-1]):
+            if line == "%NAME%":
+                name = lines[i + 1]
+            elif line == "%VERSION%":
+                version = lines[i + 1]
+        if name in want and version != want[name]:
+            shutil.rmtree(os.path.join(local, entry))
+    shutil.copyfile(os.path.join(SHARE, "droiddeck.db"), os.path.join(LIB, "sync", "droiddeck.db"))
+    with open(STATE + ".tmp", "w") as f:
+        f.write(stamp + "\n")
+    os.replace(STATE + ".tmp", STATE)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except OSError as e:
+        print(f"error: could not prepare pacman's database: {e}", file=sys.stderr)
+        sys.exit(1)

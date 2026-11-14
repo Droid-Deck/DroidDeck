@@ -4,7 +4,7 @@ import java.io.File
 
 object OverlayShown {
     fun check(root: File): Boolean {
-        val config = File(root, "tmp").listFiles { f -> f.name.startsWith("mangohud.") }
+        val config = File(root, "tmp").listFiles { f -> f.name.startsWith("mangohud.") || f.name == "droiddeck-mangohud.conf" }
             ?.maxByOrNull { it.lastModified() } ?: return false
         return runCatching { !config.readText().contains("no_display") }.getOrDefault(false)
     }

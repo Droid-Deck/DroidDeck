@@ -4,6 +4,8 @@ D=app/src/main/assets/linuxfs
 mkdir -p "$D"
 VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
   tools/vr/build.sh --native "$D/usr/local/lib/droiddeck-vr"
+VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
+  tools/gpuload/build.sh --native "$D/usr/local/lib/droiddeck-gpuload"
 for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
   install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
 done

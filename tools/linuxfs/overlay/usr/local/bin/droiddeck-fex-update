@@ -3,7 +3,6 @@ FEX_TAG=fex-2610-r5
 FEX_SHA256=0fc1ca2ba13817ad70d1ea157119a75c9c02446b57d166e6d676cce0807c19c4
 FEX_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$FEX_TAG/fex.tzst
 
-# Whether every program in the FEX tree at $1 finds its libraries (r4 did not without libxxhash).
 fex_loads() {
   local b out
   for b in FEX FEXServer unsquashfs; do
@@ -13,8 +12,6 @@ fex_loads() {
   done
 }
 
-# Installs one FEX build only once its archive matches the sha256 and it loads. The files it replaces are kept
-# until the installed copy loads too, and put back otherwise; the tag is written last.
 fex_install() {
   local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
@@ -54,8 +51,6 @@ fex_install() {
   return 1
 }
 
-# The build DroidDeck-Components' fex.json names (the app passes it as BL_FEX_*) comes first, then a working
-# installed one, then FEX_TAG above. Sets FEX_NOW and FEX_FROM.
 fex_ready() {
   local have ok=
   have=$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null || true)

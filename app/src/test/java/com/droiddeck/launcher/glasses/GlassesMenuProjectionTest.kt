@@ -63,7 +63,6 @@ class GlassesMenuProjectionTest {
 private object GlassesMenuProjection {
     data class Uv(val x: Float, val y: Float)
 
-    // Row-major head-to-anchor rotation; +Y is up, -Z is forward, output UV starts at the top left.
     fun intersect(frame: GlassesMenuPose.Frame, rayX: Float, rayY: Float, eye: Float,
                   halfWidth: Float, distance: Float, aspect: Float): Uv? {
         if (frame.rotation.size != 9 || frame.position.size != 3 || frame.rotation.any { !it.isFinite() } ||

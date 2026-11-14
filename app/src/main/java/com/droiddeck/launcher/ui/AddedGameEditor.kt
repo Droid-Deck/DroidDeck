@@ -49,7 +49,9 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.Context
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -60,14 +62,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LogoPosition
+import com.droiddeck.launcher.frontend.SoundtrackCollectionArt
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
+import com.droiddeck.launcher.frontend.SteamLaunchOptions
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -174,6 +180,16 @@ internal class ArtTarget(
             { c, value -> AddedGameEdits.setLogoPosition(c, game.folder.path, value) },
         )
 
+        fun ofCollection(id: Int, name: String, root: java.io.File? = null) = ArtTarget(
+            name,
+            { c, _ -> SoundtrackCollectionArt.source(c, id) },
+            { c, _ -> AddedGameArt.Choices(SoundtrackCollectionArt.options(c, id, root), SteamGridDb.Status.OK) },
+            { c, _, option -> SoundtrackCollectionArt.choose(c, id, option) },
+            { c, _ -> SoundtrackCollectionArt.reset(c, id) },
+            { _ -> null },
+            { _, _ -> false },
+        )
+
         fun of(game: com.droiddeck.launcher.frontend.Library.SteamGame) = ArtTarget(
             game.name,
             { c, slot -> SteamGameArt.chosenSource(c, game.appId, slot).second },
@@ -195,6 +211,12 @@ internal fun SteamGameArtEditor(
 }
 
 @Composable
+internal fun CollectionArtEditor(id: Int, name: String, root: java.io.File? = null, onClose: () -> Unit, onChanged: () -> Unit) {
+    val target = remember(id, root) { ArtTarget.ofCollection(id, name, root) }
+    ArtOnlyEditor(name, target, id, { SoundtrackCollectionArt.describe(it, id, root) }, onClose, onChanged, listOf(AddedGameArt.Slot.COVER))
+}
+
+@Composable
 internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
     val app = LocalContext.current.applicationContext
     var game by remember(folder) { mutableStateOf<AddedGames.Game?>(null) }
@@ -207,10 +229,9 @@ internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Uni
 @Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
-    onClose: () -> Unit, onChanged: () -> Unit,
+    onClose: () -> Unit, onChanged: () -> Unit, slots: List<AddedGameArt.Slot> = AddedGameArt.Slot.values().toList(),
 ) {
     val app = LocalContext.current.applicationContext
-    val colors = MaterialTheme.colorScheme
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
     var version by remember { mutableIntStateOf(0) }
@@ -228,8 +249,8 @@ private fun ArtOnlyEditor(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
-            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
-            for (slot in AddedGameArt.Slot.values()) key(slot) {
+            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+            for (slot in slots) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
                 FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -238,7 +259,7 @@ private fun ArtOnlyEditor(
                     }
                 }
             }
-            PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
+            if (AddedGameArt.Slot.LOGO in slots) PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
         }
     }
     val chosen = target ?: return
@@ -249,7 +270,72 @@ private fun ArtOnlyEditor(
     if (logoOpen && loaded != null) LogoPositionHost(chosen, arts, loaded, onBack = { logoOpen = false }, onCloseAll = { logoOpen = false; close() }) { version++; onChanged() }
 }
 
-/** The position as last read; null until it has been read, so the screen never opens on a guess and saves it over the real one. */
+@Composable
+internal fun SteamLaunchOptionsPanel(appId: Int) {
+    val app = LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var options by remember(appId) { mutableStateOf<String?>(null) }
+    var version by remember(appId) { mutableIntStateOf(0) }
+    var editing by remember(appId) { mutableStateOf<String?>(null) }
+    var saving by remember(appId) { mutableStateOf(false) }
+    var loading by remember(appId) { mutableStateOf(false) }
+    var error by remember(appId) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(appId, version) {
+        options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) } ?: options.orEmpty()
+        loading = false
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, appId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !saving) {
+                loading = true
+                version++
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val value = options
+        MenuItem(
+            stringResource(R.string.edit_launch_options), checked = false, enabled = value != null && !saving && !loading,
+            detail = if (value == null || saving || loading) "…" else value.ifEmpty { "—" },
+        ) { if (!saving && !loading) options?.let { editing = it } }
+        val message = error
+        Text(
+            stringResource(message ?: R.string.edit_launch_options_steam_hint),
+            fontSize = 12.sp,
+            color = if (message == null) colors.onSurfaceVariant else colors.error,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+    }
+    val before = editing
+    if (before != null) TextEntryDialog(stringResource(R.string.edit_launch_options), before, onDismiss = { editing = null }) { value ->
+        if (saving || value == before.trim()) return@TextEntryDialog
+        saving = true
+        scope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, appId, value, before) }
+                error = when (saved) {
+                    SteamLaunchOptions.Saved.YES -> null
+                    SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
+                    SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
+                }
+                if (saved == SteamLaunchOptions.Saved.YES) {
+                    options = value
+                    version++
+                } else {
+                    options = null
+                    version++
+                }
+            } finally {
+                saving = false
+            }
+        }
+    }
+}
+
 private class LoadedPosition(val value: LogoPosition.Value?)
 
 @Composable
@@ -262,7 +348,6 @@ private fun rememberLogoPosition(target: ArtTarget?, version: Int): LoadedPositi
     return position
 }
 
-/** The "Adjust logo" screen for [target], over the game's background and logo as they are now. */
 @Composable
 private fun LogoPositionHost(
     target: ArtTarget, arts: List<AddedGameArt.SlotState>, start: LoadedPosition,

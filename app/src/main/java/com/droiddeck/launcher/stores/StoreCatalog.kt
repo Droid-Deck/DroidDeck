@@ -26,7 +26,6 @@ data class CatalogItem(
     val logoUrl: String? = null,
 ) {
     val accessible: Boolean get() = owned || subscription
-    /** Licensed now, or a supported package the account's subscription can install. */
     val installable: Boolean get() = accessible || includedWith.isNotBlank()
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     val key: String get() = "${store.id}:$id"
@@ -66,6 +65,8 @@ private fun releaseDateValue(raw: String): Long =
         runCatching { java.time.LocalDate.parse(day).toEpochDay() }.getOrDefault(0L)
     } ?: 0L
 
+internal fun entryTime(first: Long?, fallback: Long?): Long = first?.takeIf { it > 0 } ?: fallback?.takeIf { it > 0 } ?: 0L
+
 fun <T> sortGames(
     items: List<T>,
     sort: String,
@@ -95,7 +96,6 @@ internal fun <T> retainOrder(items: List<T>, previous: List<T>, key: (T) -> Stri
     return previous.map { byKey.getValue(key(it)) }
 }
 
-/** A detail page opens for search results too; the library wins when it already knows the product. */
 fun detailCatalogItem(
     store: Store,
     id: String,
@@ -106,6 +106,7 @@ fun detailCatalogItem(
     library.firstOrNull { it.store == store && it.id == id }
         ?: found.firstOrNull { it.store == store && it.id == id }
         ?: shelves?.all?.firstOrNull { it.store == store && it.id == id }
+        ?: shelves?.all?.firstOrNull { it.store == store && it.extra[StoreFront.STORE_CARD] == id }
 
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new
@@ -114,11 +115,6 @@ fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogIte
     return if (merged.size == old.size && merged.indices.all { merged[it] === old[it] }) old else merged
 }
 
-/**
- * [patched] over [old] by key, the way a store that fills its cards in one at a time needs it: a card
- * already on screen keeps its very object and its place, one the grid does not have yet is added where
- * its title belongs. Unlike [mergeItems] the rest of [old] is never dropped.
- */
 fun patchItems(old: List<CatalogItem>?, patched: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return patched
     val byKey = patched.associateBy { it.key }

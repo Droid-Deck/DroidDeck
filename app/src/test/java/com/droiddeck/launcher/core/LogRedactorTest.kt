@@ -316,6 +316,60 @@ class LogRedactorTest {
         }
     }
 
+    @Test fun oversizedAccountMetadataIsRejectedWithoutForgettingKnownNames() {
+        val users = tmp.newFile("known-loginusers.vdf")
+        val oversized = tmp.newFile("oversized-loginusers.vdf")
+        users.writeText("\"AccountName\" \"previous_player\"")
+        java.io.RandomAccessFile(oversized, "rw").use {
+            it.setLength(LogRedactor.MAX_LEARN_INPUT_BYTES.toLong() + 1)
+        }
+        try {
+            assertTrue(LogRedactor.learnAccounts(users))
+            assertFalse(LogRedactor.learnAccounts(oversized))
+            assertEquals("<redacted:account>", LogRedactor.redact("previous_player"))
+        } finally {
+            LogRedactor.learnAccounts()
+        }
+    }
+
+    @Test fun repeatedIncompleteAccountLearningKeepsOnlyABoundedRecentSet() {
+        val users = tmp.newFile("changing-loginusers.vdf")
+        val oversized = tmp.newFile("unreadable-loginusers.vdf")
+        java.io.RandomAccessFile(oversized, "rw").use {
+            it.setLength(LogRedactor.MAX_LEARN_INPUT_BYTES.toLong() + 1)
+        }
+        try {
+            LogRedactor.learnAccounts()
+            repeat(3) { batch ->
+                users.writeText((0 until 1024).joinToString("\n") {
+                    "\"AccountName\" \"round${batch}player${it.toString().padStart(4, '0')}\""
+                })
+                assertFalse(LogRedactor.learnAccounts(users, oversized))
+            }
+            assertEquals("<redacted:account>", LogRedactor.redact("round2player0000"))
+            assertEquals("<redacted:account>", LogRedactor.redact("round1player0000"))
+            assertEquals("round0player0000", LogRedactor.redact("round0player0000"))
+        } finally {
+            LogRedactor.learnAccounts()
+        }
+    }
+
+    @Test fun oversizedAddressMetadataIsRejectedWithoutForgettingKnownAddresses() {
+        val link = tmp.newFile("known-network")
+        val oversized = tmp.newFile("oversized-network")
+        link.writeText("addr 203.0.113.40 24\n")
+        java.io.RandomAccessFile(oversized, "rw").use {
+            it.setLength(LogRedactor.MAX_LEARN_INPUT_BYTES.toLong() + 1)
+        }
+        try {
+            assertTrue(LogRedactor.learnOwnAddresses(link))
+            assertFalse(LogRedactor.learnOwnAddresses(oversized))
+            assertEquals("<redacted:ip>", LogRedactor.redact("203.0.113.40"))
+        } finally {
+            LogRedactor.learnOwnAddresses(tmp.root.resolve("missing-network"))
+        }
+    }
+
     @Test fun manyLearnedAddressesKeepOtherAddresses() {
         val link = tmp.newFile("droiddeck-net")
         link.writeText((1..40).joinToString("\n") { "addr 203.0.113.$it 24" })

@@ -1,0 +1,17 @@
+diff --git a/src/arch.h b/src/arch.h
+index 06b7f1b..db129a9 100644
+--- a/src/arch.h
++++ b/src/arch.h
+@@ -135,9 +135,9 @@ typedef unsigned char byte_t;
+     #define OFFSETOF_STAT_UID_32 24
+     #define OFFSETOF_STAT_GID_32 28
+ 
+-    #define LOADER_ADDRESS     0x2000000000
+-    #define EXEC_PIC_ADDRESS   0x3000000000
+-    #define INTERP_PIC_ADDRESS 0x3f00000000
++    #define LOADER_ADDRESS     0x5400000000
++    #define EXEC_PIC_ADDRESS   0x5555000000
++    #define INTERP_PIC_ADDRESS 0x5f00000000
+     #define HAS_POKEDATA_WORKAROUND true
+ 
+     #define HAS_LOADER_32BIT true

@@ -375,6 +375,37 @@ class PadBridgeQamTest {
         }
     }
 
+    @Test fun playerSlotHomeGuidePreservesRemappedInputAndTheEnableGate() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            routed(InputProfile.defaults(InputProfile.GAME)
+                .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Native(InputControl.B))
+                .withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Native(InputControl.RS)))
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
+            motion(device, MotionEvent.AXIS_X, .6f)
+            bridge.setHomeGuidePressed(true)
+            val held = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertTrue(held.isDown(PadState.GUIDE))
+            assertTrue(held.isDown(PadState.B))
+            assertFalse(held.isDown(PadState.A))
+            assertEquals(0f, held.leftX)
+            assertEquals(.6f, held.rightX)
+            bridge.setInputEnabled(false)
+            val disabled = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertTrue(disabled.isDown(PadState.GUIDE))
+            assertFalse(disabled.isDown(PadState.A))
+            assertFalse(disabled.isDown(PadState.B))
+            assertEquals(0f, disabled.leftX)
+            assertEquals(0f, disabled.rightX)
+            bridge.cancelHomeGuide()
+            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
     @Test fun removingThePrimaryPlayerForgetsItsHomeGuide() {
         PadBridge.setFirstSlot(1)
         try {
@@ -440,13 +471,190 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.GUIDE))
     }
 
+    @Test fun ordinaryRoutedInputDoesNotWaitForTheChordQueue() {
+        routed(InputProfile.defaults(InputProfile.GAME))
+        bridge.applyExternal({ it.press(PadState.A, true); it.leftX = .6f }, true)
+        assertTrue(pad().isDown(PadState.A))
+        assertEquals(.6f, pad().leftX)
+        bridge.applyExternal({ it.press(PadState.A, false); it.leftX = 0f }, true)
+        assertFalse(pad().isDown(PadState.A))
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun routedQamDuringAnActiveChordPublishesOtherInputImmediately() {
+        ReflectionHelpers.setStaticField(FakeInputWriter::class.java, "padType", FakeInputWriter.PAD_TYPE_XBOX)
+        routed(InputProfile.defaults(InputProfile.GAME)
+            .withBinding(InputRole.PHYSICAL, InputControl.X, InputAction.Native(InputControl.QAM)))
+        bridge.triggerQam()
+        assertTrue(pad().isDown(PadState.GUIDE))
+        bridge.applyExternal({ it.press(PadState.X, true); it.press(PadState.B, true); it.leftX = .6f }, true)
+        assertTrue(pad().isDown(PadState.GUIDE))
+        assertTrue(pad().isDown(PadState.B))
+        assertEquals(.6f, pad().leftX)
+        assertFalse(pad().isDown(PadState.QAM))
+        bridge.applyExternal({ it.press(PadState.X, false); it.press(PadState.B, false); it.leftX = 0f }, true)
+        assertFalse(pad().isDown(PadState.B))
+        assertEquals(0f, pad().leftX)
+        advanceTime()
+        assertFalse(pad().isDown(PadState.GUIDE))
+        assertFalse(pad().isDown(PadState.A))
+    }
+
+    @Test fun queuedChordsKeepRoutedAndTouchAxesInsteadOfRawPhysicalAxes() {
+        routed(InputProfile.defaults(InputProfile.GAME)
+            .withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Native(InputControl.RS)))
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.leftY = -.8f }, true)
+        val touch = Any()
+        bridge.applyTouch(touch, InputRole.SECONDARY) { it.leftX = .5f }
+        advance(20)
+        bridge.applyExternal({ it.leftY = -.25f }, true)
+        advance(60)
+        assertEquals(.5f, pad().leftX)
+        assertEquals(0f, pad().leftY)
+        assertEquals(-.25f, pad().rightY)
+    }
+
+    @Test fun queuedChordsDoNotLeakDesktopAxesToSteam() {
+        routed(InputProfile.defaults(InputProfile.DESKTOP))
+        bridge.setHomeGuidePressed(true)
+        bridge.applyExternal({ it.leftY = -1f; it.rightY = .8f }, true)
+        advance(80)
+        assertEquals(0f, pad().leftY)
+        assertEquals(0f, pad().rightY)
+    }
+
+    @Test fun disablingRoutingDiscardsQueuedNativeButtons() {
+        routed(InputProfile.defaults(InputProfile.GAME))
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        advance(20)
+        bridge.setInputEnabled(false)
+        advance(60)
+        assertFalse(pad().isDown(PadState.A))
+        bridge.setInputEnabled(true)
+        assertFalse(pad().isDown(PadState.A))
+    }
+
+    @Test fun changingProfileDiscardsQueuedNativeButtons() {
+        routed(InputProfile.defaults(InputProfile.GAME))
+        bridge.setHomeGuidePressed(true)
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        advance(20)
+        bridge.setInputProfile(InputProfile.defaults(InputProfile.DESKTOP))
+        advance(60)
+        assertFalse(pad().isDown(PadState.A))
+    }
+
+    @Test fun cancellingHomeKeepsHeldInputBlockedUntilNeutral() {
+        routed(InputProfile.defaults(InputProfile.GAME))
+        bridge.setHomeGuidePressed(true)
+        bridge.applyExternal({ it.leftY = -1f }, true)
+        bridge.cancelHomeGuide()
+        bridge.applyExternal({ it.leftY = -.9f }, true)
+        assertEquals(0f, pad().leftY)
+        bridge.applyExternal({ it.leftY = 0f }, true)
+        bridge.applyExternal({ it.leftY = -.9f }, true)
+        assertEquals(-.9f, pad().leftY)
+    }
+
+    @Test fun cancellingBackKeepsHeldInputBlockedUntilNeutral() {
+        routed(InputProfile.defaults(InputProfile.GAME))
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.leftY = -1f }, true)
+        bridge.cancelBackQam()
+        bridge.applyExternal({ it.leftY = -.9f }, true)
+        assertEquals(0f, pad().leftY)
+        bridge.applyExternal({ it.leftY = 0f }, true)
+        bridge.applyExternal({ it.leftY = -.9f }, true)
+        assertEquals(-.9f, pad().leftY)
+    }
+
+    private fun routed(profile: InputProfile) {
+        bridge.setInputRouter(InputRouter(object : InputOutput {
+            override fun key(code: Int, down: Boolean) {}
+            override fun button(code: Int, down: Boolean) {}
+            override fun pointer(dx: Float, dy: Float) {}
+            override fun scroll(steps: Int) {}
+            override fun command(command: InputCommand) {}
+            override fun requestMotion() {}
+        }))
+        bridge.setInputProfile(profile)
+    }
+
+    @Test fun zeroDeadZoneDriftDoesNotKeepAxesBlockedAfterBackRelease() {
+        val device = controller()
+        bridge.setStickDeadZone(0)
+        motion(device, MotionEvent.AXIS_X, 0.01f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun circularDiagonalDriftDoesNotKeepAxesBlockedAfterBackRelease() {
+        val device = controller()
+        motion(device, MotionEvent.AXIS_X to 0.09f, MotionEvent.AXIS_Y to 0.09f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun changingPreferenceDoesNotBypassARequiredPhysicalNeutralReturn() {
+        val device = controller()
+        bridge.setStickDeadZone(25)
+        motion(device, MotionEvent.AXIS_X, 0.2f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+        motion(device, MotionEvent.AXIS_X, 0.05f)
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun smallVirtualStickInputStillRequiresItsOriginalNeutralRelease() {
+        bridge.applyExternal({ it.leftX = 0.01f }, true)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.applyExternal({ it.leftX = 0.5f }, true)
+        assertEquals(0f, pad().leftX)
+        bridge.applyExternal({ it.leftX = 0f }, true)
+        bridge.applyExternal({ it.leftX = 0.5f }, true)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun smallTriggerInputStillRequiresItsOriginalNeutralRelease() {
+        bridge.applyExternal({ it.leftTrigger = 0.01f }, true)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.applyExternal({ it.leftTrigger = 0.5f }, true)
+        assertEquals(0f, pad().leftTrigger)
+        bridge.applyExternal({ it.leftTrigger = 0f }, true)
+        bridge.applyExternal({ it.leftTrigger = 0.5f }, true)
+        assertEquals(0.5f, pad().leftTrigger)
+    }
+
     private fun key(device: InputDevice, code: Int, action: Int = KeyEvent.ACTION_DOWN, repeat: Int = 0, scan: Int = 0) =
         KeyEvent(0L, 0L, action, code, repeat, 0, device.id, scan, 0, InputDevice.SOURCE_GAMEPAD)
 
-    private fun motion(device: InputDevice, axis: Int, value: Float) {
+    private fun motion(device: InputDevice, axis: Int, value: Float) = motion(device, axis to value)
+
+    private fun motion(device: InputDevice, vararg values: Pair<Int, Float>) {
         val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 1,
             arrayOf(MotionEvent.PointerProperties().apply { id = 0 }),
-            arrayOf(MotionEvent.PointerCoords().apply { setAxisValue(axis, value) }),
+            arrayOf(MotionEvent.PointerCoords().apply { for ((axis, value) in values) setAxisValue(axis, value) }),
             0, 0, 1f, 1f, device.id, 0, InputDevice.SOURCE_JOYSTICK, 0)
         try { assertTrue(bridge.onMotionEvent(event)) } finally { event.recycle() }
     }

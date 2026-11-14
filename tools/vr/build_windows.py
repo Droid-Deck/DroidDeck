@@ -129,8 +129,6 @@ def build(folder, include, root=ROOT, image=IMAGE):
     workspace.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='vr-build-', dir=workspace) as temp:
         snapshot = Path(temp).resolve()
-        # build.sh's recursive output cleanup and TemporaryDirectory cleanup are
-        # confined to this new, verified directory, never the real checkout.
         if not snapshot.is_relative_to(workspace):
             raise ValueError('Temporary VR workspace escapes the checkout')
         inspect = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
@@ -159,7 +157,6 @@ def build(folder, include, root=ROOT, image=IMAGE):
         manifest = {'version': 1, 'source_commit': revision, 'sources': hashes(input_files),
                     'headers': hashes(input_headers), 'compiler_image': image_id,
                     'outputs': hashes(files), 'native_tests': 'passed in tools/vr/build.sh'}
-        # Publish only after the complete build and native regression tests pass.
         for name, data in files.items():
             target = folder / name
             if not target.resolve().is_relative_to(folder):

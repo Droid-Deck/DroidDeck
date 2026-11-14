@@ -1,21 +1,18 @@
-// Picture effects for the stream: the video is drawn through WebGL2 shaders onto a canvas over it.
-// Base pass: sharpening (CAS / unsharp mask, from Better xCloud by redphx, MIT) plus DroidDeck's colour
-// grading (brightness, contrast, saturation, gamma) and deband dither. Extra passes are DroidDeck's own
-// screen effects (FXAA, Toon, CRT, NTSC, from Bannerlator). Off (no canvas) when nothing is set.
+// Sharpening (CAS and unsharp mask) from Better xCloud by redphx, MIT. Screen effects from Bannerlator.
 
 export interface Effects {
-    brightness: number   // -50..50 (DroidDeck's slider units)
-    contrast: number     // -100..100
-    gamma: number        // 0.5..3
-    saturation: number   // 0..200 %
-    sharpen: number      // 0..10
-    sharpenMode: string  // 'cas' | 'usm'
-    deband: number       // 0..8 (dither amplitude in 8-bit steps)
+    brightness: number
+    contrast: number
+    gamma: number
+    saturation: number
+    sharpen: number
+    sharpenMode: string
+    deband: number
     fxaa: boolean
     toon: boolean
     crt: boolean
     ntsc: boolean
-    maxFps: number       // 0 = every frame
+    maxFps: number
 }
 
 export function needsRenderer(e: Effects): boolean {
@@ -82,7 +79,6 @@ void main() {
     fragColor = vec4(color, 1.0);
 }`
 
-// Screen-effect shaders from Bannerlator (GLSL ES 1.00), unchanged.
 const FXAA = `precision highp float;
 #define FXAA_MIN_REDUCE (1.0 / 128.0)
 #define FXAA_MUL_REDUCE (1.0 / 8.0)
@@ -246,7 +242,6 @@ export class EffectRenderer {
 
     update(effects: Effects) { this.effects = effects }
 
-    // Turning effects off hides the canvas but keeps the GL context: losing and recreating it can stall the stream.
     pause() { if (this.idle || this.stopped) return; this.idle = true; this.canvas.style.display = 'none' }
 
     resume(effects: Effects) {

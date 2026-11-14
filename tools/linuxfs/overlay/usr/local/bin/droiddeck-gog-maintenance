@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-"""GOG patch installers and the lease shared by maintenance and game launches."""
 import fcntl
 import errno
 import json
@@ -133,7 +132,6 @@ def runner(folder, appid, game, graphical=False):
     base = desktop_environment(os.environ) if graphical else dict(os.environ)
     env = run["environment"](base, target, tool, root, window=base.get("BL_DESKTOP") == "1")
     env["DROIDDECK_GOG_MAINTENANCE"] = "1"
-    # Installer copy routines use x87 integer loads/stores; reduced precision corrupts paths (FEX #5827).
     env["FEX_X87REDUCEDPRECISION"] = "0"
     env.pop("BL_STORE_EXIT", None)
     return str(Path(tool) / command), env, target.compatdata

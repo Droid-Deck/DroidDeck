@@ -18,6 +18,7 @@
 #include "cardboard.h"
 #include "droiddeck_color.h"
 #include "gpu_clock_pin.h"
+#include "clock_domain.h"
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
@@ -27,7 +28,10 @@ extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
 extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
 extern void droiddeck_wayland_send_key(int evdev, int state);
+extern int  droiddeck_focus_takes_touch(void);
+extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
+extern void droiddeck_wayland_set_cursor_composite(int on);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
@@ -213,6 +217,24 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorTid(JNIEnv
     return (jint)g_comp_tid;
 }
 
+/* Why presenting failed ("" while it works), for the session-ended screen and the report. */
+JNIEXPORT jstring JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorFault(JNIEnv *env, jclass clazz) {
+    (void)clazz;
+    extern const char *vkp_fault(void);
+    const char *f = vkp_fault();
+    return (*env)->NewStringUTF(env, f ? f : "");
+}
+
+/* The display driver as the driver itself reports it ("" before the compositor's device exists). */
+JNIEXPORT jstring JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDisplayDriver(JNIEnv *env, jclass clazz) {
+    (void)clazz;
+    extern const char *vkp_display_driver(void);
+    const char *d = vkp_display_driver();
+    return (*env)->NewStringUTF(env, d ? d : "");
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStart(JNIEnv *env, jclass clazz,
                                                              jstring xdgRuntimeDir) {
@@ -291,9 +313,35 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSerial(JNIEnv 
 }
 
 JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCursorComposite(
+        JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    droiddeck_wayland_set_cursor_composite(on ? 1 : 0);
+}
+
+JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKey(
         JNIEnv *env, jclass clazz, jint evdev, jint state) {
     droiddeck_wayland_send_key(evdev, state);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFocusTakesTouch(
+        JNIEnv *env, jclass clazz) {
+    (void)env; (void)clazz;
+    return droiddeck_focus_takes_touch() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorInputPos(
+        JNIEnv *env, jclass clazz, jintArray out) {
+    (void)clazz;
+    if (!out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    int pos[2];
+    if (!droiddeck_cursor_input_pos(&pos[0], &pos[1])) return JNI_FALSE;
+    jint jpos[2] = {pos[0], pos[1]};
+    (*env)->SetIntArrayRegion(env, out, 0, 2, jpos);
+    return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL
@@ -305,6 +353,13 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
     droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClockControl(JNIEnv *env, jclass clazz, jstring path) {
+    const char *value = path ? (*env)->GetStringUTFChars(env, path, NULL) : NULL;
+    droiddeck_clock_domain_set_control(value);
+    if (value) (*env)->ReleaseStringUTFChars(env, path, value);
 }
 
 JNIEXPORT void JNICALL
@@ -669,7 +724,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *
         jclass error = (*env)->FindClass(env, "java/lang/IllegalStateException");
         if (error) (*env)->ThrowNew(env, error, strerror(saved_errno));
     }
-    // Clear a legacy global pin when recovering its marker after an app upgrade or crash.
     if (on != JNI_TRUE) adrenotools_set_turbo(false);
 }
 
@@ -696,7 +750,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardSpatialP
     vkp_cardboard_set_spatial_pose(m, p, live ? 1 : 0);
 }
 
-/* The Xbox Cloud Gaming native player: its decoded frames are the whole scene (no Wayland clients). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStreamMode(JNIEnv *env, jclass clazz, jboolean on) {
     droiddeck_stream_set(on ? 1 : 0);

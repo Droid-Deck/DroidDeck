@@ -4,7 +4,6 @@ import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import java.io.File
 
-/** Steam's Remote Play V4L2 encoder in the guest talks to this MediaCodec encoder (venc.c, venc_server.cpp). */
 class VideoEncodeBridge(val socket: File) : SessionPart() {
     override fun start() {
         socket.parentFile?.mkdirs()

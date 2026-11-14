@@ -6,7 +6,6 @@ import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 
-/** Only new compositor output is evidence of a fault in the current session. */
 internal class SteamVrDeviceLossLog(private val file: File) {
     private var identity: Any? = identity()
     private var position = file.length()
@@ -34,7 +33,6 @@ internal class SteamVrDeviceLossLog(private val file: File) {
                 }
                 identity = current
                 prefix = head
-                // Fault loops can produce megabytes per second. Bound work and keep the newest output.
                 if (input.length() - position > MAX_READ) {
                     position = input.length() - MAX_READ
                     partial = ""

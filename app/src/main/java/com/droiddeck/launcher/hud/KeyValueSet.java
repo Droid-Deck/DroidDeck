@@ -8,7 +8,7 @@
  * link to https://github.com/The412Banner/FusionHUD in the project documentation
  * AND in the in-app credits/about screen.
  *
- * Ported to DroidDeck from FusionHUD (Bannerlator's HUD); DroidDeck changes are marked in the code.
+ * Ported to DroidDeck from FusionHUD (Bannerlator's HUD) and modified for DroidDeck.
  */
 
 package com.droiddeck.launcher.hud;
@@ -20,17 +20,14 @@ import java.util.Iterator;
 public class KeyValueSet implements Iterable<String[]> {
     private String data = "";
 
-    // Default constructor for an empty KeyValueSet
     public KeyValueSet() {
         this.data = "";
     }
 
-    // Constructor to initialize with a string representation of key-value pairs
     public KeyValueSet(String data) {
         this.data = data != null && !data.isEmpty() ? data : "";
     }
 
-    // Helper method to find the start and end indices of a key in the data string
     private int[] indexOfKey(String key) {
         int start = 0;
         int end = data.indexOf(",");
@@ -48,37 +45,31 @@ public class KeyValueSet implements Iterable<String[]> {
         return null;
     }
 
-    // Method to get the value associated with a key, or an empty string if the key is not present
     public String get(String key) {
         for (String[] keyValue : this) if (keyValue[0].equals(key)) return keyValue[1];
         return "";
     }
 
-    // Method to get the value associated with a key, or a fallback value if the key is not present
     public String get(String key, String fallback) {
         for (String[] keyValue : this) if (keyValue[0].equals(key)) return keyValue[1];
         return fallback;
     }
 
-    // Method to get a boolean value associated with a key, or a fallback value if the key is not present
     public boolean getBoolean(String key, boolean fallback) {
         String value = get(key);
         if (value.isEmpty()) return fallback;
         return value.equals("1") || value.equals("t") || value.equalsIgnoreCase("true");
     }
 
-    // Method to get a float value associated with a key, or a fallback value if the key is not present
     public float getFloat(String key, float fallback) {
         String value = get(key);
         try {
             if (!value.isEmpty()) return Float.parseFloat(value);
         } catch (NumberFormatException e) {
-            // Ignore exception and return fallback
         }
         return fallback;
     }
 
-    // Method to set a value for a key in the key-value data
     public void put(String key, Object value) {
         int[] range = indexOfKey(key);
         if (range != null) {
@@ -88,21 +79,15 @@ public class KeyValueSet implements Iterable<String[]> {
         }
     }
 
-    // Method to set a float value for a key in the key-value data
     public void put(String key, float value) {
         put(key, String.valueOf(value));
     }
 
-    // Iterator implementation for key-value pairs in the format [key, value]
     @NonNull
     @Override
     public Iterator<String[]> iterator() {
         final int[] start = {0};
         final int[] end = {data.indexOf(",")};
-        // A single-item config (no comma) gives indexOf == -1, making hasNext() (start < end)
-        // immediately false so the sole pair was never iterated (get() then returned the
-        // fallback). Guard it exactly as next() already does. An empty string still yields
-        // end == 0 → no iteration, which is correct.
         if (end[0] == -1) end[0] = data.length();
         final String[] item = new String[2];
         return new Iterator<String[]>() {

@@ -5,6 +5,7 @@ import java.io.File
 object GameIdentifier {
 
     private const val MAX_PARENT_DEPTH = 6
+    internal const val SPACEWAR = 480
 
     enum class Source { STEAM_APPID_TXT, STEAM_MANIFEST_ACF, STEAM_EMU_INI, GOG_INFO, PE_VERSION, FILENAME, NONE }
     enum class Confidence { HIGH, MEDIUM, LOW }
@@ -92,7 +93,7 @@ object GameIdentifier {
         for (candidate in arrayOf(File(dir, "steam_appid.txt"), File(dir, "steam_settings/steam_appid.txt"))) {
             val id = readSmallTextFile(candidate)?.removePrefix("\uFEFF")?.trim()
                 ?.takeWhile { it.isDigit() }?.toIntOrNull()
-            if (id != null && id > 0) return id
+            if (id != null && id > 0 && id != SPACEWAR) return id
         }
         return null
     }
@@ -111,7 +112,7 @@ object GameIdentifier {
         for (f in candidates) {
             val text = readSmallTextFile(f) ?: continue
             val id = re.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            if (id != null && id > 0) return id
+            if (id != null && id > 0 && id != SPACEWAR) return id
         }
         return null
     }
@@ -133,7 +134,8 @@ object GameIdentifier {
         val match = manifests.firstOrNull { m ->
             val text = readSmallTextFile(m) ?: return@firstOrNull false
             val installdir = vdfValue(text, "installdir")
-            gameFolder != null && installdir != null && installdir.equals(gameFolder, ignoreCase = true)
+            gameFolder != null && installdir != null && installdir.equals(gameFolder, ignoreCase = true) &&
+                vdfValue(text, "appid")?.toIntOrNull() != SPACEWAR
         } ?: return null
 
         val text = readSmallTextFile(match) ?: return null

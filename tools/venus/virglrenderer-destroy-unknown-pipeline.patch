@@ -1,0 +1,54 @@
+diff --git a/src/venus/venus-protocol/vn_protocol_renderer_pipeline.h b/src/venus/venus-protocol/vn_protocol_renderer_pipeline.h
+index ce82e59..8798de9 100644
+--- a/src/venus/venus-protocol/vn_protocol_renderer_pipeline.h
++++ b/src/venus/venus-protocol/vn_protocol_renderer_pipeline.h
+@@ -3290,7 +3290,11 @@ static inline void vn_encode_vkCreateComputePipelines_reply(struct vn_cs_encoder
+ static inline void vn_decode_vkDestroyPipeline_args_temp(struct vn_cs_decoder *dec, struct vn_command_vkDestroyPipeline *args)
+ {
+     vn_decode_VkDevice_lookup(dec, &args->device);
+-    vn_decode_VkPipeline_lookup(dec, &args->pipeline);
++    {
++        uint64_t id;
++        vn_decode_uint64_t(dec, &id);
++        args->pipeline = (VkPipeline)(uintptr_t)vkr_cs_decoder_lookup_object_for_destroy((const struct vkr_cs_decoder *)dec, id, VK_OBJECT_TYPE_PIPELINE);
++    }
+     if (vn_decode_simple_pointer(dec)) {
+         vn_cs_decoder_set_fatal(dec);
+     } else {
+diff --git a/src/venus/vkr_cs.h b/src/venus/vkr_cs.h
+index c72c5cc..b45061f 100644
+--- a/src/venus/vkr_cs.h
++++ b/src/venus/vkr_cs.h
+@@ -324,6 +324,32 @@ vkr_cs_decoder_lookup_object(const struct vkr_cs_decoder *dec,
+    return obj;
+ }
+ 
++/* For a destroy command only: an id the renderer never created (the driver refused the create,
++ * which the guest may not have waited for) is logged and destroyed as VK_NULL_HANDLE, a no-op,
++ * instead of marking the whole context fatal - that took the vtest server down (exit 137) when
++ * gamescope destroyed a compute pipeline a Mali-G615 had refused. */
++static inline struct vkr_object *
++vkr_cs_decoder_lookup_object_for_destroy(const struct vkr_cs_decoder *dec,
++                                         vkr_object_id id,
++                                         VkObjectType type)
++{
++   struct vkr_object *obj;
++
++   if (!id)
++      return NULL;
++
++   mtx_lock(dec->object_mutex);
++   const struct hash_entry *entry =
++      _mesa_hash_table_search((struct hash_table *)dec->object_table, &id);
++   obj = likely(entry) ? entry->data : NULL;
++   mtx_unlock(dec->object_mutex);
++   if (unlikely(!obj || obj->type != type)) {
++      vkr_log("destroy of unknown object %" PRIu64 " of type %d ignored", id, type);
++      return NULL;
++   }
++   return obj;
++}
++
+ static inline void
+ vkr_cs_decoder_reset_temp_pool(struct vkr_cs_decoder *dec)
+ {

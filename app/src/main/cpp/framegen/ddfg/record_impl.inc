@@ -267,8 +267,6 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
                       pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_);
     }
 
-    // Every generation of one real frame is recorded into the same command buffer, so the flow
-    // between prev and curr is computed once and each generation gets its own synth UBO and set.
     if (reuseFlow && !g_scratch.flowReady) return;
     if (!reuseFlow) {
         bool gmEngaged = updateGlobalMotion(gmSlot, extent_);

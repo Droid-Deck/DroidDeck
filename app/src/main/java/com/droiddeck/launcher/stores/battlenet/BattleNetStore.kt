@@ -204,7 +204,8 @@ object BattleNetBackend : StoreBackend {
     fun installedGames(context: Context): List<InstalledStoreGame> = installed(context).map { game ->
         val art = BattleNet.art(context, game.title)
         val cover = art.cover?.let { Uri.fromFile(it).toString() }
-        InstalledStoreGame(StoreGameSidecar(store, game.title.uid, game.name, "", cover = cover, hero = art.header?.let { Uri.fromFile(it).toString() } ?: cover), game.folder)
+        InstalledStoreGame(StoreGameSidecar(store, game.title.uid, game.name, "", installedAt = game.folder.lastModified(),
+            cover = cover, hero = art.header?.let { Uri.fromFile(it).toString() } ?: cover), game.folder)
     }
 
     private fun shelves(context: Context): StoreShelves {

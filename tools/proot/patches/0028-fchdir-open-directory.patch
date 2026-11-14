@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Thu, 12 Nov 2026 22:00:00 -0500
+Subject: [PATCH] fchdir: take the path of the open directory instead of resolving
+ it again component by component
+
+---
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -46,8 +46,66 @@
+ #include "tracee/abi.h"
+ #include "path/path.h"
+ #include "path/canon.h"
++#include "path/binding.h"
+ #include "arch.h"
+ 
++static int translate_open_directory(Tracee *tracee, char path[PATH_MAX], int fd, struct stat *statl)
++{
++	char guest[PATH_MAX];
++	char mount[PATH_MAX];
++	char parent[PATH_MAX];
++	char link[32];
++	char *slash;
++	const Binding *binding;
++	size_t length;
++	int status;
++
++	status = readlink_proc_pid_fd(tracee->pid, fd, path);
++	if (status < 0 || path[0] != '/')
++		return 1;
++
++	strcpy(guest, path);
++	status = detranslate_path(tracee, guest, NULL);
++	if (status < 0)
++		return 1;
++
++	binding = get_binding(tracee, GUEST, guest);
++	if (binding == NULL)
++		return 1;
++
++	strcpy(parent, binding->guest.path);
++	slash = strrchr(parent, '/');
++	if (slash != NULL && slash != parent) {
++		if ((size_t) (slash - parent) + 3 > PATH_MAX)
++			return 1;
++
++		strcpy(slash, "/.");
++		strcpy(mount, "/");
++		status = canonicalize(tracee, parent, true, mount, 0);
++		if (status < 0 || strcmp(mount, parent) != 0)
++			return 1;
++	}
++
++	status = substitute_binding(tracee, GUEST, guest);
++	if (status < 0 || strcmp(guest, path) != 0)
++		return 1;
++
++	status = snprintf(link, sizeof(link), "/proc/%d/fd/%d", tracee->pid, fd);
++	if (status < 0 || (size_t) status >= sizeof(link))
++		return 1;
++
++	status = stat(link, statl);
++	if (status < 0 || !S_ISDIR(statl->st_mode) || statl->st_nlink == 0)
++		return 1;
++
++	length = strlen(path);
++	if (length + 2 >= PATH_MAX)
++		return 1;
++
++	strcpy(path + (length == 1 ? 0 : length), "/.");
++	return 0;
++}
++
+ /**
+  * Translate @path and put the result in the @tracee's memory address
+  * space pointed to by the @reg argument of the current syscall. See
+@@ -193,13 +251,16 @@
+ 			dirfd = peek_reg(tracee, CURRENT, SYSARG_1);
+ 		}
+ 
+-		status = translate_path(tracee, path, dirfd, oldpath, true);
+-		if (status < 0)
+-			break;
++		if (syscall_number == PR_chdir
++		    || translate_open_directory(tracee, path, dirfd, &statl) != 0) {
++			status = translate_path(tracee, path, dirfd, oldpath, true);
++			if (status < 0)
++				break;
+ 
+-		status = lstat(path, &statl);
+-		if (status < 0)
+-			break;
++			status = lstat(path, &statl);
++			if (status < 0)
++				break;
++		}
+ 
+ 		/* Check this directory is accessible.  */
+ 		if ((statl.st_mode & S_IXUSR) == 0)
+@@ -208,7 +269,7 @@
+ 
+ 
+ 
+-		if (getenv("PROOT_FASTPATH") != NULL) {
++		if (syscall_number == PR_chdir && getenv("PROOT_FASTPATH") != NULL) {
+ 			int fd = open(path, O_PATH | O_DIRECTORY | O_CLOEXEC);
+ 
+ 

@@ -22,30 +22,70 @@ object SessionFiles {
 
     internal val DESKTOP_FILES = arrayOf(
         "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
+        "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
+        "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
+        "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */
+    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+
+    /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
+    fun ensureUbisoftService(context: Context) {
+        AddonPack.UBISOFT.ensure(context) { app ->
+            com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
+                ?.let { stageUbisoftService(app, it, null) }
+        }
+    }
+
+    @Synchronized
+    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
+        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
+        val target = File(root, UBISOFT_SERVICE)
+        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
+        val staged = File(target.parentFile, target.name + ".staged")
+        var installed = false
+        try {
+            target.parentFile?.mkdirs()
+            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
+                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+            }
+            installed = staged.setExecutable(true, false) && staged.renameTo(target)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
+        } finally {
+            if (!installed) staged.delete()
+        }
+        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+    }
+
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
-        if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
+        if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
+            "rockstar/helpers/Launcher32.exe" to "usr/local/lib/droiddeck-rockstar/Launcher32.exe",
+            "rockstar/helpers/Launcher64.exe" to "usr/local/lib/droiddeck-rockstar/Launcher64.exe",
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
+            "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
             "libblaudit.so" to "usr/local/lib/libblaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
@@ -64,12 +104,24 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-share" to "usr/local/bin/droiddeck-steam-share",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-launcher-cores" to "usr/local/bin/droiddeck-launcher-cores",
+            "usr/local/bin/droiddeck-pace-cores" to "usr/local/bin/droiddeck-pace-cores",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
+            "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
+            "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
+            "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
+            "usr/local/bin/droiddeck-text" to "usr/local/bin/droiddeck-text",
+            "usr/local/bin/droiddeck-snapd" to "usr/local/bin/droiddeck-snapd",
+            "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
+            "usr/local/bin/droiddeck-snap-run" to "usr/local/bin/droiddeck-snap-run",
+            "usr/local/bin/droiddeck-snap-confine" to "usr/local/bin/droiddeck-snap-confine",
+            "usr/local/bin/droiddeck-snapctl" to "usr/local/bin/droiddeck-snapctl",
+            "usr/local/bin/droiddeck-systemd-run" to "usr/local/bin/systemd-run",
+            "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             "usr/local/bin/droiddeck-xbox" to "usr/local/bin/droiddeck-xbox",
@@ -97,6 +149,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
+            "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -129,6 +182,8 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
+        val xclipse = listOf("libVkLayer_droiddeck_xclipse.so", "VkLayer_droiddeck_xclipse.json")
+            .map { "usr/local/lib/droiddeck-xclipse/$it" }
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
@@ -148,17 +203,35 @@ object SessionFiles {
         ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
                 "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
+        // HUD GPU load where Android hides it (GpuStatsComponent.guestEnv turns the layer on).
+        val gpuLoad = listOf(
+            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
+            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
+            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
+            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
+        )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
+        // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
+        // Never staged on an Adreno: an implicit layer is loaded into every Vulkan program there.
+        val maliCompat = if (com.droiddeck.launcher.core.DeviceSupport.adreno()) emptyList() else listOf(
+            "usr/local/lib/droiddeck-mali/libVkLayer_droiddeck_mali_compat.so",
+            "usr/local/share/vulkan/implicit_layer.d/VkLayer_droiddeck_mali_compat.json",
+        ).map { it to it }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
-            // The gamescope pack carries its own WSI layer (patch 0117); it replaces the runtime's stock copy.
+            "usr/local/bin/droiddeck-glprobe" to "usr/local/bin/droiddeck-glprobe",
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
+            "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
+            "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
+            "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + mangoapp + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
+            "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -171,7 +244,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("linuxfs/$asset").use { input ->
+                (if (asset.startsWith("rockstar/")) requireNotNull(javaClass.getResourceAsStream("/$asset")) else context.assets.open("linuxfs/$asset")).use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)
@@ -213,18 +286,23 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        stageUbisoftService(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
+        val nativeUserland = SessionPrefs.nativeUserland(context)
+        if (nativeUserland) com.droiddeck.launcher.runtime.NativeGuest.prepare(context, root)
         if (ProotFastPath.enabled(context)) {
             val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
             preload.append(library + "\n")
             if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
         }
         val etc = File(root, "etc").apply { mkdirs() }
+        File(etc, "droiddeck").mkdirs()
+        FileUtils.writeString(File(etc, "droiddeck/native-preload"), preload.toString())
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
             || !staged.renameTo(File(etc, "ld.so.preload"))) {
@@ -235,12 +313,19 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
         writeCjkFontConfig(root, etc)
+        writeDesktopStrings(context, File(etc, "droiddeck").apply { mkdirs() })
         val droiddeckEtc = File(etc, "droiddeck").apply { mkdirs() }
         val stagedSocket = File(droiddeckEtc, "bwrap-socket.staged")
         if (!FileUtils.writeString(stagedSocket, BwrapSpawner.socket(context) + "\n")
             || !stagedSocket.renameTo(File(droiddeckEtc, "bwrap-socket"))) {
             stagedSocket.delete()
             Log.e(TAG, "could not write bwrap-socket")
+        }
+        val stagedRoot = File(droiddeckEtc, "root-socket.staged")
+        if (!FileUtils.writeString(stagedRoot, com.droiddeck.launcher.runtime.RootSpawner.socket(context) + "\n")
+            || !stagedRoot.renameTo(File(droiddeckEtc, "root-socket"))) {
+            stagedRoot.delete()
+            Log.e(TAG, "could not write root-socket")
         }
 
         BootMovie.syncFromSteam(context)
@@ -256,7 +341,6 @@ object SessionFiles {
             val movieDir = File(home, "config/uioverrides/movies")
             val config = File(home, "config/config.vdf")
             if (startupMovie == null) {
-                // Nothing to play (a movie whose volume could not be set is never played at another volume), so no earlier copy plays either.
                 for (name in listOf("bigpicture_startup.webm", "steam_os_startup.webm")) {
                     File(movieDir, name).delete()
                     File(movieDir, ".$name.source").delete()
@@ -271,21 +355,18 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
+            if (startsSession) {
+                disableIdleSleep(home)
+                seedUserDefaults(home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
-        // A pick made in the app is done once a session started with every Steam client's config having it; guest commands run
-        // before that, and a Steam that is already running writes its own choice back when it exits.
         if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
-    /**
-     * Points Steam's startup movie back at its own default when it names a movie that is gone: DroidDeck's staged copy that
-     * could not be prepared, or (when a pick here is waiting) a movie removed from Steam's folder. True when Steam's config
-     * no longer names a missing movie.
-     */
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
         if (!config.isFile) return true
         val text = runCatching { config.readText() }.getOrElse {
@@ -364,7 +445,6 @@ object SessionFiles {
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
             if (installed) {
                 FileUtils.writeString(stamp, identity)
-                // Steam's picker draws its preview from this picture and does not redraw it when the movie changes.
                 File(directory, name.removeSuffix(".webm") + ".jpg").delete()
             }
         } catch (e: Exception) {
@@ -381,10 +461,6 @@ object SessionFiles {
     internal const val BOOT_MOVIES_DIR = "/uioverrides/movies/"
     internal const val BOOT_MOVIE_PATH = "/uioverrides/movies/bigpicture_startup.webm"
 
-    /**
-     * Steam's startup movie setting is the `StartupMovie` section inside its `Customization` section; the one under the Steam
-     * settings is where older clients kept it, and DroidDeck still keeps it in step.
-     */
     private fun customizationMovie(text: String): VdfBlock? {
         var from = 0
         while (true) {
@@ -394,7 +470,6 @@ object SessionFiles {
         }
     }
 
-    /** The older `StartupMovie` section: the first one that is not inside `Customization`. */
     private fun olderMovie(text: String): VdfBlock? {
         val inside = customizationMovie(text)
         var from = 0
@@ -405,10 +480,8 @@ object SessionFiles {
         }
     }
 
-    /** The section Steam reads: the one under `Customization` when there is one. */
     private fun activeStartupMovie(text: String): VdfBlock? = customizationMovie(text) ?: olderMovie(text)
 
-    /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
     internal fun startupMoviePath(config: File): String? = startupMovieLocalPath(config)?.takeIf { it.isNotEmpty() }
 
     internal fun startupMovieLocalPath(config: File): String? {
@@ -417,7 +490,6 @@ object SessionFiles {
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
-    /** Both `StartupMovie` sections of Steam's config as written there, for the report; null when there is none. */
     internal fun startupMovieBlock(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val parts = listOfNotNull(
@@ -427,7 +499,6 @@ object SessionFiles {
         return parts.takeIf { it.isNotEmpty() }?.joinToString("\n")
     }
 
-    /** The `Customization` section of Steam's config with the lines before it, for the report; null when there is none. */
     internal fun customizationBlock(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val customization = findObject(text, "Customization", 0, text.length) ?: return null
@@ -440,7 +511,6 @@ object SessionFiles {
         return text.replaceRange(movie.keyStart, movie.close + 1, setScalar(setScalar(block, "MovieID", "0", newline), "LocalPath", path, newline))
     }
 
-    /** True when Steam's config selects DroidDeck's staged movie once this returns. */
     internal fun ensureStartupMovieDefault(config: File, force: Boolean = false): Boolean {
         val path = BOOT_MOVIE_PATH
         val legacyPath = "/uioverrides/movies/droiddeck-startup.webm"
@@ -467,7 +537,6 @@ object SessionFiles {
                 return false
             }
         }
-        // Later sections first, so the positions of earlier ones stay valid.
         val targets = listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }
         for (target in targets) text = pointAt(text, target, path, newline)
         if (olderMovie(text) == null) {
@@ -509,7 +578,117 @@ object SessionFiles {
         }
     }
 
-    /** Adds the `Customization` section Steam reads, next to the `Software` section, when the config has none. */
+    private const val USER_DEFAULTS_MARKER = "droiddeck-user-defaults-initialized"
+    private const val BATTERY_PREFERENCES = "CachedBatteryPreferences"
+    private const val UI_STATE = "UIStoreLocalSteamUIState"
+    private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
+    private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
+
+    /**
+     * Seeds opinionated first-run defaults into each Steam account's localconfig.vdf: battery percentage shown and
+     * download speeds in bytes rather than bits, and the library sorted by recently played. A value is written once per account and only when the key is
+     * absent, so a later choice made in Steam is never overridden. Runs while Steam is stopped, as it keeps the
+     * file in memory and rewrites it.
+     */
+    internal fun seedUserDefaults(steamHome: File) {
+        val users = File(steamHome, "userdata").listFiles { f -> f.isDirectory && f.name.all(Char::isDigit) && f.name != "0" } ?: return
+        for (user in users) {
+            val configDir = File(user, "config")
+            val marker = File(configDir, USER_DEFAULTS_MARKER)
+            val file = File(configDir, "localconfig.vdf")
+            if (marker.exists() || !file.isFile) continue
+            try {
+                val text = file.readText()
+                val updated = withUserDefaults(text) ?: continue
+                if (updated != text) {
+                    val staged = File(configDir, file.name + ".staged")
+                    staged.writeText(updated)
+                    if (!staged.renameTo(file)) { staged.delete(); continue }
+                }
+                marker.writeText("1\n")
+            } catch (e: Exception) {
+                Log.w(TAG, "could not seed Steam user defaults", e)
+            }
+        }
+    }
+
+    internal fun withUserDefaults(text: String): String? {
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return null
+        var out = text
+        val system = findObject(out, "system", root.open + 1, root.close)
+        if (system == null) {
+            out = insertInto(out, root, listOf("\"system\"", "{", "\t\"displayratesasbits\"\t\t\"0\"", "}"), newline)
+        } else if (!hasKey(out.substring(system.keyStart, system.close + 1), "displayratesasbits")) {
+            val block = out.substring(system.keyStart, system.close + 1)
+            out = out.replaceRange(system.keyStart, system.close + 1, setScalar(block, "displayratesasbits", "0", newline))
+        }
+        val reroot = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        val web = findObject(out, "WebStorage", reroot.open + 1, reroot.close)
+        if (web == null) {
+            out = insertInto(out, reroot, listOf("\"WebStorage\"", "{", "\t\"$BATTERY_PREFERENCES\"\t\t\"$BATTERY_PERCENT_ON\"", "}"), newline)
+        } else if (!hasKey(out.substring(web.keyStart, web.close + 1), BATTERY_PREFERENCES)) {
+            val block = out.substring(web.keyStart, web.close + 1)
+            out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
+        }
+        return seedRecentSort(out, newline)
+    }
+
+    // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
+    // so the first seed flips it once and the marker file keeps a later choice.
+    private fun seedRecentSort(text: String, newline: String): String {
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return text
+        val web = findObject(text, "WebStorage", root.open + 1, root.close) ?: return text
+        val block = text.substring(web.keyStart, web.close + 1)
+        if (!hasKey(block, UI_STATE)) {
+            return text.replaceRange(web.keyStart, web.close + 1,
+                setScalar(block, UI_STATE, "{\\\"nVersion\\\":1,$SORT_RECENT_ON}", newline))
+        }
+        return text.replaceRange(web.keyStart, web.close + 1, block.replace(SORT_RECENT_OFF, SORT_RECENT_ON))
+    }
+
+    private fun hasKey(block: String, key: String) = Regex("(?m)^[\\t ]*\"${Regex.escape(key)}\"[\\t ]").containsMatchIn(block)
+
+    private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
+        val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
+        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val section = lines.joinToString(newline) { indent + it } + newline
+        return text.substring(0, lineStart) + section + text.substring(lineStart)
+    }
+
+    private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
+
+    internal fun disableIdleSleep(steamHome: File): Boolean {
+        val config = File(steamHome, "config/config.vdf")
+        val text = runCatching { config.readText() }.getOrNull() ?: return false
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val steam = findSteamBlock(text) ?: return false
+        val system = findObject(text, "system", steam.open + 1, steam.close)
+        val updated = if (system != null) {
+            val block = text.substring(system.keyStart, system.close + 1)
+            text.replaceRange(system.keyStart, system.close + 1, IDLE_SLEEP_TIMERS.fold(block) { acc, key -> setScalar(acc, key, "0", newline) })
+        } else {
+            val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
+            val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+            val section = (listOf(indent + "\"system\"", indent + "{") +
+                IDLE_SLEEP_TIMERS.map { "$indent\t\"$it\"\t\t\"0\"" } + (indent + "}")).joinToString(newline) + newline
+            text.substring(0, lineStart) + section + text.substring(lineStart)
+        }
+        val staged = File(config.parentFile, config.name + ".staged")
+        return try {
+            if (updated != text) {
+                staged.writeText(updated)
+                if (!staged.renameTo(config)) { staged.delete(); return false }
+            }
+            true
+        } catch (e: Exception) {
+            staged.delete()
+            Log.w(TAG, "could not disable Steam's idle sleep", e)
+            false
+        }
+    }
+
     private fun withCustomization(text: String, path: String, newline: String): String {
         val root = findObject(text, "InstallConfigStore", 0, text.length) ?: return text
         val lineStart = text.lastIndexOf('\n', root.close).let { if (it < 0) 0 else it + 1 }
@@ -579,13 +758,28 @@ object SessionFiles {
 
     fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 
-    /**
-     * Registers the Android system fonts (which include CJK faces such as Noto Sans CJK /
-     * MiSans) with the container's fontconfig, so the Steam Deck UI (CEF/webkit renderer)
-     * resolves Chinese/Japanese glyphs instead of showing tofu / mojibake.
-     * The fonts themselves are bind-mounted by LinuxRuntime.bindSystemFonts() into
-     * /usr/local/share/fonts/android; here we only need to point fontconfig at them.
-     */
+    private val DESKTOP_STRINGS = listOf(
+        "desktop_restore_title" to R.string.desktop_restore_title,
+        "desktop_restore_body" to R.string.desktop_restore_body,
+        "desktop_restore_done_title" to R.string.desktop_restore_done_title,
+        "desktop_restore_done_body" to R.string.desktop_restore_done_body,
+        "desktop_restore_failed_title" to R.string.desktop_restore_failed_title,
+        "desktop_restore_failed_body" to R.string.desktop_restore_failed_body,
+    )
+
+    private fun writeDesktopStrings(context: Context, dir: File) {
+        val text = DESKTOP_STRINGS.joinToString("") { (key, id) ->
+            key + "=" + context.getString(id).replace("\\", "\\\\").replace("%", "%%").replace("\n", "\\n") + "\n"
+        }
+        val target = File(dir, "strings")
+        if (FileUtils.readString(target) == text) return
+        val staged = File(dir, "strings.staged")
+        if (!FileUtils.writeString(staged, text) || !staged.renameTo(target)) {
+            staged.delete()
+            Log.e(TAG, "could not write desktop strings")
+        }
+    }
+
     private fun writeCjkFontConfig(root: File, etc: File) {
         try {
             val confDir = File(etc, "fonts/conf.d").apply { mkdirs() }

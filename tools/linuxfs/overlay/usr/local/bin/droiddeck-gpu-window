@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-"""Let GTK draw close buttons inside gamescope, which supplies no window decorations."""
 import ctypes as c
 import os
 import signal

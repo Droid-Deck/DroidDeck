@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Sat, 7 Nov 2026 12:00:00 -0500
+Subject: [PATCH] fastpath: answer a host-refused trampoline syscall with ENOSYS
+ instead of translating its host path again
+
+---
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -812,6 +812,16 @@
+ 	return 0;
+ }
+ 
++bool from_fastpath_stub(const Tracee *tracee)
++{
++	word_t pc;
++
++	if (!fastpath_enabled())
++		return false;
++	pc = peek_reg(tracee, CURRENT, INSTR_POINTER);
++	return pc >= FASTPATH_STUB_ADDR && pc < FASTPATH_STUB_ADDR + FASTPATH_STUB_SIZE;
++}
++
+ word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum)
+ {
+ 	static word_t flags[PR_NB_SYSNUM];
+--- a/src/syscall/seccomp.h
++++ b/src/syscall/seccomp.h
+@@ -45,5 +45,6 @@
+ 
+ extern int enable_syscall_filtering(const Tracee *tracee);
+ extern word_t filtered_sysnum_flags(const Tracee *tracee, Sysnum sysnum);
++extern bool from_fastpath_stub(const Tracee *tracee);
+ 
+ #endif /* SECCOMP_H */
+--- a/src/tracee/seccomp.c
++++ b/src/tracee/seccomp.c
+@@ -12,6 +12,7 @@
+ #include "cli/note.h"
+ #include "syscall/chain.h"
+ #include "syscall/syscall.h"
++#include "syscall/seccomp.h"
+ #include "tracee/seccomp.h"
+ #include "tracee/mem.h"
+ #include "tracee/statx.h"
+@@ -123,6 +124,11 @@
+ 
+ 	sysnum = get_sysnum(tracee, CURRENT);
+ 
++	if (from_fastpath_stub(tracee)) {
++		set_result_after_seccomp(tracee, -ENOSYS);
++		return 0;
++	}
++
+ 	status = notify_extensions(tracee, SIGSYS_OCC, 0, 0);
+ 	if (status < 0) {
+ 		VERBOSE(tracee, 4, "SIGSYS errored out when being handled by an extension");

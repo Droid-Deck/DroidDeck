@@ -233,6 +233,39 @@ picker. Its launcher sets five FuelPump variables frozen at install time: `FUEL_
 `AMAZON_GAMES_FUEL_DISPLAY_NAME` (the account name, `Player` without one). No Amazon Games SDK files
 are deployed into the prefix and `fuel.json` `PostInstall` steps are not run.
 
+GOG's registry data reaches the prefix before Proton starts: a `goggame-<id>.script` install action
+with `setRegistry` becomes a `.reg` import through the game's own Proton (`reg.exe import /reg:32`),
+once per script revision - `.droiddeck-gog-registry` in the prefix holds the import's hash - and a
+failed import is retried on the next launch. GOG completes some installs by running a support
+installer from the game folder (the script's `Execute` action); under ARM64 FEX that 32-bit
+self-extractor stops at "Path not found", so the values it installs are applied from
+`GOG_INSTALL_REGISTRY` in `droiddeck-store-launch` instead: The Witcher: Enhanced Edition's
+`HKLM\Software\CD Projekt Red\The Witcher` block and its text/voice languages (#694), without which
+`witcher.exe` exits during startup. The language comes from the installed product's
+`goggame-<id>.info`, and a script's own `setRegistry` entries always win over the built-in table.
+
+The script's `supportData` actions run right after: files and folders from the game folder
+(`{app}`) or its support files (`{supportDir}`, `support/<id>/`) are copied to `{userdocs}` and
+`{localappdata}` in the prefix, and `type: folder` without a source creates the folder. Mods such
+as one-click editions ship their `Plugins.txt` and INI files this way. Paths match without regard
+to case, links are copied as links, and a path outside those folders is refused. A file the
+player already has is replaced only when the action says `overwrite`. `.droiddeck-gog-support` in
+the prefix holds the actions' hash, so they run once per script revision and a player's later
+edits stay.
+
+A GOG game's exe comes from its own manifest first: `goggame-<id>.info`'s play task in category
+`game` (`isPrimary` first), or a primary `launcher` task for launcher games, whose `path` stays
+inside the folder; any other `goggame-*.info` in the folder supplies the task only when the
+product's own has none. The task's `workingDir` becomes the shortcut's Start In, and the install root
+when the task declares none - GOG's own default, and what a game in a subfolder such as
+`System/witcher.exe` needs to find its `Data` folder. Else the product's `temp_executable`, else a
+score over the folder's `.exe` files - a word of the game's title in the name first (Blood Omen's
+`kain.exe` over its `dxconfig.exe`), config and tool names (`config`, `settings`, `launcher`,
+`editor`, `crashreport`, …) last, shallower and bigger ahead on a tie. GOG's `galaxy_*.exe` support
+installer is never the game, whatever the manifest or the temp executable says: The Witcher ships it
+beside `launcher.exe` and its own `temp_executable` names it, and starting it runs the same 32-bit
+installer that fails under ARM64 with "Path not found" (issue #694).
+
 A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in
@@ -276,6 +309,16 @@ the prefix's user folder appears, within a minute. Every path logs
   `%LocalAppData%/GOG.com/Galaxy/Applications/<clientId>/Storage/Shared/Files`. It goes through the
   same location-qualified handling below. GET peels gzip when `Content-Encoding` is gzip, or when
   the object round-trips as GOG's PUT gzip (deflate 6, mtime 0); a gzip-format save is left intact.
+  PUT mirrors Galaxy's `CloudStorageCompressingClient`: each object is gzipped (deflate 6, mtime 0)
+  and sent with `Content-Encoding: gzip`, an `Etag` of the compressed bytes and
+  `X-Object-Meta-LocalLastModified` (`yyyy-MM-dd'T'HH:mm:ss+00:00`, from the local file mtime).
+  Galaxy's `CloudStorageRemoteClient` rejects an object without that metadata as `invalid data`
+  before it ever decompresses it; a live probe showed gzip + metadata downloads, while gzip alone,
+  or `User-Agent` metadata alone, fails. Objects older builds uploaded raw lack it, so
+  `CloudPlan.upSend` resends those unchanged files once. Automatic repair does not resend
+  conflicts; ordinary local changes still upload through `plan.transfer`.
+  An explicit forced upload sends every local GOG file, including unchanged files the service gives
+  no hash for, so a manual repair rewrites the whole folder.
 - **GOG names are location-qualified:** the cloud API lists `saves/user1.dat`, where `saves` is the
   `name` of the selected `cloudStorage.locations` entry and the folder is that entry's `location`
   (`.../Hollow Knight Silksong/default`). `GogCloud` strips the location segment for the local path

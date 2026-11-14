@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Преки пътища с физически бутони</string>
+    <string name="shortcuts_dd_menu">Меню на DroidDeck</string>
+    <string name="shortcuts_capture">Задаване: %1$s</string>
+    <string name="shortcuts_press">Натиснете и отпуснете бутон. Назначението се запазва автоматично.</string>
+    <string name="shortcuts_release">Отпуснете бутона, за да продължите.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Този бутон вече е зададен за: %1$s</string>
+    <string name="shortcuts_save">Преназначаване</string>
+    <string name="shortcuts_retry">Опитайте друг бутон</string>
+    <string name="shortcuts_limitations">Бутонът Начало и някои допълнителни бутони може да не са налични.</string>
+</resources>

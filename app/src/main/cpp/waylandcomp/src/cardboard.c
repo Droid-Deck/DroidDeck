@@ -34,7 +34,6 @@ void cardboard_clamp(struct cardboard_params *p) {
     p->screen_width_m = clampf(p->screen_width_m, 0.2f, 60.0f);
     p->k1 = clampf(p->k1, -1.0f, 2.0f);
     p->k2 = clampf(p->k2, -1.0f, 2.0f);
-    // Optical vertical FOV on supported glasses can be as low as ~22 degrees.
     p->fov_deg = clampf(p->fov_deg, 20.0f, 140.0f);
     p->lens_inset = clampf(p->lens_inset, -0.25f, 0.25f);
     p->chroma = clampf(p->chroma, 0.0f, 0.05f);
@@ -184,6 +183,13 @@ int vkp_cardboard_active(void) {
     int on = g_set.enabled;
     pthread_mutex_unlock(&g_lock);
     return on;
+}
+
+int vkp_cardboard_source(void) {
+    pthread_mutex_lock(&g_lock);
+    const int source = g_set.enabled ? g_set.source : CARDBOARD_SOURCE_SCREEN;
+    pthread_mutex_unlock(&g_lock);
+    return source;
 }
 
 int vkp_cardboard_pose_changed(void) {

@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+import hashlib
+import os
+import re
+import subprocess
+import sys
+import tarfile
+
+SHARE = "/usr/share/droiddeck/pacman"
+LIB = "/var/lib/pacman"
+CACHE = "/var/cache/pacman/pkg"
+SHARED = os.path.join(LIB, "droiddeck-shared")
+SHARED_FILES = SHARED + "-files"
+
+
+def owned():
+    paths = set()
+    local = os.path.join(LIB, "local")
+    for entry in os.listdir(local):
+        try:
+            with open(os.path.join(local, entry, "files"), encoding="utf-8", errors="surrogateescape") as f:
+                lines = f.read().split("\n")
+        except OSError:
+            continue
+        reading = False
+        for line in lines:
+            if line.startswith("%"):
+                reading = line == "%FILES%"
+            elif reading and line:
+                paths.add(line.rstrip("/"))
+    return paths
+
+
+def same(archive, member, path):
+    if member.issym():
+        return os.path.islink(path) and os.readlink(path) == member.linkname
+    if not member.isfile() or os.path.islink(path) or not os.path.isfile(path):
+        return False
+    if os.path.getsize(path) != member.size:
+        return False
+    with archive.extractfile(member) as packaged, open(path, "rb") as installed:
+        return hashlib.file_digest(packaged, "sha256").digest() == hashlib.file_digest(installed, "sha256").digest()
+
+
+def planned(args):
+    query = []
+    for arg in args:
+        if arg == "--refresh" or arg == "--noconfirm":
+            continue
+        if re.fullmatch(r"-[A-Za-z]+", arg):
+            arg = arg.replace("y", "")
+            if arg == "-":
+                continue
+        query.append(arg)
+    run = subprocess.run(["/usr/bin/pacman", "--config", os.path.join(SHARE, "pacman.conf"), "--noconfirm", *query,
+                          "--print", "--print-format", "%n %f"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                         text=True)
+    if run.returncode != 0:
+        return []
+    return [line.split(" ", 1) for line in run.stdout.splitlines() if " " in line]
+
+
+def main():
+    targets = [(name, os.path.join(CACHE, os.path.basename(file))) for name, file in planned(sys.argv[1:])]
+    targets = [(name, path) for name, path in targets if os.path.isfile(path)]
+    if not targets:
+        return 0
+    have = owned()
+    paths, names = [], []
+    for name, path in targets:
+        found = False
+        with tarfile.open(path) as archive:
+            for member in archive:
+                if member.isdir() or member.name.startswith("."):
+                    continue
+                if member.name in have or not os.path.lexists("/" + member.name) or os.path.isdir("/" + member.name):
+                    continue
+                if not same(archive, member, "/" + member.name):
+                    continue
+                paths.append("/" + member.name)
+                found = True
+        if found:
+            names.append(name)
+    if not paths:
+        return 0
+    shared = set()
+    try:
+        with open(SHARED) as f:
+            shared = {line.strip() for line in f if line.strip()}
+    except OSError:
+        pass
+    with open(SHARED + ".tmp", "w") as f:
+        f.write("".join(f"{name}\n" for name in sorted(shared | set(names))))
+    os.replace(SHARED + ".tmp", SHARED)
+    files = set()
+    try:
+        with open(SHARED_FILES, encoding="utf-8", errors="surrogateescape") as f:
+            files = {line.rstrip("\n") for line in f if line.strip()}
+    except OSError:
+        pass
+    with open(SHARED_FILES + ".tmp", "w", encoding="utf-8", errors="surrogateescape") as f:
+        f.write("".join(f"{path}\n" for path in sorted(files | set(paths))))
+    os.replace(SHARED_FILES + ".tmp", SHARED_FILES)
+    print(f":: Other DroidDeck software already installed {len(paths)} files from {' '.join(names)}.", file=sys.stderr)
+    print(":: pacman will take them over and keep these packages installed so that software keeps working.",
+          file=sys.stderr)
+    for path in paths:
+        print(re.sub(r"([\\*?\[])", r"\\\1", path))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, tarfile.TarError) as e:
+        print(f"error: could not check for files other DroidDeck software installed: {e}", file=sys.stderr)
+        sys.exit(1)

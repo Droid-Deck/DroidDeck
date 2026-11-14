@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">اختصارات الأزرار الفعلية</string>
+    <string name="shortcuts_dd_menu">قائمة DroidDeck</string>
+    <string name="shortcuts_capture">تعيين: %1$s</string>
+    <string name="shortcuts_press">اضغط على زر ثم حرره. يُحفظ التعيين تلقائيًا.</string>
+    <string name="shortcuts_release">أفلت الزر للمتابعة.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">هذا الزر معيّن بالفعل إلى: %1$s</string>
+    <string name="shortcuts_save">إعادة تعيين</string>
+    <string name="shortcuts_retry">تجربة زر آخر</string>
+    <string name="shortcuts_limitations">قد لا يتوفر زر الشاشة الرئيسية وبعض الأزرار الإضافية.</string>
+</resources>

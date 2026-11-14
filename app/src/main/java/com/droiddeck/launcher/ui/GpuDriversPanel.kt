@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -89,6 +88,8 @@ class PairRow(
     val complete: Boolean,
     val installed: Boolean,
     val active: Boolean,
+    /** A newer build of this installed pair (its build date), or null. */
+    val update: String? = null,
 )
 
 const val GPU_MODE_AUTO = "auto"
@@ -110,6 +111,9 @@ class GpuDriversState(
     val supported: Boolean = true,
     val unsupported: Boolean = false,
     val auto: Boolean = true,
+    val powerVr: Boolean = false,
+    /** The selected runtime supplies DXVK for PowerVR game launches. */
+    val systemPowerVr: Boolean = false,
     val pairs: List<PairRow> = emptyList(),
     val busy: String? = null,
     val percent: Int = -1,
@@ -129,8 +133,6 @@ class GpuDriversState(
     val runtime: DriverSlot = DriverSlot(),
     val canRestart: Boolean = true,
     val checkedAt: Long = 0L,
-    val tpUbwcMode: String? = null,
-    val tpUbwcRestartRequired: Boolean = false,
 ) {
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
@@ -138,6 +140,7 @@ class GpuDriversState(
 class GpuDriversActions(
     val onAuto: (Boolean) -> Unit = {},
     val onPair: (String) -> Unit = {},
+    val onPairUpdate: (String) -> Unit = {},
     val onRefresh: () -> Unit = {},
     val onSelectLinux: (String) -> Unit = {},
     val onSelectAndroid: (String) -> Unit = {},
@@ -150,7 +153,6 @@ class GpuDriversActions(
     val onRestoreBundled: () -> Unit = {},
     val onMode: (String) -> Unit = {},
     val onRestart: () -> Unit = {},
-    val onTpUbwcMode: (String) -> Unit = {},
 )
 
 @Composable
@@ -225,7 +227,6 @@ internal fun GpuDriversBody(
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val placed = remember { arrayOfNulls<LayoutCoordinates>(2) }
-    // Focusing the top mode shows as much of the in-use card above it as fits, without hiding the mode itself.
     val revealCard = {
         val (viewport, top) = placed
         if (viewport != null && top != null && viewport.isAttached && top.isAttached) scope.launch {
@@ -245,44 +246,13 @@ internal fun GpuDriversBody(
             Triple(GPU_MODE_PAIR, R.string.gpu_mode_pair, R.string.gpu_mode_pair_detail),
             Triple(GPU_MODE_MIX, R.string.gpu_mode_mix, R.string.gpu_mode_mix_detail),
         )
-        val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
-            val (id, title, detail) = modes[i]
-            PanelRow(
-                stringResource(title), stringResource(detail), gpu.mode == id,
-                modifier = mod.then(if (gpu.mode == id) Modifier.focusRequester(first) else Modifier)
-                    .then(if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier),
-                onClick = { if (gpu.mode != id) actions.onMode(id) },
-            )
-        }
-        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
-        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+        ModeChoices(modes, gpu.mode, single, first, onPick = actions.onMode) { i ->
+            if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier
         }
         when (gpu.mode) {
-            GPU_MODE_AUTO -> AutoBody(gpu)
+            GPU_MODE_AUTO -> AutoBody(gpu, actions)
             GPU_MODE_PAIR -> PairBody(gpu, actions)
             else -> MixBody(single, actions, slotFocus, onOpenSlot)
-        }
-        gpu.tpUbwcMode?.let { selected ->
-            var advanced by rememberSaveable { mutableStateOf(false) }
-            SecondaryButton(stringResource(R.string.gpu_advanced) + if (advanced) " ▴" else " ▾", modifier = Modifier.fillMaxWidth()) { advanced = !advanced }
-            AnimatedVisibility(advanced) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ChoiceRow(
-                        rememberMenuHost(), "tp-ubwc", stringResource(R.string.gpu_ubwc_title),
-                        stringResource(R.string.gpu_ubwc_hint),
-                        listOf(
-                            SessionPrefs.TP_UBWC_AUTO to stringResource(R.string.common_auto),
-                            SessionPrefs.TP_UBWC_ON to stringResource(R.string.widgets_on),
-                            SessionPrefs.TP_UBWC_OFF to stringResource(R.string.widgets_off),
-                        ), selected, onPick = actions.onTpUbwcMode,
-                    )
-                    if (gpu.tpUbwcRestartRequired) {
-                        Text(stringResource(R.string.gpu_ubwc_restart), fontSize = 13.sp, color = AttentionAmber)
-                        if (gpu.canRestart) SecondaryButton(stringResource(R.string.gpu_restart_now), onClick = actions.onRestart)
-                    }
-                }
-            }
         }
     }
 }
@@ -352,14 +322,26 @@ private fun RestartBanner(target: String, canRestart: Boolean, afterLater: Focus
 }
 
 @Composable
-private fun AutoBody(gpu: GpuDriversState) {
+private fun AutoBody(gpu: GpuDriversState, actions: GpuDriversActions) {
     val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PanelTitle(
             stringResource(if (gpu.activePair != null) R.string.gpu_auto_title else R.string.gpu_auto_builtin_title, gpu.gpuName),
             stringResource(R.string.gpu_auto_reason, gpu.gpuFamily),
         )
-        gpu.activePair?.let { p -> PanelRow(p.name, "${p.version} · ${p.detail}", selected = true, onClick = null) }
+        gpu.activePair?.let { p ->
+            // An open non-Adreno pair is rebuilt in place while it is tested: offer the newer build.
+            PanelRow(
+                p.name, "${p.version} · " + (p.update?.let { stringResource(R.string.proton_update_available, it) } ?: p.detail), selected = true,
+                trailing = when {
+                    gpu.busy == p.key -> "${gpu.percent.coerceAtLeast(0)}%"
+                    p.update != null -> stringResource(R.string.common_update)
+                    else -> null
+                },
+                enabled = gpu.busy == null,
+                onClick = p.update?.let { { actions.onPairUpdate(p.key) } },
+            )
+        }
         if (gpu.autoStatus.isNotEmpty()) Text(gpu.autoStatus, fontSize = 13.sp, color = colors.onSurfaceVariant)
     }
 }
@@ -377,15 +359,17 @@ private fun PairBody(gpu: GpuDriversState, actions: GpuDriversActions) {
             fontSize = 13.sp, color = colors.onSurfaceVariant,
         )
         for (p in rows) PanelRow(
-            p.name, "${p.version} · ${p.detail}", selected = p.active,
+            p.name, "${p.version} · " + (p.update?.let { stringResource(R.string.proton_update_available, it) } ?: p.detail), selected = p.active,
             badge = if (p.recommended) stringResource(R.string.gpu_autos_pick) else null,
             trailing = when {
                 gpu.busy == p.key -> "${gpu.percent.coerceAtLeast(0)}%"
+                p.update != null -> stringResource(R.string.common_update)
                 p.installed -> stringResource(R.string.gpu_installed)
                 else -> stringResource(R.string.common_download)
             },
             enabled = gpu.busy == null,
-            onClick = { if (!p.active) actions.onPair(p.key) },
+            // A rebuilt open non-Adreno pair (same release, newer build) is updated in place.
+            onClick = { if (p.update != null) actions.onPairUpdate(p.key) else if (!p.active) actions.onPair(p.key) },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (gpu.pairs.any { !it.suits }) FocusText(stringResource(if (showAll) R.string.gpu_hide_other else R.string.gpu_show_other), pal.signal) { showAll = !showAll }
@@ -420,12 +404,35 @@ internal const val SLOT_DISPLAY = "panel"
 internal const val SLOT_RUNTIME = "rt"
 
 @Composable
-private fun PanelHeading(text: String) {
+internal fun ModeChoices(
+    modes: List<Triple<String, Int, Int>>,
+    selected: String,
+    single: Boolean,
+    first: FocusRequester,
+    onPick: (String) -> Unit,
+    extra: (Int) -> Modifier = { Modifier },
+) {
+    val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
+        val (id, title, detail) = modes[i]
+        PanelRow(
+            stringResource(title), stringResource(detail), selected == id,
+            modifier = mod.then(if (selected == id) Modifier.focusRequester(first) else Modifier).then(extra(i)),
+            onClick = { if (selected != id) onPick(id) },
+        )
+    }
+    if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
+    else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+    }
+}
+
+@Composable
+internal fun PanelHeading(text: String) {
     Text(text.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
-private fun PanelTitle(title: String, hint: String) {
+internal fun PanelTitle(title: String, hint: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 4.dp)) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
         Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -442,7 +449,7 @@ private fun Pill(text: String, fill: Color, ink: Color) {
 }
 
 @Composable
-private fun PanelRow(
+internal fun PanelRow(
     title: String,
     detail: String,
     selected: Boolean,

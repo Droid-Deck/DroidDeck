@@ -813,7 +813,8 @@ class AppInfoTest(unittest.TestCase):
             return out + b"\x08"
 
         body = b""
-        for app, entry in apps.items():
+        records = apps.items() if isinstance(apps, dict) else apps
+        for app, entry in records:
             if isinstance(entry, dict):
                 data = section({"appinfo": dict(entry, appid=str(app))})
             else:

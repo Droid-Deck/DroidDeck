@@ -18,6 +18,19 @@ COMPAT = runpy.run_path(os.path.join(HERE, "steam-compatibility"))
 BINDING = "droiddeckCompatChanged"
 BRIGHTNESS_BINDING = "droiddeckBrightnessChanged"
 CONTROLS_DIR = "/etc/droiddeck-device-controls"
+LIBRARY_ART_JS = r"""
+(() => {
+  if (window.__droiddeckLibraryArt) return "present";
+  const store = typeof appStore === "object" ? appStore : null;
+  if (typeof store?.BHasCachedLibraryAsset !== "function") return "unavailable";
+  // The client reports which cached assets exist only after a logon that reaches Steam; before that every app reads as
+  // uncached and the UI asks the CDN, which is blank offline. The native check still runs, so misses are still reported.
+  const native = store.BHasCachedLibraryAsset.bind(store);
+  store.BHasCachedLibraryAsset = (appid, version, type) => native(appid, version, type) || !version;
+  window.__droiddeckLibraryArt = true;
+  return "installed";
+})()
+"""
 BRIGHTNESS_JS = r"""
 (() => {
   if (window.__droiddeckBrightness) return "present";
@@ -233,10 +246,6 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
-# Steam opens its Steam Controller welcome tour at every start while the client setting
-# controller_show_ibex_tour (CMsgClientSettings field 140014) is on, and only a finished tour turns it
-# off; closing it leaves it on. The app's pad is an emulated controller, so the tour never applies.
-# A pending firmware update still opens Steam's updater, which checks the update priority instead.
 TOUR_JS = r"""
 (() => {
   let key = 140014 * 8;
@@ -247,13 +256,6 @@ TOUR_JS = r"""
   return "off";
 })()
 """
-# Steam keeps the Quick Access Frame Limit as the client setting gamescope_app_target_framerate
-# (CMsgClientSettings field 21002) and offers the values gamescope's display state lists in
-# active_display_info.supported_frame_rates. When the panel's refresh rate changes, a remembered
-# limit that is not one of the new values leaves the slider on its first value while the game runs
-# at the old limit. The limit is kept when it is still offered and moved to the highest value
-# otherwise. Choices are read once they have been unchanged for a moment, since a mode switch can
-# report a passing rate first.
 FRAME_LIMIT_JS = r"""
 (() => {
   if (window.__droiddeckFrameLimit) return "present";
@@ -312,6 +314,74 @@ FRAME_LIMIT_JS = r"""
   self.interval = setInterval(self.schedule, 5000);
   self.schedule();
   window.__droiddeckFrameLimit = self;
+  return "installed";
+})()
+"""
+WINDOW_BINDING = "droiddeckWindowAction"
+WINDOW_TARGET = "createflags=18"
+WINDOW_MOVES = {"nw": 0, "n": 1, "ne": 2, "e": 3, "se": 4, "s": 5, "sw": 6, "w": 7, "move": 8}
+WINDOW_JS = r"""
+(() => {
+  if (window.__droiddeckWindow) return "present";
+  const EDGE = 5, CORNER = 10, THRESHOLD = 3;
+  const CURSORS = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+    ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
+  const send = action => window.droiddeckWindowAction(action);
+  const filled = () => innerWidth >= screen.availWidth && innerHeight >= screen.availHeight - 60;
+  const side = e => {
+    if (filled()) return "";
+    const right = innerWidth - e.clientX, bottom = innerHeight - e.clientY;
+    const near = (a, b) => a < EDGE || (a < CORNER && b < CORNER);
+    const across = Math.min(e.clientX, right), along = Math.min(e.clientY, bottom);
+    const v = near(e.clientY, across) ? "n" : near(bottom, across) ? "s" : "";
+    const h = near(e.clientX, along) ? "w" : near(right, along) ? "e" : "";
+    return v + h;
+  };
+  const dragging = (x, y) => {
+    for (const node of document.elementsFromPoint(x, y)) {
+      const region = getComputedStyle(node).webkitAppRegion;
+      if (region === "drag") return true;
+      if (region === "no-drag") return false;
+    }
+    return [...document.querySelectorAll("*")].some(node => {
+      if (getComputedStyle(node).webkitAppRegion !== "drag") return false;
+      const box = node.getBoundingClientRect();
+      return x >= box.left && x < box.right && y >= box.top && y < box.bottom;
+    });
+  };
+  const style = document.createElement("style");
+  document.documentElement.append(style);
+  let press = null, shown = "";
+  addEventListener("pointermove", e => {
+    if (press) {
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) >= THRESHOLD) {
+        const hit = dragging(press.x, press.y);
+        press = null;
+        if (hit) send("move");
+      }
+      return;
+    }
+    const cursor = e.buttons ? shown : side(e);
+    if (cursor !== shown) {
+      shown = cursor;
+      style.textContent = cursor ? `* { cursor: ${CURSORS[cursor]} !important; }` : "";
+    }
+  }, true);
+  addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const edge = side(e);
+    if (edge) {
+      e.stopPropagation();
+      e.preventDefault();
+      send(edge);
+    } else {
+      press = { x: e.clientX, y: e.clientY };
+    }
+  }, true);
+  addEventListener("pointerup", () => { press = null; }, true);
+  addEventListener("dblclick", e => { if (dragging(e.clientX, e.clientY) && !side(e)) send("maximize"); }, true);
+  SteamClient.Window.ToggleMaximize = () => send("maximize");
+  window.__droiddeckWindow = true;
   return "installed";
 })()
 """
@@ -426,7 +496,6 @@ VR_JS = r"""
 
 
 def launch_steamvr():
-    """Keep downloads/startup off the Steam UI bridge's event loop."""
     say("SteamVR library launch: using the DroidDeck ARM64 helper")
     state = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "droiddeck-steamvr")
     try:
@@ -691,17 +760,49 @@ class Watcher:
     def __init__(self, files):
         self.files = files
         self.fd = -1
+        self.libc = None
+        wanted = {os.path.dirname(f) for f in files}
+        self.missing = {d for d in wanted if not os.path.isdir(d)}
+        self.watched = set()
         try:
             libc = ctypes.CDLL(None, use_errno=True)
             fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
-            dirs = sorted({os.path.dirname(f) for f in files if os.path.isdir(os.path.dirname(f))})
+            dirs = sorted((wanted - self.missing) | {self.existing_parent(d) for d in self.missing} - {""})
             if fd >= 0 and dirs and all(libc.inotify_add_watch(fd, d.encode(), self.MASK) >= 0 for d in dirs):
+                self.watched = set(dirs)
                 self.fd = fd
+                self.libc = libc
             elif fd >= 0:
                 os.close(fd)
         except (OSError, AttributeError):
             self.fd = -1
         self.stamp = self.snapshot()
+
+    @staticmethod
+    def existing_parent(path):
+        while path and not os.path.isdir(path):
+            parent = os.path.dirname(path)
+            if parent == path:
+                return ""
+            path = parent
+        return path
+
+    def watch_new_dirs(self):
+        appeared = False
+        progressed = True
+        while progressed:
+            progressed = False
+            for d in sorted(self.missing):
+                parent = d if os.path.isdir(d) else self.existing_parent(d)
+                if not parent or parent in self.watched:
+                    continue
+                if self.libc.inotify_add_watch(self.fd, parent.encode(), self.MASK) >= 0:
+                    self.watched.add(parent)
+                    progressed = True
+                    appeared = appeared or parent == d
+        for d in [d for d in self.missing if d in self.watched]:
+            self.missing.discard(d)
+        return appeared
 
     def snapshot(self):
         stamp = []
@@ -734,8 +835,74 @@ class Watcher:
                     at += 16 + size
         except BlockingIOError:
             pass
+        appeared = self.watch_new_dirs() if self.missing else False
         wanted = {os.path.basename(f) for f in self.files}
-        return any(n in wanted or n.startswith("appmanifest_") for n in names)
+        return appeared or any(n in wanted or n.startswith("appmanifest_") for n in names)
+
+
+class XMessage(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("window", ctypes.c_ulong), ("message_type", ctypes.c_ulong),
+                ("format", ctypes.c_int), ("data", ctypes.c_long * 5), ("pad", ctypes.c_long * 20)]
+
+
+X_ERRORS = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)(lambda display, error: 0)
+
+
+def window_action(action):
+    if action != "maximize" and action not in WINDOW_MOVES:
+        return False
+    x11 = ctypes.CDLL("libX11.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XInternAtom.restype = ctypes.c_ulong
+    x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x11.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                                       ctypes.c_int, ctypes.c_ulong] + [ctypes.c_void_p] * 5
+    x11.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong] + [ctypes.c_void_p] * 7
+    x11.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.c_void_p]
+    x11.XFree.argtypes = [ctypes.c_void_p]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    x11.XSetErrorHandler(X_ERRORS)
+    display = x11.XOpenDisplay(None)
+    if not display:
+        return False
+    try:
+        root = x11.XDefaultRootWindow(display)
+        atom = lambda name: x11.XInternAtom(display, name, 0)
+        kind, width, count, after = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong()
+        data = ctypes.c_void_p()
+        if x11.XGetWindowProperty(display, root, atom(b"_NET_ACTIVE_WINDOW"), 0, 1, 0, 33, ctypes.byref(kind),
+                                  ctypes.byref(width), ctypes.byref(count), ctypes.byref(after),
+                                  ctypes.byref(data)) != 0 or not data.value:
+            return False
+        window = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[0] if count.value else 0
+        x11.XFree(data)
+        if not window:
+            return False
+        if action == "maximize":
+            kind_name = b"_NET_WM_STATE"
+            values = [2, atom(b"_NET_WM_STATE_MAXIMIZED_VERT"), atom(b"_NET_WM_STATE_MAXIMIZED_HORZ"), 1, 0]
+        else:
+            ignored = ctypes.c_ulong()
+            x, y, inner, mask = ctypes.c_int(), ctypes.c_int(), ctypes.c_int(), ctypes.c_uint()
+            if not x11.XQueryPointer(display, root, ctypes.byref(ignored), ctypes.byref(ignored), ctypes.byref(x),
+                                     ctypes.byref(y), ctypes.byref(inner), ctypes.byref(inner), ctypes.byref(mask)):
+                return False
+            if not mask.value & 0x100:
+                return False
+            kind_name = b"_NET_WM_MOVERESIZE"
+            values = [x.value, y.value, WINDOW_MOVES[action], 1, 1]
+        message = XMessage(type=33, window=window, message_type=atom(kind_name), format=32)
+        message.data[:] = values
+        sent = x11.XSendEvent(display, root, 0, (1 << 19) | (1 << 20), ctypes.byref(message))
+        x11.XFlush(display)
+        return bool(sent)
+    finally:
+        x11.XCloseDisplay(display)
 
 
 class Helper:
@@ -756,6 +923,8 @@ class Helper:
         self.controls_installed = False
         self.frame_limit_state = None
         self.frame_limit_retry = 0
+        self.windows = {}
+        self.windows_retry = 0
 
     def sync_controls(self):
         try:
@@ -779,8 +948,42 @@ class Helper:
         except (OSError, ValueError, TypeError):
             pass
 
+    def sync_windows(self):
+        if os.environ.get("XDG_CURRENT_DESKTOP") != "KDE":
+            return
+        if time.monotonic() >= self.windows_retry:
+            self.windows_retry = time.monotonic() + 2
+            try:
+                targets = http_get(self.port, "/json/list")
+            except (OSError, ValueError):
+                targets = []
+            seen = set()
+            for target in targets:
+                url = target.get("webSocketDebuggerUrl")
+                if WINDOW_TARGET not in target.get("url", "").split("&")[0] or not url:
+                    continue
+                seen.add(target.get("id"))
+                try:
+                    page = self.windows.get(target.get("id"))
+                    if page is None:
+                        page = Page(self.port, "/" + url.split("/", 3)[3])
+                        page.call("Runtime.addBinding", {"name": WINDOW_BINDING}, timeout=5)
+                        self.windows[target.get("id")] = page
+                    page.evaluate(WINDOW_JS, timeout=5)
+                except (Closed, OSError, RuntimeError, ValueError) as e:
+                    say("window controls: %s" % e)
+                    self.windows.pop(target.get("id"), None)
+            for ident in set(self.windows) - seen:
+                del self.windows[ident]
+        for ident, page in list(self.windows.items()):
+            try:
+                for event in page.drain():
+                    if called(event, WINDOW_BINDING):
+                        window_action(event.get("params", {}).get("payload"))
+            except (Closed, OSError, ValueError):
+                del self.windows[ident]
+
     def sync_frame_limit(self):
-        # Steam can still be loading its settings and gamescope state when the helper attaches.
         if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
             return
         try:
@@ -806,8 +1009,6 @@ class Helper:
             self.finish_chooser(ident, None)
             return
         command = [sys.executable, os.path.realpath(__file__), "--choose-file"]
-        # Gamescope shows the dialog over the client by the AppId on a reaper above it; the x86-64 client has no
-        # native reaper, so the arm64 client's is borrowed when it is installed.
         data = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
         for root in (self.steam_root, os.path.join(data, "Steam")):
             reaper = os.path.join(root, "steamrtarm64", "reaper")
@@ -866,6 +1067,7 @@ class Helper:
             if self.files_only:
                 page.call("Runtime.addBinding", {"name": FILE_BINDING})
                 page.evaluate(FILE_JS)
+                page.evaluate(LIBRARY_ART_JS)
                 self.page = page
                 self.controls_state = None
                 self.controls_installed = False
@@ -876,10 +1078,10 @@ class Helper:
             page.evaluate(VR_JS)
             page.call("Runtime.addBinding", {"name": FILE_BINDING})
             page.evaluate(FILE_JS)
+            page.evaluate(LIBRARY_ART_JS)
             try:
                 page.evaluate(TOUR_JS)
             except RuntimeError:
-                # The optional tour setting must not block the compat bridge.
                 pass
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
@@ -909,19 +1111,21 @@ class Helper:
             wanted = COMPAT["requested_tool"](request, catalog)
             newer = isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
             waiting = newer and wanted is not None and wanted not in self.known
-            default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
+            listed = [t["name"] for t in live]
+            default, state = COMPAT["choose_default"](COMPAT["built_from"](top["selected"], catalog, listed) or top["selected"],
+                                                     state, request, catalog, apply_request=not waiting, listed=listed)
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
+            tools = COMPAT["tool_platforms"](self.steam_root)
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
-            # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
             prior_native = state.get("native_choices", ())
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             picked = COMPAT["picked_apps"](state)
             runnable = {t["name"].lower() for t in live}
-            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices | set(tools), key=COMPAT["app_order"])
             asked = [app for app, request in COMPAT["game_requests"]().items() if COMPAT["valid_game_request"](app, request)]
             apps = sorted(set(apps) | set(asked), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
@@ -935,6 +1139,7 @@ class Helper:
                 if isinstance(state.get("auto"), dict):
                     state["auto"] = prior_auto
                 native_choices -= refused
+                tools = {app: platforms for app, platforms in tools.items() if app not in refused}
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](
@@ -948,7 +1153,6 @@ class Helper:
             else:
                 for app in set(native) | native_choices:
                     if app in raw_mapping:
-                        # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
                         if raw_mapping[app] == "" or current.get(app) not in self.known:
                             current[app] = raw_mapping[app]
                     elif app in prior_auto or app in native_choices or app in picked and (
@@ -956,13 +1160,20 @@ class Helper:
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
+            moved = COMPAT["rebuilt_picks"](current, catalog, set(prior_auto) | picked, listed)
+            if moved:
+                following = COMPAT["followers"](state, current)
+                state["auto"] = {app: name for app, name in following.items() if app not in moved} if isinstance(following, dict) else {}
+                prior_auto = {app: name for app, name in prior_auto.items() if app not in moved}
+                current.update(moved)
             requests = COMPAT["settled_game_requests"](state, current, catalog)
-            overrides = COMPAT["requested_games"](requests or {}, catalog, [t["name"] for t in live])
+            overrides = COMPAT["requested_games"](requests or {}, catalog, listed)
             overrides = {app: tool for app, tool in overrides.items() if app not in refused}
             changes, auto = COMPAT["plan_mapping"](
-                current, installed, [t["name"] for t in live], default,
+                current, installed, listed, default,
                 COMPAT["followers"](state, current), native, picks, overrides,
-                prior_auto.keys(), native_choices)
+                prior_auto.keys(), native_choices, tools)
+            changes = dict(moved, **changes)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
@@ -970,7 +1181,7 @@ class Helper:
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
-                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True,
+                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True, written=default,
                 games_applied=COMPAT["applied_game_requests"](requests, overrides, state))
             state.pop("native", None)
             if waiting:
@@ -981,7 +1192,6 @@ class Helper:
             COMPAT["write_json"](state_file, state)
 
     def ensure_tools(self):
-        """Proton, FEX and the runtimes FEX needs are fetched as soon as the client is up, never left pending."""
         now = time.monotonic()
         if self.tools_checked is not None and now - self.tools_checked < TOOL_CHECK_SECONDS:
             return
@@ -1007,7 +1217,6 @@ class Helper:
         return isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
 
     def drain(self):
-        """The page's events; a switch to the desktop is acted on as it comes."""
         events = self.page.drain()
         if any(called(e, SWITCH_BINDING) for e in events):
             switch_to_desktop()
@@ -1030,7 +1239,9 @@ class Helper:
         say("attached to the client on port %d for its file dialogs" % self.port)
         while True:
             self.sync_controls()
+            self.sync_windows()
             sources = [self.page.ws] + ([self.chooser[1].stdout] if self.chooser is not None else [])
+            sources += [page.ws for page in self.windows.values()]
             queued = self.page.ws.pending() or bool(self.page.events)
             ready = [self.page.ws] if queued else select.select(sources, [], [], 0.25)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
@@ -1049,7 +1260,9 @@ class Helper:
         while True:
             self.sync_controls()
             self.sync_frame_limit()
+            self.sync_windows()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
+            sources += [page.ws for page in self.windows.values()]
             if self.chooser is not None:
                 sources.append(self.chooser[1].stdout)
             queued = self.page.ws.pending() or bool(self.page.events)
@@ -1123,7 +1336,8 @@ def main():
                 failures += 1
             time.sleep(min(2 * max(failures, 1), 10))
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
-    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
+    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json"),
+                       os.path.join(steam_root, "appcache", "appinfo.vdf")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
     steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
     helper = Helper(steam_root, port, steamos)

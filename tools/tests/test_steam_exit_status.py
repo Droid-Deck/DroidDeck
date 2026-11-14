@@ -11,7 +11,7 @@ SESSION = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/d
 
 class SteamExitStatusTest(unittest.TestCase):
     def run_session(self, child_status, compositor_status=0, report=True, report_value=None,
-                    stale_status=None):
+                    stale_status=None, diagnostics=False, output=False):
         source = SESSION.read_text()
         function = re.search(r'^run_gamescope\(\) \(\n.*?^\)\n', source, re.M | re.S)
         self.assertIsNotNone(function)
@@ -31,6 +31,7 @@ class SteamExitStatusTest(unittest.TestCase):
             child.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                        XDG_RUNTIME_DIR=str(root))
+            env['DROIDDECK_ENHANCED_DIAGNOSTICS'] = '1' if diagnostics else '0'
             result = subprocess.run(['bash', '-c', function.group() + '\nrun_gamescope "$@"',
                                      'session', str(child), str(child_status),
                                      str(report_value) if report_value is not None else ''], env=env,
@@ -38,7 +39,7 @@ class SteamExitStatusTest(unittest.TestCase):
             self.assertEqual(list(root.glob('droiddeck-steam-exit.??????')), [])
             if stale_status is not None:
                 self.assertEqual(stale_file.read_text(), str(stale_status) + '\n')
-            return result.returncode
+            return result if output else result.returncode
 
     def test_steam_crash_survives_successful_compositor_shutdown(self):
         self.assertEqual(self.run_session(139), 139)
@@ -63,6 +64,21 @@ class SteamExitStatusTest(unittest.TestCase):
 
     def test_stale_marker_does_not_affect_a_new_launch(self):
         self.assertEqual(self.run_session(0, report=False, stale_status=139), 0)
+
+    def test_diagnostics_preserve_separate_steam_and_compositor_statuses(self):
+        result = self.run_session(139, diagnostics=True, output=True)
+        self.assertEqual(result.returncode, 139)
+        self.assertIn('event=session_exit compositor_status=0 steam_status=139', result.stdout)
+
+    def test_diagnostics_report_an_unavailable_child_status(self):
+        result = self.run_session(0, compositor_status=1, report=False, diagnostics=True, output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('event=session_exit compositor_status=1 steam_status=unavailable', result.stdout)
+
+    def test_diagnostics_are_disabled_by_default(self):
+        result = self.run_session(0, output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn('DROIDDECK_DIAGNOSTICS', result.stdout)
 
 
 if __name__ == '__main__':

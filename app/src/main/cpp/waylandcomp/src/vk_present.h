@@ -1,7 +1,10 @@
 #ifndef VK_PRESENT_H
 #define VK_PRESENT_H
 #include <stdint.h>
+#include <stddef.h>
 #include <android/native_window.h>
+#include <android/hardware_buffer.h>
+
 void vk_present_set_driver(const char *driver_path, const char *library_name,
                            const char *native_lib_dir);
 
@@ -12,13 +15,19 @@ int vkp_quest_layer_presentation(void);
 
 enum vkp_scale_mode { VKP_MODE_OFF = 0, VKP_MODE_FIT = 1, VKP_MODE_STRETCH = 2, VKP_MODE_FILL = 3,
                       VKP_MODE_INTEGER = 4 };
-enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2, VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4 };
+enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2,
+                  VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4,
+                  VKP_ALIGN_PICTURE_LEFT = 5, VKP_ALIGN_PICTURE_RIGHT = 6 };
 void vk_present_set_scale_mode(int mode, int alignment);
 int vkp_game_picture_rect(float rect[4]);
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);
+int vkp_scene_to_output(double sx, double sy, double *ox, double *oy);
 void vkp_output_size(int *w, int *h);
 
 struct vkp_image;
+
+int vkp_android_buffer_supported(void);
+struct vkp_image *vkp_image_from_android_buffer(AHardwareBuffer *buffer);
 
 #define VKP_MOD_LINEAR          0x0000000000000000ULL
 #define VKP_MOD_QCOM_COMPRESSED 0x0500000000000001ULL
@@ -32,6 +41,9 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
                                           int w, int h, uint32_t stride, uint32_t offset,
                                           int as_blit_dst);
 int vkp_image_is_dmabuf(const struct vkp_image *img);
+struct AHardwareBuffer;
+int vkp_can_import_ahb(void);
+struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
 struct AHardwareBuffer;
@@ -56,6 +68,10 @@ int vkp_ready(void);
 int vkp_has_window(void);
 int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
+/* Compositor thread only. Submitted reads may still be pending: retain imported
+ * buffer references and withhold DMA-BUF releases until the app process exits.
+ * This terminal state is distinct from genuine device loss. */
+int vkp_completion_unknown(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 int vkp_render_plain(int scene_w, int scene_h);

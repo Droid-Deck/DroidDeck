@@ -5,7 +5,10 @@ target. The shared coverage search retains that behavior.
 
 The SDR SurfaceControl effect pass and HDR mixed image additionally omit their
 initial clear only for one valid, non-blending draw whose computed blit destination
-is exactly the whole scene. That draw uses `CmdBlitImage`, which replaces the target
+is exactly the whole intermediate image. Source-resolution upscaling uses the
+selected input's actual dimensions, not the logical scene dimensions. Multiple
+original layers still keep their clear even when source selection reduces the
+input to one draw. That draw uses `CmdBlitImage`, which replaces the target
 texels rather than reading or blending with their previous contents.
 
 Partial, transparent, multiple-layer and invalid draws retain their clear.
@@ -17,8 +20,10 @@ The command/coverage/content-model regressions compile the renderer's actual C
 functions. They compare non-clear commands and modeled image contents with the
 baseline, including failure and resize cases. The model does not execute Vulkan
 shaders or a real GPU's filtering, color conversion or compression.
-The checked-in suite also locks 72 representative command/content hashes to the
-original `d1bd23df` renderer, in addition to checking clear/blit budgets.
+The checked-in suite also locks 93 representative command/content hashes to the
+upstream `50fbcf8b` renderer, in addition to checking clear/blit budgets. The model
+includes the current external-client acquire/release pair and the effect result's
+transfer-source layout.
 
 One omitted clear command per eligible intermediate frame is not a measured
 latency, FPS, physical-memory-bandwidth or VRAM improvement. A driver's fast-clear

@@ -12,7 +12,6 @@ import javax.crypto.spec.GCMParameterSpec
 
 object CredentialCipher {
     const val VERSION = 1
-    /** Sealed with the hardware-keystore (TEE) key; [VERSION] envelopes keep opening with the older, possibly StrongBox, key. */
     const val VERSION_TEE = 2
     const val ALG = "AES/GCM"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -23,7 +22,6 @@ object CredentialCipher {
 
         fun existing(): SecretKey = key()
 
-        /** Key for [VERSION] envelopes written before [VERSION_TEE]. */
         fun legacy(): SecretKey = existing()
 
         val version: Int get() = VERSION
@@ -35,8 +33,6 @@ object CredentialCipher {
         e is android.security.keystore.KeyPermanentlyInvalidatedException ||
         e is KeyMissing || e is org.json.JSONException || e is IllegalArgumentException
 
-    // StrongBox took over 10 s per Xbox credential write on a tester's phone, past the backend's
-    // 10 s reply timeout, so new writes use a TEE key. The old alias stays readable.
     object Keystore : KeyProvider {
         private const val LEGACY_ALIAS = "droiddeck-store-credentials"
         private const val ALIAS = "droiddeck-store-credentials-tee"

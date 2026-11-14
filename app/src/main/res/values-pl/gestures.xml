@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gesty</string>
     <string name="gesture_settings">Ustawienia gestów dotykowych</string>
-    <string name="gesture_settings_hint">Dostosuj gesty myszy i klawiatury. Aby ich używać, wybierz Gesty jako tryb dotyku.</string>
     <string name="gesture_tap">Stuknięcie</string>
     <string name="gesture_drag">Przeciąganie jednym palcem</string>
     <string name="gesture_long_press">Długie naciśnięcie</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Przytrzymanie trzema palcami</string>
     <string name="gesture_pinch">Uszczypnij, aby przybliżyć</string>
     <string name="gesture_hold_button">Trzymaj przycisk wciśnięty</string>
+    <string name="gesture_hold_left">Trzymaj lewy przycisk wciśnięty</string>
+    <string name="gesture_hold_right">Trzymaj prawy przycisk wciśnięty</string>
     <string name="gesture_click_once">Kliknij raz</string>
     <string name="gesture_hold_delay">Czas przytrzymania</string>
     <string name="gesture_double_delay">Odstęp podwójnego stuknięcia</string>

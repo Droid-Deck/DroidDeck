@@ -1,0 +1,15 @@
+#!/bin/bash
+dir=/usr/share/droiddeck/pacman
+state=/root/.local/share/droiddeck/pacman
+mkdir -p "$state"
+if [ -z "${DROIDDECK_PACMAN_RESTORING:-}" ] && explicit=$(/usr/bin/pacman --config "$dir/pacman.conf" -Qqe 2>/dev/null); then
+  printf '%s\n' "$explicit" | grep -vxF -f "$dir/system-packages.txt" > "$state/packages.txt.tmp"
+  if [ $? -le 1 ] && [ -f "$state/packages.txt.tmp" ]; then
+    mv -f "$state/packages.txt.tmp" "$state/packages.txt"
+  else
+    rm -f "$state/packages.txt.tmp"
+  fi
+fi
+[ -s "$state/restored" ] || sha256sum "$dir/droiddeck.db" | cut -d' ' -f1 > "$state/restored"
+rm -f /var/cache/pacman/pkg/*.pkg.tar.* /var/cache/pacman/pkg/*.pkg.tar.*.sig 2>/dev/null
+exit 0

@@ -8,6 +8,7 @@
 #include "hdr_compose.h"
 #include "blend_pass.h"
 #include "effects_chain.h"
+#include "vk_external_image_sync.h"
 #include "present_types.inc"
 
 #define DIM 64
@@ -28,6 +29,7 @@ static struct { int active; VkImage result; int rw, rh; } g_pass;
 static struct vkp_image inputs[3];
 static uint64_t trace;
 static int clears, blits, blends, frame_seed, ensure_fail, encode_fail, map_fail, blend_fail, effects_on;
+static int upscaling, postprocessing, input_w, input_h;
 
 static void hash(uint64_t *state, uint64_t value) {
     *state ^= value;
@@ -112,6 +114,8 @@ static void barrier(VkCommandBuffer cmd, VkPipelineStageFlags src, VkPipelineSta
         record(ib[i].subresourceRange.aspectMask); record(ib[i].subresourceRange.baseMipLevel);
         record(ib[i].subresourceRange.levelCount); record(ib[i].subresourceRange.baseArrayLayer);
         record(ib[i].subresourceRange.layerCount);
+        if (ib[i].oldLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+            assert(model(ib[i].image)->layout == ib[i].oldLayout);
         model(ib[i].image)->layout = ib[i].newLayout;
         if (id >= 4 && ib[i].oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
             ib[i].newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
@@ -206,6 +210,8 @@ void droiddeck_log(const char *tag, const char *fmt, ...) { }
 void vkp_pass_abort(void) { record(11); g_pass.active = 0; }
 int vkp_update_map(int w, int h) { record(12); record(w); record(h); return map_fail ? -1 : 0; }
 int vkp_effects_active(void) { return effects_on; }
+int vkp_effects_upscaling(void) { return effects_on && upscaling; }
+int vkp_effects_postprocessing(void) { return effects_on && postprocessing; }
 void vkp_effects_set_formats(VkFormat src, VkFormat dst) { record(13); record(src); record(dst); }
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int sw, int sh, int ow, int oh, int *rw, int *rh) {
     record(14); record(image_id(scene)); record(sw); record(sh); record(ow); record(oh);
@@ -213,6 +219,8 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int sw, int sh, int 
     assert(m->layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     for (int y = 0; y < sh; y++)
         for (int x = 0; x < sw; x++) assert(m->written[y][x]);
+    input_w = sw; input_h = sh;
+    m->layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     *rw = sw; *rh = sh;
     return scene;
 }
@@ -275,7 +283,7 @@ static void setup_source(int id, int w, int h, int fmt, int dmabuf, int unsample
     im->image = image(id); im->w = w; im->h = h; im->fmt = formats[fmt];
     im->dmabuf = dmabuf; im->sampled = !unsampled;
     allocate_model(id, w, h);
-    models[id].layout = dmabuf ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
+    models[id].layout = dmabuf ? VK_IMAGE_LAYOUT_GENERAL :
                        im->in_general ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PREINITIALIZED;
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++) {
@@ -295,7 +303,7 @@ int main(int argc, char **argv) {
 #endif
     }
     if (argc != 9) { fputs("path case width height format dmabuf effects frames required\n", stderr); return 2; }
-    int path = arg(argv[1], 0, 2), scenario = arg(argv[2], 0, 23);
+    int path = arg(argv[1], 0, 2), scenario = arg(argv[2], 0, 30);
     int width = arg(argv[3], 3, 32), height = arg(argv[4], 3, 32), fmt = arg(argv[5], 0, 3);
     int dmabuf = arg(argv[6], 0, 1), fx = arg(argv[7], 0, 1), frames = arg(argv[8], 1, 3);
     trace = UINT64_C(1469598103934665603);
@@ -308,6 +316,9 @@ int main(int argc, char **argv) {
         g_map.kx = g_map.ky = 1; g_map.rw = w; g_map.rh = h;
         ensure_fail = scenario == 13; encode_fail = scenario == 14; map_fail = scenario == 15;
         blend_fail = scenario == 16; effects_on = fx;
+        upscaling = scenario >= 24 && scenario != 29;
+        postprocessing = scenario == 28;
+        input_w = input_h = 0;
         g_pass.active = scenario == 19;
         for (int i = 0; i < 3; i++) setup_source(i + 1, w, h, fmt, dmabuf, scenario == 17);
         struct vkp_draw d[8];
@@ -327,6 +338,14 @@ int main(int argc, char **argv) {
         if (scenario == 11) d[0].dx = w + 1;
         if (scenario == 12) n = 0;
         if (scenario == 18) n = 8;
+        if (scenario >= 24) {
+            setup_source(1, w / 2, h / 2, fmt, dmabuf, 0);
+            d[0].sw = (float)inputs[0].w; d[0].sh = (float)inputs[0].h;
+            if (scenario == 25 || scenario == 28) { n = 2; d[1].blend = 1; d[1].dw /= 2; }
+            if (scenario == 26) { d[0].dx = 1; d[0].dw--; }
+            if (scenario == 27) d[0].blend = 1;
+            if (scenario == 30) { d[0].sx = 1; d[0].sw--; }
+        }
         unsigned char hdr[8] = {1, 0, 1, 0, 1, 0, 1, 0};
         struct vkp_hdr_frame hf = {.is_hdr = hdr, .peak_nits = scenario == 21 ? -1.0f : 800.0f,
                                    .tonemap = scenario == 22};
@@ -356,7 +375,7 @@ int main(int argc, char **argv) {
                 hash(&pixels, m->written[y][x]); hash(&pixels, m->pixels[y][x]);
             }
     }
-    printf("clears=%d blits=%d blends=%d result=%d trace=%016" PRIx64 " pixels=%016" PRIx64 "\n",
-           clears, blits, blends, result, trace, pixels);
+    printf("clears=%d blits=%d blends=%d result=%d input_w=%d input_h=%d trace=%016" PRIx64 " pixels=%016" PRIx64 "\n",
+           clears, blits, blends, result, input_w, input_h, trace, pixels);
     return 0;
 }

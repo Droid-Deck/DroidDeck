@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 14:12:04 -0400
+Subject: [PATCH] syscall: emulate openat2 through a translated openat
+
+---
+ src/syscall/enter.c | 51 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 49 insertions(+), 2 deletions(-)
+
+diff --git a/src/syscall/enter.c b/src/syscall/enter.c
+index 121c742..66b9e6b 100644
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -491,9 +491,56 @@ int translate_syscall_enter(Tracee *tracee)
+ 			status = translate_path2(tracee, dirfd, path, SYSARG_2, REGULAR);
+ 		break;
+ 
+-	case PR_openat2:
+-		status = -ENOSYS;
++	case PR_openat2: {
++		struct { uint64_t flags; uint64_t mode; uint64_t resolve; } how;
++		word_t size = peek_reg(tracee, CURRENT, SYSARG_4);
++
++		if (size < sizeof(how) || size > 4096) {
++			status = size < sizeof(how) ? -EINVAL : -E2BIG;
++			break;
++		}
++		status = read_data(tracee, &how, peek_reg(tracee, CURRENT, SYSARG_3), sizeof(how));
++		if (status < 0)
++			break;
++		if ((how.resolve & ~(uint64_t) 0x3f) != 0
++		    || ((how.resolve & 0x08) != 0 && (how.resolve & 0x10) != 0)
++		    || (how.mode != 0 && (how.flags & (O_CREAT | __O_TMPFILE)) == 0)
++		    || (how.flags >> 32) != 0) {
++			status = -EINVAL;
++			break;
++		}
++		if ((how.resolve & 0x20) != 0) {
++			status = -EAGAIN;
++			break;
++		}
++		if ((how.resolve & 0x1f) != 0) {
++			status = -ENOSYS;
++			break;
++		}
++#ifdef __ANDROID__
++		if ((how.flags & __O_TMPFILE) != 0) {
++			status = -EOPNOTSUPP;
++			break;
++		}
++#endif
++		dirfd = peek_reg(tracee, CURRENT, SYSARG_1);
++		status = get_sysarg_path(tracee, path, SYSARG_2);
++		if (status < 0)
++			break;
++
++		if (   ((how.flags & O_NOFOLLOW) != 0)
++			|| ((how.flags & O_EXCL) != 0 && (how.flags & O_CREAT) != 0))
++			status = translate_path2(tracee, dirfd, path, SYSARG_2, SYMLINK);
++		else
++			status = translate_path2(tracee, dirfd, path, SYSARG_2, REGULAR);
++		if (status < 0)
++			break;
++
++		set_sysnum(tracee, PR_openat);
++		poke_reg(tracee, SYSARG_3, how.flags);
++		poke_reg(tracee, SYSARG_4, how.mode);
+ 		break;
++	}
+ 
+ 
+ 

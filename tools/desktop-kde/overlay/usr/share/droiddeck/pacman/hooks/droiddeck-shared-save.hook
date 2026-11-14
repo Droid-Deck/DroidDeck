@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = Saving files other DroidDeck software needs...
+When = PreTransaction
+Exec = /usr/share/droiddeck/pacman/keep save

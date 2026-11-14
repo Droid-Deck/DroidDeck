@@ -11,7 +11,6 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionEvents
 import java.io.File
 
-/** Process-wide cursor survives Activity recreation; a new session ignores older log errors. */
 internal object SteamVrHealth {
     private var session: String? = null
     private var log: SteamVrDeviceLossLog? = null
@@ -49,7 +48,6 @@ internal class SteamVrRecovery(private val activity: Activity, private val foreg
             .create()
         prompt.setOnDismissListener { countdown?.let(handler::removeCallbacks); countdown = null; dialog = null }
         dialog = prompt
-        // A touch meant for the game must not silently dismiss the recovery controls.
         prompt.setCanceledOnTouchOutside(false)
         prompt.show()
         if (automatic) {
@@ -66,7 +64,6 @@ internal class SteamVrRecovery(private val activity: Activity, private val foreg
 
     private fun restart() {
         if (!foreground()) return
-        // Commit before crossing processes so a repeated fault cannot create a restart loop.
         if (!activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putLong(LAST_ATTEMPT, System.currentTimeMillis()).commit()) return
         SessionEvents.record("steamvr.recovery_requested")

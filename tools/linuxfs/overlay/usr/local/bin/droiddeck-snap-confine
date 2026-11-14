@@ -1,0 +1,19 @@
+#!/bin/bash
+while [ $# -gt 0 ]; do
+  case $1 in
+    --classic) shift ;;
+    --base) shift 2 ;;
+    --*) shift ;;
+    *) break ;;
+  esac
+done
+tag=${1:?security tag}
+shift
+[ "${1##*/}" = snap-exec ] && shift
+app=${1:-}
+shift
+name=${tag#snap.}
+name=${name%%.*}
+app=${app#*.}
+[ -n "$app" ] || app=$name
+exec /usr/local/bin/droiddeck-snap-run "$name" "$app" "$@"

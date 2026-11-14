@@ -69,7 +69,6 @@ internal class VitureV2Link internal constructor(
                 return true
             }
             if (msgId == VitureProtocol.MSG_GET_IMU) return true
-            // Keep the measured 120 Hz mode; the generic controller requests 240 Hz.
             if (msgId == VitureProtocol.MSG_IMU_RATE) return false
             val query = when (msgId) {
                 VitureProtocol.MSG_GET_BRIGHTNESS -> VitureV2Protocol.MSG_GET_BRIGHTNESS
@@ -146,9 +145,7 @@ internal class VitureV2Link internal constructor(
             tracking(true)
             if (becameReady) listener.onReady()
             val q = pose.quaternion
-            // Upstream right/up/back pose converted to the shared VITURE legacy basis.
             val shared = floatArrayOf(-q[2], -q[0], q[1], q[3])
-            // Upstream does not establish device tick units; use host monotonic receipt time.
             if (running && wanted && streamOn) listener.onPose(received.bytes, shared, received.timeNs)
             return
         }

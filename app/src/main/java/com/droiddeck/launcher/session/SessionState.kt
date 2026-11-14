@@ -54,6 +54,8 @@ object SessionState {
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
+    /** A freeze has begun and has not finished; it already chose which processes it stops. */
+    @Volatile var suspending = false
     var resumeFailures by mutableIntStateOf(0)
     var resumeFailed by mutableStateOf(false)
     var manualPause by mutableStateOf(false)
@@ -70,10 +72,45 @@ object SessionState {
     var steamUrl: String? = null
     @Volatile
     var steamClientArch: String? = null
-    // A Play SteamVR request can arrive while an existing session is visible.
-    // Wake the status/launch effect even if no glasses surface has attached yet.
     var steamVr by mutableStateOf(false)
+    @Volatile
     var relaunch: android.content.Intent? = null
+    @Volatile
+    private var relaunchSessionId: String? = null
+    @Volatile
+    private var relaunchStopRequested = false
+
+    fun queueRelaunch(intent: android.content.Intent) {
+        synchronized(this) {
+            relaunch = intent
+            relaunchSessionId = sessionId
+            relaunchStopRequested = false
+        }
+    }
+
+    fun confirmRelaunchStop() {
+        synchronized(this) {
+            relaunchStopRequested = relaunch != null && relaunchSessionId == sessionId
+        }
+    }
+
+    fun takeRelaunch(): android.content.Intent? = synchronized(this) {
+        val next = relaunch
+        val valid = relaunchStopRequested && relaunchSessionId == sessionId
+        relaunch = null
+        relaunchSessionId = null
+        relaunchStopRequested = false
+        next.takeIf { valid }
+    }
+
+    fun clearRelaunch() {
+        synchronized(this) {
+            relaunch = null
+            relaunchSessionId = null
+            relaunchStopRequested = false
+        }
+    }
+
     @JvmStatic var hdr = false
 
     @Volatile private var deckPadValue = false
@@ -91,6 +128,12 @@ object SessionState {
 
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
     @Volatile var secondScreenDisplay = -1
+    @Volatile var secondScreenAutoOpened = false
+    @Volatile var secondScreenProvisional = false
+    @Volatile var secondScreenAutomatic = false
+    @Volatile var gameOnBottom = false
+
+    @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
 
     @Volatile
     var mode = "steam"
@@ -100,12 +143,16 @@ object SessionState {
 
     @Volatile
     var followScreen = false
+    var followScale = 1f
 
     @Volatile
     var refreshHz: Float = 60f
 
     @Volatile
     var upscaleRatio: Float = 0f
+
+    @Volatile
+    var fpsLimit: Int = 0
 
     @Volatile
     var firstFrameSeen = false

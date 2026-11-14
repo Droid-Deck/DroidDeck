@@ -2,6 +2,7 @@
 <resources>
     <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:colorBackground">#FF101418</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
     </style>
     <style name="SessionTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@android:color/black</item>

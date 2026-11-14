@@ -61,3 +61,6 @@ extern volatile int g_no_render_node;
 
 COMPOSITOR_INTERNAL extern dev_t g_main_device;
 COMPOSITOR_INTERNAL void bind_dmabuf(struct wl_client *c, void *data, uint32_t ver, uint32_t id);
+
+/* ---- wl_android_buffer.c */
+COMPOSITOR_INTERNAL void droiddeck_android_wlegl_init(struct wl_display *display);

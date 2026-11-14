@@ -101,6 +101,33 @@ class DriverBundleTest {
         assertTrue(DriverBundle.all(context).isEmpty())
     }
 
+    @Test fun aDisplayPickedAwayFromABundleTakesItsRuntimeHalfWithIt() {
+        val b = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, TurnipDriver.AUTO)
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertNull(DriverBundle.active(context))
+
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, "turnip25.1.0")
+        assertEquals("turnip25.1.0", SessionPrefs.androidDriver(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+    }
+
+    @Test fun aDisplayPickOutsideABundleKeepsTheChosenRuntime() {
+        SessionPrefs.setLinuxDriver(context, "my-linux-driver")
+        SessionPrefs.setAndroidDriver(context, "turnip25.1.0")
+        DriverBundle.selectDisplay(context, TurnipDriver.AUTO)
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+        assertEquals("my-linux-driver", SessionPrefs.linuxDriver(context))
+
+        val b = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, b)
+        DriverBundle.selectDisplay(context, b.androidId)
+        assertEquals(b.linuxId, SessionPrefs.linuxDriver(context))
+    }
+
     @Test fun aRefusedHalfLeavesNothingInstalled() {
         try {
             DriverBundle.install(context, bundle(linuxLibc = "libc.so"))
@@ -128,5 +155,20 @@ class DriverBundleTest {
         assertEquals("DD-Turnip-v0.1.0-2", second.id)
         assertEquals(2, DriverBundle.all(context).size)
         assertFalse(first.androidId == second.androidId)
+    }
+
+    @Test fun failedNonAdrenoReplacementKeepsTheInstalledPairAndSelection() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val first = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, first)
+        try {
+            DriverBundle.install(context, bundle(linuxLibc = "libc.so"))
+            fail("Accepted a bionic Linux driver")
+        } catch (_: IllegalArgumentException) {
+        }
+        assertEquals(first.id, DriverBundle.active(context)?.id)
+        assertTrue(TurnipDriver(context).isInstalled(first.androidId))
+        assertTrue(LinuxVulkanDriverManager(context).isInstalled(first.linuxId))
+        assertEquals(1, DriverBundle.all(context).size)
     }
 }

@@ -23,7 +23,7 @@ import com.droiddeck.launcher.stores.itch.ItchUpdates
 @Composable
 internal fun ItchCheckButton(installed: InstalledStoreGame) {
     val ctx = LocalContext.current
-    IconAction(Icons.Filled.Refresh, stringResource(R.string.store_check_updates), "game:check-updates", enabled = ItchUpdates.checkingKey == null) {
+    IconAction(Icons.Filled.Refresh, stringResource(R.string.store_check_updates), "game:check-updates", enabled = ItchUpdates.checkingKey == null, frosted = true) {
         ItchUpdates.checkGame(ctx, installed)
     }
 }

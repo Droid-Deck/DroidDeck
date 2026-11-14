@@ -1,0 +1,14 @@
+#!/bin/bash
+while [ $# -gt 0 ]; do
+  case $1 in
+    --version) echo "pkexec version 126 (droiddeck)"; exit 0 ;;
+    --help) echo "usage: pkexec [--user username] [PROGRAM] [ARGUMENTS...]"; exit 0 ;;
+    --disable-internal-agent|--keep-cwd) shift ;;
+    --user) [ $# -ge 2 ] || exit 127; case $2 in root|0) ;; *) echo "pkexec: no user $2" >&2; exit 127 ;; esac; shift 2 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+[ $# -gt 0 ] || set -- "$(getent passwd root | cut -d: -f7)"
+[ "$(id -u)" = 0 ] && exec "$@"
+exec /usr/local/bin/droiddeck-root "$@"

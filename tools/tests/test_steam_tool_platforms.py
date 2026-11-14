@@ -1,0 +1,215 @@
+import json
+import os
+from pathlib import Path
+import select
+import tempfile
+import unittest
+from unittest import mock
+
+from tools.tests import test_droiddeck_fex as fixtures
+from tools.tests import test_steam_compat_live as live
+from tools.tests.test_steam_compat_mapping import config_text
+
+
+COMPAT = live.COMPAT
+TOOL = COMPAT["TOOL"]
+
+
+class ToolPlatformsTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.steam = self.root / "Steam"
+        self.state = self.root / "state"
+        self.config = self.steam / "config/config.vdf"
+        self.config.parent.mkdir(parents=True)
+        self.state.mkdir()
+        (self.steam / "appcache").mkdir()
+        (self.steam / "steamapps").mkdir()
+        self.entries = {
+            976730: ("windows", "64", "game"),
+            1826330: ("linux", "", "tool"),
+            1161040: ("linux", "", "tool"),
+            900001: ("windows", "64", "tool"),
+            900002: ("linux", "arm64", "tool"),
+            900003: ("osx", "64", "tool"),
+            900004: ("", "", "tool"),
+            900005: ("linux,windows", "64", "tool"),
+        }
+        self.write_appinfo()
+        self.catalog = [{"name": TOOL, "display": "Proton", "dir": "Proton", "valve": True}]
+        self.config.write_text(config_text('"0" { "name" "%s" }' % TOOL))
+        patcher = mock.patch.dict(COMPAT["register_default"].__globals__, COMPAT_DIR=str(self.state))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write_appinfo(self, magic=0x07564429):
+        (self.steam / "appcache/appinfo.vdf").write_bytes(fixtures.AppInfoTest.appinfo(self.entries, magic))
+
+    def platforms(self):
+        return COMPAT["tool_platforms"](str(self.steam))
+
+    def plan(self, current, auto=None, **kwargs):
+        return COMPAT["plan_mapping"](current, ["976730"], [TOOL], TOOL, auto or {},
+                                      tools=self.platforms(), **kwargs)
+
+    def test_metadata_selects_tools_across_cache_formats(self):
+        for magic in (0x07564427, 0x07564428, 0x07564429):
+            with self.subTest(magic=magic):
+                self.write_appinfo(magic)
+                self.assertEqual(set(self.platforms()), {"1826330", "1161040", "900001", "900002", "900005"})
+
+    def test_tools_are_not_installed_games(self):
+        for app in self.entries:
+            (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        self.assertEqual(COMPAT["installed_apps"](str(self.steam)), ["976730"])
+
+    def test_linux_tools_clear_proton_and_windows_tools_get_default_before_install(self):
+        current = {"0": TOOL, "976730": TOOL, "1826330": TOOL, "1161040": "proton_experimental"}
+        changes, auto = self.plan(current, {"1826330": TOOL, "976730": TOOL})
+        self.assertEqual(changes, {"1826330": None, "1161040": None, "900001": TOOL})
+        self.assertNotIn("1826330", auto)
+        self.assertEqual(auto["900001"], TOOL)
+        self.assertEqual(auto["976730"], TOOL)
+
+    def test_removed_ge_proton_is_cleared_with_or_without_saved_ownership(self):
+        for saved in ({}, {"1826330": "GE-Proton11-7"}):
+            with self.subTest(saved=saved):
+                changes, auto = self.plan({"0": TOOL, "1826330": "GE-Proton11-7"}, saved)
+                self.assertIsNone(changes["1826330"])
+                self.assertNotIn("1826330", auto)
+
+    def test_removed_ge_proton_game_selection_survives(self):
+        changes, auto = self.plan({"0": TOOL, "976730": "GE-Proton11-7"})
+        self.assertNotIn("976730", changes)
+        self.assertNotIn("976730", auto)
+
+    def test_saved_native_selections_survive(self):
+        for name in (COMPAT["FEX_TOOL"], "custom-native"):
+            with self.subTest(name=name):
+                changes, auto = self.plan({"0": TOOL, "1826330": name}, {"1826330": name})
+                self.assertNotIn("1826330", changes)
+                self.assertNotIn("1826330", auto)
+
+    def test_main_watches_cache_updates_and_replacements(self):
+        class StopWatching(BaseException):
+            pass
+
+        watchers = []
+
+        def capture(files):
+            watcher = live.LIVE["Watcher"](files)
+            watchers.append(watcher)
+            raise StopWatching()
+
+        namespace = live.LIVE["main"].__globals__
+        with mock.patch.dict(namespace, Watcher=capture), mock.patch.dict(os.environ, BL_CDP_PORT="1"), \
+                mock.patch.object(live.LIVE["sys"], "argv", ["compat", str(self.steam)]):
+            with self.assertRaises(StopWatching):
+                live.LIVE["main"]()
+        watcher = watchers[0]
+        if watcher.fd >= 0:
+            self.addCleanup(os.close, watcher.fd)
+        self.assertFalse(watcher.changed())
+        self.entries[900006] = ("linux", "", "tool")
+        self.write_appinfo()
+        self.assertTrue(watcher.changed())
+        self.assertIn("900006", self.platforms())
+        cache = self.steam / "appcache/appinfo.vdf"
+        replacement = cache.with_suffix(".tmp")
+        replacement.write_bytes(cache.read_bytes())
+        replacement.replace(cache)
+        self.assertTrue(watcher.changed())
+
+    def test_watcher_follows_an_appcache_created_after_startup(self):
+        root = self.root / "late"
+        (root / "state").mkdir(parents=True)
+        watcher = live.LIVE["Watcher"]([str(root / "state/request.json"), str(root / "appcache/appinfo.vdf")])
+        self.assertGreaterEqual(watcher.fd, 0)
+        self.addCleanup(os.close, watcher.fd)
+        self.assertFalse(watcher.changed())
+        (root / "appcache").mkdir()
+        self.assertTrue(watcher.changed())
+        (root / "appcache/appinfo.vdf").write_bytes(b"x")
+        self.assertTrue(watcher.changed())
+
+    def test_watcher_follows_each_missing_directory_level(self):
+        root = self.root / "levels"
+        root.mkdir()
+        target = root / "sd/steamapps/appmanifest_1.acf"
+        watcher = live.LIVE["Watcher"]([str(target)])
+        self.assertGreaterEqual(watcher.fd, 0)
+        self.addCleanup(os.close, watcher.fd)
+        (root / "sd").mkdir()
+        self.assertTrue(select.select([watcher.fd], [], [], 1)[0])
+        self.assertFalse(watcher.changed())
+        (root / "sd/steamapps").mkdir()
+        self.assertTrue(select.select([watcher.fd], [], [], 1)[0])
+        self.assertTrue(watcher.changed())
+        target.write_bytes(b"x")
+        self.assertTrue(watcher.changed())
+
+    def test_linux_tool_requests_cannot_restore_windows_platform(self):
+        changes, auto = self.plan({"0": TOOL, "1826330": TOOL}, overrides={"1826330": TOOL})
+        self.assertIsNone(changes["1826330"])
+        self.assertNotIn("1826330", auto)
+
+    def test_linux_execution_tools_and_custom_selections_survive(self):
+        current = {"0": TOOL, "1826330": COMPAT["FEX_TOOL"], "900002": "custom-native",
+                   "900001": "custom-windows", "900005": TOOL}
+        changes, auto = self.plan(current)
+        self.assertEqual(changes, {"976730": TOOL})
+        self.assertNotIn("1826330", auto)
+
+    def test_missing_or_malformed_cache_does_not_invent_platforms(self):
+        cache = self.steam / "appcache/appinfo.vdf"
+        cache.unlink()
+        self.assertEqual(self.platforms(), {})
+        cache.write_bytes(b"invalid")
+        self.assertEqual(self.platforms(), {})
+
+    def test_offline_repair_is_idempotent_and_preserves_game_and_neighbor_fields(self):
+        self.config.write_text(config_text(
+            '"0" { "name" "%s" } "976730" { "name" "custom-game" } '
+            '"1826330" { "name" "%s" }' % (TOOL, TOOL)))
+        for _ in range(2):
+            COMPAT["register_default"](str(self.config), ["976730"], catalog=self.catalog,
+                                       directory=str(self.state), default=TOOL)
+            self.assertEqual(COMPAT["read_config_mapping"](str(self.config)),
+                             {"0": TOOL, "976730": "custom-game", "900001": TOOL})
+            self.assertIn('"outside"', self.config.read_text())
+            state = json.loads((self.state / "state.json").read_text())
+            self.assertNotIn("1826330", state["auto"])
+
+    def reconcile(self, page):
+        helper = live.LIVE["Helper"](str(self.steam), 1)
+        helper.page = page
+        with mock.patch.dict(COMPAT, tool_catalog=lambda root: self.catalog):
+            helper.reconcile()
+        return json.loads((self.state / "state.json").read_text())
+
+    def test_live_repair_covers_uninstalled_dependencies_and_stays_idempotent(self):
+        page = live.FakePage({"0": TOOL, "1826330": TOOL, "976730": "custom-game"}, [TOOL])
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("900001", TOOL), ("1826330", "")])
+        self.assertNotIn("1826330", state["auto"])
+        page.sets.clear()
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["976730"], "custom-game")
+
+    def test_live_removed_ge_proton_is_cleared_and_stays_cleared(self):
+        page = live.FakePage({"0": TOOL, "1826330": "GE-Proton11-7"}, [TOOL])
+        (self.state / "state.json").write_text(json.dumps({"auto": {"1826330": "GE-Proton11-7"}}))
+        state = self.reconcile(page)
+        self.assertIn(("1826330", ""), page.sets)
+        self.assertNotIn("1826330", state["auto"])
+        page.sets.clear()
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
+
+    def test_live_refused_tools_are_not_written(self):
+        page = live.FakePage({"0": TOOL, "1826330": TOOL}, [TOOL], refused={"1826330", "900001"})
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])

@@ -1,0 +1,254 @@
+diff --git a/src/Backends/SDLBackend.cpp b/src/Backends/SDLBackend.cpp
+index 58af150..b050183 100644
+--- a/src/Backends/SDLBackend.cpp
++++ b/src/Backends/SDLBackend.cpp
+@@ -51,6 +51,7 @@ namespace gamescope
+ 		GAMESCOPE_SDL_EVENT_VISIBLE,
+ 		GAMESCOPE_SDL_EVENT_GRAB,
+ 		GAMESCOPE_SDL_EVENT_CURSOR,
++		GAMESCOPE_SDL_EVENT_WINDOW_MODE,
+ 
+ 		GAMESCOPE_SDL_EVENT_COUNT,
+ 	};
+@@ -114,6 +115,7 @@ namespace gamescope
+         virtual void SetCursorImage( std::shared_ptr<INestedHints::CursorInfo> info ) override;
+         virtual void SetRelativeMouseMode( bool bRelative ) override;
+         virtual void SetVisible( bool bVisible ) override;
++        virtual void SetWindowMode( bool bFullscreen, int nWidth, int nHeight ) override;
+         virtual void SetTitle( std::shared_ptr<std::string> szTitle ) override;
+         virtual void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels ) override;
+         virtual void SetSelection( std::shared_ptr<std::string> szContents, GamescopeSelection eSelection ) override;
+@@ -179,6 +181,7 @@ namespace gamescope
+         void SetCursorImage( std::shared_ptr<INestedHints::CursorInfo> info );
+         void SetRelativeMouseMode( bool bRelative );
+         void SetVisible( bool bVisible );
++        void SetWindowMode( bool bFullscreen, int nWidth, int nHeight );
+         void SetTitle( std::shared_ptr<std::string> szTitle );
+         void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels );
+         void SetSelection( std::shared_ptr<std::string> szContents, GamescopeSelection eSelection );
+@@ -193,6 +196,12 @@ namespace gamescope
+ 		bool m_bShown = false;
+ 		CSDLConnector m_Connector; // Window.
+ 		uint32_t m_uUserEventIdBase = 0u;
++		std::atomic<bool> m_bWantFullscreen = { false };
++		std::atomic<int> m_nWantWidth = { 0 };
++		std::atomic<int> m_nWantHeight = { 0 };
++		bool m_bAppliedFullscreen = false;
++		int m_nAppliedWidth = 0;
++		int m_nAppliedHeight = 0;
+ 		std::vector<const char *> m_pszInstanceExtensions;
+ 
+ 		std::thread m_SDLThread;
+@@ -372,6 +381,10 @@ namespace gamescope
+ 	{
+ 		m_pBackend->SetVisible( bVisible );
+ 	}
++	void CSDLConnector::SetWindowMode( bool bFullscreen, int nWidth, int nHeight )
++	{
++		m_pBackend->SetWindowMode( bFullscreen, nWidth, nHeight );
++	}
+ 	void CSDLConnector::SetTitle( std::shared_ptr<std::string> szTitle )
+ 	{
+ 		m_pBackend->SetTitle( std::move( szTitle ) );
+@@ -544,6 +557,13 @@ namespace gamescope
+ 		m_bApplicationVisible = bVisible;
+ 		PushUserEvent( GAMESCOPE_SDL_EVENT_VISIBLE );
+ 	}
++	void CSDLBackend::SetWindowMode( bool bFullscreen, int nWidth, int nHeight )
++	{
++		m_bWantFullscreen = bFullscreen;
++		m_nWantWidth = nWidth;
++		m_nWantHeight = nHeight;
++		PushUserEvent( GAMESCOPE_SDL_EVENT_WINDOW_MODE );
++	}
+ 	void CSDLBackend::SetTitle( std::shared_ptr<std::string> szTitle )
+ 	{
+ 		m_pApplicationTitle = szTitle;
+@@ -894,6 +914,38 @@ namespace gamescope
+ 							}
+ 						}
+ 					}
++					else if ( event.type == GetUserEventIndex( GAMESCOPE_SDL_EVENT_WINDOW_MODE ) )
++					{
++						const bool bFullscreen = m_bWantFullscreen;
++						const int nWidth = bFullscreen ? 0 : m_nWantWidth.load();
++						const int nHeight = bFullscreen ? 0 : m_nWantHeight.load();
++
++						if ( bFullscreen != m_bAppliedFullscreen || nWidth != m_nAppliedWidth || nHeight != m_nAppliedHeight )
++						{
++							m_bAppliedFullscreen = bFullscreen;
++							m_nAppliedWidth = nWidth;
++							m_nAppliedHeight = nHeight;
++							g_bFullscreen = bFullscreen;
++							SDL_SetWindowFullscreen( m_Connector.GetSDLWindow(), bFullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0 );
++							if ( !bFullscreen )
++							{
++								static constexpr int k_nDesktopChromeHeight = 96;
++
++								SDL_Rect usable = {};
++								const int nDisplay = SDL_GetWindowDisplayIndex( m_Connector.GetSDLWindow() );
++								const bool bKnown = SDL_GetDisplayUsableBounds( nDisplay, &usable ) == 0;
++								if ( bKnown && ( nWidth > usable.w || nHeight + k_nDesktopChromeHeight > usable.h ) )
++								{
++									SDL_MaximizeWindow( m_Connector.GetSDLWindow() );
++								}
++								else
++								{
++									SDL_RestoreWindow( m_Connector.GetSDLWindow() );
++									SDL_SetWindowSize( m_Connector.GetSDLWindow(), nWidth, nHeight );
++								}
++							}
++						}
++					}
+ 					else if ( event.type == GetUserEventIndex( GAMESCOPE_SDL_EVENT_TITLE ) )
+ 					{
+ 						std::shared_ptr<std::string> pAppTitle = m_pApplicationTitle;
+diff --git a/src/backend.h b/src/backend.h
+index 37b936e..fbfa7c7 100644
+--- a/src/backend.h
++++ b/src/backend.h
+@@ -273,6 +273,7 @@ namespace gamescope
+         virtual void SetRelativeMouseMode( bool bRelative ) = 0;
+         virtual void SetCursorPositionHint( double flX, double flY ) {}
+         virtual void SetVisible( bool bVisible ) = 0;
++        virtual void SetWindowMode( bool bFullscreen, int nWidth, int nHeight ) {}
+         virtual void SetTitle( std::shared_ptr<std::string> szTitle ) = 0;
+         virtual void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels ) = 0;
+         virtual void SetSelection( std::shared_ptr<std::string> szContents, GamescopeSelection eSelection ) = 0;
+diff --git a/src/main.cpp b/src/main.cpp
+index eef4264..8f0ddd3 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -73,6 +73,7 @@ const struct option *gamescope_options = (struct option[]){
+ 	{ "rt", no_argument, nullptr, 0 },
+ 	{ "prefer-vk-device", required_argument, 0 },
+ 	{ "expose-wayland", no_argument, 0 },
++	{ "follow-game-window-mode", no_argument, 0 },
+ 	{ "mouse-sensitivity", required_argument, nullptr, 's' },
+ 	{ "mangoapp", no_argument, nullptr, 0 },
+ 	{ "adaptive-sync", no_argument, nullptr, 0 },
+@@ -700,6 +701,7 @@ static void UpdateCompatEnvVars()
+ int g_nPreferredOutputWidth = 0;
+ int g_nPreferredOutputHeight = 0;
+ bool g_bExposeWayland = false;
++bool g_bFollowGameWindowMode = false;
+ const char *g_sOutputName = nullptr;
+ bool g_bDebugLayers = false;
+ bool g_bForceDisableColorMgmt = false;
+@@ -838,6 +840,8 @@ int main(int argc, char **argv)
+ 					cv_adaptive_sync = true;
+ 				} else if (strcmp(opt_name, "expose-wayland") == 0) {
+ 					g_bExposeWayland = true;
++				} else if (strcmp(opt_name, "follow-game-window-mode") == 0) {
++					g_bFollowGameWindowMode = true;
+ 				} else if (strcmp(opt_name, "backend") == 0) {
+ 					eCurrentBackend = parse_backend_name( optarg );
+ 				} else if (strcmp(opt_name, "cursor-scale-height") == 0) {
+diff --git a/src/main.hpp b/src/main.hpp
+index b2a169f..48929f2 100644
+--- a/src/main.hpp
++++ b/src/main.hpp
+@@ -134,6 +134,7 @@ extern int g_upscaleFilterSharpness;
+ extern bool g_bBorderlessOutputWindow;
+ 
+ extern bool g_bExposeWayland;
++extern bool g_bFollowGameWindowMode;
+ 
+ extern bool g_bRt;
+ 
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index c468fb3..3188b74 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -4741,6 +4741,54 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
+ 				sizeof(wmState) / sizeof(wmState[0]));
+ }
+ 
++static bool
++window_offers_frame_controls( xwayland_ctx_t *ctx, steamcompmgr_win_t *w )
++{
++	static constexpr unsigned long k_ulMotifFunctions = 1ul << 0;
++	static constexpr unsigned long k_ulMotifMinimize = 1ul << 3;
++	static constexpr unsigned long k_ulMotifMaximize = 1ul << 4;
++	static constexpr unsigned long k_ulMotifDecorations = 1ul << 1;
++
++	Atom type;
++	int format;
++	unsigned long nitems;
++	unsigned long bytesAfter;
++	unsigned char *data = nullptr;
++	if ( XGetWindowProperty( ctx->dpy, w->xwayland().id, ctx->atoms.motifWMHintsAtom, 0, 3, false,
++			AnyPropertyType, &type, &format, &nitems, &bytesAfter, &data ) != Success )
++		return false;
++
++	bool bControls = false;
++	if ( data && format == 32 && nitems >= 3 )
++	{
++		const long *hints = (const long *)data;
++		bControls = ( ( hints[0] & k_ulMotifFunctions ) && ( hints[1] & ( k_ulMotifMinimize | k_ulMotifMaximize ) ) ) ||
++			( ( hints[0] & k_ulMotifDecorations ) && hints[2] );
++	}
++	if ( data )
++		XFree( data );
++	return bControls;
++}
++
++static void
++apply_game_window_mode( global_focus_t *pFocus )
++{
++	static constexpr int k_nSmallestFollowedWindow = 64;
++
++	steamcompmgr_win_t *w = pFocus->focusWindow;
++	if ( !g_bFollowGameWindowMode || !pFocus->GetNestedHints() || !w || w->type != steamcompmgr_win_type_t::XWAYLAND )
++		return;
++
++	xwayland_ctx_t *ctx = w->xwayland().ctx;
++	const XWindowAttributes &a = w->xwayland().a;
++	if ( a.width < k_nSmallestFollowedWindow || a.height < k_nSmallestFollowedWindow )
++		return;
++
++	const bool bCoversScreen = a.x == 0 && a.y == 0 && a.width >= ctx->root_width && a.height >= ctx->root_height;
++	const bool bFullscreen = w->isFullscreen || ( w->appID && bCoversScreen && !window_offers_frame_controls( ctx, w ) );
++	pFocus->GetNestedHints()->SetWindowMode( bFullscreen, a.width, a.height );
++}
++
+ static void
+ fit_root_to_focus_window( xwayland_ctx_t *ctx )
+ {
+@@ -5739,6 +5787,7 @@ determine_and_apply_focus( global_focus_t *pFocus )
+ 		if ( pFocus->focusWindow )
+ 		{
+ 			pFocus->GetNestedHints()->SetVisible( true );
++			apply_game_window_mode( pFocus );
+ 			if ( previousLocalFocus.focusWindow != pFocus->focusWindow )
+ 			{
+ 				pFocus->GetNestedHints()->SetTitle( pFocus->focusWindow->title );
+@@ -7083,6 +7132,8 @@ static inline float santitize_float( float f )
+ static void
+ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
+ {
++	if (ev->atom == ctx->atoms.motifWMHintsAtom)
++		MakeFocusDirty();
+ 	/* check if Trans property was changed */
+ 	if (ev->atom == ctx->atoms.opacityAtom)
+ 	{
+@@ -9216,6 +9267,7 @@ void init_xwayland_ctx(uint32_t serverId, gamescope_xwayland_server_t *xwayland_
+ 	ctx->atoms.winNormalAtom = XInternAtom(ctx->dpy, "_NET_WM_WINDOW_TYPE_NORMAL", false);
+ 	ctx->atoms.sizeHintsAtom = XInternAtom(ctx->dpy, "WM_NORMAL_HINTS", false);
+ 	ctx->atoms.netWMStateFullscreenAtom = XInternAtom(ctx->dpy, "_NET_WM_STATE_FULLSCREEN", false);
++	ctx->atoms.motifWMHintsAtom = XInternAtom(ctx->dpy, "_MOTIF_WM_HINTS", false);
+ 	ctx->atoms.netActiveWindowAtom = XInternAtom(ctx->dpy, "_NET_ACTIVE_WINDOW", false);
+ 	ctx->atoms.netWMStateAtom = XInternAtom(ctx->dpy, "_NET_WM_STATE", false);
+ 	ctx->atoms.WMTransientForAtom = XInternAtom(ctx->dpy, "WM_TRANSIENT_FOR", false);
+diff --git a/src/xwayland_ctx.hpp b/src/xwayland_ctx.hpp
+index 15c2e6b..525b155 100644
+--- a/src/xwayland_ctx.hpp
++++ b/src/xwayland_ctx.hpp
+@@ -128,6 +128,7 @@ struct xwayland_ctx_t final : public gamescope::IWaitable
+ 		Atom winNormalAtom;
+ 		Atom sizeHintsAtom;
+ 		Atom netWMStateFullscreenAtom;
++		Atom motifWMHintsAtom;
+ 		Atom netActiveWindowAtom;
+ 		Atom netWMStateAtom;
+ 		Atom WMTransientForAtom;

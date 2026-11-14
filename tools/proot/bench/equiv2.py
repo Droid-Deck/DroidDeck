@@ -1,9 +1,3 @@
-"""Fast path equivalence, part two: symlinked directories (Wine's dosdevices), "..", trailing
-slashes, realpath/getcwd, the write family, Unix sockets, xattrs, statfs, inotify and fstat.
-
-Run under proot with and without the fast path (run-device.sh fpoff / fastpath) and diff the
-output: every line must match. Builds its own tree under /root/fx and /mnt/droiddeck-sd/fx.
-"""
 import ctypes
 import errno
 import os

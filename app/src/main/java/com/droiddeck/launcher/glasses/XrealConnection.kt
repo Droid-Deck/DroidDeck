@@ -24,7 +24,6 @@ internal interface XrealConnector : Closeable {
 
 internal class XrealNetworkMissing : IOException("XREAL USB Ethernet network is not available")
 
-/** Bind individual sockets, never the process: Steam must retain its Internet network. */
 internal class AndroidXrealConnector(context: Context) : XrealConnector {
     private val manager = context.getSystemService(ConnectivityManager::class.java)
     private val address = InetAddress.getByName(XrealProtocol.HOST)

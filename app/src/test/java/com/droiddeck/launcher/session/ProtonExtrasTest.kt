@@ -44,6 +44,8 @@ class ProtonExtrasTest {
     private fun installTool(parent: File, name: String) = File(parent, name).apply {
         mkdirs()
         File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
+        File(this, "compatibilitytool.vdf").writeText("\"from_oslist\" \"windows\"")
+        File(this, "proton").apply { writeText(""); setExecutable(true) }
     }
 
     @Test
@@ -118,6 +120,17 @@ class ProtonExtrasTest {
         assertEquals(listOf("DroidDeck-Proton 11-7.5", "DroidDeck-Proton 11-7.10"), ProtonExtras.installedIn(tools, tool("droiddeck")))
         assertEquals(listOf("proton-cachyos-11.0-20261005-slr-arm64"), ProtonExtras.installedIn(tools, tool("cachyos")))
         assertEquals(emptyList<String>(), ProtonExtras.installedIn(File(tools, "missing"), tool("ge")))
+    }
+
+    @Test
+    fun interruptedBuildsAreNotReportedAsInstalled() {
+        val tools = temp.newFolder("compatibilitytools.d")
+        installTool(tools, "GE-Proton11-10")
+        File(tools, "GE-Proton11-11").apply {
+            mkdirs()
+            File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
+        }
+        assertEquals(listOf("GE-Proton11-10"), ProtonExtras.installedIn(tools, tool("ge")))
     }
 
     @Test
