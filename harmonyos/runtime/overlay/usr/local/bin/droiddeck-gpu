@@ -1,0 +1,53 @@
+#!/bin/bash
+set -u
+[ $# -gt 0 ] || { echo "usage: droiddeck-gpu <program> [args...]" >&2; exit 64; }
+if [ -n "${BL_DEBUG_DIR:-}" ]; then
+  exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
+fi
+width=${BL_WIDTH:-1280}
+height=${BL_HEIGHT:-720}
+backend=${BL_GAMESCOPE_BACKEND:-wayland}
+case "$backend" in
+  wayland|sdl) ;;
+  *) echo "== unsupported gamescope backend: $backend" >&2; exit 64 ;;
+esac
+window=0
+if [ "$backend" = wayland ] && [ "${BL_DESKTOP_GPU_WINDOW:-1}" != 0 ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ "$WAYLAND_DISPLAY" != wayland-0 ]; then
+  window=1
+  parent=$WAYLAND_DISPLAY
+  args=(--backend sdl --expose-wayland --follow-game-window-mode -W "$width" -H "$height" -w "$width" -h "$height")
+else
+  args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+fi
+if [ "${BL_FPS:-0}" -gt 0 ]; then
+  args+=(-r "$BL_FPS")
+elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
+  args+=(-r "$BL_REFRESH")
+fi
+[ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
+if [ "$window" = 1 ]; then
+  echo "== droiddeck-gpu $(date -u +%H:%M:%S): $* (gamescope ${width}x${height} in a window on $parent)"
+else
+  echo "== droiddeck-gpu $(date -u +%H:%M:%S): $* (gamescope ${width}x${height} on wayland-0)"
+  export WAYLAND_DISPLAY=wayland-0
+fi
+export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+[ "$backend" = sdl ] && export SDL_VIDEODRIVER=wayland
+unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND KWIN_COMPOSE
+wsi=",${MESA_VK_WSI_DEBUG:-},"
+while [[ $wsi == *,sw,* ]]; do wsi=${wsi//,sw,/,}; done
+wsi=${wsi#,}; wsi=${wsi%,}
+if [ -n "$wsi" ]; then export MESA_VK_WSI_DEBUG=$wsi; else unset MESA_VK_WSI_DEBUG; fi
+export BL_DESKTOP_GPU_CHILD=1
+export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
+[ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
+export APPIMAGE_EXTRACT_AND_RUN=1
+if [ "$window" = 1 ]; then
+  export BL_GPU_CHILD_WSI=${MESA_VK_WSI_DEBUG:-}
+  SDL_VIDEODRIVER=wayland MESA_VK_WSI_DEBUG=sw gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
+else
+  gamescope "${args[@]}" -- env SDL_VIDEODRIVER=x11 /usr/local/bin/droiddeck-gpu-window "$@"
+fi
+rc=$?
+echo "== droiddeck-gpu $(date -u +%H:%M:%S): exited $rc"
+exit $rc

@@ -1,0 +1,1269 @@
+#!/usr/bin/python3
+
+import base64
+import json
+import math
+import re
+import os
+import select
+import selectors
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+import urllib.parse
+from pathlib import Path
+
+VERSION = 1
+OUTPUT_CAP = 256 * 1024
+REQUEST_CAP = 256 * 1024
+RESPONSE_CAP = 1024 * 1024
+FOCUS_PROPS = (
+    "GAMESCOPE_FOCUSED_APP", "GAMESCOPE_FOCUSED_WINDOW", "GAMESCOPE_FOCUSABLE_APPS",
+    "GAMESCOPE_FOCUSABLE_WINDOWS", "GAMESCOPECTRL_BASELAYER_APPID",
+)
+WINDOW_PROPS = (
+    "STEAM_GAME", "WM_STATE", "_NET_WM_PID", "WM_CLASS", "_NET_WM_WINDOW_OPACITY", "STEAM_OVERLAY",
+    "GAMESCOPE_EXTERNAL_OVERLAY", "STEAM_INPUT_FOCUS", "_NET_WM_STATE",
+)
+MAP_STATE = ("unmapped", "unviewable", "viewable")
+WM_STATES = {0: "withdrawn", 1: "normal", 3: "iconic"}
+
+
+def log(message):
+    print("== agent: " + message, flush=True)
+
+
+def write_json(path, value):
+    tmp = path.with_name(path.name + ".tmp")
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "w") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(value, stream, separators=(",", ":"))
+    os.replace(tmp, path)
+
+
+class AgentError(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+
+class X:
+
+    def __init__(self, display):
+        num = display.lstrip(":").split(".")[0]
+        last = None
+        for address in ("\0/tmp/.X11-unix/X" + num, "/tmp/.X11-unix/X" + num):
+            try:
+                self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.s.settimeout(3)
+                self.s.connect(address)
+                break
+            except OSError as e:
+                last = e
+                self.s.close()
+        else:
+            raise last
+        self.s.sendall(struct.pack("<BxHHHHxx", 0x6C, 11, 0, 0, 0))
+        head = self._read(8)
+        if head[0] != 1:
+            raise OSError("X connection refused on " + display)
+        setup = self._read(struct.unpack_from("<H", head, 6)[0] * 4)
+        vendor = struct.unpack_from("<H", setup, 16)[0]
+        formats = setup[21]
+        self.root = struct.unpack_from("<I", setup, 32 + (vendor + 3) // 4 * 4 + formats * 8)[0]
+        self.events = []
+        self._atoms = {}
+        self._names = {}
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+    def _read(self, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = self.s.recv(n - len(buf))
+            if not chunk:
+                raise OSError("X connection closed")
+            buf += chunk
+        return buf
+
+    def request(self, data):
+        self.s.sendall(data)
+        while True:
+            head = self._read(32)
+            if head[0] == 0:
+                return None
+            if head[0] == 1:
+                return head + self._read(struct.unpack_from("<I", head, 4)[0] * 4)
+            self.events.append(head)
+
+    def next_event(self):
+        if self.events:
+            return self.events.pop(0)
+        while True:
+            head = self._read(32)
+            if head[0] > 1:
+                return head
+
+    def atom(self, name):
+        if name not in self._atoms:
+            n = name.encode()
+            pad = (4 - len(n) % 4) % 4
+            r = self.request(struct.pack("<BBHHxx", 16, 0, 2 + (len(n) + pad) // 4, len(n)) + n + b"\0" * pad)
+            self._atoms[name] = struct.unpack_from("<I", r, 8)[0] if r else 0
+        return self._atoms[name]
+
+    def atom_name(self, atom):
+        if atom not in self._names:
+            r = self.request(struct.pack("<BxHI", 17, 2, atom))
+            self._names[atom] = r[32:32 + struct.unpack_from("<H", r, 8)[0]].decode(errors="replace") if r else str(atom)
+        return self._names[atom]
+
+    def select(self, window, mask):
+        self.s.sendall(struct.pack("<BxHIII", 2, 4, window, 0x800, mask))
+
+    def children(self, window):
+        r = self.request(struct.pack("<BxHI", 15, 2, window))
+        if not r:
+            return []
+        n = struct.unpack_from("<H", r, 16)[0]
+        return list(struct.unpack_from("<%dI" % n, r, 32))
+
+    def attributes(self, window):
+        r = self.request(struct.pack("<BxHI", 3, 2, window))
+        return (r[26], r[27], struct.unpack_from("<H", r, 12)[0]) if r else None
+
+    def geometry(self, window):
+        r = self.request(struct.pack("<BxHI", 14, 2, window))
+        return struct.unpack_from("<hhHH", r, 12) if r else None
+
+    def prop(self, window, name, length=1024):
+        atom = self.atom(name)
+        if not atom:
+            return None
+        r = self.request(struct.pack("<BBHIIIII", 20, 0, 6, window, atom, 0, 0, length))
+        if not r or r[1] == 0:
+            return None
+        fmt, n = r[1], struct.unpack_from("<I", r, 16)[0]
+        data = r[32:32 + n * fmt // 8]
+        if fmt == 32:
+            return list(struct.unpack("<%dI" % n, data))
+        return data
+
+    def cardinals(self, window, name, values):
+        self.s.sendall(struct.pack("<BBHIIIB3xI", 18, 0, 6 + len(values), window,
+                                  self.atom(name), self.atom("CARDINAL"), 32, len(values))
+                       + struct.pack("<%dI" % len(values), *values))
+
+
+def windows(x):
+    out = []
+    for win in x.children(x.root):
+        attrs = x.attributes(win)
+        if not attrs:
+            continue
+        props = {name: x.prop(win, name) for name in WINDOW_PROPS}
+        if attrs[0] != 2 and not props["STEAM_GAME"]:
+            continue
+        geo = x.geometry(win) or (0, 0, 0, 0)
+        cls = props["WM_CLASS"]
+        state = props["WM_STATE"]
+        entry = {
+            "window": win,
+            "map": MAP_STATE[attrs[0]] if attrs[0] < 3 else attrs[0],
+            "overrideRedirect": bool(attrs[1]),
+            "inputOnly": attrs[2] == 2,
+            "geometry": [geo[0], geo[1], geo[2], geo[3]],
+            "appId": props["STEAM_GAME"][0] if props["STEAM_GAME"] else None,
+            "wmState": WM_STATES.get(state[0], state[0]) if state else None,
+            "pid": props["_NET_WM_PID"][0] if props["_NET_WM_PID"] else None,
+            "class": cls.split(b"\0")[-2].decode(errors="replace") if cls and b"\0" in cls else None,
+        }
+        if props["_NET_WM_WINDOW_OPACITY"]:
+            entry["opacity"] = props["_NET_WM_WINDOW_OPACITY"][0]
+        for key, name in (("overlay", "STEAM_OVERLAY"), ("externalOverlay", "GAMESCOPE_EXTERNAL_OVERLAY"),
+                          ("inputFocus", "STEAM_INPUT_FOCUS")):
+            if props[name]:
+                entry[key] = props[name][0]
+        if props["_NET_WM_STATE"]:
+            entry["netState"] = [x.atom_name(a).replace("_NET_WM_STATE_", "") for a in props["_NET_WM_STATE"]]
+        out.append(entry)
+    return out
+
+
+def displays():
+    seen = []
+    for d in (os.environ.get("DISPLAY"), os.environ.get("STEAM_GAME_DISPLAY_0")):
+        if d and d not in seen:
+            seen.append(d)
+    return seen
+
+
+def focus_snapshot():
+    shown = displays()
+    if not shown:
+        raise AgentError("NO_DISPLAY", "This session has no X display")
+    snap = {"t": int(time.time() * 1000), "displays": {}}
+    for i, d in enumerate(shown):
+        x = X(d)
+        try:
+            if i == 0:
+                values = {name: x.prop(x.root, name) for name in FOCUS_PROPS}
+                trip = values["GAMESCOPE_FOCUSABLE_WINDOWS"] or []
+                snap["focusedApp"] = (values["GAMESCOPE_FOCUSED_APP"] or [None])[0]
+                snap["focusedWindow"] = (values["GAMESCOPE_FOCUSED_WINDOW"] or [None])[0]
+                snap["focusableApps"] = values["GAMESCOPE_FOCUSABLE_APPS"] or []
+                snap["focusableWindows"] = [
+                    {"window": trip[k], "appId": trip[k + 1], "pid": trip[k + 2]} for k in range(0, len(trip) - 2, 3)
+                ]
+                snap["baselayerAppIds"] = values["GAMESCOPECTRL_BASELAYER_APPID"] or []
+            snap["displays"][d] = windows(x)
+        finally:
+            x.close()
+    return snap
+
+
+STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
+
+
+def process_env(pid, proc=Path("/proc")):
+    try:
+        return dict(entry.split(b"=", 1) for entry in (proc / str(pid) / "environ").read_bytes().split(b"\0") if b"=" in entry)
+    except OSError:
+        return {}
+
+
+def steam_app_id(env):
+    try:
+        app = int(env.get(b"SteamAppId", b"0"))
+    except ValueError:
+        return None
+    return app if 0 < app < 2**32 else None
+
+
+def under_reaper(pid, proc=Path("/proc")):
+    for _ in range(64):
+        try:
+            if (proc / str(pid) / "comm").read_text().strip() == "reaper":
+                return True
+            stat = (proc / str(pid) / "stat").read_text()
+            pid = int(stat[stat.rindex(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return False
+        if pid <= 1:
+            return False
+    return False
+
+
+def sandboxed_apps(proc=Path("/proc")):
+    apps = {}
+    try:
+        pids = [entry for entry in os.listdir(proc) if entry.isdigit()]
+    except OSError:
+        return apps
+    for pid in pids:
+        env = process_env(pid, proc)
+        flatpak, app = env.get(b"FLATPAK_ID"), steam_app_id(env)
+        if flatpak and app:
+            name = flatpak.decode(errors="replace").lower()
+            for key in {name, name.rsplit(".", 1)[-1]}:
+                apps[key] = app if apps.get(key, app) == app else None
+    return apps
+
+
+def window_steam_app(win, flatpaks, proc=Path("/proc")):
+    match = STEAM_APP_CLASS.match(win.get("class") or "")
+    if match:
+        return match.group(1) if os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64" else None
+    pid = win.get("pid")
+    if pid:
+        if under_reaper(pid, proc):
+            return None
+        app = steam_app_id(process_env(pid, proc))
+        if app:
+            return str(app)
+    app = flatpaks().get((win.get("class") or "").lower())
+    return str(app) if app else None
+
+
+def tag_game_windows(snap, proc=Path("/proc")):
+    tagged = False
+    found = []
+
+    def flatpaks():
+        if not found:
+            found.append(sandboxed_apps(proc))
+        return found[0]
+
+    for display, wins in snap.get("displays", {}).items():
+        if display == os.environ.get("DISPLAY"):
+            continue
+        for win in wins:
+            if win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect") or win.get("inputOnly"):
+                continue
+            app = window_steam_app(win, flatpaks, proc)
+            if not app:
+                continue
+            try:
+                done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
+                                       "-set", "STEAM_GAME", app],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                done = False
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, app, "ok" if done else "failed"))
+            tagged = tagged or done
+    return tagged
+
+
+def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
+    try:
+        state = json.loads(path.read_text())
+        server, scene = int(state['serverPid']), int(state['scenePid'])
+        if server <= 0 or scene <= 0 or state['dashboard'] is not False:
+            return None
+        if (proc / str(server) / 'comm').read_text().strip() != 'vrserver':
+            return None
+        for entry in (proc / str(scene) / 'environ').read_bytes().split(b'\0'):
+            if entry.startswith(b'SteamAppId='):
+                app = int(entry.split(b'=', 1)[1])
+                return app if 0 < app < 2**32 else None
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
+class VrSceneFocus:
+    def __init__(self):
+        self.original = None
+        self.written = None
+
+    def order(self, current, focusable, app):
+        if app is None or app not in focusable:
+            restore = self.original if self.written == current else None
+            self.original = self.written = None
+            return restore
+        if current and current[0] == app:
+            return None
+        if self.original is None:
+            self.original = list(current)
+        self.written = [app] + [item for item in current if item != app]
+        return self.written
+
+
+class FocusWatcher(threading.Thread):
+
+    def __init__(self, path):
+        super().__init__(daemon=True, name="focus")
+        self.path = path
+        self.changed = threading.Event()
+        self.last = None
+        self.seq = 0
+        self.vr_focus = VrSceneFocus()
+
+    def run(self):
+        threading.Thread(target=self.listen, daemon=True, name="focus-events").start()
+        last_app, last_snapshot = None, 0
+        while True:
+            notified = self.changed.wait(timeout=0.5)
+            self.changed.clear()
+            app = vr_scene_app()
+            if not notified and app == last_app and time.monotonic() - last_snapshot < 5:
+                continue
+            last_app, last_snapshot = app, time.monotonic()
+            time.sleep(0.2)
+            try:
+                snap = focus_snapshot()
+                order = self.vr_focus.order(snap.get('baselayerAppIds', []), snap.get('focusableApps', []), app)
+                if order is not None:
+                    x = X(os.environ['DISPLAY'])
+                    try:
+                        x.cardinals(x.root, 'GAMESCOPECTRL_BASELAYER_APPID', order)
+                    finally:
+                        x.close()
+            except (OSError, AgentError) as e:
+                log("focus snapshot failed: %s" % e)
+                time.sleep(2)
+                continue
+            if tag_game_windows(snap):
+                self.changed.set()
+                continue
+            body = {k: v for k, v in snap.items() if k != "t"}
+            if body == self.last:
+                continue
+            self.last = body
+            self.seq += 1
+            snap["seq"] = self.seq
+            write_json(self.path, snap)
+
+    def listen(self):
+        while True:
+            try:
+                x = X(os.environ["DISPLAY"])
+                wanted = {x.atom(name) for name in FOCUS_PROPS}
+                x.select(x.root, 0x400000)
+                x.s.settimeout(None)
+                self.changed.set()
+                while True:
+                    event = x.next_event()
+                    if event[0] & 0x7F == 28 and struct.unpack_from("<I", event, 8)[0] in wanted:
+                        self.changed.set()
+            except OSError as e:
+                log("focus events: %s; reconnecting" % e)
+                time.sleep(2)
+
+
+
+class WebSocket:
+
+    def __init__(self, url, timeout):
+        target = urllib.parse.urlsplit(url)
+        if (target.scheme != "ws" or target.hostname not in ("127.0.0.1", "::1", "localhost")
+                or target.username is not None or target.password is not None or target.fragment):
+            raise AgentError("INVALID_TARGET", "DevTools targets must use a loopback WebSocket")
+        hostport = target.netloc
+        path = target.path or "/"
+        if target.query:
+            path += "?" + target.query
+        host = "127.0.0.1" if target.hostname == "localhost" else target.hostname
+        self.s = socket.create_connection((host, target.port or 80), timeout=timeout)
+        try:
+            self._handshake(path, hostport)
+        except Exception:
+            self.s.close()
+            raise
+
+    def _handshake(self, path, hostport):
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.s.sendall((
+            "GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, hostport, key)
+        ).encode())
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = self.s.recv(4096)
+            if not chunk:
+                raise OSError("DevTools closed the connection during the handshake")
+            head += chunk
+            if len(head) > 16 * 1024:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools handshake exceeds 16 KiB")
+        status = head.split(b"\r\n", 1)[0]
+        if b" 101 " not in status:
+            raise OSError("DevTools refused the WebSocket: " + status.decode(errors="replace"))
+        self.buffer = head.split(b"\r\n\r\n", 1)[1]
+
+    def _read(self, n):
+        while len(self.buffer) < n:
+            chunk = self.s.recv(65536)
+            if not chunk:
+                raise OSError("DevTools closed the connection")
+            self.buffer += chunk
+        data, self.buffer = self.buffer[:n], self.buffer[n:]
+        return data
+
+    def send(self, text):
+        payload = text.encode()
+        header = bytearray([0x81])
+        n = len(payload)
+        if n < 126:
+            header.append(0x80 | n)
+        elif n < 65536:
+            header.append(0x80 | 126)
+            header += struct.pack(">H", n)
+        else:
+            header.append(0x80 | 127)
+            header += struct.pack(">Q", n)
+        mask = os.urandom(4)
+        header += mask
+        self.s.sendall(bytes(header) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+    def recv(self):
+        message = b""
+        while True:
+            b0, b1 = self._read(2)
+            n = b1 & 0x7F
+            if n == 126:
+                n = struct.unpack(">H", self._read(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", self._read(8))[0]
+            if n > RESPONSE_CAP or len(message) + n > RESPONSE_CAP:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools response exceeds 1 MiB")
+            mask = self._read(4) if b1 & 0x80 else None
+            data = self._read(n)
+            if mask:
+                data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+            op = b0 & 0x0F
+            if op == 8:
+                raise OSError("DevTools closed the WebSocket")
+            if op == 9:
+                continue
+            if op in (0, 1, 2):
+                message += data
+                if b0 & 0x80:
+                    return message.decode(errors="replace")
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+
+def cdp_port(agent_dir):
+    try:
+        port = (agent_dir / "cdp-port").read_text().strip()
+    except OSError:
+        port = os.environ.get("BL_CDP_PORT", "")
+    if not port.isdigit():
+        raise AgentError("NO_DEVTOOLS", "The Steam client's DevTools port is not known (no Steam client in this session yet)")
+    return int(port)
+
+
+def cdp_targets(agent_dir, timeout=5):
+    url = "http://127.0.0.1:%d/json" % cdp_port(agent_dir)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            data = r.read(RESPONSE_CAP + 1)
+            if len(data) > RESPONSE_CAP:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools response exceeds 1 MiB")
+            return json.loads(data.decode())
+    except OSError as e:
+        raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach the client's DevTools at %s: %s" % (url, e))
+
+
+def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15):
+    targets = [t for t in cdp_targets(agent_dir) if t.get("webSocketDebuggerUrl")]
+    want = target or "SharedJSContext"
+    match = [t for t in targets if want in (t.get("title") or "") or want in (t.get("url") or "")]
+    if not match:
+        names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
+        raise AgentError("NO_TARGET", "No DevTools target matches '%s' (have: %s)" % (want, names))
+    ws = WebSocket(match[0]["webSocketDebuggerUrl"], timeout)
+    try:
+        ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
+            "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+            "userGesture": True,
+        }}))
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            message = json.loads(ws.recv())
+            if message.get("id") != 1:
+                continue
+            if "error" in message:
+                raise AgentError("CDP_ERROR", json.dumps(message["error"]))
+            result = message.get("result", {})
+            if result.get("exceptionDetails"):
+                details = result["exceptionDetails"]
+                text = (details.get("exception") or {}).get("description") or details.get("text") or "exception"
+                raise AgentError("JS_EXCEPTION", text)
+            value = result.get("result", {})
+            return {"target": match[0].get("title"), "type": value.get("type"),
+                    "value": value.get("value"), "description": value.get("description")}
+        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+    finally:
+        ws.close()
+
+
+KEYBOARD_BINDING = "droiddeckSteamKeyboard"
+KEYBOARD_CHECK_SECONDS = 30
+KEYBOARD_JS = r"""
+(() => {
+  const self = window.__droiddeckKeyboard || (window.__droiddeckKeyboard = { watched: new WeakSet(), last: null });
+  self.wrapped = self.wrapped || new WeakSet();
+  self.route = self.route === true;
+  self.wrap = vkm => {
+    if (!vkm || self.wrapped.has(vkm) || typeof vkm.ShowVirtualKeyboard !== "function") return;
+    self.wrapped.add(vkm);
+    const show = vkm.ShowVirtualKeyboard;
+    vkm.ShowVirtualKeyboard = function (ref, props, modal) {
+      if (self.route && !modal && typeof this.SetActiveVirtualKeyboardTarget === "function" &&
+          !this.BUseVRKeyboard?.() && !this.m_Instance?.IsDesktopOverlayWindow?.()) {
+        this.SetActiveVirtualKeyboardTarget(ref, props);
+        self.follow(this);
+        if (typeof window.__BINDING__ === "function") window.__BINDING__("request");
+        return;
+      }
+      return show.call(this, ref, props, modal);
+    };
+  };
+  self.editing = vkm => {
+    let el = null;
+    try { el = vkm?.m_ownerWindow?.document?.activeElement || null; } catch (e) {}
+    if (!el) return null;
+    return el.tagName === "TEXTAREA" || el.isContentEditable === true ||
+      (el.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|image|color)$/i.test(el.type || ""));
+  };
+  self.follow = vkm => {
+    self.active = vkm;
+    self.missed = 0;
+    self.seen = false;
+    self.follower = self.follower || setInterval(() => {
+      if (!self.active) return;
+      const ref = self.active.m_currentVirtualKeyboardRef;
+      const editing = self.editing(self.active);
+      const valid = !!ref && (editing !== null ? editing :
+        (typeof ref.BIsElementValidForInput !== "function" || ref.BIsElementValidForInput()));
+      if (valid) self.seen = true;
+      if (self.route && ref && (valid || !self.seen)) {
+        self.missed = 0;
+        return;
+      }
+      if (++self.missed < 2) return;
+      self.active = null;
+      clearInterval(self.follower);
+      self.follower = null;
+      if (typeof window.__BINDING__ === "function") window.__BINDING__("dismiss");
+    }, 150);
+  };
+  self.check = () => {
+    let showing = false;
+    for (const win of Array.from(globalThis.SteamUIStore?.WindowStore?.SteamUIWindows || [])) {
+      self.wrap(win?.VirtualKeyboardManager);
+      const value = win?.VirtualKeyboardManager?.IsShowingVirtualKeyboard;
+      if (!value) continue;
+      if (!self.watched.has(value) && typeof value.Subscribe === "function") {
+        self.watched.add(value);
+        value.Subscribe(() => setTimeout(() => self.check()));
+      }
+      if (value.m_currentValue === true) showing = true;
+    }
+    if (showing !== self.last) {
+      self.last = showing;
+      if (typeof window.__BINDING__ === "function") window.__BINDING__(String(showing));
+    }
+    return showing;
+  };
+  self.timer = self.timer || setInterval(() => self.check(), 500);
+  return self.check();
+})()
+""".replace("__BINDING__", KEYBOARD_BINDING)
+KEYBOARD_ROUTE_SECONDS = 0.5
+KEYBOARD_ROUTE_JS = r"""
+(route => {
+  const self = window.__droiddeckKeyboard;
+  if (!self) return false;
+  self.route = route;
+  if (!route) return true;
+  for (const win of Array.from(globalThis.SteamUIStore?.WindowStore?.SteamUIWindows || [])) {
+    const vkm = win?.VirtualKeyboardManager;
+    if (vkm?.m_bIsInlineVirtualKeyboardOpen?.m_currentValue === true && vkm?.m_bIsVirtualKeyboardModal?.m_currentValue !== true &&
+        typeof vkm.SetVirtualKeyboardHidden === "function") {
+      const ref = vkm.m_currentVirtualKeyboardRef, props = vkm.m_ActiveElementProps;
+      vkm.SetVirtualKeyboardHidden();
+      if (ref && typeof vkm.SetActiveVirtualKeyboardTarget === "function") {
+        vkm.SetActiveVirtualKeyboardTarget(ref, props);
+        if (typeof self.follow === "function") self.follow(vkm);
+      }
+      if (typeof window.__BINDING__ === "function") window.__BINDING__("request");
+    }
+  }
+  return true;
+})(__ROUTE__)
+""".replace("__BINDING__", KEYBOARD_BINDING)
+
+
+class KeyboardWatcher(threading.Thread):
+    def __init__(self, agent_dir):
+        super().__init__(daemon=True, name="keyboard")
+        self.agent_dir = agent_dir
+        self.path = agent_dir / "keyboard.json"
+        self.request_path = agent_dir / "keyboard-request.json"
+        self.dismiss_path = agent_dir / "keyboard-dismiss.json"
+        self.dismissals = 0
+        self.route_path = agent_dir / "keyboard-route"
+        self.showing = None
+        self.seq = 0
+        self.requests = 0
+        self.route = None
+        self.next_id = 0
+        self.attached = False
+
+    def report(self, showing):
+        if showing == self.showing:
+            return
+        self.showing = showing
+        self.seq += 1
+        write_json(self.path, {"steamKeyboard": showing, "seq": self.seq})
+
+    def request(self):
+        self.requests += 1
+        write_json(self.request_path, {"seq": self.requests})
+
+    def dismiss(self):
+        self.dismissals += 1
+        write_json(self.dismiss_path, {"seq": self.dismissals})
+
+    def wanted_route(self):
+        try:
+            return self.route_path.read_text().strip() == "bottom"
+        except OSError:
+            return False
+
+    def apply_route(self, ws, force=False):
+        route = self.wanted_route()
+        if route == self.route and not force:
+            return
+        result = self.call(ws, "Runtime.evaluate", {
+            "expression": KEYBOARD_ROUTE_JS.replace("__ROUTE__", "true" if route else "false"), "returnByValue": True})
+        if result.get("exceptionDetails"):
+            raise AgentError("JS_EXCEPTION", json.dumps(result["exceptionDetails"])[:500])
+        self.route = route
+
+    def run(self):
+        failures, last = 0, None
+        while True:
+            try:
+                self.watch()
+            except Exception as e:
+                if self.attached:
+                    log("Steam keyboard: lost the client (%s); reattaching" % e)
+                    failures = 0
+                elif str(e) != last:
+                    log("Steam keyboard: waiting for the client (%s)" % e)
+                self.attached = False
+                last = str(e)
+            self.report(False)
+            failures += 1
+            time.sleep(min(2 * failures, 10))
+
+    def watch(self):
+        targets = [t for t in cdp_targets(self.agent_dir)
+                   if t.get("title") == "SharedJSContext" and t.get("webSocketDebuggerUrl")]
+        if not targets:
+            raise AgentError("NO_TARGET", "No SharedJSContext yet")
+        ws = WebSocket(targets[0]["webSocketDebuggerUrl"], 5)
+        try:
+            self.call(ws, "Runtime.addBinding", {"name": KEYBOARD_BINDING})
+            self.report(self.install(ws))
+            self.apply_route(ws, force=True)
+            self.attached = True
+            installed = time.monotonic()
+            while True:
+                wait = min(KEYBOARD_ROUTE_SECONDS, KEYBOARD_CHECK_SECONDS)
+                if not ws.buffer and not select.select([ws.s], [], [], wait)[0]:
+                    if time.monotonic() - installed >= KEYBOARD_CHECK_SECONDS:
+                        self.report(self.install(ws))
+                        self.apply_route(ws, force=True)
+                        installed = time.monotonic()
+                    else:
+                        self.apply_route(ws)
+                    continue
+                self.event(json.loads(ws.recv()))
+        finally:
+            ws.close()
+
+    def install(self, ws):
+        result = self.call(ws, "Runtime.evaluate", {"expression": KEYBOARD_JS, "returnByValue": True})
+        if result.get("exceptionDetails"):
+            raise AgentError("JS_EXCEPTION", json.dumps(result["exceptionDetails"])[:500])
+        return result.get("result", {}).get("value") is True
+
+    def call(self, ws, method, params):
+        self.next_id += 1
+        ws.send(json.dumps({"id": self.next_id, "method": method, "params": params}))
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            message = json.loads(ws.recv())
+            if message.get("id") == self.next_id:
+                if "error" in message:
+                    raise AgentError("CDP_ERROR", json.dumps(message["error"]))
+                return message.get("result", {})
+            self.event(message)
+        raise AgentError("TIMEOUT", "No answer to %s from DevTools" % method)
+
+    def event(self, message):
+        params = message.get("params") or {}
+        if message.get("method") == "Runtime.bindingCalled" and params.get("name") == KEYBOARD_BINDING:
+            if params.get("payload") == "request":
+                self.request()
+            elif params.get("payload") == "dismiss":
+                self.dismiss()
+            else:
+                self.report(params.get("payload") == "true")
+
+
+def steam_idle_inhibit(agent_dir, inhibit):
+    expression = """(async want => {
+        const toggle = () => new Promise(done => {
+            let handle = null;
+            let timer = null;
+            const finish = value => {
+                clearTimeout(timer);
+                handle?.unregister?.();
+                done(value);
+            };
+            timer = setTimeout(() => finish(null), 2500);
+            handle = SteamClient.Console.RegisterForSpewOutput(entry => {
+                const found = /Suspend inhibit: ([01])/.exec(entry?.spew || "");
+                if (found) finish(found[1] === "1");
+            });
+            SteamClient.Console.ExecCommand("toggle_idle_suspend_inhibit 1");
+        });
+        let state = await toggle();
+        if (state === !want) state = await toggle();
+        return state === want;
+    })(%s)""" % ("true" if inhibit else "false")
+    return cdp_eval(agent_dir, expression, timeout=12).get("value") is True
+
+
+def steam_idle_suspend_seconds(agent_dir, vpower=Path("/run/vpower/ac_status")):
+    expression = """(() => {
+        const settings = globalThis.settingsStore?.clientSettings;
+        return settings ? [settings.system_idle_suspend_ac_sec, settings.system_idle_suspend_battery_sec] : null;
+    })()"""
+    seconds = cdp_eval(agent_dir, expression, await_promise=False, timeout=5).get("value")
+    if not isinstance(seconds, list) or len(seconds) != 2:
+        return None
+    try:
+        on_ac = vpower.read_text().strip() != "Disconnected"
+    except OSError:
+        on_ac = True
+    value = seconds[0 if on_ac else 1]
+    return max(0, int(value)) if isinstance(value, (int, float)) else None
+
+
+def steam_selection(agent_dir, timeout=5):
+    result = cdp_eval(
+        agent_dir,
+        """(() => {
+            let node = document.activeElement;
+            while (node) {
+                for (const name of ["data-id", "data-appid"]) {
+                    const value = node.getAttribute?.(name);
+                    if (/^[1-9][0-9]{0,9}$/.test(value || "")) {
+                        const appId = Number(value);
+                        if (Number.isSafeInteger(appId) && appId <= 4294967295) return value;
+                    }
+                }
+                node = node.parentElement;
+            }
+            return null;
+        })()""",
+        target="Steam Big Picture Mode",
+        timeout=timeout,
+    )
+    value = result.get("value")
+    if value is None:
+        return {"appId": None}
+    if not isinstance(value, str) or not value.isdigit() or not 0 < int(value) <= 4294967295:
+        raise AgentError("INVALID_SELECTION", "Steam returned an invalid selected app id")
+    return {"appId": int(value)}
+
+
+def steam_shortcut_app_id(game_id):
+    if not isinstance(game_id, str) or not game_id.isascii() or not game_id.isdigit():
+        return None
+    try:
+        game_id_value = int(game_id)
+    except ValueError:
+        return None
+    if str(game_id_value) != game_id or not 0 < game_id_value <= 0xFFFFFFFFFFFFFFFF:
+        return None
+    if game_id_value <= 0xFFFFFFFF or game_id_value & 0xFFFFFFFF != 0x02000000:
+        return None
+    app_id = game_id_value >> 32
+    return app_id if 0 < app_id <= 0xFFFFFFFF else None
+
+
+def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
+    app_id = steam_shortcut_app_id(game_id)
+    if app_id is None:
+        return {"supported": False, "ready": False}
+
+    timeout = request_timeout({"timeout": timeout}, 45)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function') return null;
+        const overview = store.GetAppOverviewByGameID(%s);
+        return overview == null ? null : String(overview.appid);
+    })()""" % json.dumps(game_id)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            result = cdp_eval(agent_dir, expression, await_promise=False,
+                              timeout=min(5, max(0.25, remaining)))
+            if result.get("value") == str(app_id):
+                return {"supported": True, "ready": True, "appId": app_id}
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+        time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+    raise AgentError("STEAM_OVERVIEW_TIMEOUT", "Steam did not load shortcut app overview %d" % app_id)
+
+
+def steam_shortcut_state(agent_dir, game_id, timeout=6):
+    if steam_shortcut_app_id(game_id) is None:
+        return "not-shortcut"
+    timeout = request_timeout({"timeout": timeout}, 6)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function' || !store.m_bIsInitialized) return 'loading';
+        if (store.GetAppOverviewByGameID(%s) != null) return 'ready';
+        return store.allApps.some(app => app.app_type == 1073741824) ? 'missing' : 'loading';
+    })()""" % json.dumps(game_id)
+    state = "loading"
+    while True:
+        try:
+            state = cdp_eval(agent_dir, expression, await_promise=False,
+                             timeout=min(5, max(0.25, deadline - time.monotonic()))).get("value") or "loading"
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+            state = "loading"
+        if state == "ready" or time.monotonic() >= deadline:
+            return state
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+
+
+def game_pids(app_id):
+    wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
+    me = os.getpid()
+    pids = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit() or int(entry) == me:
+            continue
+        try:
+            with open("/proc/%s/environ" % entry, "rb") as f:
+                env = f.read().split(b"\0")
+        except OSError:
+            continue
+        if any(w in env for w in wanted):
+            pids.append(int(entry))
+    return pids
+
+
+def quit_game(agent_dir, app_id, timeout):
+    if not str(app_id).isdigit():
+        raise AgentError("INVALID_APP_ID", "appId must be a decimal Steam app id")
+    steps = []
+    if game_pids(app_id):
+        try:
+            cdp_eval(agent_dir, "SteamClient.Apps.TerminateApp(%s, false)" % json.dumps(str(app_id)), timeout=5)
+            steps.append("client")
+        except AgentError as e:
+            steps.append("client unavailable: %s" % e)
+    deadline = time.monotonic() + timeout
+    while game_pids(app_id) and time.monotonic() < deadline:
+        time.sleep(0.5)
+    left = game_pids(app_id)
+    if left:
+        steps.append("SIGTERM %s" % left)
+        for pid in left:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        end = time.monotonic() + 5
+        while game_pids(app_id) and time.monotonic() < end:
+            time.sleep(0.5)
+        left = game_pids(app_id)
+        if left:
+            steps.append("SIGKILL %s" % left)
+            for pid in left:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            time.sleep(1)
+    return {"appId": int(app_id), "steps": steps, "remaining": game_pids(app_id)}
+
+
+
+VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
+VR_ACTIONS = ("status", "install", "start", "stop")
+
+
+def steamvr(req):
+    action = req.get("action", "status")
+    if action not in VR_ACTIONS:
+        raise AgentError("INVALID_REQUEST", "vr action must be one of " + ", ".join(VR_ACTIONS))
+    helper = os.environ.get("DROIDDECK_VR_HELPER", VR_HELPER)
+    if not os.path.isfile(helper):
+        raise AgentError("UNAVAILABLE", "this runtime has no " + helper)
+    if action == "install":
+        state = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "droiddeck-steamvr"
+        state.mkdir(parents=True, exist_ok=True)
+        with open(state / "install.log", "ab") as log_file:
+            subprocess.Popen(["sh", helper, "install"], stdin=subprocess.DEVNULL, stdout=log_file,
+                             stderr=subprocess.STDOUT, start_new_session=True)
+        return {"action": action, "started": True}
+    done = subprocess.run(["sh", helper, action], stdin=subprocess.DEVNULL, capture_output=True,
+                          timeout=request_timeout(req, 30))
+    out = done.stdout.decode("utf-8", "replace").strip()
+    result = {"action": action, "exitCode": done.returncode, "output": out[-2000:]}
+    if action == "status":
+        for part in out.split():
+            key, _, value = part.partition("=")
+            if key in ("installed", "running", "installing", "driver"):
+                result[key] = value == "1"
+    return result
+
+
+def run_exec(req):
+    argv = req.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and "\0" not in a for a in argv):
+        raise AgentError("INVALID_REQUEST", "exec needs argv, a non-empty list of strings")
+    timeout = request_timeout(req, 30)
+    env = dict(os.environ)
+    extra_env = req.get("env") if req.get("env") is not None else {}
+    if not isinstance(extra_env, dict) or any("\0" in str(k) or "=" in str(k) or "\0" in str(v) for k, v in extra_env.items()):
+        raise AgentError("INVALID_REQUEST", "env must be an object with valid environment entries")
+    env.update({str(k): str(v) for k, v in extra_env.items()})
+    stdin = req.get("stdin")
+    if stdin is not None and not isinstance(stdin, str):
+        raise AgentError("INVALID_REQUEST", "stdin must be a string")
+    started = time.monotonic()
+    try:
+        proc = subprocess.Popen(
+            argv, cwd=req.get("cwd") or None, env=env, start_new_session=True,
+            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+    except OSError as e:
+        raise AgentError("EXEC_FAILED", "%s: %s" % (argv[0], e))
+    captured = {"stdout": bytearray(), "stderr": bytearray()}
+    truncated = {"stdout": False, "stderr": False}
+    pending = memoryview(stdin.encode()) if stdin is not None else memoryview(b"")
+    deadline = started + timeout
+    timed_out = False
+    try:
+        with selectors.DefaultSelector() as selector:
+            for stream, name in ((proc.stdout, "stdout"), (proc.stderr, "stderr")):
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, name)
+            if proc.stdin is not None:
+                os.set_blocking(proc.stdin.fileno(), False)
+                if pending:
+                    selector.register(proc.stdin, selectors.EVENT_WRITE, "stdin")
+                else:
+                    proc.stdin.close()
+            while selector.get_map() or proc.poll() is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    break
+                for key, _ in selector.select(min(0.1, remaining)):
+                    stream, name = key.fileobj, key.data
+                    if name == "stdin":
+                        try:
+                            pending = pending[os.write(stream.fileno(), pending[:65536]):]
+                        except BrokenPipeError:
+                            pending = pending[len(pending):]
+                        if not pending:
+                            selector.unregister(stream)
+                            stream.close()
+                    else:
+                        data = os.read(stream.fileno(), 65536)
+                        if not data:
+                            selector.unregister(stream)
+                            stream.close()
+                            continue
+                        available = OUTPUT_CAP - len(captured[name])
+                        captured[name].extend(data[:available])
+                        truncated[name] |= len(data) > available
+        if timed_out:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait(timeout=5)
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+    def text(name):
+        return {"text": captured[name].decode(errors="replace"), "truncated": truncated[name]}
+
+    return {"exitCode": proc.returncode, "timedOut": timed_out,
+            "seconds": round(time.monotonic() - started, 3), "stdout": text("stdout"), "stderr": text("stderr")}
+
+
+def request_timeout(req, default):
+    try:
+        timeout = float(req.get("timeout", default))
+    except (TypeError, ValueError):
+        raise AgentError("INVALID_REQUEST", "timeout must be a positive number no greater than 600 seconds")
+    if not math.isfinite(timeout) or not 0 < timeout <= 600:
+        raise AgentError("INVALID_REQUEST", "timeout must be a positive number no greater than 600 seconds")
+    return timeout
+
+
+def handle(agent_dir, req):
+    kind = req.get("kind")
+    if kind == "ping":
+        return {"pid": os.getpid(), "version": VERSION, "displays": displays()}
+    if kind == "exec":
+        return run_exec(req)
+    if kind == "focus":
+        return focus_snapshot()
+    if kind == "cdp":
+        if req.get("op") == "targets":
+            return {"targets": [{k: t.get(k) for k in ("title", "url", "type")} for t in cdp_targets(agent_dir)]}
+        expression = req.get("expression")
+        if not isinstance(expression, str) or not expression:
+            raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
+        return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
+                        request_timeout(req, 15))
+    if kind == "steam-selection":
+        return steam_selection(agent_dir, request_timeout(req, 5))
+    if kind == "quit":
+        return quit_game(agent_dir, req.get("appId"), request_timeout(req, 15))
+    if kind == "vr":
+        return steamvr(req)
+    raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
+
+
+def answer(agent_dir, path):
+    rid = path.stem
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(REQUEST_CAP + 1)
+        if len(data) > REQUEST_CAP:
+            raise ValueError("The request exceeds 256 KiB")
+        req = json.loads(data)
+        if not isinstance(req, dict):
+            raise ValueError("The request must be a JSON object")
+    except (OSError, ValueError) as e:
+        req = None
+        result = {"ok": False, "error": {"code": "INVALID_REQUEST", "message": str(e)}}
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    if req is not None:
+        try:
+            result = dict(handle(agent_dir, req), ok=True)
+        except AgentError as e:
+            result = {"ok": False, "error": {"code": e.code, "message": str(e)}}
+        except Exception as e:
+            result = {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
+    write_json(agent_dir / "resp" / (rid + ".json"), result)
+
+
+def serve(agent_dir, focus=True, poll=0.1):
+    (agent_dir / "req").mkdir(parents=True, exist_ok=True)
+    (agent_dir / "resp").mkdir(parents=True, exist_ok=True)
+    can_focus = focus and bool(os.environ.get("DISPLAY"))
+    if can_focus:
+        FocusWatcher(agent_dir / "focus.json").start()
+    if focus:
+        KeyboardWatcher(agent_dir).start()
+    write_json(agent_dir / "hello.json", {"pid": os.getpid(), "version": VERSION, "started": int(time.time() * 1000),
+                                          "displays": displays(), "focus": can_focus})
+    log("serving %s (focus %s)" % (agent_dir, "on" if can_focus else "off"))
+    taken = set()
+    while True:
+        for path in sorted((agent_dir / "req").glob("*.json")):
+            if path.name in taken:
+                continue
+            taken.add(path.name)
+            threading.Thread(target=lambda p=path: (answer(agent_dir, p), taken.discard(p.name)),
+                             daemon=True, name="req").start()
+        time.sleep(poll)
+
+
+def main(argv):
+    base = os.environ.get("BL_LAUNCH_DIR")
+    if not base:
+        print("BL_LAUNCH_DIR is not set", file=sys.stderr)
+        return 2
+    if argv and argv[0] == "--wait-steam-shortcut-overview":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --wait-steam-shortcut-overview <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        timeout = argv[2] if len(argv) == 3 else 45
+        try:
+            prepared = wait_for_steam_shortcut_overview(Path(base) / "agent", argv[1], timeout)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: shortcut overview was not ready: %s" % error, file=sys.stderr)
+            return 1
+        if not prepared["supported"]:
+            print("droiddeck-agent: id is not a DroidDeck shortcut CGameID")
+            return 3
+        print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
+        return 0
+    if argv and argv[0] == "--steam-supports-vr":
+        if len(argv) != 2 or not argv[1].isascii() or not argv[1].isdecimal():
+            print("usage: droiddeck-agent --steam-supports-vr <appid>", file=sys.stderr)
+            return 2
+        expression = ("(o => o ? (o.vr_supported === true || o.vr_only === true) : null)"
+                      "(window.appStore?.GetAppOverviewByGameID?.(%s))" % json.dumps(argv[1]))
+        value = None
+        deadline = time.monotonic() + 12
+        while value is None and time.monotonic() < deadline:
+            try:
+                value = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=8).get("value")
+            except (AgentError, OSError, ValueError):
+                pass
+            if value is None:
+                time.sleep(0.5)
+        print({True: "yes", False: "no"}.get(value, "unknown"))
+        return {True: 0, False: 5}.get(value, 1)
+    if argv and argv[0] == "--steam-asleep":
+        expression = """(() => {
+            const store = globalThis.SuspendResumeStore;
+            return store ? (store.m_bSuspending ? 'yes' : 'no') : 'unknown';
+        })()"""
+        try:
+            state = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=3).get("value") or "unknown"
+        except (AgentError, OSError, ValueError):
+            state = "unknown"
+        print(state)
+        return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-idle-inhibit":
+        if len(argv) != 2 or argv[1] not in ("on", "off"):
+            print("usage: droiddeck-agent --steam-idle-inhibit on|off", file=sys.stderr)
+            return 2
+        try:
+            done = steam_idle_inhibit(Path(base) / "agent", argv[1] == "on")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not reach the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        return 0 if done else 1
+    if argv and argv[0] == "--steam-idle-suspend-seconds":
+        try:
+            seconds = steam_idle_suspend_seconds(Path(base) / "agent")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not read the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        if seconds is None:
+            return 1
+        print(seconds)
+        return 0
+    if argv and argv[0] == "--steam-shortcut-state":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        try:
+            state = steam_shortcut_state(Path(base) / "agent", argv[1], argv[2] if len(argv) == 3 else 6)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not ask the client about the shortcut: %s" % error, file=sys.stderr)
+            return 1
+        print(state)
+        return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
+    serve(Path(base) / "agent", focus="--no-focus" not in argv)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

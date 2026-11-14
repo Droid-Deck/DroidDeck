@@ -1,0 +1,4 @@
+#!/bin/sh
+[ -n "${LD_PRELOAD:-}" ] && export DROIDDECK_STEAM_PRELOAD="$LD_PRELOAD"
+unset LD_PRELOAD LD_LIBRARY_PATH
+exec /usr/bin/python3 -I /usr/local/bin/droiddeck-epic run

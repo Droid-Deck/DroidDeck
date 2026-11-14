@@ -1,0 +1,18 @@
+#!/bin/bash
+set -u
+export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
+case ":${XDG_DATA_DIRS:-}:" in
+  *"/flatpak/exports/share:"*) ;;
+  *) export XDG_DATA_DIRS=$HOME/.local/share/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share} ;;
+esac
+socket=()
+if [ -n "${BL_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+  unset WAYLAND_DISPLAY
+  export XDG_SESSION_TYPE=x11
+  socket=(--nosocket=wayland --socket=x11)
+fi
+echo "== flatpak run ${socket[*]} $*"
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
+  exec dbus-run-session -- flatpak run "${socket[@]}" "$@"
+fi
+exec flatpak run "${socket[@]}" "$@"

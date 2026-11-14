@@ -1,0 +1,13 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/HomePage",
+    "pages/LibraryPage",
+    "pages/StoresPage",
+    "pages/DownloadsPage",
+    "pages/SettingsPage",
+    "pages/GameDetailPage",
+    "pages/SessionPage",
+    "pages/ControllerMapPage"
+  ]
+}
