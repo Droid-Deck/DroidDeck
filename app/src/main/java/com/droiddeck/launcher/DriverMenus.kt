@@ -289,8 +289,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 SessionPrefs.setMaliFallbackByAuto(
                     activity,
                     MaliAutoRoute.initialOwnership(
-                        SessionPrefs.vkBridge(activity), SessionPrefs.vkBridgeExplicit(activity),
-                        SessionPrefs.venus(activity), SessionPrefs.venusExplicit(activity),
+                        SessionPrefs.vkBridge(activity), bridgeExplicit(),
+                        SessionPrefs.venus(activity), venusExplicit(),
                     ),
                 )
             // A lone imported PanVK Android driver set by hand stalls the display the same way
@@ -409,6 +409,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-auto").start()
     }
 
+    private fun bridgeExplicit(): Boolean =
+        MaliAutoRoute.userChoice(SessionPrefs.vkBridgeExplicit(activity), SessionPrefs.maliFallbackByAuto(activity), MaliAutoRoute.BRIDGE)
+
+    private fun venusExplicit(): Boolean =
+        MaliAutoRoute.userChoice(SessionPrefs.venusExplicit(activity), SessionPrefs.maliFallbackByAuto(activity), MaliAutoRoute.VENUS)
+
     /**
      * A Mali with no open driver pair to install ([missing] names the unpublished pair, or null when
      * no PanVK build covers this GPU) runs through the phone's own driver: Mali (Venus) where this
@@ -424,12 +430,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
         val ownership = MaliAutoRoute.fallbackOwnership(
             venus,
-            SessionPrefs.vkBridge(activity), SessionPrefs.vkBridgeExplicit(activity),
-            SessionPrefs.venus(activity), SessionPrefs.venusExplicit(activity),
+            SessionPrefs.vkBridge(activity), bridgeExplicit(),
+            SessionPrefs.venus(activity), venusExplicit(),
         )
         if (venus && !SessionPrefs.venus(activity)) {
             SessionPrefs.setVenus(activity, true)
-            if (SessionPrefs.vkBridge(activity) && !SessionPrefs.vkBridgeExplicit(activity))
+            if (SessionPrefs.vkBridge(activity) && !bridgeExplicit())
                 SessionPrefs.setVkBridge(activity, false)
             SessionPrefs.setMaliFallbackByAuto(activity, ownership)
         } else if (!venus && !SessionPrefs.vkBridge(activity)) {

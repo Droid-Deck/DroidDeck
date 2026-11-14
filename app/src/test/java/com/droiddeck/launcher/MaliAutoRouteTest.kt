@@ -37,4 +37,17 @@ class MaliAutoRouteTest {
     fun installedAdrenoPairDoesNotEndRoute() {
         assertFalse(MaliAutoRoute.shouldEnd(MaliAutoRoute.BRIDGE, false, true))
     }
+
+    @Test
+    fun aValueAutoStoredItselfIsNotAUserChoice() {
+        assertFalse(MaliAutoRoute.userChoice(true, MaliAutoRoute.BRIDGE, MaliAutoRoute.BRIDGE))
+        assertFalse(MaliAutoRoute.userChoice(true, MaliAutoRoute.VENUS, MaliAutoRoute.VENUS))
+    }
+
+    @Test
+    fun aStoredValueStaysAUserChoiceWhenAutoOwnsNothingForThatRoute() {
+        assertTrue(MaliAutoRoute.userChoice(true, MaliAutoRoute.NONE, MaliAutoRoute.BRIDGE))
+        assertTrue(MaliAutoRoute.userChoice(true, MaliAutoRoute.VENUS, MaliAutoRoute.BRIDGE))
+        assertFalse(MaliAutoRoute.userChoice(false, MaliAutoRoute.NONE, MaliAutoRoute.BRIDGE))
+    }
 }

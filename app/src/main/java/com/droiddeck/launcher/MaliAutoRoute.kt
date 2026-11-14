@@ -24,6 +24,8 @@ internal object MaliAutoRoute {
         if (!bridgeOn || !bridgeExplicit) BRIDGE else NONE
     }
 
+    fun userChoice(keyStored: Boolean, owner: String, route: String): Boolean = keyStored && owner != route
+
     fun shouldEnd(ownsRoute: String, mali: Boolean, installedPair: Boolean): Boolean =
         mali && installedPair && ownsRoute != NONE
 }
