@@ -356,7 +356,8 @@ static void flush_summary(void) {
   if (n > 0 && (size_t)n < sizeof(line)) append_line(line, (size_t)n);
 }
 
-#if defined(__USE_LARGEFILE64)
+#if defined(__USE_LARGEFILE64) && defined(__OFF_T_MATCHES_OFF64_T)
+_Static_assert(sizeof(struct stat) == sizeof(struct stat64), "stat64 alias needs one layout");
 int fallocate64(int fd, int mode, off64_t offset, off64_t length) __attribute__((alias("fallocate")));
 int posix_fallocate64(int fd, off64_t offset, off64_t length) __attribute__((alias("posix_fallocate")));
 ssize_t pwrite64(int fd, const void *buffer, size_t count, off64_t offset) __attribute__((alias("pwrite")));
