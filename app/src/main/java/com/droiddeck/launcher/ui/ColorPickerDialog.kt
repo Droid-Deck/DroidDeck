@@ -10,13 +10,17 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,12 +35,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import kotlin.math.atan2
@@ -77,33 +83,68 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         hue = h.coerceIn(0f, 360f); sat = s.coerceIn(0f, 1f); value = v.coerceIn(0f, 1f)
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))
     }
-    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = 460.dp, scrollState = scroll) {
+    // A screen wider than tall has no room for one tall column: the wheel goes beside the sliders, and nothing has to scroll.
+    // A small landscape window is too narrow for the closing row, so it keeps the column.
+    val screen = LocalConfiguration.current
+    val beside = screen.screenWidthDp > screen.screenHeightDp && screen.screenWidthDp >= 600
+    // Title, closing row, gaps and the dialog's margins take about 164 dp of the height; the wheel gets the rest less a little
+    // spare, up to 216 dp. A short screen also gets shorter slider rows, so OK stays on screen down to about 360 dp.
+    val wheelSize = if (beside) (screen.screenHeightDp - 176).coerceIn(160, 216).dp else 168.dp
+    val short = beside && wheelSize < 216.dp
+    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = if (beside) 680.dp else 460.dp, scrollState = scroll) {
         DialogTitleRow(title, close)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            ColorWheel(hue, sat, value) { h, s -> picked(h = h, s = s) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Swatch(Color(initial))
-                Swatch(Color(current))
-            }
+        val wheel: @Composable () -> Unit = { ColorWheel(hue, sat, value, wheelSize) { h, s -> picked(h = h, s = s) } }
+        val track = if (short) 24.dp else 40.dp
+        val sliders: @Composable () -> Unit = {
+            ValueSlider(hue.toInt(), 0..360, step = 5, enabled = true, label = stringResource(R.string.theme_color_hue), format = { "$it°" },
+                modifier = Modifier.focusRequester(first), track = track) { picked(h = it.toFloat()) }
+            ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" },
+                track = track) { picked(s = it / 100f) }
+            ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" },
+                track = track) { picked(v = it / 100f) }
         }
-        ValueSlider(hue.toInt(), 0..360, step = 5, enabled = true, label = stringResource(R.string.theme_color_hue), format = { "$it°" },
-            modifier = Modifier.focusRequester(first)) { picked(h = it.toFloat()) }
-        ValueSlider((sat * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_saturation), format = { "$it%" }) { picked(s = it / 100f) }
-        ValueSlider((value * 100).toInt(), 0..100, step = 2, enabled = true, label = stringResource(R.string.theme_color_brightness), format = { "$it%" }) { picked(v = it / 100f) }
-        AdbTextField(
-            value = hexText,
-            onValueChange = { text ->
-                hexText = text
-                ThemeColors.parseHex(text)?.let { argb -> ThemeColors.toHsv(argb).let { hsv -> hue = hsv.h; sat = hsv.s; value = hsv.v } }
-            },
-            label = "", keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done, placeholder = stringResource(R.string.theme_color_hex),
-            onFocusChange = { typingHex = it },
-            onDone = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() } },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
-            PrimaryButton(stringResource(R.string.common_ok), enabled = ThemeColors.parseHex(hexText) != null, modifier = Modifier.weight(1f)) {
-                ThemeColors.parseHex(hexText)?.let { onApply(it); close() }
+        val hex: @Composable (Modifier) -> Unit = { modifier ->
+            AdbTextField(
+                value = hexText,
+                onValueChange = { text ->
+                    hexText = text
+                    ThemeColors.parseHex(text)?.let { argb -> ThemeColors.toHsv(argb).let { hsv -> hue = hsv.h; sat = hsv.s; value = hsv.v } }
+                },
+                label = "", keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done, placeholder = stringResource(R.string.theme_color_hex),
+                showLabel = false, compact = beside, modifier = modifier,
+                onFocusChange = { typingHex = it },
+                onDone = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() } },
+            )
+        }
+        val ok = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() }; Unit }
+        val valid = ThemeColors.parseHex(hexText) != null
+        if (beside) {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                wheel()
+                Column(verticalArrangement = Arrangement.spacedBy(if (short) 2.dp else 8.dp), modifier = Modifier.weight(1f)) {
+                    CompositionLocalProvider(LocalCompactSettings provides true) { sliders() }
+                }
+            }
+            // One closing row holds the comparison, the hex field and both buttons, which keeps the dialog clear of the screen edges.
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                BeforeAfter(Color(initial), Color(current), Modifier.size(96.dp, 44.dp))
+                hex(Modifier.weight(1f))
+                SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.width(128.dp), onClick = close)
+                PrimaryButton(stringResource(R.string.common_ok), enabled = valid, modifier = Modifier.width(128.dp), fill = true, onClick = ok)
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                wheel()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Swatch(Color(initial))
+                    Swatch(Color(current))
+                }
+            }
+            sliders()
+            hex(Modifier)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
+                PrimaryButton(stringResource(R.string.common_ok), enabled = valid, modifier = Modifier.weight(1f), fill = true, onClick = ok)
             }
         }
     }
@@ -115,10 +156,19 @@ private fun Swatch(color: Color) {
     Box(Modifier.size(48.dp).clip(shape).background(color).border(1.dp, LocalPalette.current.line2, shape))
 }
 
+/** The color the dialog opened with and the one being picked, as two halves of one chip. */
 @Composable
-private fun ColorWheel(hue: Float, sat: Float, value: Float, onPick: (hue: Float, sat: Float) -> Unit) {
+private fun BeforeAfter(before: Color, after: Color, modifier: Modifier) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(modifier.clip(shape).border(1.dp, LocalPalette.current.line2, shape)) {
+        Box(Modifier.weight(1f).fillMaxHeight().background(before))
+        Box(Modifier.weight(1f).fillMaxHeight().background(after))
+    }
+}
+
+@Composable
+private fun ColorWheel(hue: Float, sat: Float, value: Float, size: Dp, onPick: (hue: Float, sat: Float) -> Unit) {
     val rim = MaterialTheme.colorScheme.onBackground
-    val size = 168.dp
     fun at(offset: Offset, side: Float) {
         val center = side / 2f
         val dx = offset.x - center

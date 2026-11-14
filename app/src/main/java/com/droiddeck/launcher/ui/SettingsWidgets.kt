@@ -108,6 +108,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -605,7 +606,7 @@ fun SliderRow(
 @Composable
 fun ValueSlider(
     value: Int, range: IntRange, step: Int, enabled: Boolean, label: String?, format: (Int) -> String,
-    modifier: Modifier = Modifier, onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier, track: Dp = 40.dp, onChange: (Int) -> Unit,
 ) {
     val compact = LocalCompactSettings.current
     val colors = MaterialTheme.colorScheme
@@ -628,7 +629,7 @@ fun ValueSlider(
         }
     }
     Column(
-        modifier = modifier.fillMaxWidth().heightIn(min = if (compact) 64.dp else 72.dp)
+        modifier = modifier.fillMaxWidth().heightIn(min = track + if (compact) 24.dp else 32.dp)
             .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
             .glideBorder(hot, shape, pal.signal)
             .alpha(if (enabled) 1f else 0.5f)
@@ -663,7 +664,7 @@ fun ValueSlider(
             Text(text, fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
         }
         Canvas(
-            Modifier.fillMaxWidth().height(40.dp).onSizeChanged { trackPx = it.width }
+            Modifier.fillMaxWidth().height(track).onSizeChanged { trackPx = it.width }
                 .pointerInput(enabled, range, step, thumbInset) { if (enabled) detectTapGestures { fromX(it.x) } }
                 .pointerInput(enabled, range, step, thumbInset) {
                     if (enabled) detectHorizontalDragGestures { change, _ -> fromX(change.position.x); change.consume() }
