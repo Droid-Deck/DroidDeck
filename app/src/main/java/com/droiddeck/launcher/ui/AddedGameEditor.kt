@@ -348,12 +348,15 @@ internal fun SteamInputOverridePanel(appId: Int) {
         if (!saving && saves == savesAtStart) selected = read
         loading = false
     }
+    var wasRunning by remember(appId) { mutableStateOf(SessionState.running) }
     LaunchedEffect(sessionRunning) {
-        if (!sessionRunning && error == R.string.edit_steam_input_running) {
-            error = null
+        // Steam may have changed the override while it ran, so every stop reloads it.
+        if (wasRunning && !sessionRunning) {
+            if (error == R.string.edit_steam_input_running) error = null
             loading = true
             version++
         }
+        wasRunning = sessionRunning
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, appId) {
