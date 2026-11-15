@@ -78,6 +78,8 @@ pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
 pack comet "$linuxfs/droiddeck-comet" version comet
 pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
 [ ! -f "$linuxfs/droiddeck-ubisoft/droiddeck-upc.exe" ] || pack ubisoft "$linuxfs/droiddeck-ubisoft" droiddeck-upc.exe
+[ ! -f "$linuxfs/droiddeck-rockstar/Launcher64.exe" ] || pack rockstar "$linuxfs/droiddeck-rockstar" Launcher32.exe Launcher64.exe
+[ ! -f "$linuxfs/droiddeck-dirt/ws2_32.dll" ] || pack dirt "$linuxfs/droiddeck-dirt" ws2_32.dll
 
 mkdir "$work/butler"
 fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \

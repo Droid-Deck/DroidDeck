@@ -33,6 +33,94 @@ class SupergiantDotnetReporterTest(unittest.TestCase):
         self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
 
 
+class DeathStrandingAllocatorTest(unittest.TestCase):
+    def make_exe(self, name="ds.exe", size=None, window=None, tail=None):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, name)
+        with open(path, "wb") as game:
+            game.truncate(MODULE["DS_SIZE"] if size is None else size)
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            game.write(b"<" + (MODULE["DS_WINDOW"] if window is None else window) + (MODULE["DS_ORIGINAL"] if tail is None else tail) + b">")
+        return path
+
+    def read_tail(self, path):
+        with open(path, "rb") as game:
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            return game.read(len(MODULE["DS_WINDOW"]) + len(MODULE["DS_ORIGINAL"]) + 2)
+
+    def run_fix(self, path, app_id="1850570"):
+        errors = io.StringIO()
+        with mock.patch("sys.stderr", errors):
+            return MODULE["death_stranding_allocator"](app_id, path), errors.getvalue()
+
+    def test_window_and_patch_have_the_measured_shape(self):
+        self.assertEqual(41, len(MODULE["DS_WINDOW"]))
+        self.assertEqual(6, len(MODULE["DS_ORIGINAL"]))
+        self.assertEqual(6, len(MODULE["DS_FIXED"]))
+        self.assertEqual(0x38FE1B9, MODULE["DS_WINDOW_OFFSET"] + len(MODULE["DS_WINDOW"]))
+
+    def test_replaces_only_the_jump_in_the_original_build(self):
+        path = self.make_exe()
+        patched, message = self.run_fix(path)
+        self.assertTrue(patched)
+        self.assertIn("Death Stranding", message)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+        self.assertEqual(MODULE["DS_SIZE"], os.path.getsize(path))
+
+    def test_an_already_patched_game_is_left_alone(self):
+        path = self.make_exe(tail=MODULE["DS_FIXED"])
+        before = os.stat(path).st_mtime_ns
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, os.stat(path).st_mtime_ns)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+
+    def test_a_second_run_changes_nothing(self):
+        path = self.make_exe()
+        self.assertTrue(self.run_fix(path)[0])
+        after_first = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(after_first, self.read_tail(path))
+
+    def test_other_builds_of_the_game_are_not_touched(self):
+        for size, window in ((MODULE["DS_SIZE"] + 1, None), (None, bytes(len(MODULE["DS_WINDOW"])))):
+            path = self.make_exe(size=size, window=window)
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_an_unknown_instruction_at_the_patch_site_is_not_touched(self):
+        path = self.make_exe(tail=bytes.fromhex("0f85a6000000"))
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_other_executables_are_ignored(self):
+        path = self.make_exe(name="game.exe")
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_other_games_are_not_touched_even_with_a_matching_file(self):
+        for app_id in ("440", "", None):
+            path = self.make_exe()
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path, app_id))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_both_death_stranding_app_ids_are_patched(self):
+        for app_id in ("1850570", "1190460"):
+            self.assertTrue(self.run_fix(self.make_exe(), app_id)[0])
+
+    def test_the_file_name_check_ignores_case(self):
+        self.assertTrue(self.run_fix(self.make_exe(name="DS.EXE"))[0])
+
+    def test_a_missing_game_file_is_reported_without_raising(self):
+        patched, message = self.run_fix(os.path.join(tempfile.gettempdir(), "droiddeck-no-such-folder", "ds.exe"))
+        self.assertFalse(patched)
+        self.assertIn("not applied", message)
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))
@@ -723,6 +811,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 "install_scripts_done": lambda scripts, env: False,
                 "scripts_digest": lambda scripts: None,
                 "win_components": lambda *args: seen_components.append(args[3]) or "",
+                "restore_compatible_system_dlls": lambda *args: [],
                 "repair_foreign_system_dlls": lambda *args: seen_repair.append(args[2]) or [],
                 "gl_vsync": lambda env: False,
                 "game_images": lambda env: None,
@@ -755,6 +844,61 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
+
+    def test_keyboard_helper_is_off_unless_steam_keyboard_or_the_user_wants_it(self):
+        cases = (
+            ({}, "tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtipx=d"}, "tabtipx=d;tabtip.exe=d"),
+            ({"SteamDeck": "0"}, "tabtip.exe=d"),
+            ({"SteamDeck": "1"}, None),
+            ({"SteamDeck": "1", "WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip.EXE=n,b"}, "dxgi=n; TabTip.EXE=n,b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip=n,b"}, "dxgi=n; TabTip=n,b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe"}, "d3d11 tabtip.exe;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe;dxgi=n"}, "tabtip.exe;dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11,tabtip.exe=b"}, "d3d11,tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe=b"}, "d3d11 tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip.exe=b"}, "d3d11\ttabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 dxgi=n"}, "d3d11 dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "*tabtip.exe=b"}, "*tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "TabTip.exe.DLL=b"}, "TabTip.exe.DLL=b"),
+            ({"WINEDLLOVERRIDES": "d3d11,*tabtip.exe.dll=n"}, "d3d11,*tabtip.exe.dll=n"),
+            ({"WINEDLLOVERRIDES": "*tabtip=b"}, "*tabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.dll=b"}, "tabtip.dll=b;tabtip.exe=d"),
+        )
+        for before, overrides in cases:
+            with self.subTest(env=before):
+                env = dict(before)
+                note = MODULE["keyboard_helper_off"](env)
+                self.assertEqual(env.get("WINEDLLOVERRIDES"), overrides)
+                self.assertEqual(note is not None, overrides != before.get("WINEDLLOVERRIDES"))
+
+    def test_game_launch_turns_the_keyboard_helper_off_and_keeps_user_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', 'unset'))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            cases = (
+                ("waitforexitandrun", {}, "tabtip.exe=d"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+                ("waitforexitandrun", {"SteamDeck": "1"}, "unset"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+                ("run", {}, "unset"),
+            )
+            for verb, profile, expected in cases:
+                with self.subTest(verb=verb, profile=profile):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
+                    env = {k: v for k, v in os.environ.items() if k not in ("SteamDeck", "WINEDLLOVERRIDES")}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), verb],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip().splitlines()[-1], expected)
 
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch
@@ -950,6 +1094,22 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
+        gpu = MODULE["game_gpu"]
+        session = {"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "KEEP": "1"}
+        self.assertEqual(gpu(session), {"KEEP": "1"})
+        self.assertEqual(gpu(session, True), {"MESA_NO_ERROR": "1", "KEEP": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        both = gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})
+        self.assertEqual(both, {"TU_DEBUG": "nolrz"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "MESA_NO_ERROR": "1"}),
+                         {"MESA_NO_ERROR": "1"})
+        config = {"version": 1, "games": {"42": {"MESA_NO_ERROR": "1"}}}
+        env = gpu(session)
+        self.assertEqual(MODULE["apply_config"](env, config, "42")["MESA_NO_ERROR"], "1")
+        self.assertNotIn("MESA_NO_ERROR", MODULE["apply_config"](env, config, "43"))
+
     def test_a_chromium_app_keeps_the_sessions_turnip_debug(self):
         gpu = MODULE["game_gpu"]
         self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}, True),
@@ -992,9 +1152,11 @@ class GameEnvironmentTest(unittest.TestCase):
 
     def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
         cap = MODULE["vram_cap"]
-        self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096; dxgi.maxSharedMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192; dxgi.maxSharedMemory = 8192")
+        self.assertEqual(cap({"BL_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; dxgi.maxSharedMemory = 4095; d3d9.maxAvailableMemory = 4095")
         self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+                         "dxgi.maxDeviceMemory = 2048; dxgi.maxSharedMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
         for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
             self.assertNotIn("DXVK_CONFIG", cap(off))
             self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
@@ -1154,6 +1316,8 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            (game / "data_game_windows_x86_64/Sentry.Godot.dll").touch()
+            self.assertNotIn("WINEDLLOVERRIDES", MODULE["engine_fixes"](str(game / "Game.exe"), [])[0])
             script = Path(tmp) / "GDScript Game"
             script.mkdir()
             for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
@@ -1520,6 +1684,19 @@ class GameEnvironmentTest(unittest.TestCase):
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
@@ -1560,6 +1737,35 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(result["FEX_MULTIBLOCK"], "0")
         self.assertEqual(result["FEX_TSOENABLED"], "0")
         self.assertEqual(result["WINEDLLOVERRIDES"], "dxgi=n;libsentry=d")
+
+    def test_game_dll_overrides_follow_droiddecks_own(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "windowscodecs,windowscodecsext=n"}}}
+        result = MODULE["apply_config"]({}, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "msvcp100=n,b;windowscodecs,windowscodecsext=n")
+
+    def test_game_dll_overrides_edge_cases(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        env = {"WINEDLLOVERRIDES": "dxgi=n"}
+        for game, shared, expected in (
+            ({"WINEDLLOVERRIDES": "msvcp100=b"}, {}, "msvcp100=n,b;msvcp100=b"),
+            ({"WINEDLLOVERRIDES": ""}, {}, "msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": None}, {}, None),
+            ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "msvcp100=n,b;d3d9=n"),
+            ({}, {}, "dxgi=n;msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": "x" * 8179}, {}, "msvcp100=n,b;" + "x" * 8179),
+        ):
+            with self.subTest(game=game, shared=shared):
+                config = {"version": 1, "shared": shared, "games": {"42": game, "43": {"WINEDLLOVERRIDES": "d3d11=n"}}}
+                result = MODULE["apply_config"](env, config, "42", fixes)
+                self.assertEqual(result.get("WINEDLLOVERRIDES"), expected)
+                self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], "d3d11=n")
+        stderr = io.StringIO()
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "x" * 8192}}}
+        with mock.patch("sys.stderr", stderr):
+            result = MODULE["apply_config"](env, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "x" * 8192)
+        self.assertIn("too long", stderr.getvalue())
 
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
@@ -2687,6 +2893,39 @@ def arm64ec_pe_image():
     return bytes(image)
 
 
+def program_image(machine, imports):
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = machine.to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    image[optional + 120:optional + 124] = (0x1000).to_bytes(4, "little")
+    image[optional + 124:optional + 128] = (20 * (len(imports) + 1)).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    name = 20 * (len(imports) + 1)
+    for index, dll in enumerate(imports):
+        image[0x200 + index * 20 + 12:0x200 + index * 20 + 16] = (0x1000 + name).to_bytes(4, "little")
+        image[0x200 + name:0x200 + name + len(dll)] = dll.encode()
+        name += len(dll) + 1
+    return bytes(image)
+
+
+def bytes_path(folder, data):
+    path = folder / "image.exe"
+    path.write_bytes(data)
+    return path
+
+
 class ForeignSystemDllTest(unittest.TestCase):
     def prefix(self, tmp, arm=True):
         proton = Path(tmp) / "Proton"
@@ -2698,7 +2937,8 @@ class ForeignSystemDllTest(unittest.TestCase):
         for libdir, machine in (("aarch64-windows", 0xAA64), ("i386-windows", 0x14C)):
             (dist / libdir).mkdir(parents=True)
             for name in ("ucrtbase.dll", "rpcrt4.dll"):
-                (dist / libdir / name).write_bytes(pe_image(machine))
+                (dist / libdir / name).write_bytes(program_image(machine, []))
+        (dist / "aarch64-windows/wineboot.exe").write_bytes(program_image(0xAA64, ["UCRTBASE.dll", "rpcrt4.dll"]))
         windows = Path(tmp) / "compat/pfx/drive_c/windows"
         for folder in ("system32", "syswow64"):
             (windows / folder).mkdir(parents=True)
@@ -2737,6 +2977,149 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
             self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
+
+    def test_x64_dlls_proton_programs_do_not_import_are_kept_in_arm64_system32(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "explorer.exe").write_bytes(program_image(0xAA64, ["shell32.dll"]))
+            (builtins / "shell32.dll").write_bytes(program_image(0xAA64, ["msvcp_win.dll"]))
+            names = ("vulkan-1.dll", "msvcp140.dll", "VCRUNTIME140.dll", "concrt140.dll", "d3dcompiler_43.dll",
+                     "winhttp.dll", "msvcp_win.dll")
+            for name in names:
+                (builtins / name.lower()).write_bytes(program_image(0xAA64, []))
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            for name in names[:-1]:
+                self.assertFalse((windows / "system32" / name).is_symlink())
+                self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32" / name))
+
+    def test_repaired_dll_proton_programs_do_not_import_gets_its_native_copy_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            for name in ("vulkan-1.dll", "ucrtbase.dll"):
+                (system32 / name).symlink_to(os.path.relpath(builtins / name, system32))
+                (system32 / (name + ".foreign-arch")).write_bytes(pe_image(0x8664))
+            (system32 / "vulkan-1.dll.foreign-arch.1").write_bytes(pe_image(0x8664) + b"newest")
+            restore = MODULE["restore_compatible_system_dlls"]
+            self.assertEqual(["system32/vulkan-1.dll (machine 0x8664)"], restore(str(compat), str(proton)))
+            self.assertFalse((system32 / "vulkan-1.dll").is_symlink())
+            self.assertTrue((system32 / "vulkan-1.dll").read_bytes().endswith(b"newest"))
+            self.assertFalse((system32 / "vulkan-1.dll.foreign-arch.1").exists())
+            self.assertTrue((system32 / "ucrtbase.dll").is_symlink())
+            self.assertEqual([], restore(str(compat), str(proton)))
+            self.assertEqual([], self.run_repair(compat, proton))
+
+    def test_prefix_backup_directory_is_listed_once_per_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            system32 = windows / "system32"
+            for index in range(12):
+                name = "native_%02d.dll" % index
+                (builtins / name).write_bytes(pe_image(0xAA64))
+                (system32 / name).symlink_to(os.path.relpath(builtins / name, system32))
+                (system32 / (name + ".foreign-arch")).write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664))
+            original_listdir = os.listdir
+            visited = []
+
+            def counted_listdir(folder):
+                if Path(folder) == system32:
+                    visited.append(folder)
+                return original_listdir(folder)
+
+            with mock.patch("os.listdir", side_effect=counted_listdir):
+                restored = MODULE["restore_compatible_system_dlls"](str(compat), str(proton))
+                fixed = self.run_repair(compat, proton)
+            self.assertEqual(12, len(restored))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+            # One system32 listing for restore and one for repair, regardless
+            # of the number of DLLs and backup files in the prefix.
+            self.assertEqual(2, len(visited))
+
+    def test_restore_takes_the_highest_backup_serial_across_gaps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(builtins / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch.2").write_bytes(pe_image(0x8664) + b"two")
+            (system32 / "vulkan-1.dll.foreign-arch.10").write_bytes(pe_image(0x8664) + b"ten")
+            self.assertEqual(["system32/vulkan-1.dll (machine 0x8664)"],
+                             MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").read_bytes().endswith(b"ten"))
+
+    def test_unreadable_proton_program_keeps_the_conservative_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "broken.exe").mkdir()
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "concrt140.dll").write_bytes(pe_image(0x8664))
+            (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(builtins / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
+            self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
+
+    def test_new_backup_goes_above_the_highest_existing_serial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            system32 = windows / "system32"
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664) + b"newest")
+            (system32 / "ucrtbase.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll.foreign-arch.2").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertTrue((system32 / "ucrtbase.dll.foreign-arch.3").read_bytes().endswith(b"newest"))
+            self.assertFalse((system32 / "ucrtbase.dll.foreign-arch.1").exists())
+
+    def test_truncated_import_table_keeps_the_conservative_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "cut.exe").write_bytes(program_image(0xAA64, ["concrt140.dll"])[:0x20A])
+            self.assertIsNone(MODULE["PE"]["pe_imports"](builtins / "cut.exe"))
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, ["a.dll"])[:200])))
+            self.assertEqual(set(), MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, []))))
+            moved = bytearray(program_image(0xAA64, ["concrt140.dll"]))
+            moved[208:212] = (0x3000).to_bytes(4, "little")
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), moved)))
+            (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
+            (windows / "system32/concrt140.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
+
+    def test_restore_leaves_other_links_and_x64_proton_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            other = Path(tmp) / "other-vulkan-1.dll"
+            other.write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(other)
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            (system32 / "rpcrt4.dll").symlink_to(os.path.relpath(builtins / "rpcrt4.dll", system32))
+            (system32 / "rpcrt4.dll.foreign-arch").write_bytes(pe_image(0x14C))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
+            self.assertTrue((system32 / "rpcrt4.dll").is_symlink())
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            dist = proton.parent / "files/lib/wine/x86_64-windows"
+            dist.mkdir(parents=True)
+            (dist / "vulkan-1.dll").write_bytes(pe_image(0x8664))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(dist / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0xAA64))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
 
     def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
         with tempfile.TemporaryDirectory() as tmp:

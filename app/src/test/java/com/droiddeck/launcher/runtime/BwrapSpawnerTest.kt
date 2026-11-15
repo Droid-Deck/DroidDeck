@@ -55,6 +55,26 @@ class BwrapSpawnerTest {
         assertTrue(Bind("/rootfs/etc/droiddeck/proc/stat", "/newproc/stat") in binds)
     }
 
+    @Test fun theSessionsRootfsSettingsStayOutOfTheSandbox() {
+        val rootfs = "/data/app/linuxfs"
+        val env = mutableMapOf(
+            "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
+            "SPA_PLUGIN_DIR" to "/usr/local/lib/droiddeck-pipewire/lib/spa-0.2",
+            "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so:$rootfs/usr/local/lib/libblsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+        )
+        BwrapSpawner.withoutRootfsSettings(env, rootfs)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so"), env)
+        val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
+        BwrapSpawner.withoutRootfsSettings(onlySession, rootfs)
+        assertTrue(onlySession.isEmpty())
+        val wayland = mutableMapOf("SDL_VIDEODRIVER" to "x11", "WAYLAND_DISPLAY" to "wayland-0")
+        BwrapSpawner.withoutRootfsSettings(wayland, rootfs)
+        assertEquals(mapOf("WAYLAND_DISPLAY" to "wayland-0"), wayland)
+        val x11 = mutableMapOf("SDL_VIDEODRIVER" to "x11", "WAYLAND_DISPLAY" to "wayland-0", "DISPLAY" to ":99")
+        BwrapSpawner.withoutRootfsSettings(x11, rootfs)
+        assertEquals("x11", x11["SDL_VIDEODRIVER"])
+    }
+
     @Test fun normalizeResolvesDotsLexically() {
         assertEquals("/usr/lib/x", BwrapSpawner.normalize("/usr/lib/GL/../x"))
         assertEquals("/", BwrapSpawner.normalize("/../.."))

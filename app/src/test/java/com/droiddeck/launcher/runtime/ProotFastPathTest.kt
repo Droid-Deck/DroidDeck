@@ -33,4 +33,8 @@ class ProotFastPathTest {
         assertFalse(ProotFastPath.allows(preference = false, noSeccomp = false, source = LinuxRuntime.PROOT_PACK))
         assertFalse(ProotFastPath.allows(preference = true, noSeccomp = true, source = LinuxRuntime.PROOT_PACK))
     }
+
+    @Test fun fastPathStaysOffWithoutProot() {
+        assertFalse(ProotFastPath.allows(preference = true, noSeccomp = false, source = LinuxRuntime.PROOT_PACK, nativeUserland = true))
+    }
 }
