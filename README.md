@@ -90,7 +90,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 <details>
 <summary><b>Stores</b></summary>
 
-- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them.
+- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them. GOG cloud storage requests send the Galaxy communication-service User-Agent that gogdl and [Lutris](https://github.com/lutris/lutris) (GPL-3.0) send.
 - Epic's official Linux launcher preview runs through FEX. That setup is outside Epic's listed Linux support.
 - The launcher's .deb gets the WebKitGTK and GTK 3 libraries it needs from unmodified [Debian](https://www.debian.org) 13 packages, following [@zooluis](https://github.com/zooluis)'s research in [#2268](https://github.com/Droid-Deck/DroidDeck/pull/2268).
 - Battle.net is by [@kayakyakr](https://github.com/kayakyakr). It runs Blizzard's own client in Proton (downloaded from Blizzard, not included) and shows key art from the [Battle.net Shop](https://shop.battle.net). Without Steam, its games see the pad as an Xbox 360 controller via `PROTON_SPOOF_STEAMINPUT_VIDPID` in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/winebus.sys`.
