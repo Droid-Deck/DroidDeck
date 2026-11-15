@@ -198,20 +198,22 @@ class GogCloudKeysTest {
 
     @Test fun disabledListErrorsRemainRecognized() {
         for (error in listOf("disabled", "not_enabled_for_client")) {
-            val body = "{\"error\":\"$error\"}"
-            val failure = runCatching {
-                serve(1, { "HTTP/1.1 403 Forbidden\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
-                    GogCloud("user", "client", "token", "saves", url).list()
-                }
-            }.exceptionOrNull()
-            assertTrue("$error: $failure", failure is NoCloudSaves)
+            for (padding in listOf("", ",\"padding\":\"${"x".repeat(100_000)}\"")) {
+                val body = "{\"error\":\"$error\"$padding}"
+                val failure = runCatching {
+                    serve(1, { "HTTP/1.1 403 Forbidden\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }, allowEarlyClose = padding.isNotEmpty()) { url ->
+                        GogCloud("user", "client", "token", "saves", url).list()
+                    }
+                }.exceptionOrNull()
+                assertTrue("$error: $failure", failure is NoCloudSaves)
+            }
         }
     }
 
     @Test fun largeListErrorIsBoundedAndSanitized() {
         val body = "invalid_version " + "x".repeat(100_000)
         val failure = runCatching {
-            serve(1, { "HTTP/1.1 400 Bad Request\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
+            serve(1, { "HTTP/1.1 400 Bad Request\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }, allowEarlyClose = true) { url ->
                 GogCloud("user", "client", "token", "saves", url).list()
             }
         }.exceptionOrNull()
@@ -233,7 +235,7 @@ private fun okResponse(request: Request): String =
         "Etag: \"${CloudSaves.md5(request.body)}\"\r\n" +
         "Last-Modified: Tue, 20 Oct 2026 10:00:00 GMT\r\nConnection: close\r\n\r\n"
 
-private fun serve(count: Int, respond: (Request) -> String, block: (String) -> Unit): List<Request> {
+private fun serve(count: Int, respond: (Request) -> String, allowEarlyClose: Boolean = false, block: (String) -> Unit): List<Request> {
     val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))
     val requests = java.util.concurrent.CopyOnWriteArrayList<Request>()
     val failure = java.util.concurrent.atomic.AtomicReference<Throwable>()
@@ -261,22 +263,33 @@ private fun serve(count: Int, respond: (Request) -> String, block: (String) -> U
                     }
                     val request = Request(parts[0], parts[1], headers, body)
                     requests += request
-                    client.getOutputStream().apply { write(respond(request).toByteArray()); flush() }
+                    val response = respond(request).toByteArray()
+                    try {
+                        client.getOutputStream().apply { write(response); flush() }
+                    } catch (e: java.io.IOException) {
+                        if (!allowEarlyClose) throw e
+                    }
                 }
             }
         } catch (t: Throwable) {
             failure.set(t)
         }
     }.apply { isDaemon = true; start() }
-    try {
+    val result = runCatching {
         block("http://127.0.0.1:${server.localPort}/v1/user/client")
-    } finally {
+    }
+    val cleanup = runCatching {
         server.close()
         worker.join(2_000)
         check(!worker.isAlive) { "Server worker did not finish" }
         failure.get()?.let { throw AssertionError("Server worker failed", it) }
         check(requests.size == count) { "Expected $count requests, received ${requests.size}" }
     }
+    result.exceptionOrNull()?.let { primary ->
+        cleanup.exceptionOrNull()?.let { primary.addSuppressed(it) }
+        throw primary
+    }
+    cleanup.getOrThrow()
     return requests
 }
 

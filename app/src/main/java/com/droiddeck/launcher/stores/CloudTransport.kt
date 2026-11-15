@@ -88,9 +88,16 @@ internal fun cloudFailureDetail(e: Throwable): String {
 private const val SNIPPET_READ_MAX = 4096
 private const val SNIPPET_MAX = 120
 
-private fun cloudErrorPrefix(input: InputStream?): String {
-    if (input == null) return ""
-    val prefix = input.use { stream ->
+private data class CloudErrorPrefix(val text: String, val truncated: Boolean) {
+    fun snippet(): String {
+        val safe = if (truncated) text.substring(0, text.indexOfLast { it.isWhitespace() }.coerceAtLeast(0)) else text
+        return scrubCloudText(safe).take(SNIPPET_MAX)
+    }
+}
+
+private fun cloudErrorPrefix(input: InputStream?): CloudErrorPrefix {
+    if (input == null) return CloudErrorPrefix("", false)
+    return input.use { stream ->
         val buffer = ByteArray(SNIPPET_READ_MAX + 1)
         var read = 0
         while (read < buffer.size) {
@@ -98,14 +105,12 @@ private fun cloudErrorPrefix(input: InputStream?): String {
             if (n < 0) break
             read += n
         }
-        val text = buffer.decodeToString(0, minOf(read, SNIPPET_READ_MAX))
-        if (read > SNIPPET_READ_MAX) text.substring(0, text.indexOfLast { it.isWhitespace() }.coerceAtLeast(0)) else text
+        CloudErrorPrefix(buffer.decodeToString(0, minOf(read, SNIPPET_READ_MAX)), read > SNIPPET_READ_MAX)
     }
-    return prefix
 }
 
 internal fun cloudErrorSnippet(input: InputStream?): String =
-    scrubCloudText(cloudErrorPrefix(input)).take(SNIPPET_MAX)
+    cloudErrorPrefix(input).snippet()
 
 private fun HttpURLConnection.errorSnippet(): String =
     runCatching { cloudErrorSnippet(errorStream) }.getOrDefault("")
@@ -270,10 +275,10 @@ class GogCloud(
         val code = c.responseCode
         if (code == 404) { c.disconnect(); return emptyList() }
         if (code !in 200..299) {
-            val err = runCatching { cloudErrorPrefix(c.errorStream) }.getOrDefault("")
+            val err = runCatching { cloudErrorPrefix(c.errorStream) }.getOrDefault(CloudErrorPrefix("", false))
             c.disconnect()
-            if ("not_enabled_for_client" in err || "disabled" in err) throw NoCloudSaves()
-            throw httpFailure("list", null, code, scrubCloudText(err).take(SNIPPET_MAX))
+            if ("not_enabled_for_client" in err.text || "disabled" in err.text) throw NoCloudSaves()
+            throw httpFailure("list", null, code, err.snippet())
         }
         val text = c.body().decodeToString().trim()
         c.disconnect()
