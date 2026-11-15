@@ -150,8 +150,37 @@ object BootMovie {
         folder.listFiles()?.forEach { if (it.name != keep) it.delete() }
     }
 
+    internal fun syncShuffleFromSteam(context: Context, config: File) = syncShuffleFromSteam(context, listOf(config))
+
+    // Staging writes Shuffle and its baseline under the same lock, so a poll never reads a half-staged value as Steam's.
+    internal fun syncShuffleFromSteam(context: Context, configs: List<File>) = synchronized(SessionFiles.STEAM_CONFIG) {
+        val read = configs.mapNotNull { config -> SessionFiles.startupMovieShuffle(config)?.let { config to it } }
+        val (known, unseen) = read.partition { (config, _) -> SessionPrefs.bootMovieShuffleSeen(context, config) != null }
+        var changed = false
+        known.forEach { (config, steam) ->
+            if (SessionPrefs.bootMovieShuffleSeen(context, config) != steam) {
+                SessionPrefs.setBootMovieShuffle(context, steam)
+                changed = true
+            }
+            SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
+        }
+        // A config read for the first time only sets the choice when no known config changed, so it cannot undo a change.
+        unseen.forEach { (config, steam) ->
+            if (!changed && SessionPrefs.bootMovieShuffle(context) != steam) {
+                SessionPrefs.setBootMovieShuffle(context, steam)
+                changed = true
+            }
+            SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
+        }
+    }
+
     fun syncFromSteam(context: Context): Boolean {
-        val named = SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context)) ?: return false
+        val active = BootMovieLibrary.steamConfig(context)
+        syncShuffleFromSteam(
+            context,
+            BootMovieLibrary.steamRoots(context).map { File(it, "config/config.vdf") }.filter { it != active } + active,
+        )
+        val named = SessionFiles.startupMovieLocalPath(active) ?: return false
         val seen = SessionPrefs.bootMovieSteamSeen(context)
         if (named == seen) return false
         SessionPrefs.setBootMovieSteamSeen(context, named)

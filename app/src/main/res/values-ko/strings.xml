@@ -3378,6 +3378,7 @@
     <string name="boot_movie_sound">소리</string>
     <string name="boot_movie_skip">시작 동영상 건너뛰기</string>
     <string name="boot_movie_skip_hint">0.1초짜리 검은 화면 클립을 Steam 시작 동영상으로 사용합니다. 다음 세션부터 적용됩니다.</string>
+    <string name="boot_movie_shuffle">셔플</string>
     <string name="boot_movie_custom">내 동영상</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
     <string name="boot_movie_import">가져오기</string>

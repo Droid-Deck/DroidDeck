@@ -3563,6 +3563,7 @@
     <string name="boot_movie_sound">الصوت</string>
     <string name="boot_movie_skip">تخطي مقطع بدء التشغيل</string>
     <string name="boot_movie_skip_hint">استخدم مقطعًا أسود مدته 0.1 ثانية كمقطع بدء تشغيل Steam. يسري في الجلسة التالية.</string>
+    <string name="boot_movie_shuffle">عشوائي</string>
     <string name="boot_movie_custom">فيديو خاص بك</string>
     <string name="boot_movie_custom_hint">MP4 أو MOV أو MKV أو WebM. تُحوَّل الصيغ الأخرى والملفات الأكبر من %1$d ميغابايت إلى WebM بدقة 720p على الجهاز، حتى %2$d ثانية.</string>
     <string name="boot_movie_import">استيراد</string>

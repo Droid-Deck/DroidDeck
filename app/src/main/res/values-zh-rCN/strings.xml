@@ -3378,6 +3378,7 @@
     <string name="boot_movie_sound">声音</string>
     <string name="boot_movie_skip">跳过启动影片</string>
     <string name="boot_movie_skip_hint">用一段 0.1 秒的黑色片段作为 Steam 的启动影片。下次会话生效。</string>
+    <string name="boot_movie_shuffle">随机播放</string>
     <string name="boot_movie_custom">自定义视频</string>
     <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超过 %1$d MB 的文件会在设备上转换为 720p WebM，最长 %2$d 秒。</string>
     <string name="boot_movie_import">导入</string>

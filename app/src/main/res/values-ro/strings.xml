@@ -3446,6 +3446,7 @@
     <string name="boot_movie_sound">Sunet</string>
     <string name="boot_movie_skip">Omite filmul de pornire</string>
     <string name="boot_movie_skip_hint">Folosește un clip negru de 0,1 secunde ca film de pornire pentru Steam. Se aplică la următoarea sesiune.</string>
+    <string name="boot_movie_shuffle">Aleatoriu</string>
     <string name="boot_movie_custom">Videoclipul tău</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV sau WebM. Alte formate și fișierele de peste %1$d MB sunt convertite pe dispozitiv în WebM 720p, până la %2$d secunde.</string>
     <string name="boot_movie_import">Importă</string>

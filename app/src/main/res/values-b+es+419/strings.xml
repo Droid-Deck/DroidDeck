@@ -3385,6 +3385,7 @@
     <string name="boot_movie_sound">Sonido</string>
     <string name="boot_movie_skip">Omitir el video de inicio</string>
     <string name="boot_movie_skip_hint">Usa un clip negro de 0.1 segundos como video de inicio de Steam. Se aplica en la próxima sesión.</string>
+    <string name="boot_movie_shuffle">Aleatorio</string>
     <string name="boot_movie_custom">Tu propio video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV o WebM. Otros formatos y archivos de más de %1$d MB se convierten a WebM 720p en el dispositivo, hasta %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>

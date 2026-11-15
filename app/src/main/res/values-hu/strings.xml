@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Hang</string>
     <string name="boot_movie_skip">Indítási videó kihagyása</string>
     <string name="boot_movie_skip_hint">Egy 0,1 másodperces fekete klipet használ a Steam indítási videójaként. A következő munkamenetben lép érvénybe.</string>
+    <string name="boot_movie_shuffle">Véletlen sorrend</string>
     <string name="boot_movie_custom">Saját videó</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV vagy WebM. Más formátumokat és a %1$d MB-nál nagyobb fájlokat az eszköz 720p WebM-re alakítja, legfeljebb %2$d másodpercig.</string>
     <string name="boot_movie_import">Importálás</string>

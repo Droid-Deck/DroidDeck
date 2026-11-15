@@ -3485,6 +3485,7 @@
     <string name="boot_movie_sound">Zvuk</string>
     <string name="boot_movie_skip">Přeskočit úvodní video</string>
     <string name="boot_movie_skip_hint">Použije se 0,1sekundový černý klip jako úvodní video při spuštění aplikace Steam. Projeví se v příští relaci.</string>
+    <string name="boot_movie_shuffle">Náhodné pořadí</string>
     <string name="boot_movie_custom">Vlastní video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV nebo WebM. Jiné formáty a soubory nad %1$d MB se v zařízení převedou na WebM 720p, nejvýše %2$d sekund.</string>
     <string name="boot_movie_import">Importovat</string>

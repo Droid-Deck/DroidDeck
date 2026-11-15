@@ -3378,6 +3378,7 @@
     <string name="boot_movie_sound">Bunyi</string>
     <string name="boot_movie_skip">Langkau filem permulaan</string>
     <string name="boot_movie_skip_hint">Gunakan klip hitam 0.1 saat sebagai filem permulaan Steam. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="boot_movie_shuffle">Rawak</string>
     <string name="boot_movie_custom">Video anda sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV atau WebM. Format lain dan fail melebihi %1$d MB ditukar kepada WebM 720p pada peranti, sehingga %2$d saat.</string>
     <string name="boot_movie_import">Import</string>

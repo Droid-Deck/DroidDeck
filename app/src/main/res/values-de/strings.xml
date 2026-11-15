@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Ton</string>
     <string name="boot_movie_skip">Startvideo überspringen</string>
     <string name="boot_movie_skip_hint">Ein schwarzes Video von 0,1 Sekunden als Steam-Startvideo verwenden. Gilt ab der nächsten Sitzung.</string>
+    <string name="boot_movie_shuffle">Zufallswiedergabe</string>
     <string name="boot_movie_custom">Eigenes Video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV oder WebM. Andere Formate und Dateien über %1$d MB werden auf dem Gerät in 720p-WebM umgewandelt, bis %2$d Sekunden.</string>
     <string name="boot_movie_import">Importieren</string>

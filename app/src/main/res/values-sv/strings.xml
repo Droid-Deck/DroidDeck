@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Ljud</string>
     <string name="boot_movie_skip">Hoppa över uppstartsfilmen</string>
     <string name="boot_movie_skip_hint">Använd ett svart klipp på 0,1 sekunder som uppstartsfilm för Steam. Tillämpas nästa session.</string>
+    <string name="boot_movie_shuffle">Blanda</string>
     <string name="boot_movie_custom">Egen video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andra format och filer över %1$d MB konverteras till 720p-WebM på enheten, upp till %2$d sekunder.</string>
     <string name="boot_movie_import">Importera</string>
