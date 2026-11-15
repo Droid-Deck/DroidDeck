@@ -1018,9 +1018,8 @@ class SessionService : Service() {
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
-        mapOf("TU_DEBUG" to (tuOverride ?: if (tuDriver) "sysmem" else ""), "MESA_NO_ERROR" to "").forEach { (name, game) ->
-            if (extra.none { it.startsWith("$name=") }) guest.add("$GAME_PREFIX$name=$game")
-        }
+        guest.addAll(TurnipEnvironment.gameEnvironment(tuOverride, tuDriver, SessionPrefs.tuSysmem(this), extra))
+        if (extra.none { it.startsWith("MESA_NO_ERROR=") }) guest.add("${GAME_PREFIX}MESA_NO_ERROR=")
         extra.forEach { guest.add(it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
         val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
