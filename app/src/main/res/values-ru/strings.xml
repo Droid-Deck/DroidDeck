@@ -4190,4 +4190,6 @@
 
     <string name="display_integer_scaling">Целочисленное масштабирование</string>
     <string name="display_integer_scaling_hint">Использует наибольший целочисленный коэффициент масштабирования, который помещается. Если исходное изображение слишком велико, оно уменьшается целиком, чтобы избежать обрезки. Разрешение настраивается отдельно.</string>
+    <string name="display_scaling_integer">Целое число</string>
+    <string name="display_scaling_fit">По размеру</string>
 </resources>

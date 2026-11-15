@@ -4150,4 +4150,6 @@
 
     <string name="display_integer_scaling">Scalare cu numere întregi</string>
     <string name="display_integer_scaling_hint">Folosește cel mai mare factor întreg de scalare care încape. Dacă sursa este prea mare, adaptează întreaga imagine pentru a evita decuparea. Rezoluția se configurează separat.</string>
+    <string name="display_scaling_integer">Număr întreg</string>
+    <string name="display_scaling_fit">Potrivire</string>
 </resources>

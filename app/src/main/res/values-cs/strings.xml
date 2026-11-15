@@ -4190,4 +4190,6 @@
 
     <string name="display_integer_scaling">Celočíselné škálování</string>
     <string name="display_integer_scaling_hint">Použije největší celočíselný násobek měřítka, který se vejde. Pokud je zdroj příliš velký, přizpůsobí celý obraz, aby nedošlo k oříznutí. Rozlišení se nastavuje samostatně.</string>
+    <string name="display_scaling_integer">Celé číslo</string>
+    <string name="display_scaling_fit">Přizpůsobit</string>
 </resources>

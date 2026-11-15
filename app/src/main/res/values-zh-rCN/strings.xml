@@ -4080,4 +4080,6 @@
 
     <string name="display_integer_scaling">整数缩放</string>
     <string name="display_integer_scaling_hint">使用能够容纳的最大整数缩放倍数。如果源图像过大，则缩放整张图像以避免裁切。分辨率单独设置。</string>
+    <string name="display_scaling_integer">整数</string>
+    <string name="display_scaling_fit">适应</string>
 </resources>

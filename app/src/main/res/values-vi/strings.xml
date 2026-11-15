@@ -4080,4 +4080,6 @@
 
     <string name="display_integer_scaling">Tỷ lệ nguyên</string>
     <string name="display_integer_scaling_hint">Sử dụng hệ số tỷ lệ nguyên lớn nhất có thể vừa màn hình. Nếu nguồn quá lớn, toàn bộ hình ảnh sẽ được thu vừa để tránh bị cắt. Độ phân giải được thiết lập riêng.</string>
+    <string name="display_scaling_integer">Số nguyên</string>
+    <string name="display_scaling_fit">Vừa màn hình</string>
 </resources>

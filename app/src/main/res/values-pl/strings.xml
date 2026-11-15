@@ -4190,4 +4190,6 @@
 
     <string name="display_integer_scaling">Skalowanie całkowite</string>
     <string name="display_integer_scaling_hint">Używa największego całkowitego współczynnika skalowania, który się mieści. Jeśli źródło jest zbyt duże, dopasowuje cały obraz, aby uniknąć przycinania. Rozdzielczość ustawia się osobno.</string>
+    <string name="display_scaling_integer">Liczba całkowita</string>
+    <string name="display_scaling_fit">Dopasuj</string>
 </resources>

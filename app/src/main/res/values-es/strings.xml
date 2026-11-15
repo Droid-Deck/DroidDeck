@@ -4150,4 +4150,6 @@
 
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
     <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que quepa. Si la imagen de origen es demasiado grande, ajusta la imagen completa para evitar recortes. La resolución se configura por separado.</string>
+    <string name="display_scaling_integer">Entero</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

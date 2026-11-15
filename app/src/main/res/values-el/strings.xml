@@ -4110,4 +4110,6 @@
 
     <string name="display_integer_scaling">Ακέραια κλιμάκωση</string>
     <string name="display_integer_scaling_hint">Χρησιμοποιεί τον μεγαλύτερο ακέραιο συντελεστή κλιμάκωσης που χωράει. Αν η πηγή είναι πολύ μεγάλη, προσαρμόζει ολόκληρη την εικόνα ώστε να αποφευχθεί η περικοπή. Η ανάλυση ρυθμίζεται ξεχωριστά.</string>
+    <string name="display_scaling_integer">Ακέραιος</string>
+    <string name="display_scaling_fit">Προσαρμογή</string>
 </resources>

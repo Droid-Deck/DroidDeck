@@ -4110,4 +4110,6 @@
 
     <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
     <string name="display_integer_scaling_hint">Sığan en büyük tam sayı ölçekleme katsayısını kullanır. Kaynak çok büyükse kırpmayı önlemek için görüntünün tamamını sığdırır. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_scaling_integer">Tam sayı</string>
+    <string name="display_scaling_fit">Sığdır</string>
 </resources>

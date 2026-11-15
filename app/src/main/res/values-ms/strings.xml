@@ -4080,4 +4080,6 @@
 
     <string name="display_integer_scaling">Penskalaan integer</string>
     <string name="display_integer_scaling_hint">Menggunakan faktor skala integer terbesar yang muat. Jika sumber terlalu besar, keseluruhan imej disesuaikan untuk mengelakkan pemotongan. Resolusi ditetapkan secara berasingan.</string>
+    <string name="display_scaling_integer">Integer</string>
+    <string name="display_scaling_fit">Muat</string>
 </resources>

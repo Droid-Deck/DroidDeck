@@ -622,7 +622,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         onClick = { a.onIntegerScaling(!a.integerScaling) }
                                     ) {
                                         Text(stringResource(
-                                            if (a.integerScaling) R.string.display_scaling_auto
+                                            if (a.integerScaling) R.string.display_scaling_integer
                                             else R.string.display_scaling_fit
                                         ))
                                     }

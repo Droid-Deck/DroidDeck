@@ -4080,4 +4080,6 @@
 
     <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
     <string name="display_integer_scaling_hint">Menggunakan faktor skala bilangan bulat terbesar yang muat. Jika sumber terlalu besar, seluruh gambar disesuaikan agar tidak terpotong. Resolusi diatur secara terpisah.</string>
+    <string name="display_scaling_integer">Bilangan bulat</string>
+    <string name="display_scaling_fit">Sesuaikan</string>
 </resources>

@@ -4149,4 +4149,6 @@
 
     <string name="display_integer_scaling">Escala por números inteiros</string>
     <string name="display_integer_scaling_hint">Utiliza o maior fator de escala inteiro que couber. Se a imagem de origem for demasiado grande, ajusta a imagem completa para evitar cortes. A resolução é configurada separadamente.</string>
+    <string name="display_scaling_integer">Inteiro</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

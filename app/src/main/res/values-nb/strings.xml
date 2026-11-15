@@ -4110,4 +4110,6 @@
 
     <string name="display_integer_scaling">Heltallsskalering</string>
     <string name="display_integer_scaling_hint">Bruker den største hele skaleringsfaktoren som får plass. Hvis kilden er for stor, tilpasses hele bildet for å unngå beskjæring. Oppløsningen stilles inn separat.</string>
+    <string name="display_scaling_integer">Heltall</string>
+    <string name="display_scaling_fit">Tilpass</string>
 </resources>

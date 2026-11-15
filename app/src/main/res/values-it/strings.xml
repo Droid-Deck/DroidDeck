@@ -4149,4 +4149,6 @@
 
     <string name="display_integer_scaling">Ridimensionamento intero</string>
     <string name="display_integer_scaling_hint">Usa il più grande fattore di scala intero che entra nello schermo. Se la sorgente è troppo grande, adatta l’intera immagine per evitare ritagli. La risoluzione si configura separatamente.</string>
+    <string name="display_scaling_integer">Intero</string>
+    <string name="display_scaling_fit">Adatta</string>
 </resources>

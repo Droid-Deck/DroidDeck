@@ -4110,4 +4110,6 @@
 
     <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
     <string name="display_integer_scaling_hint">Käyttää suurinta mahtuvaa kokonaislukukerrointa. Jos lähdekuva on liian suuri, koko kuva sovitetaan rajauksen välttämiseksi. Tarkkuus määritetään erikseen.</string>
+    <string name="display_scaling_integer">Kokonaisluku</string>
+    <string name="display_scaling_fit">Sovita</string>
 </resources>

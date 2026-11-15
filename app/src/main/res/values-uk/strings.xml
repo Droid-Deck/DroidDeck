@@ -4190,4 +4190,6 @@
 
     <string name="display_integer_scaling">Цілочисельне масштабування</string>
     <string name="display_integer_scaling_hint">Використовує найбільший цілий коефіцієнт масштабування, який поміщається. Якщо вихідне зображення завелике, воно вміщується повністю без обрізання. Роздільна здатність налаштовується окремо.</string>
+    <string name="display_scaling_integer">Ціле число</string>
+    <string name="display_scaling_fit">За розміром</string>
 </resources>
