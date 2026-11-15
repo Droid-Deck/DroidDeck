@@ -6,7 +6,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PATCH = ROOT / "tools/gamescope/patches/0134-vulkan-release-before-exit.patch"
+PATCH = ROOT / "tools/gamescope/patches/0135-vulkan-release-before-exit.patch"
 
 
 def added_source():

@@ -351,7 +351,7 @@ after 30 moving frames on which the X pointer follows. Any constraint goes relat
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
 
-## 0134 rendervulkan: release Vulkan objects before exit
+## 0135 rendervulkan: release Vulkan objects before exit
 
 Ported from JROtto5's ValveSoftware/gamescope#2542. Gamescope's device and output are globals, so their Vulkan-backed
 objects otherwise destruct after the driver's exit handlers. Shutdown now joins the pipeline thread, waits up to one
