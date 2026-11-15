@@ -232,6 +232,20 @@ if [[ -f "${repo_root}/tools/gamescope/release.env" ]]; then
     test -f "${linuxfs_dir}/usr/local/bin/gamescope"
 fi
 
+if [[ -f "${repo_root}/tools/venus/release.env" ]]; then
+    . "${repo_root}/tools/venus/release.env"
+    if [[ -n "${DROIDDECK_VENUS_TZST:-}" ]]; then
+        venus_archive=${DROIDDECK_VENUS_TZST}
+        echo "venus: using ${venus_archive} instead of ${VENUS_TAG}"
+    else
+        venus_archive=$(cached "${VENUS_SHA256}" venus.tzst \
+            bash -c 'gh release download "$0" -R "$1" -p venus.tzst -O "$out"' "${VENUS_TAG}" "${VENUS_REPO}")
+    fi
+    zstd -dc "${venus_archive}" | tar -xf - -C "${repo_root}/app/src/main"
+    test -f "${repo_root}/app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so"
+    test -f "${repo_root}/app/src/main/assets/venus/libvulkan_virtio.so"
+fi
+
 . "${repo_root}/tools/linuxfs/uruntime.env"
 uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
     bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
