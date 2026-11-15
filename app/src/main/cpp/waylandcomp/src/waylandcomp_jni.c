@@ -448,6 +448,18 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeGamePictureRect(JNIE
     return JNI_TRUE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeOutputSize(JNIEnv *env, jclass clazz, jintArray out) {
+    (void)clazz;
+    if (!out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    int width = 0, height = 0;
+    vkp_output_size(&width, &height);
+    if (width <= 0 || height <= 0) return JNI_FALSE;
+    jint size[2] = {(jint)width, (jint)height};
+    (*env)->SetIntArrayRegion(env, out, 0, 2, size);
+    return JNI_TRUE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaler(JNIEnv *env, jclass clazz, jint mode) {
     vkp_effects_set_scaling(mode);
