@@ -93,9 +93,14 @@ def pe_imports(path):
         optional = pe_offset + 24
         magic = int.from_bytes(image[optional:optional + 2], "little")
         directories = optional + (112 if magic == 0x20B else 96)
+        if directories > len(image):
+            return None
+        directory_count = int.from_bytes(image[directories - 4:directories], "little")
         sections = []
         for index in range(min(section_count, 96)):
             entry = optional + optional_size + index * 40
+            if entry + 40 > len(image):
+                return None
             sections.append((int.from_bytes(image[entry + 12:entry + 16], "little"),
                              max(int.from_bytes(image[entry + 8:entry + 12], "little"),
                                  int.from_bytes(image[entry + 16:entry + 20], "little")),
@@ -109,6 +114,10 @@ def pe_imports(path):
 
         names = set()
         for directory, step, field in ((1, 20, 12), (13, 32, 4)):
+            if directory >= directory_count:
+                continue
+            if directories + directory * 8 + 8 > len(image):
+                return None
             rva = int.from_bytes(image[directories + directory * 8:directories + directory * 8 + 4], "little")
             entry = offset(rva) if rva else None
             if rva and entry is None:

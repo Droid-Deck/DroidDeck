@@ -2851,7 +2851,7 @@ class ForeignSystemDllTest(unittest.TestCase):
         for libdir, machine in (("aarch64-windows", 0xAA64), ("i386-windows", 0x14C)):
             (dist / libdir).mkdir(parents=True)
             for name in ("ucrtbase.dll", "rpcrt4.dll"):
-                (dist / libdir / name).write_bytes(pe_image(machine))
+                (dist / libdir / name).write_bytes(program_image(machine, []))
         (dist / "aarch64-windows/wineboot.exe").write_bytes(program_image(0xAA64, ["UCRTBASE.dll", "rpcrt4.dll"]))
         windows = Path(tmp) / "compat/pfx/drive_c/windows"
         for folder in ("system32", "syswow64"):
@@ -2901,7 +2901,7 @@ class ForeignSystemDllTest(unittest.TestCase):
             names = ("vulkan-1.dll", "msvcp140.dll", "VCRUNTIME140.dll", "concrt140.dll", "d3dcompiler_43.dll",
                      "winhttp.dll", "msvcp_win.dll")
             for name in names:
-                (builtins / name.lower()).write_bytes(pe_image(0xAA64))
+                (builtins / name.lower()).write_bytes(program_image(0xAA64, []))
                 (windows / "system32" / name).write_bytes(pe_image(0x8664))
             self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
             for name in names[:-1]:
@@ -2972,6 +2972,8 @@ class ForeignSystemDllTest(unittest.TestCase):
             builtins = proton.parent / "files/lib/wine/aarch64-windows"
             (builtins / "cut.exe").write_bytes(program_image(0xAA64, ["concrt140.dll"])[:0x20A])
             self.assertIsNone(MODULE["PE"]["pe_imports"](builtins / "cut.exe"))
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, ["a.dll"])[:200])))
+            self.assertEqual(set(), MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, []))))
             moved = bytearray(program_image(0xAA64, ["concrt140.dll"]))
             moved[208:212] = (0x3000).to_bytes(4, "little")
             self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), moved)))
