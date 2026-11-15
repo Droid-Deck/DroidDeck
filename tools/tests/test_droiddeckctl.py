@@ -55,6 +55,19 @@ FAKE_ADB = textwrap.dedent('''\
         print("Result: Bundle[{json=" + json.dumps(answers) + "}]")
     elif args[:3] == ["shell", "dumpsys", "display"]:
         print(config.get("dumpsys_display", ""))
+    elif args[:3] == ["shell", "dumpsys", "input"]:
+        print(config.get("dumpsys_input", ""))
+    elif args[:3] == ["shell", "uinput", "-"]:
+        entry["stdin"] = sys.stdin.read()
+        if "uinput_stdout" in config:
+            print(config["uinput_stdout"])
+        else:
+            for line in entry["stdin"].splitlines():
+                command = json.loads(line)
+                if command["command"] == "sync":
+                    print(json.dumps({"reason": "sync", "id": command["id"], "syncToken": command["syncToken"]}))
+    elif args[:1] == ["shell"] and len(args) == 2 and "command -v uinput" in args[1]:
+        print(config.get("uinput_probe", ""))
     elif args[:3] == ["shell", "dumpsys", "power"]:
         print("  mWakefulness=Awake")
     elif args[:3] == ["shell", "dumpsys", "SurfaceFlinger"] and "-dump" in args:
