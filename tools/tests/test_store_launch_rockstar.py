@@ -165,6 +165,41 @@ class RockstarLaunch(unittest.TestCase):
             self.assertEqual('rockstar-launch', requests[0]['op'])
             self.assertEqual(b'compiled-helper', path.with_name('Launcher.exe').read_bytes())
 
+    def test_a_missing_service_is_fetched_from_the_app_before_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, sidecar, prefix, service, answer = self.setup_game(root)
+            helper = (service / 'Launcher32.exe').read_bytes()
+            (service / 'Launcher32.exe').unlink()
+            requests = []
+
+            def ask(channel, request, timeout):
+                requests.append(request)
+                if request['op'] == 'store-service':
+                    (service / 'Launcher32.exe').write_bytes(helper)
+                    return {'ok': True}
+                return answer
+
+            with patch.object(store, 'ROCKSTAR_SERVICE', service), patch.object(store, 'rockstar_registry', return_value=True):
+                result = store.prepare_rockstar(folder, sidecar, str(prefix), str(Path(root) / 'channel'), ask_app=ask)
+            self.assertEqual('ready', result)
+            self.assertEqual([{'op': 'store-service', 'store': 'rockstar'}], requests[:1])
+            self.assertEqual('rockstar-launch', requests[1]['op'])
+
+    def test_an_unavailable_service_does_not_request_account_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, sidecar, prefix, service, _ = self.setup_game(root)
+            (service / 'Launcher32.exe').unlink()
+            requests = []
+
+            def ask(channel, request, timeout):
+                requests.append(request)
+                return {'ok': False, 'reason': 'service-unavailable'}
+
+            with patch.object(store, 'ROCKSTAR_SERVICE', service), patch.object(store, 'rockstar_registry', return_value=True):
+                result = store.prepare_rockstar(folder, sidecar, str(prefix), str(Path(root) / 'channel'), ask_app=ask)
+            self.assertEqual('no-service', result)
+            self.assertEqual(['store-service'], [request['op'] for request in requests])
+
     def test_rejected_or_expired_sessions_cannot_reuse_stale_material(self):
         for update in ({'ok': False, 'reason': 'not-owned'}, {'material': 'A' * 641}, {'expiresAt': 1}):
             with self.subTest(update=update), tempfile.TemporaryDirectory() as root:

@@ -47,6 +47,47 @@ class LogTest(Temp):
         self.assertRegex(log.read_text(), r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d \[\d+\] second\n$")
 
 
+class StoreDebugEnvironmentTest(Temp):
+    def config(self, enabled):
+        config = self.tmp / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(json.dumps({"version": 1, "gameDebugLogs": enabled}))
+
+    def env(self, values=None):
+        debug_dir = self.tmp / "session"
+        debug_dir.mkdir(exist_ok=True)
+        base = {"HOME": str(self.tmp), "BL_DEBUG_DIR": str(debug_dir)}
+        base.update(values or {})
+        return base
+
+    def test_store_proton_command_gets_debug_defaults_when_enabled(self):
+        self.config(True)
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            result = BNET["proton_env"]()
+        self.assertEqual(result["PROTON_LOG"], "1")
+        self.assertEqual(result["DXVK_LOG_LEVEL"], "debug")
+        self.assertEqual(result["PROTON_LOG_DIR"], str(self.tmp / "session"))
+        self.assertIn("+seh", result["WINEDEBUG"])
+
+    def test_store_proton_command_keeps_debug_off_when_disabled(self):
+        self.config(False)
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            result = BNET["proton_env"]()
+        self.assertNotIn("PROTON_LOG", result)
+        self.assertNotIn("DXVK_LOG_LEVEL", result)
+
+    def test_store_proton_command_keeps_user_debug_values(self):
+        self.config(True)
+        values = {"PROTON_LOG": "0", "DXVK_LOG_LEVEL": "none", "WINEDEBUG": "-all", "PROTON_LOG_DIR": "/custom"}
+        with mock.patch.dict(os.environ, self.env(values), clear=True):
+            result = BNET["proton_env"]()
+        self.assertEqual(result["PROTON_LOG"], "1")
+        self.assertEqual(result["DXVK_LOG_LEVEL"], "debug")
+        self.assertEqual(result["PROTON_LOG_DIR"], str(self.tmp / "session"))
+        self.assertIn("+seh", result["WINEDEBUG"])
+        self.assertIn("-all", result["WINEDEBUG"])
+
+
 class IdTest(unittest.TestCase):
     def test_the_prefix_id_is_the_shortcut_id_the_app_names(self):
         self.assertEqual(int(BNET["APP_ID"]), zlib.crc32(b'"droiddeck-battlenet"Battle.net') | 0x80000000)
@@ -1441,6 +1482,138 @@ class AgentJobTest(Harness):
         self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 1)
         self.assertEqual(self.lines[-1][0], "ERROR")
 
+    def test_a_job_that_stops_moving_is_ended_as_stalled_and_its_agent_stopped(self):
+        self.install()
+        self.files = {".json": json.dumps({"state": 1003, "paused": True, "download_current": [10, 0, 0], "download_total": [99, 0, 0]})}
+        killed = []
+        stopped = []
+
+        class Hung:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                base = cmd[-1][2:].replace("\\", "/")
+                with open(base + ".json", "wb") as f:
+                    f.write(self_files[".json"].encode("utf-16"))
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                killed.append(True)
+
+            def wait(self):
+                return -9
+
+        self_files = self.files
+        with mock.patch.object(BNET["subprocess"], "Popen", Hung), \
+                mock.patch.dict(BNET, {"wine_processes": lambda pfx: [(5, ["agent.exe"])], "stop": lambda p: stopped.append(p)}):
+            code = BNET["agent_job"](self.root, "install", "s1", "s1", str(self.tmp / "S1"), "enUS", "USA", "US", poll=0, stall=0.05)
+        self.assertEqual(code, 6)
+        self.assertEqual(killed, [True])
+        self.assertEqual(stopped, [[(5, ["agent.exe"])]])
+        self.assertEqual(self.lines[-1], ("ERROR", "stalled"))
+
+    def test_a_stalled_job_leaves_a_game_or_client_in_the_prefix_running(self):
+        self.install()
+        self.files = {".json": json.dumps({"state": 1003, "download_current": [10, 0, 0], "download_total": [99, 0, 0]})}
+        stopped = []
+        calls = []
+
+        class Hung:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                calls.append(True)
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                pass
+
+            def wait(self):
+                return -9
+
+        def processes(pfx):
+            if not calls:
+                return [(3, ["agent.exe"])]
+            return [(3, ["agent.exe"]), (5, ["Agent.exe"]), (6, ["wineserver"]), (7, ["Wow.exe"])]
+
+        with mock.patch.object(BNET["subprocess"], "Popen", Hung), \
+                mock.patch.dict(BNET, {"wine_processes": processes, "stop": lambda p: stopped.append(p)}):
+            code = BNET["agent_job"](self.root, "install", "s1", "s1", str(self.tmp / "S1"), "enUS", "USA", "US", poll=0, stall=0.05)
+        self.assertEqual(code, 6)
+        self.assertEqual(stopped, [[(5, ["Agent.exe"])]])
+
+    def test_only_a_changing_rate_or_estimate_does_not_hold_off_the_stall(self):
+        self.install()
+        clock = [0.0]
+
+        class Spinning:
+            returncode = None
+
+            def __init__(self, cmd, **kwargs):
+                self.base = cmd[-1][2:].replace("\\", "/")
+                self.polls = 0
+
+            def poll(self):
+                self.polls += 1
+                if self.polls > 10:
+                    raise AssertionError("the stall timeout never ended the job")
+                clock[0] += 10
+                with open(self.base + ".json", "wb") as f:
+                    f.write(json.dumps({"state": 1003, "download_current": [4, 0, 0], "download_total": [9, 0, 0],
+                                        "download_rate": self.polls, "estimated_time_in_sec": self.polls}).encode("utf-16"))
+                return None
+
+            def kill(self):
+                pass
+
+            def wait(self):
+                return -9
+
+        fake = mock.Mock(monotonic=lambda: clock[0], sleep=lambda s: None)
+        with mock.patch.object(BNET["subprocess"], "Popen", Spinning), mock.patch.dict(BNET, {"time": fake, "stop": lambda p: None}):
+            code = BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=25)
+        self.assertEqual(code, 6)
+        self.assertEqual(self.lines[-1], ("ERROR", "stalled"))
+
+    def test_a_moving_job_is_not_ended_as_stalled(self):
+        self.install()
+        done = json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})
+        clock = [0.0]
+
+        class Moving:
+            returncode = 0
+
+            def __init__(self, cmd, **kwargs):
+                self.base = cmd[-1][2:].replace("\\", "/")
+                self.polls = 0
+
+            def poll(self):
+                self.polls += 1
+                clock[0] += 10
+                with open(self.base + ".json", "wb") as f:
+                    f.write(json.dumps({"state": 1003, "download_current": [self.polls, 0, 0], "download_total": [9, 0, 0]}).encode("utf-16"))
+                if self.polls < 6:
+                    return None
+                with open(self.base + ".game", "wb") as f:
+                    f.write(done.encode("utf-16"))
+                return 0
+
+        fake = mock.Mock(monotonic=lambda: clock[0], sleep=lambda s: None)
+        with mock.patch.object(BNET["subprocess"], "Popen", Moving), mock.patch.dict(BNET, {"time": fake}):
+            code = BNET["agent_job"](self.root, "update", "gryphon", poll=0, stall=15)
+        self.assertEqual(code, 0)
+        self.assertNotIn(("ERROR", "stalled"), self.lines)
+
+    def test_only_a_real_job_reply_counts_as_started(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn("if (state == 1000 || state == 1003 || job(s) && !complete) started = true;", script)
+        self.assertIn('return /"state"\\s*:\\s*\\d+/.test(bare) || /"download_current"\\s*:/.test(bare);', script)
+        self.assertIn('if (/"error"\\s*:\\s*[1-9]/.test(text)) return false;', script)
+
     def test_the_driver_only_stops_once_the_agent_has_really_run(self):
         script = BNET["AGENT_SCRIPT"]
         self.assertIn("if (started && (state == 1004 || complete && /\"playable\"\\s*:\\s*true/.test(s))) break;", script)
@@ -1534,6 +1707,13 @@ class AgentJobTest(Harness):
             self.assertEqual(BNET["main"](["agent-install", "gryphon", "gryphon", "/g/../g/Rumble", "enUS", "USA", "US"]), 0)
             self.assertEqual(BNET["main"](["agent-update", "wow_classic"]), 0)
         self.assertEqual(calls, [("install", "gryphon", "gryphon", "/g/Rumble", "enUS", "USA", "US"), ("update", "wow_classic")])
+
+
+class BattleNetFormTest(Temp):
+    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
+        self.assertIn("the game folder already holds a game", script)
 
 
 if __name__ == "__main__":

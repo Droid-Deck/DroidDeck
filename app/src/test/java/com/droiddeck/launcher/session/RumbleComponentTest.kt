@@ -36,7 +36,12 @@ class RumbleComponentTest {
         vibrator = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java).defaultVibrator
             else context.getSystemService(Vibrator::class.java)
         shadowOf(vibrator).setHasVibrator(true)
-        rumble = RumbleComponent().also { it.motorLooper = Looper.getMainLooper(); it.attach(context); it.start() }
+        rumble = RumbleComponent().also {
+            it.motorLooper = Looper.getMainLooper()
+            it.gameRunning = { false }
+            it.attach(context)
+            it.start()
+        }
     }
 
     @After fun stopListener() { rumble.stop() }
@@ -113,6 +118,143 @@ class RumbleComponentTest {
         idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
         assertEquals("the keepalive restarted the motors after a stop", 5, pad.played.size)
         assertFalse(pad.vibrating)
+    }
+
+    @Test fun aHeldEffectStopsWhenTheProcessThatStartedItIsGone() {
+        val pad = FakeMotors()
+        var alive = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { pid -> if (pid == SENDER && alive) "1234" else null }
+        rumble.gameRunning = { false }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        alive = false
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertFalse("a crashed game's rumble kept going", pad.vibrating)
+        val played = pad.played.size
+        idle(RumbleComponent.KEEPALIVE_MS * 4)
+        assertEquals("the keepalive restarted the motors", played, pad.played.size)
+    }
+
+    @Test fun aHeldEffectStopsWhenTheGameItStartedInExits() {
+        val pad = FakeMotors()
+        var game = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived the game", pad.vibrating)
+        game = true
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        assertTrue("the next game's rumble was dropped", pad.vibrating)
+    }
+
+    @Test fun aProcessStartTimeIsReadForALiveProcessOnly() {
+        val self = java.io.File("/proc/self").canonicalFile.name.toInt()
+        val start = RumbleComponent.readProcessStart(self)
+        assertNotNull(start)
+        assertNotEquals(RumbleComponent.UNKNOWN_START, start)
+        assertEquals("the start time changed for the same process", start, RumbleComponent.readProcessStart(self))
+        assertNull(RumbleComponent.readProcessStart(Int.MAX_VALUE))
+    }
+
+    @Test fun aGameThatExitsBeforeTheFirstKeepaliveStillStopsItsRumble() {
+        val pad = FakeMotors()
+        var game = true
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived a game that exited right away", pad.vibrating)
+    }
+
+    @Test fun aGameStartingRightAfterAnotherHoldIsStillWatched() {
+        val pad = FakeMotors()
+        var game = false
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        rumble.gameRunning = { game }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        effectFrom(SENDER, strong = 0, weak = 0)
+        game = true
+        idle(RumbleComponent.MIN_GAP_MS)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        assertTrue(pad.vibrating)
+        game = false
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("a stale no-game result left the hold unwatched", pad.vibrating)
+    }
+
+    @Test fun anotherProcessClosingItsOlderRumbleLeavesTheNewerOneOnTheSlot() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { "1234" }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.MIN_GAP_MS)
+        effectFrom(OTHER_SENDER, strong = 30000, ms = RumbleComponent.HOLD_MS)
+        effectFrom(SENDER, strong = 0, weak = 0)
+        assertTrue("an older process's stop cancelled newer rumble", pad.vibrating)
+        effectFrom(OTHER_SENDER, strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+    }
+
+    @Test fun aSenderOfOurOwnUserThatExitedBeforeItsFirstLookupStopsItsRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { null }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS, ownUser = true)
+        assertTrue(pad.vibrating)
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived a sender that was already gone", pad.vibrating)
+    }
+
+    @Test fun anUnseenSenderOfAnotherUserKeepsItsRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { null }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS, ownUser = false)
+        idle(RumbleComponent.KEEPALIVE_MS * 3 + 100)
+        assertTrue("a sender the app can't see lost its rumble", pad.vibrating)
+    }
+
+    @Test fun aSenderFirstReadAsUnknownStillStopsItsRumbleWhenItExits() {
+        val pad = FakeMotors()
+        var start: String? = RumbleComponent.UNKNOWN_START
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { start }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2 + 100)
+        assertTrue(pad.vibrating)
+        start = null
+        idle(RumbleComponent.KEEPALIVE_MS + 100)
+        assertFalse("rumble outlived its sender", pad.vibrating)
+    }
+
+    @Test fun anUnreadableButLiveProcessKeepsItsRumble() {
+        val pad = FakeMotors()
+        var start: String? = "1234"
+        rumble.controllerMotors = { pad }
+        rumble.processStart = { start }
+        activeController(PAD_ID)
+        effectFrom(SENDER, ms = RumbleComponent.HOLD_MS)
+        start = RumbleComponent.UNKNOWN_START
+        idle(RumbleComponent.KEEPALIVE_MS * 3 + 100)
+        assertTrue("a passing /proc read error cut the rumble", pad.vibrating)
     }
 
     @Test fun quietingStopsAHeldEffectAndDropsEffectsUntilLifted() {
@@ -280,6 +422,12 @@ class RumbleComponentTest {
             .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
 
+    private fun effectFrom(sender: Int, strong: Int = 40000, weak: Int = 20000, slot: Int = 0, ms: Int = 5000, ownUser: Boolean = false) {
+        val int = Int::class.javaPrimitiveType
+        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int, int, Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot, sender, ownUser)
+    }
+
     private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
 
     private class FakeMotors : RumbleComponent.Motors {
@@ -293,6 +441,8 @@ class RumbleComponentTest {
     private companion object {
         const val PAD_ID = 7
         const val SECOND_PAD_ID = 8
+        const val SENDER = 4242
+        const val OTHER_SENDER = 4343
     }
 
     @Implements(LocalServerSocket::class)

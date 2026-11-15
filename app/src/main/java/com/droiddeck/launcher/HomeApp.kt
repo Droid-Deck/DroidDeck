@@ -18,6 +18,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
+import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import kotlin.math.roundToInt
@@ -196,7 +197,10 @@ object HomeApp {
     }
 
     private fun syncRecents(activity: android.app.Activity) =
-        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+        keepOutOfRecents(
+            activity,
+            activity is FrontEndActivity && !SessionState.running && isDefault(activity) && AppUiPrefs.hideHomeFromRecents(activity),
+        )
 
     internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
 
