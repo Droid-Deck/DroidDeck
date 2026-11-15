@@ -164,8 +164,11 @@ internal class GameFrameFeed(
     private val file: File,
     val stats: FrameStats = FrameStats(),
     private val clockControl: File? = null,
+    private val onFrame: ((Long, Long) -> Unit)? = null,
+    private val keepBacklog: Boolean = false,
 ) {
     private var handle = 0L
+    private var lastGuestNs = Long.MIN_VALUE
     private var nextOpenNs = 0L
     private var lastRingFrameNs = 0L
     private var lastInfoNs = 0L
@@ -202,28 +205,34 @@ internal class GameFrameFeed(
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
             if (handle == 0L) return compositorAdded
-            HudFrames.nativePoll(handle, frametimes, times)
+            if (!keepBacklog || lastGuestNs == Long.MIN_VALUE) HudFrames.nativePoll(handle, frametimes, times)
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
-        if (n > 0) {
+        var first = 0
+        if (keepBacklog) while (first < n && times[first] <= lastGuestNs) first++
+        if (n > first) {
+            if (keepBacklog) lastGuestNs = times[n - 1]
             var shift = guestClockShift(nowNs, SHIFT_NS)
             if (nowNs - (times[n - 1] + shift) > LIVE_NS) shift = guestClockShift(nowNs, SHIFT_RECHECK_NS)
-            for (i in 0 until n) times[i] += shift
+            for (i in first until n) times[i] += shift
             if (!fromGamescope) {
                 stats.reset()
                 fromGamescope = true
             }
-            for (i in 0 until n) stats.add(frametimes[i], times[i])
+            for (i in first until n) {
+                stats.add(frametimes[i], times[i])
+                onFrame?.invoke(frametimes[i], times[i])
+            }
             lastRingFrameNs = times[n - 1]
         } else if (lastRingFrameNs != 0L && nowNs - lastRingFrameNs > LIVE_NS) {
             fromGamescope = false
         }
-        if (n <= 0 && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
+        if (n <= first && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
         if (nowNs - lastInfoNs >= INFO_NS) {
             lastInfoNs = nowNs
             readInfo()
         }
-        return n > 0 || compositorAdded
+        return n > first || compositorAdded
     }
 
     internal fun guestClockShift(nowNs: Long, maxAgeNs: Long): Long {
@@ -277,7 +286,9 @@ internal class GameFrameFeed(
         private const val SHIFT_RECHECK_NS = 100_000_000L
         private const val CLOCK_CONTROL_PATH = "tmp/.bl-clock"
 
-        fun forRoot(root: File) = GameFrameFeed(File(root, HudFrames.PATH), clockControl = File(root, CLOCK_CONTROL_PATH))
+        fun forRoot(root: File, onFrame: ((Long, Long) -> Unit)? = null) =
+            GameFrameFeed(File(root, HudFrames.PATH), clockControl = File(root, CLOCK_CONTROL_PATH), onFrame = onFrame,
+                keepBacklog = onFrame != null)
 
         fun engineLabel(name: String): String = when (name) {
             "DXVK" -> "DXVK"

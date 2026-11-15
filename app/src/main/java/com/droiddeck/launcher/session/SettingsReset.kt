@@ -23,7 +23,7 @@ object SettingsReset {
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "paceCores", "ramCapMb", "vramCapMb", "zramClient", "zramIdle",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
-        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
+        "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "extendedLogs", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "blackFrameInsertion", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
         "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle",

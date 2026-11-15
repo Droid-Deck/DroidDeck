@@ -918,6 +918,7 @@ class SessionService : Service() {
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"), SessionPaths.startedAt(sessionDir))
         MemoryLog.start()
+        if (SessionPrefs.extendedLogs(this)) FrameLog.start(LinuxRuntime.rootDir(this))
         return sessionDir
     }
 
@@ -2177,6 +2178,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                FrameLog.stop()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
                 if (status == 0) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
