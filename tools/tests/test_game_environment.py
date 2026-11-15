@@ -49,10 +49,10 @@ class DeathStrandingAllocatorTest(unittest.TestCase):
             game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
             return game.read(len(MODULE["DS_WINDOW"]) + len(MODULE["DS_ORIGINAL"]) + 2)
 
-    def run_fix(self, path):
+    def run_fix(self, path, app_id="1850570"):
         errors = io.StringIO()
         with mock.patch("sys.stderr", errors):
-            return MODULE["death_stranding_allocator"](path), errors.getvalue()
+            return MODULE["death_stranding_allocator"](app_id, path), errors.getvalue()
 
     def test_window_and_patch_have_the_measured_shape(self):
         self.assertEqual(41, len(MODULE["DS_WINDOW"]))
@@ -100,6 +100,17 @@ class DeathStrandingAllocatorTest(unittest.TestCase):
         before = self.read_tail(path)
         self.assertEqual((False, ""), self.run_fix(path))
         self.assertEqual(before, self.read_tail(path))
+
+    def test_other_games_are_not_touched_even_with_a_matching_file(self):
+        for app_id in ("440", "", None):
+            path = self.make_exe()
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path, app_id))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_both_death_stranding_app_ids_are_patched(self):
+        for app_id in ("1850570", "1190460"):
+            self.assertTrue(self.run_fix(self.make_exe(), app_id)[0])
 
     def test_the_file_name_check_ignores_case(self):
         self.assertTrue(self.run_fix(self.make_exe(name="DS.EXE"))[0])
