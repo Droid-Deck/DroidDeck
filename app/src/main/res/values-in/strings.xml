@@ -4076,4 +4076,7 @@
     <string name="hud_readings_shown">Ditampilkan</string>
     <string name="hud_readings_count">%1$d dari %2$d</string>
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+
+    <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
+    <string name="display_integer_scaling_hint">Menggunakan faktor skala bilangan bulat terbesar yang muat. Jika sumber terlalu besar, seluruh gambar disesuaikan agar tidak terpotong. Resolusi diatur secara terpisah.</string>
 </resources>

@@ -4106,4 +4106,7 @@
     <string name="hud_readings_shown">Показани</string>
     <string name="hud_readings_count">%1$d от %2$d</string>
     <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
+
+    <string name="display_integer_scaling">Целочислено мащабиране</string>
+    <string name="display_integer_scaling_hint">Използва най-големия цял коефициент на мащабиране, който се побира. Ако източникът е твърде голям, побира цялото изображение, за да избегне изрязване. Разделителната способност се настройва отделно.</string>
 </resources>

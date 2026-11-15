@@ -173,11 +173,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
+    private var integerScaling by mutableStateOf(false)
 
     private fun applyGameAlignment() {
         if (!CompositorHost.isStarted) return
         val active = SessionState.mode == SessionService.MODE_STEAM &&
-            !pipUi && !isInPictureInPictureMode && !cardboard.enabled
+            !pipUi && !isInPictureInPictureMode && !activeCardboard.enabled
         val alignment = if (!active) ALIGN_CENTER else when (picturePosition) {
             "top" -> ALIGN_PICTURE_TOP
             "bottom" -> ALIGN_PICTURE_BOTTOM
@@ -185,7 +186,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             "right" -> ALIGN_PICTURE_RIGHT
             else -> ALIGN_CENTER
         }
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
+        WaylandCompositor.nativeSetScaleMode(if (active && integerScaling) SCALE_INTEGER else SCALE_FIT, alignment)
     }
     private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
     private var unfoldedColumn: android.widget.LinearLayout? = null
@@ -1085,7 +1086,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     secondScreenPresentation?.closeFieldKeyboard()
                 }
             }
-            androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
+            androidx.compose.runtime.LaunchedEffect(picturePosition, integerScaling, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -2399,6 +2400,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
+        integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
@@ -2654,7 +2656,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+        applyGameAlignment()
         val activeProfileId = currentScreenEffectsProfileId()
         val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
         val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
@@ -4636,25 +4638,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 gamePictureBounds[2], gamePictureBounds[3]
             )
 
+            val nativeWidth: Int
+            val nativeHeight: Int
             if (glassesOutputActive) {
                 val mode = glassesScreen?.display?.mode ?: return null
-                val outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
-                val outputHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
-                val scaleX = width.toFloat() / outputWidth
-                val scaleY = height.toFloat() / outputHeight
-
-                return android.graphics.RectF(
-                    rect.left * scaleX,
-                    rect.top * scaleY,
-                    rect.right * scaleX,
-                    rect.bottom * scaleY
-                )
+                nativeWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
+                nativeHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
+            } else {
+                val nativeSize = IntArray(2)
+                if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
+                nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
+                nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             }
-
-            val nativeSize = IntArray(2)
-            if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
-            val nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
-            val nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             val scaleX = width.toFloat() / nativeWidth
             val scaleY = height.toFloat() / nativeHeight
 
@@ -4863,7 +4858,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
-            ignoreGameTouch = topPictureMapped && !rect.contains(event.x, event.y)
+            ignoreGameTouch = topPictureMapped && !glassesOutputActive &&
+                !rect.contains(event.x, event.y)
         if (ignoreGameTouch) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 directTouchHold.cancel()
@@ -5389,7 +5385,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     heldButtons.set(1, it, false)
                 }
-                WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+                applyGameAlignment()
             }
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -5750,6 +5746,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cardboard = c
         val e = effectiveCardboard(c)
         activeCardboard = e
+        applyGameAlignment()
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
@@ -6369,6 +6366,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         private val steamVrWorker = java.util.concurrent.ThreadPoolExecutor(0, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
             java.util.concurrent.LinkedBlockingQueue()) { Thread(it, "steamvr") }
         private const val SCALE_FIT = 1
+        private const val SCALE_INTEGER = 4
         private const val ALIGN_CENTER = 0
         private const val ALIGN_PICTURE_TOP = 3
         private const val ALIGN_PICTURE_BOTTOM = 4

@@ -4106,4 +4106,7 @@
     <string name="hud_readings_shown">Gösterilen</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
+
+    <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
+    <string name="display_integer_scaling_hint">Sığan en büyük tam sayı ölçekleme katsayısını kullanır. Kaynak çok büyükse kırpmayı önlemek için görüntünün tamamını sığdırır. Çözünürlük ayrı ayarlanır.</string>
 </resources>

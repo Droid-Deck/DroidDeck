@@ -4076,4 +4076,7 @@
     <string name="hud_readings_shown">已顯示</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">再按一次返回鍵退出</string>
+
+    <string name="display_integer_scaling">整數縮放</string>
+    <string name="display_integer_scaling_hint">使用可容納的最大整數縮放倍數。如果來源影像太大，會縮放整張影像以避免裁切。解析度會另外設定。</string>
 </resources>
