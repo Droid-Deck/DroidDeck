@@ -163,14 +163,33 @@ class ExternalOutputHandoffTest {
         }
     }
 
+    @Test fun choosingTheSessionSizeResizesTheMonitorBuffer() {
+        val previous = SessionState.outputSize
+        try {
+            SessionState.outputSize = 1280 to 720
+            val uhd = ExternalOutputScreen(RuntimeEnvironment.getApplication(), presentationDisplay("w3840dp-h2160dp"), activity)
+                .apply { create() }
+            ReflectionHelpers.setField(activity, "externalScreen", uhd)
+            assertEquals(2560 to 1440, ReflectionHelpers.getField<Pair<Int, Int>?>(uhd, "fixedSize"))
+
+            ReflectionHelpers.callInstanceMethod<Void>(activity, "publishOutputSize",
+                from(SurfaceHolder::class.java, uhd.holder), from(Pair::class.java, 3840 to 2160))
+
+            assertEquals(3840 to 2160, SessionState.outputSize)
+            assertEquals(3840 to 2160, ReflectionHelpers.getField<Pair<Int, Int>?>(uhd, "fixedSize"))
+        } finally {
+            SessionState.outputSize = previous
+        }
+    }
+
     @Test fun losingTheMonitorSurfaceClearsTheActiveOutput() {
         attach(screen.holder)
         activity.surfaceDestroyed(screen.holder)
         assertFalse(active())
     }
 
-    private fun presentationDisplay(): Display {
-        val id = ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+    private fun presentationDisplay(qualifiers: String = "w1920dp-h1080dp"): Display {
+        val id = ShadowDisplayManager.addDisplay(qualifiers)
         val display = RuntimeEnvironment.getApplication().getSystemService(DisplayManager::class.java).getDisplay(id)
         shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
         return display

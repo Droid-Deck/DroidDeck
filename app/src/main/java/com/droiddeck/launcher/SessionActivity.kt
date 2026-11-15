@@ -2653,7 +2653,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val previous = SessionState.outputSize
         val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: externalOutputSize() ?: outputSize()
-        SessionState.outputSize = size
+        publishOutputSize(holder, size)
         if (!SessionState.running) SessionState.refreshHz = refreshHz(holder)
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
@@ -6081,6 +6081,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun glassesOutputSize(): Pair<Int, Int>? {
         if (glassesScreen == null || glasses.width <= 0 || glasses.height <= 0) return null
         return presentationOutputSize((if (glasses.sbs) glasses.width / 2 else glasses.width) to glasses.height)
+    }
+
+    private fun publishOutputSize(holder: SurfaceHolder, size: Pair<Int, Int>) {
+        SessionState.outputSize = size
+        externalScreen?.takeIf { it.holder === holder }?.applyMode()
     }
 
     private fun externalOutputSize(): Pair<Int, Int>? {
