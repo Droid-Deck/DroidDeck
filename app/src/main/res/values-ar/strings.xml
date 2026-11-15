@@ -4269,7 +4269,7 @@
     <string name="exit_hint_back">اضغط زر الرجوع مرة أخرى للخروج</string>
 
     <string name="display_integer_scaling">تحجيم صحيح بالأعداد الصحيحة</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">يستخدم أكبر معامل تحجيم صحيح يناسب الشاشة. قد تُقص الحواف قليلًا للسماح بمعامل صحيح أكبر. إذا كان المصدر أكبر من مساحة الإخراج، تُضبط الصورة لتظهر كاملة. تُضبط الدقة بشكل منفصل.</string>
     <string name="display_scaling_integer">عدد صحيح</string>
     <string name="display_scaling_fit">ملاءمة</string>
 </resources>

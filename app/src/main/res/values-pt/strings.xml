@@ -4156,7 +4156,7 @@
     <string name="exit_hint_back">Pressione o botão Voltar novamente para sair</string>
 
     <string name="display_integer_scaling">Escala por números inteiros</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">Usa o maior fator de escala inteiro que cabe na tela. As bordas podem ser cortadas levemente para permitir um fator inteiro maior. Se a imagem de origem for maior que a saída, ela será ajustada para aparecer inteira. A resolução é configurada separadamente.</string>
     <string name="display_scaling_integer">Inteiro</string>
     <string name="display_scaling_fit">Ajustar</string>
 </resources>

@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
 
     <string name="display_integer_scaling">Egész számú méretezés</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">A képernyőre illeszkedő legnagyobb egész számú méretezést használja. Nagyobb egész számú méretezés esetén a képernyő szélei kissé levágódhatnak. Ha a forrás nagyobb a kimenetnél, a teljes kép láthatóságához igazítja. A felbontás külön állítható.</string>
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
 </resources>

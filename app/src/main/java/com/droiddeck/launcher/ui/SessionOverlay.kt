@@ -617,7 +617,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
-                                SettingsRow(stringResource(R.string.display_integer_scaling), null) {
+                                if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {
                                     androidx.compose.material3.TextButton(
                                         onClick = { a.onIntegerScaling(!a.integerScaling) }
                                     ) {

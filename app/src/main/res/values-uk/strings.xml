@@ -4189,7 +4189,7 @@
     <string name="exit_hint_back">Натисніть «Назад» ще раз, щоб вийти</string>
 
     <string name="display_integer_scaling">Цілочисельне масштабування</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">Використовує найбільший цілий масштаб, що вміщується на екрані. Щоб застосувати більший цілий масштаб, краї екрана можуть бути трохи обрізані. Якщо вихідне зображення більше за область виводу, його буде підігнано так, щоб воно відображалося повністю. Роздільна здатність налаштовується окремо.</string>
     <string name="display_scaling_integer">Ціле число</string>
     <string name="display_scaling_fit">За розміром</string>
 </resources>

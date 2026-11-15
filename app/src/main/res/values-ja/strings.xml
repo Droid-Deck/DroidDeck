@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 
     <string name="display_integer_scaling">整数スケーリング</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">画面に収まる最大の整数倍スケールを使用します。より大きな整数倍スケールを使うため、画面の端がわずかに切り取られる場合があります。入力画像が出力より大きい場合は、画像全体が表示されるように縮小します。解像度は別途設定します。</string>
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
 </resources>

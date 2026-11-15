@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Tryck tillbaka igen för att avsluta</string>
 
     <string name="display_integer_scaling">Heltalsskalning</string>
-    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
+    <string name="display_integer_scaling_hint">Använder den största heltalsskalning som får plats. Skärmkanterna kan beskäras något för att möjliggöra en större heltalsskalning. Om källan är större än utdata anpassas bilden så att den visas i sin helhet. Upplösningen ställs in separat.</string>
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Anpassa</string>
 </resources>
