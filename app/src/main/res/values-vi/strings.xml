@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">Nhập để xếp tin nhắn tiếp theo vào hàng đợi</string>
     <string name="agent_queue">Xếp hàng</string>
     <string name="agent_queued">Tiếp theo: %1$s</string>
+    <string name="agent_tools_missing">Chưa cài công cụ của tác tử: %1$s</string>
     <string name="agent_unqueue">Không gửi</string>
     <string name="agent_attach">Đính kèm</string>
     <string name="agent_remove_attachment">Xóa</string>

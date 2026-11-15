@@ -1175,6 +1175,7 @@
     <string name="agent_hint_working">Tippen, um die nächste Nachricht einzureihen</string>
     <string name="agent_queue">Einreihen</string>
     <string name="agent_queued">Als Nächstes: %1$s</string>
+    <string name="agent_tools_missing">Agent-Werkzeuge nicht installiert: %1$s</string>
     <string name="agent_unqueue">Nicht senden</string>
     <string name="agent_attach">Anhängen</string>
     <string name="agent_remove_attachment">Entfernen</string>

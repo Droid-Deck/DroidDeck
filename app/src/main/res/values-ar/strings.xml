@@ -1195,6 +1195,7 @@
     <string name="agent_hint_working">اكتب لإضافة الرسالة التالية إلى الانتظار</string>
     <string name="agent_queue">إضافة إلى الانتظار</string>
     <string name="agent_queued">التالي: %1$s</string>
+    <string name="agent_tools_missing">أدوات الوكيل غير مثبتة: %1$s</string>
     <string name="agent_unqueue">لا تُرسل</string>
     <string name="agent_attach">إرفاق</string>
     <string name="agent_remove_attachment">إزالة</string>

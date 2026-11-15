@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">พิมพ์เพื่อเข้าคิวข้อความถัดไป</string>
     <string name="agent_queue">เข้าคิว</string>
     <string name="agent_queued">ถัดไป: %1$s</string>
+    <string name="agent_tools_missing">ยังไม่ได้ติดตั้งเครื่องมือของเอเจนต์: %1$s</string>
     <string name="agent_unqueue">ไม่ต้องส่ง</string>
     <string name="agent_attach">แนบ</string>
     <string name="agent_remove_attachment">นำออก</string>
