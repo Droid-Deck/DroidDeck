@@ -64,7 +64,7 @@ agent gets the same ones. Skills the user added there are left alone. Edit them 
 - The checkout often has the user's uncommitted work and a stale local `main`. Branch from
   `origin/main` in a worktree (`git worktree add -b <branch> ../<dir> origin/main`).
 - Python tests run from the repository root: `python3 -m unittest tools.tests.test_x`. Some fail
-  on the device on `main` as well; compare with `main` before blaming a change.
+  on the device on `origin/main` as well; run them on a worktree of `origin/main` before blaming a change.
 - Gradle unit tests rarely run on the device (no `rustup`, the `MaliBridge` submodule is missing in
   a worktree, asset staging fails). Leave them to CI and say so rather than retrying.
 - If `git push` asks for credentials, run `gh auth setup-git` once.
