@@ -37,6 +37,7 @@ internal object VitureSdkImport {
     )
     private val installLock = Any()
     private val activeStages = mutableSetOf<File>()
+    private val activatedRoots = mutableSetOf<File>()
     private val stageName = Regex("stage-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
     fun prepare(context: Context, input: InputStream): Prepared = prepare(root(context), input)
@@ -146,14 +147,35 @@ internal object VitureSdkImport {
         val current = File(root, "current")
         val backup = File(root, "previous")
         val pending = File(root, "activation.pending")
-        if (pending.exists()) {
+        val committed = runCatching {
+            pending.isFile && pending.length() == 1L && pending.inputStream().use { it.read() == 0 }
+        }.getOrDefault(false)
+        val activated = root.canonicalFile in activatedRoots || committed
+        if (activated) {
+            activatedRoots.add(root.canonicalFile)
+            finishActivation(root, committed)
+        } else if (pending.exists()) {
             if (current.exists() && !current.deleteRecursively()) throw IOException("Could not discard the interrupted SDK import.")
             if (!pending.delete()) throw IOException("Could not clear the interrupted SDK import.")
         }
-        if (!current.exists() && backup.exists() && (!backup.isDirectory || !backup.renameTo(current)))
+        if (!activated && !current.exists() && backup.exists() && (!backup.isDirectory || !backup.renameTo(current)))
             throw IOException("Could not recover the previous SDK.")
         root.canonicalFile.listFiles()?.filter { stageName.matches(it.name) && it !in activeStages }
             ?.forEach(::deleteStage)
+    }
+
+    private fun finishActivation(root: File, committed: Boolean = false) {
+        runCatching {
+            val pending = File(root, "activation.pending")
+            if (pending.exists()) {
+                if (!committed) pending.outputStream().use { output -> output.write(0); output.fd.sync() }
+                pending.delete()
+            }
+            if (!pending.exists()) {
+                activatedRoots.remove(root.canonicalFile)
+                File(root, "previous").deleteRecursively()
+            }
+        }
     }
 
     private fun deleteStage(directory: File) {
@@ -200,6 +222,8 @@ internal object VitureSdkImport {
             val current = File(root, "current")
             val backup = File(root, "previous")
             val pending = File(root, "activation.pending")
+            if (pending.exists()) throw IOException("Could not finish the previous SDK import.")
+            val canonicalRoot = root.canonicalFile
             if (backup.exists() && !backup.deleteRecursively()) throw IOException("Could not clear the previous SDK backup.")
             if (current.exists() && !current.renameTo(backup)) throw IOException("Could not preserve the installed SDK.")
             var promoted = false
@@ -209,14 +233,14 @@ internal object VitureSdkImport {
                 promoted = true
                 activeStages.remove(directory)
                 if (!activate(current)) throw IOException("This SDK could not be loaded on this device.")
-                if (!pending.delete()) throw IOException("Could not finish installing the SDK.")
             } catch (error: Throwable) {
                 if (promoted) consumed = true
                 try { recover(root) } catch (recovery: Throwable) { error.addSuppressed(recovery) }
                 throw error
             }
             consumed = true
-            backup.deleteRecursively()
+            activatedRoots.add(canonicalRoot)
+            finishActivation(root)
             current
         }
 
@@ -276,8 +300,48 @@ internal object VitureSdkImport {
     internal object Elf {
         private data class Section(val type: Int, val offset: Long, val size: Long, val link: Int, val stride: Long)
         private val requiredSymbols = mapOf(
-            "libglasses.so" to setOf("GetVersionString", "xr_device_provider_create", "xr_device_provider_initialize",
-                "xr_device_provider_destroy", "xr_device_provider_get_gl_pose_carina", "xr_device_provider_register_callbacks_carina"),
+            "libglasses.so" to setOf(
+                "GetVersionString",
+                "xr_device_provider_create",
+                "xr_device_provider_initialize",
+                "xr_device_provider_start",
+                "xr_device_provider_stop",
+                "xr_device_provider_shutdown",
+                "xr_device_provider_destroy",
+                "xr_device_provider_get_device_type",
+                "xr_device_provider_is_product_id_valid",
+                "xr_device_provider_is_product_support_native_dof",
+                "xr_device_provider_is_product_support_imu_frequency",
+                "xr_device_provider_get_market_name",
+                "xr_device_provider_register_state_callback",
+                "xr_device_provider_register_imu_pose_callback",
+                "xr_device_provider_open_imu",
+                "xr_device_provider_close_imu",
+                "xr_device_provider_register_callbacks_carina",
+                "xr_device_provider_set_dof_type_carina",
+                "xr_device_provider_get_gl_pose_carina",
+                "xr_device_provider_set_film_mode",
+                "xr_device_provider_get_display_mode",
+                "xr_device_provider_set_display_mode",
+                "xr_device_provider_get_brightness_level",
+                "xr_device_provider_set_brightness_level",
+                "xr_device_provider_get_volume_level",
+                "xr_device_provider_set_volume_level",
+                "xr_device_provider_get_glasses_version",
+                "xr_device_provider_get_sn_hash",
+                "xr_device_provider_native_get_mode",
+                "xr_device_provider_native_set_mode",
+                "xr_device_provider_native_get_dof",
+                "xr_device_provider_native_set_dof",
+                "xr_device_provider_native_get_display_mode",
+                "xr_device_provider_native_set_display_mode",
+                "xr_camera_provider_is_valid_camera",
+                "xr_camera_provider_create",
+                "xr_camera_provider_start",
+                "xr_camera_provider_stop",
+                "xr_camera_provider_destroy",
+                "xr_camera_provider_is_streaming",
+            ),
             "libcarina_vio.so" to setOf("carina_init", "carina_start", "carina_stop", "carina_vio_get_gl_pose"),
         )
 

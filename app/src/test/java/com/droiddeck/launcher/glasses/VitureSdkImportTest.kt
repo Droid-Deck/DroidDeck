@@ -73,10 +73,15 @@ class VitureSdkImportTest {
         })
     }
 
-    @Test fun rejectsMissingSpatialExportsAndUndefinedSymbolImports() {
-        rejected(entries().apply {
-            put("android/arm64-v8a/libglasses.so", elf("libglasses.so", glassesSymbols - "xr_device_provider_get_gl_pose_carina"))
-        })
+    @Test fun rejectsEveryMissingMandatoryExportAndUndefinedSymbolImports() {
+        for (symbol in glassesSymbols) {
+            val files = entries().apply {
+                put("android/arm64-v8a/libglasses.so", elf("libglasses.so", glassesSymbols - symbol))
+            }
+            val error = assertThrows("Missing $symbol must fail preparation", IOException::class.java) { prepare(files) }
+            assertTrue(error.message!!.contains("required VITURE SDK functions"))
+            assertTrue(root.listFiles().orEmpty().isEmpty())
+        }
         rejected(entries().apply {
             put("android/arm64-v8a/libcarina_vio.so", elf("libcarina_vio.so", carinaSymbols, defined = false))
         })
@@ -309,6 +314,63 @@ class VitureSdkImportTest {
         assertNotNull(VitureSdkImport.installedDirectory(root))
     }
 
+    @Test fun successfulActivationPreservesFilesWhenFinalizationFails() {
+        val original = prepare().install { true }
+        val originalLicense = File(original, "LICENSE").readBytes()
+        val pending = File(root, "activation.pending")
+        val replacementLicense = "VITURE activated replacement".toByteArray()
+        val replacement = prepare(entries().apply { put("android/LICENSE", replacementLicense) })
+        val installed = replacement.install {
+            assertTrue(pending.delete())
+            assertTrue(pending.mkdir())
+            File(pending, "blocked").writeText("cleanup failure")
+            true
+        }
+        replacement.close()
+        repeat(2) {
+            assertEquals(installed.canonicalFile, VitureSdkImport.installedDirectory(File(root, "."))?.canonicalFile)
+            assertArrayEquals(replacementLicense, File(installed, "LICENSE").readBytes())
+            assertArrayEquals(originalLicense, File(root, "previous/LICENSE").readBytes())
+        }
+        prepare().use { next ->
+            var activated = false
+            assertThrows(IOException::class.java) { next.install { activated = true; true } }
+            assertFalse(activated)
+            assertTrue(next.directory.isDirectory)
+            assertArrayEquals(replacementLicense, File(installed, "LICENSE").readBytes())
+            assertArrayEquals(originalLicense, File(root, "previous/LICENSE").readBytes())
+        }
+        assertTrue(File(pending, "blocked").delete())
+        assertTrue(pending.delete())
+        assertEquals(installed, VitureSdkImport.installedDirectory(root))
+        assertEquals(listOf("current"), root.listFiles()!!.map { it.name })
+        val rejected = prepare()
+        assertThrows(IOException::class.java) { rejected.install { false } }
+        rejected.close()
+        assertEquals(installed, VitureSdkImport.installedDirectory(root))
+        assertArrayEquals(replacementLicense, File(installed, "LICENSE").readBytes())
+    }
+
+    @Test fun committedActivationSurvivesStartupRecoveryWithOrWithoutABackup() {
+        for (withBackup in listOf(false, true)) {
+            val storage = File(temporary.root, "committed-$withBackup")
+            if (withBackup) {
+                prepare().use { it.directory.copyRecursively(File(storage, "previous")) }
+            }
+            val license = "VITURE committed replacement".toByteArray()
+            prepare(entries().apply { put("android/LICENSE", license) }).use {
+                it.directory.copyRecursively(File(storage, "current"))
+            }
+            File(storage, "activation.pending").writeBytes(byteArrayOf(0))
+            repeat(2) {
+                val installed = VitureSdkImport.installedDirectory(storage)
+                assertEquals(File(storage, "current"), installed)
+                assertArrayEquals(license, File(installed!!, "LICENSE").readBytes())
+                assertEquals(listOf("current"), storage.listFiles()!!.map { it.name })
+            }
+        }
+    }
+
     @Test fun anInterruptedFirstActivationIsDiscardedBeforeStartupCanLoadIt() {
         val prepared = prepare()
         File(root, "activation.pending").writeBytes(byteArrayOf(1))
@@ -345,7 +407,7 @@ class VitureSdkImportTest {
     }
 
     @Test fun elfWorkBudgetIncludesRepeatedReferencesToTheSameSymbolTable() {
-        val limits = VitureSdkImport.Limits(elfMetadataBytes = 2048)
+        val limits = VitureSdkImport.Limits(elfMetadataBytes = 8192)
         VitureSdkImport.prepare(root, ByteArrayInputStream(zip(entries())), limits).close()
         val files = entries().apply {
             put("android/arm64-v8a/libglasses.so", elf("libglasses.so", glassesSymbols, symbolTables = 12))
@@ -443,7 +505,47 @@ class VitureSdkImportTest {
         return data.array()
     }
 
-    private val glassesSymbols = listOf("GetVersionString", "xr_device_provider_create", "xr_device_provider_initialize",
-        "xr_device_provider_destroy", "xr_device_provider_get_gl_pose_carina", "xr_device_provider_register_callbacks_carina")
+    private val glassesSymbols = listOf(
+        "GetVersionString",
+        "xr_device_provider_create",
+        "xr_device_provider_initialize",
+        "xr_device_provider_start",
+        "xr_device_provider_stop",
+        "xr_device_provider_shutdown",
+        "xr_device_provider_destroy",
+        "xr_device_provider_get_device_type",
+        "xr_device_provider_is_product_id_valid",
+        "xr_device_provider_is_product_support_native_dof",
+        "xr_device_provider_is_product_support_imu_frequency",
+        "xr_device_provider_get_market_name",
+        "xr_device_provider_register_state_callback",
+        "xr_device_provider_register_imu_pose_callback",
+        "xr_device_provider_open_imu",
+        "xr_device_provider_close_imu",
+        "xr_device_provider_register_callbacks_carina",
+        "xr_device_provider_set_dof_type_carina",
+        "xr_device_provider_get_gl_pose_carina",
+        "xr_device_provider_set_film_mode",
+        "xr_device_provider_get_display_mode",
+        "xr_device_provider_set_display_mode",
+        "xr_device_provider_get_brightness_level",
+        "xr_device_provider_set_brightness_level",
+        "xr_device_provider_get_volume_level",
+        "xr_device_provider_set_volume_level",
+        "xr_device_provider_get_glasses_version",
+        "xr_device_provider_get_sn_hash",
+        "xr_device_provider_native_get_mode",
+        "xr_device_provider_native_set_mode",
+        "xr_device_provider_native_get_dof",
+        "xr_device_provider_native_set_dof",
+        "xr_device_provider_native_get_display_mode",
+        "xr_device_provider_native_set_display_mode",
+        "xr_camera_provider_is_valid_camera",
+        "xr_camera_provider_create",
+        "xr_camera_provider_start",
+        "xr_camera_provider_stop",
+        "xr_camera_provider_destroy",
+        "xr_camera_provider_is_streaming",
+    )
     private val carinaSymbols = listOf("carina_init", "carina_start", "carina_stop", "carina_vio_get_gl_pose")
 }
