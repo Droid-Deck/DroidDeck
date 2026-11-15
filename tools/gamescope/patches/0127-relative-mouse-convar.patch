@@ -1,0 +1,30 @@
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3062,8 +3062,13 @@
+ #endif
+ 
+ gamescope::ConVar<int> cv_cursor_composite{ "cursor_composite", 1, "0 = Never composite a cursor. 1 = Composite cursor when not nested. 2 = Always composite a cursor manually" };
++static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
++"0 = Leave it to the game and the nested hints. 1 = Send host pointer motion as relative movement, for games that confine the cursor and warp it back to read movement. 2 = Never go relative." );
+ bool ShouldDrawCursor()
+ {
++	if ( cv_relative_mouse.Get() == 1 )
++		return true;
++
+ 	global_focus_t *pFocus = GetCurrentFocus();
+ 	gamescope::INestedHints *pNestedHints = pFocus ? pFocus->GetNestedHints() : nullptr;
+ 	return gamescope::CursorShouldBeComposited( cv_cursor_composite.Get(), g_bForceRelativeMouse,
+@@ -10810,7 +10815,12 @@
+ 
+ 				const bool bExcludedAppId = uAppId && gamescope::Algorithm::Contains( s_uRelativeMouseFilteredAppids, uAppId );
+ 
+-				const bool bRelativeMouseMode = bImageEmpty && bHasPointerConstraint && !bExcludedAppId;
++				const int nRelativeMouse = cv_relative_mouse.Get();
++				const bool bForcedRelativeMouse = nRelativeMouse == 1 && !window_is_steam( pPaintFocus->inputFocusWindow );
++
++				const bool bRelativeMouseMode = nRelativeMouse == 2
++					? false
++					: ( bForcedRelativeMouse || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );
+ 
+ 				pPaintFocus->GetNestedHints()->SetRelativeMouseMode( bRelativeMouseMode );
+ 			}

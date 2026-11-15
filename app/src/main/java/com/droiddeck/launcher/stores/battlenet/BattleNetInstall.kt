@@ -34,10 +34,15 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
-    private const val VERSIONS = "https://%s.version.battle.net/v2/products/%s/versions"
+    private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
     private const val START_WAIT_MS = 60_000L
+
+    /** Blizzard serves China from battlenet.com.cn; its global version hostnames do not answer for that region. */
+    internal fun versionsUrl(region: String, product: String): String =
+        "https://" + (if (region == CN) "cn.version.battlenet.com.cn" else "$region.version.battle.net") +
+            "/v2/products/$product/versions"
 
     internal val LOCALES = listOf(
         "enUS", "enGB", "esMX", "esES", "ptBR", "ptPT", "frFR", "deDE", "itIT", "ruRU", "jaJP", "koKR", "plPL", "trTR",
@@ -106,16 +111,22 @@ object BattleNetInstall {
     fun update(context: Context, game: InstalledStoreGame) {
         val app = context.applicationContext
         Thread({
-            val item = CatalogItem(
-                Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
-                extra = mapOf(INSTALL_UID to installUid(app, game)),
-            )
+            val item = updateItem(game, installUid(app, game))
             game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
             enqueue(app, item, game.folder, update = true)
         }, "battlenet-update").start()
     }
 
+    internal fun updateItem(game: InstalledStoreGame, uid: String) = CatalogItem(
+        Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
+        extra = mapOf(INSTALL_UID to uid, UPDATE_FOLDER to game.folder.absolutePath),
+    )
+
+    internal fun updateFolder(item: CatalogItem): File? = item.extra[UPDATE_FOLDER]?.let(::File)
+
     internal const val INSTALL_UID = "installUid"
+    internal const val UPDATE_FOLDER = "updateFolder"
+    internal const val STALLED = "stalled"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String =
         runCatching { BattleNet.games(context).firstOrNull { it.uid == game.sidecar.id }?.installUid }.getOrNull() ?: game.sidecar.id
@@ -187,7 +198,7 @@ object BattleNetInstall {
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
-            val latest = runCatching { latestBuild(fetch(VERSIONS.format(Locale.ROOT, local.first, product)), local.first) }
+            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, product)), local.first) }
                 .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
             val behind = latest != local.second
@@ -214,6 +225,7 @@ object BattleNetInstall {
         val detail = when {
             reason == null -> "exit $code"
             reason == "client" -> return context.getString(R.string.bnet_dl_client_first)
+            reason == STALLED -> return context.getString(R.string.bnet_dl_stalled)
             reason.startsWith("agent ") -> context.getString(R.string.bnet_dl_agent_error, reason.removePrefix("agent "))
             else -> reason.removePrefix("stopped ")
         }

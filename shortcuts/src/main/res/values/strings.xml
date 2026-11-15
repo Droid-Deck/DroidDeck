@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DroidDeck system keys</string>
+    <string name="service_name">DroidDeck system keys</string>
+    <string name="service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
+</resources>

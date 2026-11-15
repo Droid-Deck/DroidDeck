@@ -18,12 +18,16 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
+import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import kotlin.math.roundToInt
 
 object HomeApp {
     private const val ICON_DP = 72
+    private const val GAME_SPACE = "cn.nubia.gamelauncher"
+    private const val GAME_SPACE_ADD = "cn.nubia.gamelauncher.action.GAME_MANAGER"
+    private val GAME_SPACE_GAMES = Uri.parse("content://cn.nubia.gamelauncher.db.AppAddProvider/appadd")
 
     data class LaunchableApp(
         val label: String,
@@ -38,7 +42,7 @@ object HomeApp {
         val userSerial: Long = 0L,
     ) {
         val component get() = ComponentName(packageName, className)
-        val key get() = "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+        val key get() = appKey(packageName, className, userSerial)
         val work get() = userSerial != 0L
     }
 
@@ -52,6 +56,24 @@ object HomeApp {
             if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
         )
+    }
+
+    fun hasGameSpace(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(GAME_SPACE, 0) }.isSuccess
+
+    fun inGameSpace(context: Context): Boolean =
+        runCatching {
+            context.contentResolver.query(GAME_SPACE_GAMES, arrayOf("component"), null, null, null)?.use { rows ->
+                val prefix = context.packageName + ","
+                generateSequence { if (rows.moveToNext()) rows.getString(0) else null }.any { it.startsWith(prefix) }
+            }
+        }.getOrNull() ?: true
+
+    fun gameSpaceAddIntent(): Intent = Intent(GAME_SPACE_ADD).setPackage(GAME_SPACE)
+
+    fun releaseUnusedHomeEntry(context: Context) {
+        if (isHomeScreenEnabled(context) && !isDefault(context) && hasGameSpace(context))
+            setHomeScreenEnabled(context, false)
     }
 
     fun isDefault(context: Context): Boolean {
@@ -80,6 +102,9 @@ object HomeApp {
             ?: resolved.loadLabel(pm)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    private fun appKey(packageName: String, className: String, userSerial: Long) =
+        "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+
     fun roleRequestIntent(context: Context): Intent? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val roles = context.getSystemService(RoleManager::class.java) ?: return null
@@ -95,13 +120,25 @@ object HomeApp {
         val pm = context.packageManager
         val own = Process.myUserHandle()
         val iconPx = (ICON_DP * context.resources.displayMetrics.density).roundToInt()
+        val densityDpi = context.resources.displayMetrics.densityDpi
+        val pack = IconPack.active(context)
+        val appColors = IconPack.appColors(context)
+        HomeIcons.load(context)
+        val overrides = HomeIcons.overrides
         val apps = users.userProfiles.flatMap { user ->
             val serial = if (user == own) 0L else users.getSerialNumberForUser(user)
             runCatching { launcher.getActivityList(null, user) }.getOrDefault(emptyList()).mapNotNull { info ->
                 val component = info.componentName
                 if (component.packageName == context.packageName && user == own) return@mapNotNull null
                 val label = info.label?.toString()?.trim().orEmpty().ifEmpty { component.packageName }
-                val icon = runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
+                val icon = runCatching {
+                    (overrides[appKey(component.packageName, component.className, serial)]
+                        ?.let { IconPack.drawable(context, it.pack, it.drawable, densityDpi) }
+                        ?: pack?.icon(component, densityDpi)
+                        ?: pack?.plated(info.getIcon(0), iconPx, densityDpi, appColors))
+                        ?.let { pm.getUserBadgedIcon(it, user) }
+                        ?.toBitmap(iconPx, iconPx)
+                }.getOrNull() ?: runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
                 val app = info.applicationInfo
                 val updated = if (user == own) runCatching { pm.getPackageInfo(component.packageName, 0).lastUpdateTime }.getOrNull() else null
                 @Suppress("DEPRECATION")
@@ -160,7 +197,10 @@ object HomeApp {
     }
 
     private fun syncRecents(activity: android.app.Activity) =
-        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+        keepOutOfRecents(
+            activity,
+            activity is FrontEndActivity && !SessionState.running && isDefault(activity) && AppUiPrefs.hideHomeFromRecents(activity),
+        )
 
     internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
 
@@ -221,6 +261,19 @@ object HomeApp {
 
     fun isActiveSteamSession(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM
+
+    fun showFrontEnd(context: Context, intent: Intent = Intent(context, FrontEndActivity::class.java)) {
+        val frontEnd = FrontEndActivity::class.java.name
+        val tasks = runCatching { context.getSystemService(android.app.ActivityManager::class.java)?.appTasks }.getOrNull().orEmpty()
+        val own = tasks.firstOrNull { task ->
+            runCatching { task.taskInfo.let { it.baseIntent.component?.className == frontEnd && it.topActivity?.className == frontEnd } }
+                .getOrDefault(false)
+        }
+        val launch = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (own != null && runCatching { own.startActivity(context, launch, null) }.isSuccess) return
+        // The session task shares the front end's affinity, so without MULTIPLE_TASK the front end lands inside the session's PiP window.
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+    }
 
     fun openSystemHomeSettings(context: Context) {
         try {

@@ -43,9 +43,12 @@ meson test -C src/build --no-rebuild --print-errorlogs cursor_routing wayland_sc
 ls -l *.pkg.tar.*
 "
 cd "$WORK"
+g++ -std=c++17 -Wall -Wextra -Werror -UNDEBUG -I pkg/arch/src/gamescope/src \
+  tools/gamescope/tests/nested-swapchain.cpp -o pkg/test-nested-swapchain
+pkg/test-nested-swapchain
 rm -rf out && mkdir -p out/usr/local/bin
 PKG=$(ls pkg/arch/gamescope-*.pkg.tar.* | grep -v -- '-debug-' | head -1)
-tar --use-compress-program=unzstd -xf "$PKG" -C out --strip-components=2 usr/bin/gamescope
+tar -xf "$PKG" -C out --strip-components=2 usr/bin/gamescope
 mv out/gamescope out/usr/local/bin/gamescope
 chmod 755 out/usr/local/bin/gamescope
 strip --strip-unneeded out/usr/local/bin/gamescope || true

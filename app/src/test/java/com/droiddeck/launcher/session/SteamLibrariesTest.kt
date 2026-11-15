@@ -65,6 +65,26 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
+    @Test fun aGamesFolderIsOfferedWholeUnlessItIsAlreadyALibrary() {
+        val games = "/storage/card/GameNative"
+        assertTrue(SteamLibraries.offered(emptyList(), listOf(games), games))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "$games/Steam"))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "/storage/card"))
+        assertFalse(SteamLibraries.offered(listOf(games), listOf(games), games))
+        assertTrue(SteamLibraries.offered(listOf("/storage/card/Other"), listOf(games), "/storage/card/New"))
+    }
+
+    @Test fun aGamesFolderRemainsDiscoverableBesideChosenGameStorage() {
+        val card = tmp.newFolder("card")
+        val games = File(card, "GameNative").path
+        val selected = File(card, "Selected").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, selected.path, "Selected")
+        val effective = GameStorage.effective(app)!!
+        assertTrue(SteamLibraries.offered(listOf(effective.path), listOf(games), games))
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        assertFalse(SteamLibraries.offered(listOf(GameStorage.effective(app)!!.path), listOf(games), games))
+    }
+
     private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
 
     @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
@@ -87,6 +107,49 @@ class SteamLibrariesTest {
         library(File(volume, "a/b/c"))
         val withGames = SteamLibraries.candidates(volume, 2).filter { SteamLibraries.gameCount(it) > 0 }
         assertEquals(setOf(shallow, deep), withGames.toSet())
+    }
+
+    private fun depotInstall(common: File, name: String, complete: Boolean = true): File = File(common, name).apply {
+        File(this, ".DepotDownloader").mkdirs()
+        File(this, ".DepotDownloader/depot.config").writeText("""{"installedManifestIDs":{"43":99}}""")
+        File(this, "$name.exe").writeBytes(ByteArray(4))
+        if (complete) File(this, ".download_complete").writeText("")
+    }
+
+    @Test fun finishedDownloadsWithoutManifestsCountAsGames() {
+        val steam = File(tmp.newFolder("card"), "Other/Steam")
+        val common = File(steam, "steamapps/common").apply { mkdirs() }
+        assertEquals(0, SteamLibraries.gameCount(steam))
+        val done = depotInstall(common, "Done")
+        depotInstall(common, "Partial", complete = false)
+        depotInstall(common, "Managed")
+        File(steam, "steamapps/appmanifest_42.acf").writeText("\"AppState\"\n{\n\t\"installdir\"\t\t\"Managed\"\n}\n")
+        val migrated = File(common, "Migrated").apply {
+            File(this, ".DepotDownloader/completed").mkdirs()
+            File(this, ".DepotDownloader/completed/43_99.manifest").writeBytes(ByteArray(4))
+            File(this, ".download_complete").writeText("")
+        }
+        assertEquals(listOf(done, migrated), SteamLibraries.depotInstalls(common))
+        assertEquals(3, SteamLibraries.gameCount(steam))
+        assertEquals(steam, SteamLibraries.innerLibrary(steam.parentFile))
+    }
+
+    @Test fun addedLibrariesImportFinishedDownloadsWithoutManifests() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val steam = tmp.newFolder("Steam")
+        val game = depotInstall(File(steam, "steamapps/common"), "Game")
+        val lib = added(steam.path)
+        val scanned = AddedGames.scan(app).single()
+        assertEquals(game, scanned.folder)
+        assertEquals("${lib.guest}/steamapps/common/Game", AddedGames.guestPath(app, scanned.folder))
+    }
+
+    @Test fun rawAndStorageMountViewsOverlapButDistinctFoldersDoNot() {
+        val raw = SteamLibraries.canonical(File("/mnt/media_rw/ABCD-1234/Games"))
+        val storage = SteamLibraries.canonical(File("/storage/ABCD-1234/Games"))
+        assertEquals(storage, raw)
+        assertTrue(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Games/Steam"))))
+        assertFalse(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Other"))))
     }
 
     @Test fun unreadableOrInvalidEntriesAreDropped() {

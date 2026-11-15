@@ -97,6 +97,18 @@ class NetworkObjectsTest(unittest.TestCase):
             self.assertEqual(found[nm.device_path(state)][nm.NAME + ".Device"]["DeviceType"].unpack(), device_type)
             self.assertNotIn(nm.AP, found)
 
+    def test_vpn_compatibility_gateway_is_exposed_without_changing_address(self):
+        state = dict(WIFI, transport="vpn", interface="tun0",
+                     addresses=[{"address": "10.0.0.1", "prefix": 24}],
+                     gateways=["10.0.0.1"])
+        found = nm.objects(state)
+        ipv4 = found[nm.IP4][nm.NAME + ".IP4Config"]
+        self.assertEqual(ipv4["Gateway"].unpack(), "10.0.0.1")
+        self.assertEqual(ipv4["AddressData"].unpack(), [{"address": "10.0.0.1", "prefix": 24}])
+        self.assertEqual(found[nm.device_path(state)][nm.NAME + ".Device"]["DeviceType"].unpack(), 16)
+        self.assertTrue(found[nm.ACTIVE][nm.NAME + ".Connection.Active"]["Default"].unpack())
+        self.assertEqual(found[nm.ROOT][nm.NAME]["Connectivity"].unpack(), 4)
+
     def test_named_current_and_nearby_access_points(self):
         current = {"ssid": "Current Wi-Fi", "bssid": "00:11:22:33:44:55", "strength": 75,
                    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS]"}

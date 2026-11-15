@@ -19,9 +19,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -55,8 +57,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Widgets
@@ -75,6 +75,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,7 +89,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -106,10 +114,13 @@ import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
 import com.droiddeck.launcher.HomeFavorites
 import com.droiddeck.launcher.HomeHidden
+import com.droiddeck.launcher.HomeIcons
 import com.droiddeck.launcher.HomePins
+import com.droiddeck.launcher.IconPack
 import android.content.pm.ShortcutInfo
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 import com.droiddeck.launcher.HomeWidgets
 import com.droiddeck.launcher.R
@@ -149,6 +160,9 @@ private fun List<AppEntry>.favoritesFirst(favorites: Set<String>): List<AppEntry
     val (top, rest) = partition { it.isFavorite(favorites) }
     return top + rest
 }
+
+/** The focus id of the tile an entry is shown as. */
+private fun tileId(entry: AppEntry): String = "tile:" + if (entry is AppEntry.App) entry.app.key else entry.key
 
 private fun indexLetter(label: String): String {
     val c = label.trim().firstOrNull()?.uppercaseChar() ?: return "#"
@@ -236,6 +250,48 @@ internal object AppsView {
     }
 }
 
+internal object AppsGrid {
+    const val SMALL = 44
+    const val MEDIUM = 52
+    const val LARGE = 64
+    private val ICON_SIZES = listOf(SMALL, MEDIUM, LARGE)
+    const val TIGHT = -12
+    const val NORMAL = 0
+    const val ROOMY = 16
+    private val SPACINGS = listOf(TIGHT, NORMAL, ROOMY)
+
+    var labels by mutableStateOf(true)
+        private set
+    var iconDp by mutableStateOf(MEDIUM)
+        private set
+    var spacing by mutableStateOf(NORMAL)
+        private set
+
+    private fun prefs(context: Context) = context.getSharedPreferences("home_launcher", Context.MODE_PRIVATE)
+
+    fun load(context: Context) {
+        val p = prefs(context)
+        labels = p.getBoolean("grid_labels", true)
+        iconDp = p.getInt("grid_icon", MEDIUM).takeIf { it in ICON_SIZES } ?: MEDIUM
+        spacing = p.getInt("grid_spacing", NORMAL).takeIf { it in SPACINGS } ?: NORMAL
+    }
+
+    fun setLabels(context: Context, value: Boolean) {
+        labels = value
+        prefs(context).edit().putBoolean("grid_labels", value).apply()
+    }
+
+    fun setIconDp(context: Context, value: Int) {
+        iconDp = value
+        prefs(context).edit().putInt("grid_icon", value).apply()
+    }
+
+    fun setSpacing(context: Context, value: Int) {
+        spacing = value
+        prefs(context).edit().putInt("grid_spacing", value).apply()
+    }
+}
+
 internal interface AppEntryKey {
     val label: String
     val installedAt: Long
@@ -244,9 +300,9 @@ internal interface AppEntryKey {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
+internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
-    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); HomeFavorites.load(ctx); AppsView.load(ctx); true }
+    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); HomeFavorites.load(ctx); AppsView.load(ctx); AppsGrid.load(ctx); true }
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 16.dp else 22.dp
@@ -254,6 +310,10 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var renameOnOpen by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
+    var iconFor by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { HomeIcons.overrides }.drop(1).collect { a.onAppIconsChanged() }
+    }
     val folders = HomeFolders.folders
     val byKey = remember(s.androidApps) { s.androidApps.associateBy { it.key } }
     val byPkg = remember(s.androidApps) { s.androidApps.filterNot { it.work }.groupBy { it.packageName }.mapNotNull { (pkg, apps) -> apps.singleOrNull()?.let { pkg to it } }.toMap() }
@@ -295,13 +355,34 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
         openFolder = f.id
     }
 
-    Box(modifier) {
+    val ff = LocalFrontFocus.current
+    var holdFocus by remember { mutableStateOf<String?>(null) }
+    var pageFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(holdFocus) {
+        val key = "tile:folder:${holdFocus ?: return@LaunchedEffect}"
+        // A folder closed from its name field: the platform field and the fading sheet both drop focus after the sheet asked for the tile, so keep asking until the sheet is gone.
+        val until = System.nanoTime() + 400_000_000L
+        while (System.nanoTime() < until) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (ff != null && !(ff.last == key && pageFocused)) runCatching { ff.items[key]?.requestFocus() }
+        }
+        holdFocus = null
+    }
+    Box(
+        modifier.onFocusChanged { pageFocused = it.hasFocus }
+            // A fresh press means the user is moving on, so the hold must not pull focus back to the folder.
+            .onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (holdFocus != null && k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) holdFocus = null
+                false
+            },
+    ) {
         Column(Modifier.fillMaxSize().imePadding()) {
             Box(Modifier.fillMaxWidth().padding(start = padH, end = padH, top = if (narrow) 8.dp else 12.dp)) {
                 ModeHeader(
                     stringResource(R.string.content_android_apps), query, { query = it },
                     placeholder = stringResource(R.string.apps_search_hint),
-                    clearSearchFocus = openFolder != null || picking,
+                    clearSearchFocus = openFolder != null || picking || iconFor != null,
                     lead = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
                             Text(stringResource(R.string.content_android_apps), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
@@ -312,18 +393,39 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 ) {
                     AppsFilterButton()
                     AppsSortButton()
+                    AppsAppearanceButton(a)
                     HeaderIconButton(stringResource(R.string.apps_add_widget), Icons.Filled.Widgets, "add-widget") {
                         HomeWidgets.loadProviders(ctx)
                         picking = true
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            val front = LocalFrontFocus.current
+            val steer = rememberCoroutineScope()
+            // Down goes to the tile straight below. The grid's own search only sees the tiles laid out so far, so above a short or
+            // unseen last row it lands on a tile further left; above a gap in a short last row the row's last tile takes it.
+            Box(Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN || front == null) return@onPreviewKeyEvent false
+                val from = entries.indexOfFirst { tileId(it) == front.last } - favoriteCount
+                val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                if (from < 0 || from / columns == (entries.lastIndex - favoriteCount) / columns) return@onPreviewKeyEvent false
+                if (k.action == KeyEvent.ACTION_DOWN) {
+                    val id = tileId(entries[favoriteCount + minOf(from + columns, entries.lastIndex - favoriteCount)])
+                    val shown = (front.attached[id] ?: 0) > 0
+                    if (!shown || runCatching { front.items.getValue(id).requestFocus() }.isFailure) steer.launch {
+                        // The row below is not laid out yet: bring it in, then take it.
+                        if (!shown) grid.scrollBy((grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index == from + leadItems + (if (favoriteCount > 0) 1 else 0) }?.size?.height ?: 0).toFloat())
+                        focusSoon { front.items.getValue(id) }
+                    }
+                }
+                true
+            }) {
                 val scroller = q.isEmpty() && byName && entries.size - favoriteCount > 16
                 val tile: @Composable (AppEntry) -> Unit = { entry ->
                     when (entry) {
                         is AppEntry.App -> AppTile(
-                            entry.app, folderId = folders.firstOrNull { entry.app.key in it.apps }?.id, onLaunch = onLaunch, onNewFolder = newFolder,
+                            entry.app, folderId = folders.firstOrNull { entry.app.key in it.apps }?.id, onLaunch = onLaunch, onNewFolder = newFolder, onChangeIcon = { iconFor = it },
                             first = entry === entries.first(),
                         )
                         is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
@@ -334,7 +436,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                     }
                 }
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(if (narrow) 84.dp else 96.dp),
+                    columns = GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp),
                     state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -367,7 +469,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                             Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape12)
                                 .background(FavoriteGold.copy(alpha = 0.08f)).border(1.dp, FavoriteGold.copy(alpha = 0.3f), Shape12).padding(10.dp),
                         ) {
-                            val cell = if (narrow) 84.dp else 96.dp
+                            val cell = (if (narrow) 84 else 96).dp + AppsGrid.spacing.dp
                             val count = ((maxWidth + 10.dp) / (cell + 10.dp)).toInt().coerceAtLeast(1)
                             val width = with(LocalDensity.current) { ((constraints.maxWidth - 10.dp.roundToPx() * (count - 1)) / count).toDp() }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -390,7 +492,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareByDescending<HomeApp.LaunchableApp> { it.key in favorites }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareByDescending<HomeApp.LaunchableApp> { it.key in favorites }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }, onHoldFocus = { holdFocus = f.id }) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -400,11 +502,19 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             picking, enter = fadeIn(Motion.tw(180)), exit = fadeOut(Motion.tw(160)),
             modifier = Modifier.fillMaxSize().zIndex(3f),
         ) { WidgetPicker(padH) { picking = false } }
+        AnimatedVisibility(
+            iconFor != null, enter = fadeIn(Motion.tw(180)), exit = fadeOut(Motion.tw(160)),
+            modifier = Modifier.fillMaxSize().zIndex(4f),
+        ) {
+            var last by remember { mutableStateOf(iconFor) }
+            iconFor?.let { last = it }
+            last?.let { app -> AppIconPicker(app, padH) { iconFor = null } }
+        }
     }
 }
 
 @Composable
-private fun SwipeLock() {
+internal fun SwipeLock() {
     DisposableEffect(Unit) {
         PageSwipe.locks++
         onDispose { PageSwipe.locks-- }
@@ -592,21 +702,22 @@ private fun AppIcon(app: HomeApp.LaunchableApp, size: androidx.compose.ui.unit.D
 private fun AppTile(
     app: HomeApp.LaunchableApp, folderId: String?, first: Boolean,
     onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier) {
         TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }) {
-            AppIcon(app, 52.dp)
-            TileLabel(app.label)
+            AppIcon(app, AppsGrid.iconDp.dp)
+            if (AppsGrid.labels) TileLabel(app.label)
         }
-        AppMenu(app, folderId, menu, onDismiss = { menu = false }, onNewFolder = onNewFolder)
+        AppMenu(app, folderId, menu, onDismiss = { menu = false }, onNewFolder = onNewFolder, onChangeIcon = onChangeIcon)
     }
 }
 
 @Composable
 private fun AppMenu(
     app: HomeApp.LaunchableApp, folderId: String?, open: Boolean,
-    onDismiss: () -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    onDismiss: () -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit, onChangeIcon: (HomeApp.LaunchableApp) -> Unit,
 ) {
     val ctx = LocalContext.current
     var choosing by remember { mutableStateOf(false) }
@@ -666,6 +777,14 @@ private fun AppMenu(
                 if (!isHidden) HomeFavorites.set(ctx, app.key, false)
                 HomeHidden.set(ctx, app.key, !isHidden)
             }
+            if (IconPack.active(ctx) != null) MenuItem(stringResource(R.string.apps_change_icon), checked = false) {
+                onDismiss()
+                onChangeIcon(app)
+            }
+            if (app.key in HomeIcons.overrides) MenuItem(stringResource(R.string.apps_reset_icon), checked = false) {
+                onDismiss()
+                HomeIcons.clear(ctx, app.key)
+            }
             MenuItem(stringResource(R.string.apps_app_info), checked = false) {
                 onDismiss()
                 runCatching { HomeApp.openAppInfo(ctx, app) }
@@ -692,10 +811,10 @@ private fun PinnedTile(pinned: HomePins.Pinned, first: Boolean) {
         TileFrame(pinned.key, first, onClick = { runCatching { HomeApp.startShortcut(ctx, pinned.info) } }, onMenu = { menu = true }) {
             Box {
                 val icon = pinned.icon
-                if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(52.dp))
-                else Box(Modifier.size(52.dp).clip(CircleShape).background(artBrush(hueOf(pinned.label))))
+                if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(AppsGrid.iconDp.dp))
+                else Box(Modifier.size(AppsGrid.iconDp.dp).clip(CircleShape).background(artBrush(hueOf(pinned.label))))
             }
-            TileLabel(pinned.label)
+            if (AppsGrid.labels) TileLabel(pinned.label)
         }
         AnchoredMenu(menu, onDismiss = { menu = false }, title = pinned.label, compact = true, minWidth = 180.dp) { firstItem ->
             MenuItem(stringResource(R.string.apps_shortcut_remove), checked = false, detail = pinned.appLabel, focusRequester = firstItem) {
@@ -730,8 +849,8 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
     var menu by remember { mutableStateOf(false) }
     Box {
         TileFrame(entry.key, first, onClick = onOpen, onMenu = { menu = true }) {
-            FolderIcon(entry.apps, 52.dp)
-            TileLabel(entry.folder.name)
+            FolderIcon(entry.apps, AppsGrid.iconDp.dp)
+            if (AppsGrid.labels) TileLabel(entry.folder.name)
         }
         AnchoredMenu(menu, onDismiss = { menu = false }, title = entry.folder.name, compact = true, minWidth = 160.dp) { firstItem ->
             MenuItem(stringResource(R.string.apps_folder_rename), checked = false, focusRequester = firstItem) {
@@ -746,10 +865,12 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FolderSheet(
     folder: HomeFolders.Folder, apps: List<HomeApp.LaunchableApp>, renameFirst: Boolean,
-    onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit, onClose: () -> Unit,
+    onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onHoldFocus: () -> Unit, onClose: () -> Unit,
 ) {
     SwipeLock()
     val ctx = LocalContext.current
@@ -762,7 +883,31 @@ private fun FolderSheet(
         if (n.isNotEmpty() && n != folder.name) HomeFolders.rename(ctx, folder.id, n)
         renaming = false
     }
-    val close = { if (renaming) commit(); onClose() }
+    val firstApp = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current.inputMode
+    val ff = LocalFrontFocus.current
+    val grid = rememberLazyGridState()
+    var closing by remember { mutableStateOf(false) }
+    var inside by remember { mutableStateOf(false) }
+    LaunchedEffect(renaming, inputMode) {
+        if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
+            grid.scrollToItem(0)
+            androidx.compose.runtime.withFrameNanos { }
+            // After touch, focus starts outside the page and the first request is turned to the page's own entry, behind the sheet. Ask until it is in here.
+            focusWithinFrames({ inside || closing }) { firstApp }
+        }
+    }
+    val close = {
+        val wasRenaming = renaming
+        closing = true
+        if (renaming) commit()
+        onClose()
+        if (inputMode == InputMode.Keyboard && ff != null) {
+            runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
+                .onFailure { runCatching { ff.firstTile.requestFocus() } }
+            if (wasRenaming) onHoldFocus()
+        }
+    }
     BackHandler { close() }
     Box(
         contentAlignment = Alignment.Center,
@@ -777,29 +922,52 @@ private fun FolderSheet(
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
                     .controllerBack(close)
+                    .onFocusChanged { inside = it.hasFocus }
+                    .focusProperties {
+                        exit = { dir ->
+                            if (dir == FocusDirection.Up || dir == FocusDirection.Down || dir == FocusDirection.Left || dir == FocusDirection.Right) FocusRequester.Cancel
+                            else FocusRequester.Default
+                        }
+                    }
+                    .focusGroup()
                     .padding(16.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                    if (renaming) Box(Modifier.weight(1f)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                    if (renaming) {
                         AdbTextField(
                             value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.apps_folder_name),
                             keyboardType = KeyboardType.Text, imeAction = ImeAction.Done, compact = true, showLabel = false,
                             placeholder = folder.name, focusOnShow = true, onDone = { commit() },
                         )
                     } else {
-                        Text(folder.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        SmallIconButton(Icons.Filled.Edit, stringResource(R.string.apps_folder_rename), tint = colors.onSurfaceVariant) { renaming = true }
-                        Spacer(Modifier.weight(1f))
+                        val src = remember { MutableInteractionSource() }
+                        val hot = rememberHot(src)
+                        val rename = { renaming = true }
+                        Text(
+                            folder.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                            // A faint chip at rest shows the name can be selected, now that the pencil is gone.
+                            modifier = Modifier.clip(Shape12)
+                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.onBackground.copy(alpha = 0.07f))
+                                .glideBorder(hot, Shape12, pal.signal)
+                                .hoverable(src)
+                                .clickable(interactionSource = src, indication = LocalIndication.current, onClickLabel = stringResource(R.string.apps_folder_rename), role = Role.Button, onClick = rename)
+                                .controllerConfirm(onClick = rename)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                        )
                     }
-                    SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant) { close() }
                 }
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(92.dp),
+                    columns = GridCells.Adaptive(92.dp + AppsGrid.spacing.dp),
+                    state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(apps, key = { it.key }) { app ->
-                        AppTile(app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder)
+                        AppTile(
+                            app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder, onChangeIcon = onChangeIcon,
+                            modifier = if (app === apps.first()) Modifier.focusRequester(firstApp) else Modifier,
+                        )
                     }
                 }
             }
@@ -819,7 +987,7 @@ private fun WidgetCard(w: HomeWidgets.Placed, maxWidthDp: Int) {
     val activity = remember(ctx) { ctx.findActivity() }
     Box {
         Box(
-            Modifier.size(width.dp, w.heightDp.dp)
+            Modifier.paneItem("widget:${w.id}").size(width.dp, w.heightDp.dp)
                 .clip(Shape16)
                 .background(colors.surface.copy(alpha = 0.35f))
                 .glideBorder(hot || menu, Shape16, pal.signal)

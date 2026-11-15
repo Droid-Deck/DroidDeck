@@ -26,5 +26,10 @@ SSBS=$(syms "$D/libssbs.so")
 for sym in sigaction signal bsd_signal sysv_signal; do
   grep -qx "$sym" <<<"$SSBS" || { echo "::error::libssbs.so does not export $sym"; exit 1; }
 done
+XCLIPSE=$(syms "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so")
+for sym in vkNegotiateLoaderLayerInterfaceVersion vkGetInstanceProcAddr vkGetDeviceProcAddr; do
+  grep -qx "$sym" <<<"$XCLIPSE" || { echo "::error::the Xclipse layer does not export $sym"; exit 1; }
+done
+test -f "$D/usr/local/lib/droiddeck-xclipse/VkLayer_droiddeck_xclipse.json"
 test -f "$D/usr/local/bin/droiddeck-session"
 test -f "$D/usr/local/bin/droiddeck-proton-extra"

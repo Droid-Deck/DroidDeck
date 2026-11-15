@@ -97,19 +97,24 @@ object StoreInstallRoot {
 
     fun installRoot(context: Context): File = internalRoot(context)
 
-    fun externalTarget(context: Context): Target? =
-        if (SessionPrefs.defaultStorageFolder(context).isNotBlank()) customTarget(context)
-        else detectedExternalTarget(context)
+    fun externalTarget(context: Context): Target? = when {
+        SessionPrefs.defaultStorageFolder(context).isNotBlank() -> customTarget(context)
+        GameStorage.disconnected(context) -> null
+        else -> detectedExternalTarget(context)
+    }
 
     internal fun externalTarget(targets: List<Target>, internalRoot: File): Target? =
         targets.firstOrNull { it.folder && it.root.absolutePath != internalRoot.absolutePath }
             ?: targets.firstOrNull { it.removable && it.root.absolutePath != internalRoot.absolutePath }
 
     fun defaultTarget(context: Context): Target? = when (SessionPrefs.defaultStorage(context)) {
-        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
-        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> externalTarget(context)
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> internalTarget(context)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> externalTarget(context) ?: internalTarget(context)
         else -> null
     }
+
+    private fun internalTarget(context: Context) =
+        Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
 
     fun libraryRoot(context: Context): File? = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
 

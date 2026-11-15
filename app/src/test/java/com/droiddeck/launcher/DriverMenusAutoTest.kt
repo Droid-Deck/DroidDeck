@@ -7,6 +7,7 @@ import android.os.Looper
 import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.gpu.TpUbwcHint
+import com.droiddeck.launcher.gpu.TurnipDriver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -32,6 +33,31 @@ class DriverMenusAutoTest {
             .edit().clear().commit()
         ShadowBuild.setModel("Quest 3")
         ShadowBuild.setDevice("eureka")
+    }
+
+    @Test fun pickingTheAutoDisplayHandsBothHalvesToAuto() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        SessionPrefs.setAndroidDriver(activity, "chosen-display")
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        menus.selectDriver(TurnipDriver.AUTO, linux = false)
+        assertEquals(SessionPrefs.GPU_DRIVERS_AUTO, SessionPrefs.gpuDriverMode(activity))
+        assertEquals(QuestExperimental.DRIVER, SessionPrefs.androidDriver(activity))
+        assertEquals("", SessionPrefs.linuxDriver(activity))
+    }
+
+    @Test fun pickingTheAutoDisplayWithNoPairForTheGpuStillPutsTheDisplayOnAuto() {
+        ShadowBuild.setModel("Generic phone")
+        ShadowBuild.setDevice("generic")
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        SessionPrefs.setAndroidDriver(activity, "chosen-display")
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        DriverMenus(activity, Handler(Looper.getMainLooper())).selectDriver(TurnipDriver.AUTO, linux = false)
+        assertEquals(SessionPrefs.GPU_DRIVERS_AUTO, SessionPrefs.gpuDriverMode(activity))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(activity))
+        assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
     }
 
     @Test fun selectingAutoUsesTheQuestPairWithoutStartingADownload() {
@@ -71,7 +97,7 @@ class DriverMenusAutoTest {
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
         menus.refreshDrivers()
         assertEquals(SessionPrefs.TP_UBWC_ON, menus.tpUbwcMode)
-        assertFalse(menus.state().tpUbwcRestartRequired)
+        assertFalse(menus.tpUbwcRestartRequired())
     }
 
     @Test fun changingUbwcBeforeTheFirstSessionDoesNotRequireRestart() {
@@ -80,7 +106,7 @@ class DriverMenusAutoTest {
         menus.refreshDrivers()
         SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)
         menus.refreshDrivers()
-        assertFalse(menus.state().tpUbwcRestartRequired)
+        assertFalse(menus.tpUbwcRestartRequired())
     }
 
     @Test fun recreatingTheMenuKeepsTheActiveHintRestartWarning() {
@@ -89,6 +115,6 @@ class DriverMenusAutoTest {
         SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
         menus.refreshDrivers()
-        assertTrue(menus.state().tpUbwcRestartRequired)
+        assertTrue(menus.tpUbwcRestartRequired())
     }
 }

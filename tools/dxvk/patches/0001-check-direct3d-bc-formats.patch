@@ -1,0 +1,53 @@
+diff --git a/src/dxvk/dxvk_device_info.cpp b/src/dxvk/dxvk_device_info.cpp
+index db09fba..8e9a76e 100644
+--- a/src/dxvk/dxvk_device_info.cpp
++++ b/src/dxvk/dxvk_device_info.cpp
+@@ -118,6 +118,17 @@ namespace dxvk {
+     initQueueProperties(instance, adapter, deviceInfo);
+     initMemoryProperties(instance, adapter);
+ 
++    m_hasBcFormats = true;
++    for (uint32_t value = VK_FORMAT_BC1_RGBA_UNORM_BLOCK; value <= VK_FORMAT_BC7_SRGB_BLOCK; value++) {
++      VkFormatProperties properties = { };
++      vk->vkGetPhysicalDeviceFormatProperties(adapter, VkFormat(value), &properties);
++      constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
++        | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
++        | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
++      if ((properties.optimalTilingFeatures & required) != required)
++        m_hasBcFormats = false;
++    }
++
+     disableUnusedFeatures(instance, safeMode);
+ 
+     enableFeaturesAndExtensions();
+@@ -785,6 +796,9 @@ namespace dxvk {
+       }
+     }
+ 
++    if (!m_hasBcFormats)
++      return std::string("Device does not support the BC formats required by Direct3D");
++
+     if (!m_featuresEnabled.extDescriptorHeap.descriptorHeap && m_properties.core.properties.limits.maxPushConstantsSize < MaxTotalPushDataSize)
+       return str::format("Device does not support ", MaxTotalPushDataSize, " of push data");
+ 
+@@ -886,7 +900,7 @@ namespace dxvk {
+       ENABLE_FEATURE(core.features, shaderResourceResidency, false),
+       ENABLE_FEATURE(core.features, shaderResourceMinLod, false),
+       ENABLE_FEATURE(core.features, tessellationShader, false),
+-      ENABLE_FEATURE(core.features, textureCompressionBC, true),
++      ENABLE_FEATURE(core.features, textureCompressionBC, false),
+       ENABLE_FEATURE(core.features, variableMultisampleRate, false),
+       ENABLE_FEATURE(core.features, vertexPipelineStoresAndAtomics, false),
+       ENABLE_FEATURE(core.features, wideLines, false),
+diff --git a/src/dxvk/dxvk_device_info.h b/src/dxvk/dxvk_device_info.h
+index 0a55f90..8bbc770 100644
+--- a/src/dxvk/dxvk_device_info.h
++++ b/src/dxvk/dxvk_device_info.h
+@@ -394,6 +394,7 @@ namespace dxvk {
+ 
+     DxvkDeviceQueueMapping                m_queueMapping = { };
+ 
++    bool                                  m_hasBcFormats = false;
+     bool                                  m_hasMeshShader = false;
+     bool                                  m_hasFmask = false;
+ 
