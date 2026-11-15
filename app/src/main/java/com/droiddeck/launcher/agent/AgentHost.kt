@@ -130,7 +130,10 @@ object AgentHost {
     var lab by mutableStateOf<LabProgress?>(null)
         private set
 
-    private class Turn(val process: Process, val pid: Int, val stdin: java.io.OutputStream? = null)
+    private class Turn(val process: Process, val pid: Int, val stdin: java.io.OutputStream? = null) {
+        var writing = false
+        var exitStatus: Int? = null
+    }
 
     private val main = Handler(Looper.getMainLooper())
     private var turn: Turn? = null
@@ -301,7 +304,7 @@ object AgentHost {
         live = ""
         liveThinking = ""
         turnStarted = SystemClock.elapsedRealtime()
-        AgentHostService.start(app)
+        AgentHostService.start(app)?.let { serviceWarning(app, it) }
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
         turnPlanned = plan && current.plans
@@ -314,14 +317,18 @@ object AgentHost {
         if (kept != null && line != null && sessionKey == key && kept.process.isAlive) {
             main.removeCallbacks(reap)
             turn = kept
+            kept.writing = true
             Thread({
                 val written = runCatching { synchronized(kept) { kept.stdin?.apply { write((line + "\n").toByteArray()); flush() } != null } }.getOrDefault(false)
                 // The process died between turns: the same message goes to a new one, which resumes the conversation.
-                if (!written) main.post {
+                main.post {
+                    kept.writing = false
                     if (generation == gen && session === kept) {
-                        dropSession()
-                        turn = null
-                        spawn(app, gen, current, current.turn(prompt, conversation, options), line, key)
+                        if (!written) {
+                            dropSession()
+                            turn = null
+                            spawn(app, gen, current, current.turn(prompt, conversation, options), line, key)
+                        } else kept.exitStatus?.let { processExited(app, kept, current, it) }
                     }
                 }
             }, "agent-input").start()
@@ -334,6 +341,7 @@ object AgentHost {
     private fun spawn(app: Context, gen: Int, current: AgentHarness, command: List<String>, line: String?, key: String) {
         val workdir = workspace(app)
         var threadConversation = conversation
+        val costs = if (current === ClaudeCode && line != null) AgentCostTracker() else null
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
             runCatching { AgentSetup.installHelpers(app) }
@@ -363,7 +371,10 @@ object AgentHost {
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { output ->
                     runCatching { raw?.apply { write(output); newLine(); flush() } }
-                    val parsed = current.parse(output) ?: return@forEachLine
+                    val parsedEvent = current.parse(output) ?: return@forEachLine
+                    val parsed = parsedEvent.usage?.let { usage ->
+                        if (costs != null) parsedEvent.copy(usage = costs.perTurn(usage)) else parsedEvent
+                    } ?: parsedEvent
                     parsed.conversation?.let { threadConversation = it }
                     val done = parsed.entries.any { it is Entry.Finished }
                     val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
@@ -375,13 +386,27 @@ object AgentHost {
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
             OrphanReaper.release(started.pid)
             main.post {
-                if (session === started) { session = null; main.removeCallbacks(reap) }
-                if (turn === started) {
-                    turn = null
-                    if (state == State.WORKING) finish(app, app.getString(R.string.agent_exited, current.name, status))
-                }
+                if (started.writing) started.exitStatus = status
+                else processExited(app, started, current, status)
             }
         }, "agent-output").start()
+    }
+
+    private fun processExited(app: Context, exited: Turn, current: AgentHarness, status: Int) {
+        if (session === exited) {
+            session = null
+            launchedBackground = false
+            main.removeCallbacks(reap)
+            AgentHostService.backgroundDone(app)
+        }
+        if (turn === exited) {
+            turn = null
+            if (state == State.WORKING) finish(app, app.getString(R.string.agent_exited, current.name, status))
+        }
+    }
+
+    private fun serviceWarning(app: Context, error: Throwable) {
+        record(app, Entry.Said("Unable to keep the agent running in the background: ${error.message ?: error.javaClass.simpleName}"))
     }
 
     /** One event from the CLI, which may belong to a turn it started on its own once the user's has ended. */
@@ -401,7 +426,7 @@ object AgentHost {
             live = ""
             liveThinking = ""
             turnStarted = SystemClock.elapsedRealtime()
-            AgentHostService.start(app)
+            AgentHostService.start(app)?.let { serviceWarning(app, it) }
         }
         apply(app, event)
     }
@@ -531,11 +556,13 @@ object AgentHost {
         live = ""
         liveThinking = ""
         val held = if (context > 0) (usage ?: Usage(0, 0.0, 0, 0)).copy(context = context, window = window) else usage
-        record(app, Entry.Finished(error, stopped, held, planned = turnPlanned && !stopped && error == null))
         state = State.IDLE
         unseen = true
         failed = error != null
-        if (session != null && launchedBackground) AgentHostService.waitForBackground(app) else AgentHostService.stop(app)
+        if (session != null && launchedBackground) {
+            AgentHostService.waitForBackground(app)?.let { serviceWarning(app, it) }
+        } else AgentHostService.stop(app)
+        record(app, Entry.Finished(error, stopped, held, planned = turnPlanned && !stopped && error == null))
         // Claude Code now and then ends a resumed turn at once without reading the message; nothing
         // happened, so the message is sent once more.
         val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
@@ -780,4 +807,16 @@ internal fun choices(reply: String): Choices {
     val found = block?.takeIf { open.isEmpty() } ?: return Choices(reply, emptyList())
     val options = lines.subList(found.first + 1, found.last).map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
     return Choices(lines.subList(0, found.first).joinToString("\n").trimEnd(), options)
+}
+
+internal class AgentCostTracker {
+    private var previous = 0.0
+
+    fun perTurn(usage: AgentHost.Usage): AgentHost.Usage {
+        val total = usage.costUsd
+        if (total == 0.0 && previous > 0.0) return usage
+        val delta = if (total >= previous) total - previous else total
+        previous = total
+        return usage.copy(costUsd = delta)
+    }
 }

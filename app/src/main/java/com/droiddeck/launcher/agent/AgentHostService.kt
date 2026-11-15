@@ -42,15 +42,16 @@ class AgentHostService : Service() {
         /** Setup steps that keep the app alive while they run, besides the agent's turn. */
         private var setupSteps = 0
 
-        fun start(context: Context) {
+        fun start(context: Context): Throwable? {
+            if (started) { update(context); return null }
             lastText = null
-            started = true
-            runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
-                .onSuccess { awaiting++ }
+            return runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
+                .onSuccess { started = true; awaiting++ }
+                .exceptionOrNull()
         }
 
         fun stop(context: Context) {
-            if (setupSteps > 0) return
+            if (setupSteps > 0 || waiting) return
             started = false
             if (awaiting == 0) context.stopService(Intent(context, AgentHostService::class.java))
         }
@@ -61,9 +62,9 @@ class AgentHostService : Service() {
          */
         @Volatile private var waiting = false
 
-        fun waitForBackground(context: Context) {
+        fun waitForBackground(context: Context): Throwable? {
             waiting = true
-            if (started) update(context) else start(context)
+            return if (started) { update(context); null } else start(context)
         }
 
         fun backgroundDone(context: Context) {

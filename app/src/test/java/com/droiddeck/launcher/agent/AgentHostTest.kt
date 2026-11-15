@@ -98,6 +98,16 @@ class AgentHostTest {
         assertNull(event.backgroundError)
     }
 
+    @Test fun retainedClaudeCostsAreRecordedOncePerProcess() {
+        val costs = AgentCostTracker()
+        fun usage(cost: Double) = AgentHost.Usage(1, cost, 1, 1)
+        assertEquals(0.05, costs.perTurn(usage(0.05)).costUsd, 0.000001)
+        assertEquals(0.02, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        assertEquals(0.0, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        assertEquals(0.01, costs.perTurn(usage(0.01)).costUsd, 0.000001)
+        assertEquals(0.07, AgentCostTracker().perTurn(usage(0.07)).costUsd, 0.000001)
+    }
+
     @Test fun aFailedTaskNotificationResultKeepsItsError() {
         val event = ClaudeCode.parse("""{"type":"result","is_error":true,"result":"API Error: overloaded","session_id":"s","usage":{"input_tokens":0,"output_tokens":0},"origin":{"kind":"task-notification"}}""")!!
         assertTrue(event.background)
