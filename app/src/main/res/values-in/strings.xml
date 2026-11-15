@@ -3378,6 +3378,7 @@
     <string name="boot_movie_sound">Suara</string>
     <string name="boot_movie_skip">Lewati video pembukaan</string>
     <string name="boot_movie_skip_hint">Gunakan klip hitam berdurasi 0,1 detik sebagai video pembukaan Steam. Berlaku pada sesi berikutnya.</string>
+    <string name="boot_movie_shuffle">Acak</string>
     <string name="boot_movie_custom">Video sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV, atau WebM. Format lain dan file di atas %1$d MB dikonversi ke WebM 720p di perangkat, hingga %2$d detik.</string>
     <string name="boot_movie_import">Impor</string>
@@ -4074,4 +4075,5 @@
     <string name="hud_metric_hdr">Status HDR</string>
     <string name="hud_readings_shown">Ditampilkan</string>
     <string name="hud_readings_count">%1$d dari %2$d</string>
+    <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
 </resources>

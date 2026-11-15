@@ -3445,6 +3445,7 @@
     <string name="boot_movie_sound">Son</string>
     <string name="boot_movie_skip">Ignorer la vidéo de démarrage</string>
     <string name="boot_movie_skip_hint">Utilise un clip noir de 0,1 seconde comme vidéo de démarrage de Steam. S’applique à la prochaine session.</string>
+    <string name="boot_movie_shuffle">Aléatoire</string>
     <string name="boot_movie_custom">Votre propre vidéo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Les autres formats et les fichiers de plus de %1$d Mo sont convertis en WebM 720p sur l\'appareil, jusqu\'à %2$d secondes.</string>
     <string name="boot_movie_import">Importer</string>
@@ -4143,4 +4144,5 @@
     <string name="hud_metric_hdr">État HDR</string>
     <string name="hud_readings_shown">Affichés</string>
     <string name="hud_readings_count">%1$d sur %2$d</string>
+    <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
 </resources>

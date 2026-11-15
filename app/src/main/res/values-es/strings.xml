@@ -3446,6 +3446,7 @@
     <string name="boot_movie_sound">Sonido</string>
     <string name="boot_movie_skip">Omitir vídeo de inicio</string>
     <string name="boot_movie_skip_hint">Usa un clip negro de 0,1 segundos como vídeo de inicio de Steam. Se aplicará en la próxima sesión.</string>
+    <string name="boot_movie_shuffle">Aleatorio</string>
     <string name="boot_movie_custom">Tu propio vídeo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV o WebM. Otros formatos y archivos de más de %1$d MB se convierten a WebM 720p en el dispositivo, hasta %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>
@@ -4144,4 +4145,5 @@
     <string name="hud_metric_hdr">Estado HDR</string>
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
+    <string name="exit_hint_back">Pulsa atrás una vez más para salir</string>
 </resources>

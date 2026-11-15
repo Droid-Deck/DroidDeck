@@ -3378,6 +3378,7 @@
     <string name="boot_movie_sound">Âm thanh</string>
     <string name="boot_movie_skip">Bỏ qua phim khởi động</string>
     <string name="boot_movie_skip_hint">Dùng đoạn clip đen 0,1 giây làm phim khởi động của Steam. Áp dụng trong phiên chạy tiếp theo.</string>
+    <string name="boot_movie_shuffle">Ngẫu nhiên</string>
     <string name="boot_movie_custom">Video của bạn</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV hoặc WebM. Định dạng khác và tệp trên %1$d MB được chuyển sang WebM 720p ngay trên thiết bị, tối đa %2$d giây.</string>
     <string name="boot_movie_import">Nhập</string>
@@ -4074,4 +4075,5 @@
     <string name="hud_metric_hdr">Trạng thái HDR</string>
     <string name="hud_readings_shown">Đang hiển thị</string>
     <string name="hud_readings_count">%1$d trên %2$d</string>
+    <string name="exit_hint_back">Nhấn lại để thoát</string>
 </resources>

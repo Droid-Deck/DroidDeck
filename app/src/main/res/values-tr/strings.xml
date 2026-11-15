@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Ses</string>
     <string name="boot_movie_skip">Açılış videosunu atla</string>
     <string name="boot_movie_skip_hint">Steam\'in açılış videosu olarak 0,1 saniyelik siyah bir klip kullanılır. Sonraki oturumda geçerli olur.</string>
+    <string name="boot_movie_shuffle">Karıştır</string>
     <string name="boot_movie_custom">Kendi videon</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
     <string name="boot_movie_import">İçe aktar</string>
@@ -4104,4 +4105,5 @@
     <string name="hud_metric_hdr">HDR durumu</string>
     <string name="hud_readings_shown">Gösterilen</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
 </resources>

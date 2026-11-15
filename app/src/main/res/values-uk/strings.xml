@@ -3485,6 +3485,7 @@
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_skip">Пропускати відео запуску</string>
     <string name="boot_movie_skip_hint">Використовувати 0,1-секундний чорний кліп як вступне відео Steam. Застосовується з наступного сеансу.</string>
+    <string name="boot_movie_shuffle">Випадковий порядок</string>
     <string name="boot_movie_custom">Власне відео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV або WebM. Інші формати й файли понад %1$d МБ перетворюються на пристрої на WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Імпорт</string>
@@ -4184,4 +4185,5 @@
     <string name="hud_metric_hdr">Стан HDR</string>
     <string name="hud_readings_shown">Показано</string>
     <string name="hud_readings_count">%1$d з %2$d</string>
+    <string name="exit_hint_back">Натисніть «Назад» ще раз, щоб вийти</string>
 </resources>
