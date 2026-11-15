@@ -264,6 +264,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var touchRoute: com.droiddeck.launcher.input.TouchRouter.Route? = null
     private var keyboard: KeyboardHost? = null
+    private var terminalKeySink: ((KeyEvent) -> Boolean)? = null
     private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var lastUserPressMs = 0L
     private var pressDownX = 0f
@@ -520,9 +521,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var externalOutputActive by mutableStateOf(false)
     private var externalOutput by mutableStateOf(false)
     private var externalOutputAvailable by mutableStateOf(false)
-    private var dockedTrackpad by mutableStateOf(true)
-    private var dockedBrightness: Float? = null
-    private lateinit var dockedTrackpadView: com.droiddeck.launcher.ui.DockedTrackpadView
     private var bottomGame: com.droiddeck.launcher.ui.BottomGameScreen? = null
     private var bottomOutputActive by mutableStateOf(false)
     private val topDesktopKeys = mutableSetOf<Pair<Int, Int>>()
@@ -912,11 +910,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
                 if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex) else null
         }.apply { addView(sessionOverlay) })
-        dockedTrackpadView = com.droiddeck.launcher.ui.DockedTrackpadView(this).apply {
-            visibility = android.view.View.GONE
-        }
-        root.addView(dockedTrackpadView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         glassesScope.launch { Glasses.state.collect {
             glasses = it
@@ -978,15 +971,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (pipUi) return
-                if (dockedTrackpadActive() && !drawerOpen &&
-                    ::dockedTrackpadView.isInitialized && dockedTrackpadView.visibility == View.VISIBLE) {
-                    revealDockedMenu()
+                if (externalOutputActive && externalOutput && desktopSession && !drawerOpen) {
+                    if (keyboard?.shown == true) { keyboard?.hide(); return }
+                    drawerOpen = true
                     return
                 }
                 when {
                     ::loading.isInitialized && loading.ended -> finish()
                     inputSettingsOpen -> inputSettingsOpen = false
-                    drawerOpen -> { drawerOpen = false; applyDockedTrackpad() }
+                    drawerOpen -> drawerOpen = false
                     achievementsOpen -> closeAchievements()
                     pcKeyboardOpen -> pcKeyboardOpen = false
                     else -> routeBackAction()
@@ -1002,9 +995,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         defaultFocusHighlightEnabled = false
         setContent {
             val uiPointer = appUiOwnsPointer()
-            androidx.compose.runtime.LaunchedEffect(drawerOpen, externalOutputActive, dockedTrackpad) {
-                applyDockedTrackpad()
-            }
             androidx.compose.runtime.SideEffect {
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity,
                     (drawerOpen || achievementsOpen || pcKeyboardOpen) && !pipUi && steamVrStatus != SteamVr.Status.RUNNING)
@@ -1058,7 +1048,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
-                if (bottomOutputActive && !loading.visible) SwappedTopPanel()
+                if (!loading.visible) {
+                    if (bottomOutputActive) SwappedTopPanel()
+                    else if (externalOutputActive && externalOutput && desktopSession) SwappedTopPanel(external = true)
+                }
                 val phonePanel = glassesOutputActive && !loading.visible && !drawerOpen && !pcKeyboardOpen
                 if (phonePanel) GlassesPhonePanel(glasses, steamVrStatus == SteamVr.Status.RUNNING, headTracking)
                 if (trackingRecovery != null && !drawerOpen && !pcKeyboardOpen && !loading.visible) {
@@ -1147,8 +1140,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
                     }
                 }
-                LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus) {
+                LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus, externalOutputActive, externalOutput, secondScreenMode) {
                     updateOnScreenControls()
+                    applyUnfoldedControls()
                     padBridge?.setInputEnabled(resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !appTextFocus && !SessionState.suspended)
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || appTextFocus || SessionState.suspended) {
                         backQamInput.cancel()
@@ -1520,13 +1514,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             externalOutput = if (externalOutputAvailable || externalOutput) externalOutput else null,
+            externalAvailable = externalOutputAvailable,
             onExternalOutput = ::chooseExternalOutput,
-            dockedTrackpad = dockedTrackpad,
-            onDockedTrackpad = { on ->
-                SessionPrefs.setDockedTrackpad(this@SessionActivity, on)
-                dockedTrackpad = on
-                applyDockedTrackpad()
-            },
             onLaunchAndroidApp = { app, displayId ->
                 drawerOpen = false
                 try {
@@ -2092,7 +2081,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         externalOutput = SessionPrefs.externalGameOutput(this)
-        dockedTrackpad = SessionPrefs.dockedTrackpad(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
         hudConfig = DroidDeckHudConfig.load(this)
@@ -2324,8 +2312,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
+        val externalHold = holder === externalScreen?.holder
+        if (externalHold && externalOutput && desktopSession) prepareDesktopExternalSize()
         val previous = SessionState.outputSize
-        val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
+        val live = if (externalHold && desktopSession) externalOutputSize()
+            else windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: externalOutputSize() ?: outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz(holder)
@@ -2415,7 +2406,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen(force = true) }
-            resizeOutputForWindow(width, height)
+            if (holder === externalScreen?.holder && desktopSession && externalOutput) {
+                prepareDesktopExternalSize()
+                resizeDesktopOutput()
+            } else {
+                resizeOutputForWindow(width, height)
+            }
         }
     }
 
@@ -2527,11 +2523,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bottomGame?.takeIf { if (holder != null) holder === it.holder else bottomOutputActive }
             ?.hz?.takeIf { it > 1f }?.let { return minOf(it, PerfMode.peakRefreshCap(this)) }
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
-        externalScreen?.let { screen ->
-            // Android can apply the requested mode only after the session starts, and the session's rate is fixed then.
-            val hz = if (SessionState.running) screen.hz else maxOf(screen.hz, screen.requestedHz)
-            if (hz > 1f) return hz
-        }
+        externalScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
@@ -3092,6 +3084,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             return true
         }
         if ((pcKeyboardOpen || achievementsOpen || inputSettingsOpen) && fromController) return super.dispatchKeyEvent(event)
+        if (!fromController && event.keyCode != KeyEvent.KEYCODE_BACK &&
+            externalPanelActive() && secondScreenMode == SecondScreenMode.TERMINAL) {
+            terminalKeySink?.invoke(event)
+            return true
+        }
         if (!fromController && event.keyCode != KeyEvent.KEYCODE_BACK && sendToTopDesktop(event)) return true
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
@@ -3645,17 +3642,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         reconcileDock(primaryId)
         bottomSwapAvailable = bottomGame != null || bottomGameDisplay() != null
         val newIds = candidates.map { it.id }.toSet()
-        if (secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
+        val phonePanel = externalOutput && externalOutputActive && desktopSession
+        if (phonePanel) {
+            secondScreenPresentation?.closeControls()
+            secondScreenPresentation = null
+        }
+        if (!phonePanel && secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
             return
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
-        if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) {
+        if (!phonePanel && secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
-        } else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
-        else if (started && !ended && ::loading.isInitialized && !loading.visible) openDualScreenControls()
+        } else if (!phonePanel && started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
+        else if (!phonePanel && started && !ended && ::loading.isInitialized && !loading.visible) openDualScreenControls()
         updateKeyboardRoute()
     }
 
@@ -3683,6 +3685,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private val desktopSession get() = loadingMode() == SessionService.MODE_DESKTOP
+
+    private fun externalPanelActive(): Boolean = externalOutputActive && externalOutput && desktopSession
 
     private fun leaveDeckPanel() {
         if (secondScreenMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) selectSecondScreenMode(secondScreenMode)
@@ -3712,6 +3716,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
         dualControlsProvisional = false
+        if (externalOutput && externalOutputActive && desktopSession) {
+            keyboard?.takeIf { it.shown }?.hide()
+            if (mode == SecondScreenMode.NONE) closeSecondScreen(reset = false)
+            SessionPrefs.setSecondScreenPanel(this, true, mode.id)
+            panelMode(mode)
+            return
+        }
         if (mode == SecondScreenMode.NONE) {
             closeSecondScreen(reset = true)
             return
@@ -3903,7 +3914,45 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun chooseExternalOutput(on: Boolean) {
         SessionPrefs.setExternalGameOutput(this, on)
         externalOutput = on
+        if (desktopSession) {
+            if (on) {
+                prepareDesktopExternalSize()
+                closeSecondScreen(reset = false)
+                updateExternalScreen()
+                applyExternalPanelMode()
+            } else {
+                updateExternalScreen()
+            }
+            applyOutputPacing()
+            return
+        }
         updateExternalScreen()
+    }
+
+    private fun prepareDesktopExternalSize() {
+        val mode = displayMode()
+        if (SessionPrefs.dockSavedResolution(this, mode) == null) {
+            SessionPrefs.setDockSavedResolution(this, mode,
+                SessionPrefs.resolutionChoice(this, mode,
+                    com.droiddeck.launcher.session.SessionDisplay.panelSize(this)))
+        }
+        SessionPrefs.setResolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN)
+    }
+
+    private fun applyExternalPanelMode() {
+        if (!desktopSession) return
+        panelMode(openingPanel())
+    }
+
+    private fun resizeDesktopOutput() {
+        if (!desktopSession || !externalOutput || !CompositorHost.isStarted) return
+        val size = externalOutputSize() ?: return
+        if (SessionState.outputSize == size) return
+        SessionState.outputSize = size
+        val panel = panelBounds()
+        SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() /
+            maxOf(size.first, size.second).coerceAtLeast(1)
+        WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
     private fun chooseUnfoldedControlsWithController(on: Boolean) {
@@ -3918,7 +3967,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun controlsBelowWanted(): Boolean {
-        if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled) return false
+        if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled ||
+            externalOutputActive) return false
         return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
             pipUi || isInPictureInPictureMode)
     }
@@ -4180,14 +4230,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun deliversTouches(mode: String) =
         mode == SessionPrefs.TOUCH_DIRECT || mode == SessionPrefs.TOUCH_AUTO
 
-    private fun usingTouchpad(): Boolean {
-        // Docked on a monitor the phone is only a trackpad, whatever the session's touch mode.
-        if (dockedTrackpadActive()) return true
-        return when (routedTouchMode) {
-            SessionPrefs.TOUCH_PAD -> true
-            SessionPrefs.TOUCH_DIRECT -> false
-            else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
-        }
+    private fun usingTouchpad(): Boolean = when (routedTouchMode) {
+        SessionPrefs.TOUCH_PAD -> true
+        SessionPrefs.TOUCH_DIRECT -> false
+        else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
     }
 
     private fun drawerTouchMode(): String = when (routedTouchMode) {
@@ -4323,6 +4369,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        if (externalPanelActive() && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) return true
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 sessionTouchDown = true
@@ -4679,6 +4726,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
+        if (externalOutputActive && externalOutput && desktopSession) {
+            onScreenButtonsVisible = false
+            hideBottomControls()
+            controls.releaseAll()
+            controls.visibility = View.GONE
+            steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
+            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            applyTouchRouting()
+            return
+        }
         fun showPinned() {
             controls.setPinnedOnly(true)
             val pinned = controls.hasPinned && !pipUi && !inputSettingsOpen
@@ -4794,6 +4851,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun onDesktopTextField(focused: Boolean) {
         val host = keyboard
+        if (externalPanelActive() && secondScreenMode == SecondScreenMode.TERMINAL) {
+            host?.takeIf { it.shown }?.hide()
+            updateDesktopKeyboardButton()
+            return
+        }
         if (host != null && desktopTextInput()) {
             val tapped = android.os.SystemClock.uptimeMillis() - lastUserPressMs < TEXT_FIELD_TAP_MS
             if (focused && tapped && resumed && !pcKeyboardOpen &&
@@ -5056,7 +5118,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
-        applyDockedTrackpad()
         updateDesktopKeyboardButton()
         com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
             enabled = {
@@ -5115,7 +5176,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
-        applyDockedTrackpad()
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
@@ -5346,8 +5406,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         // its SurfaceView so it cannot retain the last game frame under the hint.
         surfaceView.visibility = if (glassesOutputActive || externalOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
         if (CompositorHost.isStarted) {
-            WaylandCompositor.nativeSetLowLatencyPresent(externalOutputActive)
-            WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
+            // FIFO here: MAILBOX made the guest's window and menu flicker on pointer moves.
+            WaylandCompositor.nativeSetLowLatencyPresent(false)
+            WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || externalOutputActive || bottomOutputActive)
         }
         val external = externalScreen?.display?.takeIf { externalOutputActive }
         val path = when {
@@ -5365,59 +5426,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             "phoneHz" to phone?.refreshRate,
             "outputHz" to (external?.mode?.refreshRate ?: bottomGame?.display?.refreshRate ?: glassesScreen?.hz),
         ))
-        applyDockedTrackpad()
-        if (external != null && SessionState.running && !SessionPrefs.resolutionChosen(this, displayMode())) {
-            val panel = external.mode.physicalWidth to external.mode.physicalHeight
-            if (SessionState.outputSize != com.droiddeck.launcher.session.SessionDisplay.screenSize(panel)) {
-                Toast.makeText(this, R.string.external_restart_for_mode, Toast.LENGTH_LONG).show()
-            }
+        if (external != null && externalOutput && desktopSession) {
+            prepareDesktopExternalSize()
+            applyExternalPanelMode()
+            resizeDesktopOutput()
         }
         if (pausedFrameWanted) uiHandler.postDelayed({
             if (pausedFrameWanted && pausedFrame == null && resumed) capturePausedFrame()
         }, PAUSED_FRAME_REDRAW_MS)
-    }
-
-    private fun dockedTrackpadActive(): Boolean =
-        externalOutputActive && dockedTrackpad && resumed && !ended && !isInPictureInPictureMode
-
-    /**
-     * Docked: the session is on the monitor, so the phone becomes a dim, full-screen
-     * trackpad. The screen stays on because a touch surface cannot receive touches while
-     * the panel is off; "off" here means as dark as the panel allows while still touchable.
-     */
-    private fun applyDockedTrackpad() {
-        if (!::dockedTrackpadView.isInitialized || !::sessionOverlay.isInitialized) return
-        val active = dockedTrackpadActive() && !drawerOpen
-        if (active) {
-            if (dockedBrightness == null) dockedBrightness = window.attributes.screenBrightness
-            window.attributes = window.attributes.apply { screenBrightness = 0.01f }
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
-                hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-                systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-            dockedTrackpadView.visibility = View.VISIBLE
-            sessionOverlay.visibility = View.INVISIBLE
-        } else {
-            dockedTrackpadView.visibility = View.GONE
-            sessionOverlay.visibility = View.VISIBLE
-            dockedBrightness?.let { window.attributes = window.attributes.apply { screenBrightness = it } }
-            dockedBrightness = null
-            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
-                .show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        }
-    }
-
-    /** Back from the docked surface reveals the normal session menu instead of leaving the session. */
-    private fun revealDockedMenu() {
-        if (!::dockedTrackpadView.isInitialized || !::sessionOverlay.isInitialized) return
-        dockedTrackpadView.visibility = View.GONE
-        sessionOverlay.visibility = View.VISIBLE
-        dockedBrightness?.let { window.attributes = window.attributes.apply { screenBrightness = it } }
-        dockedBrightness = null
-        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
-            .show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        drawerOpen = true
     }
 
     private fun restorePhoneOutput(screen: GlassesScreen) {
@@ -5545,15 +5561,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     @androidx.compose.runtime.Composable
-    private fun SwappedTopPanel() {
+    private fun SwappedTopPanel(external: Boolean = false) {
         val pages = bottomPages()
         val swapBack = { putGameOnBottom(false) }
         val steam = SessionState.mode == SessionService.MODE_STEAM
-        val openMenu = { drawerOpen = true }
+        val openMenu = {
+            keyboard?.takeIf { it.shown }?.hide()
+            drawerOpen = true
+        }
+        val closePanel: (() -> Unit)? = if (external) null else openMenu
         fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList(), tabs: com.droiddeck.launcher.ui.BarTabs? = null) =
             com.droiddeck.launcher.ui.BottomBarModel(
-                title, openMenu, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
-                extras + com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack),
+                title, closePanel, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
+                extras + if (external) emptyList() else listOf(
+                    com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack)),
                 tabs = tabs,
             )
         val keyboardExtra = com.droiddeck.launcher.ui.BarExtra(getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) {
@@ -5565,6 +5586,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         ) {
             when {
+                secondScreenMode == SecondScreenMode.NONE -> Unit
                 secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available() ->
                     androidx.compose.ui.viewinterop.AndroidView(
                         factory = { context ->
@@ -5596,9 +5618,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         com.droiddeck.launcher.ui.BarExtra(getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard) { terminal?.showKeyboard() },
                     )))
                     androidx.compose.ui.viewinterop.AndroidView(
-                        factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context).also { terminal = it } },
+                        factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context)
+                            .also { panel -> terminal = panel; terminalKeySink = panel::sendKey } },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
+                    androidx.compose.runtime.LaunchedEffect(drawerOpen) {
+                        if (!drawerOpen) terminal?.showKeyboard()
+                    }
+                    androidx.compose.runtime.DisposableEffect(Unit) {
+                        onDispose { terminalKeySink = null }
+                    }
                 }
                 pages.isEmpty() -> com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
                 else -> BottomDashboard(
@@ -5626,7 +5655,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val mode = display.mode
         if (mode.physicalWidth <= 0 || mode.physicalHeight <= 0) return null
         val panel = mode.physicalWidth to mode.physicalHeight
-        // An explicit resolution choice still wins; with no choice the monitor's current mode is the session size.
         return if (SessionPrefs.resolutionChosen(this, displayMode())) presentationOutputSize(panel)
         else com.droiddeck.launcher.session.SessionDisplay.screenSize(panel)
     }
@@ -5722,17 +5750,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun updateExternalScreen() {
         if (!::surfaceView.isInitialized || !::displayManager.isInitialized) return
+        val displays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).toList()
+        val builtIn = displays.filter { com.droiddeck.launcher.input.DualScreen.builtIn(it) }
+            .map { it.displayId }.toSet()
         val target = com.droiddeck.launcher.session.ExternalOutput.select(
-            displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).toList(),
-            setOf(shownOnDisplayId, glasses.displayId),
+            displays, setOf(shownOnDisplayId, glasses.displayId) + builtIn,
         )
-        externalOutputAvailable = target != null
+        externalOutputAvailable = target != null && desktopSession
+        if (target == null && desktopSession && externalScreen == null) {
+            val mode = displayMode()
+            val saved = SessionPrefs.dockSavedResolution(this, mode)
+            if (saved != null) {
+                SessionPrefs.clearDockSavedResolution(this, mode)
+                SessionPrefs.setResolutionChoice(this, mode, saved)
+            }
+        }
         val reason = when {
             !externalOutput -> "off"
             ended -> "session ended"
             !started -> "activity stopped"
             isInPictureInPictureMode -> "picture-in-picture"
             runtimeRemovalBlocked -> "runtime removal"
+            !desktopSession -> "not a desktop session"
             glassesScreen != null -> "glasses output active"
             target == null -> "no external display"
             else -> null
@@ -5745,12 +5784,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val current = externalScreen
         if (current != null && current.display.displayId == chosen?.displayId) {
             current.applyMode()
+            if (desktopSession && externalOutput) {
+                prepareDesktopExternalSize()
+                resizeDesktopOutput()
+            }
             return
         }
         if (current != null) {
             Log.i(TAG, "external output: leaving display ${current.display.displayId}")
             restorePhoneFromExternal(current)
             runCatching { current.dismiss() }
+        }
+        if (chosen != null && !SessionState.running && SessionPrefs.dockSavedResolution(this, displayMode()) == null) {
+            // The app's default is 720p. When a monitor is connected before the session starts,
+            // follow its screen instead, but remember the phone choice for when it is unplugged.
+            val choice = SessionPrefs.resolutionChoice(this, displayMode(),
+                com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
+            if (choice == com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION ||
+                !SessionPrefs.resolutionChosen(this, displayMode())) {
+                SessionPrefs.setDockSavedResolution(this, displayMode(), choice)
+                SessionPrefs.setResolutionChoice(this, displayMode(),
+                    com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN)
+            }
         }
         if (chosen != null) {
             val screen = com.droiddeck.launcher.ui.ExternalOutputScreen(this, chosen, this)
@@ -5784,7 +5839,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (externalScreen !== screen) return
         externalScreen = null
         externalOutputActive = false
-        applyDockedTrackpad()
+        val saved = SessionPrefs.dockSavedResolution(this, displayMode())
+        if (saved != null) {
+            SessionPrefs.clearDockSavedResolution(this, displayMode())
+            SessionPrefs.setResolutionChoice(this, displayMode(), saved)
+        }
         CompositorHost.detach(screen.holder.surface)
         if (glassesScreen != null) return
         surfaceW = 0

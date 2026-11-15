@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
+    <string name="drawer_screens">Ekranlar</string>
+    <string name="screens_desktop_on">Masaüstü</string>
+    <string name="screens_this_device">Bu cihaz</string>
+    <string name="screens_external_monitor">Harici monitör</string>
+    <string name="screens_other_screen">Diğer ekran</string>
     <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Gösterilen</string>
     <string name="drawer_android_apps">Android uygulamaları</string>

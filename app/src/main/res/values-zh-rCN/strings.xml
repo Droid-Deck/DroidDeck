@@ -782,6 +782,11 @@
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">副屏</string>
+    <string name="drawer_screens">屏幕</string>
+    <string name="screens_desktop_on">桌面</string>
+    <string name="screens_this_device">此设备</string>
+    <string name="screens_external_monitor">外接显示器</string>
+    <string name="screens_other_screen">另一个屏幕</string>
     <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">显示</string>
     <string name="drawer_android_apps">Android 应用</string>

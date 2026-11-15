@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>
+    <string name="drawer_screens">स्क्रीन</string>
+    <string name="screens_desktop_on">डेस्कटॉप पर</string>
+    <string name="screens_this_device">यह डिवाइस</string>
+    <string name="screens_external_monitor">बाहरी मॉनिटर</string>
+    <string name="screens_other_screen">अन्य स्क्रीन</string>
     <string name="drawer_second_screen_mode">मोड</string>
     <string name="drawer_second_screen_shows">दिखाता है</string>
     <string name="drawer_android_apps">Android ऐप</string>

@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 #include <sys/timerfd.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
@@ -603,6 +604,7 @@ void dmabuf_buffer_unref(struct dmabuf_buffer *b) {
      * imported-buffer record while a GPU read may still be pending. Retain the
      * reference without allocating a quarantine node; process exit reclaims it. */
     if (!b || vkp_completion_unknown() || --b->refs > 0) return;
+    if (b->acquire_fd >= 0) close(b->acquire_fd);
     vkp_image_destroy(b->img);
     for (int i = 0; i < b->n_planes; i++)
         if (b->fd[i] >= 0) close(b->fd[i]);
@@ -862,6 +864,49 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     s->has_content = s->shm_img != NULL;
 }
 
+struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
+#define DROIDDECK_DMA_BUF_SYNC_READ 1
+#define DROIDDECK_DMA_BUF_IOCTL_EXPORT_SYNC_FILE \
+    _IOWR('b', 2, struct droiddeck_dma_buf_sync_file)
+
+static int g_acquire_probe;
+
+static void dmabuf_refresh_acquire_fence(struct dmabuf_buffer *b) {
+    if (b->acquire_fd >= 0) { close(b->acquire_fd); b->acquire_fd = -1; }
+    if (b->fd[0] < 0 || g_acquire_probe < 0) return;
+    struct droiddeck_dma_buf_sync_file exp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = -1};
+    if (ioctl(b->fd[0], DROIDDECK_DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) == 0 && exp.fd >= 0) {
+        b->acquire_fd = exp.fd;
+        if (!g_acquire_probe) {
+            g_acquire_probe = 1;
+            droiddeck_log("vulkan", "dma-buf: producer (acquire) fences are waited for before composition");
+        }
+    } else if (!g_acquire_probe) {
+        g_acquire_probe = -1;
+        droiddeck_log("vulkan", "dma-buf: DMA_BUF_IOCTL_EXPORT_SYNC_FILE failed (%s): a frame "
+                   "may be sampled while the client is still drawing it", strerror(errno));
+    }
+}
+
+static void dmabuf_wait_acquire_fence(struct dmabuf_buffer *b) {
+    if (!b || b->acquire_fd < 0) return;
+    struct pollfd p = {.fd = b->acquire_fd, .events = POLLIN};
+    int r;
+    do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
+    if (r > 0) {
+        close(b->acquire_fd);
+        b->acquire_fd = -1;
+        return;
+    }
+    static int64_t said_ns;
+    int64_t now = now_ns();
+    if (!said_ns || now - said_ns > 30000000000LL) {
+        said_ns = now;
+        droiddeck_log("vulkan", "dma-buf: producer fence did not signal in 100 ms (%s); "
+                   "composing the frame anyway", r == 0 ? "timeout" : strerror(errno));
+    }
+}
+
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
     const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
     if (!repeat) {
@@ -875,6 +920,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         s->dmabuf_destroy.notify = on_dmabuf_destroyed;
         wl_resource_add_destroy_listener(buffer, &s->dmabuf_destroy);
     }
+    dmabuf_refresh_acquire_fence(b);
     if (!b->img && !b->import_failed && b->n_planes >= 1) {
         b->img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height,
                                        b->stride[0], b->offset[0]);
@@ -1868,6 +1914,7 @@ static void add_surface(struct draw_list *dl, struct surface *s, int ox, int oy)
     if (s->src_set) { sx = s->src[0]; sy = s->src[1]; sw = s->src[2]; sh = s->src[3]; }
     surface_size(s, &dw, &dh);
     if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+    if (s->dmabuf_buf && s->dmabuf_buf->img == img) dmabuf_wait_acquire_fence(s->dmabuf_buf);
     if (dl->n == dl->cap) {
         int cap = dl->cap ? dl->cap * 2 : 32;
         struct vkp_draw *d = realloc(dl->d, (size_t)cap * sizeof(*d));

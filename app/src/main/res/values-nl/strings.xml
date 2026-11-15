@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>
+    <string name="drawer_screens">Schermen</string>
+    <string name="screens_desktop_on">Desktop op</string>
+    <string name="screens_this_device">Dit apparaat</string>
+    <string name="screens_external_monitor">Externe monitor</string>
+    <string name="screens_other_screen">Ander scherm</string>
     <string name="drawer_second_screen_mode">Modus</string>
     <string name="drawer_second_screen_shows">Toont</string>
     <string name="drawer_android_apps">Android-apps</string>

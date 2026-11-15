@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
+    <string name="drawer_screens">Képernyők</string>
+    <string name="screens_desktop_on">Asztal</string>
+    <string name="screens_this_device">Ez az eszköz</string>
+    <string name="screens_external_monitor">Külső monitor</string>
+    <string name="screens_other_screen">Másik képernyő</string>
     <string name="drawer_second_screen_mode">Mód</string>
     <string name="drawer_second_screen_shows">Megjelenít</string>
     <string name="drawer_android_apps">Android-alkalmazások</string>

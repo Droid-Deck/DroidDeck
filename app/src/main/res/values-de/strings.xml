@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">PC-Tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Zweiter Bildschirm</string>
+    <string name="drawer_screens">Bildschirme</string>
+    <string name="screens_desktop_on">Desktop auf</string>
+    <string name="screens_this_device">Dieses Gerät</string>
+    <string name="screens_external_monitor">Externer Monitor</string>
+    <string name="screens_other_screen">Anderer Bildschirm</string>
     <string name="drawer_second_screen_mode">Modus</string>
     <string name="drawer_second_screen_shows">Zeigt</string>
     <string name="drawer_android_apps">Android-Apps</string>

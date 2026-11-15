@@ -100,6 +100,7 @@ static struct wl_resource *create_android_buffer(struct wl_client *client, uint3
     buffer->format = desc.format == 5 ? DRM_ARGB8888 : desc.format == 2 ? DRM_XBGR8888 : DRM_ABGR8888;
     buffer->modifier = MOD_INVALID; /* No DMA-BUF layout was inferred from the native handle. */
     buffer->img = image;
+    buffer->acquire_fd = -1;
     for (int i = 0; i < MAX_PLANES; i++) buffer->fd[i] = -1;
     struct wl_resource *result = wl_resource_create(client, &wl_buffer_interface, 1, id);
     if (!result) { dmabuf_buffer_unref(buffer); wl_client_post_no_memory(client); return NULL; }

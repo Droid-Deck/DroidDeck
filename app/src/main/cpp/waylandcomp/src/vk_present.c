@@ -877,7 +877,7 @@ static int swap_init_locked(void) {
         VkPresentModeKHR modes[8];
         if (g_vk.GetPhysicalDeviceSurfacePresentModesKHR) {
             nmodes = 8;
-            if (g_vk.GetPhysicalDeviceSurfacePresentModesKHR(g_pd, g_surface, &nmodes, modes) < 0) nmodes = 0;
+            if (g_vk.GetPhysicalDeviceSurfacePresentModesKHR(g_pd, g_surface, &nmodes, modes) != VK_SUCCESS) nmodes = 0;
         }
         for (uint32_t i = 0; i < nmodes; i++)
             if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) present_mode = VK_PRESENT_MODE_MAILBOX_KHR;

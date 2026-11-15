@@ -56,10 +56,12 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false, bottomDesktop = true))
     }
 
-    @Test fun desktopSessionsOpenTheTrackpadUntilTheUserPicksAnotherPanel() {
+    @Test fun desktopSessionsStartWithNoPanelUntilTheUserPicksOne() {
         for (deckPad in listOf(false, true)) for (dashboard in listOf(false, true)) {
-            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad, dashboard, desktopSession = true))
-            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.NONE, SecondScreenMode.opening(null, deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.NONE, SecondScreenMode.opening("none", deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.NONE, SecondScreenMode.opening("gone", deckPad, dashboard, desktopSession = true))
+            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("keyboard-trackpad", deckPad, dashboard, desktopSession = true))
             assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.opening("custom-controls", deckPad, dashboard, desktopSession = true))
             assertEquals(SecondScreenMode.TERMINAL, SecondScreenMode.opening("terminal", deckPad, dashboard, desktopSession = true))
         }

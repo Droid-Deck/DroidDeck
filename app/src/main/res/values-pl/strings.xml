@@ -788,6 +788,11 @@
     <string name="drawer_pc_keyboard">Klawiatura PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Drugi ekran</string>
+    <string name="drawer_screens">Ekrany</string>
+    <string name="screens_desktop_on">Pulpit na</string>
+    <string name="screens_this_device">To urządzenie</string>
+    <string name="screens_external_monitor">Monitor zewnętrzny</string>
+    <string name="screens_other_screen">Inny ekran</string>
     <string name="drawer_second_screen_mode">Tryb</string>
     <string name="drawer_second_screen_shows">Pokazuje</string>
     <string name="drawer_android_apps">Aplikacje Android</string>

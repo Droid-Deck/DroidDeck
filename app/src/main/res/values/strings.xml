@@ -836,6 +836,11 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_screens">Screens</string>
+    <string name="screens_desktop_on">Desktop on</string>
+    <string name="screens_this_device">This device</string>
+    <string name="screens_external_monitor">External monitor</string>
+    <string name="screens_other_screen">Other screen</string>
     <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
@@ -1638,13 +1643,6 @@
     <string name="pip_auto">Automatically enter PiP</string>
     <string name="unfolded_controls">Controls below the game</string>
     <string name="unfolded_controls_hint">In portrait or on an unfolded screen, place a landscape game above the touch controls.</string>
-    <string name="external_output">Game on external display (experimental)</string>
-    <string name="external_output_hint">Show the game on the connected monitor instead of mirroring the phone. Connect the monitor before starting for its full resolution.</string>
-    <string name="external_restart_for_mode">Restart the session to use the monitor\'s resolution</string>
-    <string name="docked_trackpad">Phone as a trackpad</string>
-    <string name="docked_trackpad_hint">While the external display is on, dim the phone and show only the touchpad. Back opens the session menu.</string>
-    <string name="docked_trackpad_title">Trackpad</string>
-    <string name="docked_trackpad_body">Tap = click   ·   Two fingers = scroll   ·   Back = menu</string>
     <string name="unfolded_controls_with_controller">Keep them with a controller</string>
     <string name="unfolded_controls_with_controller_hint">Also show these touch controls while a controller is connected.</string>
     <string name="pip_suspended">Suspended</string>

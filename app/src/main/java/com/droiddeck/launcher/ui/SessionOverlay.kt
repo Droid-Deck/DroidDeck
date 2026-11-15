@@ -164,10 +164,10 @@ import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_BEHAVIOR_
 import kotlinx.coroutines.flow.collect
 import java.util.Locale
 
-private val SessionDrawerPage.title: Int get() = when (this) {
+private fun SessionDrawerPage.title(externalDesktop: Boolean): Int = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
-    SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
+    SessionDrawerPage.SECOND_SCREEN -> if (externalDesktop) R.string.drawer_screens else R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
     SessionDrawerPage.HUD -> R.string.drawer_hud
     SessionDrawerPage.VR -> R.string.vr_title
@@ -328,9 +328,8 @@ class DrawerActions(
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val externalOutput: Boolean? = null,
+    val externalAvailable: Boolean = false,
     val onExternalOutput: (Boolean) -> Unit = {},
-    val dockedTrackpad: Boolean = false,
-    val onDockedTrackpad: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -369,7 +368,8 @@ class DrawerActions(
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
-    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
+    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty() || a.externalAvailable, a.glassesPresent)
+    val externalDesktop = a.desktop && a.externalAvailable
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
@@ -552,7 +552,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
                         host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = page, pages = pages, compact = true, externalDesktop = externalDesktop, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
@@ -575,12 +575,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
-                                if (a.externalOutput != null) ToggleRow(host, "external-output", stringResource(R.string.external_output),
-                                    stringResource(R.string.external_output_hint), a.externalOutput,
-                                    chipModifier = focus.track(page, "external-output"), onChange = a.onExternalOutput)
-                                if (a.externalOutput != null) ToggleRow(host, "docked-trackpad", stringResource(R.string.docked_trackpad),
-                                    stringResource(R.string.docked_trackpad_hint), a.dockedTrackpad,
-                                    chipModifier = focus.track(page, "docked-trackpad"), onChange = a.onDockedTrackpad)
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
@@ -999,7 +993,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
 }
 
 @Composable
-private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, onSelect: (SessionDrawerPage) -> Unit) {
+private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, externalDesktop: Boolean = false, onSelect: (SessionDrawerPage) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val count = pages.size
@@ -1028,7 +1022,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                 val scale by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
                 val alpha by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
                 val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
-                val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title))
+                val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title(externalDesktop)))
                 val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
                 val select = { onSelect(item) }
                 Box(
@@ -1210,8 +1204,16 @@ internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boole
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val externalDesktop = a.desktop && a.externalAvailable
+    if (externalDesktop && a.externalOutput != null) {
+        SettingsGroup(stringResource(R.string.screens_desktop_on)) {
+            ChoiceRow(host, "game-on", stringResource(R.string.screens_desktop_on), null,
+                listOf(false to stringResource(R.string.screens_this_device), true to stringResource(R.string.screens_external_monitor)),
+                a.externalOutput ?: false, chipModifier = track("game-on"), onPick = a.onExternalOutput)
+        }
+    }
     val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
-    SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
+    SettingsGroup(stringResource(if (externalDesktop) R.string.screens_other_screen else R.string.drawer_second_screen_mode)) {
         Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         Column(Modifier.fillMaxWidth().selectableGroup()) {

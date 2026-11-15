@@ -41,6 +41,7 @@ static struct wl_resource *params_do_create(struct wl_client *c, struct wl_resou
     b->refs = 1;
     b->width = w; b->height = h; b->format = format;
     b->modifier = p->modifier[0];
+    b->acquire_fd = -1;
     for (int i = 0; i < MAX_PLANES; i++) b->fd[i] = -1;
     for (int i = 0; i < p->n_planes; i++) {
         b->fd[i] = p->fd[i];

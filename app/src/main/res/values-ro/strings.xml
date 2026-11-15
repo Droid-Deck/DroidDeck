@@ -786,6 +786,11 @@
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
+    <string name="drawer_screens">Ecrane</string>
+    <string name="screens_desktop_on">Desktop pe</string>
+    <string name="screens_this_device">Acest dispozitiv</string>
+    <string name="screens_external_monitor">Monitor extern</string>
+    <string name="screens_other_screen">Alt ecran</string>
     <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Arată</string>
     <string name="drawer_android_apps">Aplicații Android</string>

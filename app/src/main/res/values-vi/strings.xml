@@ -782,6 +782,11 @@
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Màn hình thứ hai</string>
+    <string name="drawer_screens">Màn hình</string>
+    <string name="screens_desktop_on">Màn hình nền trên</string>
+    <string name="screens_this_device">Thiết bị này</string>
+    <string name="screens_external_monitor">Màn hình ngoài</string>
+    <string name="screens_other_screen">Màn hình khác</string>
     <string name="drawer_second_screen_mode">Chế độ</string>
     <string name="drawer_second_screen_shows">Hiển thị</string>
     <string name="drawer_android_apps">Ứng dụng Android</string>

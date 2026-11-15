@@ -782,6 +782,11 @@
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
+    <string name="drawer_screens">화면</string>
+    <string name="screens_desktop_on">데스크톱</string>
+    <string name="screens_this_device">이 기기</string>
+    <string name="screens_external_monitor">외부 모니터</string>
+    <string name="screens_other_screen">다른 화면</string>
     <string name="drawer_second_screen_mode">모드</string>
     <string name="drawer_second_screen_shows">표시</string>
     <string name="drawer_android_apps">Android 앱</string>

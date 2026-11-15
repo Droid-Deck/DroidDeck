@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>
+    <string name="drawer_screens">Οθόνες</string>
+    <string name="screens_desktop_on">Επιφάνεια εργασίας σε</string>
+    <string name="screens_this_device">Αυτή η συσκευή</string>
+    <string name="screens_external_monitor">Εξωτερική οθόνη</string>
+    <string name="screens_other_screen">Άλλη οθόνη</string>
     <string name="drawer_second_screen_mode">Λειτουργία</string>
     <string name="drawer_second_screen_shows">Εμφανίζει</string>
     <string name="drawer_android_apps">Εφαρμογές Android</string>

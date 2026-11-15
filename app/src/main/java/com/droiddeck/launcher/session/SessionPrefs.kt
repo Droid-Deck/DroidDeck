@@ -1612,18 +1612,22 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }
 
-    // Docked-first fork: a connected monitor is used automatically. The drawer switch still turns it off.
-    fun externalGameOutput(context: Context): Boolean = prefs(context).getBoolean("externalGameOutput", true)
+    fun externalGameOutput(context: Context): Boolean = prefs(context).getBoolean("externalGameOutput", false)
 
     fun setExternalGameOutput(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("externalGameOutput", enabled).apply()
     }
 
-    /** While the session is on an external display, make the phone a full-screen, dimmed trackpad. */
-    fun dockedTrackpad(context: Context): Boolean = prefs(context).getBoolean("dockedTrackpad", true)
+    /** The phone resolution to restore when the external display is unplugged. */
+    fun dockSavedResolution(context: Context, mode: String): String? =
+        prefs(context).getString("dockSavedResolution.$mode", null)
 
-    fun setDockedTrackpad(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean("dockedTrackpad", enabled).apply()
+    fun setDockSavedResolution(context: Context, mode: String, choice: String) {
+        prefs(context).edit().putString("dockSavedResolution.$mode", choice).apply()
+    }
+
+    fun clearDockSavedResolution(context: Context, mode: String) {
+        prefs(context).edit().remove("dockSavedResolution.$mode").apply()
     }
 
     fun unfoldedControlsWithController(context: Context): Boolean =

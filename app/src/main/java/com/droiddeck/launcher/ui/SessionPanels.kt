@@ -108,6 +108,18 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
         }
     }
 
+    fun sendKey(event: KeyEvent): Boolean {
+        val session = terminalSession ?: return false
+        val view = terminalView ?: return false
+        val printable = event.action == KeyEvent.ACTION_DOWN && event.unicodeChar != 0 &&
+            !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed && !ctrlActive && !altActive
+        if (printable) {
+            session.write(String(Character.toChars(event.unicodeChar)))
+            return true
+        }
+        return view.dispatchKeyEvent(event)
+    }
+
     private fun registerTerminalPid() {
         val pid = terminalSession?.pid ?: -1
         if (pid > 1 && pid != terminalPid) {

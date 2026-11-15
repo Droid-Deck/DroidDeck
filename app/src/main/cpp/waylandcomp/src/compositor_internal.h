@@ -37,6 +37,7 @@ struct dmabuf_buffer {
     uint64_t modifier;
     struct vkp_image *img;
     int import_failed;
+    int acquire_fd;
     int refs;
     void *ahb_state;
 };

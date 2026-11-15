@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Втори екран</string>
+    <string name="drawer_screens">Екрани</string>
+    <string name="screens_desktop_on">Работен плот на</string>
+    <string name="screens_this_device">Това устройство</string>
+    <string name="screens_external_monitor">Външен монитор</string>
+    <string name="screens_other_screen">Друг екран</string>
     <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показва</string>
     <string name="drawer_android_apps">Приложения за Android</string>

@@ -784,6 +784,11 @@
     <string name="drawer_pc_keyboard">PC-tangentbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andra skärmen</string>
+    <string name="drawer_screens">Skärmar</string>
+    <string name="screens_desktop_on">Skrivbord på</string>
+    <string name="screens_this_device">Den här enheten</string>
+    <string name="screens_external_monitor">Extern skärm</string>
+    <string name="screens_other_screen">Annan skärm</string>
     <string name="drawer_second_screen_mode">Läge</string>
     <string name="drawer_second_screen_shows">Visar</string>
     <string name="drawer_android_apps">Android-appar</string>

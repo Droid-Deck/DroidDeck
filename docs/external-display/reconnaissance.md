@@ -15,7 +15,7 @@ flowchart LR
 ```
 
 - Gamescope runs inside proot as a Wayland client of the app's compositor: `--backend wayland --expose-wayland -f -W -H -w -h -r` (`tools/linuxfs/overlay/usr/local/bin/droiddeck-session:235-241`). It never opens DRM/KMS.
-- `BL_WIDTH`, `BL_HEIGHT` and `BL_REFRESH` come from `SessionState.outputSize` and `SessionState.refreshHz` when the guest starts (`session/SessionService.kt:450-459`). The size changes later only in follow-screen mode (`BL_FOLLOW_OUTPUT=1`, `nativeResizeOutput`).
+- `BL_WIDTH`, `BL_HEIGHT` and `BL_REFRESH` come from `SessionState.outputSize` and `SessionState.refreshHz` when the guest starts (`session/SessionService.kt:450-459`). The size can change later through `nativeResizeOutput`: follow-screen mode (`BL_FOLLOW_OUTPUT=1`) and Desktop moves between the phone and an external monitor or a monitor mode change.
 - The compositor presents into whichever Android `Surface` it is given: `CompositorHost.startOrAttach` / `resize` / `detach` (`wayland/CompositorHost.kt`), then `nativeSetSurface`, then `vk_present_set_window`, which rebuilds the swapchain (`vk_present.c:218-283`).
 - The swapchain uses `VK_PRESENT_MODE_FIFO_KHR` with `minImageCount + 1 (+extra)` images (`vk_present.c:712-726`).
 - Compositor frames are paced by `Choreographer.getInstance()` on the main thread (`CompositorHost.kt:17`), which ticks on the phone panel's vsync whichever display shows the output.

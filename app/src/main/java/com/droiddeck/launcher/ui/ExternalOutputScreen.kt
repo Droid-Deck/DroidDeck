@@ -17,7 +17,6 @@ class ExternalOutputScreen(context: Context, display: Display, private val callb
     val holder: SurfaceHolder get() = surfaceView.holder
 
     val hz: Float get() = display.mode.refreshRate
-    val requestedHz: Float get() = display.mode.refreshRate
 
     init {
         setCancelable(false)
