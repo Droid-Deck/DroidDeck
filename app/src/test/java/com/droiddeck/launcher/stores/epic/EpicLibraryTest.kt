@@ -40,6 +40,19 @@ class EpicLibraryTest {
         assertEquals("EA app", EpicLibrary.toCatalogItem(app, game).extra["thirdPartyManagedApp"])
     }
 
+    @Test fun catalogDetailsClearTheCachedThirdPartyLauncher() {
+        val record = JSONObject().put("appName", "Fig").put("namespace", "ns").put("catalogItemId", "cat")
+        val before = EpicGame("Fig", "ns", "cat", "Fig", thirdPartyManagedApp = "EA app")
+        val fresh = EpicLibrary.gameFrom(record, JSONObject().put("thirdPartyManagedApp", ""), before)
+        assertEquals("", fresh.thirdPartyManagedApp)
+        assertEquals("", EpicLibrary.toCatalogItem(app, fresh).extra["thirdPartyManagedApp"])
+        assertEquals(listOf(fresh), EpicLibrary.fromCacheJson(EpicLibrary.toCacheJson(listOf(fresh))))
+        assertEquals("", EpicLibrary.gameFrom(record, JSONObject(), before).thirdPartyManagedApp)
+        assertEquals("Ubisoft Connect", EpicLibrary.gameFrom(record,
+            JSONObject().put("thirdPartyManagedApp", "Ubisoft Connect"), before).thirdPartyManagedApp)
+        assertEquals("EA app", EpicLibrary.gameFrom(record, null, before).thirdPartyManagedApp)
+    }
+
     @Test fun readingSkipsDedupsSortsAndCapsSizes() {
         val text = JSONArray()
             .put(JSONObject().put("appName", "b").put("title", "beta").put("installSize", (1L shl 41)))

@@ -143,7 +143,7 @@ object EpicLibrary {
             publisher = pick("publisher", before?.publisher.orEmpty()),
             isDlc = d.optBoolean("dlc", false),
             artLogo = pick("logo", before?.artLogo.orEmpty()),
-            thirdPartyManagedApp = pick("thirdPartyManagedApp", before?.thirdPartyManagedApp.orEmpty()),
+            thirdPartyManagedApp = details?.optString("thirdPartyManagedApp", "") ?: before?.thirdPartyManagedApp.orEmpty(),
         )
     }
 
