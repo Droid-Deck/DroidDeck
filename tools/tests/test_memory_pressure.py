@@ -160,15 +160,17 @@ class SessionPressureTest(unittest.TestCase):
     def run_policy(self, body):
         functions = '\n'.join(function_source(name) for name in (
             'bl_memory_read', 'bl_memory_tight', 'bl_memory_critical',
+            'bl_client_can_pageout', 'bl_client_pressure', 'bl_client_pressure_result',
             'bl_session_pressure', 'bl_zram_has_room', 'bl_watch_nap', 'bl_zram_pick', 'bl_tier_note', 'bl_tier_readback'))
         functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
         functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
         harness = '''
 set -u
 _bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=() _bl_pids=(999)
-_bl_pressure_at=-1 _bl_packed=-1
+_bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_packed=-1
 rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive="999 321 654" started=100 complete=1
 step() { :; }
+bl_game_focused() { [ "${focused:-1}" = 1 ]; }
 bl_proc_start() { _bl_start=; case " $alive " in *" $1 "*) _bl_start=$started; return 0 ;; esac; return 1; }
 nap() { echo "nap:$1"; }
 bl_session_others() { _bl_session=(321 654); }
@@ -204,6 +206,53 @@ SECONDS=30; bl_session_pressure
 
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
+
+    def test_disabled_idle_compression_does_not_compress_the_session(self):
+        self.assertEqual(['send:1:client'], self.run_policy('BL_ZRAM_IDLE=0; bl_client_pressure; bl_session_pressure'))
+
+    def test_disabled_idle_compression_signals_only_launcher_processes(self):
+        sender = (function_source('bl_zram_send') + '\n' + function_source('bl_zram_finish')).replace('/tmp/.bl-zram', str(self.root / 'control'))
+        self.assertEqual(['kill:-URG 999 998', 'mode:1'], self.run_policy('''
+_bl_pids=(999 998)
+kill() { echo "kill:$*"; }
+bl_zram_wait() { _bl_pageout_complete=1; }
+bl_zram_scan() { :; }
+''' + sender + '''
+BL_ZRAM_IDLE=0; bl_client_pressure; bl_session_pressure
+echo "mode:$(cat ''' + str(self.root / 'control') + ''')"
+'''))
+
+    def test_disabled_idle_compression_reclaims_only_the_launcher_before_focus(self):
+        self.memory(available=1700)
+        self.assertEqual(['send:1:client'], self.run_policy('''
+BL_ZRAM_IDLE=0 focused=0
+bl_client_pressure
+bl_session_pressure
+'''))
+
+    def test_disabled_idle_compression_respects_launcher_setting_and_threshold(self):
+        self.memory(available=1700)
+        self.assertEqual([], self.run_policy('BL_ZRAM_IDLE=0 BL_ZRAM_CLIENT=0; bl_client_pressure; bl_session_pressure'))
+        self.memory(available=1900)
+        self.assertEqual([], self.run_policy('BL_ZRAM_IDLE=0; bl_client_pressure; bl_session_pressure'))
+
+    def test_game_reclaim_requires_focus(self):
+        self.assertEqual([], self.run_policy('focused=0; bl_session_pressure'))
+
+    def test_game_reclaim_runs_when_focus_is_unknown(self):
+        launch = self.root / 'launch'
+        (launch / 'agent').mkdir(parents=True)
+        body = function_source('bl_game_focused') + f'\nBL_LAUNCH_DIR={launch} _bl_apps=7\n'
+        self.assertEqual(['send:1:session'], self.run_policy(body + 'bl_session_pressure'))
+        (launch / 'agent' / 'focus.json').write_text('{"focusedApp": 9}')
+        self.assertEqual([], self.run_policy(body + 'bl_session_pressure'))
+        self.assertEqual(['unfocused'], self.run_policy(body + 'bl_game_focused || echo unfocused'))
+        (launch / 'agent' / 'focus.json').unlink()
+        self.assertEqual(['unfocused'], self.run_policy(body + 'bl_game_focused || echo unfocused'))
+
+    def test_launcher_pressure_remains_available_on_larger_devices(self):
+        self.memory(total=15360, available=1400)
+        self.assertEqual(['send:1:client'], self.run_policy('BL_ZRAM_IDLE=0; bl_client_pressure; bl_session_pressure'))
 
     def test_enough_available_memory_does_not_compress_even_with_stalls(self):
         self.memory(available=3072, psi='5.00')
@@ -433,6 +482,7 @@ bl_zram_wait() {{
   [ "$1" != 123 ] || client_rss=$((client_rss - {reclaimed * 1024}))
 }}
 bl_tier_note() {{ :; }}
+bl_game_focused() {{ :; }}
 ''' + source + f'''
 bl_memory_read
 _bl_fall={fall * 1024}
