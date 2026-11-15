@@ -2264,10 +2264,11 @@ class SessionService : Service() {
         syncWatcher = null
         val prootPid = sessionPid
         sessionPid = -1
+        // The kept shell goes through the same teardown, which reads its descendants before signalling it.
+        val shell = SessionTerminal.detach(sessionGen)?.let { pid -> readStat(pid)?.second?.let { pid to it } }
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
-        }
-        SessionTerminal.clear(sessionGen)
+        } + listOfNotNull(shell)
         BottomDesktop.stop(this, stoppedGen)
         val controller = suspendController
         suspendController = null
