@@ -17,8 +17,7 @@ PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxf
           'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
           'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
-PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
-                'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
+PACKED_FILES = {}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',

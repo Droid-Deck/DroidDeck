@@ -80,17 +80,29 @@ public final class LinuxRuntime {
         return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
     }
 
+    /** Android 10+ refuses to execute files from app data for targetSdk 29+, but executes the APK's extracted libraries. */
+    private static File bundledProot(Context context, String name) {
+        File file = new File(context.getApplicationInfo().nativeLibraryDir, name);
+        return file.isFile() ? file : null;
+    }
+
+    private static boolean bundledProotReady(Context context) {
+        return bundledProot(context, "libproot.so") != null && bundledProot(context, "libproot-loader.so") != null;
+    }
+
     public static boolean patchedProot(Context context) {
-        return AddonPack.PROOT.installed(context);
+        return bundledProotReady(context) || AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
+        if (bundledProotReady(context)) return bundledProot(context, "libproot.so");
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
+        if (bundledProotReady(context)) return bundledProot(context, "libproot-loader.so");
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
         return AddonPack.PROOT.file(context, "libproot-loader.so");
@@ -99,9 +111,7 @@ public final class LinuxRuntime {
     public static String prootSource(Context context) {
         File bin = prootBinary(context);
         if (!bin.isFile()) return PROOT_MISSING;
-        if (AddonPack.PROOT.installed(context)
-                && bin.getPath().equals(AddonPack.PROOT.file(context, "libproot.so").getPath())) return PROOT_PACK;
-        return PROOT_ROOTFS;
+        return patchedProot(context) && !bin.equals(rootfsProot(context)) ? PROOT_PACK : PROOT_ROOTFS;
     }
 
     public static String prootLibraryPath(Context context) {

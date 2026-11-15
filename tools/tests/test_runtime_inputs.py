@@ -79,10 +79,10 @@ class RuntimeInputsTest(unittest.TestCase):
         path = self.root / 'app/build/prepared-assets/pulseaudio.tzst'
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
 
-    def test_an_apk_still_carrying_proot_is_rejected(self):
-        apk = self.current_apk(self.root / 'bundled.apk', {'lib/arm64-v8a/libproot.so': b'prepared runtime'})
-        with self.assertRaisesRegex(ValueError, 'proot pack provides'):
-            runtime.check_apk(apk, self.root)
+    def test_proot_ships_in_the_apk(self):
+        for name in ('lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so'):
+            self.assertTrue(self.in_apk(name))
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
     def test_missing_proot_cannot_be_attested(self):
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').unlink()
