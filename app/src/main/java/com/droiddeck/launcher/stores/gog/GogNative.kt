@@ -6,14 +6,14 @@ import com.droiddeck.launcher.stores.StoresNative
 object GogNative {
     private const val TAG = "GogNative"
 
-    const val KIND_GEN2_CHUNKS = 0
-
     const val KIND_GEN1_RANGES = 1
 
     interface Listener {
         fun onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, file: String, fileBytes: Long, verified: Boolean)
 
         fun onBytes(bytesDone: Long, bytesTotal: Long)
+
+        fun onMaintenance(networkBytes: Long, reusedBytes: Long, appliedBytes: Long)
 
         fun onLog(line: String)
 
@@ -26,7 +26,7 @@ object GogNative {
     fun isAvailable(): Boolean {
         available?.let { return it }
         val ok = try {
-            StoresNative.ensureLoaded() && nativeProbe() == 1
+            StoresNative.ensureLoaded() && nativeProbe() == 2
         } catch (t: Throwable) {
             Log.w(TAG, "native GOG engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
             false

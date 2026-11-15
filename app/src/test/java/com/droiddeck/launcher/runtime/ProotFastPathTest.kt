@@ -10,6 +10,12 @@ import java.io.File
 class ProotFastPathTest {
     private val root = File("/data/data/com.droiddeck.launcher/files/linuxfs")
 
+    @Test fun guestEnvironmentCarriesTheHostAndroidApi() {
+        for (sdk in listOf(33, 35, 36)) {
+            assertTrue(ProotFastPath.guestEnv(root, emptyList(), "test", sdk).contains("PROOT_FP_ANDROID_API=$sdk"))
+        }
+    }
+
     @Test fun aSessionsUsualBindsGetAKey() {
         val binds = (1..87).map { "/host/$it:/guest/$it" }
         assertNotNull(ProotFastPath.key(root, binds))
@@ -26,5 +32,9 @@ class ProotFastPathTest {
         assertFalse(ProotFastPath.allows(preference = true, noSeccomp = false, source = LinuxRuntime.PROOT_MISSING))
         assertFalse(ProotFastPath.allows(preference = false, noSeccomp = false, source = LinuxRuntime.PROOT_PACK))
         assertFalse(ProotFastPath.allows(preference = true, noSeccomp = true, source = LinuxRuntime.PROOT_PACK))
+    }
+
+    @Test fun fastPathStaysOffWithoutProot() {
+        assertFalse(ProotFastPath.allows(preference = true, noSeccomp = false, source = LinuxRuntime.PROOT_PACK, nativeUserland = true))
     }
 }

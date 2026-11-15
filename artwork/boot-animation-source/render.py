@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""Render the DroidDeck boot animation to .webm (Steam) or .mp4 (H.264).
-
-Usage:  python3 render.py [WIDTH] [HEIGHT] [FPS] [OUT] [light|dark]
-        python3 render.py 1280 720 30 droiddeck-boot.webm
-        python3 render.py 1920 1080 60 droiddeck-boot.mp4
-        python3 render.py 1280 720 30 droiddeck-boot-dark.webm dark
-
-Needs: pip install playwright && playwright install chromium, plus ffmpeg with libvpx.
-The animation is drawn by droiddeck-boot.html (same folder); each frame gets real
-motion blur (180-degree shutter, up to 48 sub-frames when things move fast).
-"""
 import base64, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 from playwright.sync_api import sync_playwright

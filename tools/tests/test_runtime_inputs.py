@@ -6,6 +6,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from unittest import mock
 from zipfile import ZipFile
 
@@ -20,6 +21,10 @@ class RuntimeInputsTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        # Component archive validation has its own binary/archive fixtures.
+        component_check = patch.object(runtime, 'verify_powervr')
+        component_check.start()
+        self.addCleanup(component_check.stop)
         paths = runtime.outputs(self.root)
         for name in runtime.required():
             path = self.root / paths.get(name, 'app/src/main/' + name)
@@ -28,6 +33,9 @@ class RuntimeInputsTest(unittest.TestCase):
         self.source = self.root / 'tools/linuxfs/preload/test.c'
         self.source.parent.mkdir(parents=True)
         self.source.write_text('current source')
+        service = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
+        service.parent.mkdir(parents=True)
+        service.write_bytes(b'MZ service')
         self.audio(['pactl', 'modules/arm64/module-aaudio-sink.so', 'modules/arm64/module-directaudio-native-sink.so'])
         self.packs()
 
@@ -48,6 +56,7 @@ class RuntimeInputsTest(unittest.TestCase):
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
+        self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
@@ -87,6 +96,19 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_dev_loop_can_reuse_assets_from_other_sources(self):
+        runtime.record(self.root)
+        self.source.write_text('new implementation')
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            runtime.verify(self.root, stale_sources_ok=True)
+        self.assertIn('tools/linuxfs/preload/test.c', stderr.getvalue())
+
+    def test_dev_loop_still_rejects_changed_outputs(self):
+        runtime.record(self.root)
+        (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
+        with self.assertRaisesRegex(ValueError, 'changed runtime input'):
+            runtime.verify(self.root, stale_sources_ok=True)
+
     def test_changed_quest_source_rejects_old_outputs(self):
         source = self.root / 'tools/quest/kgsl_compat.c'
         source.parent.mkdir(parents=True)
@@ -99,6 +121,20 @@ class RuntimeInputsTest(unittest.TestCase):
     def test_missing_quest_driver_cannot_be_attested(self):
         (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
         with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
+            runtime.record(self.root)
+
+    def test_changed_powervr_wrapper_rejects_old_outputs(self):
+        wrapper = self.root / 'tools/hybris/run-proton.py'
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text('current wrapper')
+        runtime.record(self.root)
+        wrapper.write_text('changed wrapper')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_missing_powervr_bundle_cannot_be_attested(self):
+        (self.root / 'app/src/main/assets/hybris/runtime.tzst').unlink()
+        with self.assertRaisesRegex(ValueError, 'assets/hybris/runtime.tzst'):
             runtime.record(self.root)
 
     def test_modified_prebuilt_binary_is_rejected(self):
@@ -144,6 +180,18 @@ class RuntimeInputsTest(unittest.TestCase):
     def test_an_apk_still_carrying_a_packed_tree_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli': b'prepared runtime'})
         with self.assertRaisesRegex(ValueError, 'xbox pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_ubisoft_service_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ service'})
+        with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
+        with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
             runtime.check_apk(apk, self.root)
 
     def test_an_apk_still_carrying_tracking_libraries_is_rejected(self):

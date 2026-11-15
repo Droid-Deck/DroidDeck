@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Hardware Locality lstopo
+Exec=lstopo
+Icon=hwloc
+NoDisplay=true

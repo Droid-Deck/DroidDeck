@@ -1,5 +1,4 @@
-// LSFG from Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk (PancakeTAS).
-// Ported to WinNative and DroidDeck by @maxjivi05. GPL-3.0-or-later.
+// LSFG from Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk (PancakeTAS). Ported to WinNative and DroidDeck by @maxjivi05. GPL-3.0-or-later.
 
 #pragma once
 

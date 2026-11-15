@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 
-/* SOCK_SEQPACKET between the guest's Remote Play hooks and the app: the emulated /dev/video-enc0 and
- * MediaCodec encoder, and remote touches. A config carries the buffer memfds (inputs first) as SCM_RIGHTS;
- * every frame gets one reply, touches get none. */
-
 #define VENC_MAX_BUFFERS 16
 
 enum venc_msg { VENC_CONFIG = 1, VENC_FRAME = 2, VENC_DONE = 3, VENC_BITRATE = 4, VENC_TOUCH = 5, VDEC_CONFIG = 6, VDEC_CAPTURE = 7, VDEC_PACKET = 8, VDEC_RESULT = 9 };
@@ -45,7 +41,6 @@ struct venc_bitrate {
     uint32_t bitrate;
 };
 
-/* Remote Play's touch-as-mouse turned back into a touch; x and y are fractions of the screen in 1/65535. */
 struct venc_touch {
     uint32_t type;
     uint32_t action;

@@ -52,19 +52,22 @@ object Themes {
     const val DEFAULT_PRIMARY = 0xFF8B5CF6.toInt()
     const val DEFAULT_SECONDARY = 0xFF22D3EE.toInt()
 
-    /** The two colours of the custom Gradient theme: primary, then secondary. Changing them restyles the app at once. */
     var gradientColors by mutableStateOf(DEFAULT_PRIMARY to DEFAULT_SECONDARY)
         private set
 
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
+    const val WHITE_RED = "white_red"
+    const val TRUE_BLACK = "true_black"
+    const val DEFAULT_HIGHLIGHT = 0xFF1A9FFF.toInt()
 
-    /** How fast Inner Gamer cycles, 1 (slow) to [RGB_SPEEDS] (fast). */
+    var trueBlackHighlight by mutableStateOf(DEFAULT_HIGHLIGHT)
+        private set
+
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
 
-    /** Where Inner Gamer is on the colour wheel, in whole [RGB_HUE_STEP] steps so the app restyles only when the colour visibly moves. */
     var rgbHue by mutableStateOf(0f)
         private set
 
@@ -78,15 +81,19 @@ object Themes {
         rgbSpeed = value
     }
 
-    /** Milliseconds for one trip round the colour wheel. */
     fun rgbCycleMillis(speed: Int): Int = 30_000 / speed.coerceIn(1, RGB_SPEEDS)
 
     fun loadGradient(context: Context) {
         gradientColors = SessionPrefs.gradientColors(context)
         rgbSpeed = SessionPrefs.rgbSpeed(context)
+        trueBlackHighlight = SessionPrefs.trueBlackHighlight(context)
     }
 
-    /** The Inner Gamer palette at one point on the colour wheel. */
+    fun setTrueBlackHighlight(context: Context, highlight: Int) {
+        SessionPrefs.setTrueBlackHighlight(context, highlight)
+        trueBlackHighlight = highlight
+    }
+
     fun innerGamer(hue: Float): Palette = ThemeColors.palette(
         Color.hsv(hue % 360f, 0.9f, 1f).toArgb(), Color.hsv((hue + 60f) % 360f, 0.9f, 1f).toArgb(),
         R.string.theme_inner_gamer, R.string.theme_inner_gamer_detail, INNER_GAMER,
@@ -97,10 +104,9 @@ object Themes {
         gradientColors = primary to secondary
     }
 
-    /** The theme the person chose, with the custom colours read first; for code that is not in a composition. */
     fun current(context: Context): Palette {
         val id = SessionPrefs.theme(context)
-        if (id == GRADIENT || id == INNER_GAMER) loadGradient(context)
+        if (id == GRADIENT || id == INNER_GAMER || id == TRUE_BLACK) loadGradient(context)
         return byId(id)
     }
 
@@ -133,12 +139,21 @@ object Themes {
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
         ),
+        ThemeColors.trueBlack(DEFAULT_HIGHLIGHT),
+        Palette(
+            WHITE_RED, R.string.theme_white_red, R.string.theme_white_red_detail,
+            background = Color(0xFFF8F8F8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF0F0F0), line = Color(0xFFDDDDDD), line2 = Color(0xFFC8C8C8),
+            onBackground = Color(0xFF191919), onSurfaceVariant = Color(0xFF555555),
+            primary = Color(0xFFD62828), primary2 = Color(0xFFB71C1C), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFD62828),
+            good = Color(0xFF248548),
+        ),
         innerGamer(0f),
         ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),
     )
 
     fun byId(id: String): Palette {
         if (id == INNER_GAMER) return innerGamer(rgbHue)
+        if (id == TRUE_BLACK) return ThemeColors.trueBlack(trueBlackHighlight)
         if (id == GRADIENT) return ThemeColors.palette(gradientColors.first, gradientColors.second, R.string.theme_gradient, R.string.theme_gradient_detail)
         return all.firstOrNull { it.id == id } ?: all[0]
     }
@@ -186,14 +201,12 @@ private val ContentDirected = Typography().run {
     )
 }
 
-/** Turns the colour wheel on the system's own animation clock; with animations off, in the app or in Android, the colour holds still. */
 @Composable
 private fun InnerGamerHue(speed: Int) {
     if (Motion.scale == 0f) return
     key(speed) { InnerGamerCycle(speed) }
 }
 
-/** One run of the cycle at one speed, picking up from the colour on screen so a new speed takes over at once without a jump. */
 @Composable
 private fun InnerGamerCycle(speed: Int) {
     val start = remember { Themes.rgbHue }

@@ -47,7 +47,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 if (!quiet) StoresState.status[store] = app.getString(R.string.stores_sync_library)
             }
             val result = EpicLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
-            // Throttled means the cache is fresh, possibly written by another sync after this one read it.
             val fresh = if (result == EpicLibrary.SyncResult.Throttled) EpicLibrary.cached(app).map { EpicLibrary.toCatalogItem(app, it) } else cached
             StoresState.post {
                 StoresState.status.remove(store)
@@ -85,6 +84,11 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
             Store.EPIC, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes,
             location = StoreInstallRoot.labelFor(app, folder),
         )
+        val launcher = item.extra["thirdPartyManagedApp"].orEmpty()
+        if (launcher.isNotBlank()) {
+            DownloadQueue.recordFailed(app, entry, app.getString(R.string.epic_third_party_managed, launcher))
+            return
+        }
         DownloadQueue.enqueue(app, entry) { EpicInstaller(app, item, folder) }
     }
 

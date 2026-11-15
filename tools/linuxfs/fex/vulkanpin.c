@@ -19,7 +19,6 @@ typedef struct {
 typedef VkResult (*Enumerate)(const char *, unsigned int *, VkExtensionProperties *);
 typedef Function (*ProcAddr)(void *, const char *);
 
-/* The driver cannot enumerate devices for an instance with VK_KHR_display, and gamescope's WSI layer aborts on that. */
 static const char *const hidden_extensions[] = {
     "VK_KHR_display",
     "VK_KHR_get_display_properties2",

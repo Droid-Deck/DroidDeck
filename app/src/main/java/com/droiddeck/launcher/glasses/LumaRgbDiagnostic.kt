@@ -150,7 +150,6 @@ class LumaRgbCaptureService : Service() {
                     intent?.getIntExtra("durationMs",5000) ?: 5000) }
                 finally {
                     stopSelf()
-                    // SDK 2.4.0 can crash while cancelling failed USB transfers; isolate each diagnostic.
                     android.os.Process.killProcess(android.os.Process.myPid())
                 }
             }, "luma-rgb-diagnostic").start()

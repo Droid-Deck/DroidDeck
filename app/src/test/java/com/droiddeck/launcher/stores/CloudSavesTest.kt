@@ -22,7 +22,7 @@ class CloudSavesTest {
         val puts = ArrayList<String>()
         override fun list() = files.map { (k, v) -> CloudFile(k, v.second, CloudSaves.md5(v.first)) }
         override fun get(file: CloudFile) = files.getValue(file.name)
-        override fun put(files: Map<String, ByteArray>): Map<String, Long> =
+        override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> =
             files.mapValues { (k, v) -> puts += k; this.files[k] = v to 99_000L; 99_000L }
     }
 

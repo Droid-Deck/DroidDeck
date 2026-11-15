@@ -6,6 +6,7 @@ if [ "${BL_DESKTOP:-}" = 1 ]; then
   for arg in "$@"; do
     case $arg in
       steam://*) url=$arg ;;
+      -shutdown) url=steam://exit ;;
       -gamepadui|-bigpicture) ui=bigpicture ;;
     esac
   done

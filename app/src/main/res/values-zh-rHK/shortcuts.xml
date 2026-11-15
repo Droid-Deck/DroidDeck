@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">實體按鍵快捷操作</string>
+    <string name="shortcuts_dd_menu">DroidDeck 選單</string>
+    <string name="shortcuts_capture">指派：%1$s</string>
+    <string name="shortcuts_press">按下並放開一個按鈕，指派會自動儲存。</string>
+    <string name="shortcuts_release">放開按鍵以繼續。</string>
+    <string name="shortcuts_detected">%1$s：%2$s</string>
+    <string name="shortcuts_conflict">此按鍵已指派給：%1$s</string>
+    <string name="shortcuts_save">重新指派</string>
+    <string name="shortcuts_retry">嘗試其他按鍵</string>
+    <string name="shortcuts_limitations">主畫面按鈕及部分額外按鈕可能無法使用。</string>
+</resources>

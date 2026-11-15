@@ -38,6 +38,12 @@ while read -r entry sum; do
 done < "$work/pkglist.txt"
 
 cp -a "$here/overlay/." "$work/root/"
+mkdir -p "$work/root/usr/lib/droiddeck"
+${CC_AARCH64:-aarch64-linux-gnu-gcc} -shared -fPIC -O2 -Wall -Wextra \
+  -o "$work/root/usr/lib/droiddeck/libdroiddeck-root.so" "$here/root/root.c" -ldl
+${STRIP_AARCH64:-aarch64-linux-gnu-strip} --strip-unneeded "$work/root/usr/lib/droiddeck/libdroiddeck-root.so"
+python3 "$here/pacman-db.py" "$work/db" "$pkgs" "$work/pkglist.txt" "$here/runtime-packages.txt" \
+  "$here/mirror.txt" "${DESKTOP_KDE_RELEASE_TAG:-}" "$work/root" "$out/repo"
 
 if [ -n "${KDE_KWIN_OVERRIDE:-}" ]; then
   kwin_package=$(awk '$1 ~ /^extra\/kwin-.*-aarch64\.pkg\.tar\./ {print $1}' "$work/pkglist.txt")
@@ -61,7 +67,7 @@ if [ -d "$work/root/usr/share/locale" ]; then
   echo "i18n: $(wc -l < "$out/desktop-kde.i18n.txt") language packs"
 fi
 
-rm -rf "$work/root/usr/share/doc" "$work/root/usr/share/man" "$work/root/usr/share/info" \
+rm -rf "$work/root/usr/share/doc" "$work/root/usr/share/info" \
        "$work/root/usr/share/gtk-doc" "$work/root/usr/include" "$work/root/usr/lib/pkgconfig" \
        "$work/root/usr/lib/cmake" "$work/root/usr/share/help"
 find "$work/root/usr/share/locale" -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true

@@ -33,6 +33,7 @@ object GogAuth {
 
     @Synchronized
     private fun saveAccount(context: Context, accessToken: String, refreshToken: String?, userId: String?) {
+        GogMaintenance.reset()
         var username = ""
         runCatching {
             val body = StoreNet.get("https://embed.gog.com/userData.json", bearer = accessToken, userAgent = GALAXY_UA)
@@ -45,8 +46,6 @@ object GogAuth {
         StoreAccounts.write(context, Store.GOG, json)
         Log.i(TAG, "signed in")
     }
-
-    fun storedToken(context: Context): String? = StoreAccounts.read(context, Store.GOG)?.optString("access_token", "")?.ifEmpty { null }
 
     @JvmStatic
     @Synchronized

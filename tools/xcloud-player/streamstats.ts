@@ -1,6 +1,3 @@
-// Performance overlay in the top-right or top-left corner, from WebRTC getStats. Levels: 1 fps; 2 + ping, resolution;
-// 3 + bitrate, decode time, packet loss; 4 + codec, jitter, dropped frames, server. Horizontal or vertical.
-
 export class StreamStats {
     private element: HTMLDivElement
     private timer: ReturnType<typeof setInterval> | undefined
@@ -22,7 +19,6 @@ export class StreamStats {
 
     show(level: number, vertical: boolean, server: string, left = false) {
         this.level = level; this.vertical = vertical; this.server = server; this.left = left
-        // Top left keeps clear of the clock Xbox draws top right while its guide is open.
         Object.assign(this.element.style, left ? { left: '8px', right: '', textAlign: 'left' } : { left: '', right: '8px', textAlign: 'right' })
         this.element.style.display = level > 0 ? 'block' : 'none'
         if (level > 0 && this.timer === undefined) { this.timer = setInterval(() => this.update(), 1000); this.update() }

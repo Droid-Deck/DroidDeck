@@ -1,4 +1,3 @@
-"""Retry a dropped shortcut without duplicating a launch that is still preparing its first window."""
 import os
 from pathlib import Path
 import subprocess
@@ -29,7 +28,6 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.agent_count = self.root / "agent-count"
         self.focus_count = self.root / "focus-count"
 
-        # FOCUS lists the focused app per xprop call; the last value repeats.
         xprop = self.bin / "xprop"
         xprop.write_text(
             "#!/bin/sh\n"
@@ -43,6 +41,7 @@ class SteamColdLaunchTest(unittest.TestCase):
             "#!/bin/sh\n"
             "printf '%s\n' \"$@\" > \"$AGENT_ARGS\"\n"
             "n=$(cat \"$AGENT_COUNT\" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > \"$AGENT_COUNT\"\n"
+            "[ \"$1\" = --steam-ready ] && exit \"${READY_STATUS:-0}\"\n"
             "exit \"$AGENT_STATUS\"\n")
         agent.chmod(0o755)
         sleep = self.bin / "sleep"
@@ -57,12 +56,13 @@ class SteamColdLaunchTest(unittest.TestCase):
         pgrep.chmod(0o755)
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
-    def run_launch(self, target, focus="769", helper_status=0, running_after=999):
+    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
-                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after))
+                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after),
+                   READY_STATUS=str(ready_status))
         script = self.block + "\nprintf 'ARG:%s\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -74,28 +74,40 @@ class SteamColdLaunchTest(unittest.TestCase):
         return [l for l in result.stdout.splitlines() if "launching the requested game" in l]
 
     def test_a_shortcut_that_takes_focus_is_handed_over_once_without_waiting_for_the_overview(self):
-        result = self.run_launch(SHORTCUT, focus="769 769 4242")
+        result = self.run_launch(SHORTCUT, focus="769 4242")
         self.assertEqual(SHORTCUT, (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertFalse(self.agent_args.exists(), result.stdout)
-        self.assertEqual(["1"], self.sleep_args.read_text().split())
+        self.assertEqual(["--steam-ready"], self.agent_args.read_text().splitlines())
+        self.assertFalse(self.sleep_args.exists())
 
     def test_a_shortcut_that_never_takes_focus_is_handed_over_again_after_the_overview_wait(self):
         result = self.run_launch(SHORTCUT, focus="769", helper_status=0)
-        self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
-        self.assertIn("launching the requested game again", result.stdout)
-        self.assertEqual(["--wait-steam-shortcut-overview", SHORTCUT, "45"], self.agent_args.read_text().splitlines())
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertIn("clearing the pending launch interstitial", result.stdout)
+        self.assertEqual(["--steam-clear-pending-interstitial", "3551182975"], self.agent_args.read_text().splitlines())
         self.assertEqual(["1"] * 20, self.sleep_args.read_text().split())
 
     def test_a_timed_out_overview_still_gets_one_more_hand_off(self):
         result = self.run_launch(SHORTCUT, focus="769", helper_status=1)
         self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
         self.assertIn("overview status 1", result.stdout)
+        self.assertIn("launching the requested game again", result.stdout)
+
+    def test_a_steam_that_never_reports_ready_still_gets_the_launch(self):
+        result = self.run_launch("413150", ready_status=1)
+        self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+
+    def test_a_focus_change_does_not_end_the_readiness_wait(self):
+        result = self.run_launch("413150", focus="769 4242", ready_status=1)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
 
     def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
         result = self.run_launch(SHORTCUT, running_after=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertFalse(self.agent_args.exists())
+        self.assertIn("--steam-ready", self.agent_args.read_text())
         self.assertEqual(["-f", "reaper SteamLaunch AppId=3551182975( |$)"],
                          (self.root / "pgrep-args").read_text().splitlines())
         self.assertIn("already starting", result.stdout)
@@ -110,15 +122,15 @@ class SteamColdLaunchTest(unittest.TestCase):
         focus = " ".join(["769"] * 23) + " 4242"
         result = self.run_launch(SHORTCUT, focus=focus, helper_status=0)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertIn("took focus while waiting", result.stdout)
+        self.assertNotIn("clearing the pending launch interstitial", result.stdout)
         self.assertNotIn("launching the requested game again", result.stdout)
 
     def test_native_app_id_keeps_the_short_delay_and_is_handed_over_once(self):
         result = self.run_launch("413150")
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual("4", self.sleep_args.read_text().strip())
-        self.assertFalse(self.agent_args.exists())
+        self.assertFalse(self.sleep_args.exists())
+        self.assertIn("--steam-ready", self.agent_args.read_text())
 
     def test_a_restart_for_a_game_uses_the_same_hand_off(self):
         loop = SOURCE[SOURCE.index('      if [ -s "$HOME/.bl-restart-game" ]; then'):SOURCE.index('      if [ -f "$HOME/.bl-restart-once" ]; then')]

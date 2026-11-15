@@ -8,6 +8,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened, ready_for_review ]
@@ -15,6 +17,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
     inputs:
       rebuild_preloads:
@@ -28,8 +32,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: build-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   source:
@@ -45,6 +49,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Pin and merge the APK source
         id: merge
@@ -55,6 +63,8 @@ jobs:
           echo "base-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          # Partial clone: a merged blob that only exists in a fork's history can't be lazily fetched (GitHub: "not our ref"); merge-tree writes it locally first.
+          git merge-tree --write-tree HEAD origin/main >/dev/null || true
           git merge --no-ff --no-edit origin/main
       - name: Resolve trusted manifest base
         id: trusted
@@ -78,6 +88,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -88,6 +102,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -112,6 +127,7 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
           retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-corresponding-source
@@ -120,18 +136,30 @@ jobs:
             app/build/xbox/runtime/*-source.tar.xz
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
+
+  components-runner:
+    needs: source
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   components:
     name: Prepare verified components
-    needs: source
+    needs: [source, components-runner]
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -142,6 +170,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -149,6 +178,8 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
+      - name: Check out MaliBridge
+        run: git submodule update --init external/MaliBridge
 
       - name: Plan component identities
         id: plan
@@ -166,6 +197,7 @@ jobs:
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
             !app/src/main/assets/linuxfs/libblaudit.so
             !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddnatv-hook.so
             !app/src/main/assets/linuxfs/libblsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
@@ -212,6 +244,7 @@ jobs:
             ${{ steps.preloads.outputs.cache-hit != 'true' && 'runtime' || '' }}
             ${{ steps.component-preloads.outputs.arm64 != 'true' && 'arm64-preloads' || '' }}
             ${{ steps.comet.outputs.cache-hit != 'true' && 'comet' || '' }}
+            vkbridge
         run: python3 tools/components/prepare.py tools
 
       - name: Build changed ARM64 preloads
@@ -221,6 +254,9 @@ jobs:
       - name: Prepare remaining Linux runtime assets
         if: steps.preloads.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py runtime
+
+      - name: Build the Mali bridge's Linux side
+        run: python3 tools/components/prepare.py vkbridge
 
       - name: Fetch the Debian image the preloads build in
         if: steps.component-preloads.outputs.x86 != 'true'
@@ -249,15 +285,42 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
+        run: |
+          set -euo pipefail
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          D=app/src/main/assets/linuxfs
+          mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+          install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$D/usr/local/lib/droiddeck-xclipse/"
+          aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
+
       - name: Check the preloads
         run: |
           set -euo pipefail
           bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
+          D=app/src/main/assets/linuxfs
+          VKB="$D/usr/local/lib/vkbridge/libvulkan_droidbridge.so"
+          test -f "$VKB" && test -f "$D/usr/local/share/vkbridge/droidbridge_icd.json" && test -f "$D/usr/local/bin/droiddeck-vkbridge-smoke"
+          VKB_NEED=$(readelf -d "$VKB" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | grep -vx 'libc.so.6' | grep -vx 'ld-linux-aarch64.so.1' || true)
+          [ -z "$VKB_NEED" ] || { echo "::error::the bridge ICD needs $VKB_NEED"; exit 1; }
+          [ "$(readelf -Ws "$VKB" | awk '$4 == "FUNC" && $5 == "GLOBAL" && $7 != "UND" {sub(/@.*/, "", $8); print $8}' | grep -c '^vk_icd')" = 3 ] || { echo "::error::the bridge ICD does not export the loader interface"; exit 1; }
 
       - name: Build GOG Galaxy companion
         if: steps.comet.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py comet
 
+      - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
+        run: python3 tools/components/prepare.py dirt-ws2
+
+      - name: Cache graphics driver inputs
+        uses: actions/cache@v4
+        with:
+          path: app/build/quest-inputs
+          key: quest-inputs-${{ hashFiles('tools/quest/build-driver.py') }}
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components
@@ -269,12 +332,20 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+          overwrite: true
+
+  build-runner:
+    needs: [components]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   build:
-    needs: [source, components, xbox]
+    needs: [source, components, xbox, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}
@@ -283,7 +354,12 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
+          submodules: recursive
 
       - name: Check human authorship
         env:
@@ -344,6 +420,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           BASE=$(git rev-parse --short FETCH_HEAD)
           HEAD=$(git rev-parse --short HEAD)
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           if git merge --no-ff --no-edit FETCH_HEAD >/tmp/merge.out 2>&1; then
             {
               echo "###  Mergeable"
@@ -404,7 +481,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-          cache-cleanup: on-success
+          cache-cleanup: ${{ github.event_name == 'pull_request' && 'never' || 'on-success' }}
 
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
@@ -413,6 +490,7 @@ jobs:
         id: build-label
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
           BUILD_SHA: ${{ github.sha }}
@@ -431,6 +509,7 @@ jobs:
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
           echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_TITLE=${PR_TITLE//$'\n'/ }" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain for the store engines (aarch64-linux-android)
@@ -480,6 +559,18 @@ jobs:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
 
+      - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/ubisoft-launcher/build.sh
+
+      - name: Rockstar launcher service (32-bit and 64-bit)
+        run: |
+          set -euo pipefail
+          command -v i686-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-i686; }
+          bash tools/rockstar-launcher/build.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: xbox-arm64
@@ -488,11 +579,39 @@ jobs:
       - name: Cache checksum-pinned pack inputs
         uses: actions/cache@v4
         with:
-          path: ~/.cache/droiddeck-pack-inputs
-          key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
-          restore-keys: pack-inputs-v1-
+          path: |
+            ~/.cache/droiddeck-pack-inputs
+            ~/.cache/droiddeck-build
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
-        run: bash tools/packs/build.sh app/build/packs
+        run: |
+          python3 tools/powervr/fetch.py
+          bash tools/packs/build.sh app/build/packs
+
+      - name: Pin the Syncthing source
+        id: syncthing-src
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive tools/syncthing/syncthing-android
+          echo "commit=$(git -C tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Syncthing
+        id: syncthing
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so
+          key: syncthing-${{ env.NDK_VERSION }}-${{ hashFiles('tools/syncthing/build.sh', 'tools/syncthing/syncthing-android/gradle/libs.versions.toml') }}-${{ steps.syncthing-src.outputs.commit }}
+      - uses: actions/setup-go@v5
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        with:
+          go-version: stable
+          cache: false
+      - name: Build Syncthing
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          tools/syncthing/build.sh app/src/main/jniLibs/arm64-v8a
 
       - name: Note when the proot pack pin is behind this build
         run: |
@@ -504,6 +623,20 @@ jobs:
             echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
           fi
 
+      - name: Check out MaliBridge
+        run: git submodule update --init external/MaliBridge
+      - name: Fetch the Mali (Venus) component (tools/venus/release.env)
+        run: |
+          set -euo pipefail
+          . tools/venus/release.env
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o venus.tzst \
+            "https://github.com/${VENUS_REPO}/releases/download/${VENUS_TAG}/venus.tzst"
+          echo "${VENUS_SHA256}  venus.tzst" | sha256sum -c -
+          tar --use-compress-program=unzstd -xf venus.tzst -C app/src/main
+          test -f app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so
+          test -f app/src/main/assets/venus/libvulkan_virtio.so
+          rm venus.tzst
+
       - name: Build
         id: build
         env:
@@ -511,6 +644,7 @@ jobs:
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/powervr/fetch.py
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
@@ -526,13 +660,6 @@ jobs:
           git diff --exit-code -- app/src/main/rust/stores/Cargo.lock \
             || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
 
-      - name: Store engines host unit tests
-        timeout-minutes: 10
-        continue-on-error: true
-        run: |
-          cd app/src/main/rust/stores
-          cargo test --locked 2>&1 | tail -60
-
       - name: Upload the regenerated Cargo.lock
         if: failure()
         uses: actions/upload-artifact@v4
@@ -540,6 +667,7 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+          overwrite: true
 
       - name: Unit tests
         id: unit-tests
@@ -563,6 +691,7 @@ jobs:
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+          overwrite: true
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -600,6 +729,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -608,6 +738,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -622,6 +753,69 @@ jobs:
           APK_OUTCOME: ${{ steps.apk-upload.outcome }}
         run: bash tools/release/report-build.sh
 
+  store-tests:
+    name: Store engines host tests
+    needs: source
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Merge the pinned APK base
+        if: github.event_name == 'pull_request'
+        env:
+          BUILD_BASE_SHA: ${{ needs.source.outputs.base-sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BUILD_BASE_SHA"
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
+          git merge --no-ff --no-edit FETCH_HEAD
+      - name: Verify backend and test source match
+        env:
+          XBOX_SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+      - name: Rust toolchain
+        id: rust
+        run: echo "rustc=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache cargo registry and the host test target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            app/src/main/rust/stores/target
+          key: stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-${{ hashFiles('app/src/main/rust/stores/src/**', 'app/src/main/rust/stores/Cargo.toml', 'app/src/main/rust/stores/build.rs') }}
+          restore-keys: |
+            stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-
+            stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
+      - name: Store engines host unit tests
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd app/src/main/rust/stores
+          cargo test --locked 2>&1 | tail -60
+      - name: Windows launcher service host unit tests
+        timeout-minutes: 10
+        run: |
+          cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
+          cargo test --locked --manifest-path tools/rockstar-launcher/Cargo.toml
+
   python-tests:
     name: Python and native regression tests
     needs: source
@@ -633,6 +827,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -643,6 +841,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
@@ -650,7 +849,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
 
@@ -680,13 +879,23 @@ jobs:
             -ldl -o /tmp/test-presenter-shutdown
           timeout 10 /tmp/test-presenter-shutdown
 
+      - name: Fetch the Mali compatibility layer's headers
+        run: |
+          set -euo pipefail
+          sdk=$(sed -n 's/^SDK=//p' tools/venus/ci-build.sh)
+          bcdec=$(grep -o 'https://raw.githubusercontent.com/iOrange/bcdec/[^ ]*' tools/venus/ci-build.sh)
+          mkdir -p build/layer-deps/bcdec
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/Vulkan-Headers.git build/layer-deps/vulkan
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/SPIRV-Headers.git build/layer-deps/spirv
+          curl -sSfL -o build/layer-deps/bcdec/bcdec.h "$bcdec"
+
       - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+        run: bash tools/ci/run-python-tests.sh
 
   checks:
     name: Compile and test APK
     needs: [build, python-tests]
-    if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -708,6 +917,17 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
+  scan:
+    needs: sign
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/scan.yml
+    with:
+      artifact: droiddeck-signed
+      variant: standard
+    secrets: inherit
+
   packs:
     needs: [build, checks]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -727,7 +947,7 @@ jobs:
       pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
-      KEEP: 10
+      KEEP_DAYS: 14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -770,5 +990,37 @@ jobs:
   catalog:
     needs: announce
     if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit
+
+  retire-tests:
+    needs: catalog
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.catalog.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete the test builds this Preview build replaces
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ github.token }}
+          CI_GITHUB_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: python3 tools/release/retire_test_builds.py
+
+  catalog-after-retire:
+    needs: retire-tests
+    if: ${{ always() && needs.retire-tests.result == 'success' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Fyysisten painikkeiden pikavalinnat</string>
+    <string name="shortcuts_dd_menu">DroidDeck-valikko</string>
+    <string name="shortcuts_capture">Määritä: %1$s</string>
+    <string name="shortcuts_press">Paina painiketta ja vapauta se. Määritys tallennetaan automaattisesti.</string>
+    <string name="shortcuts_release">Jatka vapauttamalla painike.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Tämä painike on jo määritetty toimintoon: %1$s</string>
+    <string name="shortcuts_save">Määritä uudelleen</string>
+    <string name="shortcuts_retry">Kokeile toista painiketta</string>
+    <string name="shortcuts_limitations">Koti-painike ja jotkin lisäpainikkeet eivät ehkä ole käytettävissä.</string>
+</resources>

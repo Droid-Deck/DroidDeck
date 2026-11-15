@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gerak isyarat</string>
     <string name="gesture_settings">Tetapan gerak isyarat sentuhan</string>
-    <string name="gesture_settings_hint">Sesuaikan gerak isyarat tetikus dan papan kekunci. Pilih Gerak isyarat sebagai mod sentuhan untuk menggunakannya.</string>
     <string name="gesture_tap">Ketik</string>
     <string name="gesture_drag">Seret dengan satu jari</string>
     <string name="gesture_long_press">Tekan lama</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Tahan dengan tiga jari</string>
     <string name="gesture_pinch">Cubit untuk zum</string>
     <string name="gesture_hold_button">Kekalkan butang ditekan</string>
+    <string name="gesture_hold_left">Kekalkan butang kiri ditekan</string>
+    <string name="gesture_hold_right">Kekalkan butang kanan ditekan</string>
     <string name="gesture_click_once">Klik sekali</string>
     <string name="gesture_hold_delay">Lengah sebelum menahan</string>
     <string name="gesture_double_delay">Sela ketikan dua kali</string>

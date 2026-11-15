@@ -10,6 +10,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -105,7 +107,7 @@ import java.io.File
 internal fun Pane(
     s: FrontEndState, selected: String, a: FrontEndActions, page: (@Composable () -> Unit)?, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
       CompositionLocalProvider(LocalNarrowPane provides (maxWidth < NarrowPaneWidth)) {
@@ -113,6 +115,7 @@ internal fun Pane(
             s.pageKey != null && page != null -> null
             selected.startsWith("app:") -> s.steamGames.firstOrNull { "app:${it.appId}" == selected }?.art
             selected == "games" -> s.steamGames.maxByOrNull { it.lastPlayed }?.art
+            selected.startsWith("sound:") -> s.soundtracks.firstOrNull { "sound:${it.appId}" == selected }?.let { it.hero ?: it.art }
             selected.startsWith("rom:") -> romFor(s, selected)?.second?.art
             else -> null
         }
@@ -122,10 +125,12 @@ internal fun Pane(
         val origins = remember { HashMap<String, Origin>() }
         val paneAt = remember { arrayOf(Offset.Zero) }
         val livePage by rememberUpdatedState(s.pageKey)
-        val railContent = if (selected.startsWith("app:")) "games" else selected
+        val railContent = if (selected.startsWith("app:")) "games" else if (selected.startsWith("sound:")) "soundtracks" else selected
         val target = if (page != null && s.pageKey != null) s.pageKey else railContent
         val gameShown = remember { arrayOf("games") }
         if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
+        val soundShown = remember { arrayOf("soundtracks") }
+        if (selected == "soundtracks" || selected.startsWith("sound:")) soundShown[0] = selected
         val before = remember { arrayOf(target) }
         if (page != null && s.pageKey != null) {
             pages[s.pageKey] = page
@@ -138,12 +143,19 @@ internal fun Pane(
         before[0] = target
         val targetNow by rememberUpdatedState(target)
         val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
-        LaunchedEffect(target) { Hops.linking = false }
+        LaunchedEffect(target) {
+            Hops.linking = false
+            PageSwipe.direction = 0
+        }
         AnimatedContent(
             targetState = target,
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
             transitionSpec = {
+                val swipe = PageSwipe.direction
                 when {
+                    swipe != 0 -> (fadeIn(Motion.tw(260, 40)) + slideInHorizontally(Motion.tw(360)) { it * swipe / 8 })
+                        .togetherWith(fadeOut(Motion.tw(160)) + slideOutHorizontally(Motion.tw(220)) { -it * swipe / 8 })
+                        .apply { targetContentZIndex = 1f }
                     targetState in origins -> (fadeIn(Motion.tw(120)))
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
@@ -162,7 +174,7 @@ internal fun Pane(
             label = "pane",
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
-                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb) }
+                ?: { Content(s, if (key == "games") gameShown[0] else if (key == "soundtracks") soundShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -200,6 +212,8 @@ internal fun inPane(o: Origin): Origin =
 private fun Backdrop(art: File?) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    // True black keeps the page unlit: no art wash and no corner glow.
+    if (pal.id == Themes.TRUE_BLACK) return
     Crossfade(targetState = art, animationSpec = Motion.tw(700), label = "backdrop") { a ->
         if (a != null && Build.VERSION.SDK_INT >= 31) {
             Box(modifier = Modifier.fillMaxSize().alpha(0.26f).blur(70.dp)) {
@@ -223,7 +237,7 @@ private fun romFor(s: FrontEndState, selected: String): Pair<Library.Emulator, L
 private fun Content(
     s: FrontEndState, selected: String, a: FrontEndActions, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val detailPosterWidth = if (LocalConfiguration.current.screenHeightDp < 600) 72.dp else 120.dp
@@ -232,13 +246,13 @@ private fun Content(
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
-        Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
-            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb)
+        Column(modifier = modifier.padding(horizontal = padH).padding(top = padV)) {
+            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging)
         }
         return
     }
     if (selected == "updates") {
-        UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
+        UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
     if (selected == "steam") {
@@ -253,7 +267,7 @@ private fun Content(
         StoresPage(s, a, modifier)
         return
     }
-    if (selected == "games" || selected.startsWith("app:")) {
+    if (selected == "games" || selected.startsWith("app:") || selected == "soundtracks" || selected.startsWith("sound:")) {
         LibraryPage(s, a, selected, onSelect, modifier)
         return
     }
@@ -261,24 +275,20 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
+    if (selected == NavTabs.MORE) {
+        MorePage(s, a, onSelect, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "agent") {
+        AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "android-apps" && s.isHomeApp) {
+        AndroidAppsPage(s, a, modifier, onAndroidAppClick)
+        return
+    }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
-            selected == "android-apps" && s.isHomeApp -> {
-                Rise(0) { PageHeader(stringResource(R.string.content_android_apps)) { Chip(stringResource(R.string.content_apps_count, s.androidApps.size), ok = false) } }
-                if (s.androidApps.isEmpty()) Rise(3) { Note(stringResource(R.string.content_no_android_apps)) }
-                else Rise(3, Modifier.fillMaxWidth()) {
-                    ArtGrid(s.androidApps.map { app ->
-                        Tile(
-                            app.label,
-                            null,
-                            null,
-                            "android:${app.packageName}",
-                            onClick = { onAndroidAppClick(app) },
-                            iconBitmap = app.icon,
-                        )
-                    })
-                }
-            }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
@@ -468,7 +478,8 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
     val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     var editing by rememberSaveable(app.key) { mutableStateOf(false) }
-    val x86 = (app.arch == "x86_64" || app.arch == "i386") && app.fex != com.droiddeck.launcher.runtime.LinuxFex.OFF
+    val x86 = (app.arch == "x86_64" || app.arch == "i386") && app.fex != com.droiddeck.launcher.runtime.LinuxFex.OFF &&
+        app.kind != UserApps.Kind.FLATPAK
     val fexReady by produceState<Boolean?>(null, app.key, x86, s.sessionRunning) {
         value = if (x86) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.LinuxFex.ready(ctx) } else true
     }

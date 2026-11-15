@@ -1,5 +1,6 @@
 add_library(droiddeckwayland SHARED
         src/compositor.c
+        src/clock_domain.c
         src/vk_present.c
         src/effects_chain.c
         src/cardboard.c
@@ -11,6 +12,7 @@ add_library(droiddeckwayland SHARED
         src/gpu_clock_pin.c
         src/droiddeck_ext.c
         src/wl_dmabuf.c
+        src/wl_android_buffer.c
         src/wl_clipboard.c
         src/wl_text_input.c
         src/wl_toplevel_icon.c
@@ -18,9 +20,11 @@ add_library(droiddeckwayland SHARED
         src/wl_color_mgmt.c
         src/hdr_compose.c
         src/blend_pass.c
+        src/gpu_busy.c
         generated/color-management-v1-protocol.c
         generated/xdg-shell-protocol.c
         generated/linux-dmabuf-v1-protocol.c
+        generated/wayland-android-protocol.c
         generated/viewporter-protocol.c
         generated/banner-desktop-v1-protocol.c
         generated/presentation-time-protocol.c
@@ -33,6 +37,8 @@ add_library(droiddeckwayland SHARED
         generated/banner-ahb-v1-protocol.c
         src/framegen_bridge.c
         src/framegen_jni.c
+        src/hudframes.c
+        src/hudframes_jni.c
 )
 target_compile_options(droiddeckwayland PRIVATE
         $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers>)
@@ -41,6 +47,7 @@ target_include_directories(droiddeckwayland PRIVATE
         prebuilt/include
         src
         ${CMAKE_CURRENT_SOURCE_DIR}/../shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tools/gpuload/src
 )
 
 set(DROIDDECK_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)

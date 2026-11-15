@@ -1,5 +1,4 @@
-// Adapted from Valve's OpenVR handskeletonsimulation driver sample (BSD-3-Clause, see OPENVR_LICENSE),
-// which follows Moshi Turner's hand simulation in Monado.
+// Adapted from Valve's OpenVR handskeletonsimulation driver sample (BSD-3-Clause, see OPENVR_LICENSE), which follows Moshi Turner's hand simulation in Monado.
 #pragma once
 
 #include "arm_model.h"

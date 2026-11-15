@@ -45,7 +45,7 @@ object SavedQueue {
                 val f = File(context.filesDir, FILE)
                 val tmp = File(context.filesDir, "$FILE.tmp")
                 tmp.writeText(out.toString())
-                tmp.renameTo(f)
+                java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }.onFailure { Log.w(TAG, "could not save the queue", it) }
         }
     }
@@ -68,7 +68,12 @@ object SavedQueue {
                 for ((item, root, paused) in back) {
                     if (DownloadQueue.entry(key(item)) != null) continue
                     if (paused) DownloadQueue.holdPaused(key(item))
-                    StoresState.install(app, item, root)
+                    if (item.store == Store.GOG && item.extra.containsKey(com.droiddeck.launcher.stores.gog.GogMaintenance.OPERATION)) {
+                        Thread({
+                            runCatching { com.droiddeck.launcher.stores.gog.GogMaintenance.restore(app, item) }
+                                .onFailure { DownloadQueue.recordFailed(app, DownloadEntry(item.store, item.id, item.title), it.message ?: "GOG recovery failed") }
+                        }, "gog-restore").start()
+                    } else StoresState.install(app, item, root)
                 }
             }
         }, "store-queue-restore").start()

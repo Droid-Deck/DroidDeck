@@ -1,16 +1,4 @@
 #!/usr/bin/python3
-"""Initialize Steam's own display settings once; subsequent choices belong to Steam.
-
-The UI scale, and native resolution: the client treats our gamescope as an external display and,
-unless "Enable Native Resolution on External Displays" is on, draws itself at 1920x1080 on any
-larger output - a 2340x1080 session came up as 16:9 with bars. The session's size is already the
-user's Resolution choice, so the client should use all of it.
-
-And the screensaver over a running game. The client's defaults (steamui.so's settings descriptor)
-show screensavers while a game runs, after 300 s on AC power with no button pressed - and a stick or
-trigger held is no press. Red Dead Redemption 2's cutscenes run longer than that: the slideshow
-covered the game, and the button that woke it reached the game as well (B asked to quit to the
-desktop). Customization > Screensaver > "Show screensavers when playing a game" still turns it on."""
 import math
 import os
 from pathlib import Path
@@ -116,8 +104,6 @@ def seed_text(text, scale):
 
 
 def seed_value(text, path, value):
-    """InstallConfigStore/<path> = value, unless the client already has a value there (the
-    user's), adding only the blocks that are missing."""
     root = parse(text).get('InstallConfigStore')
     if not isinstance(root, Block):
         raise ValueError("missing InstallConfigStore")
@@ -170,9 +156,6 @@ def initialize(steam_root, width, height):
 
 
 def seed_once(steam_root, marker_name, seed, message):
-    """Applies seed to config.vdf the first time only: the marker keeps a later choice - including
-    a return to the client's own default, which the client may store by dropping the key - the
-    user's."""
     config = Path(steam_root) / 'config/config.vdf'
     marker = config.with_name(marker_name)
     if marker.exists():

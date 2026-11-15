@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Scorciatoie dei pulsanti fisici</string>
+    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_capture">Assegna: %1$s</string>
+    <string name="shortcuts_press">Premi e rilascia un pulsante. L’assegnazione viene salvata automaticamente.</string>
+    <string name="shortcuts_release">Rilascia il pulsante per continuare.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Questo pulsante è già assegnato a: %1$s</string>
+    <string name="shortcuts_save">Riassegna</string>
+    <string name="shortcuts_retry">Prova un altro pulsante</string>
+    <string name="shortcuts_limitations">Il pulsante Home e alcuni pulsanti aggiuntivi potrebbero non essere disponibili.</string>
+</resources>

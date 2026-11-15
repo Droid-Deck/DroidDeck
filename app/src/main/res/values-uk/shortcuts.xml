@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Дії фізичних кнопок</string>
+    <string name="shortcuts_dd_menu">Меню DroidDeck</string>
+    <string name="shortcuts_capture">Призначити: %1$s</string>
+    <string name="shortcuts_press">Натисніть і відпустіть кнопку. Призначення збережеться автоматично.</string>
+    <string name="shortcuts_release">Відпустіть кнопку, щоб продовжити.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Ця кнопка вже призначена для: %1$s</string>
+    <string name="shortcuts_save">Перепризначити</string>
+    <string name="shortcuts_retry">Спробувати іншу кнопку</string>
+    <string name="shortcuts_limitations">Кнопка «Додому» та деякі додаткові кнопки можуть бути недоступні.</string>
+</resources>

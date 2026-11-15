@@ -55,8 +55,6 @@ class XboxLoginActivity : ComponentActivity() {
         Thread({
             if (closed) return@Thread
             try {
-                // A record without a username is left from a sign-in that never finished; starting clean
-                // also avoids reading it back with an older, slow Keystore key.
                 progress("preparing the sign-in", "Preparing Microsoft sign-in…")
                 val leftover = StoreAccounts.read(applicationContext, Store.XBOX)
                 if (leftover != null && leftover.optString("username").isBlank()) {
@@ -73,7 +71,6 @@ class XboxLoginActivity : ComponentActivity() {
                 Xodus.start(applicationContext, listOf("--external-webview-stdio", "login"), credentialGeneration = accountGeneration).use { process ->
                     child = process
                     if (closed) return@use
-                    // StoresState.logLine writes no file in this process, so the reason would miss the shared log.
                     Xodus.diagnostics(process) { line ->
                         logStep(line)
                         line.removePrefix("NEXUS_CREDENTIAL_ERROR_V1 ").takeIf { it != line && it !in codes && codes.size < 6 }?.let(codes::add)
@@ -164,7 +161,6 @@ class XboxLoginActivity : ComponentActivity() {
 
     private fun progress(name: String, text: String) { step = name; show(text) }
 
-    /** Written to the stores log, which the shared log zip carries; the main process's log helpers don't run in this process. */
     private fun logStep(line: String) {
         val text = StoreLog.redactLine("Xbox sign-in: $line")
         Log.i(TAG, text)
@@ -230,7 +226,6 @@ class XboxLoginActivity : ComponentActivity() {
     companion object {
         private const val TAG = "XboxLogin"
 
-        /** Our own check messages are safe to show; anything else is named by its type, never its text, which may hold sign-in data. */
         internal fun failure(e: Exception): String {
             val message = e.message.orEmpty()
             return if (e is IllegalStateException && message.isNotBlank() && message != "Check failed." && message.length <= 160) message

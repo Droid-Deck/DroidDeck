@@ -1,0 +1,51 @@
+#!/bin/bash
+# KDE Plasma on a dual-screen handheld's bottom screen, next to the session on the top one.
+set -u
+export HOME=${HOME:-/root}
+if [ -n "${BL_DEBUG_DIR:-}" ]; then
+  mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
+  exec >>"$BL_DEBUG_DIR/bottom-desktop.log" 2>&1
+fi
+echo "== droiddeck-bottom-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-?}x${BL_HEIGHT:-?} beside a ${BL_TOP_SESSION:-?} session"
+[ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
+
+# Launch requests would reach the top session's watcher and could replace it.
+unset BL_LAUNCH_DIR BL_LOG
+export BL_BOTTOM_DESKTOP=1
+
+for _ in $(seq 1 100); do
+  wayland-info >/dev/null 2>&1 && break
+  sleep 0.1
+done
+
+if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1 \
+   && ! pgrep -f 'dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf' >/dev/null 2>&1; then
+  mkdir -p /run/dbus /usr/local/share/droiddeck
+  cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>system</type>
+  <listen>unix:path=/run/dbus/system_bus_socket</listen>
+  <auth>EXTERNAL</auth>
+  <servicedir>/usr/share/droiddeck/system-services</servicedir>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+BUSCONF
+  rm -f /run/dbus/system_bus_socket
+  dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
+  for _ in $(seq 1 50); do
+    [ -S /run/dbus/system_bus_socket ] && break
+    sleep 0.1
+  done
+  [ -S /run/dbus/system_bus_socket ] && droiddeck-login1 --with-netmanager &
+fi
+
+# The game on the top screen keeps the CPU first.
+renice -n 5 $$ >/dev/null 2>&1 || true
+exec /usr/local/bin/droiddeck-desktop

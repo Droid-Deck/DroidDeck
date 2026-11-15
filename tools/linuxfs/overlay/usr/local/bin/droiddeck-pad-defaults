@@ -89,7 +89,6 @@ def rpcs3_shader_mode():
 
 
 def ini_section(lines, name):
-    """(start, end) line indices of [name]'s body, or None."""
     start = None
     for i, l in enumerate(lines):
         t = l.strip()
@@ -102,9 +101,6 @@ def ini_section(lines, name):
 
 
 def patch_ini_section(path, section, body, what, needle="SDL-", require=None, done="Player 1 on the controller"):
-    """Add body's lines to [section] of an ini the emulator wrote itself, unless the section
-    already binds a controller (needle). Missing file: nothing - the emulator writes its own
-    defaults on first run and this runs again."""
     if not os.path.isfile(path):
         return
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -178,7 +174,6 @@ def ini_get(path, section, key):
 
 
 def ini_set(path, section, key, value):
-    """Sets one key (the first of that name) in [section], adding either as needed."""
     with open(path, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     span = ini_section(lines, section)
@@ -440,9 +435,6 @@ def armsx2():
 
 
 def armsx2_bios(ini):
-    """PCSX2 boots the one BIOS file named in [Filenames] BIOS (inside [Folders] Bios); its first-time
-    setup is what names it. With that skipped, the first dump in the folder is named here - a US one
-    first - while none is named or the named one is gone. A choice made in ARMSX2 is kept."""
     folder = ini_get(ini, "Folders", "Bios") or ps2_bios_folder()
     if not os.path.isabs(folder):
         folder = os.path.join(os.path.dirname(os.path.dirname(ini)), folder)
@@ -518,12 +510,6 @@ DOLPHIN_DATA = "/usr/share/dolphin-emu"
 
 
 def dolphin_data():
-    """The Dolphin build in the catalog finds its own data - the GameCube fonts, the per-game fixes
-    (GameSettings: GUT.ini puts Ultimate Spider-Man on the MMU), its icons and shaders - only at the
-    fixed /usr/share/dolphin-emu it was built for; there is no setting or variable to move it. Here it
-    runs from a copy unpacked under /tmp (no FUSE), so it found none of it: a GameCube game stopped
-    on "Windows-1252 fonts are not loaded", another on an invalid write the missing game fix would
-    have prevented. So the folder is unpacked from the AppImage to that path, once per AppImage."""
     import shutil, subprocess, tempfile
     try:
         st = os.stat(DOLPHIN_APPIMAGE)
@@ -716,7 +702,6 @@ def melonds_geometry():
 
 
 def toml_get(lines, table, key):
-    """The raw value of key in [table], or None."""
     inside = False
     for l in lines:
         t = l.strip()
@@ -728,7 +713,6 @@ def toml_get(lines, table, key):
 
 
 def toml_set(lines, table, key, value):
-    """key = value in [table]; the table is added at the end when missing."""
     start = None
     for i, l in enumerate(lines):
         t = l.strip()

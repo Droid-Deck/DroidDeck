@@ -4,43 +4,41 @@ import android.content.Context
 import org.json.JSONObject
 
 data class XboxCloudSettings(
-    val resolution: String = "1080p",      // 720p | 1080p | 1080p_hq
-    val region: String = "",                // "" = Microsoft's choice
-    val language: String = "",              // "" = the device's language
-    val codec: String = "default",          // default | high | normal | low
-    val bitrateMbps: Int = 0,               // 0 = no cap
+    val resolution: String = "1080p",
+    val region: String = "",
+    val language: String = "",
+    val codec: String = "default",
+    val bitrateMbps: Int = 0,
     val preventDrops: Boolean = false,
-    val statsLevel: Int = 0,                // 0 off, 1 fps, 2 basic, 3 detailed, 4 full
+    val statsLevel: Int = 0,
     val statsLayout: String = "horizontal",
-    val statsCorner: String = "right",      // right | left
-    val volume: Int = 100,                  // 100..300 %
-    val rumble: Int = 100,                  // 0..100 %
+    val statsCorner: String = "right",
+    val volume: Int = 100,
+    val rumble: Int = 100,
     val maxFps: Int = 0,
     val brightness: Int = 0,
     val contrast: Int = 0,
     val gamma: Float = 1f,
     val saturation: Int = 100,
     val sharpen: Int = 0,
-    val sharpenMode: String = "cas",        // cas | usm
+    val sharpenMode: String = "cas",
     val deband: Int = 0,
     val fxaa: Boolean = false,
     val toon: Boolean = false,
     val crt: Boolean = false,
     val ntsc: Boolean = false,
-    val playerEngine: String = "web",       // web | native (WebRTC library + DroidDeck's compositor, frame generation)
-    val frameGen: String = "ddfg",          // native engine: off | ddfg (2x) | lsfg | lsfg3 | lsfg4 (needs Lossless.dll)
-    val fpsLimit: Int = 0,                  // native engine target: 0 = the screen's rate, else 30/45/60/120/144/165
-    val fpsCustomOn: Boolean = false,       // use fpsCustom instead of the presets
-    val fpsCustom: Int = 60,                // 10..165
-    val instantInput: Boolean = true,       // native: send controller changes at once (else every 16 ms)
-    val smallBuffer: Boolean = false,       // native: WebRTC shows frames as soon as decoded (no playout delay)
-    val fastDecoder: Boolean = true,        // native: the hardware decoder's low-latency mode
-    val zeroCopy: Boolean = false,          // native, frame generation off: decode straight onto the screen
+    val playerEngine: String = "web",
+    val frameGen: String = "ddfg",
+    val fpsLimit: Int = 0,
+    val fpsCustomOn: Boolean = false,
+    val fpsCustom: Int = 60,
+    val instantInput: Boolean = true,
+    val smallBuffer: Boolean = false,
+    val fastDecoder: Boolean = true,
+    val zeroCopy: Boolean = false,
 ) {
-    /** The native engine's frame-rate target (0 = the screen's own rate). */
     val fpsTarget get() = if (fpsCustomOn) fpsCustom else fpsLimit
 
-    /** The service picks the stream resolution from the reported OS (Better xCloud's mapping). */
     val osName get() = when (resolution) { "720p" -> "android"; "1080p_hq" -> "tizen"; else -> "windows" }
 
     fun toJson(): String = JSONObject()

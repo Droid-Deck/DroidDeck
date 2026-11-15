@@ -1,20 +1,4 @@
 #!/usr/bin/python3
-"""Holds a game launcher's hidden web interface on one slow core while something else has focus.
-
-Rockstar's launcher keeps drawing its Chromium interface (SocialClubHelper.exe: a renderer, and a
-GPU process compositing through DXVK) for as long as it runs, hidden behind the game too, and at a
-higher priority than the game's (Wine passes Chromium's on: the GPU process ran at nice -10). With
-Red Dead Redemption 2 in front on the RedMagic that was 1.3 to 2.5 cores under FEX, on a phone
-already held back by its temperature, for a page nobody sees. Held, riding at the throttle limit
-went from 46.5 to 48.7 fps, 1% lows from 27.5 to 32.6. So while the focused window belongs to
-anything but the launcher, every helper thread runs on one core of the slowest cluster at nice 19;
-when the launcher's own window has focus again (signing in, the game closed) each thread gets its
-own mask and priority back. Stopping the helpers instead would not hold: proot, the tracer of every
-guest process, resumes a stopped tracee.
-
-Focus comes from droiddeck-agent's focus.json (the path is the argument), which the agent rewrites
-whenever gamescope's focus changes. droiddeck-session starts this for Steam sessions;
-BL_LAUNCHER_CORES=0 leaves the launchers alone."""
 import json
 import os
 import signal
@@ -35,7 +19,6 @@ def log(message):
 
 
 def image(proc, pid):
-    """A process's program as Wine names it (argv[0]), lower case with backslashes, or None."""
     try:
         with open(proc / str(pid) / "cmdline", "rb") as stream:
             first = stream.read(4096).split(b"\0", 1)[0]
@@ -56,7 +39,6 @@ def tasks(proc, pid):
 
 
 class Cores:
-    """The kernel calls, apart so a test can stand in for them."""
 
     def own(self):
         return os.sched_getaffinity(0)
@@ -81,8 +63,6 @@ class Holder:
         self.core = None
 
     def slow_core(self):
-        """The last core of the slowest cluster the session has - not of the game's cores, which
-        the launcher inherits when BL_GAME_CPUS is set: the core the game misses least."""
         def top(cpu):
             try:
                 return int((self.cpufreq / f"cpu{cpu}/cpufreq/cpuinfo_max_freq").read_text())
@@ -98,8 +78,6 @@ class Holder:
                 yield int(name)
 
     def hold(self):
-        """Every helper thread onto the slow core at NICE: new ones, and held ones the program has
-        moved since (Chromium sets its threads' priorities, and Wine passes that on)."""
         if self.core is None:
             self.core = self.slow_core()
         hold = ({self.core}, NICE)
@@ -125,8 +103,6 @@ class Holder:
         return None
 
     def release(self):
-        """Every held thread back to its own mask and priority; one started during the hold gets
-        what its process had."""
         for pid, before in self.held.items():
             default = before.get(pid) or self.first()
             for tid in tasks(self.proc, pid):
@@ -141,7 +117,6 @@ class Holder:
 
 
 def focused(snapshot):
-    """(app id, pid) of the window gamescope has focused, from droiddeck-agent's snapshot."""
     window = snapshot.get("focusedWindow")
     for entry in snapshot.get("focusableWindows") or []:
         if entry.get("window") == window:

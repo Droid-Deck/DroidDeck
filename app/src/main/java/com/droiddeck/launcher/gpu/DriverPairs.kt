@@ -12,6 +12,48 @@ object DriverPairs {
     const val DD_TURNIP = "dd-turnip"
     fun ddTurnip(tag: String) = "$DD_TURNIP:$tag"
 
+    /** The open non-Adreno drivers (The412Banner/droiddeck-nonadreno-drivers), one pair per driver. */
+    const val NON_ADRENO = "nad"
+    const val NAD_RADV_XCLIPSE = "nad:radv-xclipse"
+    /** RADV-Xclipse rebased on JimVulkan's upstream: a manual choice, never Auto. */
+    const val NAD_RADV_XCLIPSE_UPSTREAM = "nad:radv-xclipse-upstream"
+    private val XCLIPSE_MODEL = Regex("""(?i)xclipse\s*(\d{3})\b""")
+    const val NAD_MALI_JM = "nad:panvk-mali-jm"
+    const val NAD_MALI_G710 = "nad:panvk-mali-g710"
+    const val NAD_MALI_G615 = "nad:panvk-mali-g615"
+    const val NAD_MALI_G720 = "nad:panvk-mali-g720"
+    /** One PanVK kbase binary for Mali v9-v13; its display half needs Android 15. */
+    const val NAD_MALI_KBASE = "nad:panvk-mali-kbase"
+    const val MALI_KBASE_MIN_SDK = 35
+    /** faux123's PanVK builds for three handhelds: manual choices, never Auto. */
+    const val NAD_FAUX_RP4PRO = "nad:panvk-faux123-rp4pro"
+    const val NAD_FAUX_ACE = "nad:panvk-faux123-ace"
+    const val NAD_FAUX_RG556 = "nad:panvk-faux123-rg556"
+    /** The one Mali a device-specific build is for, by the number in the GPU's name. */
+    private val DEVICE_BUILDS = mapOf(NAD_FAUX_RP4PRO to 77, NAD_FAUX_ACE to 610, NAD_FAUX_RG556 to 57)
+    /** "PanVK-Mali-G720" (the release asset's id) to its pair key, "nad:panvk-mali-g720". */
+    fun nonAdreno(id: String) = "$NON_ADRENO:" + id.lowercase()
+    /** True for a non-Adreno pair's key, or a bundle installed from one ("PanVK-Mali-G720"). */
+    fun isNonAdreno(keyOrBundleId: String?): Boolean = keyOrBundleId != null &&
+        (keyOrBundleId.startsWith("$NON_ADRENO:") || Regex("""^(?i)(RADV-Xclipse|PanVK-[A-Za-z0-9]+)(-[A-Za-z0-9]+)*$""").matches(keyOrBundleId))
+
+    fun nonAdrenoName(key: String): String = describeNonAdreno(key).first
+
+    private fun describeNonAdreno(key: String): Pair<String, Set<Family>> = when (key) {
+        NAD_RADV_XCLIPSE -> "RADV · Samsung Xclipse" to setOf(Family.POWERVR)
+        NAD_RADV_XCLIPSE_UPSTREAM -> "RADV upstream · Samsung Xclipse" to setOf(Family.POWERVR)
+        NAD_MALI_JM -> "PanVK · Mali G52-G78" to setOf(Family.MALI_JM)
+        NAD_MALI_G710 -> "PanVK · Mali-G610/G710" to setOf(Family.MALI_G610_G710)
+        NAD_MALI_G615 -> "PanVK · Mali-G615" to setOf(Family.MALI_G615)
+        NAD_MALI_G720 -> "PanVK · Mali-G720" to setOf(Family.MALI_G720)
+        NAD_FAUX_RP4PRO -> "PanVK faux123 · Retroid Pocket 4 Pro (Mali-G77)" to setOf(Family.MALI_JM)
+        NAD_FAUX_ACE -> "PanVK faux123 · GameForce Ace (Mali-G610)" to setOf(Family.MALI_G610_G710)
+        NAD_FAUX_RG556 -> "PanVK faux123 · Anbernic RG556 (Mali-G57)" to setOf(Family.MALI_JM)
+        NAD_MALI_KBASE -> "PanVK kbase · Mali G57-G925" to
+            setOf(Family.MALI_JM, Family.MALI_G610_G710, Family.MALI_G615, Family.MALI_G720, Family.MALI_LATEST)
+        else -> key.removePrefix("$NON_ADRENO:") to emptySet<Family>()
+    }
+
     class DriverPair(
         val key: String,
         val name: String,
@@ -24,14 +66,23 @@ object DriverPairs {
         val assets: List<TurnipReleases.Asset> get() = listOfNotNull(bundle ?: display, if (bundle == null) linux else null)
         val version: String
             get() = listOfNotNull(bundle?.tag, display?.tag, linux?.tag).distinct().joinToString(" + ") { it.removePrefix("linux-").removePrefix("DD-Turnip-") }
-        fun suits(gpu: GpuInfo) = gpu.family in families ||
-            (gpu.family == Family.ADRENO_UNKNOWN && (Family.A7XX in families || Family.A8XX in families))
+        fun suits(gpu: GpuInfo) = when {
+            // The system-driver family covers PowerVR and Xclipse; RADV is only for the Xclipse.
+            key == NAD_RADV_XCLIPSE || key == NAD_RADV_XCLIPSE_UPSTREAM ->
+                gpu.family == Family.POWERVR && gpu.name.contains("Xclipse", ignoreCase = true)
+            // One binary for Mali v9-v13, not the older G52/G76 in the Job Manager family.
+            key == NAD_MALI_KBASE -> gpu.family.mali && GpuInfo.maliKbaseCovered(gpu.name)
+            key in DEVICE_BUILDS -> gpu.family.mali && GpuInfo.maliNumber(gpu.name) == DEVICE_BUILDS[key]
+            else -> gpu.family in families ||
+                (gpu.family == Family.ADRENO_UNKNOWN && (Family.A7XX in families || Family.A8XX in families))
+        }
     }
 
     private val ALL_ADRENO = setOf(Family.A6XX, Family.A7XX, Family.A7XX_LOW, Family.A8XX, Family.ADRENO_UNKNOWN)
 
     private fun describe(key: String): Pair<String, Set<Family>> = when {
         key.startsWith(DD_TURNIP) -> "DroidDeck · DD-Turnip" to ALL_ADRENO
+        key.startsWith("$NON_ADRENO:") -> describeNonAdreno(key)
         else -> describeFixed(key)
     }
 
@@ -47,7 +98,7 @@ object DriverPairs {
 
     fun from(check: TurnipReleases.Check?): List<DriverPair> {
         val assets = check?.assets.orEmpty().filter { it.pair.isNotEmpty() }
-        val order = listOf(DD_TURNIP, BANNER, BANNER_A8XX, BANNER_ONEUI, BANNER_710, WN_BALANCED, WN_PERFORMANCE)
+        val order = listOf(DD_TURNIP, BANNER, BANNER_A8XX, BANNER_ONEUI, BANNER_710, WN_BALANCED, WN_PERFORMANCE, NON_ADRENO)
         return assets.map { it.pair }.distinct()
             .sortedBy { key -> order.indexOf(key.substringBefore(':')).let { i -> if (i < 0) order.size else i } }
             .map { key ->
@@ -61,17 +112,45 @@ object DriverPairs {
             }
     }
 
+    /** 950 and 960 panic on the older build; a name without a model number is treated the same way. */
+    private fun xclipseNeedsUpstream(name: String): Boolean =
+        XCLIPSE_MODEL.find(name)?.groupValues?.get(1).let { it == null || it == "950" || it == "960" }
+
     fun recommendedKey(
         gpu: GpuInfo, pairs: List<DriverPair>,
         rules: List<AutoPicks.Rule> = AutoPicks.BUILT_IN, bad: Set<String> = emptySet(),
         sdk: Int = android.os.Build.VERSION.SDK_INT, blob: Int? = null,
     ): String? {
-        if (gpu.family == Family.NOT_ADRENO) return null
+        when (gpu.family) {
+            Family.POWERVR -> return when {
+                !gpu.name.contains("Xclipse", ignoreCase = true) -> null
+                xclipseNeedsUpstream(gpu.name) && pairs.any { it.key == NAD_RADV_XCLIPSE_UPSTREAM } -> NAD_RADV_XCLIPSE_UPSTREAM
+                else -> NAD_RADV_XCLIPSE
+            }
+            Family.MALI_OTHER, Family.NOT_ADRENO -> return null
+            Family.MALI_JM, Family.MALI_G610_G710, Family.MALI_G615, Family.MALI_G720, Family.MALI_LATEST ->
+                return maliKey(gpu, pairs, sdk)
+            else -> Unit
+        }
         val keys = AutoPicks.preferences(gpu, rules, sdk, blob)
             .ifEmpty { AutoPicks.preferences(gpu, AutoPicks.BUILT_IN, sdk, blob) }
             .mapNotNull { if (it == AutoPicks.NEWEST_DD_TURNIP) newestDdTurnip(pairs) else it }
         return keys.firstOrNull { key -> pairs.any { it.key == key && it.complete && AutoDriverTrial.release(it) !in bad } }
             ?: keys.firstOrNull()
+    }
+
+    private fun maliKey(gpu: GpuInfo, pairs: List<DriverPair>, sdk: Int): String? {
+        val family = when (gpu.family) {
+            Family.MALI_JM -> NAD_MALI_JM
+            Family.MALI_G610_G710 -> NAD_MALI_G710
+            Family.MALI_G615 -> NAD_MALI_G615
+            Family.MALI_G720 -> NAD_MALI_G720
+            else -> null
+        }
+        val kbase = NAD_MALI_KBASE.takeIf { sdk >= MALI_KBASE_MIN_SDK && GpuInfo.maliKbaseCovered(gpu.name) }
+        if (pairs.isEmpty()) return kbase ?: family
+        fun listed(key: String?) = key?.takeIf { k -> pairs.any { it.key == k && it.complete } }
+        return listed(kbase) ?: listed(family) ?: kbase ?: family
     }
 
     fun newestDdTurnip(pairs: List<DriverPair>): String? = pairs

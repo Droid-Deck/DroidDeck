@@ -5,7 +5,8 @@ import android.os.Handler
 import android.os.Looper
 
 class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap: (Boolean) -> Unit,
-    private val doubleTapMs: () -> Long = { 500 }, private val onCancel: () -> Unit = {}) {
+    private val doubleTapMs: () -> Long = { 500 }, private val onCancel: () -> Unit = {},
+    private val holds: () -> Boolean = { true }) {
     private class Press(val hold: Runnable, var held: Boolean = false, var used: Boolean = false)
     private val handler = Handler(Looper.getMainLooper())
     private val presses = mutableMapOf<Int, Press>()
@@ -20,6 +21,11 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
 
     fun onChordInput() {
         if (presses.isEmpty()) return
+        if (!holds()) {
+            presses.values.forEach { handler.removeCallbacks(it.hold); it.used = true }
+            cancelTap()
+            return
+        }
         val alreadyHeld = presses.values.any { it.held }
         presses.values.forEach {
             handler.removeCallbacks(it.hold)
@@ -43,6 +49,7 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
                 handler.removeCallbacks(singleTap)
                 val hold = Runnable {
                     val press = presses[device] ?: return@Runnable
+                    if (!holds()) { press.used = true; cancelTap(); return@Runnable }
                     val alreadyHeld = presses.values.any { it.held }
                     press.held = true
                     presses.values.forEach { it.used = true }

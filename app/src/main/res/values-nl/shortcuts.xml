@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Snelkoppelingen voor fysieke knoppen</string>
+    <string name="shortcuts_dd_menu">DroidDeck-menu</string>
+    <string name="shortcuts_capture">Toewijzen: %1$s</string>
+    <string name="shortcuts_press">Druk op een knop en laat deze los. De toewijzing wordt automatisch opgeslagen.</string>
+    <string name="shortcuts_release">Laat de knop los om door te gaan.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Deze knop is al toegewezen aan: %1$s</string>
+    <string name="shortcuts_save">Opnieuw toewijzen</string>
+    <string name="shortcuts_retry">Andere knop proberen</string>
+    <string name="shortcuts_limitations">De Home-knop en sommige extra knoppen zijn mogelijk niet beschikbaar.</string>
+</resources>

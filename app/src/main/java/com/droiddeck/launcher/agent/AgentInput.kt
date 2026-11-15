@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.agent
 
+import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -143,9 +144,10 @@ object AgentInput {
         val right = request.optString("stick", "left") == "right"
         val x = request.optDouble("x", 0.0).toFloat().coerceIn(-1f, 1f)
         val y = request.optDouble("y", 0.0).toFloat().coerceIn(-1f, 1f)
-        bridge.applyTouch { if (right) { it.rightX = x; it.rightY = y } else { it.leftX = x; it.leftY = y } }
+        val stickWrite = if (right) PadBridge.RIGHT_STICK else PadBridge.LEFT_STICK
+        bridge.applyTouch(stickWrite) { if (right) { it.rightX = x; it.rightY = y } else { it.leftX = x; it.leftY = y } }
         hold(request, 300)
-        bridge.applyTouch { if (right) { it.rightX = 0f; it.rightY = 0f } else { it.leftX = 0f; it.leftY = 0f } }
+        bridge.applyTouch(stickWrite) { if (right) { it.rightX = 0f; it.rightY = 0f } else { it.leftX = 0f; it.leftY = 0f } }
         return JSONObject().put("stick", if (right) "right" else "left")
     }
 

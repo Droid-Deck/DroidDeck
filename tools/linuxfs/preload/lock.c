@@ -54,6 +54,9 @@ static int is_lock_query(int cmd) {
   }
 }
 
+int bl_nl_before_dup(int fd, void **state) __attribute__((visibility("hidden")));
+void bl_nl_after_dup(void *state, int fd) __attribute__((visibility("hidden")));
+
 int fcntl(int fd, int cmd, ...) {
   static int (*real_fcntl)(int, int, ...);
   va_list ap;
@@ -69,7 +72,11 @@ int fcntl(int fd, int cmd, ...) {
     errno = ENOSYS;
     return -1;
   }
+  void *nl_state = NULL;
+  int duplicate = cmd == F_DUPFD || cmd == F_DUPFD_CLOEXEC;
+  if (duplicate && bl_nl_before_dup(fd, &nl_state) != 0) return -1;
   result = real_fcntl(fd, cmd, arg);
+  if (duplicate) bl_nl_after_dup(nl_state, result);
   if (result >= 0 || !unsupported(errno)) return result;
   if (is_lock_command(cmd)) return 0;
   if (is_lock_query(cmd) && arg != NULL) {

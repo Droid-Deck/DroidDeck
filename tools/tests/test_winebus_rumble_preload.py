@@ -8,7 +8,6 @@ import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
-# Stands in for libfakeinput.so, which ld.so.preload lists after libblsession.so.
 SHIM = r"""
 #include <linux/input.h>
 #include <stdarg.h>

@@ -10,7 +10,6 @@ object LibraryCache {
     private const val TAG = "LibraryCache"
     private fun file(context: Context) = File(context.filesDir, "library-cache.json")
 
-    /** The cached games and whether they are the x86-64 client's; a cache written as a bare list is arm64's. */
     @Synchronized
     fun snapshot(context: Context): Pair<List<Library.SteamGame>, Boolean> = runCatching {
         val f = file(context)
@@ -28,6 +27,7 @@ object LibraryCache {
                 source = o.optString("source").ifEmpty { if (o.getString("library") == Library.ADDED) Library.ADDED else Library.SOURCE_STEAM },
                 storeId = o.optString("storeId").ifEmpty { null },
                 logo = o.file("logo"),
+                installedAt = o.optLong("installedAt"),
             )
         } to x64
     }.getOrElse { e -> Log.w(TAG, "unreadable, ignored: ${e.message}"); Pair(emptyList(), false) }
@@ -36,7 +36,6 @@ object LibraryCache {
 
     fun listedX64(context: Context): Boolean = snapshot(context).second
 
-    /** Without [x64] the list keeps the client already recorded. */
     @Synchronized
     fun save(context: Context, games: List<Library.SteamGame>, x64: Boolean? = null) {
         runCatching {
@@ -46,7 +45,7 @@ object LibraryCache {
                 JSONObject().put("appId", g.appId).put("name", g.name).put("library", g.library).put("gameId", g.gameId)
                     .put("lastPlayed", g.lastPlayed).putFile("art", g.art).putFile("hero", g.hero)
                     .putFile("gameFiles", g.gameFiles).putFile("protonPrefix", g.protonPrefix).putFile("icon", g.icon).putFile("logo", g.logo)
-                    .put("source", g.source).apply { g.storeId?.let { put("storeId", it) } },
+                    .put("source", g.source).put("installedAt", g.installedAt).apply { g.storeId?.let { put("storeId", it) } },
             )
             val f = file(context)
             val tmp = File(f.path + ".tmp")

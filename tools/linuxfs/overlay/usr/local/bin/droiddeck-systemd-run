@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+import os
+import sys
+
+REAL = "/usr/bin/systemd-run"
+VALUED = {"-u", "--unit", "-p", "--property", "--description", "--slice", "-E", "--setenv",
+          "--working-directory", "--uid", "--gid", "--nice", "-H", "--host", "-M", "--machine",
+          "--on-active", "--on-boot", "--on-startup", "--on-unit-active", "--on-unit-inactive",
+          "--on-calendar", "--path-property", "--socket-property", "--timer-property", "--service-type",
+          "--shell", "--slice-inherit"}
+
+
+def main(argv):
+    args = argv[1:]
+    if "--user" not in args:
+        os.execv(REAL, [REAL] + args)
+    env = dict(os.environ)
+    cwd = None
+    foreground = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            i += 1
+            break
+        if not a.startswith("-"):
+            break
+        name, _, inline = a.partition("=")
+        value = inline if inline else (args[i + 1] if name in VALUED and i + 1 < len(args) else "")
+        if name in ("-E", "--setenv") and "=" in value:
+            k, _, v = value.partition("=")
+            env[k] = v
+        elif name == "--working-directory":
+            cwd = value
+        elif name in ("--scope", "--wait", "-W", "--pipe", "-P", "-t", "--pty"):
+            foreground = True
+        i += 1 if inline or name not in VALUED else 2
+    command = args[i:]
+    if not command:
+        os.execv(REAL, [REAL] + args)
+    if cwd:
+        os.chdir(cwd)
+    if foreground:
+        os.execvpe(command[0], command, env)
+    if os.fork() == 0:
+        os.setsid()
+        null = os.open(os.devnull, os.O_RDWR)
+        os.dup2(null, 0)
+        try:
+            os.execvpe(command[0], command, env)
+        except OSError:
+            os._exit(127)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

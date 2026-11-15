@@ -1,0 +1,67 @@
+--- a/src/backends/wayland/wayland_backend.cpp
++++ b/src/backends/wayland/wayland_backend.cpp
+@@ -30,6 +30,9 @@
+ 
+ #include <QAbstractEventDispatcher>
+ 
++#include <array>
++#include <memory>
++
+ #include <drm_fourcc.h>
+ #include <fcntl.h>
+ #include <gbm.h>
+@@ -124,8 +127,31 @@
+         }
+         Q_EMIT pointerButtonChanged(button, state, std::chrono::milliseconds(time), this);
+     });
+-    // TODO: Send discreteDelta and source as well.
+-    connect(pointer, &Pointer::axisChanged, this, [this](quint32 time, Pointer::Axis nativeAxis, qreal delta) {
++    auto axisSource = std::make_shared<PointerAxisSource>(PointerAxisSource::Unknown);
++    auto axisDiscrete = std::make_shared<std::array<qint32, 2>>();
++    connect(pointer, &Pointer::axisSourceChanged, this, [axisSource](Pointer::AxisSource source) {
++        switch (source) {
++        case Pointer::AxisSource::Wheel:
++            *axisSource = PointerAxisSource::Wheel;
++            break;
++        case Pointer::AxisSource::Finger:
++            *axisSource = PointerAxisSource::Finger;
++            break;
++        case Pointer::AxisSource::Continuous:
++            *axisSource = PointerAxisSource::Continuous;
++            break;
++        case Pointer::AxisSource::WheelTilt:
++            *axisSource = PointerAxisSource::WheelTilt;
++            break;
++        default:
++            *axisSource = PointerAxisSource::Unknown;
++            break;
++        }
++    });
++    connect(pointer, &Pointer::axisDiscreteChanged, this, [axisDiscrete](Pointer::Axis nativeAxis, qint32 discreteDelta) {
++        (*axisDiscrete)[nativeAxis == Pointer::Axis::Vertical ? 0 : 1] = discreteDelta * 120;
++    });
++    connect(pointer, &Pointer::axisChanged, this, [this, axisSource, axisDiscrete](quint32 time, Pointer::Axis nativeAxis, qreal delta) {
+         PointerAxis axis;
+         switch (nativeAxis) {
+         case Pointer::Axis::Horizontal:
+@@ -137,10 +163,18 @@
+         default:
+             Q_UNREACHABLE();
+         }
+-        Q_EMIT pointerAxisChanged(axis, delta, 0, PointerAxisSource::Unknown, false, false, std::chrono::milliseconds(time), this);
++        qint32 &discrete = (*axisDiscrete)[nativeAxis == Pointer::Axis::Vertical ? 0 : 1];
++        Q_EMIT pointerAxisChanged(axis, delta, discrete, *axisSource, false, false, std::chrono::milliseconds(time), this);
++        discrete = 0;
++    });
++    connect(pointer, &Pointer::axisStopped, this, [this, axisSource](quint32 time, Pointer::Axis nativeAxis) {
++        const PointerAxis axis = nativeAxis == Pointer::Axis::Vertical ? PointerAxis::Vertical : PointerAxis::Horizontal;
++        Q_EMIT pointerAxisChanged(axis, 0, 0, *axisSource, false, false, std::chrono::milliseconds(time), this);
+     });
+ 
+-    connect(pointer, &Pointer::frame, this, [this]() {
++    connect(pointer, &Pointer::frame, this, [this, axisSource, axisDiscrete]() {
++        *axisSource = PointerAxisSource::Unknown;
++        axisDiscrete->fill(0);
+         Q_EMIT pointerFrame(this);
+     });
+ 

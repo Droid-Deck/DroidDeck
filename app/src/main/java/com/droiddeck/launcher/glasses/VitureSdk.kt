@@ -3,7 +3,6 @@ package com.droiddeck.launcher.glasses
 import android.util.Log
 import kotlin.math.sqrt
 
-/** JNI adapter to VITURE's Android C SDK. The vendor binary is a local build input. */
 internal object VitureSdk {
     val available: Boolean by lazy {
         runCatching {
@@ -27,7 +26,6 @@ internal object VitureSdk {
     external fun nativeSpatialDiagnostics(token: Long): DoubleArray?
     external fun nativeTracking(token: Long, enabled: Boolean): Int
     external fun nativeCommand(token: Long, command: Int, value: Int): Int
-    /** Returns CLOCK_BOOTTIME receipt time, zero for no new pose, or a negative SDK error. */
     external fun nativePose(token: Long, wxyz: FloatArray): Long
     external fun nativeNextState(token: Long, event: IntArray): Int
     external fun nativeClose(token: Long)
@@ -48,12 +46,9 @@ internal object VitureSpatialIdentity {
 }
 
 internal object VitureSdkPose {
-    // Pro 2 hardware captures use OpenGL axes despite the generic Gen2 callback's
-    // NWU documentation. Keep that model-specific exception out of other Gen2 devices.
     fun usesOpenGlAxes(carina: Boolean, family: VitureProtocol.Family?) =
         carina || family == VitureProtocol.Family.PRO2
 
-    /** SDK quaternions are wxyz; normalize their coordinate basis at the boundary. */
     fun toGlasses(wxyz: FloatArray, openGlAxes: Boolean): FloatArray? {
         if (wxyz.size != 4 || wxyz.any { !it.isFinite() }) return null
         val length = sqrt(wxyz.sumOf { it.toDouble() * it }.toFloat())

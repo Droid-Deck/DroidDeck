@@ -11,6 +11,8 @@ object SteamStorage {
     const val PROTON_11_ARM = 4628740
     const val REDISTRIBUTABLES = 228980
     const val FEX = 3127680
+    const val EAC_RUNTIME = 1826330
+    const val BATTLEYE_RUNTIME = 1161040
 
     const val ARM_TOOL = "droiddeck-proton-arm64"
     const val ARM_11_TOOL = "droiddeck-proton-11-arm64"
@@ -18,7 +20,7 @@ object SteamStorage {
     private val VALVE_TOOLS = setOf(
         858280, 961940, 1054830, 1113280, 1245040, 1420170, 1493710, 1580130, 1887720, 2180100, 2348590,
         2805730, 3029110, 3658110, 4183110, 4628710, 4690330,
-        SCOUT, SOLDIER, SNIPER, ARM_RUNTIME, PROTON_ARM, PROTON_11_ARM, REDISTRIBUTABLES, FEX,
+        SCOUT, SOLDIER, SNIPER, ARM_RUNTIME, PROTON_ARM, PROTON_11_ARM, REDISTRIBUTABLES, FEX, EAC_RUNTIME, BATTLEYE_RUNTIME,
     )
 
     private val APP_ID = Regex("^\\s*\"appid\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
@@ -48,7 +50,6 @@ object SteamStorage {
         )
     }
 
-    /** The folder alone does not mean installed: Decky's CEF marker creates it. */
     fun x64ClientPresent(root: File): Boolean = File(root, "steamrt64/steam").isFile ||
         File(root, "package/droiddeck-installed").isFile || File(root, "steamapps").isDirectory
 
@@ -58,7 +59,6 @@ object SteamStorage {
 
     private val PENDING_MANIFEST = Regex("appmanifest_(\\d+)\\.acf\\..+")
 
-    // A partial download has no manifest yet, only a temporary one and its staging folder.
     fun manifests(library: File): Listing? {
         val apps = File(library, "steamapps")
         val names = apps.list() ?: return null
@@ -91,12 +91,11 @@ object SteamStorage {
 
     enum class Kind { ARM_PROTON, REQUIRED, OLD_RUNTIME, X86_PROTON }
 
-    // DroidDeck's ARM64 Steam client cannot run Valve's x86 Protons, and its own Proton and FEX tools
-    // replace the scout and soldier container runtimes.
     fun kind(m: Manifest): Kind {
         val dir = m.installDir.orEmpty()
         return when {
             m.appId == SCOUT || m.appId == SOLDIER || dir == "SteamLinuxRuntime" || dir == "SteamLinuxRuntime_soldier" -> Kind.OLD_RUNTIME
+            m.appId == EAC_RUNTIME || m.appId == BATTLEYE_RUNTIME -> Kind.REQUIRED
             dir.startsWith("Proton") && "ARM64" in dir -> Kind.ARM_PROTON
             m.appId == PROTON_ARM || m.appId == PROTON_11_ARM -> Kind.ARM_PROTON
             dir.startsWith("Proton ") -> Kind.X86_PROTON
@@ -146,7 +145,6 @@ object SteamStorage {
 
     private val ARM_IN_NAME = Regex("arm64|aarch64")
 
-    // The x86-64 client ignores tools named for arm64; droiddeck-steam-x64 names its wrappers with a64 instead.
     fun x64ToolName(name: String): String = name.replace(ARM_IN_NAME, "a64")
 
     class ToolUse(val mappings: Map<String, String>, val installed: Set<String>, val x64: Boolean = false) {
@@ -156,6 +154,42 @@ object SteamStorage {
     }
 
     fun leftoverId(name: String): Int? = name.toLongOrNull()?.takeIf { it in 1 until (1L shl 31) }?.toInt()
+
+    fun shortcutId(name: String): Long? = name.toLongOrNull()
+        ?.takeIf { it in Int.MIN_VALUE until 0 || it in (1L shl 31) until (1L shl 32) }?.and(0xFFFFFFFFL)
+
+    private val COMPAT_PATH = Regex("""STEAM_COMPAT_DATA_PATH=(?:"([^"]*)"|'([^']*)'|(\S+))""")
+    private val COMPAT_ID = Regex("""/compatdata/(-?\d+)/*$""")
+
+    fun sharedPrefixId(launchOptions: String): Long? {
+        val path = COMPAT_PATH.find(launchOptions)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() } ?: return null
+        return COMPAT_ID.find(path.trim())?.groupValues?.get(1)?.let(::shortcutId)
+    }
+
+    private val GAME_FOLDER = Regex("""Z:\\\\(?:[^"\\]+\\\\)*?(?:steamapps\\\\common|Games\\\\Stores\\\\[^"\\]+)\\\\([^"\\]+)""")
+
+    fun gameFolderHint(prefix: File): String? = runCatching {
+        listOf("pfx/system.reg", "pfx/user.reg").map { File(prefix, it) }.filter { it.isFile && it.length() < 64L * 1024 * 1024 }
+            .flatMap { f -> f.useLines { lines -> lines.flatMap { GAME_FOLDER.findAll(it).map { m -> m.groupValues[1] } }.toList() } }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+    }.getOrNull()
+
+    class Shortcut(val name: String, val launchOptions: List<String>)
+
+    fun shortcuts(root: File): Map<Long, Shortcut>? = runCatching {
+        val userdata = File(root, "userdata")
+        val users = if (userdata.exists()) userdata.listFiles() ?: return null else emptyArray()
+        users.mapNotNull { File(it, "config/shortcuts.vdf").takeIf(File::isFile) }.flatMap { file ->
+            val vdf = com.droiddeck.launcher.frontend.SteamAppInfo.readMap(java.nio.ByteBuffer.wrap(file.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN), null)
+            (vdf["shortcuts"] as? Map<*, *>)?.values?.filterIsInstance<Map<*, *>>()?.mapNotNull { s ->
+                fun value(key: String) = s.entries.firstOrNull { (it.key as? String).equals(key, ignoreCase = true) }?.value as? String
+                val id = value("appid")?.toLongOrNull()?.and(0xFFFFFFFFL) ?: return@mapNotNull null
+                id to Shortcut(value("AppName") ?: "", listOfNotNull(value("LaunchOptions")))
+            }.orEmpty()
+        }.groupBy({ it.first }, { it.second }).mapValues { (_, all) ->
+            Shortcut(all.firstOrNull { it.name.isNotEmpty() }?.name.orEmpty(), all.flatMap { it.launchOptions })
+        }
+    }.getOrNull()
 
     fun isStubPrefix(prefix: File): Boolean = prefix.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }
         .none { it.isFile && it.name != "steam_autocloud.vdf" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }

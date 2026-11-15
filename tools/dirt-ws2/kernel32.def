@@ -1,0 +1,7 @@
+LIBRARY kernel32.dll
+EXPORTS
+    LoadLibraryW@4
+    GetProcAddress@8
+    GetSystemDirectoryW@8
+    GetEnvironmentVariableW@12
+    GetFileAttributesW@4

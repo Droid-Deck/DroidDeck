@@ -31,11 +31,11 @@ internal fun LauncherLayout(
     }) { children, constraints ->
         val width = constraints.maxWidth
         val height = constraints.maxHeight
-        val line = 1.dp.roundToPx()
         val nav = children[2].measure(Constraints(
             minWidth = if (bottomNavigation) width else 0, maxWidth = width,
             minHeight = if (bottomNavigation) 0 else height, maxHeight = height,
         ))
+        val line = if ((if (bottomNavigation) nav.height else nav.width) == 0) 0 else 1.dp.roundToPx()
         val contentWidth = if (bottomNavigation) width else (width - nav.width - line).coerceAtLeast(0)
         val contentHeight = if (bottomNavigation) (height - nav.height - line).coerceAtLeast(0) else height
         val pane = children[0].measure(Constraints.fixed(contentWidth, contentHeight))

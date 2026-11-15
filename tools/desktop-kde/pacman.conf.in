@@ -1,0 +1,22 @@
+[options]
+RootDir = /
+DBPath = /var/lib/pacman/
+CacheDir = /var/cache/pacman/pkg/
+LogFile = /var/log/pacman.log
+GPGDir = /etc/pacman.d/gnupg/
+HookDir = /etc/pacman.d/hooks/
+HookDir = /usr/share/droiddeck/pacman/hooks/
+HoldPkg = pacman glibc
+Architecture = aarch64
+Color
+ParallelDownloads = 4
+DisableSandbox
+SigLevel = Required DatabaseOptional
+LocalFileSigLevel = Optional
+NoExtract = usr/share/doc/* usr/share/gtk-doc/* usr/share/help/*
+
+[droiddeck]
+Server = @SERVER@
+CacheServer = @ALARM@/extra
+CacheServer = @ALARM@/core
+CacheServer = @ALARM@/alarm

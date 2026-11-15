@@ -26,7 +26,6 @@ internal class StereoCalibration(val identity: String, val width: Int, val heigh
     val source get() = if (bundledBase && !verified) "luma-ultra-base" else "device"
     private val p1 = Mat.zeros(3, 4, CvType.CV_64F)
     private val p2 = Mat.zeros(3, 4, CvType.CV_64F)
-    private val undistortionMaps = Array(2) { arrayOf(Mat(),Mat()) }
     init {
         val a = Mat.eye(3, 4, CvType.CV_64F)
         val b = Mat.zeros(3, 4, CvType.CV_64F)
@@ -34,18 +33,6 @@ internal class StereoCalibration(val identity: String, val width: Int, val heigh
         val empty = Mat()
         Core.gemm(k1, a, 1.0, empty, 0.0, p1); Core.gemm(k2, b, 1.0, empty, 0.0, p2)
         a.release(); b.release(); empty.release()
-    }
-    fun undistort(src: Mat, dst: Mat, right: Boolean) {
-        val k = if (right) k2 else k1; val d = if (right) d2 else d1
-        val maps=undistortionMaps[if(right) 1 else 0]
-        if(maps[0].empty()) {
-            val identity=Mat.eye(3,3,CvType.CV_64F)
-            try {
-                if(fisheye) Calib3d.fisheye_initUndistortRectifyMap(k,d,identity,k,src.size(),CvType.CV_16SC2,maps[0],maps[1])
-                else Calib3d.initUndistortRectifyMap(k,d,identity,k,src.size(),CvType.CV_16SC2,maps[0],maps[1])
-            } finally { identity.release() }
-        }
-        Imgproc.remap(src,dst,maps[0],maps[1],Imgproc.INTER_LINEAR)
     }
     fun triangulateRaw(left: List<Point>, right: List<Point>): List<SpatialVector>? {
         val points = triangulateLandmarksRaw(left,right) ?: return null
@@ -74,10 +61,6 @@ internal class StereoCalibration(val identity: String, val width: Int, val heigh
             return triangulatePoints(l.toList(),r.toList())
         } finally { l.release(); r.release(); identity.release() }
     }
-    fun triangulate(left: List<Point>, right: List<Point>): List<SpatialVector>? {
-        val points = triangulatePoints(left,right) ?: return null
-        return if(points.any { it == null }) null else points.filterNotNull()
-    }
     private fun triangulatePoints(left: List<Point>, right: List<Point>): List<SpatialVector?>? {
         if (left.size != right.size || left.isEmpty()) return null
         val a = Mat(2, left.size, CvType.CV_64F); val b = Mat(2, right.size, CvType.CV_64F); val out = Mat()
@@ -105,7 +88,7 @@ internal class StereoCalibration(val identity: String, val width: Int, val heigh
         val tmp = File(file.parentFile,file.name+".tmp"); tmp.writeText(j.toString())
         java.nio.file.Files.move(tmp.toPath(),file.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
-    override fun close() { (listOf(k1,d1,k2,d2,r,t,p1,p2)+undistortionMaps.flatMap { it.toList() }).forEach { it.release() } }
+    override fun close() { listOf(k1,d1,k2,d2,r,t,p1,p2).forEach { it.release() } }
     companion object {
         fun load(file: File, identity: String, width: Int, height: Int): StereoCalibration? =
             runCatching { StereoCalibrationProfile.parse(file.readText(), identity, width, height)?.let(::fromProfile) }.getOrNull()
@@ -286,7 +269,6 @@ internal class StereoCalibrator(private val context: Context) : AutoCloseable {
                 Mat().also { output -> corrected.add(output); Calib3d.fisheye_undistortPoints(pixels,output,k,d,identity,k) }
             }
             try {
-                // OpenCV 4.13 fisheye stereo fitting assumes equal corner counts in every view.
                 Calib3d.stereoCalibrate(objects,images(left,k1,d1),images(right,k2,d2),k1,if(fish)zero else d1,k2,if(fish)zero else d2,
                     size,r,t,e,f,Calib3d.CALIB_FIX_INTRINSIC)
             } finally { (corrected+listOf(e,f,identity,zero)).forEach(Mat::release) }

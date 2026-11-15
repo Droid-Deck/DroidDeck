@@ -57,7 +57,6 @@ object SelfInstaller {
         }
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) {
-            // Android 9 and 10 only collect an archive's certificates when GET_SIGNATURES is set.
             PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
         } else {
             PackageManager.GET_SIGNATURES
@@ -91,11 +90,11 @@ object SelfInstaller {
         }
     }
 
-    /** Reports the session id before the commit, so a status broadcast that arrives right away is recognised. */
-    fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
+    fun install(context: Context, apk: File, packageName: String = context.packageName, action: String = ACTION_STATUS,
+                onSession: (Int) -> Unit = {}) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-            setAppPackageName(context.packageName)
+            setAppPackageName(packageName)
             setSize(apk.length())
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
@@ -107,14 +106,13 @@ object SelfInstaller {
                     session.fsync(out)
                 }
             }
-            val status = Intent(ACTION_STATUS).setPackage(context.packageName)
+            val status = Intent(action).setPackage(context.packageName)
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
             onSession(id)
             session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
         }
     }
 
-    /** Only a system installer activity may be launched from the status broadcast, without URI grants. */
     fun safeConfirmIntent(context: Context, confirm: Intent): Intent? {
         val target = confirm.resolveActivity(context.packageManager) ?: return null
         val info = runCatching { context.packageManager.getApplicationInfo(target.packageName, 0) }.getOrNull() ?: return null

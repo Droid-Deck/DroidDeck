@@ -7,7 +7,6 @@ import android.os.SystemClock
 import android.util.Log
 import java.io.File
 
-/** SDK owns interface selection (including Ultra bulk endpoints) and all USB I/O. */
 internal class VitureSdkLink private constructor(
     private val connection: UsbDeviceConnection,
     private val token: Long,
@@ -47,7 +46,6 @@ internal class VitureSdkLink private constructor(
                 if (rc == 0 || !wanted) tracking = wanted
                 return result("tracking", rc)
             }
-            // Frequency is negotiated against SDK capabilities, including Pro 2's pose limit.
             VitureProtocol.MSG_IMU_RATE -> return tracking
             VitureProtocol.MSG_GET_IMU -> return true
         }
@@ -89,7 +87,6 @@ internal class VitureSdkLink private constructor(
                     if (VitureSdk.nativeNextState(token, event) == 1) when (event[0]) {
                         0 -> listener.onValue(VitureProtocol.MSG_GET_BRIGHTNESS, event[1])
                         1 -> listener.onValue(VitureProtocol.MSG_GET_VOLUME, event[1])
-                        // A device event can use a different display-mode namespace.
                         2 -> send(VitureProtocol.MSG_GET_DISPLAY)
                         3 -> listener.onValue(VitureProtocol.MSG_FILM, event[1])
                     }
@@ -122,7 +119,6 @@ internal class VitureSdkLink private constructor(
             if (!running) return
             running = false
             VitureSdk.nativeClose(token)
-            // Keep Java's descriptor alive until the SDK and its worker threads have stopped.
             connection.close()
         }
         if (Thread.currentThread() !== worker) worker.join(1000)

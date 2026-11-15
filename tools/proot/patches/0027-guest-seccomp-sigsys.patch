@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kurt Himebauch
+Date: Mon, 9 Nov 2026 15:30:00 -0500
+Subject: [PATCH] seccomp: hand a guest filter's own SIGSYS back to the guest
+
+---
+--- a/src/tracee/seccomp.h
++++ b/src/tracee/seccomp.h
+@@ -1,3 +1,4 @@
++#include <signal.h>
+ #include "tracee/tracee.h"
+ #include "sys/vfs.h"
+ 
+@@ -18,5 +19,5 @@
+ 
+ void restart_syscall_after_seccomp(Tracee* tracee);
+ void set_result_after_seccomp(Tracee *tracee, word_t result);
+-int handle_seccomp_event(Tracee* tracee);
++int handle_seccomp_event(Tracee* tracee, const siginfo_t *siginfo);
+ void fix_and_restart_enosys_syscall(Tracee* tracee);
+--- a/src/tracee/seccomp.c
++++ b/src/tracee/seccomp.c
+@@ -68,7 +68,7 @@
+  *
+  * Return 0 to swallow signal or SIGSYS to deliver it to process.
+  */
+-int handle_seccomp_event(Tracee* tracee)
++int handle_seccomp_event(Tracee* tracee, const siginfo_t *siginfo)
+ {
+ 	int ret;
+ 
+@@ -100,6 +100,16 @@
+ 
+ 	print_current_regs(tracee, 3, "seccomp SIGSYS");
+ 
++	/* Android's app policy traps with SECCOMP_RET_DATA 0.  A filter the guest
++	 * installed itself (Firefox's and Chromium's sandboxes) tags its traps, and
++	 * its own SIGSYS handler answers them, usually through a broker process.
++	 * A trap from the fast path's trampoline still gets ENOSYS: its arguments
++	 * are host paths, and the fast path repeats the call through libc.  */
++	if (siginfo->si_errno != 0 && !from_fastpath_stub(tracee)) {
++		VERBOSE(tracee, 4, "SIGSYS from the guest's own seccomp filter (data %d)", siginfo->si_errno);
++		return SIGSYS;
++	}
++
+ 	return handle_seccomp_event_common(tracee);
+ }
+ 
+--- a/src/tracee/event.c
++++ b/src/tracee/event.c
+@@ -676,7 +676,7 @@
+ 					tracee->skip_next_seccomp_signal = false;
+ 					signal = 0;
+ 				} else {
+-					signal = handle_seccomp_event(tracee);
++					signal = handle_seccomp_event(tracee, &siginfo);
+ 				}
+ 			} else {
+ 				VERBOSE(tracee, 1, "non-seccomp SIGSYS");

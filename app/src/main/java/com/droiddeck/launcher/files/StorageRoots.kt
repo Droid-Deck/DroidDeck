@@ -63,7 +63,6 @@ object StorageRoots {
             }
             return true
         }
-        // vold-managed locations only hold removable volumes, whatever the fstype is.
         return path.startsWith("/storage/") || path.startsWith("/mnt/media_rw/")
     }
 
@@ -91,9 +90,8 @@ object StorageRoots {
             .filter { present(it.state) }
             .forEachIndexed { index, volume ->
                 val uuid = volume.uuid?.takeIf { it.isNotBlank() }
-                val dirName = volume.directory?.name?.takeIf { it.isNotBlank() }
-                // Unmounted volumes often report neither uuid nor directory; never drop the
-                // volume or a plugged-in drive stays invisible with no explanation.
+                val directory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) volume.directory else null
+                val dirName = directory?.name?.takeIf { it.isNotBlank() }
                 val descSlug = volume.getDescription(context)?.trim()
                     ?.takeIf { it.isNotBlank() && !it.equals("android", ignoreCase = true) }
                     ?.replace(Regex("[^A-Za-z0-9._-]+"), "-")
@@ -101,15 +99,11 @@ object StorageRoots {
                 entry.removable = !volume.isPrimary && volume.isRemovable
                 if (entry.label == null) entry.label = labelFor(context, volume, uuid ?: dirName ?: descSlug)
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    volume.directory?.let { entry.candidates += it }
-                }
+                directory?.let { entry.candidates += it }
                 val name = uuid ?: dirName
                 if (name != null) {
                     entry.candidates += File("/storage/$name")
                     entry.candidates += File("/mnt/media_rw/$name")
-                    // Only strict uuid matches own an app directory; a loose match would
-                    // attach another volume's folder to this entry.
                     if (uuid != null) appDirs.filter { belongsTo(storageManager!!, it, volume) }
                         .forEach { entry.seeds += it }
                 }
@@ -122,8 +116,6 @@ object StorageRoots {
         File("/mnt/media_rw").listFiles().orEmpty().forEach { child ->
             if (child.isDirectory) volumeOf(child.name).candidates += child
         }
-        // USB OTG drives do not always appear as storage volumes or under /storage for
-        // third-party apps, but their kernel mounts are still visible in /proc/mounts.
         for (mount in externalMounts()) {
             val entry = volumeOf(mount.name)
             if (entry.label == null) entry.label = mount.name

@@ -70,14 +70,21 @@ object SteamGridDb {
         if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
     }
 
-    fun gameId(key: String, steamAppId: Int?, name: String): Int? {
+    fun gameId(key: String, steamAppId: Int?, name: String): Int? = gameId(key, steamAppId, name, ::match)
+
+    fun exactGameId(key: String, steamAppId: Int?, name: String): Int? = gameId(key, steamAppId, name, ::exactMatch)
+
+    private fun gameId(key: String, steamAppId: Int?, name: String, pick: (String, List<Pair<Int, String>>) -> Int?): Int? {
         if (steamAppId != null) {
             json(key, "$API/games/steam/$steamAppId")?.optJSONObject("data")?.optInt("id")?.takeIf { it > 0 }?.let { return it }
         }
         val term = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
         val results = json(key, "$API/search/autocomplete/$term")?.optJSONArray("data") ?: return null
-        return match(name, (0 until results.length()).map { results.getJSONObject(it) }.map { it.optInt("id") to it.optString("name") })
+        return pick(name, (0 until results.length()).map { results.getJSONObject(it) }.map { it.optInt("id") to it.optString("name") })
     }
+
+    internal fun exactMatch(name: String, results: List<Pair<Int, String>>): Int? =
+        results.firstOrNull { (id, got) -> id > 0 && AddedGameArt.nameMatch(name, got) == 3 }?.first
 
     internal fun match(name: String, results: List<Pair<Int, String>>): Int? =
         results.map { (id, got) -> id to AddedGameArt.nameMatch(name, got) }

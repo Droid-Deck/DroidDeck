@@ -1,6 +1,3 @@
-"""The shortcuts writer and a store install: the app registers a game GOG, Epic or Amazon
-installed through the same listing as an added folder, pointing the shortcut at the game's
-launcher .bat when it has one. These pin the parts of the writer that contract relies on."""
 import importlib.machinery
 import importlib.util
 import json
@@ -28,8 +25,6 @@ LAUNCHER = FOLDER + '/.droiddeck-launch.bat'
 
 
 def app_id(exe, name):
-    """The appid the app computes for a shortcut (AddedGames.scanGame): CRC32 of the quoted exe
-    and the name, high bit set - what Steam itself derives for a shortcut it is given."""
     return (zlib.crc32(('"%s"' % exe + name).encode()) | 0x80000000) & 0xFFFFFFFF
 
 

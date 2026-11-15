@@ -44,6 +44,7 @@ typedef struct pa_sink {
 struct android_volume;
 struct userdata { struct android_volume *android_volume; };
 static int restarts, frees;
+static uint64_t last_delay;
 static char *pa_sprintf_malloc(const char *format, ...) {
     va_list ap; va_start(ap,format); char *result; assert(vasprintf(&result,format,ap)>=0); va_end(ap); return result;
 }
@@ -57,7 +58,7 @@ static void pa_sink_set_set_volume_callback(pa_sink *sink, void (*callback)(pa_s
 static void pa_sink_set_set_mute_callback(pa_sink *sink, void (*callback)(pa_sink*)) { sink->set_mute=callback; }
 static void pa_subscription_post(pa_core *core, int event, unsigned index) {}
 static uint64_t pa_rtclock_now(void) { return 0; }
-static void pa_core_rttime_restart(pa_core *core, pa_time_event *event, uint64_t time) { restarts++; }
+static void pa_core_rttime_restart(pa_core *core, pa_time_event *event, uint64_t time) { restarts++; last_delay=time; }
 static pa_time_event *pa_core_rttime_new(pa_core *core, uint64_t time,
     void (*callback)(pa_mainloop_api*,pa_time_event*,const struct timeval*,void*), void *userdata) {
     return calloc(1,sizeof(pa_time_event));
@@ -76,11 +77,18 @@ int main(int argc, char **argv) {
     assert(userdata.android_volume && userdata.android_volume->timer && sink.set_volume && sink.set_mute);
     state(argv[1],"invalid\n");
     android_volume_refresh(&api,userdata.android_volume->timer,NULL,userdata.android_volume);
-    assert(sink.real_volume.value==PA_VOLUME_NORM && restarts==1);
+    assert(sink.real_volume.value==PA_VOLUME_NORM && restarts==1 && last_delay==100*PA_USEC_PER_MSEC);
     state(argv[1],"3 15 1\n");
     android_volume_refresh(&api,userdata.android_volume->timer,NULL,userdata.android_volume);
     assert(sink.real_volume.value==3*PA_VOLUME_NORM/15 && sink.muted && sink.n_volume_steps==16);
     assert(sink.soft_volume.value==PA_VOLUME_NORM && restarts==2);
+    assert(last_delay==16*PA_USEC_PER_MSEC);
+    state(argv[1],"4 15 1\n");
+    android_volume_refresh(&api,userdata.android_volume->timer,NULL,userdata.android_volume);
+    assert(sink.real_volume.value==4*PA_VOLUME_NORM/15 && last_delay==16*PA_USEC_PER_MSEC);
+    for (int i = 0; i < ANDROID_VOLUME_ACTIVE_TICKS + 1; i++)
+        android_volume_refresh(&api,userdata.android_volume->timer,NULL,userdata.android_volume);
+    assert(last_delay==100*PA_USEC_PER_MSEC);
     sink.real_volume.value=2*PA_VOLUME_NORM/3; sink.set_volume(&sink);
     char *request=pa_sprintf_malloc("%s/volume.request",argv[1]);
     FILE *f=fopen(request,"r"); unsigned level; assert(f && fscanf(f,"%u",&level)==1 && level==10); fclose(f); free(request);

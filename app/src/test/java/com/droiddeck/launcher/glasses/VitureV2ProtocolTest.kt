@@ -1,5 +1,4 @@
-// Fixtures adapted from elasticjava/viture-v2, MIT, Copyright (c) 2026 Holger Bartnick.
-// Source: ece8c30485f7d357fefa362ae74f3eabac9b3899; see docs/third-party/viture-v2/.
+// Fixtures adapted from elasticjava/viture-v2, MIT, Copyright (c) 2026 Holger Bartnick. Source: ece8c30485f7d357fefa362ae74f3eabac9b3899; see docs/third-party/viture-v2/.
 package com.droiddeck.launcher.glasses
 
 import org.junit.Assert.assertArrayEquals

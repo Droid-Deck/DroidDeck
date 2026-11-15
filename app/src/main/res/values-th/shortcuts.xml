@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">ทางลัดปุ่มจริง</string>
+    <string name="shortcuts_dd_menu">เมนู DroidDeck</string>
+    <string name="shortcuts_capture">กำหนด: %1$s</string>
+    <string name="shortcuts_press">กดปุ่มแล้วปล่อย การกำหนดปุ่มจะบันทึกโดยอัตโนมัติ</string>
+    <string name="shortcuts_release">ปล่อยปุ่มเพื่อดำเนินการต่อ</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">ปุ่มนี้ถูกกำหนดไว้แล้วสำหรับ: %1$s</string>
+    <string name="shortcuts_save">กำหนดใหม่</string>
+    <string name="shortcuts_retry">ลองปุ่มอื่น</string>
+    <string name="shortcuts_limitations">ปุ่มโฮมและปุ่มพิเศษบางปุ่มอาจไม่พร้อมใช้งาน</string>
+</resources>

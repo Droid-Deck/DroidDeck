@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -70,7 +71,8 @@ private fun ResourceLink(link: GameResource) {
     val pal = LocalPalette.current
     val source = remember { MutableInteractionSource() }
     val hot = rememberHot(source)
-    val shape = RoundedCornerShape(8.dp)
+    val glass = LocalGlass.current != null
+    val shape = if (glass) RoundedCornerShape(99.dp) else RoundedCornerShape(8.dp)
     val label = stringResource(link.label)
     val description = listOfNotNull(label, link.detail?.let { stringResource(it) }, stringResource(R.string.game_resources_browser)).joinToString(". ")
     val open = { openUrl(ctx, link.url) }
@@ -78,13 +80,13 @@ private fun ResourceLink(link: GameResource) {
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         modifier = Modifier.paneItem("resource:${link.label}").heightIn(min = 44.dp).clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.08f) else Color.Transparent)
-            .glideBorder(hot, shape, pal.signal, restColor = Color.Transparent)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else if (glass) Color.White.copy(alpha = 0.07f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal, restColor = if (glass) Color.White.copy(alpha = 0.12f) else Color.Transparent)
             .semantics { contentDescription = description }
             .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClick = open)
-            .controllerConfirm(onClick = open).padding(horizontal = 8.dp),
+            .controllerConfirm(onClick = open).padding(horizontal = if (glass) 14.dp else 8.dp),
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = tint, maxLines = 1)
+        Text(label, fontSize = if (glass) 13.sp else 12.sp, fontWeight = FontWeight.Medium, color = if (glass && !hot) MaterialTheme.colorScheme.onBackground else tint, maxLines = 1)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = tint.copy(alpha = 0.65f), modifier = Modifier.size(11.dp))
     }
 }

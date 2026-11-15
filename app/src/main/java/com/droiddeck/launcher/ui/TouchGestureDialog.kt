@@ -55,7 +55,6 @@ import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_DRAG_MOVE
 @Composable
 fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit) {
     val context = LocalContext.current
-    // Keep an open editor attached to the game it was opened for.
     val targetGame = remember { game }
     val initialDefaults = remember { GesturePrefs.read(context) }
     val initialGame = remember { targetGame?.takeIf { GesturePrefs.hasOverride(context, it) }?.let { GesturePrefs.read(context, it) } }
@@ -169,7 +168,6 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
 private fun GestureDialogFrame(onDismiss: () -> Unit,
                                footer: @Composable () -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
-    // The app window does not opt into RTL, so these dialogs follow their resource locale explicitly.
     val direction = if (LocalConfiguration.current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) LayoutDirection.Rtl else LayoutDirection.Ltr
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         CompositionLocalProvider(LocalLayoutDirection provides direction) {
