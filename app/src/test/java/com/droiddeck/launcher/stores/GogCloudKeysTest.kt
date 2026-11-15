@@ -196,6 +196,30 @@ class GogCloudKeysTest {
         assertTrue(detail, detail.contains("invalid_version"))
     }
 
+    @Test fun disabledListErrorsRemainRecognized() {
+        for (error in listOf("disabled", "not_enabled_for_client")) {
+            val body = "{\"error\":\"$error\"}"
+            val failure = runCatching {
+                serve(1, { "HTTP/1.1 403 Forbidden\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
+                    GogCloud("user", "client", "token", "saves", url).list()
+                }
+            }.exceptionOrNull()
+            assertTrue("$error: $failure", failure is NoCloudSaves)
+        }
+    }
+
+    @Test fun largeListErrorIsBoundedAndSanitized() {
+        val body = "invalid_version " + "x".repeat(100_000)
+        val failure = runCatching {
+            serve(1, { "HTTP/1.1 400 Bad Request\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
+                GogCloud("user", "client", "token", "saves", url).list()
+            }
+        }.exceptionOrNull()
+        assertTrue("$failure", failure is java.io.IOException)
+        assertTrue(failure!!.message!!.contains("invalid_version"))
+        assertTrue(failure.message!!.length < 200)
+    }
+
     @Test fun failedResultLineCarriesTheDetailAndOtherLinesAreUnchanged() {
         assertEquals("result=failed files=0 bytes=0 reason=IOException detail=\"IOException: x\"",
             CloudSaves.Result("failed", 0, 0, "IOException", detail = "IOException: x").line)
@@ -212,8 +236,9 @@ private fun okResponse(request: Request): String =
 private fun serve(count: Int, respond: (Request) -> String, block: (String) -> Unit): List<Request> {
     val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))
     val requests = java.util.concurrent.CopyOnWriteArrayList<Request>()
+    val failure = java.util.concurrent.atomic.AtomicReference<Throwable>()
     val worker = Thread {
-        runCatching {
+        try {
             repeat(count) {
                 server.accept().use { client ->
                     client.soTimeout = 5_000
@@ -239,6 +264,8 @@ private fun serve(count: Int, respond: (Request) -> String, block: (String) -> U
                     client.getOutputStream().apply { write(respond(request).toByteArray()); flush() }
                 }
             }
+        } catch (t: Throwable) {
+            failure.set(t)
         }
     }.apply { isDaemon = true; start() }
     try {
@@ -246,6 +273,9 @@ private fun serve(count: Int, respond: (Request) -> String, block: (String) -> U
     } finally {
         server.close()
         worker.join(2_000)
+        check(!worker.isAlive) { "Server worker did not finish" }
+        failure.get()?.let { throw AssertionError("Server worker failed", it) }
+        check(requests.size == count) { "Expected $count requests, received ${requests.size}" }
     }
     return requests
 }
