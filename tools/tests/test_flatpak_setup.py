@@ -1,3 +1,5 @@
+import contextlib
+import fcntl
 import os
 from pathlib import Path
 import subprocess
@@ -9,9 +11,15 @@ SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/dr
 
 
 class FlatpakSetupTest(unittest.TestCase):
-    def run_setup(self, uid, pacman):
-        with tempfile.TemporaryDirectory() as directory:
+    def run_setup(self, uid, pacman, locked=False, busy=False):
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as held:
             root = Path(directory)
+            if locked:
+                (root / "work/db").mkdir(parents=True)
+                (root / "work/db/db.lck").write_text("")
+            if busy:
+                holder = held.enter_context(open(root / "work/setup.lock", "w"))
+                fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
             bin_dir = root / "bin"
             bin_dir.mkdir()
             stubs = {"id": "echo %d" % uid, "curl": "exit 7", "pacman": pacman, "pacman-key": "exit 0"}
@@ -40,6 +48,20 @@ class FlatpakSetupTest(unittest.TestCase):
         self.assertIn("== FAIL could not reach the Arch Linux ARM mirrors (error: failed retrieving file 'core.db' : "
                       "Could not resolve host)", out)
 
+    SYNC = ("db=; while [ $# -gt 0 ]; do [ \"$1\" = --dbpath ] && db=$2; shift; done\n"
+            "[ -e \"$db/db.lck\" ] && { echo 'error: failed to synchronize all databases (unable to lock database)' >&2; exit 1; }\n"
+            "mkdir -p \"$db/sync\" && touch \"$db/sync/extra.db\"")
+
+    def test_a_lock_left_by_an_interrupted_run_is_cleared(self):
+        code, out = self.run_setup(0, self.SYNC, locked=True)
+        self.assertNotIn("unable to lock database", out)
+        self.assertIn("== STEP Downloading Flatpak", out)
+
+    def test_a_setup_that_is_still_running_keeps_its_lock(self):
+        code, out = self.run_setup(0, self.SYNC, locked=True, busy=True)
+        self.assertEqual(code, 1)
+        self.assertIn("== FAIL another Flatpak setup is still running", out)
+        self.assertNotIn("Reading the package lists", out)
 
 if __name__ == "__main__":
     unittest.main()

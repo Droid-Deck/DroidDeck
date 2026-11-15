@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <vulkan/vulkan.h>
 
-/* All pool operations require the caller's tracker lock. Reserved fences are
- * invisible to the completer until vkQueueSubmit has returned successfully. */
 struct tracked {
     struct tracked *next;
     VkDevice dev;
@@ -33,8 +31,6 @@ static struct tracked *track_pool_take(struct tracked **pool, VkDevice dev, PFN_
     t.destroy = (PFN_vkDestroyFence)gdpa(dev, "vkDestroyFence");
     PFN_vkCreateFence create = (PFN_vkCreateFence)gdpa(dev, "vkCreateFence");
     if (!t.wait || !t.reset || !t.destroy || !create) return NULL;
-    /* Never wait for a slot: the next submission may signal a semaphore that
-     * every outstanding fence is waiting on. Grow only at the high-water mark. */
     struct tracked *slot = idle ? idle : calloc(1, sizeof(*slot));
     if (!slot) return NULL;
     VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0};
@@ -69,8 +65,6 @@ static int track_pool_reap(struct tracked *pool, uint32_t issued, uint32_t *done
     uint32_t through = issued;
     for (struct tracked *t = pool; t; t = t->next) {
         if (t->state != TRACK_SUBMITTED) continue;
-        /* Scan all fences without blocking behind an earlier submission on a
-         * different queue. Device loss retires fences as in the previous path. */
         if (t->wait(t->dev, 1, &t->fence, VK_TRUE, 0) == VK_TIMEOUT) {
             pending = 1;
             if ((int32_t)(t->mark - through) <= 0) through = t->mark - 1;
@@ -79,9 +73,6 @@ static int track_pool_reap(struct tracked *pool, uint32_t issued, uint32_t *done
             t->state = TRACK_IDLE;
         }
     }
-    /* done is a contiguous watermark, not a count of completed fences. Later
-     * work may free its slot but cannot release an unfinished presenter frame.
-     * Signed differences also handle the uint32_t counter wrapping. */
     *done = through;
     return pending;
 }
@@ -92,7 +83,6 @@ static int track_pool_device_busy(struct tracked *pool, VkDevice dev) {
     return 0;
 }
 
-/* The caller must first wait for all this device's reservations and work. */
 static void track_pool_forget(struct tracked **pool, VkDevice dev) {
     for (struct tracked **p = pool; *p;) {
         struct tracked *t = *p;

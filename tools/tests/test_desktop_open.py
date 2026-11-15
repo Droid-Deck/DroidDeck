@@ -136,6 +136,30 @@ class CommandTest(Temp):
         self.assertEqual(OPEN["command"](script, [], "x86 script")[0],
                          [OPEN["FEX"], "run", "--mode", "on", "--for", str(self.tmp), "--", "/bin/sh", script])
 
+    def test_a_store_games_exe_runs_through_its_launcher(self):
+        exe, launcher = str(self.tmp / "game.exe"), str(self.tmp / "launch.bat")
+        with mock.patch.dict(OPEN, {"store_launcher": lambda path: launcher if path == exe else None,
+                                    "exe_prefix": lambda path: ["--prefix", "4242", "--compatdata", "/c/4242"]}):
+            keep = ["--prefix", "4242", "--compatdata", "/c/4242"]
+            self.assertEqual(OPEN["command"](exe, [], "windows")[0], [OPEN["PROTON_RUN"]] + keep + [launcher])
+            self.assertEqual(OPEN["command"](exe, [], "windows", True)[0],
+                             [OPEN["PROTON_RUN"], "--window"] + keep + [launcher])
+            self.assertEqual(OPEN["command"](exe, ["-x"], "windows")[0], [OPEN["PROTON_RUN"], exe, "-x"])
+            other = str(self.tmp / "other.exe")
+            self.assertEqual(OPEN["command"](other, [], "windows")[0], [OPEN["PROTON_RUN"], other])
+
+    def test_a_store_games_launcher_keeps_the_exes_prefix(self):
+        exe = self.tmp / "game.exe"
+        exe.write_text("x")
+        root = str(self.tmp / "steam")
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": root}), \
+                mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run"),
+                                    "store_launcher": lambda path: str(self.tmp / "launch.bat")}):
+            command = OPEN["command"](str(exe), [], "windows")[0]
+        located = RUN["locate"](str(exe), root)
+        self.assertEqual(command[1:5], ["--prefix", located.appid, "--compatdata", located.compatdata])
+        self.assertEqual(str(RUN["own_id"](str(exe))), str(RUN["locate"](str(exe), root).appid))
+
     def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
         program = self.write("storage/tool", elf(183))
         x86 = self.write("storage/game.x86_64", elf(62))
@@ -315,8 +339,69 @@ class GameFolderTest(Temp):
         self.assertRegex(requests[0], "^id=[0-9a-f]{16}\nkind=folder\npath=%s\n$" % script)
 
 
+class ExecTest(Temp):
+    def setUp(self):
+        super().setUp()
+        self.storage = self.tmp / "storage"
+        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./game.x86_64\n", 0o755)
+        self.write("storage/Download/Game/game.x86_64", elf(62), 0o755)
+        self.write("storage/Download/Game/helper.bin", elf(183), 0o755)
+        self.write("storage/Download/Game/libhelper.so", elf(183))
+        self.copied = []
+        env = {k: v for k, v in os.environ.items() if k not in ("BL_DESKTOP", "BL_BINFMT", "GAMESCOPE_WAYLAND_DISPLAY")}
+        for patcher in (mock.patch.dict(OPEN, {"noexec": lambda path: True, "storage_root": lambda folder: str(self.storage),
+                                               "copied_in": lambda path: self.copied.append(path) or "/opt/droiddeck-apps/game",
+                                               "steam_title": lambda path: None, "notify": lambda *a: None,
+                                               "CACHE": str(self.tmp / "cache")}),
+                        mock.patch.dict(os.environ, env, clear=True),
+                        mock.patch.object(OPEN["os"], "chdir"),
+                        mock.patch.object(OPEN["os"], "execv", side_effect=self.execv),
+                        mock.patch.object(OPEN["subprocess"], "call", side_effect=self.call)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.ran = []
+
+    def execv(self, program, cmd):
+        self.ran.append(cmd)
+        raise SystemExit(0)
+
+    def call(self, cmd, *args, **kwargs):
+        self.ran.append(cmd)
+        return 0
+
+    def open(self, *argv, env=None):
+        os.environ.update(env or {})
+        with contextlib.suppress(SystemExit):
+            OPEN["main"](list(argv))
+        return self.ran[-1]
+
+    def test_an_x86_program_a_running_program_starts_runs_under_fex_where_it_lies(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        for env in ({}, {"BL_BINFMT": "1"}):
+            with self.subTest(env=env):
+                self.assertEqual(self.open("--exec", program, "-x", env=env), [OPEN["FEX"], "run", "--mode", "auto", "--", program, "-x"])
+        self.assertEqual(self.copied, [])
+
+    def test_an_in_place_hand_off_keeps_the_callers_working_folder(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        with mock.patch("os.chdir") as chdir:
+            self.open("--exec", program, env={"BL_BINFMT": "1"})
+            chdir.assert_not_called()
+            self.open("--exec", str(self.storage / "Download/Game/helper.bin"))
+            chdir.assert_called_once()
+
+    def test_a_native_program_a_running_program_starts_still_gets_its_folder_copied_in(self):
+        program = str(self.storage / "Download/Game/helper.bin")
+        self.assertEqual(self.open("--exec", program, "-y"), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game", "-y"])
+        self.assertEqual(self.copied, [program])
+
+    def test_opening_an_x86_program_from_the_desktop_still_copies_its_folder_in(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        self.assertEqual(self.open(program, env={"BL_DESKTOP": "1"}), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game"])
+        self.assertEqual(self.copied, [program])
+
+
 def appinfo(apps):
-    """appinfo.vdf as the client writes it (format 29: keys in a string table)."""
     strings = []
 
     def key(name):
@@ -421,6 +506,83 @@ class ProtonRunTest(Temp):
         self.assertEqual(found["droiddeck-proton-arm64"],
                          (str(self.root / "compatibilitytools.d/droiddeck-proton-arm64"), "droiddeck-proton"))
 
+    def test_a_valve_depot_is_registered_through_the_droiddeck_wrapper(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.assertEqual(found["droiddeck-proton-arm64"], (str(wrapper), "droiddeck-proton"))
+        self.assertNotIn(name, found)
+
+    def test_an_incomplete_valve_depot_is_not_registered(self):
+        name = "Proton Experimental (ARM64)"
+        folder = "steamapps/common/%s" % name
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        found = RUN["tools"](str(self.root))
+        self.assertNotIn("droiddeck-proton-arm64", found)
+        self.assertFalse((self.root / "compatibilitytools.d/droiddeck-proton-arm64").exists())
+
+    def test_a_failed_wrapper_build_does_not_hide_existing_tools(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "steamapps/common/Proton Experimental (ARM64)"
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        build = mock.Mock(side_effect=OSError("read-only"))
+        with mock.patch.dict(RUN["compat"](), {"build_tool": build}):
+            found = RUN["tools"](str(self.root))
+        build.assert_called_once()
+        self.assertIn("droiddeck-proton-11-arm64", found)
+
+    def test_a_runnable_depot_is_chosen_over_a_newer_incomplete_one(self):
+        shutil.rmtree(self.root / "compatibilitytools.d/droiddeck-proton-arm64")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        good = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % good, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % good, b"#!/bin/sh\n", 0o755)
+        broken = "Library/steamapps/common/Proton Experimental (ARM64)"
+        self.write("Library/steamapps/libraryfolders.vdf", b"")
+        self.write("%s/version" % broken, b"2\n")
+        self.write("%s/files/bin-arm64/proton" % broken, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/libraryfolders.vdf", '"path" "%s"' % (self.tmp / "Library"))
+        compat = RUN["compat"]()
+        source = compat["find_source"]
+        self.assertEqual(source(str(self.root), runnable=True), str(self.tmp / good))
+
+    def test_a_registered_wrapper_without_its_launcher_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        launcher = wrapper / RUN["compat"]()["LAUNCHER"]
+        if launcher.exists():
+            launcher.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(os.access(launcher, os.X_OK))
+        self.assertIn("droiddeck-proton-arm64", found)
+
+    def test_a_registered_wrapper_without_its_manifest_is_rebuilt(self):
+        wrapper = self.root / "compatibilitytools.d/droiddeck-proton-arm64"
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState" { "appid" "4427310" }')
+        folder = "Steam/steamapps/common/Proton Experimental (ARM64)"
+        self.write("%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        self.write("%s/files/bin-arm64/proton" % folder, b"#!/bin/sh\n", 0o755)
+        manifest = wrapper / "toolmanifest.vdf"
+        if manifest.exists():
+            manifest.unlink()
+        found = RUN["tools"](str(self.root))
+        self.assertTrue(manifest.is_file())
+        self.assertIn("droiddeck-proton-arm64", found)
+
     def test_steams_choice_for_the_title_then_its_default(self):
         available = RUN["tools"](str(self.root))
         current = RUN["mapping"](str(self.root))
@@ -428,6 +590,23 @@ class ProtonRunTest(Temp):
         self.assertEqual(RUN["choose_tool"]("70", current, available), ("droiddeck-proton-arm64", "Steam's default"))
         self.assertEqual(RUN["choose_tool"]("70", {"0": "GE-Proton"}, available), ("droiddeck-proton-arm64", "the default ARM64 Proton"))
         self.assertEqual(RUN["choose_tool"]("70", {}, {}), (None, None))
+
+    def test_a_removed_droiddeck_proton_build_is_replaced_by_the_newest_one(self):
+        for version in ("11-12.2", "11-12.3"):
+            folder = "compatibilitytools.d/DroidDeck-Proton %s" % version
+            self.write("Steam/%s/compatibilitytool.vdf" % folder, TOOL_VDF % ("DroidDeck-Proton-" + version, version, "windows"))
+            self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+            self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        available = RUN["tools"](str(self.root))
+        newest = "DroidDeck-Proton-11-12.3"
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "DroidDeck-Proton-11-12.1"}, available)[0], newest)
+        self.assertEqual(RUN["choose_tool"]("70", {"70": "DroidDeck-Proton-11-12.1", "0": "droiddeck-proton-arm64"}, available)[0], newest)
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "DroidDeck-Proton-11-12.2"}, available), ("DroidDeck-Proton-11-12.2", "Steam's default"))
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "GE-Proton"}, available), ("droiddeck-proton-arm64", "the default ARM64 Proton"))
+        (self.tmp / "state.json").write_text('{"default": "DroidDeck-Proton-11-12.1"}')
+        self.assertEqual(RUN["choose_tool"]("70", {}, available)[0], newest)
+        (self.tmp / "state.json").write_text('{"default": "droiddeck-proton-11-arm64"}')
+        self.assertEqual(RUN["choose_tool"]("70", {}, available), ("droiddeck-proton-11-arm64", "the default ARM64 Proton"))
 
     def test_a_steam_games_program_uses_its_prefix(self):
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
@@ -581,6 +760,20 @@ class ProtonRunTest(Temp):
         env = calls[0][2]
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(signed))
         self.assertFalse((self.root / "steamapps/compatdata/2733369024").exists())
+
+    def test_a_launcher_run_keeps_the_resolved_compatdata_folder(self):
+        bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        other = self.tmp / "Library2/steamapps/compatdata/555"
+        other.mkdir(parents=True)
+        for compatdata, appid in ((signed, "2733369024"), (other, "555")):
+            with self.subTest(compatdata=str(compatdata)):
+                code, calls, dirs = self.run_main(["--prefix", appid, "--compatdata", str(compatdata), str(bat)])
+                self.assertIsNone(code)
+                self.assertEqual(calls[0][2]["STEAM_COMPAT_DATA_PATH"], str(compatdata))
+        code, calls, dirs = self.run_main(["--prefix", "555", str(bat)])
+        self.assertEqual(calls[0][2]["STEAM_COMPAT_DATA_PATH"], str(self.root / "steamapps/compatdata/555"))
 
     def test_prefix_folder_prefers_initialized_unsigned_over_empty_signed(self):
         signed = self.root / "steamapps/compatdata/-1561598272"

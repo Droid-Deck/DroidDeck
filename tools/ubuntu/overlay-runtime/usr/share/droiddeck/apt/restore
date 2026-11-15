@@ -1,0 +1,62 @@
+#!/bin/bash
+dir=/usr/share/droiddeck/apt
+state=/root/.local/share/droiddeck/apt
+log=/root/.cache/droiddeck/apt-restore.log
+[ -r "$dir/runtime-id" ] || exit 0
+runtime=$(cat "$dir/runtime-id")
+[ "$(cat "$state/restored" 2>/dev/null)" = "$runtime" ] && exit 0
+[ "$(cat "$state/attempted" 2>/dev/null)" = "$runtime" ] && exit 0
+mkdir -p "$state" "${log%/*}"
+tries=$(cat "$state/tries" 2>/dev/null)
+count=0
+[ "${tries% *}" = "$runtime" ] && count=${tries##* }
+count=$((count + 1))
+echo "$runtime $count" > "$state/tries"
+[ "$count" -ge 3 ] && echo "$runtime" > "$state/attempted"
+mapfile -t wanted < <(grep -v '^$' "$state/packages.txt" 2>/dev/null)
+have_sources=0
+for f in "$state"/sources/* "$state"/keyrings/*; do [ -f "$f" ] && have_sources=1; done
+if [ ${#wanted[@]} -eq 0 ] && [ "$have_sources" = 0 ]; then
+  echo "$runtime" > "$state/restored"
+  exit 0
+fi
+notify() { notify-send -a DroidDeck -i system-software-update "$@" 2>/dev/null; }
+notify "$(droiddeck-text desktop_restore_title)" "$(droiddeck-text desktop_restore_body)"
+{
+  date
+  ok=1
+  DROIDDECK_APT_RESTORING=1 /usr/local/bin/sudo /bin/bash -s "$state" <<'ROOT' || ok=0
+state=$1
+mapfile -t wanted < <(grep -v '^$' "$state/packages.txt" 2>/dev/null)
+for f in "$state"/sources/*; do
+  [ -f "$f" ] || continue
+  case $(basename "$f") in
+    sources.list) cp -f "$f" /etc/apt/sources.list ;;
+    *) cp -n "$f" "/etc/apt/$(basename "$f" | sed 's#^sources.list.d_#sources.list.d/#')" ;;
+  esac
+done
+for f in "$state"/keyrings/*; do
+  [ -f "$f" ] || continue
+  name=$(basename "$f")
+  case $name in keyrings_*) mkdir -p /etc/apt/keyrings; cp -n "$f" "/etc/apt/keyrings/${name#keyrings_}" ;; trusted.gpg.d_*) cp -n "$f" "/etc/apt/trusted.gpg.d/${name#trusted.gpg.d_}" ;; usr_share_keyrings_*) mkdir -p /usr/share/keyrings; cp -n "$f" "/usr/share/keyrings/${name#usr_share_keyrings_}" ;; esac
+done
+apt-get update || exit 1
+[ ${#wanted[@]} -eq 0 ] && exit 0
+found=() unknown=()
+for p in "${wanted[@]}"; do
+  if apt-cache show "$p" >/dev/null 2>&1; then found+=("$p"); else unknown+=("$p"); fi
+done
+if [ ${#found[@]} -gt 0 ]; then DEBIAN_FRONTEND=noninteractive apt-get install -y "${found[@]}" || exit 1; fi
+if [ ${#unknown[@]} -gt 0 ]; then
+  printf 'not in any source: %s\n' "${unknown[*]}"
+  exit 1
+fi
+ROOT
+} >> "$log" 2>&1
+if [ "$ok" = 1 ]; then
+  echo "$runtime" > "$state/restored"
+  notify "$(droiddeck-text desktop_restore_done_title)" "$(droiddeck-text desktop_restore_done_body)"
+else
+  [ ${#wanted[@]} -eq 0 ] || printf 'sudo apt install %s\n' "${wanted[*]}" >> "$log"
+  notify "$(droiddeck-text desktop_restore_failed_title)" "$(droiddeck-text desktop_restore_failed_body)"
+fi

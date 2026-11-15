@@ -14,7 +14,6 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Xbox games added to the Games tab to stream before (or without) installing them. */
 object XboxCloudGames {
     class Entry(val id: String, val title: String, val poster: String?, val hero: String?)
 
@@ -69,7 +68,6 @@ object XboxCloudGames {
         }.distinctBy { it.id }
     }.getOrDefault(emptyList())
 
-    /** Games-tab rows for the added games that are not installed (an installed copy has its own row). */
     fun rows(context: Context, installedIds: Set<String>): List<Library.SteamGame> = entries.filter { it.id !in installedIds }.map { e ->
         val dir = artDir(context, e.id)
         val appId = rowId(e.id)
@@ -100,10 +98,6 @@ object XboxCloudGames {
 
     private val prefetching = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    /**
-     * Fetches the streaming tokens in the background while a cloud game is on screen (about 20 s), so Stream starts at
-     * once; both players take them from this process (the native one through XboxCloudTokenService).
-     */
     fun prefetch(context: Context) {
         val app = context.applicationContext
         if (!prefetching.compareAndSet(false, true)) return
@@ -116,7 +110,6 @@ object XboxCloudGames {
         }, "xcloud-prefetch").start()
     }
 
-    /** Streaming runs outside the Linux session; the session owns the screen, audio and controllers while it runs. */
     fun stream(context: Context, id: String, title: String) {
         if (SessionState.running) {
             android.widget.Toast.makeText(context, "Close the Steam session to stream Xbox games.", android.widget.Toast.LENGTH_LONG).show()
@@ -125,7 +118,6 @@ object XboxCloudGames {
         context.startActivity(XboxCloudPlayerActivity.playerIntent(context, id, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    /** Whether the signed-in library says this game streams (cached library; reads disk). */
     fun streams(context: Context, id: String): Boolean = runCatching {
         StoresState.library[Store.XBOX]?.firstOrNull { it.id == id }?.let { return it.xboxCloud }
         val app = context.applicationContext

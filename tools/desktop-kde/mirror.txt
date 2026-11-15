@@ -1,0 +1,16 @@
+neovim
+tmux
+screen
+rsync
+jq
+ripgrep
+fd
+bat
+ncdu
+btop
+fastfetch
+lsof
+strace
+python-pip
+nodejs
+npm

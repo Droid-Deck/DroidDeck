@@ -157,7 +157,7 @@ private fun FlathubHero(s: FrontEndState, ring: Int) {
         StoreState.sections.values.flatten().mapNotNull { it.icon }.distinct().take(48).takeIf { it.size >= 8 }.orEmpty()
     }
     val busy = StoreState.busy == "setup"
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = if (narrow) 14.dp else 22.dp, vertical = if (narrow) 10.dp else 14.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = if (narrow) 14.dp else 22.dp).padding(top = if (narrow) 10.dp else 14.dp)) {
         val shape = RoundedCornerShape(20.dp)
         Box(Modifier.fillMaxWidth().height(maxHeight.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
             androidx.compose.animation.Crossfade(icons, animationSpec = Motion.tw(600), label = "flathubWall") { tiles ->
@@ -316,7 +316,7 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     }
 
     Column(
-        Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
+        Modifier.fillMaxSize().padding(horizontal = padH).padding(top = if (narrow) 10.dp else 14.dp)
             .bumpers(
                 onPrevious = { if (openApp == null) mode = modes[(modes.indexOf(mode) + modes.size - 1) % modes.size] },
                 onNext = { if (openApp == null) mode = modes[(modes.indexOf(mode) + 1) % modes.size] },

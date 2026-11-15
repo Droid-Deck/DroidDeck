@@ -1,4 +1,3 @@
-"""Desktop Steam stays on KDE; explicit Big Picture still switches sessions."""
 import fcntl
 import os
 from pathlib import Path
@@ -57,6 +56,23 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], 'steam://rungameid/501590')
         self.assertFalse((self.session / 'steam-launch').exists())
 
+    def test_exit_without_a_running_client_starts_nothing(self):
+        result = self.launch('desktop', 'steam://exit')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertFalse((self.session / 'steam-launch').exists())
+
+    def test_shim_turns_shutdown_into_exit_url(self):
+        launch = self.root / 'record-launch'
+        launch.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+        launch.chmod(0o755)
+        shim = self.root / 'shim'
+        shim.write_text((BIN / 'droiddeck-steam-shim').read_text().replace(
+            '/usr/local/bin/droiddeck-steam-launch', str(launch)))
+        result = subprocess.run(['bash', str(shim), '-shutdown'], env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['desktop', 'steam://exit'])
+
     def test_second_click_forwards_without_another_supervisor(self):
         lock = self.root / 'cache/droiddeck/steam-desktop.lock'
         lock.parent.mkdir(parents=True)
@@ -74,6 +90,30 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines(), ['-nobigpicture', '-no-cef-sandbox', '-cef-ozone-platform=x11',
                                                    '-cef-disable-gpu', 'steam://open/settings'])
         self.assertFalse((self.session / 'steam-launch').exists())
+
+    def _running_client(self):
+        steam = self.root / 'data/Steam/steamrtarm64/steam'
+        steam.parent.mkdir(parents=True)
+        steam.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+        steam.chmod(0o755)
+        (self.root / '.steam').mkdir()
+        os.mkfifo(self.root / '.steam/steam.pipe')
+        (self.root / '.steam/steam.pid').write_text(str(os.getpid()))
+
+    def test_bottom_screen_desktop_hands_games_to_the_running_client(self):
+        self._running_client()
+        self.env['BL_BOTTOM_DESKTOP'] = '1'
+        result = self.launch('desktop', '501590')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['-nobigpicture', '-no-cef-sandbox', '-cef-ozone-platform=x11',
+                                                   '-cef-disable-gpu', 'steam://rungameid/501590'])
+        self.assertFalse((self.root / 'cache/droiddeck/steam-desktop.lock').exists())
+
+    def test_bottom_screen_desktop_starts_its_own_client_when_none_runs(self):
+        self.env.update(BL_BOTTOM_DESKTOP='1', DISPLAY=':7')
+        result = self.launch('desktop')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['1', 'desktop', ':7', 'steam', 'steam://open/library'])
 
     def test_second_click_forwards_to_the_x86_64_client_in_its_own_home(self):
         lock = self.root / 'cache/droiddeck/steam-desktop.lock'

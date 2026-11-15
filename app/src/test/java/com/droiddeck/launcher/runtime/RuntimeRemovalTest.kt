@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
@@ -128,6 +129,7 @@ class RuntimeRemovalTest {
     }
 
     @Test fun aPartialRemovalStaysQuarantinedAndRetryable() {
+        assumeFilePermissionsEnforced()
         val root = runtime()
         try {
             val removal = LinuxRuntimeInstaller.beginUninstall(null, root)!!
@@ -146,6 +148,7 @@ class RuntimeRemovalTest {
     }
 
     @Test fun reportsFailureWhenTheRuntimeCannotBeQuarantinedAndAllowsRetry() {
+        assumeFilePermissionsEnforced()
         val root = runtime()
         Files.setPosixFilePermissions(dir.toPath(), PosixFilePermissions.fromString("r-xr-xr-x"))
         try {

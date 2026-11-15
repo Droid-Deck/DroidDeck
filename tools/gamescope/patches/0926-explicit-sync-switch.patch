@@ -1,0 +1,29 @@
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -2309,7 +2309,10 @@
+ 
+     bool CWaylandBackend::SupportsExplicitSync() const
+     {
+-        return true;
++        // GAMESCOPE_DISABLE_EXPLICIT_SYNC=1: a kernel without DRM_IOCTL_SYNCOBJ_EVENTFD (before
++        // Linux 6.6) cannot signal the timelines, so clients use implicit sync instead.
++        const char *pszDisable = getenv( "GAMESCOPE_DISABLE_EXPLICIT_SYNC" );
++        return !( pszDisable && *pszDisable == '1' );
+     }
+ 
+     bool CWaylandBackend::IsPaused() const
+--- a/src/Backends/SDLBackend.cpp
++++ b/src/Backends/SDLBackend.cpp
+@@ -506,8 +506,10 @@
+ 
+ 	bool CSDLBackend::SupportsExplicitSync() const
+ 	{
+-		// We use a Vulkan swapchain, so yes.
+-		return true;
++		// We use a Vulkan swapchain, so yes - unless the kernel cannot signal the timelines
++		// (no DRM_IOCTL_SYNCOBJ_EVENTFD before Linux 6.6): GAMESCOPE_DISABLE_EXPLICIT_SYNC=1.
++		const char *pszDisable = getenv( "GAMESCOPE_DISABLE_EXPLICIT_SYNC" );
++		return !( pszDisable && *pszDisable == '1' );
+ 	}
+ 
+ 	bool CSDLBackend::IsPaused() const

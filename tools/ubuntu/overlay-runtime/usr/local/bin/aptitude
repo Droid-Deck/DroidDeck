@@ -1,0 +1,15 @@
+#!/bin/bash
+if [ "$(id -u)" != 0 ]; then
+  skip=0
+  for arg in "$@"; do
+    [ "$skip" = 1 ] && { skip=0; continue; }
+    case $arg in
+      -o|-t|-c|-a|--option|--target-release|--default-release|--config-file|--host-architecture) skip=1; continue ;;
+      -*) continue ;;
+      install|reinstall|remove|purge|upgrade|full-upgrade|dist-upgrade|update|autoremove|autopurge|autoclean|clean|build-dep|satisfy|edit-sources|markauto|unmarkauto|safe-upgrade|forget-new|hold|unhold|keep|keep-all)
+        exec /usr/local/bin/sudo /usr/bin/aptitude "$@" ;;
+    esac
+    break
+  done
+fi
+exec /usr/bin/aptitude "$@"

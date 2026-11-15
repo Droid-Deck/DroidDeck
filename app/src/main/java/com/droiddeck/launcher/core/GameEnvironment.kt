@@ -30,8 +30,6 @@ object GameEnvironment {
     fun defaults(preset: String, forceSsbs: Boolean = false): Map<String, String?> = linkedMapOf<String, String?>(
         "MESA_SHADER_CACHE_DISABLE" to "false",
         "DROIDDECK_ANTICHEAT_OFFLINE" to "1",
-        "VKD3D_FEATURE_LEVEL" to "12_2",
-        "VKD3D_SHADER_MODEL" to "6_9",
         "DOTNET_GCRegionRange" to "800000000",
         "DOTNET_EnableWriteXorExecute" to "0",
     ).apply {
@@ -49,6 +47,16 @@ object GameEnvironment {
     fun withGameNoSteam(config: Config, scope: String, on: Boolean): Config {
         require(scope.isNotEmpty() && validScope(scope))
         return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
+    }
+
+    const val GAME_RESOLUTION = "DROIDDECK_GAME_RESOLUTION"
+
+    fun gameResolution(config: Config, scope: String): GameResolution.Choice? =
+        if (scope.isEmpty()) null else GameResolution.parse(config.games[scope]?.get(GAME_RESOLUTION))
+
+    fun withGameResolution(config: Config, scope: String, choice: GameResolution.Choice?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        return withScopeValue(config, scope, GAME_RESOLUTION, choice?.let(GameResolution::format))
     }
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =

@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.2.8",
+  "version": "0.2.12",
   "repository": "https://github.com/xodus-gaming/xodus.git",
   "commit": "53ea781dcd073e31d7ea68e894134e9c959bff04",
   "rust": "1.99.0",
   "cargoLockSha256": "2259b343e00dadc263018beb7664b12e9d58a0b73bff502ad566f5f8619ce28a",
-  "patchId": "linux-run-v24",
-  "compatibility": "linux-run-v18",
+  "patchId": "linux-run-v54",
+  "compatibility": "linux-run-v25",
   "patches": [
     {
       "file": "xodus-linux-run.patch",
@@ -70,7 +70,7 @@
     },
     {
       "file": "xodus-package-selection.patch",
-      "sha256": "7507cb0535cd914d3607e7940d5e17b949d106d0b89c139b84372a1ee1732c54"
+      "sha256": "28a2b566afdc1a572cd5ec52027fb48cc1823a25e8f304f282d9bf61e8d46463"
     },
     {
       "file": "xodus-package-metadata.patch",
@@ -103,7 +103,119 @@
     {
       "file": "xodus-content-response.patch",
       "sha256": "e9997951526cfa08e3dd8c5fc4c383bf630e7ab8992d9e211acee40fdc6422a4"
+    },
+    {
+      "file": "xodus-streaming-recovery.patch",
+      "sha256": "7e8550d7b50faf3b3cb7cfcf6e47cff35a0369737d421ef454d4dcf0c9c8ffad"
+    },
+    {
+      "file": "xodus-download-bandwidth.patch",
+      "sha256": "4655c51eb93811ea41500be05062a4ff0f64dde3d819dddde12e48d91b075293"
+    },
+    {
+      "file": "xodus-ticket-diagnostics.patch",
+      "sha256": "6559c77e06f3c7f29caac95ed979b7644bd4082f9ff777f66713888969c3905e"
+    },
+    {
+      "file": "xodus-auth-consistency.patch",
+      "sha256": "930dd88e5ecef2628973ebb4f1652f6888951d71e6531dda7d5d7a258eb435dd"
+    },
+    {
+      "file": "xodus-metadata-recovery.patch",
+      "sha256": "b72c473615f2e5d359101cb5fae404aa3b54a34a73118b1c7f99238bd16860e3"
+    },
+    {
+      "file": "xodus-streaming-handoff.patch",
+      "sha256": "3be60b5dbca7fae0cb97e18e64665662620b9527c4c1340acfb4c2e2d497e648"
+    },
+    {
+      "file": "xodus-store-ticket.patch",
+      "sha256": "5302a699a06208c9b51809eea31261a2a53facce1af3177611ecfc050abb4eb5"
+    },
+    {
+      "file": "xodus-keyring-encoding.patch",
+      "sha256": "fa6a0d4ce87f39fdb74950248f1dfd6ccecc4724c76773f5cbf84a8a003729b8"
+    },
+    {
+      "file": "xodus-encrypted-resume.patch",
+      "sha256": "73629791cbd91e93664cd77908640484298fa0a17e42a5c1b94b71b2298e8e2c"
+    },
+    {
+      "file": "xodus-launch-image-errors.patch",
+      "sha256": "180a4c094a81a6da55044fdc5be7be834575148c12e6789d11f67960d9a22ecf"
+    },
+    {
+      "file": "xodus-keyring-unlock.patch",
+      "sha256": "7762a87353d4c1a25133c8c541678cec7e233a6f67589e3d16f66b4738975baa"
+    },
+    {
+      "file": "xodus-keyring-session-stop.patch",
+      "sha256": "864e9e427f6298afa012cbbf7586b627e788bcbdc75cabf493274947dce0e8cd"
+    },
+    {
+      "file": "xodus-keyring-persistence.patch",
+      "sha256": "78782b557ec3f5457b6e697bb9262ad2403497691d8f23814b42fdd9300b7b46"
+    },
+    {
+      "file": "xodus-keyring-create.patch",
+      "sha256": "c79a46f387f7de54e3d3004d646f9e9b141c4d498eebd69a47144450b15442e6"
+    },
+    {
+      "file": "xodus-bundle-membership.patch",
+      "sha256": "a5eacc683d006b40247fbf124a62078080685b814cb09a33756083ab99adb72d"
+    },
+    {
+      "file": "xodus-licensing-jwe.patch",
+      "sha256": "6f0087e657f225e9a770405fbb34c2317f840615742c89b62f241f1b65c590ca"
+    },
+    {
+      "file": "xodus-hosted-signin.patch",
+      "sha256": "f52b16944ca7dfc837337e0257be380467f01872706252d7c2e981db0c57a8bc"
+    },
+    {
+      "file": "xodus-durable-content.patch",
+      "sha256": "3d2310fffb020396a68b99e217a81ae1b82920bfa425bf6fd8024c9ea1af6a55"
+    },
+    {
+      "file": "xodus-conditional-entitlements.patch",
+      "sha256": "8acc3e079d6f8242d364e5d6cd88bddda7004016c12ed4c48bb353499b95f347"
+    },
+    {
+      "file": "xodus-content-device-limit.patch",
+      "sha256": "d6a7115a6efd5d2acaf600590c61e38802632c7afad083639884212984fbccb7"
+    },
+    {
+      "file": "xodus-authenticated-account-metadata.patch",
+      "sha256": "1c3845c44efcb4afa49d6618b89e15f39e06804182f281a975f2df14e5a2164d"
+    },
+    {
+      "file": "xodus-social.patch",
+      "sha256": "c1571a719715df08fde865a4ec88e359dbeccf27ef3d990310692eb953d01484"
+    },
+    {
+      "file": "xodus-social-send-receipt.patch",
+      "sha256": "5b1db84e7d5754b4d2f56771c6d931ecc0579e3a00f7678b4f870fe713d60bc0"
+    },
+    {
+      "file": "xodus-social-session.patch",
+      "sha256": "96862af0bb672d6c7ed9575a21412ac68764b5c554f3aa9a380fba7b1fce235a"
+    },
+    {
+      "file": "xodus-launch-filesystem.patch",
+      "sha256": "8c898a5756149e2205ad9091203d0953506256bb84bba9080308db840d3ad030"
+    },
+    {
+      "file": "xodus-plain-launch-entry.patch",
+      "sha256": "6106f03e38d57f6d62f6662b3567dd5599a3e95b09d653d48e99eb5bba3d3fb8"
+    },
+    {
+      "file": "xodus-package-storage.patch",
+      "sha256": "76c2c805a62cc3b424bd5b91c26402a1aee46f21efbd785402aa52aea7784510"
+    },
+    {
+      "file": "xodus-social-stdout.patch",
+      "sha256": "9386eedd91d6ac48fd7c369565bb3c2f7c22688a87239ef434d3c6aeb45cf115"
     }
   ],
-  "nexusCommit": "396e7fb8fe0e5f00d956091195c614b8a0732ab1"
+  "nexusCommit": "ba0e191e1eb8088d00eee7bfe8da80f0a8c5ec72"
 }

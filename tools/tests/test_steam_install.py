@@ -280,8 +280,6 @@ done(28 if end < len(data) else 0)
         self.assertFalse(self.requests.exists())
 
     def publish(self, **parts):
-        """The CDN's client as these parts (block name -> byte count of incompressible content),
-        listed with sizes as Valve's manifest lists them."""
         files = {}
         blocks = ''
         for block, length in parts.items():

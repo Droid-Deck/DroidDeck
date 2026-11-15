@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Publish the APK result only after trusted source and metadata validation."""
 import json
 import os
 import subprocess
@@ -34,6 +33,22 @@ def documentation_only(sha):
     return all(path.endswith(b".md") or path in (b"LICENSE", b".gitignore") for path in paths if path)
 
 
+def trusted_list_violation(repo, pr, sha):
+    changed = subprocess.run(
+        ["git", "diff", "--no-renames", "--quiet", f"origin/main...{sha}", "--", ".github/trusted-test-builds.txt"],
+        check=False,
+    )
+    if changed.returncode not in (0, 1):
+        raise RuntimeError("Could not check trusted contributor changes")
+    if changed.returncode == 0:
+        return []
+    opener = pr["user"]["login"]
+    permission = api(f"repos/{repo}/collaborators/{opener}/permission")
+    if permission["permission"] != "admin" and permission.get("role_name") != "maintain":
+        return [f"Only a maintainer may open a PR changing .github/trusted-test-builds.txt (opened by @{opener})"]
+    return []
+
+
 def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as source:
         event = json.load(source)
@@ -48,6 +63,10 @@ def main():
         expected = run["head_sha"]
         if run["event"] == "pull_request":
             prs = api(f"repos/{repo}/commits/{expected}/pulls")
+            owner = (run.get("head_repository") or {}).get("owner", {}).get("login")
+            if not prs and owner and run.get("head_branch"):
+                query = urlencode({"state": "open", "head": f"{owner}:{run['head_branch']}"})
+                prs = api(f"repos/{repo}/pulls?{query}")
             pr_number = next((pr["number"] for pr in prs
                               if pr["state"] == "open" and pr["head"]["sha"] == expected), None)
             if pr_number is None:
@@ -76,6 +95,7 @@ def main():
         commits, errors = check_revision(sha)
         if pr:
             errors.extend(event_violations({"pull_request": pr}))
+            errors.extend(trusted_list_violation(repo, pr, sha))
         if errors:
             raise RuntimeError("\n".join(errors))
         print(f"Source and metadata validated for {len(commits)} commits")

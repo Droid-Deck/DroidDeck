@@ -26,9 +26,9 @@ and reports every run.
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
 `resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `pacing`,
-`displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
+`thermal`, `displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
 
-**Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
+**Setup > Developer > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `glasses raw`. The
 toggle switches directly without a confirmation dialog. The bridge refuses to change it through `ui`
 or preference writes. The existing preference key, `setting-agent-commands` test tag, JSON command
@@ -38,6 +38,21 @@ reports whether commands are enabled.
 Disabling the toggle clears queued and persistent agent environment settings and installed binary
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
 effects already applied to a session are not undone; stop and restart that session to discard them.
+
+Program overrides prepend their directory to the normal session PATH, including `/usr/games`
+where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
+default. If an old persistent PATH hides runtime tools, inspect `tools/droiddeckctl env list`
+and correct only PATH with `env set --persistent`, which preserves other persistent entries.
+For example, to restore the normal runtime search path:
+
+```sh
+tools/droiddeckctl env set --persistent 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games'
+```
+
+Retain any custom directories you still need alongside these runtime directories, then restart
+the session. `env clear persistent` removes **all** persistent environment settings, not just
+PATH; there is no single-entry clear operation. Before clearing that scope, record any other
+entries you want to keep and reapply them afterward.
 
 Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
 JavaScript in the authenticated Steam client, and preferences can contain private values. These
@@ -61,7 +76,10 @@ Automatic process logs record environment keys and argument counts rather than v
 argument lists. UI nodes marked as passwords redact text, editable text, descriptions, and state
 text. This does not redact arbitrary authorized command results, CDP data, preferences, or screen
 captures. Scenario directories are owner-only and JSON reports are written with mode 0600. Review
-artifacts before sharing; a live `logs` pull copies the current folder without a fresh export scrub.
+artifacts before sharing. `logs` downloads the archive Share logs builds (scrubbed, Steam logs over
+8 MiB left out) from the app's external files folder, since adb cannot read the session folder itself.
+When the installed app predates archive export, the CLI falls back to pulling the private session folder;
+that legacy path is available only with root and is not scrubbed before download.
 
 ## Device selection and output
 
@@ -73,6 +91,10 @@ multiple devices remain. Pass `--serial` before the command to choose directly; 
 Every command writes one JSON object to stdout and its resolved serial to stderr. Exit codes: 0
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
 artifact or file error, 7 debugging tools disabled.
+
+When upgrading the CLI, use a new destination for the first pull if the old destination contains
+archives created by an older CLI without a `.droiddeckctl-managed-logs.json` manifest and their
+filenames overlap. The upgraded CLI refuses to overwrite those files to preserve unrelated data.
 
 ## Commands
 
@@ -100,6 +122,10 @@ tools/droiddeckctl input swipe 100 600 100 100 --duration 400
 tools/droiddeckctl input pad a
 tools/droiddeckctl input stick left 0 -1 --hold 500
 tools/droiddeckctl input trigger right 1.0
+tools/droiddeckctl input pen tap 0.5 0.5 --pressure 0.7
+tools/droiddeckctl input pen stroke 0.2 0.5 0.8 0.5 --pressure 0.1:0.9 --tilt-x=-30:30
+tools/droiddeckctl input pen hover 0.3 0.5 --to 0.7 0.5 --duration 600
+tools/droiddeckctl input pen button primary 0.5 0.5
 
 tools/droiddeckctl ui dump
 tools/droiddeckctl ui click rail-steam
@@ -125,6 +151,8 @@ tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl xr-frame ./xr-capture
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl pacing --seconds 30
+tools/droiddeckctl thermal
+tools/droiddeckctl wait cool --below 38 --timeout 900
 tools/droiddeckctl displays
 tools/droiddeckctl wake
 
@@ -162,10 +190,29 @@ the present-to-present histogram and the share of intervals off the usual cadenc
 counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
 stays on screen for two refreshes.
 
+`thermal` reports the battery temperature (`dumpsys battery`), the thermal status
+(`dumpsys thermalservice`, 0 NONE to 6 SHUTDOWN) and each CPU policy's `scaling_max_freq` against
+its `cpuinfo_max_freq`, with `capped` when the first is lower. `wait cool --below <°C>` polls it
+every 10 s until the battery is under that temperature, so runs being compared start equally cool.
+
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.
 `launch`, `quit` and `cdp` need a Steam session; `focus` and `wait focused` need gamescope (every
 mode except the desktop).
+
+`input pen` does not go through the app. It registers a virtual pen with `adb shell uinput -`, so
+Android's own input reader makes the stylus events, as for a built-in pen, and it works on whatever
+is on screen, without a session or Setup > Developer > Debugging tools. Positions are fractions of
+the screen as shown; `dumpsys input` gives the frame, rotation and size of the display Android maps
+internal touchscreens to. `hover` comes near and glides to `--to`; `tap`, `stroke` and `button`
+hover for `--hover-ms` (80) before and after the touch or the button press. Each takes
+`--tool pen|eraser`, `--tilt-x` and `--tilt-y` in degrees, `--distance` in device units (0 to 255)
+and `--rate` (120 samples a second); `--pressure` and tilt take `FROM:TO` ranges, written
+`--tilt-x=-30:30` when they start negative. A gesture lasts at most 30 s. `UINPUT_UNAVAILABLE`
+means the shell has no `uinput` or cannot write `/dev/uinput`, `NO_VIEWPORT` that there is no
+internal display or it is off, and `UINPUT_FAILED` that `uinput` stopped early; all three exit 3.
+It needs Android 14 QPR2 or later: the `uinput` of Android 12 to 14 QPR1 takes only numeric codes
+and the USB or Bluetooth bus, so there the pen ends with `UINPUT_FAILED`.
 
 ## State (schema 2)
 

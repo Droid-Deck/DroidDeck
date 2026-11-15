@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import android.app.Application
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], application = Application::class)
 class StoreAccountsCipherTest {
     private val app get() = RuntimeEnvironment.getApplication()
     private fun newKey(): SecretKey = SecretKeySpec(ByteArray(32).also { SecureRandom().nextBytes(it) }, "AES")
@@ -129,6 +130,17 @@ class StoreAccountsCipherTest {
         assertFalse(file(Store.XBOX).readText().contains("synthetic-secret"))
         assertFalse(file(Store.XBOX).readText().contains("test@example.test"))
         assertEquals("test@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
+    }
+
+    @Test fun rockstarNeverFallsBackToPlaintextWhenKeystoreFails() {
+        StoreAccounts.keys = broken
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            StoreAccounts.write(app, Store.ROCKSTAR, JSONObject().put("access_token", "synthetic-secret"))
+        }
+        assertFalse(file(Store.ROCKSTAR).exists())
+        StoreAccounts.keys = fake
+        StoreAccounts.write(app, Store.ROCKSTAR, creds)
+        assertTrue(CredentialCipher.isEnvelope(JSONObject(file(Store.ROCKSTAR).readText())))
     }
 
     @Test fun xboxShowsTheGamertagElseAMaskedEmail() {

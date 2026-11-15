@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Cử chỉ</string>
     <string name="gesture_settings">Cài đặt cử chỉ cảm ứng</string>
-    <string name="gesture_settings_hint">Tùy chỉnh cử chỉ chuột và bàn phím. Chọn Cử chỉ làm chế độ cảm ứng để sử dụng.</string>
     <string name="gesture_tap">Chạm</string>
     <string name="gesture_drag">Kéo bằng một ngón tay</string>
     <string name="gesture_long_press">Nhấn giữ</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Giữ bằng ba ngón tay</string>
     <string name="gesture_pinch">Chụm hoặc mở hai ngón tay để thu phóng</string>
     <string name="gesture_hold_button">Giữ nút được nhấn</string>
+    <string name="gesture_hold_left">Giữ nút trái được nhấn</string>
+    <string name="gesture_hold_right">Giữ nút phải được nhấn</string>
     <string name="gesture_click_once">Nhấp một lần</string>
     <string name="gesture_hold_delay">Độ trễ nhấn giữ</string>
     <string name="gesture_double_delay">Khoảng thời gian chạm hai lần</string>

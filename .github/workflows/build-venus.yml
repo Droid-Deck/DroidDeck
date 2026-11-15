@@ -1,0 +1,31 @@
+name: Build Venus (Mali)
+# The Mali (Venus) route's binaries from tools/venus (David Cimo's recipes): Mesa's Venus ICD and the
+# Mali compatibility layer (glibc, for the session) and virglrenderer's vtest server (bionic, run by
+# the app over the phone's own Vulkan driver), packed as venus.tzst rooted at app/src/main. The apk
+# build fetches it by tools/venus/release.env (tag + sha256); nothing compiled is kept in this repo.
+on:
+  workflow_dispatch:
+  push:
+    branches: [test/non-adreno-all]
+    paths: ['tools/venus/**', '.github/workflows/build-venus.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build pkg-config zstd python3-pip
+          pip3 install --break-system-packages 'meson>=1.5'
+      - name: Build
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" WORK=$PWD/venus-work tools/venus/ci-build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: venus
+          path: |
+            venus-work/venus.tzst
+            venus-work/venus.tzst.sha256

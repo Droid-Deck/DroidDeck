@@ -460,7 +460,7 @@ internal fun LiftHero(
         scrim { sink.value }
         if (shown || open) Box(
             Modifier.fillMaxSize()
-                .graphicsLayer { alpha = sink.value }.background(Color.Black.copy(alpha = 0.42f))
+                .overhang().graphicsLayer { alpha = sink.value }.background(Color.Black.copy(alpha = 0.42f))
                 .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open && !launching) { close() },
         )

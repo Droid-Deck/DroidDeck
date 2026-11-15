@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">भौतिक बटन शॉर्टकट</string>
+    <string name="shortcuts_dd_menu">DroidDeck मेनू</string>
+    <string name="shortcuts_capture">असाइन करें: %1$s</string>
+    <string name="shortcuts_press">कोई बटन दबाकर छोड़ें। असाइनमेंट अपने आप सहेजा जाता है।</string>
+    <string name="shortcuts_release">जारी रखने के लिए बटन छोड़ें।</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">यह बटन पहले से असाइन है: %1$s</string>
+    <string name="shortcuts_save">फिर से असाइन करें</string>
+    <string name="shortcuts_retry">दूसरा बटन आज़माएँ</string>
+    <string name="shortcuts_limitations">होम और कुछ अतिरिक्त बटन उपलब्ध नहीं हो सकते हैं।</string>
+</resources>

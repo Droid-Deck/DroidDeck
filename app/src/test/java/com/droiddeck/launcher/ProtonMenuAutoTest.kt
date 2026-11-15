@@ -56,6 +56,10 @@ class ProtonMenuAutoTest {
             .put("tag", "${tool.prefix}-11-12").put("at", System.currentTimeMillis()))
         File(activity.filesDir, "proton-latest.json").writeText(latest.toString())
         menu = ProtonMenu(activity, Handler(Looper.getMainLooper())) { idle }
+        menu.protonBusyId = null
+        menu.protonProblem = null
+        menu.protonStage = null
+        menu.protonPercent = -1
         menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")
@@ -64,6 +68,10 @@ class ProtonMenuAutoTest {
     }
 
     @After fun reset() {
+        menu.protonBusyId = null
+        menu.protonProblem = null
+        menu.protonStage = null
+        menu.protonPercent = -1
         AutoComponents.online = online
         AutoComponents.unfavourable = constrained
         SessionState.running = false
@@ -75,7 +83,9 @@ class ProtonMenuAutoTest {
 
     private fun install(name: String): File = File(root, "root/.local/share/Steam/compatibilitytools.d/$name").apply {
         mkdirs()
-        File(this, "toolmanifest.vdf").writeText("manifest")
+        File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
+        File(this, "compatibilitytool.vdf").writeText("\"from_oslist\" \"windows\"")
+        File(this, "proton").apply { writeText(""); setExecutable(true) }
     }
 
     private fun waitUntil(done: () -> Boolean) {
@@ -124,6 +134,19 @@ class ProtonMenuAutoTest {
         menu.ensureAutoUpdates()
         waitUntil { menu.protonBusyId == null }
         assertEquals(listOf("droiddeck"), attempts)
+    }
+
+    @Test fun aFinishedInstallStartsTheComponentCheckAndAFailedOneDoesNot() {
+        var checks = 0
+        val watched = ProtonMenu(activity, Handler(Looper.getMainLooper()), onInstalled = { checks++ }) { idle }
+        watched.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
+        watched.installProton("droiddeck")
+        waitUntil { watched.protonBusyId == null && checks == 1 }
+        assertEquals(1, checks)
+        watched.installer = { _, _ -> "failed" }
+        watched.installProton("ge")
+        waitUntil { watched.protonBusyId == null }
+        assertEquals(1, checks)
     }
 
     @Test fun aFailedUpdateDoesNotLoopOrBlockOtherInstalledFamilies() {

@@ -13,9 +13,6 @@ object TpUbwcHint {
     @Volatile var activeMode: String? = null
         private set
 
-    // On Adreno 740, TPL1_DBG_ECO_CNTL1.TP_UBWC_FLAG_HINT is shared by every driver on the GPU and must
-    // match the system driver. A mismatch corrupts Android UI.
-    // Samsung's One UI firmware sets it whatever blob version it reports.
     internal fun features(model: Int, systemDriverVersion: String?, samsung: Boolean = false,
                           mode: String = SessionPrefs.TP_UBWC_AUTO): String? {
         if (model != 740) return null

@@ -126,11 +126,9 @@ object DownloadSource {
 
     fun isGithub(url: String): Boolean = GITHUB_HOSTS.any { url.startsWith("https://$it/") }
 
-    /** Catalogs carry the digests everything else is checked against, so a mirror must never supply one. */
     fun isCatalog(url: String): Boolean = CATALOGS.any { url.startsWith(it) }
 
     fun candidates(target: String): List<String> {
-        // GitHub API metadata carries executable URLs and digests; never proxy it.
         if (isCatalog(target) || target.startsWith("https://api.github.com/")) return listOf(target)
         val prefs = prefs() ?: return listOf(target)
         if (!isGithub(target)) return listOf(target)
@@ -184,7 +182,6 @@ object DownloadSource {
         prefs(context)?.edit()?.putString(KEY_PROXY, normalizeProxy(value))?.apply()
     }
 
-    /** An HTTP proxy every Downloader connection uses, or null when none is configured. */
     fun httpProxy(): Proxy? = proxyOf(prefs()?.getString(KEY_PROXY, "") ?: "")
 
     internal fun proxyOf(value: String): Proxy? {

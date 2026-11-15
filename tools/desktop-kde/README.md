@@ -11,8 +11,30 @@ icon, Plasma's default bottom panel, and "Return to Gaming Mode" and Steam on th
 - `overlay/`: our files on top - system-wide KDE defaults in `/etc/xdg`, the Vapor theme and its
   layout script, the menu entries Steam and Return to Gaming Mode use.
 
+pacman works on the desktop. `pacman-db.py` writes an install record for every package the desktop
+ships into `/var/lib/pacman/local`, and builds the `droiddeck` repository: Arch Linux ARM's core,
+extra and alarm databases as they were at build time, with the runtime's and the desktop's own
+packages at the installed versions. The release carries that database (`droiddeck.db`) and the
+packages `mirror.txt` names; everything else downloads from Arch Linux ARM as a `CacheServer`, so its
+404s never disable a mirror. Installs therefore resolve against the desktop's exact Qt and KDE
+versions, and `pacman -Syu` only ever moves packages the user added.
+
+- `/usr/local/bin/pacman` runs the real pacman with `/usr/share/droiddeck/pacman/pacman.conf`, first
+  copying in the shipped database and dropping the runtime's records for packages the desktop
+  replaced (`prepare`). As root it adds `--needed` to installs, so guides that reinstall
+  something the desktop has just skip it.
+- `sudo`, `su` and `sudoedit` run commands as root: the session is the app's own Android user, and
+  `libdroiddeck-root.so` (`root/root.c`, preloaded by `sudo`) reports uid 0, accepts ownership
+  changes and shows the runtime's 0700 directories as 0755. It grants nothing the user lacked.
+- `hooks/droiddeck-system.hook` refuses to remove or replace any runtime or desktop package;
+  `droiddeck-remember.hook` keeps the user's own packages in
+  `~/.local/share/droiddeck/pacman/packages.txt`, and `restore` (autostarted) reinstalls them after a
+  runtime update and upgrades them after a desktop update. Hooks that need systemd, udev, kernel
+  modules or an initramfs are masked.
+
 `.github/workflows/build-desktop-kde.yml` builds it and, run with a new tag, publishes it as a
-release in Droid-Deck/DroidDeck-Components. `release.env` pins the tag, sha256 and size the apk
+release in Droid-Deck/DroidDeck-Components (tags with `-rc` are published as pre-releases for testing
+before an app build points at them). `release.env` pins the tag, sha256 and size the apk
 installs (`DesktopCatalog.desktopEntry`); a published tag is never replaced, so a changed package
 is a new tag and a `release.env` update.
 
@@ -20,6 +42,8 @@ At run time the desktop is started by `tools/linuxfs/desktop/droiddeck-desktop` 
 at every session): Plasma's own `startplasma-wayland`, with KWin nested in the app's compositor
 through `kwin_wayland_wrapper`. The package's `kwin-compositor` marker selects OpenGL through
 Zink for KWin 6.8, which removed QPainter. Older packages retain their software compositor.
+KWin runs without Gallium's threaded context and without overlay layers. With the threaded context, KWin crashed
+uploading windows' shared-memory buffers by reading past their end, and the host shows only a single buffer.
 On Android the launcher explicitly selects the KGSL render node; the nested backend can use it
 when the host's dmabuf feedback cannot name a DRM device. Games and emulators from the menu go
 through `droiddeck-gpu`, and Steam goes back to the app as a Steam session.
@@ -35,6 +59,9 @@ The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop sc
 `0002-select-explicit-nested-render-node.patch` lets that nested backend use one explicitly
 selected `KWIN_RENDER_NODES` device when host feedback cannot identify it. It does not guess
 between GPUs or change normal KWin device selection.
+`0003-forward-nested-scroll-source.patch` passes the host's scroll source, wheel steps and scroll stops
+through the nested backend, which upstream leaves as a TODO. Two-finger touch scrolling then reaches
+apps as touchpad scrolling, and wheel steps stay whole clicks.
 
 `pins/mesa/desc` keeps Mesa 26.2.4 and its actual package dependencies ahead of the rolling
 repository metadata. Mesa 26.2.5 crashes in Zink shader compilation on Thor with the selected
@@ -44,7 +71,7 @@ both build jobs verify the Arch Linux ARM signature and pinned SHA-256 as for ev
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
 executable, library and build package hashes. Corresponding source is
-https://download.kde.org/stable/plasma/6.8.0/kwin-6.8.0.tar.xz plus the patch in this repository.
+https://download.kde.org/stable/plasma/6.8.2/kwin-6.8.2.tar.xz plus the patch in this repository.
 
 The inventories use `.gzip` rather than `.gz`: Android's asset packer expands `.gz` and strips
 its suffix. The shared local/CI runtime payload check verifies the exact APK names and bytes.

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Fizikai gombok parancsikonjai</string>
+    <string name="shortcuts_dd_menu">DroidDeck-menü</string>
+    <string name="shortcuts_capture">Hozzárendelés: %1$s</string>
+    <string name="shortcuts_press">Nyomj meg és engedj fel egy gombot. A hozzárendelés automatikusan mentődik.</string>
+    <string name="shortcuts_release">A folytatáshoz engedje fel a gombot.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Ez a gomb már ehhez van rendelve: %1$s</string>
+    <string name="shortcuts_save">Új hozzárendelés</string>
+    <string name="shortcuts_retry">Másik gomb kipróbálása</string>
+    <string name="shortcuts_limitations">A Kezdőlap és egyes extra gombok nem feltétlenül érhetők el.</string>
+</resources>

@@ -1,0 +1,12 @@
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -10804,7 +10804,8 @@
+ 					( pPaintFocus->cursor && pPaintFocus->cursor->imageEmpty() ) &&
+ 					( !window_is_steam( pPaintFocus->inputFocusWindow ) );
+ 
+-				const bool bHasPointerConstraint = pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained();
++				const bool bHasPointerConstraint = pPaintFocus->cursor &&
++					( pPaintFocus->cursor->IsConstrained() || wlserver.HasMouseConstraint() );
+ 
+ 				uint32_t uAppId = pPaintFocus->inputFocusWindow
+ 					? pPaintFocus->inputFocusWindow->appID

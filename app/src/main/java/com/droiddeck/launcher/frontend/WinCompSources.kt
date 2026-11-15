@@ -9,7 +9,7 @@ import java.io.File
 import java.util.Locale
 
 object WinCompSources {
-    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX }
+    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX, UBISOFT }
 
     data class Finding(val component: String?, val original: String, val origin: Origin, val auto: Boolean, val args: List<String> = emptyList())
 
@@ -51,10 +51,8 @@ object WinCompSources {
     fun installer(path: String): List<String> = if (UE_PREREQ.containsMatchIn(path)) listOf("vcredist2022", "d3dx9") else DependencyDetector.componentsFor(path)
 
     private val XBOX_KNOWN = Regex("""<KnownDependency\s+Name="([A-Za-z0-9_.-]{1,40})"""")
-    // VC14 also registers the ARM64 runtime: launchers running as ARM64EC look for it and stop when it is missing.
     private val XBOX_COMPONENTS = mapOf("VC14" to listOf("vcredist2022", WinComponents.VCREDIST_ARM64))
 
-    /** Microsoft installs a PC Game Pass game's declared runtimes with it; VC14 is wanted by nearly all and is always added. */
     fun xbox(folder: File?): List<Pair<String, String>> {
         val config = folder?.listFiles().orEmpty().firstOrNull { it.isFile && it.name.equals("MicrosoftGame.config", ignoreCase = true) && it.length() < 1L shl 20 }
         val declared = config?.let { file -> runCatching { XBOX_KNOWN.findAll(file.readText()).map { it.groupValues[1] }.toList() }.getOrNull() }.orEmpty()
@@ -85,6 +83,13 @@ object WinCompSources {
         }
     }
 
+    /** The prerequisite installers a Ubisoft manifest lists, with `$INSTALL_DIR` dropped. */
+    internal fun ubisoftInstallRuns(setup: String?): List<String> {
+        val runs = setup?.let { runCatching { org.json.JSONObject(it).optJSONArray("installRuns") }.getOrNull() } ?: return emptyList()
+        return (0 until runs.length()).mapNotNull { runs.optJSONObject(it)?.optString("exe") }
+            .map { it.replace('\\', '/').removePrefix("\$INSTALL_DIR").trimStart('/') }.filter { it.isNotEmpty() }
+    }
+
     fun forGame(context: Context, game: Library.SteamGame): List<Finding> {
         val folder = game.gameFiles
         val out = ArrayList<Finding>()
@@ -113,6 +118,12 @@ object WinCompSources {
                 val original = command.replace('\\', '/').substringAfterLast('/')
                 if (parts.isEmpty()) out += Finding(null, original, Origin.AMAZON, false)
                 parts.forEach { out += Finding(it, original, Origin.AMAZON, true) }
+            }
+            store == Store.UBISOFT -> ubisoftInstallRuns(sidecar?.extra?.get(com.droiddeck.launcher.stores.ubisoft.UbisoftLaunch.SETUP)).forEach { exe ->
+                val parts = installer(exe)
+                val original = exe.substringAfterLast('/')
+                if (parts.isEmpty()) out += Finding(null, original, Origin.UBISOFT, false)
+                parts.forEach { out += Finding(it, original, Origin.UBISOFT, true) }
             }
             else -> {}
         }

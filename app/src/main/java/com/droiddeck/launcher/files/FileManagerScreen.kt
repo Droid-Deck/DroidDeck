@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -108,6 +111,10 @@ private const val HISTORY_LIMIT = 50
 
 internal fun canNavigateUp(currentDir: File, currentRoot: File): Boolean =
     currentDir != currentRoot && currentDir.parentFile?.exists() == true
+
+// Back leaves after a drive hop instead of replaying a stack of hops one press at a time.
+internal fun backExitsAtRootHop(currentDir: File, currentRoot: File, previous: Pair<File, File>): Boolean =
+    currentDir == currentRoot && previous.first == previous.second
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,8 +273,10 @@ fun FileManagerScreen(
                 if (showFavorites) showFavorites = false
                 else {
                     while (history.isNotEmpty() && !history.last().first.isDirectory) history.removeAt(history.lastIndex)
-                    val previous = history.removeLastOrNull()
-                    if (previous != null) {
+                    val previous = history.lastOrNull()
+                    if (previous != null && backExitsAtRootHop(currentDir, currentRoot, previous)) onExit?.invoke()
+                    else if (previous != null) {
+                        history.removeLastOrNull()
                         currentRoot = previous.second
                         loadDirectory(previous.first, record = false)
                     } else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it, record = false) }
@@ -495,6 +504,25 @@ fun FileManagerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val drives = remember(storageTick) { StorageRoots.list(context) }
+    var accessDrive by remember { mutableStateOf<String?>(null) }
+    fun unreadable(drive: StorageRoot) {
+        if (AllFilesAccess.missing()) accessDrive = drive.label
+        else Toast.makeText(context, context.getString(R.string.fm_drive_not_readable, drive.label), Toast.LENGTH_SHORT).show()
+    }
+    accessDrive?.let { label ->
+        OutlinedAlertDialog(
+            onDismissRequest = { accessDrive = null },
+            title = { Text(stringResource(R.string.fm_drive_access_title, label)) },
+            text = { Text(stringResource(R.string.fm_drive_access_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    accessDrive = null
+                    AllFilesAccess.open(context)
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.upd_open_settings)) }
+            },
+            dismissButton = { TextButton(onClick = { accessDrive = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
     val linuxRoot = remember(storageTick) {
         com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
     }
@@ -668,6 +696,7 @@ fun FileManagerScreen(
         )
     }
 
+    val compactToolbar = LocalConfiguration.current.screenWidthDp < 600
     Column(modifier = Modifier.fillMaxSize()) {
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(
@@ -698,6 +727,7 @@ fun FileManagerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surfaceContainer)
+                .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
             IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
@@ -742,11 +772,7 @@ fun FileManagerScreen(
                                 if (drive.readable) {
                                     openDrive(drive.dir)
                                 } else {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.fm_drive_not_readable, drive.label),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    unreadable(drive)
                                 }
                             },
                             modifier = Modifier.focusGlide(),
@@ -776,10 +802,10 @@ fun FileManagerScreen(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
                 )
             } else if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                Spacer(Modifier.weight(1f))
+                if (!compactToolbar) Spacer(Modifier.weight(1f))
             } else {
                 Text(
                     text = currentDir.name.ifBlank { currentDir.absolutePath },
@@ -788,7 +814,7 @@ fun FileManagerScreen(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
                 )
             }
 
@@ -928,13 +954,14 @@ fun FileManagerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
                     stringResource(R.string.fm_selected_count, selectedPaths.size),
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 13.sp,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.padding(end = 12.dp) else Modifier.weight(1f),
                 )
                 val allVisibleSelected = visibleEntries.isNotEmpty() && visibleEntries.all { it.absolutePath in selectedPaths }
                 val anyVisibleSelected = visibleEntries.any { it.absolutePath in selectedPaths }
@@ -1066,7 +1093,7 @@ fun FileManagerScreen(
             add(locItem(stringResource(R.string.fm_drive_internal), Icons.Filled.Smartphone, File("/storage/emulated/0")))
             drives.filter { it.removable }.forEach { d ->
                 add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
-                    showFavorites = false; if (d.readable) openDrive(d.dir)
+                    showFavorites = false; if (d.readable) openDrive(d.dir) else unreadable(d)
                 })
             }
             linuxRoot?.let { add(locItem(stringResource(R.string.fm_drive_linux), Icons.Filled.Terminal, it)) }

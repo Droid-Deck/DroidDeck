@@ -1,0 +1,93 @@
+#!/usr/bin/python3
+import os
+import re
+import stat
+import sys
+
+HOME = os.environ.get("HOME", "/root")
+STEAM = os.path.join(HOME, ".local/share/Steam")
+STORES = os.environ.get("DROIDDECK_STORES_ROOT", "/mnt/droiddeck-stores")
+TOOLS = re.compile(r"^(Proton |Proton$|SteamLinuxRuntime|Steamworks Shared$)")
+
+
+def libraries():
+    paths = [STEAM]
+    try:
+        with open(os.path.join(STEAM, "steamapps/libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            paths += [p.replace("\\\\", "\\") for p in re.findall(r'"path"\s+"([^"]+)"', f.read())]
+    except OSError:
+        pass
+    seen = []
+    for path in paths:
+        real = os.path.realpath(path)
+        if real not in seen:
+            seen.append(real)
+    return seen
+
+
+def roots():
+    found = []
+    for library in libraries():
+        for name in ("common", "compatdata"):
+            found.append((os.path.join(library, "steamapps", name), name == "common"))
+    found.append((os.path.join(HOME, "Games"), False))
+    try:
+        found += [(entry.path, False) for entry in os.scandir(STORES) if entry.is_dir(follow_symlinks=False)]
+    except OSError:
+        pass
+    return [(path, skip_tools) for path, skip_tools in found if os.path.isdir(path)]
+
+
+def fix(path, st, wanted):
+    if st.st_uid != os.geteuid() or st.st_mode & wanted == wanted:
+        return 0
+    try:
+        os.chmod(path, stat.S_IMODE(st.st_mode) | wanted)
+        return 1
+    except OSError:
+        return 0
+
+
+def walk(top, skip_tools):
+    fixed = 0
+    stack = [(top, True)]
+    while stack:
+        directory, first = stack.pop()
+        try:
+            entries = list(os.scandir(directory))
+        except OSError:
+            continue
+        for entry in entries:
+            if first and skip_tools and TOOLS.match(entry.name):
+                continue
+            try:
+                st = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if stat.S_ISDIR(st.st_mode):
+                fixed += fix(entry.path, st, stat.S_IRWXU)
+                stack.append((entry.path, False))
+            elif stat.S_ISREG(st.st_mode):
+                fixed += fix(entry.path, st, stat.S_IRUSR | stat.S_IWUSR)
+    return fixed
+
+
+def main():
+    try:
+        os.nice(19)
+    except OSError:
+        pass
+    total = 0
+    for top, skip_tools in roots():
+        try:
+            fixed = fix(top, os.stat(top), stat.S_IRWXU) + walk(top, skip_tools)
+        except OSError:
+            continue
+        if fixed:
+            print(f"droiddeck-library-perms: {top}: {fixed} made writable")
+        total += fixed
+    print(f"droiddeck-library-perms: {total} files and folders made writable")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

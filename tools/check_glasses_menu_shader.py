@@ -156,7 +156,6 @@ def main():
         read(0,0,width,height,0x1908,0x1401,actual)
         samples = []
         for x, y in coords:
-            # Readback is GL bottom-up; coordinates below are image top-left.
             offset = ((height-1-y)*width+x)*4
             rgb = list(actual[offset:offset+3])
             eye = 0 if mono or x < width/2 else 1

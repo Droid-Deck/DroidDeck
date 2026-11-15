@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""The packages the KDE desktop package ships: the dependency closure of the seeds over Arch Linux
-ARM's extracted repository databases, minus what the runtime already has at a version that serves.
-
-    closure.py <db dir with x_core, x_extra, x_alarm> <runtime-packages.txt> <seeds.txt>
-
-Prints one "repo/filename sha256" per package to ship (the sha256 the repository database gives).
-"""
 import collections
 import os
 import re
@@ -107,7 +100,6 @@ def main():
                 providers[pname].append((name, pver or pkgs[name]["version"]))
 
     def resolve(dep):
-        """The package to take for a dependency string, and whether the runtime's copy serves."""
         name, op, want = parse_dep(dep)
         if name in runtime and satisfies(runtime[name], op, want):
             return name, True

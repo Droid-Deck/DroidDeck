@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">제스처</string>
     <string name="gesture_settings">터치 제스처 설정</string>
-    <string name="gesture_settings_hint">마우스와 키보드 제스처를 맞춤 설정합니다. 사용하려면 터치 모드에서 제스처를 선택하세요.</string>
     <string name="gesture_tap">탭</string>
     <string name="gesture_drag">한 손가락 드래그</string>
     <string name="gesture_long_press">길게 누르기</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">세 손가락 길게 누르기</string>
     <string name="gesture_pinch">손가락을 모으거나 벌려 확대/축소</string>
     <string name="gesture_hold_button">버튼을 누른 상태로 유지</string>
+    <string name="gesture_hold_left">왼쪽 버튼을 누른 상태로 유지</string>
+    <string name="gesture_hold_right">오른쪽 버튼을 누른 상태로 유지</string>
     <string name="gesture_click_once">한 번 클릭</string>
     <string name="gesture_hold_delay">길게 누르기 대기 시간</string>
     <string name="gesture_double_delay">두 번 탭 간격</string>

@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Χειρονομίες</string>
     <string name="gesture_settings">Ρυθμίσεις χειρονομιών αφής</string>
-    <string name="gesture_settings_hint">Προσαρμόστε τις χειρονομίες ποντικιού και πληκτρολογίου. Επιλέξτε Χειρονομίες ως λειτουργία αφής για να τις χρησιμοποιήσετε.</string>
     <string name="gesture_tap">Πάτημα</string>
     <string name="gesture_drag">Σύρσιμο με ένα δάχτυλο</string>
     <string name="gesture_long_press">Παρατεταμένο πάτημα</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Κράτημα με τρία δάχτυλα</string>
     <string name="gesture_pinch">Μεγέθυνση με τσίμπημα</string>
     <string name="gesture_hold_button">Διατήρηση του κουμπιού πατημένου</string>
+    <string name="gesture_hold_left">Διατήρηση αριστερού κουμπιού πατημένου</string>
+    <string name="gesture_hold_right">Διατήρηση δεξιού κουμπιού πατημένου</string>
     <string name="gesture_click_once">Ένα κλικ</string>
     <string name="gesture_hold_delay">Καθυστέρηση κρατήματος</string>
     <string name="gesture_double_delay">Διάστημα διπλού πατήματος</string>

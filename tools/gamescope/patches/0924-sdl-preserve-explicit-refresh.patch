@@ -1,0 +1,78 @@
+diff --git a/src/sdl_refresh.hpp b/src/sdl_refresh.hpp
+new file mode 100644
+--- /dev/null
++++ b/src/sdl_refresh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++
++namespace gamescope
++{
++struct SDLRefreshChoice
++{
++    int32_t refresh = 0;
++    bool configured = false;
++};
++
++// SDL reports the desktop mode again when its window is shown, moved or resized. Keep an
++// explicit -r as the rate exposed by nested Gamescope; discover the desktop rate only when the
++// caller did not configure one.
++inline constexpr SDLRefreshChoice ChooseSDLRefresh( int32_t configuredRefresh, int32_t desktopRefresh )
++{
++    return configuredRefresh > 0
++        ? SDLRefreshChoice{ configuredRefresh, true }
++        : SDLRefreshChoice{ desktopRefresh, false };
++}
++}
+diff --git a/src/Backends/SDLBackend.cpp b/src/Backends/SDLBackend.cpp
+--- a/src/Backends/SDLBackend.cpp
++++ b/src/Backends/SDLBackend.cpp
+@@ -18,14 +18,20 @@
+ #include "steamcompmgr.hpp"
+ #include "Utils/Defer.h"
+ #include "refresh_rate.h"
++#include "log.hpp"
++#include "sdl_refresh.hpp"
+ 
+ #include "sdlscancodetable.hpp"
+ 
+ static int g_nOldNestedRefresh = 0;
+ static bool g_bWindowFocused = true;
++static int g_nLastLoggedConfiguredRefresh = -1;
++static int g_nLastLoggedDesktopRefresh = -1;
++static int g_nLastLoggedEffectiveRefresh = -1;
+ 
+ static int g_nOutputWidthPts = 0;
+ static int g_nOutputHeightPts = 0;
++static LogScope sdl_log( "sdl_backend" );
+ 
+ extern bool g_bForceHDR10OutputDebug;
+ extern bool steamMode;
+@@ -846,9 +851,25 @@ namespace gamescope
+ 								SDL_DisplayMode mode = { SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0 };
+ 
+ 								display_index = SDL_GetWindowDisplayIndex( m_Connector.GetSDLWindow() );
+ 								if ( SDL_GetDesktopDisplayMode( display_index, &mode ) == 0 )
+ 								{
+-									g_nOutputRefresh = ConvertHztomHz( mode.refresh_rate );
++									const int nDesktopRefresh = ConvertHztomHz( mode.refresh_rate );
++									const SDLRefreshChoice refresh = ChooseSDLRefresh( g_nOldNestedRefresh, nDesktopRefresh );
++									g_nOutputRefresh = refresh.refresh;
++
++									if ( g_nLastLoggedConfiguredRefresh != g_nOldNestedRefresh ||
++									     g_nLastLoggedDesktopRefresh != nDesktopRefresh ||
++									     g_nLastLoggedEffectiveRefresh != refresh.refresh )
++									{
++										sdl_log.infof( "Refresh mode: configured=%.3fHz desktop=%.3fHz effective=%.3fHz source=%s",
++											ConvertmHzToHz( float( g_nOldNestedRefresh ) ),
++											ConvertmHzToHz( float( nDesktopRefresh ) ),
++											ConvertmHzToHz( float( refresh.refresh ) ),
++											refresh.configured ? "configured -r" : "SDL desktop" );
++										g_nLastLoggedConfiguredRefresh = g_nOldNestedRefresh;
++										g_nLastLoggedDesktopRefresh = nDesktopRefresh;
++										g_nLastLoggedEffectiveRefresh = refresh.refresh;
++									}
+ 								}
+ 							}
+ 							break;

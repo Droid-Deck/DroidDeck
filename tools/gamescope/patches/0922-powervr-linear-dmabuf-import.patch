@@ -1,0 +1,156 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -13,6 +13,7 @@
+ #include <dlfcn.h>
+ #include "vulkan_include.h"
+ #include "nested_swapchain.hpp"
++#include "dmabuf_import.hpp"
+ #include "Utils/Algorithm.h"
+ 
+ #if defined(__linux__)
+@@ -2229,8 +2230,27 @@
+ 			return false;
+ 		}
+ 
+-		if ( res == VK_SUCCESS &&
+-		     ( externalImageProperties.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT ) )
++		bool importable = res == VK_SUCCESS &&
++		    ( externalImageProperties.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT );
++		if ( gamescope::RetryPowerVRLinearQuery( g_device.vendorID(), imageInfo.format,
++		        pDMA->modifier, pDMA->n_planes, imageInfo.flags, res ) )
++		{
++			// PowerVR's mutable-format query rejects this linear import even though
++			// explicit-layout imports and UNORM/sRGB GPU sampling work. Query the base
++			// format without changing the image we actually create or its supplied stride.
++			VkImageCreateInfo baseFormat = imageInfo;
++			baseFormat.flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
++			baseFormat.pNext = nullptr;
++			res = getModifierProps( &baseFormat, pDMA->modifier, &externalImageProperties );
++			importable = res == VK_SUCCESS &&
++			    ( externalImageProperties.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT );
++		}
++		if ( !importable && g_device.vendorID() == 0x1010 )
++		{
++			vk_log.errorf( "PowerVR DMA-BUF modifier is not importable; refusing a different tiling" );
++			return false;
++		}
++		if ( importable )
+ 		{
+ 			modifierInfo = {
+ 				.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
+@@ -2348,6 +2368,22 @@
+ 
+ 	m_format = imageInfo.format;
+ 
++	VkMemoryFdPropertiesKHR fdProperties = {
++		.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
++	};
++	if ( pDMA )
++	{
++		if ( !g_device.vk.GetMemoryFdPropertiesKHR )
++			return false;
++		res = g_device.vk.GetMemoryFdPropertiesKHR( g_device.device(),
++		    VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, pDMA->fd[0], &fdProperties );
++		if ( res != VK_SUCCESS )
++		{
++			vk_errorf( res, "vkGetMemoryFdPropertiesKHR failed" );
++			return false;
++		}
++	}
++
+ 	res = g_device.vk.CreateImage(g_device.device(), &imageInfo, nullptr, &m_vkImage);
+ 	if (res != VK_SUCCESS) {
+ 		vk_errorf( res, "vkCreateImage failed" );
+@@ -2357,10 +2393,22 @@
+ 	VkMemoryRequirements memRequirements;
+ 	g_device.vk.GetImageMemoryRequirements(g_device.device(), m_vkImage, &memRequirements);
+ 
++	uint32_t memoryType = pDMA
++		? gamescope::DmabufMemoryType( g_device.memoryProperties(), memRequirements.memoryTypeBits,
++		    fdProperties.memoryTypeBits, properties )
++		: uint32_t( g_device.findMemoryType( properties, memRequirements.memoryTypeBits ) );
++	if ( memoryType == UINT32_MAX )
++	{
++		vk_log.errorf( "No compatible image memory type (image=0x%x, fd=0x%x)",
++		    memRequirements.memoryTypeBits, fdProperties.memoryTypeBits );
++		g_device.vk.DestroyImage( g_device.device(), m_vkImage, nullptr );
++		m_vkImage = VK_NULL_HANDLE;
++		return false;
++	}
+ 	VkMemoryAllocateInfo allocInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+ 		.allocationSize = memRequirements.size,
+-		.memoryTypeIndex = uint32_t(g_device.findMemoryType(properties, memRequirements.memoryTypeBits)),
++		.memoryTypeIndex = memoryType,
+ 	};
+ 
+ 	m_size = allocInfo.allocationSize;
+@@ -2453,6 +2501,13 @@
+ 	if ( res != VK_SUCCESS )
+ 	{
+ 		vk_errorf( res, "vkBindImageMemory failed" );
++		if ( pDMA )
++			vk_log.errorf( "DMA-BUF: %ux%u format=%u modifier=0x%" PRIx64
++			    " planes=%d stride=%u offset=%u tiling=%u allocation=%" PRIu64
++			    " memoryType=%u imageBits=0x%x fdBits=0x%x", width, height, imageInfo.format,
++			    pDMA->modifier, pDMA->n_planes, pDMA->stride[0], pDMA->offset[0], imageInfo.tiling,
++			    uint64_t( allocInfo.allocationSize ), allocInfo.memoryTypeIndex,
++			    memRequirements.memoryTypeBits, fdProperties.memoryTypeBits );
+ 		return false;
+ 	}
+ 
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -791,6 +791,7 @@
+ 	VK_FUNC(GetImageMemoryRequirements) \
+ 	VK_FUNC(GetImageSubresourceLayout) \
+ 	VK_FUNC(GetMemoryFdKHR) \
++	VK_FUNC(GetMemoryFdPropertiesKHR) \
+ 	VK_FUNC(GetQueryPoolResults) \
+ 	VK_FUNC(GetSemaphoreCounterValue) \
+ 	VK_FUNC(GetSwapchainImagesKHR) \
+@@ -865,6 +866,8 @@
+ 	inline VkPipelineLayout pipelineLayout() {return m_pipelineLayout;}
+ 	inline int drmRenderFd() {return m_drmRendererFd;}
+ 	inline bool supportsModifiers() {return m_bSupportsModifiers;}
++	inline uint32_t vendorID() const {return m_uVendorID;}
++	inline const VkPhysicalDeviceMemoryProperties &memoryProperties() const {return m_memoryProperties;}
+ 	inline bool supportsMutableSwapchain() {return m_bSupportsMutableSwapchain;}
+ 	inline bool supportsPresentWait() {return m_bSupportsPresentWait;}
+ 	inline bool hasDrmPrimaryDevId() {return m_bHasDrmPrimaryDevId;}
+diff --git a/src/dmabuf_import.hpp b/src/dmabuf_import.hpp
+new file mode 100644
+--- /dev/null
++++ b/src/dmabuf_import.hpp
+@@ -0,0 +1,29 @@
++#pragma once
++#include <vulkan/vulkan_core.h>
++
++namespace gamescope
++{
++inline bool RetryPowerVRLinearQuery( uint32_t vendor, VkFormat format, uint64_t modifier,
++    uint32_t planes, VkImageCreateFlags flags, VkResult result )
++{
++    return vendor == 0x1010 && modifier == 0 && planes == 1 &&
++        flags == VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT && result == VK_ERROR_FORMAT_NOT_SUPPORTED &&
++        ( format == VK_FORMAT_R8G8B8A8_UNORM || format == VK_FORMAT_B8G8R8A8_UNORM );
++}
++
++inline uint32_t DmabufMemoryType( const VkPhysicalDeviceMemoryProperties &memory,
++    uint32_t imageBits, uint32_t fdBits, VkMemoryPropertyFlags preferred )
++{
++    uint32_t fallback = UINT32_MAX;
++    const uint32_t compatible = imageBits & fdBits;
++    for ( uint32_t i = 0; i < memory.memoryTypeCount; ++i )
++    {
++        if ( !( compatible & ( 1u << i ) ) ) continue;
++        if ( fallback == UINT32_MAX ) fallback = i;
++        if ( ( memory.memoryTypes[i].propertyFlags & preferred ) == preferred ) return i;
++    }
++    // Device-local is a preference for an existing imported buffer. CPU mapping
++    // properties are requirements and must never be silently relaxed.
++    return preferred == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ? fallback : UINT32_MAX;
++}
++}

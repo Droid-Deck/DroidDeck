@@ -1,0 +1,26 @@
+#!/bin/bash
+list=/var/lib/pacman/droiddeck-shared-files
+store=/var/lib/pacman/droiddeck-shared-keep
+[ -s "$list" ] || exit 0
+case $1 in
+  save)
+    mkdir -p "$store"
+    while IFS= read -r path; do
+      [ -e "$path" ] || [ -L "$path" ] || continue
+      mkdir -p "$store${path%/*}"
+      rm -f -- "$store$path"
+      cp -a -- "$path" "$store$path"
+    done < "$list"
+    ;;
+  restore)
+    [ -d "$store" ] || exit 0
+    while IFS= read -r path; do
+      [ -e "$path" ] || [ -L "$path" ] && continue
+      [ -e "$store$path" ] || [ -L "$store$path" ] || continue
+      mkdir -p "${path%/*}"
+      cp -a -- "$store$path" "$path"
+    done < "$list"
+    rm -rf -- /var/lib/pacman/droiddeck-shared-keep
+    ;;
+esac
+exit 0

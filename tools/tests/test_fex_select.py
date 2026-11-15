@@ -5,9 +5,9 @@ import tempfile
 import textwrap
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-steam-x64"
+SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-fex-update"
 SOURCE = SCRIPT.read_text()
-START = SOURCE.index("x64_fex() {")
+START = SOURCE.index("fex_ready() {")
 END = SOURCE.index("\n}\n", START) + 3
 X64_FEX = SOURCE[START:END]
 
@@ -35,7 +35,7 @@ class FexSelectTest(unittest.TestCase):
                 fex.chmod(0o755)
             body = (X64_FEX.replace("/usr/local/share/fex-emu/.droiddeck-tag", "$ROOT/tag")
                     .replace("/usr/local/bin/FEX", "$ROOT/FEX"))
-            script = HARNESS + body + 'if x64_fex; then echo "NOW $FEX_NOW|$FEX_FROM"; else echo FAILED; fi\n'
+            script = HARNESS + body + 'if fex_ready; then echo "NOW $FEX_NOW|$FEX_FROM"; else echo FAILED; fi\n'
             env = dict(os.environ, ROOT=root, LOADS="1" if loads else "0", INSTALLABLE=" ".join(installable))
             env.pop("BL_FEX_TAG", None)
             if catalog:

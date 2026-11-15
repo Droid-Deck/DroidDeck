@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Qt V4L2 test Utility
+Exec=qv4l2
+Icon=qv4l2
+NoDisplay=true

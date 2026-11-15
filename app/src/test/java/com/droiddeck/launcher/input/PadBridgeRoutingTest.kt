@@ -84,6 +84,20 @@ class PadBridgeRoutingTest {
         assertFalse(PadBridge.anyControllerConnected())
     }
 
+    @Test fun homeShortcutsIgnoreHomeFromSystemKeys() {
+        val gpio = device(InputDevice.SOURCE_KEYBOARD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, name = "gpio-keys")
+        val pad = device(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_KEYBOARD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
+        assertFalse(PadBridge.isControllerKeyEvent(key(gpio, KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_DOWN)))
+        assertTrue(PadBridge.isControllerKeyEvent(key(pad, KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_DOWN)))
+        val owner = Any()
+        HomeButtonShortcuts.attach(owner, { true }, { fail("system Home must not press Guide") }, {})
+        try {
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                assertFalse(HomeButtonShortcuts.onKeyEvent(RuntimeEnvironment.getApplication(), key(gpio, KeyEvent.KEYCODE_HOME, action)))
+            }
+        } finally { HomeButtonShortcuts.detach(owner) }
+    }
+
     @Test fun keyAndMotionOwnershipDoesNotFollowEverySourceOnTheDevice() {
         val keyboard = device(InputDevice.SOURCE_KEYBOARD, InputDevice.KEYBOARD_TYPE_ALPHABETIC)
         val composite = device(COMPOSITE, InputDevice.KEYBOARD_TYPE_ALPHABETIC)
@@ -177,12 +191,24 @@ class PadBridgeRoutingTest {
     @Implements(KeyEvent::class)
     class RegisteredKeyEvent : ShadowKeyEvent() {
         @RealObject private lateinit var event: KeyEvent
-        @Implementation override fun getDevice(): InputDevice? = Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        @Implementation override fun getDevice(): InputDevice? {
+            if (lookupsLeft == 0) return null
+            if (lookupsLeft > 0) lookupsLeft--
+            return Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        }
+
+        companion object { @JvmField var lookupsLeft = -1 }
     }
 
     @Implements(MotionEvent::class)
     class RegisteredMotionEvent : ShadowMotionEvent() {
         @RealObject private lateinit var event: MotionEvent
-        @Implementation override fun getDevice(): InputDevice? = Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        @Implementation override fun getDevice(): InputDevice? {
+            if (lookupsLeft == 0) return null
+            if (lookupsLeft > 0) lookupsLeft--
+            return Shadow.directlyOn(event as InputEvent, InputEvent::class.java, "getDevice")
+        }
+
+        companion object { @JvmField var lookupsLeft = -1 }
     }
 }

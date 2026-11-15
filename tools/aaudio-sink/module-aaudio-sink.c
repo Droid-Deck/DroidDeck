@@ -42,6 +42,7 @@ PA_MODULE_USAGE(
         "channels=<number of channels> "
         "channel_map=<channel map> "
         "volume=<initial volume, linear, 1.0 = full> "
+        "control_dir=<Android media volume bridge directory> "
         "performance_mode=<0 none, 1 low latency, 2 power saving> "
         "adaptive=<grow the buffer after underruns: 0 or 1> "
         "buffer_frames=<initial buffer size in frames, 0 = two bursts> "
@@ -56,6 +57,7 @@ PA_MODULE_USAGE(
 #define STATS_EVERY_USEC (30 * PA_USEC_PER_SEC)
 
 static const char* const valid_modargs[] = {
+    "control_dir",
     "sink_name",
     "sink_properties",
     "format",
@@ -70,7 +72,10 @@ static const char* const valid_modargs[] = {
     NULL
 };
 
+struct android_volume;
+
 struct userdata {
+    struct android_volume *android_volume;
     pa_core *core;
     pa_module *module;
     pa_sink *sink;
@@ -99,6 +104,9 @@ struct userdata {
     pa_usec_t stats_at;
     int32_t xruns_reported;
 };
+
+#include "android-volume.h"
+
 
 static pa_usec_t frames_to_usec(const struct userdata *u, int64_t frames) {
     return (pa_usec_t) (frames * (int64_t) PA_USEC_PER_SEC / (int64_t) u->ss.rate);
@@ -472,6 +480,7 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
+    u->android_volume = android_volume_new(u->sink, pa_modargs_get_value(ma, "control_dir", NULL));
     pa_sink_put(u->sink);
     pa_modargs_free(ma);
     return 0;
@@ -498,6 +507,8 @@ void pa__done(pa_module *m) {
     if (!(u = m->userdata))
         return;
 
+    android_volume_free(u->android_volume);
+    u->android_volume = NULL;
     if (u->sink)
         pa_sink_unlink(u->sink);
     if (u->thread) {

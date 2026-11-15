@@ -35,38 +35,42 @@ object GuestCommand {
         SessionFiles.stage(context, root)
         LinuxNetworkLinkComponent(context, root).publish()
         val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
-        val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
-        if (linkDir != null) cmd.add(1, "--link2symlink")
         val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), extraBinds)
-        binds.forEach { cmd.add("-b"); cmd.add(it) }
-        // Fake root and link2symlink are emulated by proot, so their syscalls must stay on the traced path.
-        val fastPathKey = if (fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null
-        cmd += listOf(
+        val native = NativeGuest.forSession(context)
+        val fastPathKey = if (!native && fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null
+        val guest = mutableListOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "LANG=C.UTF-8",
-            "PATH=/usr/local/bin:/usr/bin:/bin", "XDG_RUNTIME_DIR=${LinuxRuntime.GUEST_RUNTIME_DIR}",
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", "XDG_RUNTIME_DIR=${LinuxRuntime.GUEST_RUNTIME_DIR}",
             "XDG_DATA_HOME=/root/.local/share", "FLATPAK_BWRAP=${FlatpakManager.BWRAP}",
             "DROIDDECK_BWRAP_SOCKET=${BwrapSpawner.socket(context)}",
             "XDG_DATA_DIRS=/root/.local/share/flatpak/exports/share:/usr/local/share:/usr/share",
         )
-        // The Steam client installer and the package tools inside the guest fetch over plain curl,
-        // so the app proxy has to reach them through the environment proot starts them with.
         DownloadSource.proxyHostPort(context).takeIf { it.isNotEmpty() }?.let { hostPort ->
-            cmd += listOf(
+            guest += listOf(
                 "http_proxy=http://$hostPort", "https_proxy=http://$hostPort",
                 "HTTP_PROXY=http://$hostPort", "HTTPS_PROXY=http://$hostPort",
                 "no_proxy=localhost,127.0.0.1,::1", "NO_PROXY=localhost,127.0.0.1,::1",
             )
         }
-        fastPathKey?.let { cmd += ProotFastPath.guestEnv(root, binds, it) }
-        cmd += argv
-        val builder = ProcessBuilder(cmd).directory(root).redirectErrorStream(true)
-        builder.environment().apply {
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
-            if (linkDir != null) put("PROOT_L2S_DIR", linkDir.path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> put(k, v) } }
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+        fastPathKey?.let { guest += ProotFastPath.guestEnv(root, binds, it) }
+        guest += argv
+        val builder = if (native) {
+            NativeGuest.processBuilder(context, root, binds, guest).redirectErrorStream(true)
+        } else {
+            val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
+            if (linkDir != null) cmd.add(1, "--link2symlink")
+            binds.forEach { cmd.add("-b"); cmd.add(it) }
+            cmd += guest
+            ProcessBuilder(cmd).directory(root).redirectErrorStream(true).also { b ->
+                b.environment().apply {
+                    put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                    put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
+                    if (linkDir != null) put("PROOT_L2S_DIR", linkDir.path)
+                    if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                    fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> put(k, v) } }
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+                }
+            }
         }
         if (cancelled?.get() == true) return 130
         val process = builder.start()
@@ -77,7 +81,6 @@ object GuestCommand {
                 try {
                     while (process.isAlive && !flag.get()) Thread.sleep(200)
                     if (flag.get()) {
-                        // PRoot ignores SIGTERM; SIGQUIT makes it kill its tracees and exit cleanly.
                         if (pid > 0) {
                             runCatching { android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT) }
                         } else {

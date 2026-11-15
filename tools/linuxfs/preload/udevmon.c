@@ -102,6 +102,21 @@ static int make_stand_in(int type) {
   return -1;
 }
 
+__attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
+__attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
+__attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
+                                                            socklen_t *len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getpeername(int fd, struct sockaddr *addr,
+                                                            socklen_t *len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, int option,
+                                                          const void *value, socklen_t len,
+                                                          int (*real)(int, int, int, const void *, socklen_t),
+                                                          int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
+                                                          void *value, socklen_t *len,
+                                                          int (*real)(int, int, int, void *, socklen_t *),
+                                                          int *rc);
+
 int socket(int domain, int type, int protocol) {
   static int (*real_socket)(int, int, int);
   int fd;
@@ -110,6 +125,11 @@ int socket(int domain, int type, int protocol) {
   if (real_socket == NULL) {
     errno = ENOSYS;
     return -1;
+  }
+  if (domain == AF_NETLINK && protocol == NETLINK_ROUTE) {
+    int route_fd;
+    bl_nl_socket(type, &route_fd);
+    return route_fd;
   }
   fd = real_socket(domain, type, protocol);
   if (fd >= 0 || domain != AF_NETLINK || protocol != NETLINK_KOBJECT_UEVENT)
@@ -129,7 +149,9 @@ __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd) {
 int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
   static int (*real_getsockname)(int, struct sockaddr *, socklen_t *);
   struct sockaddr_nl nl;
+  int route_rc;
 
+  if (bl_nl_getsockname(fd, addr, len, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (addr == NULL || len == NULL) {
       errno = EFAULT;
@@ -150,21 +172,43 @@ int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
   return real_getsockname(fd, addr, len);
 }
 
+int getpeername(int fd, struct sockaddr *addr, socklen_t *len) {
+  static int (*real)(int, struct sockaddr *, socklen_t *);
+  int route_rc;
+  if (bl_nl_getpeername(fd, addr, len, &route_rc)) return route_rc;
+  if (real == NULL) real = dlsym(RTLD_NEXT, "getpeername");
+  return real(fd, addr, len);
+}
+
 int setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
   static int (*real_setsockopt)(int, int, int, const void *, socklen_t);
+  int route_rc;
 
+  if (real_setsockopt == NULL) real_setsockopt = dlsym(RTLD_NEXT, "setsockopt");
+  if (real_setsockopt == NULL) {
+    errno = ENOSYS;
+    return -1;
+  }
+  if (bl_nl_setsockopt(fd, level, optname, optval, optlen, real_setsockopt, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (level == SOL_NETLINK)
       return 0;
     if (level == SOL_SOCKET && (optname == SO_ATTACH_FILTER || optname == SO_DETACH_FILTER))
       return 0;
   }
-  if (real_setsockopt == NULL) real_setsockopt = dlsym(RTLD_NEXT, "setsockopt");
-  if (real_setsockopt == NULL) {
+  return real_setsockopt(fd, level, optname, optval, optlen);
+}
+
+int getsockopt(int fd, int level, int option, void *value, socklen_t *len) {
+  static int (*real)(int, int, int, void *, socklen_t *);
+  int route_rc;
+  if (real == NULL) real = dlsym(RTLD_NEXT, "getsockopt");
+  if (real == NULL) {
     errno = ENOSYS;
     return -1;
   }
-  return real_setsockopt(fd, level, optname, optval, optlen);
+  if (bl_nl_getsockopt(fd, level, option, value, len, real, &route_rc)) return route_rc;
+  return real(fd, level, option, value, len);
 }
 
 struct monitor_netlink_header {
@@ -195,8 +239,8 @@ static unsigned murmur_hash2(const char *key, size_t len) {
     len -= 4;
   }
   switch (len) {
-  case 3: h ^= data[2] << 16; /* fallthrough */
-  case 2: h ^= data[1] << 8; /* fallthrough */
+  case 3: h ^= data[2] << 16; __attribute__((fallthrough));
+  case 2: h ^= data[1] << 8; __attribute__((fallthrough));
   case 1: h ^= data[0]; h *= m;
   }
   h ^= h >> 13;

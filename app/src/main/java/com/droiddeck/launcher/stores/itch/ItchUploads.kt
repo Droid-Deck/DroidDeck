@@ -18,6 +18,14 @@ internal object ItchUploads {
         return candidates.maxWithOrNull(compareBy({ it.optString("updated_at", it.optString("updatedAt")) }, { it.optLong("id") }))
     }
 
+    fun newestWindows(uploads: JSONArray?): JSONObject? {
+        if (uploads == null) return null
+        val windows = (0 until uploads.length()).mapNotNull { uploads.optJSONObject(it) }
+            .filter { it.optString("storage") != "external" && !it.optBoolean("demo") && windows(it) }
+        val games = windows.filter { it.optString("type") in GAME_TYPES }
+        return games.ifEmpty { windows }.maxWithOrNull(compareBy({ updatedAt(it) }, { it.optLong("id") }))
+    }
+
     fun windows(upload: JSONObject): Boolean {
         val platforms = upload.optJSONObject("platforms")
         if (platforms != null) {
@@ -51,6 +59,8 @@ internal object ItchUploads {
         if (uploads == null || id.isBlank()) return null
         return (0 until uploads.length()).mapNotNull { uploads.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
     }
+
+    fun updatedAt(upload: JSONObject): String = upload.optString("updated_at", upload.optString("updatedAt"))
 
     fun size(upload: JSONObject): Long = upload.optLong("size", upload.optLong("size_bytes"))
 

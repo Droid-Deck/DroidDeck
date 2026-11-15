@@ -23,6 +23,9 @@ class KeyboardHost(
     private val map: KeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
     var shown = false
         private set
+    var imeShowing = false
+        private set
+    var onImeChanged: ((Boolean) -> Unit)? = null
 
     init {
         isFocusable = false
@@ -40,6 +43,28 @@ class KeyboardHost(
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         return KeyConnection()
+    }
+
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val visible = insets.isVisible(WindowInsets.Type.ime())
+            if (visible != imeShowing) {
+                imeShowing = visible
+                onImeChanged?.invoke(visible)
+            }
+        }
+        return super.onApplyWindowInsets(insets)
+    }
+
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || keyCode != KeyEvent.KEYCODE_BACK || !shown) {
+            return super.onKeyPreIme(keyCode, event)
+        }
+        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) {
+            hide()
+            onImeChanged?.invoke(false)
+        }
+        return true
     }
 
     fun toggle() = if (shown && imeVisible()) hide() else show()
@@ -64,21 +89,31 @@ class KeyboardHost(
         clearFocus()
     }
 
+    fun type(text: CharSequence?) {
+        if (text.isNullOrEmpty()) return
+        val events = map.getEvents(text.toString().toCharArray())
+        if (events != null) {
+            for (event in events) sendKeyEvent(event)
+        } else {
+            for (ch in text) {
+                val t = System.currentTimeMillis()
+                val down = KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_UNKNOWN, 0, 0,
+                    KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, 0)
+                sendKeyEvent(CharKeyEvent(down, ch))
+                sendKeyEvent(CharKeyEvent(KeyEvent.changeAction(down, KeyEvent.ACTION_UP), ch))
+            }
+        }
+    }
+
+    fun tap(keyCode: Int) {
+        val t = System.currentTimeMillis()
+        sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
+        sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
+    }
+
     private inner class KeyConnection : BaseInputConnection(this, false) {
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-            if (text.isNullOrEmpty()) return true
-            val events = map.getEvents(text.toString().toCharArray())
-            if (events != null) {
-                for (event in events) sendKeyEvent(event)
-            } else {
-                for (ch in text) {
-                    val t = System.currentTimeMillis()
-                    val down = KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_UNKNOWN, 0, 0,
-                        KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, 0)
-                    sendKeyEvent(CharKeyEvent(down, ch))
-                    sendKeyEvent(CharKeyEvent(KeyEvent.changeAction(down, KeyEvent.ACTION_UP), ch))
-                }
-            }
+            type(text)
             return true
         }
 
@@ -96,12 +131,6 @@ class KeyboardHost(
         override fun performEditorAction(actionCode: Int): Boolean {
             tap(KeyEvent.KEYCODE_ENTER)
             return true
-        }
-
-        private fun tap(keyCode: Int) {
-            val t = System.currentTimeMillis()
-            sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
-            sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
         }
 
         override fun getTextBeforeCursor(n: Int, flags: Int): CharSequence = ""

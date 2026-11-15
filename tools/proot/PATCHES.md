@@ -39,8 +39,8 @@ Ported from WinNative (`main`, 53836ca9, "Fix/performance and vac"):
 - `0007-proc-self-thread-group.patch` - tracees track their thread group, `/proc/self` names it
   instead of the calling thread, and `/proc/thread-self` resolves to `/proc/<tgid>/task/<tid>`.
 - `0008-fchmodat2-openat2.patch` - `fchmodat2` paths are translated (honouring
-  `AT_SYMLINK_NOFOLLOW`), `openat2` answers `ENOSYS` so callers fall back to the translated
-  `openat`, and syscall numbers past the end of a table are rejected instead of read.
+  `AT_SYMLINK_NOFOLLOW`), and syscall numbers past the end of a table are rejected instead of read.
+  Its `openat2` answer is replaced by `0019`.
 - `0009-tracee-relatives-sweep.patch` - tracees count their children, so a terminating thread
   with no children or ptracees no longer walks every tracee; the per-stop memory collector is
   emptied instead of freed and reallocated.
@@ -114,8 +114,74 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
   8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.
 
+- `0019-openat2-emulation.patch` - `openat2` without `resolve` flags runs as a translated `openat`
+  with the same flag and mode checks as the kernel. Any `resolve` flag still answers `ENOSYS`,
+  because PRoot cannot confine symlinks or mounts, so callers keep their own confined fallback.
+- `0022-fake-root-statx-owners.patch` - with `0013` dropping the `statx` exit stop, fake root never
+  rewrote the owner `statx` returns, so files read as owned by the app's uid while the process was
+  root. Rust's `metadata` and GNU `stat` use `statx`, so uutils' `test -w` (Ubuntu's `/usr/bin/test`)
+  said root could not write to its own directories and apt's AppStream hook never built Discover's
+  catalog. fake_id0 keeps that exit stop when it fakes ids; identity-only mode is unchanged.
+- `0023-reused-pid-new-child.patch` - when a thread that is not its process's leader calls `execve`,
+  the kernel retires that thread's ID without reporting an exit, so PRoot keeps its entry. Once the
+  IDs wrap (32768 on many Android kernels) a new child can get that ID, and PRoot aborted on the
+  assertion that a new child has no state, ending the whole session. Chromium-based programs such as
+  Steam's client do this. PRoot now retires the stale entry and sets the new child up from scratch.
+- `0024-execveat-absolute-path.patch` - `execveat` with an absolute path and neither `AT_EMPTY_PATH`
+  nor `AT_SYMLINK_NOFOLLOW` runs as `execve`. The kernel ignores the directory descriptor for such a
+  path, and PRoot refused the call unless the descriptor was `AT_FDCWD`. FEX starts every child of an
+  emulated program with `execveat(fd, "/proc/self/exe")`, so x86 programs in a Flatpak sandbox, which
+  does not carry the session's preloads, could not start other programs.
+- `0025-fastpath-trampoline-sigsys-enosys.patch` - Android 10 and older refuse `statx` with
+  `SIGSYS`. A `statx` from the fast path's trampoline page already carries the host path, but
+  proot's `SIGSYS` emulation translated it again as a guest path (`<rootfs>/<rootfs>/...`) and
+  returned `ENOENT`, so every existing file looked missing to Rust's `metadata` and GNU `stat`:
+  uutils `mkdir -p` on an existing directory failed with "Already exists" and Steam setup stopped
+  (Pico 4, Android 10). A refused syscall from the trampoline now gets `ENOSYS` without
+  translation or extension handling, and the fast path falls back as it already does for
+  `statx` (`newfstatat`) and `memfd_create`. Syscalls outside the trampoline and sessions
+  without `PROOT_FASTPATH` are unchanged. `bench/statx-trap.c` traps `statx` and checks an
+  existing directory still reads as one.
+- `0026-arm64-kernel-program-layout.patch` - on ARM64, PRoot put its loader at 128 GiB, a PIE
+  program at 192 GiB and its interpreter at 252 GiB. Android kernels give a process a 39-bit
+  (512 GiB) address space, so those three split the low half into holes of 64 GiB or less, and a
+  program that reserves one large contiguous range there could not get it. The Linux kernel loads
+  a PIE program at two thirds of the address space (`ELF_ET_DYN_BASE`, 0x5555555000 with 39 bits)
+  and keeps the range below it free; the loader, program and interpreter now sit there too, which
+  leaves 64 GiB to 336 GiB free as on a native kernel. Switch emulators that run guest code
+  natively reserve 256 GiB above 64 GiB for guest memory: under PRoot the reservation failed and
+  the first guest instruction faulted forever. 48-bit address spaces and 32-bit programs are
+  unchanged in practice.
+- `0027-guest-seccomp-sigsys.patch` - PRoot treated every seccomp `SIGSYS` as Android's app policy
+  refusing a call: it emulated the few it knows and answered the rest with `ENOSYS`, so a filter
+  the guest installs itself never reached its own handler. Firefox's content sandbox traps
+  `openat` and opens files through a broker in the parent; every font open came back `ENOSYS`,
+  and each tab crashed in `gfxFontGroup::GetDefaultFont`. Android's policy traps with
+  `SECCOMP_RET_DATA` 0, while Firefox's and Chromium's filters tag their traps, so a tagged
+  `SIGSYS` is now delivered to the guest. A trap from the fast path's trampoline still gets
+  `ENOSYS`, because its arguments are host paths; the fast path then stops for that process and
+  repeats the call through a plain `svc`, which the guest's filter traps with the guest path.
+  `bench/guest-trap.c` installs a tagged `openat` trap and checks its handler answers the call.
+  The kernel and filesystems also return `ENOSYS` themselves: Android's FUSE daemon has no
+  `symlink`, so `symlinkat` on a storage card fails with it. The fast path therefore asks again
+  with the same call number and invalid arguments. A trap answers `ENOSYS` again and the fast path
+  stops for the process; any other error means the call reached the kernel, so only that one call
+  is repeated through a plain `svc` and the fast path stays on.
+
 Old kernel fixes:
 
+- `0028-fchdir-open-directory.patch` - `fchdir` resolved the directory again from its guest path,
+  one `lstat` per path component, then an `lstat` and an `O_PATH` open of the result. The
+  descriptor is already open, so `/proc/<pid>/fd/<n>` gives its host path and one `stat` through
+  that link confirms it is a live directory. The guest path it maps to is checked to map back to
+  the same host path, and the parent of the binding it falls under is checked to still resolve
+  to itself, so the cwd PRoot records is the one the old walk produced; a deleted directory, a
+  path outside the guest, a binding whose ancestor became a symlink, or anything else that does
+  not round-trip takes the old walk. Listing a directory in Wine does `fchdir` there and back: on a memory card behind
+  Android's FUSE daemon the old walk cost about 4 ms per call in the single tracer thread, 8.4 s
+  of an 8.8 s tracer total across one program start, and is now under 0.1 ms.
+  `bench/fchdir.py [directory...]` checks the cwd after `fchdir` to plain, bound, symlinked,
+  renamed and deleted directories and prints the per-call cost.
 - `0015-lost-fork-events.patch` - works around a problem reported on Xiaomi's msm 4.14 kernel:
   the kernel sometimes reports a new process or thread but gives its ID as zero. Without that ID,
   PRoot cannot finish setting it up, which can leave the session stuck. The patch searches `/proc`

@@ -210,16 +210,17 @@ alone would then read as an installed client.
   build fails when a program in the package needs a library that is neither bundled nor listed in
   `tools/fex/runtime-libs.txt`). They were built and published in The412Banner/DroidDeck; up to r3 their tags point at that
   repository's `main`, from r4 at the commit each was built from. Later builds are versions on the single
-  `fex` release; `fex-2610-r5` stays published as the build `droiddeck-steam-x64` pins.
+  `fex` release; `fex-2610-r5` stays published as the build `droiddeck-fex-update` pins.
 - **Where the app gets it.** The app downloads FEX from Droid-Deck/DroidDeck-Components, where nothing is
-  uploaded by hand. The app follows its `fex.json`: while the x86-64 client is selected it reads it from
-  Components' `main` (directly, at most every ten minutes) and keeps the last copy, and a session passes
-  that build to `droiddeck-steam-x64` (`BL_FEX_TAG`, `BL_FEX_SHA256`, `BL_FEX_URLS` with the download
+  uploaded by hand. The app follows its `fex.json`: it reads it from
+  Components' `main` (directly, at most every ten minutes) and keeps the last copy, and every session passes
+  that build to `droiddeck-fex-update` (`BL_FEX_TAG`, `BL_FEX_SHA256`, `BL_FEX_URLS` with the download
   source's mirrors). The script installs a build only after its archive matches the sha256 and every
   program in it loads (`ld-linux --list`); the files it replaces are kept aside until the installed copy
   loads too and put back otherwise, and the tag is written last. Otherwise it keeps the installed one while that still loads,
   then falls back to `FEX_TAG`/`FEX_SHA256` built in, which stay the first-start default when no copy
-  of `fex.json` has been read. Publishing a FEX build therefore takes a Components run only; a
+  of `fex.json` has been read. Components' `watch-fex.yml` starts that run by itself every six hours once FEX-Emu
+  tags a release or `tools/fex` changes on `main`. Publishing a FEX build therefore takes a Components run only; a
   replaced archive cannot be pointed back to, so undoing a build means building an earlier ref. The rootfs is
   FEX-Emu's own image, unmodified: `fex-rootfs.json` there names its rootfs.fex-emu.gg link, sha256 and
   size, and `mirror-upstream.yml` fetches it into the catalog's release only when both match. A newer

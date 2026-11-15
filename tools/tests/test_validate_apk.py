@@ -28,7 +28,8 @@ class ValidateApkTest(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", "-C", self.root, *args], text=True).strip()
 
-    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt"):
+    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write", fork=False):
+        (self.root / filename).parent.mkdir(parents=True, exist_ok=True)
         (self.root / filename).write_text(message)
         self.git("add", filename)
         self.git("commit", "--allow-empty", "-qm", message)
@@ -37,17 +38,22 @@ class ValidateApkTest(unittest.TestCase):
               "title": "Source change", "body": body}
         event = {"number": 1, "pull_request": {"head": {"sha": "stale" if stale else sha}}}
         if completed:
-            event = {"workflow_run": {"event": "pull_request", "head_sha": "stale" if stale else sha}}
+            event = {"workflow_run": {"event": "pull_request", "head_sha": "stale" if stale else sha,
+                                      "head_branch": "fix/branch", "head_repository": {"owner": {"login": "contributor"}}}}
         path = self.root / "event.json"
         path.write_text(json.dumps(event))
 
         def api(path, *args):
+            if path.endswith("/collaborators/human/permission"):
+                return {"permission": permission, "role_name": role_name}
             if "/statuses/" in path:
                 self.statuses.append(dict(value.split("=", 1) for value in args if "=" in value))
                 return {}
             if path.endswith("/pulls/1"):
                 return pr
             if "/commits/" in path and path.endswith("/pulls"):
+                return [] if fork else [pr]
+            if path.endswith("/pulls?state=open&head=contributor%3Afix%2Fbranch"):
                 return [pr]
             if "workflows/build.yml/runs?" in path:
                 return {"workflow_runs": [{"id": 7, "head_sha": sha, "status": "completed", "html_url": "https://example.org/build"}]}
@@ -91,9 +97,28 @@ class ValidateApkTest(unittest.TestCase):
     def test_superseded_build_cannot_replace_current_status(self):
         self.validate(stale=True, completed=True)
         self.assertEqual(self.statuses, [])
+        self.validate(stale=True, completed=True, fork=True)
+        self.assertEqual(self.statuses, [])
+
+    def test_a_completed_fork_build_reports_on_its_pull_request(self):
+        self.validate(completed=True, fork=True)
+        self.assertEqual(self.statuses[-1]["state"], "success")
 
     def test_documentation_passes_without_waiting_for_a_skipped_build(self):
         self.validate(filename="README.md", result="pending")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_trusted_list_requires_maintainer_pr_opener(self):
+        with self.assertRaisesRegex(RuntimeError, "Only a maintainer"):
+            self.validate(filename=".github/trusted-test-builds.txt")
+        self.assertEqual(self.statuses[-1]["state"], "failure")
+
+    def test_maintainer_can_change_trusted_list(self):
+        self.validate(filename=".github/trusted-test-builds.txt", permission="write", role_name="maintain")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_admin_can_change_trusted_list(self):
+        self.validate(filename=".github/trusted-test-builds.txt", permission="admin", role_name="admin")
         self.assertEqual(self.statuses[-1]["state"], "success")
 
     def test_renaming_code_to_documentation_still_requires_compilation(self):

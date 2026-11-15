@@ -52,18 +52,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** Shared by the Xbox cloud settings page and the in-player menu; [live] changes reach the running stream. */
 @Composable
 fun XboxCloudSettingsPanel(
     settings: XboxCloudSettings,
     regions: List<String>,
     live: Boolean,
-    /** "stream", "picture" or "overlay" shows that section only; null shows all. */
     section: String? = null,
-    /** The row to select when the panel opens (the last one used), or null for no initial selection. */
     restoreRow: Int? = null,
     onRowFocused: (Int) -> Unit = {},
-    /** The settings the running stream started with; rows that differ say they need a restart (null: no stream). */
     startedWith: XboxCloudSettings? = null,
     onChange: (XboxCloudSettings) -> Unit,
 ) {
@@ -78,7 +74,6 @@ fun XboxCloudSettingsPanel(
     }
 }
 
-/** Gives each settings row its place in the page, so the last-used row can be selected again. */
 private class PanelFocus {
     var next = 0
     var count = 0
@@ -99,7 +94,6 @@ private fun PanelContent(
     startedWith: XboxCloudSettings?,
     onChange: (XboxCloudSettings) -> Unit,
 ) {
-    // Stream-start settings changed during a stream wait for a restart; back at the starting value, no note.
     fun pending(differs: (XboxCloudSettings) -> Boolean) = startedWith != null && differs(startedWith)
 
     if (section == null || section == "stream") Section("Stream", if (live) "Applies to the next stream." else "Applies when a stream starts.") {
@@ -116,7 +110,6 @@ private fun PanelContent(
                 "apply to the web engine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, bottom = 6.dp))
         }
-        // The service picks the size from the reported device profile (the PC profile can send 1440p).
         Choice("Resolution", listOf("720p" to "720p (phone)", "1080p" to "Best (PC)", "1080p_hq" to "1080p HQ (TV)"),
             settings.resolution, pending { it.resolution != settings.resolution }) { onChange(settings.copy(resolution = it)) }
         Choice("Server region", listOf("" to "Automatic") + regions.map { it to it }, settings.region,
@@ -176,7 +169,6 @@ private fun PanelContent(
             settings.zeroCopy) { onChange(settings.copy(zeroCopy = it)) }
     }
 
-    // "overlay-native": the native player's page (its sound has no volume boost).
     if (section == null || section == "overlay" || section == "overlay-native") Section("Overlay and sound", null) {
         Choice("Performance overlay", listOf(0 to "Off", 1 to "FPS only", 2 to "Basic", 3 to "Detailed", 4 to "Full"), settings.statsLevel) {
             onChange(settings.copy(statsLevel = it))
@@ -202,10 +194,6 @@ private fun Section(title: String, note: String?, content: @Composable ColumnSco
     }
 }
 
-/**
- * One settings row, driven by a controller: it takes focus as a whole (highlighted), Left / Right change its
- * value, A / Enter selects; the − / + buttons and switches inside stay for touch only.
- */
 @Composable
 private fun SettingRow(
     onLeft: (() -> Unit)?,
@@ -236,7 +224,6 @@ private fun SettingRow(
                 if (action != null) { action(); true } else false
             }
             .focusable()
-            // A tap selects too, without a second focus stop (a clickable would be one).
             .pointerInput(Unit) { detectTapGestures { currentSelect?.invoke() } }
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -257,7 +244,6 @@ private fun Step(label: String, value: String, onMinus: () -> Unit, onPlus: () -
     }
 }
 
-/** A value slider (touch) that a controller moves with Left / Right in steps of 1 (hold to repeat). */
 @Composable
 private fun SliderRow(label: String, value: Int, min: Int, max: Int, onValue: (Int) -> Unit) {
     SettingRow(onLeft = { onValue((value - 1).coerceAtLeast(min)) }, onRight = { onValue((value + 1).coerceAtMost(max)) }, onSelect = null) {
@@ -293,7 +279,6 @@ private fun Toggle(label: String, note: String, checked: Boolean, needsRestart: 
         color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
 }
 
-/** One entry of the cloud players' menu list (highlighted when selected; A or a tap opens it). */
 @Composable
 internal fun XboxMenuEntry(title: String, note: String?, focus: FocusRequester? = null, onFocused: () -> Unit = {}, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Steam
+Comment=The Steam client, in a window
+Exec=/usr/local/bin/steamdeck-steam desktop
+Icon=steam
+Terminal=false
+Categories=Game;

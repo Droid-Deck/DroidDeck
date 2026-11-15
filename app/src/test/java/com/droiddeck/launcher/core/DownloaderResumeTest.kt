@@ -6,6 +6,9 @@ import java.net.Socket
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -14,11 +17,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/**
- * A download that was cut off keeps its bytes, and a second call with `resume` asks for the rest
- * with a Range header instead of starting again. The server is a plain socket so the first answer
- * can promise the whole file and then hang up halfway.
- */
 class DownloaderResumeTest {
     private val data = ByteArray(300_000) { (it % 251).toByte() }
     private val cutAt = 100_000
@@ -29,6 +27,9 @@ class DownloaderResumeTest {
     @Volatile private var misbehave = false
     @Volatile private var etag: String? = "\"v1\""
     @Volatile private var corrupt = false
+    @Volatile private var holdAfterFirstChunk = false
+    private var bodyStarted = CountDownLatch(1)
+    private var continueBody = CountDownLatch(1)
 
     @Before fun setUp() {
         dir = Files.createTempDirectory("downloader-resume").toFile()
@@ -37,11 +38,9 @@ class DownloaderResumeTest {
             try {
                 while (!server.isClosed) {
                     val socket = server.accept()
-                    // the client may hang up on a body it refuses; that must not stop the server
                     runCatching { handle(socket) }
                 }
             } catch (_: Exception) {
-                // closed by tearDown
             }
         }.apply { isDaemon = true; start() }
     }
@@ -66,17 +65,22 @@ class DownloaderResumeTest {
         val content = if (corrupt && "/corrupt" in path) ByteArray(data.size) else data
         val from = range?.removePrefix("bytes=")?.substringBefore('-')?.toIntOrNull()
         if (misbehave) {
-            // answers a Range request with a 206 that starts at 0, and serves plain requests whole
             val start = if (from == null) "200 OK" else "206 Partial Content"
             val extra = if (from == null) "" else "Content-Range: bytes 0-${data.size - 1}/${data.size}\r\n"
             out.write("HTTP/1.1 $start\r\n${extra}${validator}Content-Length: ${data.size}\r\nConnection: close\r\n\r\n".toByteArray())
-            out.write(content)
-            out.flush()
+            if (holdAfterFirstChunk) {
+                out.write(content, 0, 1024)
+                out.flush()
+                bodyStarted.countDown()
+                continueBody.await(5, TimeUnit.SECONDS)
+            } else {
+                out.write(content)
+                out.flush()
+            }
         } else if (from == null) {
             out.write("HTTP/1.1 200 OK\r\n${validator}Content-Length: ${data.size}\r\nConnection: close\r\n\r\n".toByteArray())
             out.write(content, 0, cutAt)
             out.flush()
-            // hang up with most of the promised body still unsent
         } else {
             val rest = data.size - from
             out.write(("HTTP/1.1 206 Partial Content\r\nContent-Range: bytes $from-${data.size - 1}/${data.size}\r\n" +
@@ -167,6 +171,47 @@ class DownloaderResumeTest {
         assertEquals(listOf(catalog), DownloadSource.candidates(catalog))
     }
 
+
+    @Test fun cancelStopsTheTransferWithoutTryingAnotherSource() {
+        val first = "http://127.0.0.1:${server.localPort}/first"
+        val second = "http://127.0.0.1:${server.localPort}/second"
+        val target = File(dir, "runtime.tar.zst")
+        misbehave = true
+        val polls = java.util.concurrent.atomic.AtomicInteger()
+        val cancelled = java.util.function.BooleanSupplier { polls.incrementAndGet() > 2 }
+        assertFalse(Downloader.downloadCandidates(first, listOf(first, second), target, true, null, cancelled, null))
+        assertEquals("a cancel must not fall back to the next source", listOf<String?>(null), requests.toList())
+        assertTrue("the transfer stopped early (kept=${target.length()})", target.length() in 1 until data.size)
+    }
+
+    @Test fun cancellationDisconnectsAStalledTransfer() {
+        val url = "http://127.0.0.1:${server.localPort}/first"
+        val target = File(dir, "runtime.tar.zst")
+        misbehave = true
+        holdAfterFirstChunk = true
+        val cancellation = Downloader.Cancellation()
+        val executor = Executors.newSingleThreadExecutor()
+        val cancelExecutor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<Boolean> { Downloader.downloadFile(url, target, true, null, cancellation, null) }
+            assertTrue("server sent the first chunk", bodyStarted.await(2, TimeUnit.SECONDS))
+            val cancelled = cancelExecutor.submit { cancellation.cancel() }
+            cancelled.get(10, TimeUnit.SECONDS)
+            assertFalse("cancelled download", result.get(10, TimeUnit.SECONDS))
+            assertEquals(listOf<String?>(null), requests.toList())
+        } finally {
+            continueBody.countDown()
+            executor.shutdownNow()
+            cancelExecutor.shutdownNow()
+        }
+    }
+
+    @Test fun aCancelBeforeTheFirstRequestSendsNothing() {
+        val url = "http://127.0.0.1:${server.localPort}/runtime.tar.zst"
+        val target = File(dir, "runtime.tar.zst")
+        assertFalse(Downloader.downloadFile(url, target, true, null, { true }, null))
+        assertEquals(emptyList<String?>(), requests.toList())
+    }
 
     @Test fun withoutADigestOnlyTheOriginalUrlIsTried() {
         val url = "https://github.com/owner/repo/releases/download/v1/app.AppImage"

@@ -17,56 +17,62 @@ object BattleNet {
 
     const val PROGRAM = "/usr/local/bin/droiddeck-battlenet"
 
-    class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null)
+    class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null, val product: String? = null, val flavor: String? = null)
 
     internal val TITLES = listOf(
-        Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight"),
-        Title("wow_classic", "World of Warcraft Classic", "WoWC", shop = "world-of-warcraft-burning-crusade-classic-anniversary-edition-upgrades"),
-        Title("wow_classic_era", "World of Warcraft Classic", "WoWC"),
-        Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC"),
-        Title("diablo3", "Diablo III", "D3", shop = "diablo-iii"),
+        Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight", product = "wow", flavor = "_retail_"),
+        Title("wow_classic", "World of Warcraft Classic", "WoWC", shop = "world-of-warcraft-burning-crusade-classic-anniversary-edition-upgrades", product = "wow_classic", flavor = "_classic_"),
+        Title("wow_classic_era", "World of Warcraft Classic", "WoWC", product = "wow_classic_era", flavor = "_classic_era_"),
+        Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC", product = "wow_anniversary", flavor = "_anniversary_"),
+        Title("wow_forever", "World of Warcraft: Forever", "WoWF", shop = "world-of-warcraft-forever", product = "wowf", flavor = "_forever_"),
+        Title("diablo3", "Diablo III", "D3", shop = "diablo-iii", product = "d3"),
         Title("d3cn", "Diablo III", "D3CN", shop = "diablo-iii"),
-        Title("s2", "StarCraft II", "S2", shop = "starcraft-ii"),
-        Title("s1", "StarCraft", "S1", shop = "starcraft-remastered"),
-        Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone"),
-        Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm"),
-        Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch"),
-        Title("w3", "Warcraft III: Reforged", "W3", shop = "warcraft-3-reforged"),
-        Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4"),
-        Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare"),
-        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered"),
-        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS", shop = "call-of-duty-black-ops-cold-war"),
-        Title("fore", "Call of Duty: Vanguard", "FORE", shop = "call-of-duty-vanguard"),
-        Title("auks", "Call of Duty: Modern Warfare II", "AUKS", shop = "call-of-duty-modern-warfare-ii"),
-        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA", 2519060, shop = "call-of-duty-modern-warfare-iii"),
-        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY", 1378990, shop = "crash-bandicoot-4"),
-        Title("osi", "Diablo II: Resurrected", "OSI"),
-        Title("rtro", "Blizzard Arcade Collection", "RTRO", shop = "blizzard-arcade-collection"),
-        Title("anbs", "Diablo Immortal", "ANBS", shop = "diablo-immortal"),
-        Title("fenris", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
-        Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
-        Title("d1", "Diablo", "D1", shop = "diablo"),
-        Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans"),
-        Title("w2", "Warcraft II: Battle.net Edition", "W2", shop = "warcraft-2-battle-net-edition"),
-        Title("w1r", "Warcraft: Remastered", "W1R", shop = "warcraft-1-remastered"),
-        Title("w2r", "Warcraft II: Remastered", "W2R", shop = "warcraft-2-remastered"),
-        Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble"),
-        Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages"),
-        Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves"),
-        Title("arkansas", "The Outer Worlds 2", "ARK", 1449110, shop = "the-outer-worlds-2"),
-        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA", 2545710),
-        Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed"),
+        Title("s2", "StarCraft II", "S2", shop = "starcraft-ii", product = "s2"),
+        Title("s1", "StarCraft", "S1", shop = "starcraft-remastered", product = "s1"),
+        Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone", product = "hsb"),
+        Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm", product = "hero"),
+        Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch", product = "pro"),
+        Title("w3", "Warcraft III: Reforged", "W3", shop = "warcraft-3-reforged", product = "w3"),
+        Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4", product = "viper"),
+        Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare", product = "odin"),
+        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered", product = "lazr"),
+        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS", shop = "call-of-duty-black-ops-cold-war", product = "zeus"),
+        Title("fore", "Call of Duty: Vanguard", "FORE", shop = "call-of-duty-vanguard", product = "fore"),
+        Title("auks", "Call of Duty: Modern Warfare II", "AUKS", shop = "call-of-duty-modern-warfare-ii", product = "auks"),
+        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA", 2519060, shop = "call-of-duty-modern-warfare-iii", product = "pinta"),
+        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY", 1378990, shop = "crash-bandicoot-4", product = "wlby"),
+        Title("osi", "Diablo II: Resurrected", "OSI", product = "osi"),
+        Title("rtro", "Blizzard Arcade Collection", "RTRO", shop = "blizzard-arcade-collection", product = "rtro"),
+        Title("anbs", "Diablo Immortal", "ANBS", shop = "diablo-immortal", product = "anbs"),
+        Title("fenris", "Diablo IV", "Fen", 2344520, shop = "diablo-iv", product = "fenris"),
+        Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv", product = "fenris"),
+        Title("d1", "Diablo", "D1", shop = "diablo", product = "drtl"),
+        Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans", product = "war1"),
+        Title("w2", "Warcraft II: Battle.net Edition", "W2", shop = "warcraft-2-battle-net-edition", product = "w2bn"),
+        Title("w1r", "Warcraft: Remastered", "W1R", shop = "warcraft-1-remastered", product = "w1r"),
+        Title("w2r", "Warcraft II: Remastered", "W2R", shop = "warcraft-2-remastered", product = "w2r"),
+        Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble", product = "gryphon"),
+        Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages", product = "aris"),
+        Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves", product = "scor"),
+        Title("arkansas", "The Outer Worlds 2", "ARK", 1449110, shop = "the-outer-worlds-2", product = "ark"),
+        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA", 2545710, product = "lbra"),
+        Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed", product = "aqua"),
     )
 
-    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
+    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" && it.code != "WoWF" }
+
+    // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
+    private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
 
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
         installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
 
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
+    internal fun artTitle(title: Title) = TITLES.firstOrNull { it.code == title.code } ?: title
+
     private fun coverDir(context: Context, title: Title) =
-        File(context.filesDir, "battlenet-art/${(TITLES.firstOrNull { it.code == title.code } ?: title).uid}")
+        File(context.filesDir, "battlenet-art/${artTitle(title).uid}")
 
     fun cover(context: Context, title: Title): File? = art(context, title).cover
 
@@ -78,7 +84,7 @@ object BattleNet {
         var got = false
         for (title in titles) {
             val dir = coverDir(context, title)
-            val tried = File(dir, ".tried")
+            val tried = File(dir, ".tried-2")
             val wide = File(dir, BLIZZARD)
             val done = File(dir, "p.jpg").isFile && (title.shop == null || wide.isFile)
             if (done || System.currentTimeMillis() - tried.lastModified() < COVER_RETRY_MS) continue
@@ -86,11 +92,15 @@ object BattleNet {
             if (title.steam != null && runCatching { art.download(title.steam.toString(), dir) }.getOrDefault(false)) got = true
             if (title.shop != null && !wide.isFile) {
                 val cover = File(dir, BLIZZARD_COVER).takeUnless { File(dir, "p.jpg").isFile }
-                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.shop, wide, cover) }
-                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) got = true
+                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.code, title.shop, wide, cover) }
+                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) {
+                    got = true
+                    File(dir, OLD_BLIZZARD).delete()
+                    File(dir, OLD_BLIZZARD_COVER).delete()
+                }
             }
             if (!File(dir, "p.jpg").isFile && !File(dir, BLIZZARD_COVER).isFile && key.isNotEmpty()) {
-                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.gameId(key, title.steam, title.name) }.getOrNull()
+                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.exactGameId(key, title.steam, title.name) }.getOrNull()
                 if (id != null && runCatching { com.droiddeck.launcher.frontend.SteamGridDb.download(key, id, dir) }.getOrDefault(false)) got = true
             }
             runCatching { tried.writeText("") ; tried.setLastModified(System.currentTimeMillis()) }
@@ -104,19 +114,21 @@ object BattleNet {
 
     private val NOT_GAMES = setOf("agent", "bna", "battle.net")
 
-    class Game(val uid: String, val name: String, val code: String, val folder: File) {
+    class Game(val uid: String, val name: String, val code: String, val folder: File, val installUid: String = uid) {
         val title: Title get() = title(uid) ?: Title(uid, name, code)
     }
 
     class Art(val cover: File?, val header: File?)
 
-    private const val BLIZZARD = "blizzard.jpg"
-    private const val BLIZZARD_COVER = "p-blizzard.jpg"
+    private const val BLIZZARD = "blizzard-2.jpg"
+    private const val BLIZZARD_COVER = "p-blizzard-2.jpg"
+    private const val OLD_BLIZZARD = "blizzard.jpg"
+    private const val OLD_BLIZZARD_COVER = "p-blizzard.jpg"
 
     fun art(context: Context, title: Title): Art {
         val dir = coverDir(context, title)
         fun first(vararg names: String) = names.map { File(dir, it) }.firstOrNull { it.isFile }
-        return Art(first("p.jpg", BLIZZARD_COVER), first(BLIZZARD, "header.jpg"))
+        return Art(first("p.jpg", BLIZZARD_COVER, OLD_BLIZZARD_COVER), first(BLIZZARD, OLD_BLIZZARD, "header.jpg"))
     }
 
     fun prefix(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/compatdata/$APP_ID")
@@ -155,34 +167,89 @@ object BattleNet {
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
+        CN_UIDS[id]?.let { alias -> TITLES.firstOrNull { it.uid == alias }?.let { return it } }
         val base = id.substringBeforeLast('_', "")
-        return if (base.isNotEmpty() && id.substringAfterLast('_') in LOCALES) TITLES.firstOrNull { it.uid == base } else null
+        if (base.isEmpty() || id.substringAfterLast('_') !in LOCALES) return null
+        return TITLES.firstOrNull { it.uid == base } ?: CN_UIDS[base]?.let { alias -> TITLES.firstOrNull { it.uid == alias } }
+    }
+
+    internal fun titleForProduct(product: String): Title? {
+        val code = product.trim()
+        if (code.isEmpty()) return null
+        return TITLES.firstOrNull { it.product.equals(code, ignoreCase = true) } ?: TITLES.firstOrNull { it.code.equals(code, ignoreCase = true) }
     }
 
     fun games(context: Context): List<Game> {
         val pfx = File(prefix(context), "pfx")
-        val entries = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()) +
-            runCatching { productDbEntries(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrDefault(emptyList())
-        val found = LinkedHashMap<String, Game>()
+        val agent = runCatching { productDbInstalls(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrNull()
+        val entries = installs(
+            runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()),
+            agent?.map { it.uid to it.path },
+        )
+        val products = agent.orEmpty().filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
+        val listed = LinkedHashMap<String, Triple<Title, String, File>>()
         for ((uid, path) in entries) {
-            val title = title(uid)
+            val title = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct)
             if (title == null) {
                 if (uid.lowercase() !in NOT_GAMES) Log.i(TAG, "not listed: $uid (no launch code known)")
                 continue
             }
-            if (title.code in found) continue
+            if (title.code in listed) continue
             val folder = hostFolder(context, path)?.takeIf { it.isDirectory } ?: continue
-            found[title.code] = Game(title.uid, title.name, title.code, folder)
+            listed[title.code] = Triple(title, uid, folder)
         }
-        return found.values.toList()
+        val saved = listed.mapValues { (code, _) -> com.droiddeck.launcher.session.SessionPrefs.battleNetFolder(context, code) }
+        val folders = ownFolders(listed.mapValues { it.value.first to it.value.third }, saved)
+        return listed.map { (code, found) ->
+            val folder = folders.getValue(code)
+            if (saved[code] != folder.path) com.droiddeck.launcher.session.SessionPrefs.setBattleNetFolder(context, code, folder.path)
+            Game(found.first.uid, found.first.name, code, folder, found.second)
+        }
+    }
+
+    internal fun ownFolders(games: Map<String, Pair<Title, File>>, saved: Map<String, String?>): Map<String, File> {
+        val out = HashMap<String, File>()
+        val taken = HashSet<File>()
+        fun options(title: Title, folder: File) = listOfNotNull(folder, title.flavor?.let { File(folder, it) }?.takeIf { it.isDirectory })
+        for ((code, game) in games) {
+            val keep = saved[code]?.let(::File)?.takeIf { it in options(game.first, game.second) && it !in taken } ?: continue
+            out[code] = keep
+            taken.add(keep)
+        }
+        for ((code, game) in games) {
+            if (code in out) continue
+            val pick = options(game.first, game.second).firstOrNull { it !in taken } ?: game.second
+            out[code] = pick
+            taken.add(pick)
+        }
+        return games.keys.associateWith { out.getValue(it) }
+    }
+
+    internal fun installs(registry: List<Pair<String, String>>, agent: List<Pair<String, String>>?): List<Pair<String, String>> {
+        if (agent == null) return registry
+        val tracked = agent.map { it.first.lowercase() }.toSet()
+        return registry.filter { it.first.lowercase() in tracked } + agent
     }
 
     internal fun hostFolder(context: Context, path: String): File? {
-        val drive = Regex("""^([CcZz]):[\\/](.*)$""").matchEntire(path.trim()) ?: return null
+        val drive = Regex("""^([A-Za-z]):[\\/](.*)$""").matchEntire(path.trim()) ?: return null
         val relative = drive.groupValues[2].replace('\\', '/').trim('/')
         if (relative.isEmpty() || relative.split('/').any { it == ".." }) return null
-        return if (drive.groupValues[1].equals("c", ignoreCase = true)) File(prefix(context), "pfx/drive_c/$relative")
-        else com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "/$relative")
+        val letter = drive.groupValues[1].lowercase()
+        if (letter == "c") return File(prefix(context), "pfx/drive_c/$relative")
+        val link = File(prefix(context), "pfx/dosdevices/$letter:").toPath()
+        val mapped = runCatching { java.nio.file.Files.readSymbolicLink(link).toString() }.getOrNull()
+        val target = when {
+            mapped == null -> if (letter == "z") "/" else return null
+            mapped.startsWith("/") -> mapped
+            else -> {
+                val rootfs = LinuxRuntime.rootDir(context).toPath().toAbsolutePath().normalize()
+                val resolved = link.toAbsolutePath().parent.resolve(mapped).normalize()
+                if (!resolved.startsWith(rootfs)) return null
+                "/" + rootfs.relativize(resolved).joinToString("/")
+            }
+        }.trimEnd('/')
+        return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
 
     private val KEY = Regex("""^\[(.+)\](?:\s+\d+)?\s*$""")
@@ -242,19 +309,24 @@ object BattleNet {
         return out.toString()
     }
 
-    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>> {
-        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrDefault(emptyList()).filter { it.first == 1 }
-        return installs.mapNotNull { (_, start, end) ->
+    internal class AgentInstall(val uid: String, val path: String, val product: String)
+
+    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>>? = productDbInstalls(bytes)?.map { it.uid to it.path }
+
+    internal fun productDbInstalls(bytes: ByteArray): List<AgentInstall>? {
+        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 }?.takeIf { it.isNotEmpty() } ?: return null
+        return installs.map { (_, start, end) ->
             runCatching {
                 val install = fields(bytes, start, end)
                 val uid = install.firstOrNull { it.first == 1 }?.let { String(bytes, it.second, it.third - it.second) }
+                val product = install.firstOrNull { it.first == 2 }?.let { String(bytes, it.second, it.third - it.second) }.orEmpty()
                 val path = install.firstOrNull { it.first == 3 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { String(bytes, it.second, it.third - it.second) }
                 val installed = install.firstOrNull { it.first == 4 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { s -> varints(bytes, s.second, s.third)[1] }
-                if (uid.isNullOrEmpty() || path.isNullOrEmpty() || installed == 0L) null else uid to path
-            }.getOrNull()
-        }
+                if (uid.isNullOrEmpty() || path.isNullOrEmpty() || installed == 0L) null else AgentInstall(uid, path, product)
+            }.getOrElse { return null }
+        }.filterNotNull()
     }
 
     private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> = walk(bytes, from, to) { _, _ -> }
@@ -302,7 +374,7 @@ object BattleNet {
         val guestPrefix = added.guestPath(context, prefix(context)) ?: return null
         val crc = java.util.zip.CRC32().apply { update("\"$guestExe\"${game.name}".toByteArray()) }.value
         val appId = com.droiddeck.launcher.session.SessionPrefs.addedGameAppId(context, game.folder.path, crc or 0x80000000L)
-        val exe = added.candidates(game.folder).firstOrNull() ?: client
+        val exe = added.candidates(game.folder, reuse = true).firstOrNull() ?: client
         return com.droiddeck.launcher.frontend.AddedGames.Game(
             game.folder, game.name, exe, guestExe, guestDir, appId, (appId shl 32) or 0x02000000L, listOf(exe),
             source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = game.uid,
@@ -352,6 +424,8 @@ object BattleNet {
         if (ComponentsManager.gameComponents(context, scope)["fex"] != file) {
             ComponentsManager.setGameComponent(context, scope, "fex", file)
             Log.i(TAG, "FEX for the Battle.net prefix: $file")
+        } else if (ComponentsManager.republish(context)) {
+            Log.i(TAG, "FEX for the Battle.net prefix: $file, now in every installed Proton")
         }
         return file
     }

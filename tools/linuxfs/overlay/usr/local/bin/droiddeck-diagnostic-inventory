@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import time
+
+
+PREFIX = "DROIDDECK_PROCESS_TRACE "
+SCHEMA = 1
+DEFAULT_INTERVAL_MS = 5_000
+DEFAULT_DURATION_MS = 86_400_000
+DEFAULT_MAX_RECORDS = 512
+HEARTBEAT_MS = 300_000
+MAX_PROCESSES = 256
+MAX_MAP_BYTES = 8 * 1024 * 1024
+MAX_MAP_LINES = 65_536
+MAX_LIBRARIES = 128
+MAX_CMDLINE_BYTES = 16 * 1024
+MAX_ENUMERATED_PROCESSES = 4_096
+MAX_CHILDREN_BYTES = 64 * 1024
+SAFE_LIBRARY = re.compile(r"[A-Za-z0-9._+-]{1,128}")
+WINDOWS_GRAPHICS_LIBRARIES = {
+    "d3d8.dll", "d3d9.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll",
+    "d3d11.dll", "d3d12.dll", "dxgi.dll", "vulkan-1.dll",
+}
+KNOWN_GRAPHICS_SONAMES = {
+    "libvulkan.so", "libvulkan_freedreno.so", "libvulkan_panfrost.so", "libvulkan_lvp.so",
+    "libvulkan_virtio.so", "libvulkan_dzn.so", "libvulkan_broadcom.so",
+    "libEGL.so", "libEGL_mesa.so", "libGLESv1_CM.so", "libGLESv2.so", "libGLESv3.so",
+    "libGL.so", "libGLX.so", "libGLX_mesa.so", "libgbm.so", "libwayland-client.so",
+    "libX11.so", "libX11-xcb.so", "libdrm.so", "libdrm_amdgpu.so", "libdrm_freedreno.so",
+    "libdrm_intel.so", "libdrm_nouveau.so", "libdrm_radeon.so", "libxcb.so", "libxcb-dri2.so",
+    "libxcb-dri3.so", "libxcb-glx.so", "libxcb-present.so", "libxcb-randr.so", "libxcb-render.so",
+    "libxcb-shm.so", "libxcb-sync.so", "libxcb-xfixes.so", "libhybris-vulkan-icd.so",
+    "libVkLayer_hybris_compat.so", "libVkLayer_DROIDDECK_placed_memory.so",
+    "libVkLayer_KHRONOS_validation.so", "libVkLayer_FROG_gamescope_wsi_aarch64.so",
+    "libVkLayer_MESA_device_select.so", "libVkLayer_MESA_overlay.so", "libvkd3d.so",
+    "libvkd3d-shader.so", "libvkd3d-utils.so",
+}
+
+
+def emit(payload, output=sys.stdout):
+    output.write(PREFIX + json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    output.flush()
+
+
+def process_stat(path):
+    text = path.read_text(errors="replace")
+    end = text.rfind(") ")
+    if end < 0:
+        raise ValueError("invalid process stat")
+    fields = text[end + 2:].split()
+    if len(fields) < 20:
+        raise ValueError("short process stat")
+    return int(fields[1]), fields[19]
+
+
+def bounded_bytes(path, limit):
+    with path.open("rb") as source:
+        return source.read(limit)
+
+
+def process_role(comm, cmdline):
+    probe = (comm + "\0" + cmdline.decode("utf-8", "replace")).lower()
+    if "steamwebhelper" in probe:
+        return "steam-webhelper"
+    if "gamescope" in probe:
+        return "gamescope"
+    if "xwayland" in probe:
+        return "xwayland"
+    if "mangoapp" in probe:
+        return "mangoapp"
+    if "pressure-vessel" in probe or "steam-runtime" in probe:
+        return "steam-runtime"
+    if "steamrtarm64/steam" in probe or "steamrt64/steam" in probe or comm.lower() == "steam":
+        return "steam-client"
+    if "fexinterpreter" in probe or comm.lower() == "fex":
+        return "fex"
+    if "wineserver" in probe:
+        return "wineserver"
+    if any(name in probe for name in ("wine64", "wine-preloader", "/wine ")):
+        return "wine"
+    if "pipewire" in probe or "pulseaudio" in probe:
+        return "audio-server"
+    if "dbus-daemon" in probe:
+        return "dbus"
+    if "droiddeck-session" in probe:
+        return "session"
+    return "game-or-helper"
+
+
+def is_graphics_library(name):
+    lower = name.lower()
+    return (
+        lower in WINDOWS_GRAPHICS_LIBRARIES or
+        lower.startswith(("libvulkan", "libvklayer", "vulkan.", "libegl", "libgles", "libglx",
+                          "libgl.so", "libgbm", "libdrm", "libwayland", "libxcb", "libx11")) or
+        "vkd3d" in lower or "dxvk" in lower or "zink" in lower or "mangohud" in lower
+    )
+
+
+def origin_class(path):
+    lower = path.lower()
+    if lower.startswith("/vendor/"):
+        return "android-vendor"
+    if lower.startswith(("/system/", "/apex/")):
+        return "android-system"
+    if "/files/components/" in lower or "/files/system_vulkan/" in lower:
+        return "droiddeck-component"
+    if "/steamapps/common/" in lower:
+        return "steam-tool"
+    if lower.startswith(("/usr/", "/lib/", "/opt/")):
+        return "guest-runtime"
+    if lower.startswith("/tmp/"):
+        return "temporary"
+    return "other"
+
+
+def library_identity(name, origin):
+    if origin in {"android-vendor", "android-system"}:
+        return name
+    base = name
+    while True:
+        head, separator, tail = base.rpartition(".")
+        if not separator or not tail.isdigit():
+            break
+        base = head
+    if name.lower() in WINDOWS_GRAPHICS_LIBRARIES or base in KNOWN_GRAPHICS_SONAMES:
+        return name
+    return "sha256:" + hashlib.sha256(name.encode()).hexdigest()[:16]
+
+
+def graphics_libraries(maps_path):
+    libraries = set()
+    total = 0
+    lines = 0
+    with maps_path.open("rb") as source:
+        while lines < MAX_MAP_LINES and total < MAX_MAP_BYTES:
+            raw = source.readline(min(64 * 1024, MAX_MAP_BYTES - total + 1))
+            if not raw:
+                break
+            total += len(raw)
+            lines += 1
+            if total > MAX_MAP_BYTES:
+                return libraries, "capped"
+            parts = raw.decode("utf-8", "replace").rstrip("\n").split(None, 5)
+            if len(parts) < 6 or not parts[5].startswith("/"):
+                continue
+            mapped = parts[5].removesuffix(" (deleted)")
+            name = os.path.basename(mapped)
+            if SAFE_LIBRARY.fullmatch(name) and is_graphics_library(name):
+                origin = origin_class(mapped)
+                libraries.add((library_identity(name, origin), origin))
+                if len(libraries) >= MAX_LIBRARIES:
+                    return libraries, "capped"
+    return libraries, "readable"
+
+
+class Collector:
+    def __init__(self, proc_root, root_pid):
+        self.proc_root = Path(proc_root)
+        self.root_pid = int(root_pid)
+        self.known = {}
+        self.tokens = {}
+        self.next_token = 1
+        self.self_pid = os.getpid()
+        self.root_identity = None
+        self.last_maps_state = None
+        self.last_provider_error = None
+
+    def _scan_fallback(self, result):
+        capped = False
+        try:
+            entries = self.proc_root.iterdir()
+        except OSError:
+            return capped, "proc-unavailable"
+        examined = 0
+        for entry in entries:
+            if not entry.name.isdigit():
+                continue
+            examined += 1
+            if examined > MAX_ENUMERATED_PROCESSES:
+                capped = True
+                break
+            pid = int(entry.name)
+            if pid == self.self_pid or pid in result:
+                continue
+            try:
+                result[pid] = process_stat(entry / "stat")
+            except (OSError, ValueError):
+                continue
+        return capped, None
+
+    def _stats(self):
+        result = {}
+        capped = False
+        try:
+            ppid, start = process_stat(self.proc_root / str(self.root_pid) / "stat")
+            if self.root_pid != self.self_pid:
+                result[self.root_pid] = (ppid, start)
+        except (OSError, ValueError):
+            return result, capped, "proc-unavailable", "children", True
+        queue = [self.root_pid]
+        fallback = False
+        while queue and len(result) < MAX_PROCESSES:
+            parent = queue.pop(0)
+            try:
+                raw = bounded_bytes(
+                    self.proc_root / str(parent) / "task" / str(parent) / "children", MAX_CHILDREN_BYTES + 1,
+                )
+            except OSError:
+                fallback = True
+                continue
+            if len(raw) > MAX_CHILDREN_BYTES:
+                capped = True
+                fallback = True
+                continue
+            for value in raw.split():
+                if not value.isdigit():
+                    continue
+                pid = int(value)
+                if pid == self.self_pid or pid in result:
+                    continue
+                if len(result) >= MAX_PROCESSES:
+                    capped = True
+                    break
+                try:
+                    identity = process_stat(self.proc_root / str(pid) / "stat")
+                except (OSError, ValueError):
+                    continue
+                if identity[0] != parent:
+                    continue
+                result[pid] = identity
+                queue.append(pid)
+        if queue:
+            capped = True
+        if fallback:
+            fallback_capped, error = self._scan_fallback(result)
+            capped = capped or fallback_capped
+            return result, capped, error, "children+scan-fallback", True
+        return result, capped, None, "children", capped
+
+    def scan(self):
+        stats, enumeration_capped, provider_error, scope_method, scope_incomplete = self._stats()
+        descendants = set()
+        root = stats.get(self.root_pid)
+        if self.root_identity is None and root is not None:
+            self.root_identity = root
+        if root is not None and self.root_identity != root:
+            provider_error = "root-reused"
+        elif root is not None:
+            descendants.add(self.root_pid)
+            changed = True
+            while changed and len(descendants) < MAX_PROCESSES:
+                changed = False
+                for pid, (ppid, _) in stats.items():
+                    if pid not in descendants and ppid in descendants:
+                        descendants.add(pid)
+                        changed = True
+                        if len(descendants) >= MAX_PROCESSES:
+                            break
+        if provider_error is None and root is None:
+            provider_error = "root-unavailable"
+        scope_capped = len(descendants) >= MAX_PROCESSES or enumeration_capped
+        current = {}
+        maps_state = {"readable": 0, "unavailable": 0, "capped": 0}
+        for pid in sorted(descendants):
+            process = self.proc_root / str(pid)
+            try:
+                expected = stats[pid]
+                if process_stat(process / "stat") != expected:
+                    continue
+                ppid, start = expected
+                comm = (process / "comm").read_text(errors="replace")[:128].strip()
+                cmdline = bounded_bytes(process / "cmdline", MAX_CMDLINE_BYTES)
+            except (OSError, ValueError):
+                continue
+            key = (pid, start)
+            try:
+                libraries, state = graphics_libraries(process / "maps")
+            except (OSError, ValueError):
+                libraries, state = set(), "unavailable"
+            maps_state[state] = maps_state.get(state, 0) + 1
+            current[key] = {
+                "ppid": ppid,
+                "role": process_role(comm, cmdline),
+                "libraries": libraries,
+                "identity": expected,
+                "mapState": state,
+            }
+        stable = {}
+        for key, process in current.items():
+            pid = key[0]
+            try:
+                if process_stat(self.proc_root / str(pid) / "stat") != process["identity"]:
+                    continue
+            except (OSError, ValueError):
+                continue
+            stable[key] = process
+        final = {}
+        valid_pids = {self.root_pid} if any(key[0] == self.root_pid for key in stable) else set()
+        changed = True
+        while changed:
+            changed = False
+            for key, process in stable.items():
+                pid = key[0]
+                if key not in final and (pid == self.root_pid or process["ppid"] in valid_pids):
+                    final[key] = process
+                    valid_pids.add(pid)
+                    changed = True
+        current = final
+        try:
+            root_final = process_stat(self.proc_root / str(self.root_pid) / "stat")
+        except (OSError, ValueError):
+            root_final = None
+        if root_final is None:
+            if provider_error is None:
+                provider_error = "root-unavailable"
+            current = {}
+        elif self.root_identity != root_final:
+            provider_error = "root-reused"
+            current = {}
+        maps_state = {"readable": 0, "unavailable": 0, "capped": 0}
+        for process in current.values():
+            state = process["mapState"]
+            maps_state[state] = maps_state.get(state, 0) + 1
+        started = sorted(set(current) - set(self.known))
+        exited = sorted(set(self.known) - set(current))
+        roles_changed = any(
+            key in self.known and current[key]["role"] != self.known[key]["role"] for key in current
+        )
+        for key in started:
+            self.tokens[key] = self.next_token
+            self.next_token += 1
+        state_changed = maps_state != self.last_maps_state or provider_error != self.last_provider_error
+        payload = self._snapshot(
+            current, started, exited, maps_state, scope_capped, provider_error, scope_method, scope_incomplete,
+        )
+        for key in exited:
+            self.tokens.pop(key, None)
+        self.known = current
+        self.last_maps_state = maps_state
+        self.last_provider_error = provider_error
+        return payload, bool(started or exited or roles_changed or payload["librariesChanged"] or state_changed)
+
+    def _snapshot(self, current, started, exited, maps_state, scope_capped, provider_error,
+                  scope_method, scope_incomplete):
+        previous_libraries = {item for process in self.known.values() for item in process["libraries"]}
+        libraries = {item for process in current.values() for item in process["libraries"]}
+        role_counts = {}
+        for process in current.values():
+            role = process["role"]
+            role_counts[role] = role_counts.get(role, 0) + 1
+        started_rows = [{"token": self.tokens[key], "role": current[key]["role"]} for key in started[:32]]
+        exited_rows = [{"token": self.tokens.get(key, 0), "role": self.known[key]["role"]} for key in exited[:32]]
+        library_rows = [{"name": name, "origin": origin} for name, origin in sorted(libraries)[:MAX_LIBRARIES]]
+        return {
+            "schema": SCHEMA,
+            "event": "snapshot",
+            "scope": "root-descendants",
+            "scopeMethod": scope_method,
+            "scopeIncomplete": scope_incomplete,
+            "procView": "guest-visible",
+            "alive": len(current),
+            "roles": role_counts,
+            "started": started_rows,
+            "startedOmitted": max(0, len(started) - len(started_rows)),
+            "exited": exited_rows,
+            "exitedOmitted": max(0, len(exited) - len(exited_rows)),
+            "libraries": library_rows,
+            "librariesOmitted": max(0, len(libraries) - len(library_rows)),
+            "librariesChanged": libraries != previous_libraries,
+            "maps": maps_state,
+            "scopeCapped": scope_capped,
+            "providerStatus": provider_error or "available",
+        }
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--watch", action="store_true")
+    parser.add_argument("--root-pid", type=int, default=os.getppid())
+    parser.add_argument("--proc-root", default="/proc")
+    parser.add_argument("--interval-ms", type=int, default=DEFAULT_INTERVAL_MS)
+    parser.add_argument("--duration-ms", type=int, default=DEFAULT_DURATION_MS)
+    parser.add_argument("--max-records", type=int, default=DEFAULT_MAX_RECORDS)
+    args = parser.parse_args(argv)
+    if args.once == args.watch:
+        parser.error("choose exactly one of --once or --watch")
+    if args.root_pid <= 0:
+        parser.error("--root-pid must be positive")
+    args.interval_ms = min(60_000, max(250, args.interval_ms))
+    args.duration_ms = min(DEFAULT_DURATION_MS, max(0, args.duration_ms))
+    args.max_records = min(1_024, max(3, args.max_records))
+    return args
+
+
+def main(argv=None, environ=None, output=sys.stdout):
+    environ = os.environ if environ is None else environ
+    if environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") != "1":
+        return 0
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    collector = Collector(args.proc_root, args.root_pid)
+    emit({
+        "schema": SCHEMA,
+        "event": "provider",
+        "mode": "once" if args.once else "watch",
+        "intervalMs": args.interval_ms,
+        "durationMs": 0 if args.once else args.duration_ms,
+        "maxRecords": args.max_records,
+        "scope": "root-descendants",
+        "procView": "guest-visible",
+    }, output)
+    records = 1
+    started = time.monotonic()
+    last_heartbeat = started
+    ended_normally = False
+    while records < args.max_records - 1:
+        payload, changed = collector.scan()
+        now = time.monotonic()
+        if changed or records == 1 or (now - last_heartbeat) * 1000 >= HEARTBEAT_MS:
+            if not changed and records > 1:
+                payload["event"] = "heartbeat"
+                payload.pop("libraries", None)
+                payload["librariesUnchanged"] = True
+            payload["elapsedMs"] = int((now - started) * 1000)
+            emit(payload, output)
+            records += 1
+            last_heartbeat = now
+        if args.once or payload["providerStatus"] in {"root-unavailable", "root-reused"} or \
+                (now - started) * 1000 >= args.duration_ms:
+            ended_normally = True
+            break
+        time.sleep(args.interval_ms / 1000)
+    if not ended_normally:
+        emit({"schema": SCHEMA, "event": "limit", "reason": "max-records"}, output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

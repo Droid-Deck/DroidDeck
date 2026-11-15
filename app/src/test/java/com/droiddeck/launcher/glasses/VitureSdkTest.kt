@@ -71,8 +71,8 @@ class VitureSdkTest {
         val s = kotlin.math.sin(Math.PI / 12).toFloat()
         val c = kotlin.math.cos(Math.PI / 12).toFloat()
         for ((axis, expected) in listOf(
-            2 to floatArrayOf(-0.5f, 0f, -0.8660254f), // Observed left turn: positive Y.
-            1 to floatArrayOf(0f, 0.5f, -0.8660254f),  // Observed upward look: positive X.
+            2 to floatArrayOf(-0.5f, 0f, -0.8660254f),
+            1 to floatArrayOf(0f, 0.5f, -0.8660254f),
             3 to floatArrayOf(-0.5f, 0.8660254f, 0f),
         )) {
             val q = floatArrayOf(c, 0f, 0f, 0f).apply { this[axis] = s }
@@ -84,7 +84,6 @@ class VitureSdkTest {
 
     @Test fun ultraOpenGlAxesMatchExistingGlassesHeadTracker() {
         val a = sqrt(0.5f)
-        // OpenGL Y yaw maps to NWU Z; OpenGL X pitch maps to negative NWU Y.
         assertArrayEquals(floatArrayOf(0f, 0f, a, a),
             VitureSdkPose.toGlasses(floatArrayOf(a, 0f, a, 0f), true), 0.00001f)
         assertArrayEquals(floatArrayOf(0f, -a, 0f, a),

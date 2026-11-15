@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -128,7 +130,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
-        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
         background = {
             when {
                 games.isEmpty() -> EmptyLibrary(
@@ -141,12 +143,22 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
-            Row(
+            val runtimeStatus: @Composable () -> Unit = {
+                if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
+                    IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
+            }
+            if (narrow) Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
+                Wordmark(30.dp)
+                runtimeStatus()
+            } else Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
-                if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                runtimeStatus()
             }
         },
         button = { click ->
@@ -156,11 +168,17 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     )
 }
 
+internal fun Modifier.overhang(by: androidx.compose.ui.unit.Dp = 4.dp): Modifier = layout { measurable, constraints ->
+    val e = by.roundToPx()
+    val placeable = measurable.measure(Constraints.fixed(constraints.maxWidth + e * 2, constraints.maxHeight + e * 2))
+    layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(-e, -e) }
+}
+
 @Composable
 internal fun WallFade() {
     val colors = MaterialTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().background(
+        Modifier.fillMaxSize().overhang().background(
             Brush.horizontalGradient(
                 0f to colors.background.copy(alpha = 0.97f),
                 0.34f to colors.background.copy(alpha = 0.86f),
@@ -169,7 +187,7 @@ internal fun WallFade() {
             ),
         ),
     )
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+    Box(Modifier.fillMaxSize().overhang().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
 }
 
 @Composable

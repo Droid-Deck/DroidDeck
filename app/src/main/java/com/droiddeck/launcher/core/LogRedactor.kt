@@ -1,21 +1,58 @@
 package com.droiddeck.launcher.core
 
 object LogRedactor {
-    private val EMAIL = Regex("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}")
-    private val HIDL_SHARED_LIBRARY = Regex(
-        "(?:android\\.(?:hardware|frameworks|hidl|system)|vendor\\.[A-Za-z0-9_]+\\.hardware)" +
-            "(?:\\.[A-Za-z0-9_]+)+@[0-9]+\\.[0-9]+(?:-[A-Za-z0-9_]+)*\\.so"
-    )
-    private val hidlMatcher = object : ThreadLocal<java.util.regex.Matcher>() {
-        override fun initialValue(): java.util.regex.Matcher = HIDL_SHARED_LIBRARY.toPattern().matcher("")
+    internal const val MAX_LINE_LENGTH = 64 * 1024
+    internal const val OVERSIZED_LINE = "<oversized log line withheld>"
+
+    private data class MatcherKey(val pattern: String, val options: Set<RegexOption>)
+
+    private class MatcherCache : LinkedHashMap<MatcherKey, java.util.regex.Matcher>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<MatcherKey, java.util.regex.Matcher>?): Boolean =
+            size > 32
     }
 
-    private fun isHidlLoaderDiagnostic(input: String, match: MatchResult): Boolean {
-        val matcher = hidlMatcher.get()!!
-        val isLibrary = try { matcher.reset(match.value).matches() } finally { matcher.reset("") }
-        if (!isLibrary) return false
-        val start = match.range.first
-        val end = match.range.last + 1
+    private val matchers = object : ThreadLocal<MatcherCache>() {
+        override fun initialValue(): MatcherCache = MatcherCache()
+    }
+
+    private fun <T> withMatcher(
+        regex: Regex,
+        input: CharSequence,
+        action: (java.util.regex.Matcher) -> T,
+    ): T {
+        val key = MatcherKey(regex.pattern, regex.options)
+        val matcher = matchers.get()!!.getOrPut(key) { regex.toPattern().matcher("") }
+        return try {
+            action(matcher.reset(input))
+        } finally {
+            matcher.reset("")
+        }
+    }
+
+    private fun replaceMatches(input: String, regex: Regex, replacement: String): String =
+        replaceMatches(input, regex) { replacement }
+
+    private fun replaceMatches(
+        input: String,
+        regex: Regex,
+        replacement: (java.util.regex.Matcher) -> String,
+    ): String = withMatcher(regex, input) { matcher ->
+        if (!matcher.find()) return@withMatcher input
+        val out = StringBuffer(input.length)
+        do {
+            matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(replacement(matcher)))
+        } while (matcher.find())
+        matcher.appendTail(out)
+        out.toString()
+    }
+
+    private fun matchesEntire(input: String, regex: Regex): Boolean =
+        withMatcher(regex, input) { it.matches() }
+
+    private fun isHidlLoaderDiagnostic(input: String, match: java.util.regex.Matcher): Boolean {
+        if (!matchesEntire(match.group(), HIDL_SHARED_LIBRARY)) return false
+        val start = match.start()
+        val end = match.end()
         val prefix = "library \""
         val suffix = "\" not found"
         val earliestQuote = (start - 4096).coerceAtLeast(0)
@@ -38,6 +75,12 @@ object LogRedactor {
             (prefixStart == 0 || !(input[prefixStart - 1].isLetterOrDigit() || input[prefixStart - 1] == '_')) &&
             (suffixEnd == input.length || !(input[suffixEnd].isLetterOrDigit() || input[suffixEnd] == '_'))
     }
+
+    private val EMAIL = Regex("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}")
+    private val HIDL_SHARED_LIBRARY = Regex(
+        "(?:android\\.(?:hardware|frameworks|hidl|system)|vendor\\.[A-Za-z0-9_]+\\.hardware)" +
+            "(?:\\.[A-Za-z0-9_]+)+@[0-9]+\\.[0-9]+(?:-[A-Za-z0-9_]+)*\\.so"
+    )
 
     private val JWT_LABELLED = Regex("(?i)(\\bJWT[\\s=:]+)(\\d{8,})")
     private val JWT_BASE64 = Regex("ey[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}")
@@ -88,42 +131,81 @@ object LogRedactor {
     @Volatile
     private var accounts: List<Learned> = emptyList()
 
-    fun learnAccounts(vararg loginUsers: java.io.File) {
+    internal const val MAX_LEARN_INPUT_BYTES = 2 * 1024 * 1024
+    private const val MAX_LEARNED_ACCOUNTS = 2048
+    private const val MAX_LEARNED_ADDRESSES = 1024
+    private const val MAX_ACCOUNT_LENGTH = 256
+
+    private fun boundedText(file: java.io.File): String? = try {
+        file.inputStream().buffered().use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            var remaining = MAX_LEARN_INPUT_BYTES
+            while (remaining > 0) {
+                val read = input.read(buffer, 0, minOf(buffer.size, remaining))
+                if (read < 0) return out.toString(Charsets.UTF_8.name())
+                if (read == 0) continue
+                out.write(buffer, 0, read)
+                remaining -= read
+            }
+            if (input.read() != -1) null else out.toString(Charsets.UTF_8.name())
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun learnAccounts(vararg loginUsers: java.io.File): Boolean {
         val names = LinkedHashSet<String>()
         val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
         var unread = false
         for (file in loginUsers) {
             if (!file.isFile) continue
-            val text = try { file.readText() } catch (e: Exception) { unread = true; continue }
-            kv.findAll(text).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.forEach { names += it }
+            val text = boundedText(file)
+            if (text == null) {
+                unread = true
+                continue
+            }
+            for (match in kv.findAll(text)) {
+                val name = match.groupValues[2].trim()
+                if (name.length < 3) continue
+                if (name.length > MAX_ACCOUNT_LENGTH || names.size >= MAX_LEARNED_ACCOUNTS) {
+                    unread = true
+                    break
+                }
+                names += name
+            }
         }
         val learned = names.map { name ->
             val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
             Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
         }
-        // A file that could not be read keeps the names learned from it before.
-        accounts = if (unread) (accounts + learned).distinctBy { it.regex.pattern } else learned
+        accounts = if (unread) (learned + accounts).distinctBy { it.regex.pattern }.take(MAX_LEARNED_ACCOUNTS) else learned
+        return !unread
     }
 
-    fun learnFromRuntime(root: java.io.File) {
-        learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
-        learnAccounts(
+    fun learnFromRuntime(root: java.io.File): Boolean {
+        val addressesComplete = learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
+        val accountsComplete = learnAccounts(
             java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"),
             java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf"),
         )
+        matchers.remove()
+        return addressesComplete && accountsComplete
     }
 
     @Volatile
     private var own: List<Learned> = emptyList()
 
-    fun learnOwnAddresses(linkFile: java.io.File) {
+    fun learnOwnAddresses(linkFile: java.io.File): Boolean {
         val found = ArrayList<Learned>()
         try {
-            if (linkFile.isFile) linkFile.forEachLine { line ->
-                val addr = line.trim().takeIf { it.startsWith("addr ") }?.split(Regex("\\s+"))?.getOrNull(1) ?: return@forEachLine
+            val text = if (linkFile.isFile) boundedText(linkFile) ?: return false else ""
+            text.lineSequence().forEach { line ->
+                val addr = line.trim().takeIf { it.startsWith("addr ") }?.split(Regex("\\s+"))?.getOrNull(1) ?: return@forEach
+                if (found.size >= MAX_LEARNED_ADDRESSES) return false
                 when (kind(addr)) {
                     "public IPv6" -> {
-                        val groups = expand6(addr)?.take(4) ?: return@forEachLine
+                        val groups = expand6(addr)?.take(4) ?: return@forEach
                         val prefix = groups.joinToString(":") { g -> "0{0,3}" + Regex.escape(g.trimStart('0').ifEmpty { "0" }) }
                         found += Learned(
                             Regex("(?i)(?<![0-9A-Fa-f:])$prefix(?::[0-9A-Fa-f]{0,4}){1,4}(?:%[A-Za-z0-9_.]+)?"),
@@ -134,9 +216,10 @@ object LogRedactor {
                 }
             }
         } catch (e: Exception) {
-            return
+            return false
         }
         own = found
+        return true
     }
 
     fun kind(address: String): String? {
@@ -178,12 +261,11 @@ object LogRedactor {
     }
 
     fun describeAddresses(text: String): String {
-        var out = IPV6.replace(text) { m -> kind(m.value)?.let { "<$it>" } ?: m.value }
-        out = IPV4.replace(out) { m -> kind(m.value)?.let { "<$it>" } ?: m.value }
+        var out = replaceMatches(text, IPV6) { m -> kind(m.group())?.let { "<$it>" } ?: m.group() }
+        out = replaceMatches(out, IPV4) { m -> kind(m.group())?.let { "<$it>" } ?: m.group() }
         return out
     }
 
-    /** The at-rest rewrite reads a file into memory twice; larger logs are only scrubbed on the way out. */
     const val IN_MEMORY_SCRUB_MAX = 64L * 1024 * 1024
 
     fun isBinary(file: java.io.File): Boolean = try {
@@ -196,31 +278,34 @@ object LogRedactor {
         true
     }
 
-    fun isText(file: java.io.File): Boolean = file.isFile && file.length() < IN_MEMORY_SCRUB_MAX && !isBinary(file)
-
     const val RULES_VERSION = 3
 
     private val LAN_IPV4 = Regex(
         "(?<![\\d.])(?:10\\.\\d{1,3}|192\\.168|172\\.(?:1[6-9]|2\\d|3[01])|169\\.254)\\.\\d{1,3}\\.\\d{1,3}(?!\\.?\\d)"
     )
 
-    fun scrubTo(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
-    }
+    fun scrubTo(
+        src: java.io.File,
+        out: java.io.Writer,
+        shouldStop: () -> Boolean = { false },
+    ): Boolean = scrubLines(src, out, ::redact, shouldStop)
 
     fun redactForShare(line: String): String {
         if (line.isEmpty()) return line
+        if (line.length > MAX_LINE_LENGTH) return OVERSIZED_LINE
         return try {
             val out = SecretScrub.scrub(redact(line), SecretScrub.Urls.KEEP_PATH, "<redacted:token>")
-            LAN_IPV4.replace(out, "<lan-address>")
+            replaceMatches(out, LAN_IPV4, "<lan-address>")
         } catch (t: Throwable) {
             "<redaction failed; line withheld>"
         }
     }
 
-    private const val SHARE_LINE_MAX = 64 * 1024
-
-    fun scrubForShare(src: java.io.File, out: java.io.Writer) {
+    fun scrubForShare(
+        src: java.io.File,
+        out: java.io.Writer,
+        shouldStop: () -> Boolean = { false },
+    ): Boolean {
         src.inputStream().buffered().use { input ->
             input.mark(2)
             val first = input.read()
@@ -228,27 +313,30 @@ object LogRedactor {
             input.reset()
             if ((first == 0xff && second == 0xfe) || (first == 0xfe && second == 0xff)) {
                 out.write("<unsupported encoding; file withheld>\n")
-                return
+                return true
             }
             val decoder = Charsets.UTF_8.newDecoder()
                 .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
                 .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
             java.io.InputStreamReader(input, decoder).use { reader ->
                 val buffer = CharArray(8192)
-                val line = StringBuilder()
-                var withheld = false
+                val line = StringBuilder(4096)
+                var withheld: String? = null
                 var afterCr = false
                 fun emit() {
-                    out.write(if (withheld) "<unsupported or oversized line withheld>" else redactForShare(line.toString()))
+                    out.write(withheld ?: redactForShare(line.toString()))
                     out.write("\n")
                     line.setLength(0)
-                    withheld = false
+                    withheld = null
                 }
                 try {
                     while (true) {
+                        if (shouldStop()) return false
                         val size = reader.read(buffer)
                         if (size < 0) break
+                        if (shouldStop()) return false
                         for (i in 0 until size) {
+                            if (shouldStop()) return false
                             val ch = buffer[i]
                             if (afterCr) {
                                 afterCr = false
@@ -257,23 +345,79 @@ object LogRedactor {
                             if (ch == '\r' || ch == '\n') {
                                 emit()
                                 afterCr = ch == '\r'
-                            } else if (!withheld) {
-                                // Splitting a line can separate a credential from its label.
-                                if (ch == '\u0000' || line.length == SHARE_LINE_MAX) {
-                                    withheld = true
+                            } else if (withheld == null) {
+                                if (ch == '\u0000' || line.length == MAX_LINE_LENGTH) {
+                                    withheld = if (ch == '\u0000') "<unsupported or oversized line withheld>" else OVERSIZED_LINE
                                     line.setLength(0)
-                                } else {
-                                    line.append(ch)
-                                }
+                                } else line.append(ch)
                             }
                         }
                     }
-                    if (withheld || line.isNotEmpty()) emit()
+                    if (withheld != null || line.isNotEmpty()) emit()
                 } catch (_: java.nio.charset.CharacterCodingException) {
                     out.write("<unsupported encoding; file withheld>\n")
                 }
             }
         }
+        return true
+    }
+
+
+    private fun scrubLines(
+        src: java.io.File,
+        out: java.io.Writer,
+        scrub: (String) -> String,
+        shouldStop: () -> Boolean,
+    ): Boolean {
+        src.bufferedReader().use { input ->
+            val chunk = CharArray(8192)
+            val line = StringBuilder(4096)
+            var oversized = false
+            var pendingContent = false
+            var pendingCarriageReturn = false
+
+            fun emit() {
+                out.write(if (oversized) OVERSIZED_LINE else scrub(line.toString()))
+                out.write("\n")
+                line.setLength(0)
+                oversized = false
+                pendingContent = false
+            }
+
+            while (true) {
+                if (shouldStop()) return false
+                val count = input.read(chunk)
+                if (count < 0) break
+                if (shouldStop()) return false
+                for (i in 0 until count) {
+                    val char = chunk[i]
+                    if (pendingCarriageReturn) {
+                        emit()
+                        pendingCarriageReturn = false
+                        if (char == '\n') continue
+                    }
+                    when (char) {
+                        '\r' -> pendingCarriageReturn = true
+                        '\n' -> emit()
+                        else -> {
+                            pendingContent = true
+                            if (!oversized) {
+                                if (line.length < MAX_LINE_LENGTH) line.append(char)
+                                else {
+                                    line.setLength(0)
+                                    oversized = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (pendingCarriageReturn || pendingContent) {
+                if (shouldStop()) return false
+                emit()
+            }
+        }
+        return true
     }
 
     private fun quoted(value: String): String {
@@ -315,45 +459,51 @@ object LogRedactor {
 
     fun redact(line: String): String {
         if (line.isEmpty()) return line
+        if (line.length > MAX_LINE_LENGTH) return OVERSIZED_LINE
         return try {
             val out = Line(line)
-            if (out.has("mac")) out.set(MAC_FIELD.replace(out.text) { "${it.groupValues[1]}<redacted:mac>" })
-            if (out.holds(':', 5) || out.holds('-', 5)) out.set(MAC.replace(out.text, "<redacted:mac>"))
-            if (out.has("serial", "android")) out.set(DEVICE_IDENTIFIER.replace(out.text) {
-                val value = it.groupValues[2]
+            if (out.has("mac")) out.set(replaceMatches(out.text, MAC_FIELD) { "${it.group(1)}<redacted:mac>" })
+            if (out.holds(':', 5) || out.holds('-', 5)) out.set(replaceMatches(out.text, MAC, "<redacted:mac>"))
+            if (out.has("serial", "android")) out.set(replaceMatches(out.text, DEVICE_IDENTIFIER) {
+                val value = it.group(2)
                 val quote = value.first().takeIf { char -> char == '\"' || char == '\'' }?.toString().orEmpty()
-                "${it.groupValues[1]}${quote}<redacted:serial>${quote}"
+                "${it.group(1)}${quote}<redacted:serial>${quote}"
             })
-            if (out.holds('-', 4)) out.set(GUID.replace(out.text, "<redacted:guid>"))
-            if (out.has("jwt")) out.set(JWT_LABELLED.replace(out.text) { "${it.groupValues[1]}<redacted:jwt>" })
-            if ("ey" in out.text) out.set(JWT_BASE64.replace(out.text, "<redacted:jwt>"))
+            if (out.holds('-', 4)) out.set(replaceMatches(out.text, GUID, "<redacted:guid>"))
+            if (out.has("jwt")) out.set(replaceMatches(out.text, JWT_LABELLED) { "${it.group(1)}<redacted:jwt>" })
+            if ("ey" in out.text) out.set(replaceMatches(out.text, JWT_BASE64, "<redacted:jwt>"))
             if (out.has("token", "auth", "ticket", "sessionid", "steamloginsecure", "api", "machine", "pass", "pwd", "secret")) {
-                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>${it.groupValues[2]}" })
+                out.set(replaceMatches(out.text, SECRET_KV) {
+                    val quote = it.group(2).orEmpty()
+                    "${it.group(1)}${quote}<redacted:token>${quote}"
+                })
+
             }
-            if (out.has("guard", "factor", "2fa")) out.set(GUARD_CODE.replace(out.text) { "${it.groupValues[1]}<redacted:code>" })
-            if (out.hasRun(32, ::isHex)) out.set(WEBAPI_KEY.replace(out.text, "<redacted:key>"))
-            if ("76561" in out.text) out.set(STEAMID64.replace(out.text) { "${it.groupValues[1]}********${it.groupValues[3]}" })
-            if ("[U:1:" in out.text) out.set(STEAMID3.replace(out.text) { m ->
-                val id = m.groupValues[1]
+            if (out.has("guard", "factor", "2fa")) out.set(replaceMatches(out.text, GUARD_CODE) { "${it.group(1)}<redacted:code>" })
+            if (out.hasRun(32, ::isHex)) out.set(replaceMatches(out.text, WEBAPI_KEY, "<redacted:key>"))
+            if ("76561" in out.text) out.set(replaceMatches(out.text, STEAMID64) { "${it.group(1)}********${it.group(3)}" })
+            if ("[U:1:" in out.text) out.set(replaceMatches(out.text, STEAMID3) { m ->
+                val id = m.group(1)
                 "[U:1:${if (id.length > 4) "*".repeat(id.length - 4) + id.takeLast(4) else id}]"
             })
-            if (out.has("external")) out.set(EXTERNAL_ADDR.replace(out.text) { "${it.groupValues[1]}<redacted:ip>" })
-            for (r in own) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:ip>"))
-            if (out.has("onloginstatechange")) out.set(LOGIN_STATE.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
-            if ("OnLoginUsersChanged " in out.text) out.set(LOGIN_USERS.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
+            if (out.has("external")) out.set(replaceMatches(out.text, EXTERNAL_ADDR) { "${it.group(1)}<redacted:ip>" })
+            for (r in own) if (r.needs == null || out.has(r.needs)) out.set(replaceMatches(out.text, r.regex, "<redacted:ip>"))
+            if (out.has("onloginstatechange")) out.set(replaceMatches(out.text, LOGIN_STATE) { "${it.group(1)}<redacted:account>" })
+            if ("OnLoginUsersChanged " in out.text) out.set(replaceMatches(out.text, LOGIN_USERS) { "${it.group(1)}<redacted:account>" })
             if (out.has("account", "user")) {
-                out.set(ACCOUNT_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
+                out.set(replaceMatches(out.text, ACCOUNT_KV) { "${it.group(1)}${it.group(2)}${quoted(it.group(3))}" })
             }
-            if (out.has("login")) out.set(LOGIN_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
-            for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:account>"))
-            if ('@' in out.text) out.set(EMAIL.replace(out.text) { m ->
-                m.value.takeIf { isHidlLoaderDiagnostic(out.text, m) } ?: "<redacted:email>"
+            if (out.has("login")) out.set(replaceMatches(out.text, LOGIN_KV) { "${it.group(1)}${it.group(2)}${quoted(it.group(3))}" })
+            for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(replaceMatches(out.text, r.regex, "<redacted:account>"))
+            if ('@' in out.text) out.set(replaceMatches(out.text, EMAIL) { m ->
+                m.group().takeIf { isHidlLoaderDiagnostic(out.text, m) } ?: "<redacted:email>"
+
             })
             if (out.has("jwt", "token", "ticket", "sessionid", "steamloginsecure", "machineauth")) {
-                out.set(RESIDUAL.replace(out.text) { "${it.groupValues[1]}=<redacted:token>" })
+                out.set(replaceMatches(out.text, RESIDUAL) { "${it.group(1)}=<redacted:token>" })
             }
             if (out.hasRun(88) { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '_' || it == '-' }) {
-                out.set(LONG_TOKEN.replace(out.text, "<redacted:token>"))
+                out.set(replaceMatches(out.text, LONG_TOKEN, "<redacted:token>"))
             }
             out.text
         } catch (t: Throwable) {

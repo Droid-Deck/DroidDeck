@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Steam Big Picture
+Comment=The Steam client, full screen with a controller
+Exec=/usr/local/bin/steamdeck-steam bigpicture
+Icon=steam
+Terminal=false
+Categories=Game;

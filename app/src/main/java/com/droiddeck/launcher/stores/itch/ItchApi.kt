@@ -19,6 +19,11 @@ internal object ItchApi {
 
     fun ownedKeys(key: String, page: Int): JSONObject? = get("/profile/owned-keys?page=$page&per_page=500", key)
 
+    fun collections(key: String): JSONArray? = get("/profile/collections", key)?.optJSONArray("collections")
+
+    fun collectionGames(key: String, collectionId: String, page: Int): JSONObject? =
+        get("/collections/$collectionId/collection-games?page=$page", key)
+
     fun uploads(key: String, gameId: String, downloadKeyId: String): JSONArray? =
         get("/games/$gameId/uploads" + keyQuery(downloadKeyId), key)?.optJSONArray("uploads")
 
