@@ -36,15 +36,19 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    private val STORE_SERVICES = mapOf(
+    private val SERVICE_PACKS = mapOf(
         AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
         AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
     )
 
     /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
     fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
 
     fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
+    fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)
 
     private fun ensureStoreService(context: Context, pack: AddonPack) {
         pack.ensure(context) { app ->
@@ -55,7 +59,7 @@ object SessionFiles {
 
     /** Blocks until the store's service pack is installed and staged in [root]; false when it could not be fetched. */
     fun awaitStoreService(context: Context, store: String, root: File): Boolean {
-        val pack = STORE_SERVICES.keys.firstOrNull { it.name == store } ?: return false
+        val pack = SERVICE_PACKS.keys.firstOrNull { it.name == store } ?: return false
         if (!pack.await(context)) return false
         return stageStoreService(context, root, pack, null)
     }
@@ -63,7 +67,7 @@ object SessionFiles {
     @Synchronized
     private fun stageStoreService(context: Context, root: File, pack: AddonPack, ledger: StageLedger?): Boolean {
         val dir = pack.takeIf { it.installed(context) }?.dir(context) ?: return false
-        val base = STORE_SERVICES.getValue(pack)
+        val base = SERVICE_PACKS.getValue(pack)
         var all = true
         for (file in dir.listFiles().orEmpty().filter { it.isFile && it.name != AddonPack.COMPLETE }.sortedBy { it.name }) {
             val relative = "$base/${file.name}"
@@ -78,7 +82,7 @@ object SessionFiles {
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)
             } catch (e: Exception) {
-                Log.w(TAG, "could not stage the ${pack.name} launcher service", e)
+                Log.w(TAG, "could not stage the ${pack.name} pack", e)
             } finally {
                 if (!installed) staged.delete()
             }
@@ -253,7 +257,6 @@ object SessionFiles {
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-            "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
@@ -309,7 +312,7 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
-        for (pack in STORE_SERVICES.keys) stageStoreService(context, root, pack, ledger)
+        for (pack in SERVICE_PACKS.keys) stageStoreService(context, root, pack, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")

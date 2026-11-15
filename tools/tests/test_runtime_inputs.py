@@ -206,6 +206,26 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'rockstar is missing or has a stale'):
             runtime.check_apk(apk, self.root)
 
+    def test_an_apk_carrying_any_windows_executable_is_rejected(self):
+        for name in ('assets/linuxfs/usr/local/lib/new-helper/helper.exe', 'assets/anything/renamed.bin', 'res/raw/x.dll'):
+            with self.subTest(name=name):
+                apk = self.current_apk(self.root / 'windows.apk', {name: b'MZ helper'})
+                with self.assertRaisesRegex(ValueError, 'Windows executables.*' + name):
+                    runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_dirt_stand_in_is_rejected(self):
+        dirt = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-dirt'
+        dirt.mkdir(parents=True)
+        (dirt / 'ws2_32.dll').write_bytes(b'MZ droiddeck-dirt-ws2_32')
+        self.packs()
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-dirt/ws2_32.dll'
+        self.assertIn(name, runtime.outputs(self.root))
+        self.assertEqual('dirt', runtime.PACKED['assets/linuxfs/usr/local/lib/droiddeck-dirt/'])
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ droiddeck-dirt-ws2_32'})
+        with self.assertRaisesRegex(ValueError, 'dirt pack provides'):
+            runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
+
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
