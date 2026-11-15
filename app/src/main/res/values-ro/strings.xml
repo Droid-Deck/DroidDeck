@@ -4144,4 +4144,5 @@
     <string name="hud_metric_hdr">Stare HDR</string>
     <string name="hud_readings_shown">Afișate</string>
     <string name="hud_readings_count">%1$d din %2$d</string>
+    <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
 </resources>
