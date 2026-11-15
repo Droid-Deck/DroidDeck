@@ -76,6 +76,14 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
             }
+            "rockstar-launch" -> runCatching {
+                lastLaunched = Store.ROCKSTAR to request.optString("id")
+                com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
+            }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "rockstar-exited" -> {
+                if (lastLaunched == (Store.ROCKSTAR to request.optString("id"))) lastLaunched = null
+                JSONObject().put("ok", true)
+            }
             "ubisoft-launch" -> {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
@@ -106,6 +114,7 @@ object StoreLaunchRequests {
                 if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
                 else try {
                     app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    com.droiddeck.launcher.session.SessionService.holdForBrowserHandoff(app)
                     Log.i(TAG, "open-url: " + StoreLog.redactUrl(url))
                     JSONObject().put("ok", true)
                 } catch (e: Exception) {

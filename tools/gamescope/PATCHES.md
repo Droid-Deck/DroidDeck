@@ -351,6 +351,14 @@ after 30 moving frames on which the X pointer follows. Any constraint goes relat
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
 
+## 0134 wlserver: a touch presses the emulated click button only once
+
+In the Left, Right and Middle touch click modes every finger pressed the button, but a finger lifting releases it once
+and clears the held flag. wlroots counts repeated presses of one button and sends the release only when the count
+reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
+game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
+earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
 ## 0135 rendervulkan: release Vulkan objects before exit
 
 Ported from JROtto5's ValveSoftware/gamescope#2542. Gamescope's device and output are globals, so their Vulkan-backed

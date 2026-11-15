@@ -57,7 +57,12 @@ class TurnipDriverAutoTest {
             gpu(0, adreno = false) to "system",
             gpu(0) to "turnip25.1.0",
             gpu(650) to "turnip26.3.0-a6xx",
+            gpu(710) to "system",
+            gpu(720) to "system",
+            gpu(722) to "system",
             gpu(730) to "turnip25.1.0",
+            gpu(740) to "turnip25.1.0",
+            gpu(750) to "turnip25.1.0",
             gpu(850) to "turnip-sdk36",
         )) {
             var calls = 0
@@ -94,6 +99,66 @@ class TurnipDriverAutoTest {
         File(dir, "test.so").writeText("")
         SessionPrefs.setAndroidDriver(context, "test-pinned")
         assertEquals("test-pinned", TurnipDriver(context) { error("manual choice must precede detection") }.install())
+    }
+
+    @Test fun autoInstalledLowSevenDisplayDriverFallsBackToSystem() {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.filesDir, "graphics_driver/test-pinned").apply { mkdirs() }
+        File(dir, "meta.json").writeText("""{"libraryName":"test.so"}""")
+        File(dir, "test.so").writeText("")
+        SessionPrefs.setAndroidDriver(context, "test-pinned")
+        SessionPrefs.setGpuAutoInstalled(context, setOf("test-pinned"))
+        assertEquals("system", TurnipDriver(context) { gpu(710) }.autoId())
+    }
+
+
+    private fun pin(library: String): String {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.filesDir, "graphics_driver/test-pinned").apply { mkdirs() }
+        File(dir, "meta.json").writeText("""{"libraryName":"test.so"}""")
+        File(dir, "test.so").writeText(library)
+        SessionPrefs.setAndroidDriver(context, "test-pinned")
+        return "test-pinned"
+    }
+
+    @Test fun aPickedDriverThatNeedsKgslFallsBackToTheSystemLoaderWithoutKgsl() {
+        val context = RuntimeEnvironment.getApplication()
+        pin("\u0000tu_kgsl\u0000/dev/kgsl-3d0\u0000")
+        val driver = TurnipDriver(context) { error("manual choice must precede detection") }
+        assertEquals(null, driver.install())
+        assertEquals("system", driver.effectiveId())
+        assertEquals(false, driver.reachesGpu("test-pinned"))
+    }
+
+    @Test fun aPickedDriverForAnotherKernelInterfaceIsStillLoaded() {
+        val context = RuntimeEnvironment.getApplication()
+        val id = pin("\u0000panvk\u0000/dev/mali0\u0000")
+        val driver = TurnipDriver(context) { error("manual choice must precede detection") }
+        assertEquals(id, driver.install())
+        assertEquals(id, driver.effectiveId())
+    }
+
+    @Test fun kgslDriversStayUsableWhereKgslExists() {
+        val lib = File(RuntimeEnvironment.getApplication().filesDir, "graphics_driver/test-pinned/test.so")
+        lib.parentFile!!.mkdirs()
+        lib.writeText("/dev/kgsl-3d0")
+        assertEquals(false, TurnipDriver.needsMissingKgsl(lib, true))
+        assertEquals(true, TurnipDriver.needsMissingKgsl(lib, false))
+        lib.writeText("/dev/mali0")
+        assertEquals(false, TurnipDriver.needsMissingKgsl(lib, false))
+        assertEquals(false, TurnipDriver.needsMissingKgsl(File(lib.parentFile, "absent.so"), false))
+    }
+
+    @Test fun kgslIsTheKernelInterfaceNotTheVendorVulkanLibrary() {
+        val root = File(RuntimeEnvironment.getApplication().filesDir, "kgsl-probe").apply { mkdirs() }
+        val node = File(root, "dev-kgsl-3d0")
+        val sysfs = File(root, "sys-kgsl-3d0")
+        assertEquals(false, TurnipDriver.kgslPresent(node, sysfs))
+        node.writeText("")
+        assertEquals(true, TurnipDriver.kgslPresent(node, sysfs))
+        node.delete()
+        sysfs.mkdirs()
+        assertEquals(true, TurnipDriver.kgslPresent(node, sysfs))
     }
 
     @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {

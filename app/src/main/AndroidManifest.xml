@@ -18,8 +18,15 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.SECONDARY_HOME" />
         </intent>
+        <intent>
+            <action android:name="org.adw.launcher.THEMES" />
+        </intent>
+        <intent>
+            <action android:name="com.novalauncher.THEME" />
+        </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
@@ -82,21 +89,11 @@
             android:label="@string/steam_wall_label"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:exported="true" />
-        <service android:name=".input.HomeButtonService"
-            android:label="@string/integration_shortcuts_service"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
+        <service android:name=".input.ShortcutsRelay" android:exported="true">
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="com.droiddeck.shortcuts.RELAY" />
             </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
         </service>
-        <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
-            android:process=":shortcuts_sync">
-            <intent-filter>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
         <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
             android:permission="android.permission.DUMP"
@@ -110,6 +107,17 @@
                 <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".DeviceCodeActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.devicecode"
+            android:excludeFromRecents="true"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation"
+            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".PairingGuideActivity"
@@ -134,6 +142,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
                 <data android:scheme="droiddeck" android:host="game" />
+                <data android:scheme="droiddeck" android:host="soundtrack" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
@@ -305,6 +314,10 @@
 
         <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
+            android:name=".update.UpdateWatch"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+        <service
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />
@@ -327,6 +340,14 @@
             android:name=".sync.SyncthingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".playback.SoundtrackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.logs"

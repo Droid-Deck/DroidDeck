@@ -70,6 +70,7 @@ static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
 #define stream_forget_all(...) ((void)0)
 #define pointer_delta(...) ((void)0)
 #define deliver_touch(m) ((void)0)
+#define deliver_pen(m) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
 static void vk_present_set_scale_mode(int mode, int alignment) {

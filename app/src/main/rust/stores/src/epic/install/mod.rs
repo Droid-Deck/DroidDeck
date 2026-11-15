@@ -50,6 +50,9 @@ pub struct Request {
 
 impl Request {
     pub fn from_json(v: &Value) -> Result<Request, String> {
+        if let Some(launcher) = v.get("thirdPartyManagedApp").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()) {
+            return Err(format!("third-party-managed:{launcher}"));
+        }
         let info = v.get("info").and_then(BuildInfo::from_json).ok_or("The manifest could not be fetched")?;
         let game_dir = net::str_of(v, "gameDir");
         if game_dir.is_empty() || !game_dir.starts_with('/') {
