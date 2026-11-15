@@ -7,6 +7,10 @@ on:
         description: Prefix of the signed artifacts to scan, as passed to sign.yml
         type: string
         required: true
+      variant:
+        description: Variant to scan, as listed in tools/release/variants.txt; every variant when omitted
+        type: string
+        default: '*'
       fail_on_detection:
         type: boolean
         default: false
@@ -27,7 +31,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: ${{ inputs.artifact }}-*
+          pattern: ${{ inputs.artifact }}-${{ inputs.variant }}
           merge-multiple: true
           path: scan
 

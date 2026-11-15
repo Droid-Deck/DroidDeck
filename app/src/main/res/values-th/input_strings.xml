@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">โปรไฟล์อินพุต</string>
+    <string name="input_profiles">โปรไฟล์</string>
+    <string name="input_physical">คอนโทรลเลอร์จริง</string>
+    <string name="input_primary">หน้าจอหลัก</string>
+    <string name="input_secondary">หน้าจอรอง</string>
+    <string name="input_native">ดั้งเดิม / Steam Input</string>
+    <string name="input_native_target">ดั้งเดิม: %1$s</string>
+    <string name="input_remap_native">ส่งการควบคุมคอนโทรลเลอร์อื่น</string>
+    <string name="input_disabled">ปิดใช้งาน</string>
+    <string name="input_keys">ปุ่มหรือชุดปุ่ม</string>
+    <string name="input_direction_keys">ปุ่มทิศทาง</string>
+    <string name="input_pointer">เลื่อนตัวชี้</string>
+    <string name="input_pointer_speed">ความเร็วตัวชี้: %1$d</string>
+    <string name="input_scroll">เลื่อน</string>
+    <string name="input_scroll_vertical">เลื่อนแนวตั้ง</string>
+    <string name="input_mouse_left">ปุ่มซ้ายของเมาส์</string>
+    <string name="input_mouse_right">ปุ่มขวาของเมาส์</string>
+    <string name="input_mouse_middle">ปุ่มกลางของเมาส์</string>
+    <string name="input_command_menu">เปิดเมนู DroidDeck</string>
+    <string name="input_command_keyboard">แสดงแป้นพิมพ์</string>
+    <string name="input_command_steam">เปิดเมนู Steam</string>
+    <string name="input_command_qam">เปิดการเข้าถึงด่วนของ Steam</string>
+    <string name="input_remove_element">ลบการควบคุม</string>
+    <string name="input_add_element">เพิ่มการควบคุม</string>
+    <string name="input_extra_keys">ปุ่มเฉพาะอุปกรณ์</string>
+    <string name="input_capture">กำหนดปุ่มจริง</string>
+    <string name="input_capture_confirm">ปล่อยปุ่ม แล้วเลือก แก้ไข ลองอีกครั้ง หรือยกเลิก B หรือย้อนกลับจะยกเลิกหลังปล่อย</string>
+    <string name="input_capture_retry">ลองอีกครั้ง</string>
+    <string name="input_capture_hint">กดปุ่ม รวมถึงปุ่มย้อนกลับที่รายงานเป็นปุ่มคีย์บอร์ด ปุ่มระดับเสียงและปุ่มระบบ Android ถูกสงวนไว้ การกำหนดใช้กับอุปกรณ์นี้เท่านั้น</string>
+    <string name="input_remove_binding">ลบการกำหนด</string>
+    <string name="input_latency">การวินิจฉัยอินพุต</string>
+    <string name="input_measure">บันทึกเวลาการส่งอินพุต</string>
+    <string name="input_read_timing">อ่านค่าที่วัด</string>
+    <string name="input_latency_hint">วัดการส่งจาก Android จนถึงการเผยแพร่ไปยังช่องทางอินพุตที่มีอยู่ ไม่รวมการมาถึงของ Bluetooth การโพลของเกสต์ การเรนเดอร์ และความหน่วงของหน้าจอ การบันทึกปิดอยู่โดยค่าเริ่มต้น</string>
+    <string name="input_normal_binding">ใช้การกำหนดอินพุตปกติ</string>
+</resources>

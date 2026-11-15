@@ -43,11 +43,14 @@ object GameFileSync {
         val storageSetting = SessionPrefs.gameStorage(context)
         val previousStorage = prefs(context).getString("storagePath", null)
         if (storageSetting.isEmpty() && prefs(context).getString("storageSetting", null) == storageSetting && previousStorage != null) {
-            check(File(previousStorage).isDirectory) { context.getString(R.string.game_sync_err_previous_sd) }
+            check(libraryReadable(File(previousStorage))) { context.getString(R.string.game_sync_err_previous_sd) }
         }
-        storage?.let { check(File(it.path).listFiles() != null) { context.getString(R.string.game_sync_err_game_storage) } }
+        storage?.let { check(libraryReadable(File(it.path))) { context.getString(R.string.game_sync_err_game_storage) } }
         AddedGames.roots(context).forEach { check(it.host.listFiles() != null) { context.getString(R.string.game_sync_err_added_games) } }
         GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true))
         prefs(context).edit().putString("storageSetting", storageSetting).putString("storagePath", storage?.path).apply()
     }
+
+    internal fun libraryReadable(dir: File): Boolean =
+        dir.listFiles() != null || (!dir.exists() && dir.parentFile?.isDirectory == true)
 }

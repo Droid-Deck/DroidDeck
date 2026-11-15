@@ -315,8 +315,8 @@ def locate(program, root):
                   os.path.dirname(program), root, "own")
 
 
-def fixed(program, root, appid):
-    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
+def fixed(program, root, appid, compatdata=None):
+    return Target(appid, compatdata or os.path.join(root, "steamapps", "compatdata", str(appid)),
                   os.path.dirname(program), root, "fixed")
 
 
@@ -451,6 +451,7 @@ def arguments(program, args, desktop=None, compatdata=None):
 def main(argv):
     window = False
     prefix = None
+    compatdata = None
     verb = VERB
     game_id = None
     desktop = None
@@ -461,6 +462,8 @@ def main(argv):
             window = True
         elif option == "--prefix" and argv and prefix_id(argv[0]):
             prefix = argv.pop(0)
+        elif option == "--compatdata" and argv and os.path.isabs(argv[0]):
+            compatdata = argv.pop(0)
         elif option == "--verb" and argv and argv[0] in VERBS:
             verb = argv.pop(0)
         elif option == "--game-id" and argv and argv[0].isdigit() and argv[0] != "0":
@@ -484,7 +487,7 @@ def main(argv):
         say("%s is not an app id" % app)
         return 2
     if not argv and app is None:
-        say("usage: droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
+        say("usage: droiddeck-proton-run [--window] [--prefix ID [--compatdata DIR]] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
         return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
     if options is None:
@@ -509,7 +512,7 @@ def main(argv):
         if app is not None and int(app) >= STEAM_APP_LIMIT:
             target = shortcut_target(app, program, start, root)
         elif prefix:
-            target = fixed(program, root, prefix)
+            target = fixed(program, root, prefix, compatdata)
         else:
             target = locate(program, root)
     available = tools(root)

@@ -152,6 +152,13 @@ bl_components() {
   else
     cm_app=""
   fi
+  if [ "$cm_app" = 2929927072 ] && [[ "${SteamAppId:-}" =~ ^[0-9]{1,10}$ ]] && (( 10#$SteamAppId > 0 && 10#$SteamAppId <= 4294967295 )); then
+    cm_app=$((10#$SteamAppId))
+  elif [ "$cm_app" = 2929927072 ] && [[ "${SteamGameId:-}" =~ ^[1-9][0-9]{9,19}$ ]] &&
+       { [ ${#SteamGameId} -lt 20 ] || [[ ! "$SteamGameId" > 18446744073709551615 ]]; } &&
+       (( (10#$SteamGameId & 0xFFFFFFFF) == 0x02000000 && ((10#$SteamGameId >> 32) & 0xFFFFFFFF) != 0 )); then
+    cm_app=$(( (10#$SteamGameId >> 32) & 0xFFFFFFFF ))
+  fi
   if [ -z "$cm_app" ]; then
     echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2
     return 0
@@ -1533,7 +1540,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             auto = followers(state, current)
             known = {app for app in state.get("owned", ()) if isinstance(app, str)} if isinstance(state.get("owned"), list) else set()
             pinned = {app: current[app] for app in set(owned) - known
-                      if current.get(app) in {TOOL, previous} | gone and app not in auto}
+                      if app in current and current.get(app) in {TOOL, previous} | gone and app not in auto}
             if pinned and isinstance(auto, dict):
                 state["auto"] = dict(auto, **pinned)
             state["owned"] = sorted(set(owned), key=app_order)
