@@ -100,7 +100,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
     fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float) {
         checkpoint()
-        elements = OnScreenLayout.editorFrame(layout, displayed)
+        elements = OnScreenLayout.editorFrame(layout.copy(elements = elements), displayed)
         this.aspect = aspect
     }
     fun scaleAll(percent: Int) {
@@ -255,7 +255,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
-            view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
+            view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.aspect = draft.aspect; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
             view.onBeginEdit = draft::beginEdit

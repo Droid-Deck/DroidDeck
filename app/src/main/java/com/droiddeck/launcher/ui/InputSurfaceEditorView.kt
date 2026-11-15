@@ -19,6 +19,8 @@ import kotlin.math.abs
 internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var elements: List<InputSurfaceElement> = emptyList()
         set(value) { field = value; refreshElements(); invalidate() }
+    var aspect = 1f
+        set(value) { field = value; refreshElements(); invalidate() }
     var sourceLayout: SavedInputLayout? = null
         set(value) { field = value; refreshElements(); invalidate() }
     var style = InputSurfaceStyle()
@@ -50,7 +52,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
 
     private fun refreshElements() {
         visibleElements = sourceLayout?.let { layout ->
-            OnScreenLayout.editorElements(context, layout.copy(elements = elements), width, height, elements != layout.elements)
+            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), width, height)
         } ?: elements
         preview.updateCustomLayout(visibleElements)
     }
