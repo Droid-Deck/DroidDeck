@@ -4733,8 +4733,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             screenTapsClick = !onScreenMouseButtonShown()
-            touchpad.clicks = screenTapsClick
-            scrollTouch.clicks = screenTapsClick
+            if (::touchpad.isInitialized) touchpad.clicks = screenTapsClick
+            if (::scrollTouch.isInitialized) scrollTouch.clicks = screenTapsClick
         }
         if (route != touchRoute) {
             Log.i(TAG, "touch route $touchRoute -> $route (mode=$routedTouchMode steamUi=${SessionState.steamUi} scrollLayer=$scrollTouchGesture)")
