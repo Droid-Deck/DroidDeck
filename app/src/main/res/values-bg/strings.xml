@@ -3841,8 +3841,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, клавишът Win и бутонът Начало остават в сесията</string>
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
     <string name="integration_shortcuts_restricted">Блокирано от Android · Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
-    <string name="integration_shortcuts_service">Системни клавиши на DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Задържа Alt+Tab, клавиша Win и бутона Начало в активната сесия на DroidDeck вместо в Android.</string>
     <string name="integration_brightness_needed">Включете „Яркост“ в Настройка → Интеграция със Steam</string>
     <string name="setup_gpu_bridge_off">Mali мост: изкл.</string>
     <string name="setup_gpu_bridge_unusable">%1$s не може да използва моста Mali (нужен е графичен процесор Mali без маршрут през системен драйвер), затова този превключвател няма ефект тук.</string>

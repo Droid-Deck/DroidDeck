@@ -3919,8 +3919,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, клавіша Win і кнопка «Додому» працюють у сеансі</string>
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? «Про додаток» → ⋮ → «Дозволити обмежені налаштування»</string>
     <string name="integration_shortcuts_restricted">Заблоковано Android · «Про додаток» → ⋮ → «Дозволити обмежені налаштування»</string>
-    <string name="integration_shortcuts_service">Системні клавіші DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Залишає Alt+Tab, клавішу Win і кнопку «Додому» в активному сеансі DroidDeck, а не в Android.</string>
     <string name="integration_brightness_needed">Увімкніть «Яскравість» у «Налаштування → Інтеграція зі Steam»</string>
     <string name="setup_gpu_bridge_off">Міст Mali: вимк.</string>
     <string name="setup_gpu_bridge_unusable">%1$s не може використовувати міст Mali (для цього потрібен GPU Mali без маршруту через системний драйвер), тому цей перемикач тут не діє.</string>

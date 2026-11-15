@@ -295,6 +295,16 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
+android.sourceSets.main.java.srcDir(rootProject.file('shortcuts/src/protocol/java'))
+def stageShortcuts = tasks.register('stageShortcuts', Copy) {
+    dependsOn(':shortcuts:assembleRelease')
+    from(project(':shortcuts').layout.buildDirectory.file('outputs/apk/release/shortcuts-release.apk'))
+    into(layout.buildDirectory.dir('shortcutsAssets'))
+    rename { 'shortcuts.apk' }
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('shortcutsAssets'))
+tasks.named('preBuild').configure { dependsOn(stageShortcuts) }
+
 def stageGogNotices = tasks.register('stageGogNotices', Copy) {
     from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
     into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))

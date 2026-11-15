@@ -3841,8 +3841,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-näppäin ja Koti-painike pysyvät istunnossa</string>
     <string name="integration_shortcuts_maybe_restricted">Harmaana Androidissa? Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_restricted">Androidin estämä · Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
-    <string name="integration_shortcuts_service">DroidDeckin järjestelmänäppäimet</string>
-    <string name="integration_shortcuts_service_description">Pitää Alt+Tabin, Win-näppäimen ja Koti-painikkeen aktiivisessa DroidDeck-istunnossa Androidin sijaan.</string>
     <string name="integration_brightness_needed">Ota Kirkkaus käyttöön kohdassa Käyttöönotto → Steam-integraatio</string>
     <string name="setup_gpu_bridge_off">Mali-silta: pois</string>
     <string name="setup_gpu_bridge_unusable">%1$s ei voi käyttää Mali-siltaa (se vaatii Mali-GPU:n, jolla ei ole järjestelmäajurireittiä), joten tällä kytkimellä ei ole vaikutusta tässä.</string>

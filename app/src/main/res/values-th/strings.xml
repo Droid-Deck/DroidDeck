@@ -3812,8 +3812,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน</string>
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
-    <string name="integration_shortcuts_service">ปุ่มระบบของ DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ให้ Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน DroidDeck ที่ใช้งานอยู่แทน Android</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
     <string name="setup_gpu_bridge_off">บริดจ์ Mali: ปิด</string>
     <string name="setup_gpu_bridge_unusable">%1$s ใช้บริดจ์ Mali ไม่ได้ (ต้องการ GPU Mali ที่ยังไม่มีเส้นทางไดรเวอร์ระบบ) สวิตช์นี้จึงไม่มีผลบนเครื่องนี้</string>

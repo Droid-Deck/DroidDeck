@@ -3841,8 +3841,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win कुंजी और होम बटन सत्र में ही रहते हैं</string>
     <string name="integration_shortcuts_maybe_restricted">Android में धूसर है? ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
     <string name="integration_shortcuts_restricted">Android ने ब्लॉक किया · ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
-    <string name="integration_shortcuts_service">DroidDeck सिस्टम कुंजियाँ</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win कुंजी और होम बटन को Android के बजाय सक्रिय DroidDeck सत्र में रखता है।</string>
     <string name="integration_brightness_needed">Setup → Steam इंटीग्रेशन में ब्राइटनेस चालू करें</string>
     <string name="setup_gpu_bridge_off">Mali ब्रिज: बंद</string>
     <string name="setup_gpu_bridge_unusable">%1$s Mali ब्रिज इस्तेमाल नहीं कर सकता (इसे ऐसा Mali GPU चाहिए जिसके पास सिस्टम ड्राइवर का रास्ता न हो), इसलिए यहाँ इस स्विच का कोई असर नहीं है।</string>

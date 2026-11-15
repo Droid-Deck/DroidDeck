@@ -3997,8 +3997,6 @@
     <string name="integration_shortcuts_hint">يبقى Alt+Tab ومفتاح Win وزر الرئيسية داخل الجلسة</string>
     <string name="integration_shortcuts_maybe_restricted">غير متاح في Android؟ معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
     <string name="integration_shortcuts_restricted">محظور من Android · معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
-    <string name="integration_shortcuts_service">مفاتيح نظام DroidDeck</string>
-    <string name="integration_shortcuts_service_description">إبقاء Alt+Tab ومفتاح Win وزر الرئيسية داخل جلسة DroidDeck النشطة بدلاً من Android.</string>
     <string name="integration_brightness_needed">فعّل «السطوع» من الإعداد → تكامل Steam</string>
     <string name="setup_gpu_bridge_off">جسر Mali: متوقف</string>
     <string name="setup_gpu_bridge_unusable">لا يمكن لـ %1$s استخدام جسر Mali (يحتاج إلى معالج رسوميات Mali من دون مسار لبرنامج تشغيل النظام)، لذا ليس لهذا المفتاح أي تأثير هنا.</string>
