@@ -349,4 +349,12 @@ relative motion and touches still place the pointer. gamescope now compares the 
 motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, also when its hint arrives with the game's first warp, and is released
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
-(PEAK). `relative_mouse` 3, sent by DroidDeck for Auto with a physical mouse, treats a constraint for a hidden cursor as held while the latest pointer input came from a mouse. Touch warps clear that state, so mode 3 does not force Direct touch into relative motion. This fixes games that clip a hidden cursor to the screen without recentring it, which stopped camera movement at a screen edge. `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+(PEAK). `relative_mouse` 3, sent by DroidDeck for Auto with a physical mouse, treats a constraint for a hidden cursor as held while the latest pointer input came from a mouse. Touch warps clear that state, so mode 3 does not force Direct touch into relative motion. This fixes games that clip a hidden cursor to the screen without recentring it, which stopped camera movement at a screen edge. `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch. `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+
+## 0134 wlserver: a touch presses the emulated click button only once
+
+In the Left, Right and Middle touch click modes every finger pressed the button, but a finger lifting releases it once
+and clears the held flag. wlroots counts repeated presses of one button and sends the release only when the count
+reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
+game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
+earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.

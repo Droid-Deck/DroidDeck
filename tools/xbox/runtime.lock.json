@@ -14,5 +14,15 @@
     "xgameruntime.dll": "060120e0ec6bccfbab516128315a0658b11d3e316f62a917c653daf1a1dd3e05",
     "winhttp.dll": "81e1da7a731d83fbd24dbe2fa2ecb8f155bd477a9f9b6f4cc3932063cc326c27",
     "wintypes.dll": "7d06083e3d8b3a7e11555a91e7918f11c7d444a74755d41c8d1990db3697c895"
+  },
+  "compat": {
+    "files/share/xodus-nexus/compat/PlayFabGameSave.dll": [
+      "compat/PlayFabGameSave.dll",
+      "29b1ab5e54b35e40ee5b376237f4ab642e1d0f3d7614e3e46208e9ad8a6e0a79"
+    ],
+    "files/share/doc/xodus-nexus-runtime/runtime-compat-LICENSE": [
+      "LICENSE.runtime-compat",
+      "639b735fd2f65779b82c4aab471f1fcdf927e10e1c21250911f75d44d136ff11"
+    ]
   }
 }

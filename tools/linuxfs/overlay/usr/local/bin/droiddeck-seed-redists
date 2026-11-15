@@ -56,18 +56,75 @@ libraries="$steam_root"
 for library in $LIBRARIES; do libraries="$libraries
 $library"; done
 libraries=$(printf '%s\n%s\n' "$libraries" "$(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)" | awk 'NF && !seen[$0]++')
-sig=$(while IFS= read -r library; do ls -l --time-style=+%s "$library"/steamapps/appmanifest_*.acf 2>/dev/null; done <<<"$libraries" | cksum)
-if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
-  {
-    printf '%s\n' "$sig"
-    while IFS= read -r library; do
-      [ -d "$library/steamapps/common" ] || continue
-      find "$library/steamapps/common" -mindepth 2 -maxdepth 5 -iname 'installscript*.vdf' \
-        -not -path '*/Steamworks Shared/*' 2>/dev/null
-    done <<<"$libraries" | sort -u
-  } >"$cache.tmp" && mv -f "$cache.tmp" "$cache"
+games=$(while IFS= read -r library; do
+  library="$library" awk '
+    function flush() { if (dir != "") printf "%s|%s|%s|%s\t%s/steamapps/common/%s\n", file, build, updated, size, ENVIRON["library"], dir }
+    FNR == 1 { flush(); file = FILENAME; dir = build = updated = size = "" }
+    {
+      n = split($0, part, "\"")
+      for (i = 2; i + 2 <= n; i += 2) {
+        name = tolower(part[i])
+        if (name == "installdir" && dir == "") dir = part[i + 2]
+        else if (name == "buildid" && build == "") build = part[i + 2]
+        else if (name == "lastupdated" && updated == "") updated = part[i + 2]
+        else if (name == "sizeondisk" && size == "") size = part[i + 2]
+        else continue
+        i += 2
+      }
+    }
+    END { flush() }
+  ' "$library"/steamapps/appmanifest_*.acf 2>/dev/null
+done <<<"$libraries")
+legacy=
+[ -s "$cache" ] && ! grep -q $'\t' "$cache" && legacy=$(tail -n +2 "$cache"; echo .)
+declare -A scanned=() current=()
+read_scanned() {
+  scanned=()
+  while IFS=$'\t' read -r key _; do
+    [ -n "$key" ] && scanned[$key]=1
+  done < <(grep $'\t' "$cache" 2>/dev/null)
+}
+read_scanned
+later=
+fresh=()
+while IFS=$'\t' read -r key dir; do
+  [ -n "$key" ] || continue
+  current[$key]=1
+  [ -z "${scanned[$key]:-}" ] || continue
+  if [ -z "$legacy" ] && [ -n "${DROIDDECK_SEED_SCRIPTS:-}${DROIDDECK_SEED_LATER:-}" ]; then
+    [ -z "${DROIDDECK_SEED_LATER:-}" ] || later=1
+    continue
+  fi
+  [ -d "$dir" ] || continue
+  scanned[$key]=1
+  if [ -n "$legacy" ] && [ "$cache" -nt "${key%%|*}" ]; then
+    found=$(printf '%s\n' "${legacy%.}" | dir="$dir" awk 'index($0, ENVIRON["dir"] "/") == 1')
+  else
+    found=$(find "$dir" -mindepth 1 -maxdepth 4 -iname 'installscript*.vdf' \
+      -not -path '*/Steamworks Shared/*' 2>/dev/null) || continue
+    found=$(printf '%s\n' "$found" | sort -u)
+  fi
+  fresh+=("$key" "$found")
+done <<<"$games"
+exec 9>"$cache.lock" && command -v flock >/dev/null 2>&1 && flock 9
+if [ ${#fresh[@]} -gt 0 ]; then
+  read_scanned
+  for ((i = 0; i < ${#fresh[@]}; i += 2)); do
+    [ -z "${scanned[${fresh[i]}]:-}" ] || continue
+    printf '%s\n' "${fresh[i + 1]}" | key="${fresh[i]}" awk '{ print ENVIRON["key"] "\t" $0 }' >>"$cache"
+  done
 fi
-game_scripts() { { tail -n +2 "$cache" 2>/dev/null; printf '%s\n' "${DROIDDECK_SEED_SCRIPTS:-}"; } | sed '/^$/d' | tr '\n' '\0'; }
+if [ -n "$later" ]; then
+  (DROIDDECK_SEED_LATER= DROIDDECK_SEED_SCRIPTS= DROIDDECK_SEED_DEFERRED=1 setsid "$0" "$steam_root" >/dev/null 2>&1 9>&- &)
+fi
+if [ -e "$cache" ]; then
+  keys=$(printf '%s\n' "${!current[@]}") awk -F'\t' '
+    BEGIN { n = split(ENVIRON["keys"], key, "\n"); for (i = 1; i <= n; i++) want[key[i]] = 1 }
+    NF > 1 && ($1 in want)
+  ' "$cache" >"$cache.tmp" && { cmp -s "$cache.tmp" "$cache" && rm -f "$cache.tmp" || mv -f "$cache.tmp" "$cache"; }
+fi
+[ -z "${DROIDDECK_SEED_DEFERRED:-}" ] || ! pgrep -x wineserver >/dev/null 2>&1 || exit 0
+game_scripts() { { cut -s -f2- "$cache" 2>/dev/null; printf '%s\n' "${DROIDDECK_SEED_SCRIPTS:-}"; } | sed '/^$/d' | tr '\n' '\0'; }
 game_pairs=$(game_scripts | read_scripts)
 [ -n "$(printf '%s' "$game_pairs" | tr -d '[:space:]')" ] && pairs=$(printf '%s\n%s\n' "$pairs" "$game_pairs" | sort -u | sed '/^$/d')
 declare -A vulkan=()

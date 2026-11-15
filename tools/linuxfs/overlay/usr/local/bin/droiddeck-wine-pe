@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import os
 from pathlib import Path
 
 
@@ -75,10 +76,105 @@ def pe_has_arm64ec_metadata(path):
     return False
 
 
-def machine_compatible(path, machines, machine=None):
+def pe_imports(path):
+    try:
+        with open(path, "rb") as source:
+            image = source.read()
+    except OSError:
+        return None
+    try:
+        if image[:2] != b"MZ":
+            return None
+        pe_offset = int.from_bytes(image[60:64], "little")
+        if image[pe_offset:pe_offset + 4] != b"PE\0\0":
+            return None
+        section_count = int.from_bytes(image[pe_offset + 6:pe_offset + 8], "little")
+        optional_size = int.from_bytes(image[pe_offset + 20:pe_offset + 22], "little")
+        optional = pe_offset + 24
+        magic = int.from_bytes(image[optional:optional + 2], "little")
+        directories = optional + (112 if magic == 0x20B else 96)
+        if directories > len(image):
+            return None
+        directory_count = int.from_bytes(image[directories - 4:directories], "little")
+        sections = []
+        for index in range(min(section_count, 96)):
+            entry = optional + optional_size + index * 40
+            if entry + 40 > len(image):
+                return None
+            sections.append((int.from_bytes(image[entry + 12:entry + 16], "little"),
+                             max(int.from_bytes(image[entry + 8:entry + 12], "little"),
+                                 int.from_bytes(image[entry + 16:entry + 20], "little")),
+                             int.from_bytes(image[entry + 20:entry + 24], "little")))
+
+        def offset(rva):
+            for address, size, raw in sections:
+                if address <= rva < address + size:
+                    return rva - address + raw
+            return None
+
+        names = set()
+        for directory, step, field in ((1, 20, 12), (13, 32, 4)):
+            if directory >= directory_count:
+                continue
+            if directories + directory * 8 + 8 > len(image):
+                return None
+            rva = int.from_bytes(image[directories + directory * 8:directories + directory * 8 + 4], "little")
+            entry = offset(rva) if rva else None
+            if rva and entry is None:
+                return None
+            while entry is not None:
+                if entry + step > len(image):
+                    return None
+                name_rva = int.from_bytes(image[entry + field:entry + field + 4], "little")
+                if not name_rva:
+                    break
+                name = offset(name_rva)
+                end = image.find(b"\0", name) if name is not None else -1
+                if end < 0:
+                    return None
+                names.add(image[name:end].decode("ascii", "replace").lower())
+                entry += step
+        return names
+    except (IndexError, ValueError):
+        return None
+
+
+PROGRAM_IMPORTS = {}
+
+
+def program_imports(builtins):
+    key = str(builtins)
+    if key not in PROGRAM_IMPORTS:
+        try:
+            files = {name.lower(): Path(builtins) / name for name in os.listdir(builtins)}
+        except OSError:
+            files = None
+        pending = [name for name in files or () if name.endswith(".exe") and pe_machine(files[name]) in (None, 0xAA64)]
+        seen = set()
+        while pending and files is not None:
+            name = pending.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            if name in files:
+                imports = pe_imports(files[name])
+                if imports is None:
+                    files = None
+                else:
+                    pending.extend(imports)
+        PROGRAM_IMPORTS[key] = None if files is None else frozenset(name for name in seen if name.endswith(".dll"))
+    return PROGRAM_IMPORTS[key]
+
+
+def machine_compatible(path, machines, machine=None, builtins=None, name=None):
     machine = pe_machine(path) if machine is None else machine
+    if machine == 0x8664 and 0xA641 in machines:
+        if pe_has_arm64ec_metadata(path):
+            return True
+        imported = program_imports(builtins) if builtins is not None else None
+        return imported is not None and (name or Path(path).name).lower() not in imported
     if machine == 0x8664 and pe_has_arm64ec_metadata(path):
-        return 0xA641 in machines
+        return False
     return machine in machines
 
 

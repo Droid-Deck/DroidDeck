@@ -50,6 +50,7 @@ object CompositorHost {
         refreshHz: Float,
         fpsLimit: Int,
     ): Boolean {
+        WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.bl-clock").path)
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         pace(refreshHz, fpsLimit)
@@ -63,6 +64,7 @@ object CompositorHost {
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
+            SessionPrefs.androidDriver(context).isEmpty(),
         )
         attached = surface
         started = true
@@ -135,7 +137,9 @@ object CompositorHost {
         vsyncRunning = false
     }
 
+    @Synchronized
     fun newSession() {
+        WaylandCompositor.nativeSetClockControl(null)
         if (started) WaylandCompositor.nativeResetFirstFrame()
     }
 
