@@ -104,6 +104,9 @@ class AgentHostTest {
         assertEquals(0.05, costs.perTurn(usage(0.05)).costUsd, 0.000001)
         assertEquals(0.02, costs.perTurn(usage(0.07)).costUsd, 0.000001)
         assertEquals(0.0, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        costs.reset()
+        assertEquals(0.0, costs.perTurn(usage(0.0)).costUsd, 0.000001)
+        assertEquals(0.07, costs.perTurn(usage(0.07)).costUsd, 0.000001)
         assertEquals(0.01, costs.perTurn(usage(0.01)).costUsd, 0.000001)
         assertEquals(0.07, AgentCostTracker().perTurn(usage(0.07)).costUsd, 0.000001)
     }

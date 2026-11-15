@@ -135,6 +135,7 @@ object AgentHost {
         var writingGeneration: Int? = null
         var exitStatus: Int? = null
         var costs: AgentCostTracker? = null
+        var clearingCosts = false
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -320,6 +321,7 @@ object AgentHost {
             main.removeCallbacks(reap)
             turn = kept
             kept.writingGeneration = gen
+            kept.clearingCosts = prompt == "/clear"
             Thread({
                 val written = runCatching { synchronized(kept) { kept.stdin?.apply { write((line + "\n").toByteArray()); flush() } != null } }.getOrDefault(false)
                 // The process died between turns: the same message goes to a new one, which resumes the conversation.
@@ -428,7 +430,12 @@ object AgentHost {
             turnStarted = SystemClock.elapsedRealtime()
             AgentHostService.start(app)?.let { serviceWarning(app, it) }
         }
-        val applied = if (event.entries.any { it is Entry.Finished } && state == State.WORKING && event.usage != null)
+        val finished = event.entries.filterIsInstance<Entry.Finished>().firstOrNull()
+        if (finished != null && state == State.WORKING && from.clearingCosts) {
+            if (finished.error == null) from.costs?.reset()
+            from.clearingCosts = false
+        }
+        val applied = if (finished != null && state == State.WORKING && event.usage != null)
             event.copy(usage = from.costs?.perTurn(event.usage) ?: event.usage) else event
         apply(app, applied)
     }
@@ -813,6 +820,8 @@ internal fun choices(reply: String): Choices {
 
 internal class AgentCostTracker {
     private var previous = 0.0
+
+    fun reset() { previous = 0.0 }
 
     fun perTurn(usage: AgentHost.Usage): AgentHost.Usage {
         val total = usage.costUsd
