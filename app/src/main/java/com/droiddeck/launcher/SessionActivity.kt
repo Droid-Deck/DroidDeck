@@ -4548,7 +4548,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 )
             }
 
-            return rect
+            val nativeSize = IntArray(2)
+            if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
+            val nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
+            val nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
+            val scaleX = width.toFloat() / nativeWidth
+            val scaleY = height.toFloat() / nativeHeight
+
+            return android.graphics.RectF(
+                rect.left * scaleX,
+                rect.top * scaleY,
+                rect.right * scaleX,
+                rect.bottom * scaleY
+            )
         }
         val out = SessionState.outputSize
         val scale = minOf(width / out.first.toFloat(), height / out.second.toFloat())
