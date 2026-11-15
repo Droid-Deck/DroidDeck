@@ -76,6 +76,28 @@ class LoadingStateUpdateTest {
         assertEquals(LoadingState.Topic.DESKTOP, state.topic)
     }
 
+    @Test fun bootstrapperProgressWithThousandsSeparatorsIsRead() {
+        val state = read("[2026-11-15 11:58:51] Downloading update (184,557 of 573,070 KB)...")
+        assertEquals(32, state.percent)
+        assertEquals("Downloading the Steam client update · 32%", state.step)
+    }
+
+    @Test fun translatedBootstrapperProgressUsesItsPercentLine() {
+        val state = read(
+            "[2026-11-15 11:58:51] 正在下载更新 (已下载 184,557，共 573,070 KB)...",
+            "[2026-11-15 11:58:51] Set status message: 正在下载更新 (已下载 184,557，共 573,070 KB)...",
+            "[2026-11-15 11:58:51] Set percent complete: 32",
+        )
+        assertEquals(32, state.percent)
+        assertEquals(LoadingState.Topic.STEAM, state.topic)
+        assertTrue(state.readable)
+    }
+
+    @Test fun anUnknownPercentDoesNotLookLikeProgress() {
+        val state = read("[2026-11-15 11:53:37] Set percent complete: -1")
+        assertEquals(-1, state.percent)
+    }
+
     @Test fun anExistingLoadingStateFollowsUpdatesAcrossPolls() {
         val context = RuntimeEnvironment.getApplication()
         val log = log("Downloading update (100 of 100 KB)")
