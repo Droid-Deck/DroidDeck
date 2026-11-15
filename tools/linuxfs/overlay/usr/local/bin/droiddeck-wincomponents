@@ -479,13 +479,34 @@ def save_state(compat, state):
     os.replace(temp, compat / STATE)
 
 
-def foreign_component(rel, path, machines):
+def system_folder(rel):
     parts = Path(rel).parts
-    folder = parts[2] if len(parts) > 2 and parts[:2] == ("drive_c", "windows") else None
+    return parts[2] if len(parts) > 2 and parts[:2] == ("drive_c", "windows") else None
+
+
+def foreign_component(rel, path, machines, guests=frozenset()):
+    folder = system_folder(rel)
     if not machines or folder not in PE_MACHINES or not rel.lower().endswith(".dll"):
         return False
     machine = pe_machine(path)
-    return machine is not None and not machine_compatible(path, machines[folder][1], machine)
+    return machine is not None and not machine_compatible(path, machines[folder][1], machine, guests, Path(rel).name)
+
+
+def component_guests(pfx, proton, machines, planned):
+    if not machines or 0xA641 not in machines["system32"][1]:
+        return frozenset()
+    system32 = pfx / "drive_c/windows/system32"
+    names = {Path(rel).name for rel, src in planned
+             if system_folder(rel) == "system32" and rel.lower().endswith(".dll") and pe_machine(src) == 0x8664}
+    try:
+        present = list(os.scandir(system32))
+    except OSError:
+        present = []
+    names.update(entry.name for entry in present if entry.name.lower().endswith(".dll") and not entry.is_symlink()
+                 and pe_machine(entry.path) == 0x8664)
+    if not names:
+        return frozenset()
+    return PE["x64_guests"](Path(proton).parent / "files/lib/wine" / machines["system32"][0], names)
 
 
 def pending_for(app_id, pending=PENDING):
@@ -559,6 +580,8 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             saved_requires = dict(saved_requires, **{cid: loose})
             inferred.add(cid)
     kept_overrides, kept_requires = {}, {}
+    planned = [entry for cid in expand(store, ids, saved_requires) for entry in (component(store, cid) or ([], [], [], []))[1]]
+    guests = component_guests(pfx, proton, machines, planned)
     for cid in expand(store, ids, saved_requires):
         found = component(store, cid)
         if found is None:
@@ -585,7 +608,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             kept_requires[cid] = list(requires)
         values += [(cid, value) for value in registry]
         for rel, src in files:
-            foreign = foreign_component(rel, src, machines)
+            foreign = foreign_component(rel, src, machines, guests)
             if foreign:
                 skipped.add(Path(rel).stem.lower())
                 changed = False
@@ -606,7 +629,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
         path = existing(pfx / rel)
         saved = compat / BACKUP / rel
         if saved.is_file():
-            if foreign_component(rel, saved, machines):
+            if foreign_component(rel, saved, machines, guests):
                 if path is not None and not path.is_symlink():
                     path.unlink()
                 continue

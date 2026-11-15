@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import os
 import re
 from pathlib import Path
 
@@ -82,9 +83,119 @@ VC_RUNTIME = re.compile(r"(msvc[pr]\d.*|vcruntime\d.*|vcomp\d*|vcamp\d.*|vccorli
                         re.IGNORECASE)
 
 
-def machine_compatible(path, machines, machine=None):
+def pe_imports(path):
+    try:
+        with open(path, "rb") as image:
+            head = image.read(64)
+            if head[:2] != b"MZ" or len(head) < 64:
+                return []
+            pe_offset = int.from_bytes(head[60:64], "little")
+            image.seek(pe_offset)
+            if image.read(4) != b"PE\0\0":
+                return []
+            coff = image.read(20)
+            if len(coff) != 20:
+                return []
+            section_count = int.from_bytes(coff[2:4], "little")
+            optional_size = int.from_bytes(coff[16:18], "little")
+            if section_count > 96:
+                return []
+            optional = image.read(optional_size)
+            if len(optional) != optional_size or len(optional) < 2:
+                return []
+            magic = int.from_bytes(optional[:2], "little")
+            directories = {0x20B: 112, 0x10B: 96}.get(magic)
+            if directories is None:
+                return []
+            sections = []
+            for _ in range(section_count):
+                section = image.read(40)
+                if len(section) != 40:
+                    return []
+                sections.append((int.from_bytes(section[12:16], "little"),
+                                 max(int.from_bytes(section[8:12], "little"), int.from_bytes(section[16:20], "little")),
+                                 int.from_bytes(section[20:24], "little")))
+
+            def offset(rva):
+                for start, size, raw in sections:
+                    if start <= rva < start + size:
+                        return raw + rva - start
+                return None
+
+            def directory(index):
+                at = directories + index * 8
+                if len(optional) < at + 8:
+                    return 0
+                return int.from_bytes(optional[at:at + 4], "little")
+
+            def name_at(rva):
+                at = offset(rva)
+                if at is None:
+                    return None
+                image.seek(at)
+                raw = image.read(256).split(b"\0", 1)[0]
+                return raw.decode("ascii", "replace").lower() or None
+
+            names = []
+            for index, size, field in ((1, 20, 12), (13, 32, 4)):
+                at = offset(directory(index)) if directory(index) else None
+                while at is not None and len(names) < 512:
+                    image.seek(at)
+                    entry = image.read(size)
+                    if len(entry) != size or not any(entry):
+                        break
+                    name = name_at(int.from_bytes(entry[field:field + 4], "little"))
+                    if name:
+                        names.append(name)
+                    at += size
+            return names
+    except (OSError, OverflowError, ValueError):
+        return []
+
+
+IMPORTERS = {}
+
+
+def builtin_importers(builtins):
+    try:
+        stamp = os.stat(builtins).st_mtime_ns
+    except OSError:
+        return {}
+    cached = IMPORTERS.get(str(builtins))
+    if cached and cached[0] == stamp:
+        return cached[1]
+    importers = {}
+    try:
+        entries = list(os.scandir(builtins))
+    except OSError:
+        return {}
+    for entry in entries:
+        if entry.name.lower().endswith(".dll"):
+            for name in pe_imports(entry.path):
+                importers.setdefault(name, set()).add(entry.name.lower())
+    IMPORTERS[str(builtins)] = (stamp, importers)
+    return importers
+
+
+def x64_guests(builtins, names):
+    importers = builtin_importers(builtins)
+    guests = {name.lower() for name in names}
+    changed = True
+    while changed:
+        changed = False
+        for name in sorted(guests):
+            if not importers.get(name, set()) <= guests:
+                guests.discard(name)
+                changed = True
+    return guests
+
+
+def machine_compatible(path, machines, machine=None, guests=frozenset(), name=None):
     machine = pe_machine(path) if machine is None else machine
-    if machine == 0x8664 and 0xA641 in machines and VC_RUNTIME.fullmatch(Path(path).name):
+    name = name or Path(path).name
+    if machine == 0x8664 and 0xA641 in machines and VC_RUNTIME.fullmatch(name):
+        return True
+    if machine == 0x8664 and 0xA641 in machines and name.lower() in guests and not pe_has_arm64ec_metadata(path):
         return True
     if machine == 0x8664 and pe_has_arm64ec_metadata(path):
         return 0xA641 in machines

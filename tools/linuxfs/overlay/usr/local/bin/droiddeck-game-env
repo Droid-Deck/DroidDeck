@@ -927,6 +927,55 @@ PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
 pe_machine = PE["pe_machine"]
 
 
+def newest_foreign_backup(path):
+    newest = None
+    backup = path.with_name(path.name + FOREIGN_SUFFIX)
+    serial = 1
+    while os.path.lexists(backup):
+        newest = backup
+        backup = path.with_name(path.name + FOREIGN_SUFFIX + ".%d" % serial)
+        serial += 1
+    return newest
+
+
+def restore_x64_guest_dlls(prefix, proton, env=None):
+    machines_by_folder = PE["proton_pe_machines"](proton, env or {})
+    if machines_by_folder is None or 0xA641 not in machines_by_folder["system32"][1]:
+        return []
+    builtins = Path(proton).parent / "files/lib/wine" / machines_by_folder["system32"][0]
+    system32 = Path(prefix) / "pfx/drive_c/windows/system32"
+    try:
+        names = sorted(name for name in os.listdir(system32) if name.lower().endswith(".dll"))
+    except OSError:
+        return []
+    present, restorable = [], {}
+    for name in names:
+        path = system32 / name
+        if not path.is_symlink():
+            if pe_machine(path) == 0x8664:
+                present.append(name)
+            continue
+        if not os.path.realpath(path).startswith(os.path.realpath(builtins) + os.sep):
+            continue
+        backup = newest_foreign_backup(path)
+        if backup and backup.is_file() and not backup.is_symlink() and pe_machine(backup) == 0x8664 \
+                and not PE["pe_has_arm64ec_metadata"](backup):
+            restorable[name] = backup
+    if not restorable:
+        return []
+    guests = PE["x64_guests"](builtins, present + list(restorable))
+    restored = []
+    for name, backup in sorted(restorable.items()):
+        if name.lower() not in guests:
+            continue
+        try:
+            os.replace(backup, system32 / name)
+        except OSError:
+            continue
+        restored.append("system32/" + name)
+    return restored
+
+
 def repair_foreign_system_dlls(prefix, proton, env=None):
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
@@ -944,6 +993,9 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             names = sorted(os.listdir(windows / folder))
         except OSError:
             continue
+        candidates = [name for name in names if name.lower().endswith(".dll") and not (windows / folder / name).is_symlink()
+                      and pe_machine(windows / folder / name) == 0x8664]
+        guests = PE["x64_guests"](builtins, candidates) if candidates and 0xA641 in machines else frozenset()
         for name in names:
             path = windows / folder / name
             builtin_name = builtin_names.get(name.lower())
@@ -951,7 +1003,7 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
                 continue
             machine = pe_machine(path)
-            if machine is None or PE["machine_compatible"](path, machines, machine):
+            if machine is None or PE["machine_compatible"](path, machines, machine, guests):
                 continue
             link = windows / folder / (name + ".bl-new")
             backup = windows / folder / (name + FOREIGN_SUFFIX)
@@ -1301,6 +1353,14 @@ def main():
     if waiting:
         components = win_components(prefix_path, app_id, command[0], effective_env)
     if prefix_path and command:
+        try:
+            restored = restore_x64_guest_dlls(prefix_path, command[0], effective_env)
+        except OSError as error:
+            restored = []
+            print("droiddeck-game-env: prefix x64 DLL restore skipped (%s)" % error, file=sys.stderr)
+        if restored:
+            print("droiddeck-game-env: restored x64 system DLLs that only x64 code imports: %s" % ", ".join(restored),
+                  file=sys.stderr)
         try:
             fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
         except OSError as error:

@@ -9,6 +9,7 @@ from unittest import mock
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 MODULE = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
 GAME_ENV = runpy.run_path(str(BIN / "droiddeck-game-env"))
+pe_image_importing = runpy.run_path(str(Path(__file__).with_name("test_game_environment.py")))["pe_image_importing"]
 
 
 class WinComponentsTest(unittest.TestCase):
@@ -41,6 +42,10 @@ class WinComponentsTest(unittest.TestCase):
     def proton(self, arm=True):
         root = Path(self.tmp.name) / ("arm-proton" if arm else "x64-proton")
         (root / "files/lib/wine" / ("aarch64-unix" if arm else "x86_64-unix")).mkdir(parents=True)
+        builtins = root / "files/lib/wine" / ("aarch64-windows" if arm else "x86_64-windows")
+        builtins.mkdir(parents=True)
+        builtins.joinpath("kernel32.dll").write_bytes(pe_image_importing(0xAA64 if arm else 0x8664, ("ucrtbase.dll",)))
+        builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image_importing(0xAA64 if arm else 0x8664, ("d3dcompiler_43.dll",)))
         return root / "proton"
 
     def pe_image(self, machine):
@@ -103,6 +108,32 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(names, ["msvcp140", "vcruntime140_1"])
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/msvcp140.dll"), 0x8664)
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140_1.dll"), 0x8664)
+
+    def test_x64_d3dx9_and_its_compiler_are_placed_in_arm64_system32(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {
+            "system32/d3dx9_43.dll": self.pe_image(0x8664),
+            "syswow64/d3dx9_43.dll": self.pe_image(0x14C),
+        })
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["d3dx9_43", "d3dcompiler_43"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+        names, _ = self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_x64_compiler_alone_is_skipped_while_the_builtin_d3dx9_imports_it(self):
+        proton = self.proton()
+        self.component("d3dcompiler", ["d3dcompiler_43"], {
+            "system32/d3dcompiler_43.dll": self.pe_image(0x8664),
+            "syswow64/d3dcompiler_43.dll": self.pe_image(0x14C),
+        })
+        self.pick("d3dcompiler")
+        names, _ = self.apply(proton)
+        self.assertEqual(names, ["d3dcompiler_43"])
+        self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
 
     def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
         proton = self.proton()

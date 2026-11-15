@@ -2806,6 +2806,38 @@ def arm64ec_pe_image():
     return bytes(image)
 
 
+def pe_image_importing(machine, imports=(), delayed=()):
+    image = bytearray(0x600)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = machine.to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x400).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x400).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    names = 0x1200
+    for index, size, field, entries in ((1, 20, 12, imports), (13, 32, 4, delayed)):
+        if not entries:
+            continue
+        table = 0x1000 if index == 1 else 0x1100
+        image[optional + 112 + index * 8:optional + 116 + index * 8] = table.to_bytes(4, "little")
+        for number, name in enumerate(entries):
+            entry = 0x200 + table - 0x1000 + number * size
+            image[entry + field:entry + field + 4] = names.to_bytes(4, "little")
+            raw = name.encode() + b"\0"
+            image[0x200 + names - 0x1000:0x200 + names - 0x1000 + len(raw)] = raw
+            names += len(raw)
+    return bytes(image)
+
+
 class ForeignSystemDllTest(unittest.TestCase):
     def prefix(self, tmp, arm=True):
         proton = Path(tmp) / "Proton"
@@ -2818,6 +2850,8 @@ class ForeignSystemDllTest(unittest.TestCase):
             (dist / libdir).mkdir(parents=True)
             for name in ("ucrtbase.dll", "rpcrt4.dll"):
                 (dist / libdir / name).write_bytes(pe_image(machine))
+            (dist / libdir / "kernel32.dll").write_bytes(
+                pe_image_importing(machine, ("ucrtbase.dll", "rpcrt4.dll"), ("msvcp_win.dll",)))
         windows = Path(tmp) / "compat/pfx/drive_c/windows"
         for folder in ("system32", "syswow64"):
             (windows / folder).mkdir(parents=True)
@@ -2867,6 +2901,87 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
             self.assertFalse((windows / "system32/msvcp140.dll").is_symlink())
             self.assertFalse((windows / "system32/VCRUNTIME140.dll").is_symlink())
+
+    def test_x64_dlls_only_imported_by_each_other_stay_in_arm64_system32(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            builtins.joinpath("d3dcompiler_43.dll").write_bytes(pe_image(0xAA64))
+            builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image_importing(0xAA64, ("d3dcompiler_43.dll",)))
+            for name in ("d3dcompiler_43.dll", "D3DX9_43.dll", "ucrtbase.dll"):
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertEqual([], self.run_repair(compat, proton))
+            for name in ("d3dcompiler_43.dll", "D3DX9_43.dll"):
+                self.assertFalse((windows / "system32" / name).is_symlink())
+                self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32" / name))
+
+    def test_x64_dlls_replaced_by_an_earlier_build_are_restored_and_core_dlls_are_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            builtins.joinpath("d3dcompiler_43.dll").write_bytes(pe_image(0xAA64))
+            builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image_importing(0xAA64, ("d3dcompiler_43.dll",)))
+            for name in ("d3dcompiler_43.dll", "d3dx9_43.dll", "ucrtbase.dll"):
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            for name in ("d3dcompiler_43.dll", "d3dx9_43.dll", "ucrtbase.dll"):
+                path = windows / "system32" / name
+                os.replace(path, path.with_name(name + ".foreign-arch"))
+                os.symlink(os.path.relpath(builtins / name, path.parent), path)
+            restored = MODULE["restore_x64_guest_dlls"](str(compat), str(proton))
+            self.assertEqual(["system32/d3dcompiler_43.dll", "system32/d3dx9_43.dll"], restored)
+            for name in ("d3dcompiler_43.dll", "d3dx9_43.dll"):
+                self.assertFalse((windows / "system32" / name).is_symlink())
+                self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32" / name))
+            self.assertTrue((windows / "system32/ucrtbase.dll").is_symlink())
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual([], MODULE["restore_x64_guest_dlls"](str(compat), str(proton)))
+
+    def test_restore_leaves_x64_proton_prefixes_and_user_files_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            (windows / "system32/d3dx9_43.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/d3dx9_43.dll.foreign-arch").write_bytes(pe_image(0xAA64))
+            self.assertEqual([], MODULE["restore_x64_guest_dlls"](str(compat), str(proton)))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/d3dx9_43.dll"))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            mine = Path(tmp) / "mine.dll"
+            mine.write_bytes(pe_image(0xAA64))
+            os.symlink(mine, windows / "system32/userlib.dll")
+            (windows / "system32/userlib.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            self.assertEqual([], MODULE["restore_x64_guest_dlls"](str(compat), str(proton)))
+            self.assertEqual(mine, Path(os.readlink(windows / "system32/userlib.dll")))
+
+    def test_x64_dll_imported_by_a_builtin_that_stays_is_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            builtins.joinpath("d3dcompiler_43.dll").write_bytes(pe_image(0xAA64))
+            builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image_importing(0xAA64, ("d3dcompiler_43.dll",)))
+            (windows / "system32/d3dcompiler_43.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/d3dx9_43.dll").write_bytes(pe_image(0xAA64))
+            self.assertEqual(["system32/d3dcompiler_43.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/d3dcompiler_43.dll"))
+
+    def test_x64_proton_prefix_ignores_builtin_imports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            builtins = proton.parent / "files/lib/wine/x86_64-windows"
+            builtins.mkdir(parents=True)
+            builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/d3dx9_43.dll").write_bytes(pe_image(0xAA64))
+            self.assertEqual(["system32/d3dx9_43.dll (machine 0xaa64)"], self.run_repair(compat, proton))
+
+    def test_import_tables_and_delay_imports_are_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dll = Path(tmp) / "a.dll"
+            dll.write_bytes(pe_image_importing(0xAA64, ("UCRTBASE.dll", "ntdll.dll"), ("msvcp_win.dll",)))
+            self.assertEqual(["ucrtbase.dll", "ntdll.dll", "msvcp_win.dll"], MODULE["PE"]["pe_imports"](dll))
+            dll.write_bytes(pe_image(0x8664))
+            self.assertEqual([], MODULE["PE"]["pe_imports"](dll))
+            dll.write_bytes(b"MZ")
+            self.assertEqual([], MODULE["PE"]["pe_imports"](dll))
 
     def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
         with tempfile.TemporaryDirectory() as tmp:
