@@ -6,6 +6,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameThreadHintsTest {
+    @Test fun `hints run on the Snapdragon 8 Elite only`() {
+        assertTrue(GameThreadHints.supported("CQ8725S"))
+        assertTrue(GameThreadHints.supported("SM8750"))
+        assertTrue(GameThreadHints.supported("QTI SM8750"))
+        assertFalse(GameThreadHints.supported("SM8650"))
+        assertFalse(GameThreadHints.supported("SM8850"))
+        assertFalse(GameThreadHints.supported(""))
+    }
+
     @Test fun `a thread joins above 60 percent and leaves under 15`() {
         assertEquals(emptySet<Int>(), GameThreadHints.pick(emptySet(), mapOf(1 to 0.55)))
         assertEquals(setOf(1), GameThreadHints.pick(emptySet(), mapOf(1 to 0.68)))
