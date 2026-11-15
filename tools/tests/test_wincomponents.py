@@ -44,6 +44,8 @@ class WinComponentsTest(unittest.TestCase):
         builtins = root / "files/lib/wine/aarch64-windows"
         builtins.mkdir(parents=True)
         (builtins / "wineboot.exe").write_bytes(self.program_image(0xAA64, ["ucrtbase.dll"]))
+        (builtins / "steam.exe").write_bytes(self.program_image(0x8664, ["vulkan-1.dll"]))
+        (builtins / "d3dx9_43.dll").write_bytes(self.program_image(0xAA64, ["d3dcompiler_43.dll"]))
         return root / "proton"
 
     def program_image(self, machine, imports):
@@ -128,6 +130,56 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(placed, names)
         for name in names:
             self.assertEqual(MODULE["pe_machine"](self.pfx / ("system32/%s.dll" % name)), 0x8664)
+
+    def test_x64_d3dx9_and_its_compiler_stay_placed_on_every_launch(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        for _ in range(2):
+            placed, _ = self.apply(proton)
+            self.assertEqual(placed, ["d3dx9_43", "d3dcompiler_43"])
+            self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+            self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_x64_compiler_alone_is_placed_although_a_builtin_dll_imports_it(self):
+        proton = self.proton()
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dcompiler")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["d3dcompiler_43"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_x64_proton_program_imports_do_not_make_a_dll_foreign(self):
+        proton = self.proton()
+        self.component("vk", ["vulkan-1"], {"system32/vulkan-1.dll": self.pe_image(0x8664)})
+        self.pick("vk")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["vulkan-1"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vulkan-1.dll"), 0x8664)
+
+    def test_partly_installed_x64_visual_cpp_runtime_stays_x64(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/vcruntime140.dll").write_bytes(self.pe_image(0x8664))
+        self.component("vc", ["msvcp140"], {"system32/msvcp140.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["msvcp140"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/msvcp140.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140.dll"), 0x8664)
+
+    def test_deselected_component_restores_the_saved_x64_dll(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/d3dx9_43.dll").write_bytes(self.pe_image(0x8664))
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.program_image(0xAA64, [])})
+        self.pick("d3dx9")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0xAA64)
+        self.pick()
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
 
     def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
         proton = self.proton()

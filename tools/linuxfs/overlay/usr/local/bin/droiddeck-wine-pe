@@ -149,7 +149,7 @@ def program_imports(builtins):
             files = {name.lower(): Path(builtins) / name for name in os.listdir(builtins)}
         except OSError:
             files = None
-        pending = [name for name in files or () if name.endswith(".exe")]
+        pending = [name for name in files or () if name.endswith(".exe") and pe_machine(files[name]) in (None, 0xAA64)]
         seen = set()
         while pending and files is not None:
             name = pending.pop()
