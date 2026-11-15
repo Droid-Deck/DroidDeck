@@ -11,21 +11,26 @@ RES = ROOT / "app/src/main/res"
 FORMAT = re.compile(r"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[a-zA-Z%]")
 
 
-def strings(path):
-    return {
-        element.attrib["name"]: "".join(element.itertext())
-        for element in ET.parse(path).getroot()
-        if element.tag == "string" and element.get("translatable") != "false"
-    }
+def strings(directory):
+    result = {}
+    for path in sorted(directory.glob("*.xml")):
+        for element in ET.parse(path).getroot():
+            if element.tag != "string" or element.get("translatable") == "false":
+                continue
+            key = element.attrib["name"]
+            if key in result:
+                raise ValueError(f"Duplicate string {key} in {directory.name}")
+            result[key] = "".join(element.itertext())
+    return result
 
 
 class GlassesLocalizationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.english = strings(RES / "values/strings.xml")
+        cls.english = strings(RES / "values")
         cls.required = {
             key: value for key, value in cls.english.items()
-            if key.startswith(("glasses_", "spatial_", "tracking_recovery_", "setup_glasses_", "phone_camera_tracking_"))
+            if key.startswith(("glasses_", "viture_", "spatial_", "tracking_recovery_", "setup_glasses_", "phone_camera_tracking_"))
             or key in ("setup_tab_glasses", "hand_camera_prompt_title", "hand_camera_prompt_body", "hand_camera_setting_hint")
         }
         language_source = (ROOT / "app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt").read_text(encoding="utf-8")
@@ -36,7 +41,7 @@ class GlassesLocalizationTest(unittest.TestCase):
             if tag == "en":
                 continue
             qualifier = special.get(tag, tag.replace("-", "-r"))
-            cls.locales[tag] = strings(RES / f"values-{qualifier}/strings.xml")
+            cls.locales[tag] = strings(RES / f"values-{qualifier}")
 
     def test_every_supported_language_has_nonempty_glasses_and_calibration_text(self):
         for locale, translated in self.locales.items():

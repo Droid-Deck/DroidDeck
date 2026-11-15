@@ -50,7 +50,6 @@ bool VitureSdkLoader::load(const std::string& directory, std::string& error, con
     if (!expected_version.empty() && expected_version != version)
         return fail("The VITURE SDK libraries do not match the imported version header");
     api = candidate;
-    // Vendor callbacks may outlive a session; loaded code stays resident for this process.
     handles = std::move(pending);
     loaded_directory = directory;
     error.clear();

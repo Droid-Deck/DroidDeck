@@ -12,7 +12,6 @@ internal class VitureCameraWorker : AutoCloseable {
     override fun close() { closed = true }
 
     private companion object {
-        // The native camera stream is process-wide; replacement capture waits for prior cleanup.
         val executor = Executors.newSingleThreadExecutor { Thread(it, "viture-camera").apply { isDaemon = true } }
     }
 }

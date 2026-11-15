@@ -148,7 +148,6 @@ internal object VitureSdkImport {
         val pending = File(root, "activation.pending")
         if (pending.exists()) {
             if (current.exists() && !current.deleteRecursively()) throw IOException("Could not discard the interrupted SDK import.")
-            // Remove the marker before restoring the backup so recovery can safely repeat after process death.
             if (!pending.delete()) throw IOException("Could not clear the interrupted SDK import.")
         }
         if (!current.exists() && backup.exists() && (!backup.isDirectory || !backup.renameTo(current)))
@@ -172,7 +171,6 @@ internal object VitureSdkImport {
                 }
             })
         } catch (_: IOException) {
-            // Recovery retries files that could not be removed without blocking the installed SDK.
         }
     }
 

@@ -29,7 +29,6 @@ void deliver(std::vector<uint8_t> bytes, int format = XR_CAMERA_FORMAT_MJPEG, ui
     callback(&frame, callback_data);
 }
 int stop(XRCameraProviderHandle) {
-    // A callback completing during stop must not publish another frame.
     deliver({0xff, 0xd8, 0x22, 0xff, 0xd9});
     ++stopped;
     return 0;

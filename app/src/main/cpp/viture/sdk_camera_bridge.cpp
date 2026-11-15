@@ -36,7 +36,6 @@ void close_stream(const std::shared_ptr<CameraStream>& camera) {
         camera->frame.clear();
     }
     camera->api->xr_camera_provider_stop(camera->handle);
-    // The SDK guarantees that stop has joined its frame callbacks before returning.
     camera->api->xr_camera_provider_destroy(camera->handle);
 }
 }

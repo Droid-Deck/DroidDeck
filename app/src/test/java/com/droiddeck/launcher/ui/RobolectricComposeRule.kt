@@ -18,7 +18,6 @@ fun createRobolectricComposeRule() = createComposeRule().also {
 }
 
 fun ComposeContentTestRule.renderPendingChanges() {
-    // Snapshot notifications use Android's main queue, separately from the Compose clock.
     repeat(2) {
         runOnIdle { Snapshot.sendApplyNotifications() }
         mainClock.advanceTimeByFrame()

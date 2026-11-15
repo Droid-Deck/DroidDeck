@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-// Android C ABI used by the adapter, verified against VITURE SDK 2.4.0 and 2.4.2.
 using XRDeviceProviderHandle = void*;
 using XRCameraProviderHandle = void*;
 using GlassStateCallback = void (*)(int, int);
