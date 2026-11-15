@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Pavé tactile</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto : pavé tactile pour le bureau, tactile direct pour Steam.</string>
+    <string name="mode_pen">Stylet</string>
+    <string name="mode_pen_mouse">Souris</string>
+    <string name="mode_pen_touch">Tactile</string>
+    <string name="mode_pen_button">Bouton latéral</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Uniquement pour Adreno. Moins de saccades, mais plus de consommation d\'énergie et de chaleur.</string>
     <string name="perf_fixes">Correctifs de session</string>
     <string name="perf_sysmem">Turnip : rendu sysmem</string>
-    <string name="perf_sysmem_hint">Le client Steam sera plus rapide ; en jeu, le pilote choisit à chaque passe entre rendu par tuiles et rendu en mémoire système. Requis pour Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">S’applique au client Steam et aux jeux. Requis sur Adreno 710/720/722.</string>
     <string name="perf_xalia">Ignorer l\'assistant xalia de Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un substitut en espace utilisateur du pilote Linux ntsync. Lorsqu\'il est activé, Proton l\'utilise à la place de droiddeck-esync et de droiddeck-fsync. Fonctionne avec Proton Experimental ARM64, GE-Proton et proton-cachyos. Prendra effet à la prochaine session.</string>
@@ -4040,10 +4044,11 @@
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>
+    <string name="epic_third_party_managed">S’installe via %1$s</string>
 
     <string name="theme_white_red">Neige écarlate</string>
     <string name="theme_white_red_detail">Surfaces blanches avec des accents rouges.</string>
-    
+
     <string name="rail_soundtracks">Bandes originales</string>
     <string name="rail_music">Musique</string>
     <string name="soundtracks_options">Options de lecture</string>

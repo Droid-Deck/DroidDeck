@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">टचपैड</string>
     <string name="mode_touch_direct">डायरेक्ट</string>
     <string name="mode_touch_note">ऑटो: डेस्कटॉप पर टचपैड, Steam में डायरेक्ट।</string>
+    <string name="mode_pen">पेन</string>
+    <string name="mode_pen_mouse">माउस</string>
+    <string name="mode_pen_touch">टच</string>
+    <string name="mode_pen_button">साइड बटन</string>
     <string name="mode_osc">ऑन-स्क्रीन कंट्रोल</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">कोई कंट्रोलर कनेक्ट न होने पर ऑटो कंट्रोल दिखाता है।</string>
@@ -616,7 +620,7 @@
     <string name="perf_gpuclock_hint">सिर्फ़ Adreno के लिए। कम हिचकोले, लेकिन ज़्यादा बैटरी खर्च और गर्मी।</string>
     <string name="perf_fixes">सेशन फ़िक्स</string>
     <string name="perf_sysmem">Turnip: sysmem रेंडरिंग</string>
-    <string name="perf_sysmem_hint">Steam क्लाइंट के लिए तेज़; गेम में ड्राइवर हर पास के लिए टाइल या सिस्टम मेमोरी रेंडरिंग चुनता है। Adreno 710/720/722 पर ज़रूरी।</string>
+    <string name="perf_sysmem_hint">Steam क्लाइंट और गेम पर लागू। Adreno 710/720/722 पर ज़रूरी।</string>
     <string name="perf_xalia">Steam के xalia हेल्पर को छोड़ें</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linux ntsync ड्राइवर की यूज़रस्पेस जगह लेने वाली चीज़। चालू रहते हुए, Proton इसे droiddeck-esync और droiddeck-fsync के बदले इस्तेमाल करता है। यह Proton Experimental ARM64, GE-Proton और proton-cachyos के साथ काम करता है। अगले सेशन से लागू होता है।</string>
@@ -4001,10 +4005,11 @@
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>
+    <string name="epic_third_party_managed">%1$s के ज़रिए इंस्टॉल होता है</string>
 
     <string name="theme_white_red">किरमिज़ी बर्फ</string>
     <string name="theme_white_red_detail">लाल रंग की झलकियों वाली सफ़ेद सतहें।</string>
-    
+
     <string name="rail_soundtracks">साउंडट्रैक</string>
     <string name="rail_music">संगीत</string>
     <string name="soundtracks_options">प्लेबैक विकल्प</string>

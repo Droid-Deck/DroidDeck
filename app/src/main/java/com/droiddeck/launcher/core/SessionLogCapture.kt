@@ -18,7 +18,7 @@ object SessionLogCapture {
     private var syncer: Thread? = null
 
     @Synchronized
-    fun start(target: File) {
+    fun start(target: File, sinceMillis: Long) {
         stop()
         try {
             val out = target.bufferedWriter()
@@ -28,7 +28,7 @@ object SessionLogCapture {
             writer = out
             this.target = target
             pid = HostProcess.start(
-                "/system/bin/logcat -v threadtime -T 1 --pid=" + Process.myPid(),
+                command(Process.myPid(), sinceMillis),
                 null, target.parentFile, null,
             ) { line ->
                 synchronized(this) {
@@ -47,6 +47,11 @@ object SessionLogCapture {
         } catch (e: Exception) {
             Log.w(TAG, "could not start the app log", e)
         }
+    }
+
+    internal fun command(pid: Int, sinceMillis: Long): String {
+        val since = if (sinceMillis > 0) "%d.%03d".format(java.util.Locale.US, sinceMillis / 1000, sinceMillis % 1000) else "1"
+        return "/system/bin/logcat -v threadtime -T $since --pid=$pid"
     }
 
     @Synchronized

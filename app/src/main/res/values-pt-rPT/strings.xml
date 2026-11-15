@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Painel tátil</string>
     <string name="mode_touch_direct">Direto</string>
     <string name="mode_touch_note">Automático: painel tátil no Ambiente de trabalho, direto no Steam.</string>
+    <string name="mode_pen">Caneta</string>
+    <string name="mode_pen_mouse">Rato</string>
+    <string name="mode_pen_touch">Toque</string>
+    <string name="mode_pen_button">Botão lateral</string>
     <string name="mode_osc">Controlos no ecrã</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Em Automático, os controlos aparecem quando não há nenhum comando ligado.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Apenas Adreno. Menos soluços, mais consumo de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>
     <string name="perf_sysmem">Turnip: renderização em sysmem</string>
-    <string name="perf_sysmem_hint">Mais rápido para o cliente Steam; nos jogos, o controlador escolhe em cada passagem entre renderização em mosaico ou na memória do sistema. Obrigatório no Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Aplica-se ao cliente Steam e aos jogos. Obrigatório no Adreno 710/720/722.</string>
     <string name="perf_xalia">Ignorar o assistente xalia do Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Um substituto em espaço de utilizador para o controlador ntsync do Linux. Enquanto estiver ativado, o Proton utiliza-o em vez do droiddeck-esync e do droiddeck-fsync. Funciona com o Proton Experimental ARM64, o GE-Proton e o proton-cachyos. Aplica-se na próxima sessão.</string>
@@ -4040,10 +4044,11 @@
     <string name="input_reset_positions">Repor posições</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">Não foi possível importar este esquema</string>
+    <string name="epic_third_party_managed">Instala-se através de %1$s</string>
 
     <string name="theme_white_red">Neve Escarlate</string>
     <string name="theme_white_red_detail">Superfícies brancas com detalhes vermelhos.</string>
-    
+
     <string name="rail_soundtracks">Bandas sonoras</string>
     <string name="rail_music">Música</string>
     <string name="soundtracks_options">Opções de reprodução</string>

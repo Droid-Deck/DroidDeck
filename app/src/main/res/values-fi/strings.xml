@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Kosketuslevy</string>
     <string name="mode_touch_direct">Suora</string>
     <string name="mode_touch_note">Automaattinen: kosketuslevy Työpöydällä, suora Steamissa.</string>
+    <string name="mode_pen">Kynä</string>
+    <string name="mode_pen_mouse">Hiiri</string>
+    <string name="mode_pen_touch">Kosketus</string>
+    <string name="mode_pen_button">Sivupainike</string>
     <string name="mode_osc">Näytön ohjaimet</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaattinen näyttää ohjaimet, kun yhtään ohjainta ei ole kytketty.</string>
@@ -616,7 +620,7 @@
     <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>
     <string name="perf_sysmem">Turnip: sysmem-renderöinti</string>
-    <string name="perf_sysmem_hint">Nopeampi Steam-asiakasohjelmalle; peleissä ajuri valitsee jokaiselle vaiheelle ruuduittaisen tai järjestelmämuistiin tehtävän renderöinnin. Pakollinen Adreno 710/720/722:lla.</string>
+    <string name="perf_sysmem_hint">Koskee Steam-asiakasohjelmaa ja pelejä. Pakollinen Adreno 710/720/722:lla.</string>
     <string name="perf_xalia">Ohita Steamin xalia-avustaja</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Käyttäjätilainen korvike Linuxin ntsync-ajurille. Kun se on päällä, Proton käyttää sitä droiddeck-esyncin ja droiddeck-fsyncin sijaan. Toimii Proton Experimental ARM64:n, GE-Protonin ja proton-cachyosin kanssa. Tulee voimaan seuraavassa istunnossa.</string>
@@ -4001,10 +4005,11 @@
     <string name="input_reset_positions">Palauta sijainnit</string>
     <string name="input_show_label">Näytä nimi</string>
     <string name="input_layout_import_failed">Tätä asettelua ei voitu tuoda</string>
+    <string name="epic_third_party_managed">Asennetaan sovelluksen %1$s kautta</string>
 
     <string name="theme_white_red">Helakanpunainen lumi</string>
     <string name="theme_white_red_detail">Valkoiset pinnat punaisin korostuksin.</string>
-    
+
     <string name="rail_soundtracks">Soundtrackit</string>
     <string name="rail_music">Musiikki</string>
     <string name="soundtracks_options">Toistoasetukset</string>

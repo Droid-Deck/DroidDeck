@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Diretto</string>
     <string name="mode_touch_note">Auto: touchpad sul Desktop, diretto in Steam.</string>
+    <string name="mode_pen">Penna</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Tocco</string>
+    <string name="mode_pen_button">Tasto laterale</string>
     <string name="mode_osc">Controlli su schermo</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto mostra i controlli quando non è collegato nessun controller.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Solo Adreno. Meno scatti, più consumo di batteria e più calore.</string>
     <string name="perf_fixes">Correzioni della sessione</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
-    <string name="perf_sysmem_hint">Più veloce per il client di Steam; nei giochi il driver sceglie per ogni passata tra rendering a tile e in memoria di sistema. Necessario su Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Si applica al client Steam e ai giochi. Necessario su Adreno 710/720/722.</string>
     <string name="perf_xalia">Salta l\'assistente xalia di Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un sostituto in userspace del driver ntsync di Linux. Quando è attivo, Proton lo usa al posto di droiddeck-esync e droiddeck-fsync. Funziona con Proton Experimental ARM64, GE-Proton e proton-cachyos. Si applica dalla prossima sessione.</string>
@@ -4040,10 +4044,11 @@
     <string name="input_reset_positions">Ripristina posizioni</string>
     <string name="input_show_label">Mostra etichetta</string>
     <string name="input_layout_import_failed">Impossibile importare questo layout</string>
+    <string name="epic_third_party_managed">Si installa tramite %1$s</string>
 
     <string name="theme_white_red">Neve scarlatta</string>
     <string name="theme_white_red_detail">Superfici bianche con accenti rossi.</string>
-    
+
     <string name="rail_soundtracks">Colonne sonore</string>
     <string name="rail_music">Musica</string>
     <string name="soundtracks_options">Opzioni di riproduzione</string>

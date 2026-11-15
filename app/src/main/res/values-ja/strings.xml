@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">トラックパッド</string>
     <string name="mode_touch_direct">ダイレクト</string>
     <string name="mode_touch_note">自動：デスクトップではトラックパッド、Steamではダイレクトタッチを使用します。</string>
+    <string name="mode_pen">ペン</string>
+    <string name="mode_pen_mouse">マウス</string>
+    <string name="mode_pen_touch">タッチ</string>
+    <string name="mode_pen_button">サイドボタン</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
@@ -614,7 +618,7 @@
     <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
-    <string name="perf_sysmem_hint">Steamクライアントが高速になります。ゲームではドライバーがパスごとにタイルレンダリングとシステムメモリレンダリングを選びます。Adreno 710/720/722では必須です。</string>
+    <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>
     <string name="perf_xalia">Steamのxalia補助をスキップ</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linuxのntsyncドライバーをユーザー空間で代替する機能です。オンの間、Protonはdroiddeck-esyncとdroiddeck-fsyncの代わりにこれを使用します。Proton Experimental ARM64、GE-Proton、proton-cachyosで動作します。次回のセッションで有効になります。</string>
@@ -3971,10 +3975,11 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
+    <string name="epic_third_party_managed">%1$s からインストールします</string>
 
     <string name="theme_white_red">緋色の雪</string>
     <string name="theme_white_red_detail">白いサーフェスに赤のアクセント。</string>
-    
+
     <string name="rail_soundtracks">サウンドトラック</string>
     <string name="rail_music">音楽</string>
     <string name="soundtracks_options">再生オプション</string>

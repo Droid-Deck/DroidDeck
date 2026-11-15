@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Сенсорна панель</string>
     <string name="mode_touch_direct">Пряме</string>
     <string name="mode_touch_note">«Авто»: сенсорна панель на робочому столі, пряме введення в Steam.</string>
+    <string name="mode_pen">Перо</string>
+    <string name="mode_pen_mouse">Миша</string>
+    <string name="mode_pen_touch">Сенсорне введення</string>
+    <string name="mode_pen_button">Бічна кнопка</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">«Авто» показує екранне керування, коли контролер не під’єднано.</string>
@@ -620,7 +624,7 @@
     <string name="perf_gpuclock_hint">Лише Adreno. Менше запинок, вища витрата заряду та нагрів.</string>
     <string name="perf_fixes">Виправлення сеансу</string>
     <string name="perf_sysmem">Turnip: рендеринг через sysmem</string>
-    <string name="perf_sysmem_hint">Швидше для клієнта Steam; в іграх драйвер для кожного проходу вибирає тайловий рендеринг або рендеринг у системній пам’яті. Потрібно для Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Застосовується до клієнта Steam та ігор. Потрібно для Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропускати помічник Steam xalia</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Програмна заміна драйвера ntsync ядра Linux у просторі користувача. Поки це увімкнено, Proton використовує її замість droiddeck-esync і droiddeck-fsync. Працює з Proton Experimental ARM64, GE-Proton і proton-cachyos. Застосовується в наступному сеансі.</string>
@@ -4081,10 +4085,11 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+    <string name="epic_third_party_managed">Встановлюється через %1$s</string>
 
     <string name="theme_white_red">Багряний сніг</string>
     <string name="theme_white_red_detail">Білі поверхні з червоними акцентами.</string>
-    
+
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музика</string>
     <string name="soundtracks_options">Параметри відтворення</string>

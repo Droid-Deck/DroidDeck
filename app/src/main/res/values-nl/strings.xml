@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Automatisch: touchpad op Desktop, direct in Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Muis</string>
+    <string name="mode_pen_touch">Aanraken</string>
+    <string name="mode_pen_button">Zijknop</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>
@@ -616,7 +620,7 @@
     <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Sneller voor de Steam-client; in games kiest het stuurprogramma per pass tussen tegel- en systeemgeheugenrendering. Vereist op Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Geldt voor de Steam-client en games. Vereist op Adreno 710/720/722.</string>
     <string name="perf_xalia">Sla de xalia-helper van Steam over</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Een userspace-vervanger voor de ntsync-driver van Linux. Terwijl dit aan staat, gebruikt Proton dit in plaats van droiddeck-esync en droiddeck-fsync. Werkt met Proton Experimental ARM64, GE-Proton en proton-cachyos. Geldt vanaf de volgende sessie.</string>
@@ -4001,10 +4005,11 @@
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>
+    <string name="epic_third_party_managed">Wordt geïnstalleerd via %1$s</string>
 
     <string name="theme_white_red">Scharlakenrode sneeuw</string>
     <string name="theme_white_red_detail">Witte oppervlakken met rode accenten.</string>
-    
+
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Muziek</string>
     <string name="soundtracks_options">Afspeelopties</string>

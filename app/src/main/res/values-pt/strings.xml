@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direto</string>
     <string name="mode_touch_note">Automático: touchpad na Área de trabalho, direto na Steam.</string>
+    <string name="mode_pen">Caneta</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Toque</string>
+    <string name="mode_pen_button">Botão lateral</string>
     <string name="mode_osc">Controles na tela</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">No Automático, os controles na tela aparecem quando não há um controle conectado.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Só em Adreno. Menos engasgos, mais gasto de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>
     <string name="perf_sysmem">Turnip: renderização sysmem</string>
-    <string name="perf_sysmem_hint">Mais rápido para o cliente da Steam; nos jogos, o driver escolhe a cada passagem entre renderização em blocos ou na memória do sistema. Obrigatório nas Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Aplica-se ao cliente Steam e aos jogos. Obrigatório nas Adreno 710/720/722.</string>
     <string name="perf_xalia">Pular o assistente xalia da Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Um substituto em espaço de usuário para o driver ntsync do Linux. Enquanto estiver ativado, o Proton o usa no lugar do droiddeck-esync e do droiddeck-fsync. Funciona com o Proton Experimental ARM64, o GE-Proton e o proton-cachyos. Vale a partir da próxima sessão.</string>
@@ -742,6 +746,13 @@
     <string name="hud_reset_button">Redefinir</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
+    <string name="screen_effects_target">Perfil de efeitos</string>
+    <string name="screen_effects_target_hint">Escolha qual perfil terá os efeitos de tela editados.</string>
+    <string name="screen_effects_target_auto">Jogo atual (automático)</string>
+    <string name="screen_effects_reset">Redefinir efeitos</string>
+    <string name="screen_effects_reset_hint">Define os efeitos deste perfil como desativados por padrão.</string>
+    <string name="screen_effects_delete">Excluir configuração salva</string>
+    <string name="screen_effects_delete_hint">Remove os efeitos salvos deste jogo para ele herdar o perfil padrão.</string>
     <string name="drawer_effects">Efeitos de tela</string>
     <string name="drawer_effects_hint">Em tempo real. Custa um pouco de tempo de GPU enquanto algum efeito estiver ativado.</string>
     <string name="drawer_look">Predefinições</string>
@@ -4041,10 +4052,11 @@
     <string name="input_reset_positions">Redefinir posições</string>
     <string name="input_show_label">Mostrar rótulo</string>
     <string name="input_layout_import_failed">Não foi possível importar este layout</string>
+    <string name="epic_third_party_managed">Instala-se através de %1$s</string>
 
     <string name="theme_white_red">Neve Escarlate</string>
     <string name="theme_white_red_detail">Superfícies brancas com detalhes em vermelho.</string>
-    
+
     <string name="rail_soundtracks">Trilhas sonoras</string>
     <string name="rail_music">Música</string>
     <string name="soundtracks_options">Opções de reprodução</string>

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Langsung</string>
     <string name="mode_touch_note">Otomatis: touchpad di Desktop, langsung di Steam.</string>
+    <string name="mode_pen">Pena</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_button">Tombol samping</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>
@@ -614,7 +618,7 @@
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
-    <string name="perf_sysmem_hint">Lebih cepat untuk klien Steam; di gim, driver memilih rendering ubin atau memori sistem untuk setiap pass. Diperlukan pada Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Berlaku untuk klien Steam dan gim. Diperlukan pada Adreno 710/720/722.</string>
     <string name="perf_xalia">Lewati bantuan xalia milik Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Pengganti userspace untuk driver ntsync Linux. Saat aktif, Proton menggunakannya sebagai pengganti droiddeck-esync dan droiddeck-fsync. Berfungsi dengan Proton Experimental ARM64, GE-Proton, dan proton-cachyos. Berlaku pada sesi berikutnya.</string>
@@ -3971,10 +3975,11 @@
     <string name="input_reset_positions">Atur ulang posisi</string>
     <string name="input_show_label">Tampilkan label</string>
     <string name="input_layout_import_failed">Tata letak ini tidak dapat diimpor</string>
+    <string name="epic_third_party_managed">Diinstal melalui %1$s</string>
 
     <string name="theme_white_red">Salju Kirmizi</string>
     <string name="theme_white_red_detail">Permukaan putih dengan aksen merah.</string>
-    
+
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Opsi pemutaran</string>
