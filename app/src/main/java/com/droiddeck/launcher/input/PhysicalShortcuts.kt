@@ -105,6 +105,10 @@ object PhysicalShortcuts {
         write(context, read(context).filterNot { it == binding })
     }
 
+    fun restoreDefault(context: Context, action: Action) {
+        write(context, read(context).filterNot { it.action == action })
+    }
+
     private fun write(context: Context, bindings: List<Binding>) {
         val array = JSONArray()
         bindings.forEach {

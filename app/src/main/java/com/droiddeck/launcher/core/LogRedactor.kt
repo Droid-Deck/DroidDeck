@@ -131,42 +131,81 @@ object LogRedactor {
     @Volatile
     private var accounts: List<Learned> = emptyList()
 
-    fun learnAccounts(vararg loginUsers: java.io.File) {
+    internal const val MAX_LEARN_INPUT_BYTES = 2 * 1024 * 1024
+    private const val MAX_LEARNED_ACCOUNTS = 2048
+    private const val MAX_LEARNED_ADDRESSES = 1024
+    private const val MAX_ACCOUNT_LENGTH = 256
+
+    private fun boundedText(file: java.io.File): String? = try {
+        file.inputStream().buffered().use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            var remaining = MAX_LEARN_INPUT_BYTES
+            while (remaining > 0) {
+                val read = input.read(buffer, 0, minOf(buffer.size, remaining))
+                if (read < 0) return out.toString(Charsets.UTF_8.name())
+                if (read == 0) continue
+                out.write(buffer, 0, read)
+                remaining -= read
+            }
+            if (input.read() != -1) null else out.toString(Charsets.UTF_8.name())
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun learnAccounts(vararg loginUsers: java.io.File): Boolean {
         val names = LinkedHashSet<String>()
         val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
         var unread = false
         for (file in loginUsers) {
             if (!file.isFile) continue
-            val text = try { file.readText() } catch (e: Exception) { unread = true; continue }
-            kv.findAll(text).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.forEach { names += it }
+            val text = boundedText(file)
+            if (text == null) {
+                unread = true
+                continue
+            }
+            for (match in kv.findAll(text)) {
+                val name = match.groupValues[2].trim()
+                if (name.length < 3) continue
+                if (name.length > MAX_ACCOUNT_LENGTH || names.size >= MAX_LEARNED_ACCOUNTS) {
+                    unread = true
+                    break
+                }
+                names += name
+            }
         }
         val learned = names.map { name ->
             val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
             Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
         }
-        accounts = if (unread) (accounts + learned).distinctBy { it.regex.pattern } else learned
+        accounts = if (unread) (learned + accounts).distinctBy { it.regex.pattern }.take(MAX_LEARNED_ACCOUNTS) else learned
+        return !unread
     }
 
-    fun learnFromRuntime(root: java.io.File) {
-        learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
-        learnAccounts(
+    fun learnFromRuntime(root: java.io.File): Boolean {
+        val addressesComplete = learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
+        val accountsComplete = learnAccounts(
             java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"),
             java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf"),
         )
         matchers.remove()
+        return addressesComplete && accountsComplete
     }
 
     @Volatile
     private var own: List<Learned> = emptyList()
 
-    fun learnOwnAddresses(linkFile: java.io.File) {
+    fun learnOwnAddresses(linkFile: java.io.File): Boolean {
         val found = ArrayList<Learned>()
         try {
-            if (linkFile.isFile) linkFile.forEachLine { line ->
-                val addr = line.trim().takeIf { it.startsWith("addr ") }?.split(Regex("\\s+"))?.getOrNull(1) ?: return@forEachLine
+            val text = if (linkFile.isFile) boundedText(linkFile) ?: return false else ""
+            text.lineSequence().forEach { line ->
+                val addr = line.trim().takeIf { it.startsWith("addr ") }?.split(Regex("\\s+"))?.getOrNull(1) ?: return@forEach
+                if (found.size >= MAX_LEARNED_ADDRESSES) return false
                 when (kind(addr)) {
                     "public IPv6" -> {
-                        val groups = expand6(addr)?.take(4) ?: return@forEachLine
+                        val groups = expand6(addr)?.take(4) ?: return@forEach
                         val prefix = groups.joinToString(":") { g -> "0{0,3}" + Regex.escape(g.trimStart('0').ifEmpty { "0" }) }
                         found += Learned(
                             Regex("(?i)(?<![0-9A-Fa-f:])$prefix(?::[0-9A-Fa-f]{0,4}){1,4}(?:%[A-Za-z0-9_.]+)?"),
@@ -177,9 +216,10 @@ object LogRedactor {
                 }
             }
         } catch (e: Exception) {
-            return
+            return false
         }
         own = found
+        return true
     }
 
     fun kind(address: String): String? {

@@ -4,12 +4,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GameEnvironmentTest {
-    @Test fun defaultsIncludeRequestedGraphicsLevelsAndKeepCaching() {
+    @Test fun defaultsDetectGraphicsCapabilitiesAndKeepCaching() {
         val values = GameEnvironment.defaults("")
         assertEquals("false", values["MESA_SHADER_CACHE_DISABLE"])
         assertEquals("1", values["DROIDDECK_ANTICHEAT_OFFLINE"])
-        assertEquals("12_2", values["VKD3D_FEATURE_LEVEL"])
-        assertEquals("6_9", values["VKD3D_SHADER_MODEL"])
+        assertFalse(values.containsKey("VKD3D_FEATURE_LEVEL"))
+        assertFalse(values.containsKey("VKD3D_SHADER_MODEL"))
     }
 
     @Test fun forceSsbsIsADefaultAGameCanTurnOff() {
@@ -35,14 +35,14 @@ class GameEnvironmentTest {
     }
 
     @Test fun graphicsDefaultsRespectExistingEditsAndRemovals() {
-        val config = GameEnvironment.Config(shared = mapOf("VKD3D_FEATURE_LEVEL" to "12_0"))
+        val config = GameEnvironment.Config(shared = mapOf("VKD3D_FEATURE_LEVEL" to "12_0", "VKD3D_SHADER_MODEL" to "6_5"))
             .withEntries("42", mapOf("VKD3D_SHADER_MODEL" to null))
         val game = GameEnvironment.effective(config, "", "42")
         assertEquals("12_0", game["VKD3D_FEATURE_LEVEL"])
         assertTrue(game.containsKey("VKD3D_SHADER_MODEL"))
         assertNull(game["VKD3D_SHADER_MODEL"])
         val restored = GameEnvironment.effective(config.withEntries("42", emptyMap()), "", "42")
-        assertEquals("6_9", restored["VKD3D_SHADER_MODEL"])
+        assertEquals("6_5", restored["VKD3D_SHADER_MODEL"])
     }
 
     @Test fun dotnetRuntimeFitsAndroidAddressSpaceForEveryGame() {

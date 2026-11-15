@@ -141,6 +141,26 @@ class DirectTouchHoldTest {
         assertEquals(listOf("true at 40.0,30.0", "false at 40.0,30.0"), buttons)
     }
 
+    @Test fun cancelTouchEndsALiveTouchAndKeepsAHeldButton() {
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 60f)
+        hold.cancelTouch()
+        assertEquals(listOf("down 0 at 40.0,30.0", "move 0 at 60.0,30.0", "cancel"), touches)
+        assertTrue(buttons.isEmpty())
+
+        touches.clear()
+        hold.configure(TouchGestureConfig(longPressDelay = 500,
+            directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_HOLD))
+        touch(MotionEvent.ACTION_DOWN)
+        advance(500)
+        hold.cancelTouch()
+        advance(1000)
+        assertEquals(listOf("true at 40.0,30.0"), buttons)
+        assertTrue(touches.isEmpty())
+        touch(MotionEvent.ACTION_UP)
+        assertEquals(listOf("true at 40.0,30.0", "false at 40.0,30.0"), buttons)
+    }
+
     @Test fun cancelForwardsACancelWhenTheTouchIsLive() {
         touch(MotionEvent.ACTION_DOWN)
         touch(MotionEvent.ACTION_MOVE, 60f)

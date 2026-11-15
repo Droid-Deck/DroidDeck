@@ -80,7 +80,7 @@ class GpuDetectionTest {
         assertEquals("Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device", info(true, 850).supportText)
         assertEquals("Experimental: its drivers are test builds", info(true, 720).supportText)
         assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", info(true, 618).supportText)
-        assertEquals("Not supported: DroidDeck needs an Adreno (Snapdragon) GPU", info(false, 0).supportText)
+        assertEquals("Not supported: no compatible graphics backend is available for this GPU", info(false, 0).supportText)
         assertEquals("Not an Adreno GPU", Family.NOT_ADRENO.label)
         assertEquals("Adreno 8xx", Family.A8XX.label)
     }

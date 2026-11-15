@@ -25,9 +25,11 @@ object CloudSaves {
     private const val PARALLEL = 6
     private const val CLOUD_LAYOUT = 2
 
-    class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0) {
+    class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0, val detail: String = "") {
         val ok: Boolean get() = result != "failed"
-        val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" + if (conflicts > 0) " conflicts=$conflicts" else ""
+        val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" +
+            (if (conflicts > 0) " conflicts=$conflicts" else "") +
+            if (detail.isNotEmpty()) " detail=\"$detail\"" else ""
     }
 
     class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
@@ -87,7 +89,7 @@ object CloudSaves {
                 val item = sidecar.extra["catalogItemId"].orEmpty()
                 if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
             }
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET -> ""
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -126,7 +128,7 @@ object CloudSaves {
             )
             if (picked == null) GogConfig("", "") else GogConfig(picked.name, picked.template)
         } catch (e: Exception) {
-            Log.w(TAG, "gog remote-config: ${e.javaClass.simpleName}")
+            Log.w(TAG, "gog remote-config: ${cloudFailureDetail(e)}")
             null
         }
     }
@@ -148,7 +150,7 @@ object CloudSaves {
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET -> null
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
@@ -166,14 +168,14 @@ object CloudSaves {
             val galaxy = GogAuth.validToken(context)
             val clientId = gogClientId(context, id, folder)
             if (userId.isEmpty() || galaxy == null || clientId == null) null
-            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy, gogLocationName(context, id, folder))
+            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy, gogLocationName(context, id, folder), tempDir = context.cacheDir)
         }
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context)
             val account = EpicCredentialStore.load(context)?.accountId.orEmpty()
             if (token == null || account.isEmpty()) null else EpicCloud(account, id, token)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET -> null
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
     }
 
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {
@@ -312,7 +314,7 @@ object CloudSaves {
             rememberNoCloud(prefs(context, store), id)
             Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
-            Result("failed", 0, 0, e.javaClass.simpleName)
+            Result("failed", 0, 0, e.javaClass.simpleName, detail = cloudFailureDetail(e))
         }
         return done(store, id, way, result)
     }
@@ -374,18 +376,31 @@ object CloudSaves {
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val plan = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
-        val send = if (force) plan.transfer + plan.conflicts else plan.transfer
+        val send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         if (send.isNotEmpty()) {
             backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
-            val data = send.associateWith { files.getValue(it).readBytes() }
-            val stamped = cloud.put(data)
-            for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
-            val after = remote(cloud) { it in data }
-            for (name in data.keys) {
+            val stamped = HashMap<String, Long>()
+            val sentMd5 = HashMap<String, String>()
+            if (cloud is GogCloud) {
+                // Stream one save at a time: gzip needs a full-size buffer and uploads can be large.
+                val filesToSend = send.associateWith { files.getValue(it) }
+                val results = cloud.putFiles(filesToSend, send.associateWith { files.getValue(it).lastModified() })
+                for ((name, result) in results) {
+                    if (result.modifiedMs > 0) stamped[name] = result.modifiedMs
+                    result.md5?.let { sentMd5[name] = it }
+                }
+            } else {
+                val data = send.associateWith { files.getValue(it).readBytes() }
+                for ((name, bytes) in data) sentMd5[name] = md5(bytes)
+                stamped += cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
+                for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
+            }
+            val after = remote(cloud) { it in send }
+            for (name in send) {
                 val r = after[name]
-                next[name] = CloudPlan.Entry(md5(data.getValue(name)), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
+                next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
         }
         saveBaseline(context, store, id, next)

@@ -22,12 +22,17 @@ object TurnipReleases {
     private const val KEY_PICKS = "autoPicks"
 
     class Asset(val source: String, val tag: String, val name: String, val url: String, val size: Long, val linux: Boolean, val label: String,
-                val sha256: String = "", val pair: String = "", val bundle: Boolean = false)
+                val sha256: String = "", val pair: String = "", val bundle: Boolean = false,
+                val assetId: Long = 0, val updatedAt: String = "") {
+        /** "2026-10-15" from GitHub's updated_at; empty when the check did not record it. */
+        val builtOn: String get() = updatedAt.take(10)
+    }
     class Check(val assets: List<Asset>, val latest: List<Pair<String, String>>, val failed: List<String>, val checkedAt: Long)
 
     private class Kind(val linux: Boolean, val label: String, val pair: String, val bundle: Boolean = false)
 
-    private class Source(val label: String, val repo: String, val classify: (name: String, tag: String) -> Kind?)
+    /** [prerelease]: a source whose bundles are all test builds offers them from pre-releases too. */
+    private class Source(val label: String, val repo: String, val prerelease: Boolean = false, val classify: (name: String, tag: String) -> Kind?)
 
     private val SOURCES = listOf(
         Source("Banners-Turnip", "The412Banner/Banners-Turnip") { name, tag ->
@@ -56,7 +61,21 @@ object TurnipReleases {
             if (!Regex("""^DD-Turnip-v\d+\.\d+\.\d+\.zip$""").matches(name)) return@Source null
             Kind(false, "Android + Linux · all Adreno", DriverPairs.ddTurnip(tag), bundle = true)
         },
+        // <Id>-Pair.zip: open drivers for GPUs that are not Adreno (PanVK for Mali, RADV for
+        // Xclipse), both halves in one zip. One release per driver, replaced in place on each
+        // rebuild; every one is a test build, published as a pre-release.
+        Source(NON_ADRENO_LABEL, NON_ADRENO_REPO, prerelease = true) { name, _ ->
+            val m = Regex("""^(RADV-Xclipse(?:-[A-Za-z0-9]+)*?|PanVK-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*?)-Pair\.zip$""").find(name) ?: return@Source null
+            val key = DriverPairs.nonAdreno(m.groupValues[1])
+            Kind(false, "Android + Linux · " + DriverPairs.nonAdrenoName(key), key, bundle = true)
+        },
     )
+
+    private const val NON_ADRENO_REPO = "The412Banner/droiddeck-nonadreno-drivers"
+    const val NON_ADRENO_LABEL = "Non-Adreno"
+
+    private fun sources(): List<Source> =
+        if (com.droiddeck.launcher.core.DeviceSupport.adreno()) SOURCES.filter { it.repo != NON_ADRENO_REPO } else SOURCES
 
     fun autoPicks(context: Context): List<AutoPicks.Rule> =
         AutoPicks.parse(prefs(context).getString(KEY_PICKS, null)) ?: AutoPicks.BUILT_IN
@@ -71,9 +90,14 @@ object TurnipReleases {
         val latest = JSONArray()
         val failed = ArrayList<String>()
         var lastError: Exception? = null
-        for (src in SOURCES) {
+        val sources = sources()
+        for (src in sources) {
             try {
-                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=15"))
+                // The non-Adreno repo keeps one release per driver plus many component builds (gamescope,
+                // Venus): its driver pairs fall past the first 15, so it is read in one full page.
+                val perPage = if (src.repo == NON_ADRENO_REPO) 100 else 15
+                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=$perPage"))
+                val found = JSONArray()
                 val seen = HashSet<String>()
                 var newest: String? = null
                 for (i in 0 until releases.length()) {
@@ -86,25 +110,27 @@ object TurnipReleases {
                         val a = list.getJSONObject(j)
                         val name = a.getString("name")
                         val kind = src.classify(name, tag) ?: continue
-                        if (kind.bundle && r.optBoolean("prerelease")) continue
+                        if (kind.bundle && r.optBoolean("prerelease") && !src.prerelease) continue
                         val linux = kind.linux
                         val label = kind.label
                         val sha = Hashes.githubSha256(a.optString("digest")) ?: continue
                         if (!seen.add(if (kind.bundle) kind.pair else "$linux|$label")) continue
-                        assets.put(JSONObject().put("source", src.label).put("tag", tag).put("name", name)
+                        found.put(JSONObject().put("source", src.label).put("tag", tag).put("name", name)
                             .put("url", a.getString("browser_download_url")).put("size", a.optLong("size"))
                             .put("linux", linux).put("label", label).put("sha256", sha).put("pair", kind.pair)
-                            .put("bundle", kind.bundle))
+                            .put("bundle", kind.bundle).put("id", a.optLong("id")).put("updated_at", a.optString("updated_at")))
                     }
                 }
+                for (i in 0 until found.length()) assets.put(found.get(i))
                 if (newest != null) latest.put(JSONObject().put("source", src.label).put("tag", newest))
             } catch (e: Exception) {
                 failed.add(src.label)
                 lastError = e
             }
         }
-        if (failed.size == SOURCES.size) throw lastError ?: IOException("no source answered")
-        runCatching { get(context, AutoPicks.URL, AutoPicks.URL) }
+        if (failed.size == sources.size) throw lastError ?: IOException("no source answered")
+        carryOver(failed, prefs(context).getString(KEY_RELEASE, null)?.let { runCatching { JSONObject(it) }.getOrNull() }, assets, latest)
+        runCatching { fetch(context, AutoPicks.URL, AutoPicks.URL) }
             .onFailure { Log.i(TAG, "auto picks: ${it.message}") }
             .getOrNull()?.takeIf { AutoPicks.parse(it) != null }
             ?.let { prefs(context).edit().putString(KEY_PICKS, it).apply() }
@@ -114,12 +140,22 @@ object TurnipReleases {
         return parse(stored)
     }
 
+    internal var fetch: (Context, String, String) -> String = { context, source, url -> get(context, source, url) }
+
+    internal fun carryOver(failed: List<String>, previous: JSONObject?, assets: JSONArray, latest: JSONArray) {
+        if (previous == null || failed.isEmpty()) return
+        for ((key, into) in listOf("assets" to assets, "latest" to latest)) {
+            val old = previous.optJSONArray(key) ?: continue
+            for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optString("source") in failed }?.let(into::put)
+        }
+    }
+
     private fun get(context: Context, url: String): String {
         val sources = DownloadSource.candidates(url)
         var last: IOException? = null
         for ((index, source) in sources.withIndex()) {
             try {
-                val body = get(context, source, url)
+                val body = fetch(context, source, url)
                 DownloadSource.succeeded(source)
                 return body
             } catch (e: IOException) {
@@ -154,7 +190,7 @@ object TurnipReleases {
             val a = list.getJSONObject(i)
             out.add(Asset(a.getString("source"), a.getString("tag"), a.getString("name"), a.getString("url"),
                 a.optLong("size"), a.getBoolean("linux"), a.getString("label"), a.optString("sha256", ""), a.optString("pair", ""),
-                a.optBoolean("bundle", false)))
+                a.optBoolean("bundle", false), a.optLong("id"), a.optString("updated_at", "")))
         }
         val latest = ArrayList<Pair<String, String>>()
         val l = json.optJSONArray("latest") ?: JSONArray()
@@ -165,8 +201,39 @@ object TurnipReleases {
         return Check(out, latest, failed, json.optLong("checkedAt"))
     }
 
-    fun installedId(context: Context, asset: Asset, isInstalled: (String) -> Boolean): String? =
+    fun installedId(context: Context, asset: Asset, isInstalled: (String) -> Boolean): String? {
+        val d = downloads(context)
+        if (DriverPairs.isNonAdreno(asset.pair) && asset.sha256.isNotEmpty() &&
+            !asset.sha256.equals(d.optString(SHA_PREFIX + asset.name, asset.sha256), ignoreCase = true)) return null
+        return d.optString(asset.name, "").takeIf { it.isNotEmpty() && isInstalled(it) }
+    }
+
+    private const val SHA_PREFIX = "sha256:"
+    private const val ASSET_ID_PREFIX = "asset:"
+    private const val UPDATED_PREFIX = "updated:"
+
+    /** The id an open non-Adreno pair's asset was installed as, whichever build of it that was. */
+    fun installedIdAnyBuild(context: Context, asset: Asset, isInstalled: (String) -> Boolean): String? =
         downloads(context).optString(asset.name, "").takeIf { it.isNotEmpty() && isInstalled(it) }
+
+    /**
+     * An open non-Adreno pair is rebuilt in place under the same tag: a different digest, asset id
+     * or upload time than the one installed means a newer build.
+     */
+    fun updateAvailable(context: Context, asset: Asset): Boolean {
+        if (!DriverPairs.isNonAdreno(asset.pair)) return false
+        val d = downloads(context)
+        if (d.optString(asset.name, "").isEmpty()) return false
+        val sha = d.optString(SHA_PREFIX + asset.name, "")
+        val id = d.optLong(ASSET_ID_PREFIX + asset.name, 0)
+        val updated = d.optString(UPDATED_PREFIX + asset.name, "")
+        return (sha.isNotEmpty() && asset.sha256.isNotEmpty() && !sha.equals(asset.sha256, ignoreCase = true)) ||
+            (id != 0L && asset.assetId != 0L && id != asset.assetId) ||
+            (updated.isNotEmpty() && asset.updatedAt.isNotEmpty() && updated != asset.updatedAt)
+    }
+
+    /** When the installed build of [asset] was uploaded, as recorded at download ("" if unknown). */
+    fun installedBuiltOn(context: Context, asset: Asset): String = downloads(context).optString(UPDATED_PREFIX + asset.name, "").take(10)
 
     fun isDownloaded(context: Context, id: String): Boolean {
         val d = downloads(context)
@@ -174,7 +241,13 @@ object TurnipReleases {
     }
 
     fun recordDownload(context: Context, asset: Asset, id: String) {
-        prefs(context).edit().putString(KEY_DOWNLOADS, downloads(context).put(asset.name, id).toString()).apply()
+        val d = downloads(context).put(asset.name, id)
+        if (DriverPairs.isNonAdreno(asset.pair)) {
+            if (asset.sha256.isNotEmpty()) d.put(SHA_PREFIX + asset.name, asset.sha256)
+            if (asset.assetId != 0L) d.put(ASSET_ID_PREFIX + asset.name, asset.assetId)
+            if (asset.updatedAt.isNotEmpty()) d.put(UPDATED_PREFIX + asset.name, asset.updatedAt)
+        }
+        prefs(context).edit().putString(KEY_DOWNLOADS, d.toString()).apply()
     }
 
     fun forget(context: Context, id: String) {

@@ -80,6 +80,13 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameResolution(context: Context, scope: String, choice: com.droiddeck.launcher.core.GameResolution.Choice?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameResolution(read(context), scope, choice)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun setDefault(context: Context, scope: String, name: String, value: String): Boolean {
         val config = read(context)
         if (GameEnvironment.hasOverride(config, scope, name)) return false
@@ -117,8 +124,7 @@ object GameEnvironmentStore {
         if (gameDxvk.length() > 0) json.put(DXVK_CONFIG_GAMES, gameDxvk)
         json.put(
             GAME_DEBUG_LOGS,
-            gameDebugLogsOverride ?: (SessionPrefs.logsEnabled(context) &&
-                SessionPrefs.gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context)),
+            gameDebugLogsOverride ?: SessionPrefs.gameDebugLogsEffective(context),
         )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }

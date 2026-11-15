@@ -33,21 +33,59 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
+    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+
+    /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
+    fun ensureUbisoftService(context: Context) {
+        AddonPack.UBISOFT.ensure(context) { app ->
+            com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
+                ?.let { stageUbisoftService(app, it, null) }
+        }
+    }
+
+    @Synchronized
+    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
+        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
+        val target = File(root, UBISOFT_SERVICE)
+        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
+        val staged = File(target.parentFile, target.name + ".staged")
+        var installed = false
+        try {
+            target.parentFile?.mkdirs()
+            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
+                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+            }
+            installed = staged.setExecutable(true, false) && staged.renameTo(target)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
+        } finally {
+            if (!installed) staged.delete()
+        }
+        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+    }
+
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
+            "rockstar/helpers/Launcher32.exe" to "usr/local/lib/droiddeck-rockstar/Launcher32.exe",
+            "rockstar/helpers/Launcher64.exe" to "usr/local/lib/droiddeck-rockstar/Launcher64.exe",
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
+            "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
             "libblaudit.so" to "usr/local/lib/libblaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
@@ -66,11 +104,13 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-share" to "usr/local/bin/droiddeck-steam-share",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-launcher-cores" to "usr/local/bin/droiddeck-launcher-cores",
+            "usr/local/bin/droiddeck-pace-cores" to "usr/local/bin/droiddeck-pace-cores",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
+            "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
             "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
@@ -109,6 +149,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
+            "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -141,6 +182,8 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
+        val xclipse = listOf("libVkLayer_droiddeck_xclipse.so", "VkLayer_droiddeck_xclipse.json")
+            .map { "usr/local/lib/droiddeck-xclipse/$it" }
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
@@ -164,12 +207,22 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
+            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
+            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
+        // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
+        // Never staged on an Adreno: an implicit layer is loaded into every Vulkan program there.
+        val maliCompat = if (com.droiddeck.launcher.core.DeviceSupport.adreno()) emptyList() else listOf(
+            "usr/local/lib/droiddeck-mali/libVkLayer_droiddeck_mali_compat.so",
+            "usr/local/share/vulkan/implicit_layer.d/VkLayer_droiddeck_mali_compat.json",
+        ).map { it to it }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
+            "usr/local/bin/droiddeck-glprobe" to "usr/local/bin/droiddeck-glprobe",
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
@@ -178,7 +231,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-        ) + mangoapp + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -191,7 +244,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("linuxfs/$asset").use { input ->
+                (if (asset.startsWith("rockstar/")) requireNotNull(javaClass.getResourceAsStream("/$asset")) else context.assets.open("linuxfs/$asset")).use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)
@@ -233,18 +286,23 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        stageUbisoftService(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
+        val nativeUserland = SessionPrefs.nativeUserland(context)
+        if (nativeUserland) com.droiddeck.launcher.runtime.NativeGuest.prepare(context, root)
         if (ProotFastPath.enabled(context)) {
             val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
             preload.append(library + "\n")
             if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
         }
         val etc = File(root, "etc").apply { mkdirs() }
+        File(etc, "droiddeck").mkdirs()
+        FileUtils.writeString(File(etc, "droiddeck/native-preload"), preload.toString())
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
             || !staged.renameTo(File(etc, "ld.so.preload"))) {
@@ -297,7 +355,10 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            if (startsSession) disableIdleSleep(home)
+            if (startsSession) {
+                disableIdleSleep(home)
+                seedUserDefaults(home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
@@ -515,6 +576,85 @@ object SessionFiles {
             Log.w(TAG, "could not write Steam startup movie selection", e)
             false
         }
+    }
+
+    private const val USER_DEFAULTS_MARKER = "droiddeck-user-defaults-initialized"
+    private const val BATTERY_PREFERENCES = "CachedBatteryPreferences"
+    private const val UI_STATE = "UIStoreLocalSteamUIState"
+    private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
+    private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
+
+    /**
+     * Seeds opinionated first-run defaults into each Steam account's localconfig.vdf: battery percentage shown and
+     * download speeds in bytes rather than bits, and the library sorted by recently played. A value is written once per account and only when the key is
+     * absent, so a later choice made in Steam is never overridden. Runs while Steam is stopped, as it keeps the
+     * file in memory and rewrites it.
+     */
+    internal fun seedUserDefaults(steamHome: File) {
+        val users = File(steamHome, "userdata").listFiles { f -> f.isDirectory && f.name.all(Char::isDigit) && f.name != "0" } ?: return
+        for (user in users) {
+            val configDir = File(user, "config")
+            val marker = File(configDir, USER_DEFAULTS_MARKER)
+            val file = File(configDir, "localconfig.vdf")
+            if (marker.exists() || !file.isFile) continue
+            try {
+                val text = file.readText()
+                val updated = withUserDefaults(text) ?: continue
+                if (updated != text) {
+                    val staged = File(configDir, file.name + ".staged")
+                    staged.writeText(updated)
+                    if (!staged.renameTo(file)) { staged.delete(); continue }
+                }
+                marker.writeText("1\n")
+            } catch (e: Exception) {
+                Log.w(TAG, "could not seed Steam user defaults", e)
+            }
+        }
+    }
+
+    internal fun withUserDefaults(text: String): String? {
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return null
+        var out = text
+        val system = findObject(out, "system", root.open + 1, root.close)
+        if (system == null) {
+            out = insertInto(out, root, listOf("\"system\"", "{", "\t\"displayratesasbits\"\t\t\"0\"", "}"), newline)
+        } else if (!hasKey(out.substring(system.keyStart, system.close + 1), "displayratesasbits")) {
+            val block = out.substring(system.keyStart, system.close + 1)
+            out = out.replaceRange(system.keyStart, system.close + 1, setScalar(block, "displayratesasbits", "0", newline))
+        }
+        val reroot = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        val web = findObject(out, "WebStorage", reroot.open + 1, reroot.close)
+        if (web == null) {
+            out = insertInto(out, reroot, listOf("\"WebStorage\"", "{", "\t\"$BATTERY_PREFERENCES\"\t\t\"$BATTERY_PERCENT_ON\"", "}"), newline)
+        } else if (!hasKey(out.substring(web.keyStart, web.close + 1), BATTERY_PREFERENCES)) {
+            val block = out.substring(web.keyStart, web.close + 1)
+            out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
+        }
+        return seedRecentSort(out, newline)
+    }
+
+    // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
+    // so the first seed flips it once and the marker file keeps a later choice.
+    private fun seedRecentSort(text: String, newline: String): String {
+        val root = findObject(text, "UserLocalConfigStore", 0, text.length) ?: return text
+        val web = findObject(text, "WebStorage", root.open + 1, root.close) ?: return text
+        val block = text.substring(web.keyStart, web.close + 1)
+        if (!hasKey(block, UI_STATE)) {
+            return text.replaceRange(web.keyStart, web.close + 1,
+                setScalar(block, UI_STATE, "{\\\"nVersion\\\":1,$SORT_RECENT_ON}", newline))
+        }
+        return text.replaceRange(web.keyStart, web.close + 1, block.replace(SORT_RECENT_OFF, SORT_RECENT_ON))
+    }
+
+    private fun hasKey(block: String, key: String) = Regex("(?m)^[\\t ]*\"${Regex.escape(key)}\"[\\t ]").containsMatchIn(block)
+
+    private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
+        val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
+        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val section = lines.joinToString(newline) { indent + it } + newline
+        return text.substring(0, lineStart) + section + text.substring(lineStart)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")

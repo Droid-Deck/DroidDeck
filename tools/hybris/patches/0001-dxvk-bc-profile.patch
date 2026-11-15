@@ -1,0 +1,505 @@
+diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_commands.c
+index 90dac59..cf62d7d 100644
+--- a/hybris/vulkan/compat/bc_commands.c
++++ b/hybris/vulkan/compat/bc_commands.c
+@@ -2,6 +2,7 @@
+ #define VK_NO_PROTOTYPES
+ #include "bc_context.h"
+ #include <string.h>
++#include <stdio.h>
+ 
+ #define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
+ static VkResult VKAPI_CALL allocate_commands(VkDevice handle, const VkCommandBufferAllocateInfo *info,
+@@ -76,6 +77,7 @@ static VkResult VKAPI_CALL end_command(VkCommandBuffer handle)
+     PROC(EndCommandBuffer);
+     VkResult result = EndCommandBuffer(handle);
+     VkResult recorded = command->state.error;
++    if (result != VK_SUCCESS || recorded != VK_SUCCESS) fprintf(stderr, "HYBRIS_BC end: native=%d recorded=%d\n", result, recorded);
+     if (recorded == VK_SUCCESS) return result;
+     if (recorded == VK_ERROR_OUT_OF_HOST_MEMORY || recorded == VK_ERROR_OUT_OF_DEVICE_MEMORY ||
+         recorded == VK_ERROR_DEVICE_LOST) return recorded;
+@@ -198,6 +200,37 @@ static void VKAPI_CALL push_constants(VkCommandBuffer handle, VkPipelineLayout l
+     CmdPushConstants(handle, layout, stages, offset, size, values);
+     if (device->format_mask) hybris_bc_save_push(&command->state, layout, stages, offset, size, values);
+ }
++static void bind_descriptors2(VkCommandBuffer handle, const VkBindDescriptorSetsInfo *info, const char *name)
++{
++    struct hybris_bc_device *device;
++    struct hybris_bc_command *command = hybris_bc_command_find(handle, &device);
++    if (!command) return;
++    PFN_vkCmdBindDescriptorSets2 call = (void *)device->resolver(device->handle, name);
++    call(handle, info);
++    if (device->format_mask && (info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
++        hybris_bc_save_descriptors(&command->state, VK_PIPELINE_BIND_POINT_COMPUTE,
++            info->layout, info->firstSet, info->descriptorSetCount, info->pDescriptorSets,
++            info->dynamicOffsetCount, info->pDynamicOffsets);
++}
++static void VKAPI_CALL bind_descriptors2_core(VkCommandBuffer handle, const VkBindDescriptorSetsInfo *info)
++{ bind_descriptors2(handle, info, "vkCmdBindDescriptorSets2"); }
++static void VKAPI_CALL bind_descriptors2_khr(VkCommandBuffer handle, const VkBindDescriptorSetsInfo *info)
++{ bind_descriptors2(handle, info, "vkCmdBindDescriptorSets2KHR"); }
++static void push_constants2(VkCommandBuffer handle, const VkPushConstantsInfo *info, const char *name)
++{
++    struct hybris_bc_device *device;
++    struct hybris_bc_command *command = hybris_bc_command_find(handle, &device);
++    if (!command) return;
++    PFN_vkCmdPushConstants2 call = (void *)device->resolver(device->handle, name);
++    call(handle, info);
++    if (device->format_mask)
++        hybris_bc_save_push(&command->state, info->layout, info->stageFlags,
++            info->offset, info->size, info->pValues);
++}
++static void VKAPI_CALL push_constants2_core(VkCommandBuffer handle, const VkPushConstantsInfo *info)
++{ push_constants2(handle, info, "vkCmdPushConstants2"); }
++static void VKAPI_CALL push_constants2_khr(VkCommandBuffer handle, const VkPushConstantsInfo *info)
++{ push_constants2(handle, info, "vkCmdPushConstants2KHR"); }
+ PFN_vkVoidFunction hybris_bc_commands_proc(const char *name)
+ {
+     static const struct { const char *name; PFN_vkVoidFunction function; } commands[] = {
+@@ -207,7 +240,9 @@ PFN_vkVoidFunction hybris_bc_commands_proc(const char *name)
+         ENTRY(ResetCommandBuffer, reset_command), ENTRY(ResetCommandPool, reset_pool),
+         ENTRY(DestroyCommandPool, destroy_pool), ENTRY(CreatePipelineLayout, create_layout),
+         ENTRY(DestroyPipelineLayout, destroy_layout), ENTRY(CmdBindPipeline, bind_pipeline),
+-        ENTRY(CmdBindDescriptorSets, bind_descriptors), ENTRY(CmdPushConstants, push_constants)
++        ENTRY(CmdBindDescriptorSets, bind_descriptors), ENTRY(CmdPushConstants, push_constants),
++        ENTRY(CmdBindDescriptorSets2, bind_descriptors2_core), ENTRY(CmdBindDescriptorSets2KHR, bind_descriptors2_khr),
++        ENTRY(CmdPushConstants2, push_constants2_core), ENTRY(CmdPushConstants2KHR, push_constants2_khr)
+ #undef ENTRY
+     };
+     for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
+diff --git a/hybris/vulkan/compat/bc_image.c b/hybris/vulkan/compat/bc_image.c
+index fe25344..44faaf6 100644
+--- a/hybris/vulkan/compat/bc_image.c
++++ b/hybris/vulkan/compat/bc_image.c
+@@ -5,6 +5,19 @@
+ 
+ #define PROC(name) PFN_vk##name name = (PFN_vk##name)image->resolver(image->device, "vk" #name)
+ 
++int hybris_bc_srgb_family(VkFormat format)
++{
++    return (format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC3_SRGB_BLOCK) ||
++        format == VK_FORMAT_BC7_UNORM_BLOCK || format == VK_FORMAT_BC7_SRGB_BLOCK;
++}
++int hybris_bc_view_compatible(VkFormat image, VkFormat view)
++{
++    if (image == view) return 1;
++    return hybris_bc_srgb_family(image) &&
++        ((image - VK_FORMAT_BC1_RGB_UNORM_BLOCK) / 2 ==
++         (view - VK_FORMAT_BC1_RGB_UNORM_BLOCK) / 2) && hybris_bc_srgb_family(view);
++}
++
+ VkFormat hybris_bc_image_format(VkFormat format, unsigned rgb_mask)
+ {
+     switch (format) {
+@@ -71,19 +84,28 @@ VkResult hybris_bc_image_describe(const VkImageCreateInfo *info, struct hybris_b
+         info->imageType != VK_IMAGE_TYPE_2D || info->tiling != VK_IMAGE_TILING_OPTIMAL ||
+         info->samples != VK_SAMPLE_COUNT_1_BIT ||
+         (info->initialLayout != VK_IMAGE_LAYOUT_UNDEFINED && info->initialLayout != VK_IMAGE_LAYOUT_PREINITIALIZED) ||
+-        (info->flags & ~VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) ||
++        (info->flags & ~(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)) ||
++        ((info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) && !hybris_bc_srgb_family(info->format)) ||
+         !info->usage ||
+         (info->usage & ~(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)) ||
+         !info->extent.width || !info->extent.height || info->extent.depth != 1 ||
+         !info->mipLevels || info->mipLevels > 32 || !info->arrayLayers)
+         return VK_ERROR_FORMAT_NOT_SUPPORTED;
++    image->flags = info->flags;
++    image->view_mask = (info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) ? 3 : 1;
+     /* These chains only constrain views or request no external/swapchain
+      * binding. The decoded image has the same view restriction in our wrapper. */
+     for (const VkBaseInStructure *next = info->pNext; next; next = next->pNext) {
+         if (next->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
+             const VkImageFormatListCreateInfo *list = (const void *)next;
+-            for (uint32_t i = 0; i < list->viewFormatCount; ++i)
+-                if (list->pViewFormats[i] != info->format) return VK_ERROR_FORMAT_NOT_SUPPORTED;
++            if (list->viewFormatCount) image->view_mask = 0;
++            for (uint32_t i = 0; i < list->viewFormatCount; ++i) {
++                VkFormat view = list->pViewFormats[i];
++                if (!hybris_bc_view_compatible(info->format, view) ||
++                    (view != info->format && !(info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)))
++                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
++                image->view_mask |= view == info->format ? 1u : 2u;
++            }
+         } else if (next->sType == VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO) {
+             if (((const VkExternalMemoryImageCreateInfo *)next)->handleTypes)
+                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
+diff --git a/hybris/vulkan/compat/bc_image.h b/hybris/vulkan/compat/bc_image.h
+index 9e62eb3..c950cc2 100644
+--- a/hybris/vulkan/compat/bc_image.h
++++ b/hybris/vulkan/compat/bc_image.h
+@@ -12,10 +12,14 @@ struct hybris_bc_image {
+     VkMemoryRequirements requirements;
+     VkBool32 requires_dedicated, prefers_dedicated;
+     VkFormat format, decoded_format;
++    VkImageCreateFlags flags;
++    unsigned view_mask;
+     VkExtent3D extent;
+     uint32_t mip_levels, layers, block_bytes;
+     VkDeviceSize mip_offset[32], block_size;
+ };
++int hybris_bc_srgb_family(VkFormat format);
++int hybris_bc_view_compatible(VkFormat image, VkFormat view);
+ VkFormat hybris_bc_image_format(VkFormat format, unsigned rgb_mask);
+ VkResult hybris_bc_image_describe(const VkImageCreateInfo *info, struct hybris_bc_image *image);
+ void hybris_bc_image_backing_info(const struct hybris_bc_image *image,
+diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
+index c5856f6..3124a25 100644
+--- a/hybris/vulkan/compat/bc_policy.c
++++ b/hybris/vulkan/compat/bc_policy.c
+@@ -5,6 +5,7 @@
+ #include "bc_context.h"
+ #include "../layer/layer.h"
+ #include <stdlib.h>
++#include <stddef.h>
+ #include <string.h>
+ #include <sys/auxv.h>
+ 
+@@ -16,12 +17,18 @@ static void initialize_policy(void)
+     const char *value = getenv("HYBRIS_BC_TEXTURES");
+     if (!value || !strcmp(value, "missing") || !strcmp(value, "1")) policy = 1;
+     else if (value && !strcmp(value, "force")) policy = 2;
++    else if (value && !strcmp(value, "dxvk")) policy = 3;
+ }
+ int hybris_bc_enabled(void)
+ {
+     pthread_once(&policy_once, initialize_policy);
+     return policy != 0;
+ }
++static int dxvk_profile(void)
++{
++    pthread_once(&policy_once, initialize_policy);
++    return policy == 3;
++}
+ #define PHYSICAL_PROC(name) PFN_vk##name name = (PFN_vk##name)context.resolver(context.instance, "vk" #name)
+ /* Preserve three-channel border replacement when the native image format
+  * supports the full sampled/transfer domain. Selection is per physical device;
+@@ -52,7 +59,7 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
+     VkPhysicalDeviceProperties properties;
+     GetPhysicalDeviceProperties(physical, &properties);
+     /* Core 1.4 includes descriptor-state commands that are not intercepted yet. */
+-    if (properties.apiVersion < VK_API_VERSION_1_1 || properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 4, 0) ||
++    if (properties.apiVersion < VK_API_VERSION_1_1 || (!dxvk_profile() && properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 4, 0)) ||
+         properties.limits.maxStorageBufferRange < 256 ||
+         properties.limits.minStorageBufferOffsetAlignment >= properties.limits.maxStorageBufferRange) return 0;
+     uint32_t count = 0;
+@@ -72,6 +79,9 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
+     unsigned mask = 0;
+     for (unsigned i = 0; i < 16; ++i) {
+         VkFormat format = VK_FORMAT_BC1_RGB_UNORM_BLOCK + i;
++        /* D3D uses BC1 RGBA. Keep RGB-only BC1 unadvertised until absent-alpha
++         * border semantics are implemented on devices without RGB8 images. */
++        if (dxvk_profile() && i < 2) continue;
+         VkFormat backing = hybris_bc_image_format(format, physical_rgb_mask(physical));
+         if (backing == VK_FORMAT_UNDEFINED) continue;
+         VkFormatProperties native, decoded;
+@@ -84,6 +94,33 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
+     }
+     return mask;
+ }
++/* The emulation profile implements Vulkan 1.3 plus maintenance6. Do not expose
++ * 1.4 core host-copy/push-descriptor operations that bypass our state tracking. */
++static void cap_properties(VkPhysicalDevice physical, VkPhysicalDeviceProperties *out)
++{
++    if (dxvk_profile() && hybris_bc_physical_mask(physical) && out->apiVersion > VK_API_VERSION_1_3)
++        out->apiVersion = VK_API_VERSION_1_3;
++}
++static void VKAPI_CALL properties(VkPhysicalDevice physical, VkPhysicalDeviceProperties *out)
++{
++    struct hybris_layer_physical context;
++    if (!hybris_layer_lookup_physical(physical, &context)) return;
++    PHYSICAL_PROC(GetPhysicalDeviceProperties);
++    GetPhysicalDeviceProperties(physical, out);
++    cap_properties(physical, out);
++}
++static void properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *out, const char *name)
++{
++    struct hybris_layer_physical context;
++    if (!hybris_layer_lookup_physical(physical, &context)) return;
++    PFN_vkGetPhysicalDeviceProperties2 query = (void *)context.resolver(context.instance, name);
++    query(physical, out);
++    cap_properties(physical, &out->properties);
++}
++static void VKAPI_CALL properties2_core(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *out)
++{ properties2(physical, out, "vkGetPhysicalDeviceProperties2"); }
++static void VKAPI_CALL properties2_khr(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *out)
++{ properties2(physical, out, "vkGetPhysicalDeviceProperties2KHR"); }
+ static int emulates(VkPhysicalDevice physical, VkFormat format)
+ {
+     return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK &&
+@@ -109,10 +146,13 @@ int hybris_bc_extension_allowed(const char *name)
+         "VK_KHR_maintenance6", "VK_KHR_maintenance8", "VK_EXT_host_image_copy",
+         "VK_QCOM_rotated_copy_commands", "VK_EXT_device_generated_commands",
+         "VK_NV_device_generated_commands", "VK_NV_device_generated_commands_compute",
+-        "VK_NV_dedicated_allocation", "VK_NV_copy_memory_indirect"
++        "VK_NV_dedicated_allocation", "VK_NV_copy_memory_indirect", "VK_NV_per_stage_descriptor_set"
+     };
+     for (size_t i = 0; i < sizeof(unsupported) / sizeof(unsupported[0]); ++i)
+-        if (!strcmp(name, unsupported[i])) return 0;
++        if (!strcmp(name, unsupported[i])) {
++            if (dxvk_profile() && !strcmp(name, "VK_KHR_maintenance6")) continue;
++            return 0;
++        }
+     return 1;
+ }
+ /* Extension feature queries must agree with the filtered extension list. Each
+@@ -121,8 +161,12 @@ static unsigned unsupported_feature_count(VkStructureType type)
+ {
+     switch (type) {
+     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT: return 4;
++    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES:
++        return dxvk_profile() ? (offsetof(VkPhysicalDeviceVulkan14Features, pushDescriptor) -
++            offsetof(VkPhysicalDeviceVulkan14Features, globalPriorityQuery)) / sizeof(VkBool32) + 1 : 0;
++    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR: return dxvk_profile() ? 0 : 1;
++    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PER_STAGE_DESCRIPTOR_SET_FEATURES_NV: return 2;
+     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR:
+     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES_EXT:
+     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COPY_MEMORY_INDIRECT_FEATURES_NV:
+     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV: return 1;
+@@ -252,11 +296,12 @@ static void VKAPI_CALL sparse_properties2_core(VkPhysicalDevice physical, const
+ static void VKAPI_CALL sparse_properties2_khr(VkPhysicalDevice physical, const VkPhysicalDeviceSparseImageFormatInfo2 *info,
+     uint32_t *count, VkSparseImageFormatProperties2 *out)
+ { sparse_properties2(physical, info, count, out, "vkGetPhysicalDeviceSparseImageFormatProperties2KHR"); }
+-static int image_supported(VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags)
++static int image_supported(VkFormat format, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags)
+ {
+     return type == VK_IMAGE_TYPE_2D && tiling == VK_IMAGE_TILING_OPTIMAL && usage &&
+         !(usage & ~(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)) &&
+-        !(flags & ~VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
++        !(flags & ~(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)) &&
++        (!(flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) || hybris_bc_srgb_family(format));
+ }
+ static VkResult VKAPI_CALL image_properties(VkPhysicalDevice physical, VkFormat format, VkImageType type,
+     VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags, VkImageFormatProperties *out)
+@@ -265,7 +310,7 @@ static VkResult VKAPI_CALL image_properties(VkPhysicalDevice physical, VkFormat
+     if (!hybris_layer_lookup_physical(physical, &context)) return VK_ERROR_INITIALIZATION_FAILED;
+     PHYSICAL_PROC(GetPhysicalDeviceImageFormatProperties);
+     if (emulates(physical, format)) {
+-        if (!image_supported(type, tiling, usage, flags)) { *out = (VkImageFormatProperties){0}; return VK_ERROR_FORMAT_NOT_SUPPORTED; }
++        if (!image_supported(format, type, tiling, usage, flags)) { *out = (VkImageFormatProperties){0}; return VK_ERROR_FORMAT_NOT_SUPPORTED; }
+         VkResult result = GetPhysicalDeviceImageFormatProperties(physical, hybris_bc_image_format(format, physical_rgb_mask(physical)), type,
+             tiling, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT, flags, out);
+         if (result == VK_SUCCESS) out->sampleCounts &= VK_SAMPLE_COUNT_1_BIT;
+@@ -282,14 +327,16 @@ static VkResult image_properties2(VkPhysicalDevice physical, const VkPhysicalDev
+         (PFN_vkGetPhysicalDeviceImageFormatProperties2)context.resolver(context.instance, name);
+     if (!emulates(physical, info->format)) return query(physical, info, out);
+     out->imageFormatProperties = (VkImageFormatProperties){0};
+-    if (!image_supported(info->type, info->tiling, info->usage, info->flags)) return VK_ERROR_FORMAT_NOT_SUPPORTED;
++    if (!image_supported(info->format, info->type, info->tiling, info->usage, info->flags)) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
+         if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO) {
+             if (((const VkPhysicalDeviceExternalImageFormatInfo *)node)->handleType) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+         } else if (node->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
+             const VkImageFormatListCreateInfo *list = (const void *)node;
+             for (uint32_t i = 0; i < list->viewFormatCount; ++i)
+-                if (list->pViewFormats[i] != info->format) return VK_ERROR_FORMAT_NOT_SUPPORTED;
++                if (!hybris_bc_view_compatible(info->format, list->pViewFormats[i]) ||
++                    (list->pViewFormats[i] != info->format && !(info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)))
++                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
+         } else if (node->sType != VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_IMAGE_FORMAT_INFO_EXT) {
+             return VK_ERROR_FORMAT_NOT_SUPPORTED;
+         }
+@@ -322,6 +369,9 @@ PFN_vkVoidFunction hybris_bc_policy_proc(const char *name)
+     if (!hybris_bc_enabled()) return NULL;
+     static const struct { const char *name; PFN_vkVoidFunction function; } commands[] = {
+ #define ENTRY(name, function) {"vk" #name, (PFN_vkVoidFunction)function}
++        ENTRY(GetPhysicalDeviceProperties, properties),
++        ENTRY(GetPhysicalDeviceProperties2, properties2_core),
++        ENTRY(GetPhysicalDeviceProperties2KHR, properties2_khr),
+         ENTRY(GetPhysicalDeviceQueueFamilyProperties, queue_properties),
+         ENTRY(GetPhysicalDeviceQueueFamilyProperties2, queue_properties2_core),
+         ENTRY(GetPhysicalDeviceQueueFamilyProperties2KHR, queue_properties2_khr),
+diff --git a/hybris/vulkan/compat/bc_resources.c b/hybris/vulkan/compat/bc_resources.c
+index 526c3f1..74cc0c9 100644
+--- a/hybris/vulkan/compat/bc_resources.c
++++ b/hybris/vulkan/compat/bc_resources.c
+@@ -210,8 +210,10 @@ static VkResult VKAPI_CALL create_view(VkDevice handle, const VkImageViewCreateI
+     struct hybris_bc_resource *resource = hybris_bc_resource_find(device, info->image);
+     VkImageViewCreateInfo translated = *info;
+     if (resource && resource->emulated.image) {
+-        if (info->format != resource->format) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+-        translated.format = resource->emulated.decoded_format;
++        unsigned bit = info->format == resource->format ? 1u : 2u;
++        if (!hybris_bc_view_compatible(resource->format, info->format) ||
++            !(resource->emulated.view_mask & bit)) return VK_ERROR_FORMAT_NOT_SUPPORTED;
++        translated.format = hybris_bc_image_format(info->format, device->rgb_mask);
+     }
+     PROC(CreateImageView);
+     return CreateImageView(handle, &translated, allocator, view);
+diff --git a/hybris/vulkan/compat/bc_transfer.c b/hybris/vulkan/compat/bc_transfer.c
+index 6edb652..799fb62 100644
+--- a/hybris/vulkan/compat/bc_transfer.c
++++ b/hybris/vulkan/compat/bc_transfer.c
+@@ -2,6 +2,7 @@
+ #define VK_NO_PROTOTYPES
+ #include "bc_transfer.h"
+ #include <stdlib.h>
++#include <stdio.h>
+ #include <string.h>
+ 
+ #define PROC(name) PFN_vk##name name = (PFN_vk##name)t->decoder->resolver(t->decoder->device, "vk" #name)
+@@ -59,16 +60,29 @@ static VkResult scratch(struct hybris_bc_transfer *t)
+         if (type == t->memory->memoryTypeCount) type = i;
+         if (t->memory->memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) { type = i; break; }
+     }
+-    if (type == t->memory->memoryTypeCount) { result = VK_ERROR_OUT_OF_DEVICE_MEMORY; goto fail; }
++    if (type == t->memory->memoryTypeCount) {
++        fprintf(stderr, "HYBRIS_BC scratch: no memory type (bits=0x%x count=%u size=%llu)\n",
++            requirements.memoryRequirements.memoryTypeBits, t->memory->memoryTypeCount,
++            (unsigned long long)requirements.memoryRequirements.size);
++        result = VK_ERROR_OUT_OF_DEVICE_MEMORY; goto fail;
++    }
+     VkMemoryDedicatedAllocateInfo owner = {
+         .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO, .buffer = buffer};
+     VkMemoryAllocateInfo allocation = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+         .pNext = dedicated.requiresDedicatedAllocation || dedicated.prefersDedicatedAllocation ? &owner : NULL,
+         .allocationSize = requirements.memoryRequirements.size, .memoryTypeIndex = type};
+     result = AllocateMemory(device, &allocation, NULL, &memory);
+-    if (result != VK_SUCCESS) goto fail;
++    if (result != VK_SUCCESS) {
++        fprintf(stderr, "HYBRIS_BC scratch allocation: result=%d size=%llu type=%u bits=0x%x\n",
++            result, (unsigned long long)allocation.allocationSize, type, requirements.memoryRequirements.memoryTypeBits);
++        goto fail;
++    }
+     result = BindBufferMemory(device, buffer, memory, 0);
+-    if (result != VK_SUCCESS) goto fail;
++    if (result != VK_SUCCESS) {
++        fprintf(stderr, "HYBRIS_BC scratch bind: result=%d size=%llu type=%u\n",
++            result, (unsigned long long)allocation.allocationSize, type);
++        goto fail;
++    }
+     t->scratch = buffer;
+     t->scratch_memory = memory;
+     t->scratch_size = size;
+@@ -193,7 +207,7 @@ VkResult hybris_bc_decode_image(struct hybris_bc_transfer *t,
+     buffer_barrier(t, command, image->blocks, VK_PIPELINE_STAGE_TRANSFER_BIT,
+         VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+     VkResult result = decode(t, command, image, layout, region);
+-    if (result != VK_SUCCESS) { state->error = result; return result; }
++    if (result != VK_SUCCESS) { fprintf(stderr, "HYBRIS_BC transfer failed: %d\n", result); state->error = result; return result; }
+     buffer_barrier(t, command, image->blocks, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+         VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+         VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
+index a1dcf6d..21a4cc7 100644
+--- a/hybris/vulkan/compat/shader_policy.c
++++ b/hybris/vulkan/compat/shader_policy.c
+@@ -92,7 +92,8 @@ static void properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *
+ {
+     struct hybris_layer_physical context;
+     if (!hybris_layer_lookup_physical(physical, &context)) return;
+-    PFN_vkGetPhysicalDeviceProperties2 query = (PFN_vkGetPhysicalDeviceProperties2)context.resolver(context.instance, name);
++    PFN_vkGetPhysicalDeviceProperties2 query = (void *)hybris_bc_policy_proc(name);
++    if (!query) query = (void *)context.resolver(context.instance, name);
+     query(physical, out);
+     VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT *legacy = NULL;
+     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext)
+diff --git a/tests/baseline/probe_bc_images.c b/tests/baseline/probe_bc_images.c
+index 85ba6e6..55e069c 100644
+--- a/tests/baseline/probe_bc_images.c
++++ b/tests/baseline/probe_bc_images.c
+@@ -95,9 +95,10 @@ int bc_images_probe(int validate, int route)
+     }
+     free(queues);
+     if (family == UINT32_MAX) return 3;
++    unsigned first_format = getenv("BC_D3D_FORMATS") ? 2 : 0;
+     VkBool32 linear_filter[BC_IMAGE_FORMAT_COUNT] = {0};
+     unsigned unsupported_formats = 0;
+-    for (unsigned f = 0; f < BC_IMAGE_FORMAT_COUNT; ++f) {
++    for (unsigned f = first_format; f < BC_IMAGE_FORMAT_COUNT; ++f) {
+         VkFormatProperties format;
+         p_vkGetPhysicalDeviceFormatProperties(physical, bc_formats[f], &format);
+         VkFormatProperties2 format2 = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+@@ -164,19 +165,28 @@ int bc_images_probe(int validate, int route)
+         p_vkGetPhysicalDeviceFeatures2(physical, &queried);
+         maintenance4 = maintenance.maintenance4;
+     }
+-    synchronization.pNext = maintenance4 ? &maintenance : NULL;
+-    const char *device_extensions[4];
++    int maintenance6 = getenv("BC_MAINTENANCE6") != NULL;
++    VkPhysicalDeviceMaintenance6FeaturesKHR maintenance_six = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR};
++    if (maintenance6) {
++        VkPhysicalDeviceFeatures2 q = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &maintenance_six};
++        p_vkGetPhysicalDeviceFeatures2(physical, &q);
++        if (!maintenance_six.maintenance6) { puts("MISSING maintenance6"); return 3; }
++    }
++    maintenance.pNext = maintenance6 ? &maintenance_six : NULL;
++    synchronization.pNext = maintenance4 ? (void *)&maintenance : maintenance6 ? (void *)&maintenance_six : NULL;
++    const char *device_extensions[5];
+     uint32_t device_extension_count = 0;
+     if (copies2) device_extensions[device_extension_count++] = VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME;
+     if (sync2) device_extensions[device_extension_count++] = VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME;
+     if (maintenance4) device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_4_EXTENSION_NAME;
+     if (format_list) device_extensions[device_extension_count++] = VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME;
++    if (maintenance6) device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_6_EXTENSION_NAME;
+     float priority = 1;
+     VkDeviceQueueCreateInfo qc = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+         .queueFamilyIndex = family, .queueCount = 1, .pQueuePriorities = &priority};
+     VkDeviceCreateInfo dc = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+         .queueCreateInfoCount = 1, .pQueueCreateInfos = &qc,
+-        .pNext = sync2 ? (void *)&synchronization : maintenance4 ? (void *)&maintenance : NULL,
++        .pNext = sync2 ? (void *)&synchronization : maintenance4 ? (void *)&maintenance : maintenance6 ? (void *)&maintenance_six : NULL,
+         .enabledExtensionCount = device_extension_count, .ppEnabledExtensionNames = device_extensions};
+     VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
+     PFN_vkDestroyDebugUtilsMessengerEXT destroy_messenger = NULL;
+@@ -307,8 +317,12 @@ int bc_images_probe(int validate, int route)
+     VkFenceCreateInfo fence_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+     VkFence fence;
+     CHECK(p_vkCreateFence(device, &fence_info, NULL, &fence));
++    PFN_vkCmdBindDescriptorSets2KHR bind2 = (PFN_vkCmdBindDescriptorSets2KHR)p_vkGetDeviceProcAddr(device, "vkCmdBindDescriptorSets2KHR");
++    PFN_vkCmdPushConstants2KHR push2 = (PFN_vkCmdPushConstants2KHR)p_vkGetDeviceProcAddr(device, "vkCmdPushConstants2KHR");
++    if (maintenance6 && (!bind2 || !push2)) return 2;
++    printf("BC_EXTENDED maintenance6=%d mutable=%d\n", maintenance6, getenv("BC_MUTABLE") != NULL);
+     unsigned failures = 0, readbacks = 0, copies2_cases = 0, sync2_cases = 0;
+-    for (unsigned f = 0; f < BC_IMAGE_FORMAT_COUNT; ++f) {
++    for (unsigned f = first_format; f < BC_IMAGE_FORMAT_COUNT; ++f) {
+         for (unsigned shape_index = 0; shape_index < 2; ++shape_index) {
+         uint32_t base_width = shape_index ? 32 : 9, base_height = shape_index ? 32 : 7;
+         for (uint32_t mip = 0; mip < 4; ++mip) {
+@@ -337,6 +351,13 @@ int bc_images_probe(int validate, int route)
+                         (i != 2 ? VK_IMAGE_USAGE_SAMPLED_BIT : 0), .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+                 VkImageFormatListCreateInfo formats = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO,
+                     .viewFormatCount = 1, .pViewFormats = &image_info.format};
++                VkFormat paired[2] = {bc_formats[f], bc_formats[f ^ 1]};
++                if (getenv("BC_MUTABLE") && (f < 8 || (f >= 12 && f < 14)) && i < 2) {
++                    image_info.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
++                    image_info.format = paired[1];
++                    formats.viewFormatCount = 2;
++                    formats.pViewFormats = paired;
++                }
+                 if (format_list) image_info.pNext = &formats;
+                 VkMemoryRequirements2 described = {.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2};
+                 if (maintenance4) {
+@@ -414,9 +435,19 @@ int bc_images_probe(int validate, int route)
+             VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+             CHECK(p_vkBeginCommandBuffer(command, &begin));
+             p_vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+-            p_vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &descriptors, 1, &dynamic_offset);
++            if (maintenance6) {
++                VkBindDescriptorSetsInfoKHR bind = {.sType = VK_STRUCTURE_TYPE_BIND_DESCRIPTOR_SETS_INFO_KHR,
++                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .layout = pipeline_layout,
++                    .descriptorSetCount = 1, .pDescriptorSets = &descriptors,
++                    .dynamicOffsetCount = 1, .pDynamicOffsets = &dynamic_offset};
++                bind2(command, &bind);
++            } else p_vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &descriptors, 1, &dynamic_offset);
+             uint32_t shape[] = {width, height, LAYERS, f >= 14 ? 3 : f >= 8 && f < 12 ? 1 + (f & 1) : 0, linear_filter[f] != 0};
+-            p_vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shape), shape);
++            if (maintenance6) {
++                VkPushConstantsInfoKHR push = {.sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO_KHR,
++                    .layout = pipeline_layout, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .size = sizeof(shape), .pValues = shape};
++                push2(command, &push);
++            } else p_vkCmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(shape), shape);
+             VkMemoryBarrier before = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                 .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                 .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT};
+@@ -614,7 +645,7 @@ int bc_images_probe(int validate, int route)
+     p_vkDestroyDevice(device, NULL);
+     if (destroy_messenger) destroy_messenger(instance, messenger, NULL);
+     p_vkDestroyInstance(instance, NULL); dlclose(h);
+-    printf("BC_IMAGES_SUMMARY formats=16 shapes=2 readbacks=%u copy2_cases=%u sync2_cases=%u maintenance4=%u format_list=%u failures=%u validation_errors=%u route=%d\n",
+-        readbacks, copies2_cases, sync2_cases, maintenance4, format_list, failures, validation.errors, route);
+-    return failures || validation.errors || readbacks != BC_IMAGE_FORMAT_COUNT * 2 * 4 * 3 ? 2 : 0;
++    printf("BC_IMAGES_SUMMARY formats=%u shapes=2 readbacks=%u copy2_cases=%u sync2_cases=%u maintenance4=%u format_list=%u failures=%u validation_errors=%u route=%d\n",
++        (unsigned)BC_IMAGE_FORMAT_COUNT - first_format, readbacks, copies2_cases, sync2_cases, maintenance4, format_list, failures, validation.errors, route);
++    return failures || validation.errors || readbacks != (BC_IMAGE_FORMAT_COUNT - first_format) * 2 * 4 * 3 ? 2 : 0;
+ }

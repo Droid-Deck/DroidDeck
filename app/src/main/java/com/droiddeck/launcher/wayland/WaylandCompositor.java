@@ -178,7 +178,31 @@ public final class WaylandCompositor {
 
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeSetClockControl(String path);
+
     public static native int nativeCompositorTid();
+
+    private static native String nativeCompositorFault();
+
+    private static native String nativeDisplayDriver();
+
+    /** Why the compositor cannot present, or "" while it can (or before the library is loaded). */
+    public static String compositorFault() {
+        try {
+            return nativeCompositorFault();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** The driver that answered for the display, as it reports itself; "" when not known yet. */
+    public static String displayDriver() {
+        try {
+            return nativeDisplayDriver();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
 
     public static native void nativeSetHideShell(boolean hide);
 
@@ -213,6 +237,8 @@ public final class WaylandCompositor {
     public static native void nativeSetOutputSize(int width, int height);
 
     public static native boolean nativeGamePictureRect(float[] out);
+
+    public static native boolean nativeOutputSize(int[] out);
 
     public static native void nativeResizeOutput(int width, int height);
 
@@ -316,6 +342,7 @@ public final class WaylandCompositor {
     public static native int nativeFrameGenProblem();
     public static native String nativeFrameGenCapsReason();
 
+    public static native boolean nativeFrameGenActive();
     public static native float[] nativeFrameGenStats();
 
     public static native long nativeHudFrameTimes(float[] out);

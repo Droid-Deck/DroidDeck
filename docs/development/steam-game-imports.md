@@ -34,7 +34,8 @@ internal Steam library and writes an installed manifest with `Universe=1` and
 `StateFlags=4`. Steam ignores manifests without the universe field. A manifest without
 installed depots makes Steam verify every file, so the importer carries the build another
 client recorded: WinNative's `.winnative-steam/steamapps` manifest beside the game folder,
-or a completed download's `.DepotDownloader/depot.config` depot manifest IDs. Steam then
+or a completed download's depot manifest IDs from `.DepotDownloader/depot.config` or, when
+that file is gone, the `<depot>_<gid>.manifest` names in `.DepotDownloader/completed`. Steam then
 only downloads what changed since that build. Bare manifests from earlier imports are
 upgraded while Steam has not touched them. Without either record Steam still verifies.
 WinNative's manifest also identifies the folder without a store lookup. Steam updates and uninstall
@@ -50,6 +51,12 @@ The folder is then imported as that app if the account owns it, else it is a sho
 again. A failed title lookup undoes nothing. The launcher likewise drops artwork it
 fetched for the app the files named before and fetches it again; pictures the user chose
 are kept.
+
+A game that stays a shortcut but sits in a Steam install directory with a single matching
+manifest links its shortcut prefix to that app's existing `compatdata/<appid>`, so cloud
+saves the client downloaded are the ones the shortcut sees. A Steam library install only
+uses its own library's prefix. An existing shortcut prefix is never replaced, a link to a
+missing prefix is removed first, and nothing is copied.
 
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not

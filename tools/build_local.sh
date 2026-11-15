@@ -115,9 +115,10 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
+git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
 docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
-    -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
+    -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
         set -euo pipefail
         d=app/src/main/assets/linuxfs
         mkdir -p "$d"
@@ -132,14 +133,22 @@ docker run --rm --platform "${docker_platform}" \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+        bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
           -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
+        mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+        install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
         mkdir -p "$d/usr/local/bin"
         external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+        aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
@@ -163,7 +172,7 @@ x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs
 x86_stage="${staging_dir}/x86-preloads"
 if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     docker run --rm --platform linux/amd64 \
-        -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
@@ -416,6 +425,23 @@ if ! restore_step comet "${comet_key}" "${comet_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
+if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
+    upc_out="${linuxfs_dir}/usr/local/lib/droiddeck-ubisoft"
+    upc_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/ubisoft-launcher/src tools/ubisoft-launcher/Cargo.toml tools/ubisoft-launcher/Cargo.lock tools/ubisoft-launcher/build.sh)
+    if ! restore_step ubisoft "${upc_key}" "${upc_out}"; then
+        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for the Ubisoft launcher service (droiddeck-upc.exe)." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
+        save_step ubisoft "${upc_key}" "${upc_out}"
+    fi
+    rockstar_out="${repo_root}/app/src/main/resources/rockstar/helpers"
+    rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
+    if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
+        command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        save_step rockstar "${rockstar_key}" "${rockstar_out}"
+    fi
+fi
+python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}

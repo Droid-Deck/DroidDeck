@@ -60,6 +60,13 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
+    @Test fun aTabRowUnderTheBarComesOutOfTheGameNotTheControls() {
+        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, 0))
+        assertEquals(1240, SessionDisplay.unfoldedGameHeight(2448, 1848, 136))
+        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, -20))
+        assertEquals(0, SessionDisplay.unfoldedGameHeight(200, 100, 500))
+    }
+
     private fun unfoldedWanted(
         enabled: Boolean = true,
         controller: Boolean = false,

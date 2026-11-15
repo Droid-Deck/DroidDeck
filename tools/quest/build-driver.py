@@ -7,6 +7,9 @@ import sys
 import tarfile
 import tempfile
 import hashlib
+import http.client
+import time
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -32,11 +35,23 @@ def pack(entries, output):
     print(output)
 
 
+def download(url, attempts=4):
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as response:
+                return response.read()
+        except (OSError, http.client.HTTPException) as error:
+            if attempt == attempts or isinstance(error, urllib.error.HTTPError) and error.code < 500 and error.code != 429:
+                raise
+            print(f'Download failed ({error}); retrying in {attempt * 15} s')
+            time.sleep(attempt * 15)
+
+
 def build_a6xx(ndk, output_dir=OUTPUT.parent, archive_path=None):
     cached = archive_path or ROOT / 'app/build/quest-inputs' / f'Turnip-{A6XX_TAG}.zip'
     if not cached.exists():
         cached.parent.mkdir(parents=True, exist_ok=True)
-        data = urllib.request.urlopen(A6XX_URL, timeout=120).read()
+        data = download(A6XX_URL)
         if hashlib.sha256(data).hexdigest() != A6XX_SHA256:
             raise ValueError('A6xx archive checksum mismatch')
         cached.write_bytes(data)

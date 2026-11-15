@@ -64,6 +64,8 @@ object GogBackend : StoreBackend {
         }, "gog-sync").start()
     }
 
+    override fun search(context: Context, query: String): List<CatalogItem> = GogStoreCatalog.search(query)
+
     override fun loadShelves(context: Context, force: Boolean) {
         val app = context.applicationContext
         GogStoreCatalog.cachedFeatured(app)?.let { StoresState.post { StoresState.shelves[store] = it } }
@@ -133,6 +135,7 @@ object GogBackend : StoreBackend {
             val installedLanguage = result.language?.takeIf { it.isNotEmpty() } ?: language
             val sidecar = StoreGameSidecar(
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
+                workdir = result.workDir,
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
                 logo = item.logoUrl ?: fetchLogo(game.gameId),

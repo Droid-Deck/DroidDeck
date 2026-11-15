@@ -243,6 +243,8 @@ object AddedGameArt {
         val steam: (String, File, Set<Slot>) -> Boolean,
         val sgdbGame: (String, Int?, String) -> Int?,
         val sgdb: (String, Int, File, Set<Slot>) -> Boolean,
+        val sgdbExactGame: (String, Int?, String) -> Int? = { _, _, _ -> null },
+        val battleNetArt: (Context, BattleNet.Title) -> Boolean = { _, _ -> false },
     )
 
     private val network = Sources(
@@ -251,6 +253,8 @@ object AddedGameArt {
         steam = ::download,
         sgdbGame = SteamGridDb::gameId,
         sgdb = SteamGridDb::download,
+        sgdbExactGame = SteamGridDb::exactGameId,
+        battleNetArt = { context, title -> BattleNet.fetchCovers(context, listOf(BattleNet.artTitle(title))) },
     )
 
     private val EXTRAS = setOf(Slot.LOGO, Slot.ICON)
@@ -288,6 +292,9 @@ object AddedGameArt {
         var changed = false
         for (game in games) {
             if (forgetOtherAppsArt(context, game)) changed = true
+            if (forgetNameMatchedBattleNetArt(context, game)) changed = true
+            val battleNetTitle = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title)
+            if (battleNetTitle != null && runCatching { sources.battleNetArt(context, battleNetTitle) }.getOrDefault(false)) changed = true
             val cache = cacheDir(context, game)
             val start = missing(context, game)
             val again = refetch(cache) intersect start
@@ -318,7 +325,7 @@ object AddedGameArt {
             if (need.isNotEmpty() && sgdbKey.isNotEmpty()) {
                 if (sgdbDown) asked = false else try {
                     val gridId = remembered(File(cache, "sgdb-id"), keyChangedAt) {
-                        sources.sgdbGame(sgdbKey, match.appId, game.name)?.toString()
+                        (if (battleNetTitle != null) sources.sgdbExactGame else sources.sgdbGame)(sgdbKey, match.appId, game.name)?.toString()
                     }?.toIntOrNull()
                     if (gridId != null && sources.sgdb(sgdbKey, gridId, cache, need)) changed = true
                 } catch (e: Exception) {
@@ -341,6 +348,21 @@ object AddedGameArt {
 
     private fun keepRefetch(cache: File, slots: Set<Slot>) {
         if (slots.isEmpty()) File(cache, REFETCH).delete() else File(cache, REFETCH).writeText(slots.joinToString(",") { it.key })
+    }
+
+    internal const val BATTLENET_ART_CHECKED = "battlenet-art-2"
+
+    internal fun forgetNameMatchedBattleNetArt(context: Context, game: AddedGames.Game): Boolean {
+        val title = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title) ?: return false
+        val cache = cacheDir(context, game)
+        val checked = File(cache, BATTLENET_ART_CHECKED)
+        if (title.steam != null || checked.isFile) return false
+        val dropped = EXTRAS.filter { File(cache, SteamGridDb.cacheName(it)).delete() }
+        EXTRAS.forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
+        listOf("sgdb-id", EXTRAS_TRIED).forEach { File(cache, it).delete() }
+        cache.mkdirs()
+        checked.writeText("")
+        return dropped.isNotEmpty()
     }
 
     internal fun forgetOtherAppsArt(context: Context, game: AddedGames.Game): Boolean {
