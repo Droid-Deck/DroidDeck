@@ -241,10 +241,15 @@ class DrawerActions(
     val onPadType: (String) -> Unit = {},
     val touchMode: String,
     val touchAuto: String,
+    val pen: SessionPrefs.Pen? = null,
+    val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val fexPreset: String,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val effects: ScreenEffects = ScreenEffects.OFF,
+    val screenEffectsTarget: String = "auto",
+    val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
+    val screenEffectsCanDelete: Boolean = false,
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
@@ -264,6 +269,8 @@ class DrawerActions(
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
+    val onHudOrder: (Map<String, Boolean>, List<String>) -> Unit = { _, _ -> },
+    val onHudOrderReset: () -> Unit = {},
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
@@ -304,8 +311,13 @@ class DrawerActions(
     val onDirectHoldBehavior: (String) -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
+    val onPresetUpscaler: (Int) -> Unit = onUpscaler,
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
+    val onScreenEffectsTarget: (String) -> Unit = {},
+    val onScreenEffectsReset: () -> Unit = {},
+    val onScreenEffectsDelete: () -> Unit = {},
+    val onScreenEffectsProfilesRefresh: () -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
     val onCardboardRecenter: () -> Unit = {},
     val onGlassesRecenter: () -> Unit = {},
@@ -421,6 +433,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 delay(1_000)
             }
         }
+    }
+    LaunchedEffect(open, page) {
+        if (open && page == SessionDrawerPage.EFFECTS) a.onScreenEffectsProfilesRefresh()
     }
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
@@ -560,11 +575,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
                 ) { selectedGlassesTab = it }
                 // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
+                if (page == SessionDrawerPage.AGENT) AgentPageWithControls(
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
                     inputModifier = focus.track(page, "agent-input"),
                     visible = open,
                     startTyping = false,
+                    showControlsWithoutKeyboard = true,
                 ) else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
@@ -660,6 +676,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         onPick = a.onDirectHoldBehavior)
                                 }
                             }
+                            a.pen?.let { PenSettingsGroup(host, it, track = { key -> focus.track(page, key) }, onPick = a.onPen) }
                             SettingsGroup(stringResource(R.string.input_screen_visibility)) {
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
@@ -1079,12 +1096,32 @@ private fun ScreenEffectsGroup(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
+        ChoiceRow(
+            host, "effects-profile", stringResource(R.string.screen_effects_target),
+            stringResource(R.string.screen_effects_target_hint), a.screenEffectsTargets,
+            a.screenEffectsTarget, chipModifier = track("effects-profile"),
+            onPick = a.onScreenEffectsTarget,
+        )
+        ActionRow(
+            stringResource(R.string.screen_effects_reset),
+            stringResource(R.string.screen_effects_reset_hint),
+            stringResource(R.string.hud_reset_button),
+            a.onScreenEffectsReset,
+            modifier = track("effects-reset"),
+        )
+        if (a.screenEffectsCanDelete) ActionRow(
+            stringResource(R.string.screen_effects_delete),
+            stringResource(R.string.screen_effects_delete_hint),
+            stringResource(R.string.common_delete),
+            a.onScreenEffectsDelete,
+            modifier = track("effects-delete"),
+        )
         val presets = ScreenEffectLooks.LOOKS.map { it.name to stringResource(it.label) }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
             preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
-                picked.scalingMode?.let(a.onUpscaler)
+                picked.scalingMode?.let(a.onPresetUpscaler)
                 a.onEffects(picked.effects)
             }
         }

@@ -73,6 +73,8 @@ object AgentSetup {
         Thread({ for ((step, command) in probes) probe(app, harness, step, command) }, "agent-checks").start()
     }
 
+    fun runsAsRoot(step: Step) = step == Step.INSTALL
+
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
     fun run(context: Context, step: Step) {
         val app = context.applicationContext
@@ -81,7 +83,7 @@ object AgentSetup {
             Step.CONNECTION -> return
             Step.INSTALL -> {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "dpkg --configure -a; apt-get update; apt-get -f install -y; " +
+                    "dpkg --configure -a; apt-get update || echo 'Some package sources could not be refreshed; continuing'; apt-get -f install -y; " +
                     "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
@@ -97,7 +99,7 @@ object AgentSetup {
             val result = runCatching {
                 installHelpers(app)
                 runCatching { harness.prepare(LinuxRuntime.rootDir(app)) }
-                val child = AgentHost.guest(app, command).start()
+                val child = AgentHost.guest(app, command, fakeRoot = runsAsRoot(step)).start()
                 val pid = AgentProcesses.pidOf(child)
                 OrphanReaper.keep(pid)
                 try {
@@ -189,6 +191,14 @@ object AgentSetup {
         for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
         val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
         for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+        unpinAdbSerial(File(root, "root/.bashrc"))
+    }
+
+    /** Older tools/agent/setup pinned the adb port in .bashrc, which overrides the live port DroidDeck passes. */
+    internal fun unpinAdbSerial(bashrc: File) {
+        val text = runCatching { bashrc.readText() }.getOrNull() ?: return
+        val fixed = text.replace("ADB_SERIAL=127.0.0.1:5555 ", "ADB_SERIAL=\"\${ADB_SERIAL:-127.0.0.1:5555}\" ")
+        if (fixed != text) runCatching { bashrc.writeText(fixed) }
     }
 
     private fun copyAsset(app: Context, asset: String, target: File) {

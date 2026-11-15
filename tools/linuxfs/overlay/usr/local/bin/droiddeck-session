@@ -972,6 +972,7 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_memory_critical || return 0
+          [ "${BL_ZRAM_IDLE:-1}" = 1 ] && bl_game_focused 0 || return 0
           local _wait=$_bl_tier_backoff _before _pids _targets
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
@@ -1103,7 +1104,7 @@ case $mode in
           local id
           id=$(sed -n 's/.*"focusedApp"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
             "$BL_LAUNCH_DIR/agent/focus.json" 2>/dev/null | head -1)
-          [ -n "$id" ] || return 1
+          [ -n "$id" ] || return "${1:-1}"
           case " ${_bl_apps-} " in
             *" $id "*) return 0 ;;
           esac
@@ -1182,6 +1183,10 @@ case $mode in
     if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
        && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
+    fi
+    if [ "${BL_PACE_CORES:-1}" != 0 ] && [ -n "${DROIDDECK_HUD_FRAMES:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
+       && [ -x /usr/local/bin/droiddeck-pace-cores ]; then
+      /usr/local/bin/droiddeck-pace-cores "$DROIDDECK_HUD_FRAMES" 2>&1 &
     fi
 
     if [ "$steam_x64" = 0 ]; then
@@ -1538,6 +1543,9 @@ case $mode in
         _bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)
         echo "== steam: browser UI in software (Mali bridge)"
       elif [ "${_bl_cef[0]}" = -cef-force-gpu ]; then
+        # With Steam's own web helper layout the Deck UI's footer and overlays flicker on the bridge
+        # (Mali-G78 MP14). ANGLE on Vulkan without Chromium's Vulkan compositing draws them steadily.
+        : "${BL_VKBRIDGE_CEF_ANGLE=vulkan}" "${BL_VKBRIDGE_CEF_VULKAN=0}"
         _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle="${BL_VKBRIDGE_CEF_ANGLE:-vulkan}")
       fi
       [ "${BL_VKBRIDGE_CEF_LOG:-0}" = 1 ] && _bl_cef+=(-cef-enable-logging=stderr -cef-v=1)

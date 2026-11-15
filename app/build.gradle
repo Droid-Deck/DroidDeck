@@ -141,6 +141,7 @@ android {
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
+        buildConfigField "String", "UPDATE_CATALOG_BRANCH", "\"${(System.getenv("DROIDDECK_UPDATE_CATALOG_BRANCH") ?: "main").with { it ==~ /[A-Za-z0-9._-]+/ ? it : "main" }}\""
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
@@ -294,6 +295,16 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
+android.sourceSets.main.java.srcDir(rootProject.file('shortcuts/src/protocol/java'))
+def stageShortcuts = tasks.register('stageShortcuts', Copy) {
+    dependsOn(':shortcuts:assembleRelease')
+    from(project(':shortcuts').layout.buildDirectory.file('outputs/apk/release/shortcuts-release.apk'))
+    into(layout.buildDirectory.dir('shortcutsAssets'))
+    rename { 'shortcuts.apk' }
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('shortcutsAssets'))
+tasks.named('preBuild').configure { dependsOn(stageShortcuts) }
+
 def stageGogNotices = tasks.register('stageGogNotices', Copy) {
     from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
     into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))
@@ -400,6 +411,8 @@ dependencies {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
     implementation 'com.google.zxing:core:3.5.3'
+    implementation 'androidx.media3:media3-exoplayer:1.3.1'
+    implementation 'androidx.media3:media3-session:1.3.1'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
