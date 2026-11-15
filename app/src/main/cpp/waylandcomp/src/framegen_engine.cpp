@@ -8,7 +8,7 @@
 
 #include <android/log.h>
 
-#include "VulkanRendererContext.h"
+#include "VkDispatchTable.h"
 #include "lsfg/lsfg_engine.h"
 #include "lsfg/lsfg_probe.h"
 #include "lsfg/lsfg_vkd.h"

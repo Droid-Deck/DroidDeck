@@ -254,6 +254,14 @@ The former feature-level rules for Caravan SandWitch, RoboCop: Rogue City,
 ReSkate and Cyberpunk 2077 compensated for the global `12_2` override and are
 removed. Stellar Blade also uses automatic detection. The separate Deep Rock
 Galactic GDK ray-tracing opt-out and Mali bridge capability cap remain.
+
+"Skip GL error checks" (under "Client interface") sets `MESA_NO_ERROR=1` for the client
+interface and Chromium apps only. Games keep Mesa's GL error checks: with
+`MESA_NO_ERROR`, an invalid call such as `glBufferData` with no buffer bound reads
+a NULL buffer object instead of returning `GL_INVALID_OPERATION`, and the game's
+render thread stops. A game profile entry, or `MESA_NO_ERROR` in the session's own
+environment, still applies to games.
+
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,
@@ -275,7 +283,12 @@ DroidDeck instead publishes an atomic JSON snapshot at
 `/root/.config/droiddeck/game-environment.json`. Both its Valve ARM64 Proton
 wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
-Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
+Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. A game launch
+adds `tabtip.exe=d` to `WINEDLLOVERRIDES` unless the launch has `SteamDeck=1`
+or the overrides already set `tabtip.exe` (also as `*tabtip.exe` or
+`tabtip.exe.dll`): Proton's tabtip only opens Steam's
+keyboard with `SteamDeck=1`, but it always runs UI Automation queries inside the
+focused game, which crash games that answer them (Godot 4.5 AccessKit). Malformed
 configuration falls back to the inherited environment without evaluating its
 contents. Both component and environment selection normalize signed non-Steam
 prefix IDs to unsigned IDs.

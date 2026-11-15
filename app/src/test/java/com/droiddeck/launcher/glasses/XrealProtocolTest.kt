@@ -69,6 +69,20 @@ class XrealProtocolTest {
         assertEquals(26, output.size())
     }
 
+    @Test fun stereoOnlyControlSwitches3dWithoutDisplayModeCommands() {
+        val output = ByteArrayOutputStream()
+        val replies = response(XrealProtocol.GET_INPUT, 1, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.SET_INPUT, 2, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.GET_INPUT, 3, byteArrayOf(0x22, 2, 0x10, 1))
+        val control = XrealControl(channels(replies.inputStream(), output), stereoOnly = true, settleDelayMs = 0)
+        assertEquals(XrealModel.NATIVE_60HZ, control.display())
+        assertEquals(5, control.changeDisplay(5))
+        val written = output.toByteArray().inputStream()
+        val commands = List(3) { XrealProtocol.read(written).command }
+        assertEquals(listOf(XrealProtocol.GET_INPUT, XrealProtocol.SET_INPUT, XrealProtocol.GET_INPUT), commands)
+        assertFalse(commands.any { it == XrealProtocol.GET_DISPLAY || it == XrealProtocol.SET_DISPLAY })
+    }
+
     @Test fun unrelatedResponsesCannotKeepControlWaitingForever() {
         val replies = ByteArrayOutputStream().apply { repeat(32) { write(frame(0x272e, ByteArray(8))) } }
         val control = XrealControl(channels(replies.toByteArray().inputStream(), ByteArrayOutputStream()))
@@ -79,7 +93,9 @@ class XrealProtocolTest {
         val reply = byteArrayOf(0x22, 2, 0x10, 0x1d)
         val control = XrealControl(channels(response(0x275e, 1, reply).inputStream(), ByteArrayOutputStream()))
         assertEquals(29, control.display())
-        assertEquals(29, XrealModel.mode(60, false))
+        assertEquals(29, XrealModel.ONE_S.mode(60, false))
+        assertEquals(29, XrealModel.AURA.mode(120, false))
+        assertEquals(5, XrealModel.AURA.mode(60, true))
     }
 
     @Test fun stereoWaitsForEdidChangeWithoutSendingASecondModeCommandWhileBusy() {

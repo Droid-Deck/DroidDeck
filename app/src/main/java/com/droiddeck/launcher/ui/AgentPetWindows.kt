@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -62,9 +60,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -519,6 +515,7 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
         } else {
             Rect(margin, motion.dockY + motion.size + gap, w - margin, h - margin)
         }
+        val menuSlot = remember { AgentMenuSlot() }
         val grow = remember { Animatable(0f) }
         val fade = remember { Animatable(0f) }
         LaunchedEffect(open) {
@@ -556,12 +553,10 @@ internal fun PetChat(open: Boolean, motion: PetMotion, onClose: () -> Unit, onCl
                 .padding(start = 12.dp, end = 12.dp, top = 6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
-                Text(stringResource(R.string.agent_pet_name), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
-                    modifier = Modifier.padding(start = 4.dp))
-                Spacer(Modifier.weight(1f))
+                Box(Modifier.weight(1f)) { menuSlot.content?.invoke() }
                 HeaderAction(Icons.Outlined.Close, stringResource(R.string.agent_close), size = 34.dp, tag = "agent-pet-close", onClick = onClose)
             }
-            AgentPage(Modifier.weight(1f).fillMaxWidth(), visible = open, startTyping = AgentHost.entries.isEmpty(), hidesPet = false)
+            AgentPage(Modifier.weight(1f).fillMaxWidth(), visible = open, startTyping = AgentHost.entries.isEmpty(), hidesPet = false, menuSlot = menuSlot)
         }
     }
 }
