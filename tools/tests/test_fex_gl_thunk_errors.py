@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 PATCH = Path(__file__).resolve().parents[1] / "fex/patches/0005-gl-thunk-forward-x-errors.patch"
 
@@ -334,6 +335,7 @@ def compile_cpp(source, output):
 @unittest.skipUnless(shutil.which("c++"), "needs c++")
 class FexGlThunkErrorForwardTest(unittest.TestCase):
     HARNESS_SOURCE = HARNESS
+    DEPENDENCY_HEADERS = ("X11/Xlibint.h",)
 
     @classmethod
     def setUpClass(cls):
@@ -345,10 +347,12 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
         forward = added(manager, "int (*GuestXErrorForward)", "= nullptr;")
         find = added(manager, "_XDisplay* FindGuestDisplay(", "    return nullptr;\n  }")
         cls.tmp = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(shutil.rmtree, cls.tmp)
         probe = cls.tmp / "probe.cpp"
-        probe.write_text("#include <X11/Xlibint.h>\nint main() { return 0; }\n")
+        probe.write_text("".join(f"#include <{header}>\n" for header in cls.DEPENDENCY_HEADERS)
+                         + "int main() { return 0; }\n")
         if compile_cpp(probe, cls.tmp / "probe").returncode != 0:
-            raise unittest.SkipTest("needs the Xlib development files")
+            raise unittest.SkipTest("needs the native development files for this harness")
         source = cls.tmp / "harness.cpp"
         source.write_text(cls.HARNESS_SOURCE.replace("MUTEX_SOURCE", mutex).replace("FORWARD_SOURCE", forward)
                           .replace("FIND_SOURCE", find).replace("GUEST_SOURCE", guest).replace("HOST_SOURCE", host))
@@ -356,12 +360,6 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
         result = compile_cpp(source, cls.program)
         if result.returncode != 0:
             raise AssertionError(result.stderr)
-
-    @classmethod
-    def tearDownClass(cls):
-        for child in cls.tmp.iterdir():
-            child.unlink()
-        cls.tmp.rmdir()
 
     def run_harness(self, *args):
         try:
@@ -396,6 +394,7 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
 @unittest.skipUnless(shutil.which("c++") and shutil.which("Xvfb"), "needs c++ and Xvfb")
 class FexGlThunkErrorForwardRealXlibTest(FexGlThunkErrorForwardTest):
     HARNESS_SOURCE = REAL_HARNESS
+    DEPENDENCY_HEADERS = ("GL/glx.h", "GL/glxext.h", "X11/Xmd.h", "GL/glxproto.h", "X11/Xlibint.h")
 
     @classmethod
     def setUpClass(cls):
@@ -416,7 +415,6 @@ class FexGlThunkErrorForwardRealXlibTest(FexGlThunkErrorForwardTest):
     def tearDownClass(cls):
         cls.server.terminate()
         cls.server.wait()
-        super().tearDownClass()
 
     def run_real(self, *args, expected_returncode=0):
         try:
@@ -445,6 +443,31 @@ class FexGlThunkErrorForwardRealXlibTest(FexGlThunkErrorForwardTest):
     test_error_while_the_display_lock_is_held_does_not_block = None
     test_error_while_another_thread_holds_the_programs_display_lock_does_not_deadlock = None
     test_error_on_a_display_the_gl_thunk_does_not_own_keeps_the_previous_handler = None
+
+
+class FexGlThunkDependencyProbeTest(unittest.TestCase):
+    def test_missing_glx_headers_skip_the_real_harness(self):
+        def compile_without_glx(source, output):
+            self.assertEqual(source.name, "probe.cpp")
+            self.assertIn("#include <GL/glxproto.h>", source.read_text())
+            return subprocess.CompletedProcess([], 1, "", "missing GLX headers")
+
+        with mock.patch(__name__ + ".compile_cpp", side_effect=compile_without_glx):
+            try:
+                with self.assertRaises(unittest.SkipTest):
+                    FexGlThunkErrorForwardRealXlibTest.setUpClass()
+            finally:
+                FexGlThunkErrorForwardRealXlibTest.doClassCleanups()
+
+    def test_real_harness_compile_errors_are_failures(self):
+        results = [subprocess.CompletedProcess([], 0, "", ""),
+                   subprocess.CompletedProcess([], 1, "", "harness compile error")]
+        with mock.patch(__name__ + ".compile_cpp", side_effect=results):
+            try:
+                with self.assertRaisesRegex(AssertionError, "harness compile error"):
+                    FexGlThunkErrorForwardRealXlibTest.setUpClass()
+            finally:
+                FexGlThunkErrorForwardRealXlibTest.doClassCleanups()
 
 
 if __name__ == "__main__":
