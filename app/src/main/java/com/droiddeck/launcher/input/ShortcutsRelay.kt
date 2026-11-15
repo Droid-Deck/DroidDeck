@@ -126,19 +126,28 @@ class ShortcutsRelay : Service(), InputManager.InputDeviceListener {
     }
 
     private fun trusts(uid: Int): Boolean {
-        if (uid in trusted) return true
-        val ok = packageManager.getPackagesForUid(uid).orEmpty().contains(Relay.PACKAGE) &&
-            com.droiddeck.launcher.core.SteamIntegration.shortcutsEnabled(this)
-        if (ok) trusted += uid
-        return ok
+        if (uid !in trusted) {
+            if (!packageManager.getPackagesForUid(uid).orEmpty().contains(Relay.PACKAGE)) return false
+            trusted += uid
+        }
+        return com.droiddeck.launcher.core.SteamIntegration.shortcutsEnabled(this)
     }
 
     private fun onMain(event: KeyEvent): Boolean {
+        // A key the companion already gave up on must not run later and leave a press without its release.
+        val claimed = java.util.concurrent.atomic.AtomicBoolean(false)
         val task = java.util.concurrent.FutureTask {
-            SystemKeyCapture.onKeyEvent(event) || HomeButtonShortcuts.onKeyEvent(this, event)
+            claimed.compareAndSet(false, true) &&
+                (SystemKeyCapture.onKeyEvent(event) || HomeButtonShortcuts.onKeyEvent(this, event))
         }
         main.postAtFrontOfQueue(task)
-        return runCatching { task.get(KEY_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrDefault(false)
+        return try {
+            task.get(KEY_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            if (claimed.compareAndSet(false, true)) false else runCatching { task.get() }.getOrDefault(false)
+        } catch (e: Exception) {
+            false
+        }
     }
 
     override fun onCreate() {

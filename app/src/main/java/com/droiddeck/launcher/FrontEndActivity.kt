@@ -374,21 +374,29 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun openShortcutSettings() =
         integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
 
-    private var shortcutsSession = -1
-
     private fun installShortcuts() {
-        if (!com.droiddeck.launcher.update.SelfInstaller.canInstall(this)) {
-            integrationSettings(com.droiddeck.launcher.update.SelfInstaller.permissionIntent(this))
-            return
-        }
+        if (ShortcutsInstall.running) return
+        ShortcutsInstall.running = true
         Thread({
             val result = runCatching {
                 val apk = SteamIntegration.bundledShortcuts(this)
-                if (SteamIntegration.shortcutsInstalled(this, apk)) ui.post { shortcutsReady() }
-                else com.droiddeck.launcher.update.SelfInstaller.install(this, apk, com.droiddeck.shortcuts.Relay.PACKAGE,
-                    SteamIntegration.SHORTCUTS_STATUS) { id -> shortcutsSession = id }
+                when {
+                    SteamIntegration.shortcutsInstalled(this, apk) -> {
+                        ShortcutsInstall.running = false
+                        ui.post { shortcutsReady() }
+                    }
+                    !com.droiddeck.launcher.update.SelfInstaller.canInstall(this) -> {
+                        ShortcutsInstall.running = false
+                        ui.post { integrationSettings(com.droiddeck.launcher.update.SelfInstaller.permissionIntent(this)) }
+                    }
+                    else -> com.droiddeck.launcher.update.SelfInstaller.install(this, apk, com.droiddeck.shortcuts.Relay.PACKAGE,
+                        SteamIntegration.SHORTCUTS_STATUS) { id -> ShortcutsInstall.session = id }
+                }
             }
-            result.onFailure { e -> ui.post { shortcutsFailed(e.message) } }
+            result.onFailure { e ->
+                ShortcutsInstall.running = false
+                ui.post { shortcutsFailed(e.message) }
+            }
         }, "shortcuts-install").start()
     }
 
@@ -409,9 +417,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private val shortcutsInstallStatus = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) {
             val session = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_SESSION_ID, -1)
-            if (session < 0 || session != shortcutsSession) return
-            when (intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
-                android.content.pm.PackageInstaller.STATUS_FAILURE)) {
+            if (session < 0 || session != ShortcutsInstall.session) return
+            val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
+                android.content.pm.PackageInstaller.STATUS_FAILURE)
+            if (status != android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                ShortcutsInstall.session = -1
+                ShortcutsInstall.running = false
+            }
+            when (status) {
                 android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     val confirm = if (android.os.Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
@@ -3352,4 +3365,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
     }
+}
+
+// The install session outlives the activity when Android recreates it mid-install.
+private object ShortcutsInstall {
+    @Volatile var session = -1
+    @Volatile var running = false
 }

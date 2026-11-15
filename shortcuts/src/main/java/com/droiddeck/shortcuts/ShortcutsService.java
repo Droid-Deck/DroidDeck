@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
 import android.os.Build;
@@ -78,6 +79,9 @@ public class ShortcutsService extends AccessibilityService {
     private void bindAll() {
         List<ResolveInfo> found = getPackageManager().queryIntentServices(new Intent(Relay.ACTION), 0);
         for (ResolveInfo info : found) {
+            // Keys and window contents only go to a relay signed with the same key as this companion.
+            if (getPackageManager().checkSignatures(getPackageName(), info.serviceInfo.packageName)
+                    != PackageManager.SIGNATURE_MATCH) continue;
             ComponentName component = new ComponentName(info.serviceInfo.packageName, info.serviceInfo.name);
             boolean linked = false;
             for (Link link : links) if (link.component.equals(component)) linked = true;
