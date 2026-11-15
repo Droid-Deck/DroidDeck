@@ -233,6 +233,10 @@ object DeviceReport {
             else "${turnip.displayName(displayId)} ${turnip.driverVersion(displayId)}".trim()
         k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> $displayLabel" else androidChoice)
         k("  name / version", displayLabel)
+        turnip.effectiveId().takeIf { it != displayId }?.let { used ->
+            k("  in use", if (used == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = false)
+                else "${turnip.displayName(used)} ${turnip.driverVersion(used)}".trim())
+        }
         k("  imported available", turnip.enumerateImported().ifEmpty { listOf("none") }.joinToString(", "))
         val lm = LinuxVulkanDriverManager(context)
         run {
@@ -242,7 +246,9 @@ object DeviceReport {
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
                 if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isPowerVr()) "  [MISSING - select an installed driver or Auto]"
                 else "  [MISSING - falls back to the runtime's own]"
-            k("Linux driver", label)
+            val route = DeviceInfo.hostRoute(context)
+            k("Linux driver", route ?: label)
+            if (route != null) k("  chosen, not used", label)
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
         k("Mali (Venus)", if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) "in use"
