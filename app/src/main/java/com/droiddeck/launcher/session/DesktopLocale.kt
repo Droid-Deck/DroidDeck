@@ -50,6 +50,11 @@ object DesktopLocale {
         else -> "CN"
     }
 
+    fun present(root: java.io.File, name: String): Boolean {
+        if (name == DEFAULT) return true
+        return java.io.File(root, "usr/lib/locale/" + name.removeSuffix(".UTF-8") + ".utf8/LC_CTYPE").isFile
+    }
+
     fun language(locale: Locale): String? {
         val lang = lang(locale)
         if (lang == DEFAULT) return null
