@@ -41,6 +41,34 @@ class PulseAudioComponentTest {
     }
 
     @Test
+    fun anOvertakenRestartIsNoLongerCurrent() {
+        val host = PulseAudioComponent.HostLifecycle { }
+        val first = host.begin()
+        host.launch(first) { 31463 }
+        assertTrue(host.exited(first))
+        assertTrue(host.current(first))
+        val second = host.begin()
+        assertFalse(host.current(first))
+        assertTrue(host.current(second))
+    }
+
+    @Test
+    fun aSinkGuardOnlyActsOnItsOwnLaunch() {
+        val host = PulseAudioComponent.HostLifecycle { }
+        val generation = host.begin()
+        host.launch(generation) { 31463 }
+        val first = host.token()
+        assertTrue(host.live(first))
+        assertTrue(host.exited(generation))
+        assertFalse(host.live(first))
+        host.launch(generation) { 31464 }
+        assertFalse(host.live(first))
+        assertTrue(host.live(host.token()))
+        host.stop()
+        assertFalse(host.live(host.token()))
+    }
+
+    @Test
     fun failedLaunchDoesNotRestartOrTerminateAnInvalidPid() {
         val host = PulseAudioComponent.HostLifecycle { error("invalid pid terminated") }
         val generation = host.begin()

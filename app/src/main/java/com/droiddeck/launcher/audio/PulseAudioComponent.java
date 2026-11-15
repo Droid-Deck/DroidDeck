@@ -36,6 +36,7 @@ public class PulseAudioComponent extends SessionPart {
     static final class HostLifecycle {
         volatile int pid = -1;
         private long generation;
+        private long launches;
         private final IntConsumer terminate;
 
         HostLifecycle(IntConsumer terminate) {
@@ -55,8 +56,22 @@ public class PulseAudioComponent extends SessionPart {
 
         synchronized boolean launch(long expected, IntSupplier launch) {
             if (expected != generation) return false;
+            launches++;
             pid = launch.getAsInt();
             return true;
+        }
+
+        synchronized boolean current(long expected) {
+            return expected == generation;
+        }
+
+        /** The latest launch; a sink guard holds it so it never reconfigures a host started after its own. */
+        synchronized long token() {
+            return launches;
+        }
+
+        synchronized boolean live(long token) {
+            return token == launches && pid > 1;
         }
 
         synchronized boolean exited(long expected) {
@@ -103,6 +118,8 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     private synchronized void start(long generation) {
+        // An exit callback's restart can be overtaken by a newer start; it must not touch the newer host's socket.
+        if (!host.current(generation)) return;
         if (!workingDir.isDirectory()) {
             workingDir.mkdirs();
             FileUtils.chmod(workingDir, 0771);
@@ -166,12 +183,13 @@ public class PulseAudioComponent extends SessionPart {
                     Log.i(TAG, line);
                     if (out != null) synchronized (out) { out.println(line); out.flush(); }
                 }))) return;
-        Thread guard = new Thread(() -> ensureClientSink(out), "pulse-sink-guard");
+        long token = host.token();
+        Thread guard = new Thread(() -> ensureClientSink(out, token), "pulse-sink-guard");
         guard.setDaemon(true);
         guard.start();
     }
 
-    private void ensureClientSink(java.io.PrintWriter out) {
+    private void ensureClientSink(java.io.PrintWriter out, long token) {
         try {
             // Nothing that may block (a sink whose AAudio open hangs: a Galaxy S24 FE (US) hung the
             // daemon's start-up loading one from default.pa) is loaded by the daemon itself; the
@@ -180,9 +198,9 @@ public class PulseAudioComponent extends SessionPart {
             long deadline = started + 30000L;
             String sinks = null;
             boolean socketSeen = false;
-            while (System.currentTimeMillis() < deadline && host.pid > 1) {
+            while (System.currentTimeMillis() < deadline && host.live(token)) {
                 socketSeen |= socket().exists();
-                if (socketSeen && (sinks = pactl("list", "short", "sinks")) != null) break;
+                if (socketSeen && (sinks = pactlFor(token, "list", "short", "sinks")) != null) break;
                 try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
             }
             note(out, "client sink: daemon " + (sinks != null ? "answered" : "did not answer") + " after "
@@ -198,15 +216,15 @@ public class PulseAudioComponent extends SessionPart {
                 // still switching the output route as the session starts (seen on a Galaxy S24 FE):
                 // try DirectAudio again, then the plain sink, a few times over ten seconds.
                 String loadedAs = null;
-                for (int attempt = 1; attempt <= 5 && loadedAs == null && host.pid > 1; attempt++) {
+                for (int attempt = 1; attempt <= 5 && loadedAs == null && host.live(token); attempt++) {
                     try { Thread.sleep(2000L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                    if (pactl("load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
+                    if (pactlFor(token, "load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
                             "adaptive=1", "decay=0", "limiter=1", "watchdog=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactl("set-default-sink", "DirectAudio") != null) {
+                            && pactlFor(token, "set-default-sink", "DirectAudio") != null) {
                         loadedAs = "DirectAudio on attempt " + attempt;
-                    } else if (pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink",
+                    } else if (pactlFor(token, "load-module", "module-aaudio-sink", "sink_name=AAudioSink",
                             "performance_mode=" + (attempt == 1 ? "1" : "0"), "adaptive=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactl("set-default-sink", "AAudioSink") != null) {
+                            && pactlFor(token, "set-default-sink", "AAudioSink") != null) {
                         loadedAs = "the plain AAudio sink (AAudioSink) on attempt " + attempt;
                     }
                 }
@@ -227,6 +245,10 @@ public class PulseAudioComponent extends SessionPart {
         String line = "== " + new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date()) + " " + what;
         Log.i(TAG, line);
         if (out != null) synchronized (out) { out.println(line); out.flush(); }
+    }
+
+    private String pactlFor(long token, String... args) {
+        return host.live(token) ? pactl(args) : null;
     }
 
     /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
