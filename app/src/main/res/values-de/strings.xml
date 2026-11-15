@@ -3837,8 +3837,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-Taste und Home-Taste bleiben in der Sitzung</string>
     <string name="integration_shortcuts_maybe_restricted">In Android ausgegraut? App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
     <string name="integration_shortcuts_restricted">Von Android blockiert · App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
-    <string name="integration_shortcuts_service">DroidDeck-Systemtasten</string>
-    <string name="integration_shortcuts_service_description">Hält Alt+Tab, die Win-Taste und die Home-Taste in einer aktiven DroidDeck-Sitzung statt bei Android.</string>
     <string name="integration_brightness_needed">Aktiviere Helligkeit unter Einrichtung → Steam-Integration</string>
     <string name="setup_gpu_bridge_off">Mali-Brücke: aus</string>
     <string name="setup_gpu_bridge_unusable">%1$s kann die Mali-Brücke nicht nutzen (sie benötigt eine Mali-GPU ohne Systemtreiber-Route), daher hat dieser Schalter hier keine Wirkung.</string>

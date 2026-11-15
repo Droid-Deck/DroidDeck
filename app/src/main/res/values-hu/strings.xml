@@ -3837,8 +3837,6 @@
     <string name="integration_shortcuts_hint">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb a munkamenetben marad</string>
     <string name="integration_shortcuts_maybe_restricted">Szürke az Androidban? Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_restricted">Az Android letiltotta · Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
-    <string name="integration_shortcuts_service">DroidDeck rendszerbillentyűk</string>
-    <string name="integration_shortcuts_service_description">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb az aktív DroidDeck-munkamenetben marad az Android helyett.</string>
     <string name="integration_brightness_needed">Kapcsolja be a Fényerőt itt: Beállítás → Steam-integráció</string>
     <string name="setup_gpu_bridge_off">Mali híd: ki</string>
     <string name="setup_gpu_bridge_unusable">%1$s nem használhatja a Mali hidat (ehhez olyan Mali GPU kell, amelyhez nincs rendszer-illesztőprogramos útvonal), ezért ennek a kapcsolónak itt nincs hatása.</string>

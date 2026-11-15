@@ -3837,8 +3837,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-toets en Home-knop blijven in de sessie</string>
     <string name="integration_shortcuts_maybe_restricted">Grijs in Android? App-info → ⋮ → Beperkte instellingen toestaan</string>
     <string name="integration_shortcuts_restricted">Geblokkeerd door Android · App-info → ⋮ → Beperkte instellingen toestaan</string>
-    <string name="integration_shortcuts_service">DroidDeck-systeemtoetsen</string>
-    <string name="integration_shortcuts_service_description">Houdt Alt+Tab, de Win-toets en de Home-knop in een actieve DroidDeck-sessie in plaats van Android.</string>
     <string name="integration_brightness_needed">Zet Helderheid aan in Installatie → Steam-integratie</string>
     <string name="setup_gpu_bridge_off">Mali-brug: uit</string>
     <string name="setup_gpu_bridge_unusable">%1$s kan de Mali-brug niet gebruiken (die heeft een Mali-GPU nodig zonder route via de systeemdriver), dus deze schakelaar heeft hier geen effect.</string>

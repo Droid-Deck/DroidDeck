@@ -48,7 +48,6 @@ class App : Application() {
         com.droiddeck.launcher.ui.AgentPet.install(this)
         if (com.droiddeck.launcher.agent.AgentTab.visible) com.droiddeck.launcher.lab.LabNotice.openOnInstall = "agent"
         com.droiddeck.launcher.lab.LabNotice.started(this)
-        com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)

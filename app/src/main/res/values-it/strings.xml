@@ -3875,8 +3875,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, tasto Win e tasto Home restano nella sessione</string>
     <string name="integration_shortcuts_maybe_restricted">Disattivato in grigio su Android? Informazioni app → ⋮ → Consenti impostazioni con limitazioni</string>
     <string name="integration_shortcuts_restricted">Bloccato da Android · Informazioni app → ⋮ → Consenti impostazioni con limitazioni</string>
-    <string name="integration_shortcuts_service">Tasti di sistema DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Mantiene Alt+Tab, il tasto Win e il tasto Home in una sessione DroidDeck attiva anziché in Android.</string>
     <string name="integration_brightness_needed">Attiva Luminosità in Configurazione → Integrazione con Steam</string>
     <string name="setup_gpu_bridge_off">Ponte Mali: disattivato</string>
     <string name="setup_gpu_bridge_unusable">%1$s non può usare il bridge Mali (richiede una GPU Mali senza un percorso tramite driver di sistema), quindi questo interruttore non ha effetto qui.</string>

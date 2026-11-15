@@ -3999,9 +3999,9 @@
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
+    <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
+    <string name="integration_shortcuts_install_failed_with">System keys didn\'t install: %1$s</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
-    <string name="integration_shortcuts_service">DroidDeck system keys</string>
-    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
     <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>

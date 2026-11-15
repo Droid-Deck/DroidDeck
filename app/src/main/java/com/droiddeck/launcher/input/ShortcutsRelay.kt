@@ -1,14 +1,17 @@
 package com.droiddeck.launcher.input
 
-import android.accessibilityservice.AccessibilityService
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.hardware.input.InputManager
+import android.os.Binder
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
+import android.os.Parcel
 import android.view.KeyEvent
-import android.view.accessibility.AccessibilityEvent
 import com.droiddeck.launcher.HomeApp
+import com.droiddeck.shortcuts.Relay
 
 object HomeButtonShortcuts {
     private var owner: Any? = null
@@ -101,38 +104,69 @@ object SystemKeyCapture {
     }
 }
 
-class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListener {
+class ShortcutsRelay : Service(), InputManager.InputDeviceListener {
+    private val main = Handler(Looper.getMainLooper())
+    private val trusted = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
     private var bottomScreen: BottomScreenWatch? = null
 
-    override fun onServiceConnected() {
-        getSystemService(InputManager::class.java).registerInputDeviceListener(this, Handler(Looper.getMainLooper()))
-        if (bottomScreen == null && BottomScreenGuests.supported()) bottomScreen = BottomScreenWatch(this).also { it.start() }
+    private val binder = object : Binder() {
+        override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+            if (code !in Relay.CONFIG..Relay.WINDOWS) return super.onTransact(code, data, reply, flags)
+            data.enforceInterface(Relay.DESCRIPTOR)
+            if (!trusts(Binder.getCallingUid())) return false
+            when (code) {
+                Relay.CONFIG -> reply?.writeInt(if (bottomScreen != null) Relay.WANTS_WINDOWS else 0)
+                Relay.KEY -> reply?.writeInt(if (onMain(KeyEvent.CREATOR.createFromParcel(data))) 1 else 0)
+                Relay.INTERRUPT -> main.post { HomeButtonShortcuts.release() }
+                Relay.ARRIVAL -> bottomScreen?.onArrival(data.readInt(), data.readString() ?: return true, data.readLong())
+                Relay.WINDOWS -> bottomScreen?.onWindows(Relay.decode(data.createByteArray() ?: return true))
+            }
+            return true
+        }
     }
 
-    private fun stopBottomScreen() {
-        bottomScreen?.stop()
-        bottomScreen = null
+    private fun trusts(uid: Int): Boolean {
+        if (uid in trusted) return true
+        val ok = packageManager.getPackagesForUid(uid).orEmpty().contains(Relay.PACKAGE) &&
+            com.droiddeck.launcher.core.SteamIntegration.shortcutsEnabled(this)
+        if (ok) trusted += uid
+        return ok
     }
 
-    override fun onKeyEvent(event: KeyEvent) =
-        SystemKeyCapture.onKeyEvent(event) || HomeButtonShortcuts.onKeyEvent(this, event)
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) { event?.let { bottomScreen?.onEvent(it) } }
-    override fun onInterrupt() { HomeButtonShortcuts.release() }
+    private fun onMain(event: KeyEvent): Boolean {
+        val task = java.util.concurrent.FutureTask {
+            SystemKeyCapture.onKeyEvent(event) || HomeButtonShortcuts.onKeyEvent(this, event)
+        }
+        main.postAtFrontOfQueue(task)
+        return runCatching { task.get(KEY_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrDefault(false)
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        getSystemService(InputManager::class.java).registerInputDeviceListener(this, main)
+        if (BottomScreenGuests.supported()) bottomScreen = BottomScreenWatch(this).also { it.start() }
+    }
+
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        HomeButtonShortcuts.release()
+        return super.onUnbind(intent)
+    }
+
     override fun onInputDeviceAdded(deviceId: Int) {}
     override fun onInputDeviceChanged(deviceId: Int) {}
     override fun onInputDeviceRemoved(deviceId: Int) { HomeButtonShortcuts.onDeviceRemoved(deviceId) }
 
-    override fun onUnbind(intent: Intent?): Boolean {
-        HomeButtonShortcuts.release()
-        stopBottomScreen()
-        com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
-        return super.onUnbind(intent)
-    }
-
     override fun onDestroy() {
         HomeButtonShortcuts.release()
-        stopBottomScreen()
+        bottomScreen?.stop()
+        bottomScreen = null
         getSystemService(InputManager::class.java).unregisterInputDeviceListener(this)
         super.onDestroy()
+    }
+
+    private companion object {
+        const val KEY_TIMEOUT_MS = 200L
     }
 }

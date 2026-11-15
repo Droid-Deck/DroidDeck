@@ -3875,8 +3875,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, la touche Win et le bouton Accueil restent dans la session</string>
     <string name="integration_shortcuts_maybe_restricted">Grisé dans Android ? Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
     <string name="integration_shortcuts_restricted">Bloqué par Android · Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
-    <string name="integration_shortcuts_service">Touches système DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Garde Alt+Tab, la touche Win et le bouton Accueil dans une session DroidDeck active plutôt que dans Android.</string>
     <string name="integration_brightness_needed">Activez Luminosité dans Paramètres → Intégration Steam</string>
     <string name="setup_gpu_bridge_off">Pont Mali : désactivé</string>
     <string name="setup_gpu_bridge_unusable">%1$s ne peut pas utiliser le pont Mali (il faut un GPU Mali sans route de pilote système) ; ce commutateur n\'a donc aucun effet ici.</string>

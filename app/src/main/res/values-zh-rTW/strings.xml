@@ -3805,8 +3805,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab、Win 鍵和主畫面鍵留在工作階段中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中呈灰色？應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_restricted">已被 Android 封鎖 · 應用程式資訊 → ⋮ → 允許受限制的設定</string>
-    <string name="integration_shortcuts_service">DroidDeck 系統按鍵</string>
-    <string name="integration_shortcuts_service_description">讓 Alt+Tab、Win 鍵和主畫面鍵在目前的 DroidDeck 工作階段中生效，而不是交給 Android。</string>
     <string name="integration_brightness_needed">請在「初始設定 → Steam 整合」中開啟「亮度」</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK：自動</string>

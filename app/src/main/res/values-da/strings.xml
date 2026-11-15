@@ -3837,8 +3837,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-tasten og Hjem-knappen bliver i sessionen</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_restricted">Blokeret af Android · Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
-    <string name="integration_shortcuts_service">DroidDeck-systemtaster</string>
-    <string name="integration_shortcuts_service_description">Holder Alt+Tab, Win-tasten og Hjem-knappen i en aktiv DroidDeck-session i stedet for Android.</string>
     <string name="integration_brightness_needed">Slå Lysstyrke til under Opsætning → Steam-integration</string>
     <string name="setup_gpu_bridge_off">Mali-bro: fra</string>
     <string name="setup_gpu_bridge_unusable">%1$s kan ikke bruge Mali-broen (den kræver en Mali-GPU uden en rute gennem systemdriveren), så denne kontakt har ingen virkning her.</string>

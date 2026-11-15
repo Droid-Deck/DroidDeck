@@ -3837,8 +3837,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win tuşu ve Ana Ekran düğmesi oturumda kalır</string>
     <string name="integration_shortcuts_maybe_restricted">Android\'de gri mi görünüyor? Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_restricted">Android tarafından engellendi · Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
-    <string name="integration_shortcuts_service">DroidDeck sistem tuşları</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win tuşu ve Ana Ekran düğmesini Android yerine etkin DroidDeck oturumunda tutar.</string>
     <string name="integration_brightness_needed">Kurulum → Steam entegrasyonu bölümünde Parlaklık\'ı açın</string>
     <string name="setup_gpu_bridge_off">Mali köprüsü: kapalı</string>
     <string name="setup_gpu_bridge_unusable">%1$s Mali köprüsünü kullanamaz (sistem sürücüsü yolu olmayan bir Mali GPU gerekir), bu yüzden bu anahtarın burada etkisi yok.</string>
