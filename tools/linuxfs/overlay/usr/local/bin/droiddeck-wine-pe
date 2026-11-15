@@ -81,13 +81,13 @@ def pe_imports(path):
         with open(path, "rb") as source:
             image = source.read()
     except OSError:
-        return set()
+        return None
     try:
         if image[:2] != b"MZ":
-            return set()
+            return None
         pe_offset = int.from_bytes(image[60:64], "little")
         if image[pe_offset:pe_offset + 4] != b"PE\0\0":
-            return set()
+            return None
         section_count = int.from_bytes(image[pe_offset + 6:pe_offset + 8], "little")
         optional_size = int.from_bytes(image[pe_offset + 20:pe_offset + 22], "little")
         optional = pe_offset + 24
@@ -121,7 +121,7 @@ def pe_imports(path):
                 entry += step
         return names
     except (IndexError, ValueError):
-        return set()
+        return None
 
 
 PROGRAM_IMPORTS = {}
@@ -133,17 +133,21 @@ def program_imports(builtins):
         try:
             files = {name.lower(): Path(builtins) / name for name in os.listdir(builtins)}
         except OSError:
-            files = {}
-        pending = [name for name in files if name.endswith(".exe")]
+            files = None
+        pending = [name for name in files or () if name.endswith(".exe")]
         seen = set()
-        while pending:
+        while pending and files is not None:
             name = pending.pop()
             if name in seen:
                 continue
             seen.add(name)
             if name in files:
-                pending.extend(pe_imports(files[name]))
-        PROGRAM_IMPORTS[key] = frozenset(name for name in seen if name.endswith(".dll"))
+                imports = pe_imports(files[name])
+                if imports is None:
+                    files = None
+                else:
+                    pending.extend(imports)
+        PROGRAM_IMPORTS[key] = None if files is None else frozenset(name for name in seen if name.endswith(".dll"))
     return PROGRAM_IMPORTS[key]
 
 
@@ -152,7 +156,8 @@ def machine_compatible(path, machines, machine=None, builtins=None, name=None):
     if machine == 0x8664 and 0xA641 in machines:
         if pe_has_arm64ec_metadata(path):
             return True
-        return builtins is not None and (name or Path(path).name).lower() not in program_imports(builtins)
+        imported = program_imports(builtins) if builtins is not None else None
+        return imported is not None and (name or Path(path).name).lower() not in imported
     if machine == 0x8664 and pe_has_arm64ec_metadata(path):
         return False
     return machine in machines
