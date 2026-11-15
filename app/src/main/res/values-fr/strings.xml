@@ -10,14 +10,34 @@
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Le premier lancement télécharge Steam. Cela peut prendre quelques minutes.</item>
-        <item>Par défaut, quitter l\'application met Steam en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
+        <item>Votre manette apparaît dans Steam comme une manette Steam Deck. Passez à une manette Steam Controller, DualShock 4, DualSense ou Xbox 360 dans les paramètres de session ; le changement s\'applique à la session suivante.</item>
+        <item>Maintenez Retour sur votre manette pour ouvrir le menu Accès rapide de Steam. L\'option Maintenir Retour pour les raccourcis Steam doit être activée dans les paramètres de session.</item>
+        <item>Comportement en arrière-plan détermine ce qui se passe quand vous quittez l\'application : Natif prépare Steam à la mise en veille, Auto le met en pause, Manuel attend Reprendre, Jamais le laisse tourner.</item>
+        <item>Les jeux Steam utilisent la Limite d\'images de Steam dans Accès rapide. L\'écran passe à une fréquence de rafraîchissement que la limite divise exactement, s\'il en existe une.</item>
+        <item>Le Mode faible latence du menu de session envoie les commandes de la manette à 1000 Hz au lieu de 250 Hz, pour un peu plus de CPU et de batterie.</item>
+        <item>Chaque jeu a son propre profil avec Proton, FEX, composants et paramètres d\'environnement.</item>
+        <item>Le menu de session propose un bouton micro pour le chat vocal et un bouton Mettre en pause maintenant pour figer la session à la demande.</item>
+        <item>Faites glisser le HUD DroidDeck pour le déplacer, pincez pour le redimensionner, et poussez-le hors d\'un bord pour l\'ancrer en petit onglet FPS.</item>
+        <item>Sur les consoles portables à double écran, l\'écran du bas peut afficher les téléchargements, les notifications, les captures d\'écran et le chat Steam. Inverser les écrans y place le jeu à la place.</item>
+        <item>Ajoutez des bibliothèques Steam depuis une carte SD, une clé USB ou un SSD, et DroidDeck réunit les jeux dans votre Bibliothèque.</item>
+        <item>Boutiques vous permet de vous connecter à Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io et Game Jolt, puis d\'installer et de mettre à jour leurs jeux depuis DroidDeck.</item>
+        <item>Les composants comme FEX, DXVK et VKD3D-Proton se mettent à jour seuls, et Proton Experimental ARM64 est la valeur par défaut, ou Proton 11.0 ARM64 une fois cette version installée.</item>
+        <item>Compresser Steam pendant un jeu libère de la RAM sur les appareils qui en manquent.</item>
+        <item>Balayez depuis le bord droit pour ouvrir le menu de session : mode pavé tactile, Clavier PC, Mode faible latence, Profil du jeu et plus encore.</item>
+        <item>Jeu lent ? Limitez la fréquence d\'images dans Accès rapide, puis essayez une autre version de Proton ou un autre préréglage FEX dans les composants du jeu.</item>
+        <item>Audio du jeu qui grésille ou absent ? Essayez l\'option Utiliser DirectAudio pour le jeu dans les paramètres Steam, sous Audio.</item>
+        <item>Configuration, puis Stockage, peut effacer les caches de shaders et les préfixes restants des jeux supprimés.</item>
+        <item>Un bug ? Partager les journaux dans le menu de session regroupe les diagnostics. Publiez-les dans #bug-reports sur Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>Le premier lancement configure le bureau. Cela peut prendre quelques minutes.</item>
-        <item>Par défaut, quitter l\'application met la session en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, tapotez pour cliquer.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
+        <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, touchez pour cliquer.</item>
+        <item>Comportement en arrière-plan détermine ce qui se passe quand vous quittez l\'application : Manuel attend Reprendre par défaut, Auto met en pause, Jamais laisse tourner.</item>
+        <item>Balayez depuis le bord droit pour ouvrir le menu de session, puis choisissez Clavier PC pour saisir du texte dans les applis qui ignorent le clavier Android.</item>
+        <item>Le Clavier PC du menu de session a une taille, une opacité et des groupes de touches réglables.</item>
+        <item>Votre manette apparaît comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
+        <item>Le menu de session propose un bouton micro et un bouton Mettre en pause maintenant pour figer la session à la demande.</item>
+        <item>Un bug ? Partager les journaux dans le menu de session regroupe les diagnostics. Publiez-les dans #bug-reports sur Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Affiché lorsqu\'une session Steam ou Bureau est ouverte</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Pavé tactile</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto : pavé tactile pour le bureau, tactile direct pour Steam.</string>
+    <string name="mode_pen">Stylet</string>
+    <string name="mode_pen_mouse">Souris</string>
+    <string name="mode_pen_touch">Tactile</string>
+    <string name="mode_pen_button">Bouton latéral</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>
@@ -606,6 +630,8 @@
     <string name="perf_cap_off">Désactivé</string>
     <string name="perf_cap_auto">Valeur par défaut du pilote</string>
     <string name="perf_zram_client">Compresser Steam pendant un jeu</string>
+    <string name="perf_zram_idle">Compresser la mémoire inactive du jeu</string>
+    <string name="perf_zram_idle_hint">Compresse la mémoire inactive du jeu quand la RAM manque. Désactivez-le si les jeux se figent quelques secondes environ toutes les trente secondes. S\'applique au prochain démarrage de la session.</string>
     <string name="perf_zram_client_hint">20 s après le démarrage d\'un jeu, le client Steam est compressé dans zRAM pour laisser plus de mémoire au jeu, puis relu à la fermeture du jeu. Désactivez cette option si la session se ferme peu après le démarrage des jeux. Une limite de RAM ci-dessus compresse toujours Steam lorsque la session la dépasse.</string>
     <string name="perf_ram_cap">Limite de RAM</string>
     <string name="perf_ram_cap_hint">S\'applique tant que le client Steam fonctionne, en mode Steam ou depuis le bureau. Lorsque la session dépasse cette valeur, Steam puis les autres processus pris en charge de la session sont compressés dans zRAM. Limite souple : rien n\'est fermé, mais les jeux peuvent saccader pendant le rechargement des pages.</string>
@@ -616,7 +642,7 @@
     <string name="perf_gpuclock_hint">Uniquement pour Adreno. Moins de saccades, mais plus de consommation d\'énergie et de chaleur.</string>
     <string name="perf_fixes">Correctifs de session</string>
     <string name="perf_sysmem">Turnip : rendu sysmem</string>
-    <string name="perf_sysmem_hint">Le client Steam sera plus rapide ; en jeu, le pilote choisit à chaque passe entre rendu par tuiles et rendu en mémoire système. Requis pour Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">S’applique au client Steam et aux jeux. Requis sur Adreno 710/720/722.</string>
     <string name="perf_xalia">Ignorer l\'assistant xalia de Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un substitut en espace utilisateur du pilote Linux ntsync. Lorsqu\'il est activé, Proton l\'utilise à la place de droiddeck-esync et de droiddeck-fsync. Fonctionne avec Proton Experimental ARM64, GE-Proton et proton-cachyos. Prendra effet à la prochaine session.</string>
@@ -1071,6 +1097,29 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Derniers correctifs avant Stable</string>
     <string name="upd_preview_current">À jour</string>
+    <string name="upd_copy_build">Copier les détails de la version</string>
+    <string name="upd_copied">Détails de la version copiés</string>
+    <string name="upd_ahead_preview_status">En avance sur Preview</string>
+    <string name="upd_ahead_preview_headline">Vous avez une longueur d\'avance sur Preview</string>
+    <string name="upd_ahead_preview_detail">Cette version est plus récente que la dernière Preview. La prochaine version Preview la mettra à jour.</string>
+    <string name="upd_preview_pick">Choisissez une version pour voir ses changements ou l\'installer.</string>
+    <string name="upd_installed_tag">Installée</string>
+    <string name="upd_install_this">Installer cette version%1$s</string>
+    <string name="upd_rollback_this">Revenir à cette version%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Page de la version</string>
+    <string name="upd_newer_commit">La PR a un commit plus récent (%1$s). Sa version de test n\'est pas encore prête, donc celle-ci ne l\'inclut pas.</string>
+    <string name="upd_newer_commit_short">Commit plus récent, version en attente</string>
+    <string name="upd_tests_find">Numéro de PR, titre ou auteur</string>
+    <string name="upd_tests_no_match">Aucune version de test ne correspond</string>
+    <string name="upd_tests_old_row">À recompiler (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Mises à jour des versions de test</string>
+    <string name="upd_watch_title">Nouvelle version de test de la PR #%1$d</string>
+    <string name="upd_watch_text">%1$s. Ouvrez Mises à jour pour l\'installer.</string>
+    <string name="upd_show_more">Afficher plus (%1$d)</string>
+    <string name="upd_tests_old">À recompiler pour le versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Versions Preview sur main depuis cette version de test : %1$d</string>
     <string name="upd_tests">Versions de test</string>
     <string name="upd_tests_hint">Essayer un correctif avant sa publication officielle</string>
     <string name="upd_tests_none">Aucun pour le moment</string>
@@ -1147,7 +1196,6 @@
     <string name="agent_plan_untouched">Rien n’a encore changé</string>
     <string name="agent_plan_go_message">Exécute le plan.</string>
     <string name="agent_send_now">Envoyer maintenant</string>
-    <string name="agent_message">Message</string>
     <string name="agent_more">Plus</string>
     <string name="agent_close">Fermer</string>
     <string name="agent_latest">Dernier</string>
@@ -1461,11 +1509,6 @@
     <string name="rail_more">Plus</string>
     <string name="more_edit_tabs">Modifier les onglets</string>
     <string name="setup_group_tabs">Onglets</string>
-    <string name="tabs_place_bar">Affiché</string>
-    <string name="tabs_place_more">Dans Plus</string>
-    <string name="tabs_place_hidden">Masqué</string>
-    <string name="tabs_move_up">Déplacer %1$s vers le haut</string>
-    <string name="tabs_move_down">Déplacer %1$s vers le bas</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reprendre %1$s</string>
     <string name="roms_text">Affiché comme /root/ROMs dans chaque session. Le stockage interne se trouve dans /root/Storage.</string>
@@ -1835,6 +1878,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Effacer</string>
     <string name="game_sync_err_runtime">Installez d\'abord l\'environnement d\'exécution</string>
     <string name="game_sync_err_steam_library">La bibliothèque Steam n\'est pas disponible</string>
     <string name="game_sync_err_previous_sd">L\'ancienne bibliothèque SD n\'est pas disponible</string>
@@ -2586,7 +2630,6 @@
     <string name="setup_agent_pet_float">Au-dessus des autres applications</string>
     <string name="setup_agent_pet_float_hint">Autorise DeeDee à flotter au-dessus de toutes les applications et à y ouvrir sa discussion</string>
     <string name="setup_agent_pet_allow">Autoriser</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Discuter avec DeeDee</string>
     <string name="library_display">Affichage</string>
     <string name="library_display_larger">Cartes plus grandes</string>
@@ -3402,6 +3445,7 @@
     <string name="boot_movie_sound">Son</string>
     <string name="boot_movie_skip">Ignorer la vidéo de démarrage</string>
     <string name="boot_movie_skip_hint">Utilise un clip noir de 0,1 seconde comme vidéo de démarrage de Steam. S’applique à la prochaine session.</string>
+    <string name="boot_movie_shuffle">Aléatoire</string>
     <string name="boot_movie_custom">Votre propre vidéo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Les autres formats et les fichiers de plus de %1$d Mo sont convertis en WebM 720p sur l\'appareil, jusqu\'à %2$d secondes.</string>
     <string name="boot_movie_import">Importer</string>
@@ -3859,8 +3903,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, la touche Win et le bouton Accueil restent dans la session</string>
     <string name="integration_shortcuts_maybe_restricted">Grisé dans Android ? Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
     <string name="integration_shortcuts_restricted">Bloqué par Android · Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
-    <string name="integration_shortcuts_service">Touches système DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Garde Alt+Tab, la touche Win et le bouton Accueil dans une session DroidDeck active plutôt que dans Android.</string>
     <string name="integration_brightness_needed">Activez Luminosité dans Paramètres → Intégration Steam</string>
     <string name="setup_gpu_bridge_off">Pont Mali : désactivé</string>
     <string name="setup_gpu_bridge_unusable">%1$s ne peut pas utiliser le pont Mali (il faut un GPU Mali sans route de pilote système) ; ce commutateur n\'a donc aucun effet ici.</string>
@@ -4022,10 +4064,11 @@
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>
+    <string name="epic_third_party_managed">S’installe via %1$s</string>
 
     <string name="theme_white_red">Neige écarlate</string>
     <string name="theme_white_red_detail">Surfaces blanches avec des accents rouges.</string>
-    
+
     <string name="rail_soundtracks">Bandes originales</string>
     <string name="rail_music">Musique</string>
     <string name="soundtracks_options">Options de lecture</string>
@@ -4090,4 +4133,16 @@
     <string name="soundtracks_no_tracks">Aucun fichier audio dans cette bande originale</string>
     <string name="stores_rockstar_launch_unavailable">Lancement indisponible</string>
     <string name="agent_browser_unavailable">Aucun navigateur Web n’est disponible pour ouvrir ce lien.</string>
+    <string name="hud_hint_grab">Saisir</string>
+    <string name="hud_hint_drop">Déposer</string>
+    <string name="hud_hint_save">Enregistrer</string>
+    <string name="hud_hint_reset">Maintenir pour réinitialiser</string>
+    <string name="setup_stores">Boutiques</string>
+    <string name="hud_metric_latency">Temps de frame</string>
+    <string name="hud_metric_avg">Frequence moyenne des images</string>
+    <string name="hud_metric_display">Serveur graphique</string>
+    <string name="hud_metric_hdr">État HDR</string>
+    <string name="hud_readings_shown">Affichés</string>
+    <string name="hud_readings_count">%1$d sur %2$d</string>
+    <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
 </resources>

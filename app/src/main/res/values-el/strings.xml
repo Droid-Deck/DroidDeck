@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">Το DroidDeck δεν μπόρεσε να κάνει αυτόματη επανεκκίνηση. Κλείστε εντελώς την εφαρμογή και ανοίξτε την ξανά.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Η πρώτη εκτέλεση κάνει λήψη του Steam. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει το Steam σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
+        <item>Η πρώτη εκτέλεση κατεβάζει το Steam. Μπορεί να διαρκέσει μερικά λεπτά.</item>
+        <item>Το χειριστήριό σας εμφανίζεται στο Steam ως χειριστήριο Steam Deck. Αλλάξτε το σε Steam Controller, DualShock 4, DualSense ή Xbox 360 στις ρυθμίσεις συνεδρίας· εφαρμόζεται στην επόμενη συνεδρία.</item>
+        <item>Κρατήστε πατημένο το Πίσω στο χειριστήριό σας για να ανοίξετε το μενού Quick Access του Steam. Η επιλογή «Παρατεταμένο Πίσω για συντομεύσεις Steam» πρέπει να είναι ενεργή στις ρυθμίσεις συνεδρίας.</item>
+        <item>Η Συμπεριφορά παρασκηνίου καθορίζει τι γίνεται όταν φεύγετε από την εφαρμογή: το Εγγενής ετοιμάζει το Steam για αναστολή λειτουργίας, το Αυτόματο το θέτει σε παύση, το Μη αυτόματο περιμένει τη Συνέχιση, το Ποτέ το αφήνει να τρέχει.</item>
+        <item>Τα παιχνίδια Steam χρησιμοποιούν το Frame Limit του Steam στο Quick Access. Η οθόνη αλλάζει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο, όταν υπάρχει τέτοιος.</item>
+        <item>Η Λειτουργία χαμηλής καθυστέρησης στο μενού συνεδρίας στέλνει την είσοδο του χειριστηρίου στα 1000 Hz αντί για 250 Hz, με λίγο μεγαλύτερη χρήση CPU και μπαταρίας.</item>
+        <item>Κάθε παιχνίδι έχει το δικό του προφίλ με Proton, FEX, στοιχεία και ρυθμίσεις περιβάλλοντος.</item>
+        <item>Το μενού συνεδρίας έχει διακόπτη μικροφώνου για φωνητική συνομιλία και κουμπί Αναστολή τώρα για να παγώνετε τη συνεδρία όποτε θέλετε.</item>
+        <item>Σύρετε το HUD του DroidDeck για να το μετακινήσετε, τσιμπήστε για να αλλάξετε μέγεθος και σπρώξτε το προς μια άκρη για να καρφιτσωθεί ως μικρή καρτέλα FPS.</item>
+        <item>Σε φορητές κονσόλες με δύο οθόνες, η κάτω οθόνη μπορεί να δείχνει λήψεις, ειδοποιήσεις, στιγμιότυπα οθόνης και τη συνομιλία του Steam. Η Εναλλαγή οθονών βάζει εκεί το παιχνίδι.</item>
+        <item>Προσθέστε βιβλιοθήκες Steam από κάρτα SD, μονάδα USB ή SSD, και το DroidDeck κρατά τα παιχνίδια μαζί στη Βιβλιοθήκη σας.</item>
+        <item>Τα Καταστήματα σάς επιτρέπουν να συνδεθείτε σε Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io και Game Jolt και μετά να εγκαθιστάτε και να ενημερώνετε τα παιχνίδια τους από το DroidDeck.</item>
+        <item>Στοιχεία όπως τα FEX, DXVK και VKD3D-Proton ενημερώνονται μόνα τους, και το Proton Experimental ARM64 είναι το προεπιλεγμένο, ή το Proton 11.0 ARM64 μόλις εγκατασταθεί αυτή η έκδοση.</item>
+        <item>Η επιλογή Συμπίεση του Steam όσο τρέχει παιχνίδι ελευθερώνει RAM σε συσκευές με λίγη μνήμη.</item>
+        <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας: λειτουργία πινακίδας αφής, Πληκτρολόγιο PC, Λειτουργία χαμηλής καθυστέρησης, προφίλ παιχνιδιού και άλλα.</item>
+        <item>Το παιχνίδι τρέχει αργά; Περιορίστε τον ρυθμό καρέ στο Quick Access και δοκιμάστε άλλη έκδοση Proton ή άλλη προεπιλογή FEX στα στοιχεία του παιχνιδιού.</item>
+        <item>Κροταλίσματα ή απουσία ήχου στο παιχνίδι; Δοκιμάστε τον διακόπτη DirectAudio για παιχνίδια στις ρυθμίσεις του Steam, στην ενότητα Ήχος.</item>
+        <item>Η Ρύθμιση και μετά η Αποθήκευση μπορεί να καθαρίσει τις κρυφές μνήμες shader και τα υπολειπόμενα prefix από παιχνίδια που αφαιρέσατε.</item>
+        <item>Αντιμετωπίσατε σφάλμα; Η Κοινή χρήση αρχείων καταγραφής στο μενού συνεδρίας συγκεντρώνει διαγνωστικά. Αναρτήστε τα στο #bug-reports στο Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Η πρώτη εκτέλεση ρυθμίζει την επιφάνεια εργασίας. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει τη συνεδρία σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το άγγιγμα λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
+        <item>Η πρώτη εκτέλεση ρυθμίζει την επιφάνεια εργασίας. Μπορεί να διαρκέσει μερικά λεπτά.</item>
+        <item>Η αφή λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
+        <item>Η Συμπεριφορά παρασκηνίου καθορίζει τι γίνεται όταν φεύγετε από την εφαρμογή: το Μη αυτόματο περιμένει από προεπιλογή τη Συνέχιση, το Αυτόματο θέτει σε παύση, το Ποτέ το αφήνει να τρέχει.</item>
+        <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας και επιλέξτε Πληκτρολόγιο PC για να πληκτρολογείτε σε εφαρμογές που αγνοούν το πληκτρολόγιο του Android.</item>
+        <item>Το Πληκτρολόγιο PC στο μενού συνεδρίας έχει ρυθμιζόμενο μέγεθος, αδιαφάνεια και ομάδες πλήκτρων.</item>
+        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια οθόνης.</item>
+        <item>Το μενού συνεδρίας έχει διακόπτη μικροφώνου και κουμπί Αναστολή τώρα για να παγώνετε τη συνεδρία όποτε θέλετε.</item>
+        <item>Αντιμετωπίσατε σφάλμα; Η Κοινή χρήση αρχείων καταγραφής στο μενού συνεδρίας συγκεντρώνει διαγνωστικά. Αναρτήστε τα στο #bug-reports στο Discord.</item>
     </string-array>
     <string name="session_channel">Συνεδρία</string>
     <string name="session_channel_description">Εμφανίζεται όσο μια συνεδρία Steam ή επιφάνειας εργασίας είναι ανοιχτή</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Πινακίδα αφής</string>
     <string name="mode_touch_direct">Απευθείας</string>
     <string name="mode_touch_note">Αυτόματο: πινακίδα αφής στην Επιφάνεια εργασίας, απευθείας στο Steam.</string>
+    <string name="mode_pen">Γραφίδα</string>
+    <string name="mode_pen_mouse">Ποντίκι</string>
+    <string name="mode_pen_touch">Αφή</string>
+    <string name="mode_pen_button">Πλαϊνό κουμπί</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>
@@ -604,6 +628,8 @@
     <string name="perf_cap_off">Ανενεργό</string>
     <string name="perf_cap_auto">Προεπιλογή προγράμματος οδήγησης</string>
     <string name="perf_zram_client">Συμπίεση του Steam όσο τρέχει παιχνίδι</string>
+    <string name="perf_zram_idle">Συμπίεση ανενεργής μνήμης παιχνιδιού</string>
+    <string name="perf_zram_idle_hint">Σελιδοποιεί την ανενεργή μνήμη του παιχνιδιού όταν η RAM είναι χαμηλή. Απενεργοποιήστε το αν τα παιχνίδια παγώνουν για λίγα δευτερόλεπτα περίπου κάθε μισό λεπτό. Ισχύει από την επόμενη έναρξη της συνεδρίας.</string>
     <string name="perf_zram_client_hint">20 s μετά την εκκίνηση ενός παιχνιδιού, ο πελάτης Steam συμπιέζεται στη zRAM για να μείνει περισσότερη μνήμη στο παιχνίδι, και διαβάζεται πίσω όταν το παιχνίδι κλείσει. Απενεργοποιήστε το αν η συνεδρία κλείνει λίγο μετά την εκκίνηση παιχνιδιών. Ένα όριο RAM παραπάνω εξακολουθεί να συμπιέζει το Steam όταν η συνεδρία το ξεπεράσει.</string>
     <string name="perf_ram_cap">Όριο RAM</string>
     <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
@@ -614,7 +640,7 @@
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
     <string name="perf_sysmem">Turnip: απόδοση sysmem</string>
-    <string name="perf_sysmem_hint">Ταχύτερο για το πρόγραμμα-πελάτη Steam· στα παιχνίδια ο οδηγός επιλέγει σε κάθε πέρασμα απόδοση με πλακίδια ή στη μνήμη συστήματος. Απαιτείται σε Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Ισχύει για το πρόγραμμα-πελάτη Steam και τα παιχνίδια. Απαιτείται σε Adreno 710/720/722.</string>
     <string name="perf_xalia">Παράβλεψη του βοηθού xalia του Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Ένα υποκατάστατο σε επίπεδο χρήστη για το πρόγραμμα οδήγησης ntsync του Linux. Όσο είναι ενεργό, το Proton το χρησιμοποιεί αντί για το droiddeck-esync και το droiddeck-fsync. Λειτουργεί με Proton Experimental ARM64, GE-Proton και proton-cachyos. Εφαρμόζεται στην επόμενη συνεδρία.</string>
@@ -1068,6 +1094,29 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Νεότερες διορθώσεις, πριν το Stable</string>
     <string name="upd_preview_current">Ενημερωμένο</string>
+    <string name="upd_copy_build">Αντιγραφή στοιχείων build</string>
+    <string name="upd_copied">Τα στοιχεία του build αντιγράφηκαν</string>
+    <string name="upd_ahead_preview_status">Νεότερο από το Preview</string>
+    <string name="upd_ahead_preview_headline">Είστε μπροστά από το Preview</string>
+    <string name="upd_ahead_preview_detail">Αυτό το build είναι νεότερο από το τελευταίο Preview. Το επόμενο Preview build θα το ενημερώσει.</string>
+    <string name="upd_preview_pick">Επιλέξτε ένα build για να δείτε τις αλλαγές ή να το εγκαταστήσετε.</string>
+    <string name="upd_installed_tag">Εγκατεστημένο</string>
+    <string name="upd_install_this">Εγκατάσταση αυτού του build%1$s</string>
+    <string name="upd_rollback_this">Επιστροφή σε αυτό το build%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Σελίδα έκδοσης</string>
+    <string name="upd_newer_commit">Το PR έχει νεότερο commit (%1$s). Το δοκιμαστικό του build δεν είναι έτοιμο ακόμη, οπότε αυτό δεν το περιλαμβάνει.</string>
+    <string name="upd_newer_commit_short">Νεότερο commit, το build εκκρεμεί</string>
+    <string name="upd_tests_find">Αριθμός PR, τίτλος ή συντάκτης</string>
+    <string name="upd_tests_no_match">Κανένα δοκιμαστικό build δεν ταιριάζει</string>
+    <string name="upd_tests_old_row">Χρειάζεται νέο build (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Ενημερώσεις δοκιμαστικών builds</string>
+    <string name="upd_watch_title">Νέο δοκιμαστικό build για το PR #%1$d</string>
+    <string name="upd_watch_text">%1$s. Ανοίξτε τις Ενημερώσεις για εγκατάσταση.</string>
+    <string name="upd_show_more">Περισσότερα (%1$d)</string>
+    <string name="upd_tests_old">Χρειάζονται νέο build για versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Preview builds στο main μετά από αυτό το δοκιμαστικό build: %1$d</string>
     <string name="upd_tests">Δοκιμαστικά builds</string>
     <string name="upd_tests_hint">Δοκιμάστε μια διόρθωση πριν κυκλοφορήσει</string>
     <string name="upd_tests_none">Κανένα προς το παρόν</string>
@@ -1144,7 +1193,6 @@
     <string name="agent_plan_untouched">Δεν έχει αλλάξει τίποτα ακόμη</string>
     <string name="agent_plan_go_message">Προχώρησε με το σχέδιο.</string>
     <string name="agent_send_now">Αποστολή τώρα</string>
-    <string name="agent_message">Μήνυμα</string>
     <string name="agent_more">Περισσότερα</string>
     <string name="agent_close">Κλείσιμο</string>
     <string name="agent_latest">Πιο πρόσφατο</string>
@@ -1454,11 +1502,6 @@
     <string name="rail_more">Περισσότερα</string>
     <string name="more_edit_tabs">Επεξεργασία καρτελών</string>
     <string name="setup_group_tabs">Καρτέλες</string>
-    <string name="tabs_place_bar">Εμφανής</string>
-    <string name="tabs_place_more">Στα Περισσότερα</string>
-    <string name="tabs_place_hidden">Κρυφή</string>
-    <string name="tabs_move_up">Μετακινήστε %1$s προς τα πάνω</string>
-    <string name="tabs_move_down">Μετακινήστε %1$s προς τα κάτω</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Συνέχιση %1$s</string>
     <string name="roms_text">Εμφανίζεται ως /root/ROMs σε κάθε συνεδρία. Ο εσωτερικός χώρος αποθήκευσης βρίσκεται στο /root/Storage.</string>
@@ -1817,6 +1860,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Καθαρισμός</string>
     <string name="game_sync_err_runtime">Εγκαταστήστε πρώτα το runtime</string>
     <string name="game_sync_err_steam_library">Η βιβλιοθήκη Steam δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_previous_sd">Η προηγούμενη βιβλιοθήκη SD δεν είναι διαθέσιμη</string>
@@ -2561,7 +2605,6 @@
     <string name="setup_agent_pet_float">Πάνω από άλλες εφαρμογές</string>
     <string name="setup_agent_pet_float_hint">Αφήστε το DeeDee να εμφανίζεται πάνω από κάθε εφαρμογή και να ανοίγει εκεί τη συνομιλία</string>
     <string name="setup_agent_pet_allow">Να επιτρέπεται</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Συνομιλία με DeeDee</string>
     <string name="library_display">Προβολή</string>
     <string name="library_display_larger">Μεγαλύτερες κάρτες</string>
@@ -3364,6 +3407,7 @@
     <string name="boot_movie_sound">Ήχος</string>
     <string name="boot_movie_skip">Παράλειψη ταινίας εκκίνησης</string>
     <string name="boot_movie_skip_hint">Χρησιμοποιεί ένα μαύρο κλιπ 0,1 δευτερολέπτου ως ταινία εκκίνησης του Steam. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="boot_movie_shuffle">Τυχαία σειρά</string>
     <string name="boot_movie_custom">Δικό σας βίντεο</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
     <string name="boot_movie_import">Εισαγωγή</string>
@@ -3821,8 +3865,6 @@
     <string name="integration_shortcuts_hint">Τα Alt+Tab, Win και Αρχική μένουν στη συνεδρία</string>
     <string name="integration_shortcuts_maybe_restricted">Γκρίζο στο Android; Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
     <string name="integration_shortcuts_restricted">Αποκλείεται από το Android · Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
-    <string name="integration_shortcuts_service">Πλήκτρα συστήματος DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Διατηρεί τα Alt+Tab, το πλήκτρο Win και το κουμπί Αρχικής στην ενεργή συνεδρία DroidDeck αντί για το Android.</string>
     <string name="integration_brightness_needed">Ενεργοποιήστε τη Φωτεινότητα στη Ρύθμιση → Ενσωμάτωση Steam</string>
     <string name="setup_gpu_bridge_off">Γέφυρα Mali: ανενεργή</string>
     <string name="setup_gpu_bridge_unusable">Το %1$s δεν μπορεί να χρησιμοποιήσει τη γέφυρα Mali (χρειάζεται GPU Mali χωρίς διαδρομή οδηγού συστήματος), επομένως αυτός ο διακόπτης δεν έχει καμία επίδραση εδώ.</string>
@@ -3983,10 +4025,11 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+    <string name="epic_third_party_managed">Εγκαθίσταται μέσω %1$s</string>
 
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
     <string name="theme_white_red_detail">Λευκές επιφάνειες με κόκκινες λεπτομέρειες.</string>
-    
+
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Μουσική</string>
     <string name="soundtracks_options">Επιλογές αναπαραγωγής</string>
@@ -4051,4 +4094,16 @@
     <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Η εκκίνηση δεν είναι διαθέσιμη</string>
     <string name="agent_browser_unavailable">Δεν είναι διαθέσιμο πρόγραμμα περιήγησης ιστού για το άνοιγμα αυτού του συνδέσμου.</string>
+    <string name="hud_hint_grab">Πιάσε</string>
+    <string name="hud_hint_drop">Άφησε</string>
+    <string name="hud_hint_save">Αποθήκευση</string>
+    <string name="hud_hint_reset">Κράτησε για επαναφορά</string>
+    <string name="setup_stores">Καταστήματα</string>
+    <string name="hud_metric_latency">Χρόνος καρέ</string>
+    <string name="hud_metric_avg">Μέσος ρυθμός καρέ</string>
+    <string name="hud_metric_display">Διακομιστής προβολής</string>
+    <string name="hud_metric_hdr">Κατάσταση HDR</string>
+    <string name="hud_readings_shown">Εμφανίζονται</string>
+    <string name="hud_readings_count">%1$d από %2$d</string>
+    <string name="exit_hint_back">Πατήστε ξανά πίσω για έξοδο</string>
 </resources>

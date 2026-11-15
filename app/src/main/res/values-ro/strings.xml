@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck nu a putut reporni automat. Închide complet aplicația, apoi redeschide-o.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Prima rulare descarcă Steam. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, Steam este pus pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
+        <item>La prima rulare se descarcă Steam. Poate dura câteva minute.</item>
+        <item>Controllerul tău apare în Steam ca un controller Steam Deck. Schimbă-l pe un Steam Controller, DualShock 4, DualSense sau Xbox 360 din setările sesiunii; se aplică de la sesiunea următoare.</item>
+        <item>Ține apăsat Înapoi pe controller pentru a deschide meniul Acces rapid din Steam. Ține apăsat Înapoi pentru comenzi Steam trebuie să fie activat în setările sesiunii.</item>
+        <item>Comportament în fundal decide ce se întâmplă când părăsești aplicația: Nativ pregătește Steam pentru repaus, Automat îl pune în pauză, Manual așteaptă Reluare, Niciodată îl lasă să ruleze.</item>
+        <item>Jocurile Steam folosesc Limita de cadre din Steam, în Acces rapid. Ecranul trece la o rată de reîmprospătare pe care limita o împarte exact, când există una.</item>
+        <item>Mod latență redusă din meniul sesiunii trimite intrările controllerului la 1000 Hz în loc de 250 Hz, cu puțin mai mult CPU și baterie.</item>
+        <item>Fiecare joc are propriul profil, cu Proton, FEX, componente și setări de mediu.</item>
+        <item>Meniul sesiunii are un comutator pentru microfon, pentru chat vocal, și un buton Suspendă acum, ca să îngheți sesiunea la cerere.</item>
+        <item>Trage HUD-ul DroidDeck ca să-l muți, ciupește ca să-l redimensionezi și împinge-l peste o margine ca să-l ancorezi ca o mică filă FPS.</item>
+        <item>Pe consolele portabile cu două ecrane, ecranul de jos poate afișa descărcări, notificări, capturi de ecran și chatul Steam. Schimbă ecranele mută jocul acolo.</item>
+        <item>Adaugă biblioteci Steam de pe un card SD, o unitate USB sau un SSD, iar DroidDeck păstrează jocurile împreună în Biblioteca ta.</item>
+        <item>Magazine îți permite să te conectezi la Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io și Game Jolt, apoi să instalezi și să actualizezi jocurile lor din DroidDeck.</item>
+        <item>Componente precum FEX, DXVK și VKD3D-Proton se actualizează singure, iar Proton Experimental ARM64 este implicit, sau Proton 11.0 ARM64 odată ce acea versiune este instalată.</item>
+        <item>Comprimă Steam cât rulează un joc eliberează RAM pe dispozitivele cu memorie puțină.</item>
+        <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii: mod touchpad, Tastatură de PC, Mod latență redusă, profilul jocului și altele.</item>
+        <item>Jocul rulează greu? Limitează rata de cadre în Acces rapid, apoi încearcă altă versiune de Proton sau alt preset FEX în componentele jocului.</item>
+        <item>Sunet de joc cu pârâituri sau lipsă? Încearcă opțiunea DirectAudio pentru jocuri din setările Steam, la Sunet.</item>
+        <item>Configurare, apoi Stocare, poate șterge cache-urile de shadere și prefixele rămase de la jocurile eliminate.</item>
+        <item>Ai dat de o eroare? Partajează jurnalele din meniul sesiunii strânge diagnosticele. Postează-le în #bug-reports pe Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Prima rulare configurează desktopul. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, sesiunea este pusă pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Atingerea funcționează ca un touchpad: trage pentru a mișca cursorul, apasă scurt pentru a face clic.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
+        <item>La prima rulare se configurează desktopul. Poate dura câteva minute.</item>
+        <item>Atingerea funcționează ca un touchpad: trage ca să muți cursorul, atinge ca să dai clic.</item>
+        <item>Comportament în fundal decide ce se întâmplă când părăsești aplicația: Manual așteaptă Reluare în mod implicit, Automat pune în pauză, Niciodată lasă să ruleze.</item>
+        <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii, apoi alege Tastatură de PC ca să scrii în aplicațiile care ignoră tastatura Android.</item>
+        <item>Tastatura de PC din meniul sesiunii are dimensiune, opacitate și grupuri de taste reglabile.</item>
+        <item>Controllerul tău apare ca un controller Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
+        <item>Meniul sesiunii are un comutator pentru microfon și un buton Suspendă acum, ca să îngheți sesiunea la cerere.</item>
+        <item>Ai dat de o eroare? Partajează jurnalele din meniul sesiunii strânge diagnosticele. Postează-le în #bug-reports pe Discord.</item>
     </string-array>
     <string name="session_channel">Sesiune</string>
     <string name="session_channel_description">Apare cât timp o sesiune Steam sau desktop este activă</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Automat: touchpad pe Desktop, direct în Steam.</string>
+    <string name="mode_pen">Stilou</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Atingere</string>
+    <string name="mode_pen_button">Buton lateral</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
@@ -606,6 +630,8 @@
     <string name="perf_cap_off">Dezactivat</string>
     <string name="perf_cap_auto">Implicit driver</string>
     <string name="perf_zram_client">Comprimă Steam cât rulează un joc</string>
+    <string name="perf_zram_idle">Comprimă memoria inactivă a jocului</string>
+    <string name="perf_zram_idle_hint">Comprimă memoria inactivă a jocului când memoria RAM este redusă. Dezactivează dacă jocurile îngheață câteva secunde aproximativ la fiecare jumătate de minut. Se aplică la următoarea pornire a sesiunii.</string>
     <string name="perf_zram_client_hint">La 20 s după pornirea unui joc, clientul Steam este comprimat în zRAM pentru a lăsa jocului mai multă memorie și este citit înapoi când jocul se închide. Dezactivează dacă sesiunea se închide la scurt timp după pornirea jocurilor. O limită RAM de mai sus tot comprimă Steam când sesiunea o depășește.</string>
     <string name="perf_ram_cap">Limită RAM</string>
     <string name="perf_ram_cap_hint">Se aplică cât rulează clientul Steam, în modul Steam sau de pe desktop. Când sesiunea folosește mai mult de atât, Steam și apoi celelalte procese acceptate ale sesiunii sunt comprimate în zRAM. O limită flexibilă: nimic nu se închide, dar jocurile pot sacada cât paginile revin.</string>
@@ -616,7 +642,7 @@
     <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
     <string name="perf_sysmem">Turnip: randare sysmem</string>
-    <string name="perf_sysmem_hint">Mai rapidă pentru clientul Steam; în jocuri, driverul alege la fiecare trecere între randarea pe dale și cea în memoria sistemului. Necesară pe Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Se aplică clientului Steam și jocurilor. Necesară pe Adreno 710/720/722.</string>
     <string name="perf_xalia">Omite asistentul xalia al Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un substitut la nivel de utilizator pentru driverul Linux ntsync. Cât timp este activ, Proton îl folosește în locul droiddeck-esync și droiddeck-fsync. Funcționează cu Proton Experimental ARM64, GE-Proton și proton-cachyos. Se aplică la sesiunea următoare.</string>
@@ -1071,6 +1097,29 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Cele mai noi remedieri, înainte de Stabilă</string>
     <string name="upd_preview_current">Actualizat</string>
+    <string name="upd_copy_build">Copiază detaliile versiunii</string>
+    <string name="upd_copied">Detaliile versiunii au fost copiate</string>
+    <string name="upd_ahead_preview_status">Înaintea Preview</string>
+    <string name="upd_ahead_preview_headline">Ești înaintea Preview</string>
+    <string name="upd_ahead_preview_detail">Această versiune este mai nouă decât ultima Preview. Următoarea versiune Preview o va actualiza.</string>
+    <string name="upd_preview_pick">Alege o versiune pentru a-i vedea modificările sau a o instala.</string>
+    <string name="upd_installed_tag">Instalată</string>
+    <string name="upd_install_this">Instalează această versiune%1$s</string>
+    <string name="upd_rollback_this">Revino la această versiune%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Pagina versiunii</string>
+    <string name="upd_newer_commit">PR-ul are un commit mai nou (%1$s). Versiunea lui de test nu e gata încă, așa că aceasta nu îl include.</string>
+    <string name="upd_newer_commit_short">Commit mai nou, versiune în așteptare</string>
+    <string name="upd_tests_find">Număr PR, titlu sau autor</string>
+    <string name="upd_tests_no_match">Nicio versiune de test nu se potrivește</string>
+    <string name="upd_tests_old_row">Trebuie recompilată (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Actualizări pentru versiunile de test</string>
+    <string name="upd_watch_title">Versiune de test nouă pentru PR #%1$d</string>
+    <string name="upd_watch_text">%1$s. Deschide Actualizări pentru a o instala.</string>
+    <string name="upd_show_more">Arată mai multe (%1$d)</string>
+    <string name="upd_tests_old">Trebuie recompilate pentru versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Versiuni Preview pe main de la această versiune de test: %1$d</string>
     <string name="upd_tests">Versiuni de test</string>
     <string name="upd_tests_hint">Încearcă o remediere înainte de lansare</string>
     <string name="upd_tests_none">Niciuna acum</string>
@@ -1147,7 +1196,6 @@
     <string name="agent_plan_untouched">Nimic nu s-a schimbat încă</string>
     <string name="agent_plan_go_message">Continuă cu planul.</string>
     <string name="agent_send_now">Trimite acum</string>
-    <string name="agent_message">Mesaj</string>
     <string name="agent_more">Mai multe</string>
     <string name="agent_close">Închide</string>
     <string name="agent_latest">Cele mai recente</string>
@@ -1462,11 +1510,6 @@
     <string name="rail_more">Mai multe</string>
     <string name="more_edit_tabs">Editează taburile</string>
     <string name="setup_group_tabs">Taburi</string>
-    <string name="tabs_place_bar">Afișat</string>
-    <string name="tabs_place_more">În meniul Mai multe</string>
-    <string name="tabs_place_hidden">Ascuns</string>
-    <string name="tabs_move_up">Mută %1$s în sus</string>
-    <string name="tabs_move_down">Mută %1$s în jos</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reluare %1$s</string>
     <string name="roms_text">Apare ca /root/ROMs în fiecare sesiune. Stocarea internă este la /root/Storage.</string>
@@ -1836,6 +1879,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Golește</string>
     <string name="game_sync_err_runtime">Instalează mai întâi mediul de execuție</string>
     <string name="game_sync_err_steam_library">Biblioteca Steam nu este disponibilă</string>
     <string name="game_sync_err_previous_sd">Biblioteca SD anterioară nu este disponibilă</string>
@@ -2587,7 +2631,6 @@
     <string name="setup_agent_pet_float">Peste alte aplicații</string>
     <string name="setup_agent_pet_float_hint">Permite ca DeeDee să plutească peste orice aplicație și să deschidă chatul acolo</string>
     <string name="setup_agent_pet_allow">Permite</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Discută cu DeeDee</string>
     <string name="library_display">Afișare</string>
     <string name="library_display_larger">Carduri mai mari</string>
@@ -3403,6 +3446,7 @@
     <string name="boot_movie_sound">Sunet</string>
     <string name="boot_movie_skip">Omite filmul de pornire</string>
     <string name="boot_movie_skip_hint">Folosește un clip negru de 0,1 secunde ca film de pornire pentru Steam. Se aplică la următoarea sesiune.</string>
+    <string name="boot_movie_shuffle">Aleatoriu</string>
     <string name="boot_movie_custom">Videoclipul tău</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV sau WebM. Alte formate și fișierele de peste %1$d MB sunt convertite pe dispozitiv în WebM 720p, până la %2$d secunde.</string>
     <string name="boot_movie_import">Importă</string>
@@ -3860,8 +3904,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, tasta Win și butonul Acasă rămân în sesiune</string>
     <string name="integration_shortcuts_maybe_restricted">Inactiv în Android? Informații despre aplicație → ⋮ → Permite setările restricționate</string>
     <string name="integration_shortcuts_restricted">Blocat de Android · Informații despre aplicație → ⋮ → Permite setările restricționate</string>
-    <string name="integration_shortcuts_service">Taste de sistem DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Păstrează Alt+Tab, tasta Win și butonul Acasă într-o sesiune DroidDeck activă în loc de Android.</string>
     <string name="integration_brightness_needed">Activează Luminozitate în Configurare → Integrare Steam</string>
     <string name="setup_gpu_bridge_off">Punte Mali: oprită</string>
     <string name="setup_gpu_bridge_unusable">%1$s nu poate folosi puntea Mali (are nevoie de un GPU Mali fără o rută prin driverul de sistem), deci acest comutator nu are niciun efect aici.</string>
@@ -4023,10 +4065,11 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+    <string name="epic_third_party_managed">Se instalează prin %1$s</string>
 
     <string name="theme_white_red">Zăpadă stacojie</string>
     <string name="theme_white_red_detail">Suprafețe albe cu accente roșii.</string>
-    
+
     <string name="rail_soundtracks">Coloane sonore</string>
     <string name="rail_music">Muzică</string>
     <string name="soundtracks_options">Opțiuni de redare</string>
@@ -4091,4 +4134,16 @@
     <string name="soundtracks_no_tracks">Niciun fișier audio în această coloană sonoră</string>
     <string name="stores_rockstar_launch_unavailable">Lansare indisponibilă</string>
     <string name="agent_browser_unavailable">Nu este disponibil niciun browser web pentru a deschide acest link.</string>
+    <string name="hud_hint_grab">Prinde</string>
+    <string name="hud_hint_drop">Lasă</string>
+    <string name="hud_hint_save">Salvează</string>
+    <string name="hud_hint_reset">Ține apăsat pentru resetare</string>
+    <string name="setup_stores">Magazine</string>
+    <string name="hud_metric_latency">Timp cadru</string>
+    <string name="hud_metric_avg">Rata medie de cadre</string>
+    <string name="hud_metric_display">Server de afișare</string>
+    <string name="hud_metric_hdr">Stare HDR</string>
+    <string name="hud_readings_shown">Afișate</string>
+    <string name="hud_readings_count">%1$d din %2$d</string>
+    <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
 </resources>

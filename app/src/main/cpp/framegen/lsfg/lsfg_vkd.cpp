@@ -1,6 +1,6 @@
 
 #include "lsfg_vkd.h"
-#include "../VulkanRendererContext.h"
+#include "../VkDispatchTable.h"
 
 #include <android/log.h>
 

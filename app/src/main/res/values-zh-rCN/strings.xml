@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck 无法自动重启。请完全关闭应用，然后重新打开。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>首次运行会下载 Steam，这可能需要几分钟。</item>
-        <item>默认情况下，离开应用会暂停 Steam；返回后会从原处继续。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
+        <item>首次运行会下载 Steam，可能需要几分钟。</item>
+        <item>你的手柄在 Steam 中显示为 Steam Deck 手柄。可在会话设置中切换为 Steam Controller、DualShock 4、DualSense 或 Xbox 360 手柄，下次会话生效。</item>
+        <item>长按手柄上的返回键可打开 Steam 的快捷访问菜单。必须在会话设置中开启“长按返回键使用 Steam 快捷操作”。</item>
+        <item>后台行为决定你离开应用时会发生什么：原生会让 Steam 做好睡眠准备，自动会暂停，手动会等待点按恢复，“从不”则保持运行。</item>
+        <item>Steam 游戏使用快捷访问中 Steam 的帧率限制。如果存在能被该上限整除的刷新率，显示器会切换到该刷新率。</item>
+        <item>会话菜单中的低延迟模式会以 1000 Hz 而非 250 Hz 发送手柄输入，代价是略多一点 CPU 和电量消耗。</item>
+        <item>每个游戏都有自己的配置档案，包含 Proton、FEX、组件和环境设置。</item>
+        <item>会话菜单里有用于语音聊天的麦克风开关，以及可随时冻结会话的“立即暂停”按钮。</item>
+        <item>拖动 DroidDeck HUD 可移动它，双指捏合可调整大小，推到屏幕边缘可停靠为小型 FPS 标签。</item>
+        <item>在双屏掌机上，下屏可以显示下载、通知、截图和 Steam 聊天。“交换屏幕”会改为把游戏放到下屏。</item>
+        <item>可添加 SD 卡、USB 驱动器或 SSD 上的 Steam 游戏库，DroidDeck 会把这些游戏集中在你的库中。</item>
+        <item>游戏商店让你登录 Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io 和 Game Jolt，然后在 DroidDeck 中安装和更新它们的游戏。</item>
+        <item>FEX、DXVK 和 VKD3D-Proton 等组件会自动更新，默认使用 Proton Experimental ARM64，安装 Proton 11.0 ARM64 后则默认使用它。</item>
+        <item>“游戏运行时压缩 Steam”可在内存不足的设备上释放 RAM。</item>
+        <item>从右边缘向内滑动可打开会话菜单：触控板模式、PC 键盘、低延迟、游戏配置档案等。</item>
+        <item>游戏运行缓慢？先在快捷访问中限制帧率，再到游戏的组件中尝试其他 Proton 版本或 FEX 预设。</item>
+        <item>游戏音频爆音或没有声音？请在 Steam 设置的“音频”下尝试“游戏使用 DirectAudio”开关。</item>
+        <item>“配置”下的“存储”可以清理已移除游戏留下的着色器缓存和残留前缀。</item>
+        <item>遇到故障？会话菜单中的“分享日志”会打包诊断信息。请发布到 Discord 的 #bug-reports。</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>首次运行会设置桌面环境，这可能需要几分钟。</item>
-        <item>默认情况下，离开应用会暂停会话；返回后会从原处继续。</item>
-        <item>触控区域可当作触控板使用：拖动可移动指针，轻点即可点击。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
+        <item>首次运行会设置桌面，可能需要几分钟。</item>
+        <item>触摸的作用类似触控板：拖动可移动指针，轻点即可点击。</item>
+        <item>后台行为决定你离开应用时会发生什么：手动默认会等待点按恢复，自动会暂停，“从不”则保持运行。</item>
+        <item>从右边缘向内滑动可打开会话菜单，然后选择“PC 键盘”，即可在忽略 Android 键盘的应用中输入。</item>
+        <item>会话菜单中的 PC 键盘可调整大小、不透明度和按键分组。</item>
+        <item>你的手柄会显示为 Xbox 360 手柄。否则请使用屏幕上的控件。</item>
+        <item>会话菜单里有麦克风开关和可随时冻结会话的“立即暂停”按钮。</item>
+        <item>遇到故障？会话菜单中的“分享日志”会打包诊断信息。请发布到 Discord 的 #bug-reports。</item>
     </string-array>
     <string name="session_channel">会话</string>
     <string name="session_channel_description">在 Steam 或桌面会话打开时显示</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">触控板</string>
     <string name="mode_touch_direct">直接</string>
     <string name="mode_touch_note">自动：桌面用触控板，Steam 中用直接触摸。</string>
+    <string name="mode_pen">手写笔</string>
+    <string name="mode_pen_mouse">鼠标</string>
+    <string name="mode_pen_touch">触摸</string>
+    <string name="mode_pen_button">侧键</string>
     <string name="mode_osc">屏幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自动模式会在未连接手柄时显示屏幕控制。</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">关闭</string>
     <string name="perf_cap_auto">驱动默认</string>
     <string name="perf_zram_client">游戏运行时压缩 Steam</string>
+    <string name="perf_zram_idle">压缩游戏闲置内存</string>
+    <string name="perf_zram_idle_hint">RAM 较低时压缩游戏闲置内存。如果游戏大约每半分钟卡顿几秒，请关闭此项。下次启动会话时生效。</string>
     <string name="perf_zram_client_hint">游戏启动 20 秒后，Steam 客户端会被压缩到 zRAM 中，为游戏腾出更多内存，并在游戏关闭时读回。如果会话在游戏启动后不久就关闭，请关闭此选项。设置了上方的 RAM 上限时，会话超出上限后仍会压缩 Steam。</string>
     <string name="perf_ram_cap">RAM 上限</string>
     <string name="perf_ram_cap_hint">在 Steam 客户端运行时生效，无论是 Steam 模式还是从桌面启动。会话使用量超过此值时，会先将 Steam、再将会话中其他受支持的进程压缩到 zRAM。这是软上限：不会关闭任何进程，但在页面读回时游戏可能卡顿。</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
-    <string name="perf_sysmem_hint">Steam 客户端更快；游戏中驱动会为每个渲染通道选择分块渲染或系统内存渲染。Adreno 710/720/722 必需。</string>
+    <string name="perf_sysmem_hint">适用于 Steam 客户端和游戏。Adreno 710/720/722 必需。</string>
     <string name="perf_xalia">跳过 Steam 的 xalia 助手</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linux ntsync 驱动的用户态替代品。开启时，Proton 使用它代替 droiddeck-esync 和 droiddeck-fsync。适用于 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。将在下次会话生效。</string>
@@ -1148,6 +1174,29 @@
     <string name="upd_preview">预览版</string>
     <string name="upd_preview_hint">最新修复，先于稳定版</string>
     <string name="upd_preview_current">已是最新</string>
+    <string name="upd_copy_build">复制构建信息</string>
+    <string name="upd_copied">已复制构建信息</string>
+    <string name="upd_ahead_preview_status">比预览版新</string>
+    <string name="upd_ahead_preview_headline">你领先于预览版</string>
+    <string name="upd_ahead_preview_detail">此构建比最新的预览版更新。下一个预览版构建会更新它。</string>
+    <string name="upd_preview_pick">选择一个构建以查看其更改或安装。</string>
+    <string name="upd_installed_tag">已安装</string>
+    <string name="upd_install_this">安装此构建%1$s</string>
+    <string name="upd_rollback_this">回退到此构建%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">提交 %1$s</string>
+    <string name="upd_link_release">发布页面</string>
+    <string name="upd_newer_commit">此 PR 有更新的提交（%1$s）。它的测试构建尚未就绪，因此此构建不包含它。</string>
+    <string name="upd_newer_commit_short">已推送新提交，构建待生成</string>
+    <string name="upd_tests_find">PR 编号、标题或作者</string>
+    <string name="upd_tests_no_match">没有匹配的测试构建</string>
+    <string name="upd_tests_old_row">需要重新构建（versionCode %1$d）</string>
+    <string name="upd_watch_channel">测试构建更新</string>
+    <string name="upd_watch_title">PR #%1$d 有新的测试构建</string>
+    <string name="upd_watch_text">%1$s。打开“更新”进行安装。</string>
+    <string name="upd_show_more">显示更多（%1$d）</string>
+    <string name="upd_tests_old">需要为 versionCode %2$d 重新构建（%1$d）</string>
+    <string name="upd_main_moved">此测试构建之后 main 上的预览版构建：%1$d</string>
     <string name="upd_tests">测试构建</string>
     <string name="upd_tests_hint">在修复正式发布前先试用</string>
     <string name="upd_tests_none">当前没有</string>
@@ -1224,7 +1273,6 @@
     <string name="agent_plan_untouched">尚未更改</string>
     <string name="agent_plan_go_message">按计划执行。</string>
     <string name="agent_send_now">立即发送</string>
-    <string name="agent_message">消息</string>
     <string name="agent_more">更多</string>
     <string name="agent_close">关闭</string>
     <string name="agent_latest">最新</string>
@@ -1530,11 +1578,6 @@
     <string name="rail_more">更多</string>
     <string name="more_edit_tabs">编辑标签页</string>
     <string name="setup_group_tabs">标签页</string>
-    <string name="tabs_place_bar">显示</string>
-    <string name="tabs_place_more">在“更多”中</string>
-    <string name="tabs_place_hidden">隐藏</string>
-    <string name="tabs_move_up">将 %1$s 上移</string>
-    <string name="tabs_move_down">将 %1$s 下移</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">恢复 %1$s</string>
     <string name="roms_text">在每个会话中显示为 /root/ROMs。内部存储位于 /root/Storage。</string>
@@ -1876,6 +1919,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">清屏</string>
     <string name="game_sync_err_runtime">请先安装运行时</string>
     <string name="game_sync_err_steam_library">Steam 库不可用</string>
     <string name="game_sync_err_previous_sd">之前的 SD 卡库不可用</string>
@@ -2613,7 +2657,6 @@
     <string name="setup_agent_pet_float">显示在其他应用上层</string>
     <string name="setup_agent_pet_float_hint">让 DeeDee 悬浮在所有应用上层，并在那里打开聊天</string>
     <string name="setup_agent_pet_allow">允许</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">与 DeeDee 聊天</string>
     <string name="library_display">显示</string>
     <string name="library_display_larger">较大卡片</string>
@@ -3335,6 +3378,7 @@
     <string name="boot_movie_sound">声音</string>
     <string name="boot_movie_skip">跳过启动影片</string>
     <string name="boot_movie_skip_hint">用一段 0.1 秒的黑色片段作为 Steam 的启动影片。下次会话生效。</string>
+    <string name="boot_movie_shuffle">随机播放</string>
     <string name="boot_movie_custom">自定义视频</string>
     <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超过 %1$d MB 的文件会在设备上转换为 720p WebM，最长 %2$d 秒。</string>
     <string name="boot_movie_import">导入</string>
@@ -3792,8 +3836,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab、Win 键和主页键留在会话中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中显示为灰色？应用信息 → ⋮ → 允许受限设置</string>
     <string name="integration_shortcuts_restricted">已被 Android 阻止 · 应用信息 → ⋮ → 允许受限设置</string>
-    <string name="integration_shortcuts_service">DroidDeck 系统按键</string>
-    <string name="integration_shortcuts_service_description">让 Alt+Tab、Win 键和主页键在当前 DroidDeck 会话中生效，而不是交给 Android。</string>
     <string name="integration_brightness_needed">请在“配置”→“Steam 集成”中开启亮度</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK：自动</string>
@@ -3953,10 +3995,11 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+    <string name="epic_third_party_managed">通过 %1$s 安装</string>
 
     <string name="theme_white_red">猩红之雪</string>
     <string name="theme_white_red_detail">白色界面配红色点缀。</string>
-    
+
     <string name="rail_soundtracks">原声音乐</string>
     <string name="rail_music">音乐</string>
     <string name="soundtracks_options">播放选项</string>
@@ -4021,4 +4064,16 @@
     <string name="soundtracks_no_tracks">此原声音乐中没有音频文件</string>
     <string name="stores_rockstar_launch_unavailable">无法启动</string>
     <string name="agent_browser_unavailable">没有可用的浏览器来打开此链接。</string>
+    <string name="hud_hint_grab">抓取</string>
+    <string name="hud_hint_drop">放下</string>
+    <string name="hud_hint_save">保存</string>
+    <string name="hud_hint_reset">长按重置</string>
+    <string name="setup_stores">游戏商店</string>
+    <string name="hud_metric_latency">帧时间</string>
+    <string name="hud_metric_avg">平均帧率</string>
+    <string name="hud_metric_display">显示服务器</string>
+    <string name="hud_metric_hdr">HDR 状态</string>
+    <string name="hud_readings_shown">已显示</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">再按一次返回键退出</string>
 </resources>

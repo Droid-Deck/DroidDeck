@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
+        <item>การเปิดใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
+        <item>คอนโทรลเลอร์ของคุณจะปรากฏใน Steam เป็นคอนโทรลเลอร์ Steam Deck สลับเป็น Steam Controller, DualShock 4, DualSense หรือ Xbox 360 ได้ในการตั้งค่าเซสชัน โดยจะมีผลในเซสชันถัดไป</item>
+        <item>กดค้างปุ่มย้อนกลับบนคอนโทรลเลอร์เพื่อเปิดเมนู Quick Access ของ Steam ต้องเปิด "กดค้างย้อนกลับสำหรับทางลัด Steam" ในการตั้งค่าเซสชันไว้ก่อน</item>
+        <item>การทำงานในพื้นหลังกำหนดสิ่งที่เกิดขึ้นเมื่อคุณออกจากแอป: ดั้งเดิมจะเตรียม Steam เข้าสู่โหมดพัก อัตโนมัติจะหยุดชั่วคราว กำหนดเองจะรอให้กดดำเนินการต่อ ไม่เลยจะให้ทำงานต่อไป</item>
+        <item>เกม Steam ใช้จำกัดเฟรมของ Steam ใน Quick Access จอแสดงผลจะสลับไปใช้อัตรารีเฟรชที่หารค่าที่จำกัดลงตัวเมื่อมี</item>
+        <item>โหมดหน่วงเวลาต่ำในเมนูเซสชันจะส่งอินพุตคอนโทรลเลอร์ที่ 1000 Hz แทน 250 Hz โดยใช้ CPU และแบตเตอรี่เพิ่มขึ้นเล็กน้อย</item>
+        <item>แต่ละเกมมีโปรไฟล์ของตัวเอง พร้อม Proton, FEX, คอมโพเนนต์ และการตั้งค่าสภาพแวดล้อม</item>
+        <item>เมนูเซสชันมีสวิตช์ไมโครโฟนสำหรับแชตเสียง และปุ่มหยุดชั่วคราวตอนนี้เพื่อสั่งหยุดเซสชันได้ทันที</item>
+        <item>ลาก HUD ของ DroidDeck เพื่อย้าย บีบนิ้วเพื่อปรับขนาด และดันไปชิดขอบเพื่อพักเป็นแท็บ FPS เล็ก ๆ</item>
+        <item>บนเครื่องเกมพกพาแบบสองหน้าจอ หน้าจอล่างสามารถแสดงการดาวน์โหลด การแจ้งเตือน ภาพหน้าจอ และแชต Steam ได้ สลับหน้าจอ จะย้ายเกมไปแสดงที่หน้าจอล่างแทน</item>
+        <item>เพิ่มคลังเกม Steam จากการ์ด SD ไดรฟ์ USB หรือ SSD แล้ว DroidDeck จะรวมเกมไว้ด้วยกันใน ไลบรารี ของคุณ</item>
+        <item>สโตร์ ให้คุณลงชื่อเข้าใช้ Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io และ Game Jolt แล้วติดตั้งและอัปเดตเกมของสโตร์เหล่านั้นจาก DroidDeck ได้</item>
+        <item>คอมโพเนนต์อย่าง FEX, DXVK และ VKD3D-Proton อัปเดตตัวเอง และค่าเริ่มต้นคือ Proton Experimental ARM64 หรือ Proton 11.0 ARM64 เมื่อติดตั้งบิลด์นั้นแล้ว</item>
+        <item>บีบอัด Steam ขณะเล่นเกม ช่วยเพิ่ม RAM ว่างบนอุปกรณ์ที่หน่วยความจำเหลือน้อย</item>
+        <item>ปัดเข้าจากขอบขวาเพื่อเปิดเมนูเซสชัน: โหมดทัชแพด แป้นพิมพ์พีซี โหมดหน่วงเวลาต่ำ โปรไฟล์เกม และอื่น ๆ</item>
+        <item>เกมช้าใช่ไหม ลองจำกัดเฟรมเรตใน Quick Access แล้วลองใช้ Proton เวอร์ชันอื่นหรือพรีเซ็ต FEX อื่นในคอมโพเนนต์ของเกม</item>
+        <item>เสียงเกมแตกพร่าหรือไม่มีเสียง ลองเปิดสวิตช์ DirectAudio สำหรับเกม ในการตั้งค่า Steam ภายใต้ เสียง</item>
+        <item>การตั้งค่า แล้วไปที่ พื้นที่จัดเก็บ สามารถล้างแคชเชเดอร์และเพรฟิกซ์ที่ตกค้างจากเกมที่คุณลบออกได้</item>
+        <item>เจอข้อผิดพลาดใช่ไหม แชร์ล็อก ในเมนูเซสชันจะรวบรวมข้อมูลวินิจฉัย โพสต์ได้ที่ #bug-reports บน Discord</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>การเริ่มใช้งานครั้งแรกจะตั้งค่าเดสก์ท็อป ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
+        <item>การเปิดใช้งานครั้งแรกจะตั้งค่าเดสก์ท็อป ซึ่งอาจใช้เวลาสักครู่</item>
+        <item>การสัมผัสทำงานเหมือนทัชแพด: ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
+        <item>การทำงานในพื้นหลังกำหนดสิ่งที่เกิดขึ้นเมื่อคุณออกจากแอป: กำหนดเองจะรอให้กดดำเนินการต่อเป็นค่าเริ่มต้น อัตโนมัติจะหยุดชั่วคราว ไม่เลยจะให้ทำงานต่อไป</item>
+        <item>ปัดเข้าจากขอบขวาเพื่อเปิดเมนูเซสชัน แล้วเลือก แป้นพิมพ์พีซี เพื่อพิมพ์ในแอปที่ไม่รับแป้นพิมพ์ของ Android</item>
+        <item>แป้นพิมพ์พีซีในเมนูเซสชันปรับขนาด ความโปร่งใส และกลุ่มปุ่มได้</item>
+        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นแผงควบคุม Xbox 360 หากไม่เช่นนั้น ให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
+        <item>เมนูเซสชันมีสวิตช์ไมโครโฟนและปุ่มหยุดชั่วคราวตอนนี้เพื่อสั่งหยุดเซสชันได้ทันที</item>
+        <item>เจอข้อผิดพลาดใช่ไหม แชร์ล็อก ในเมนูเซสชันจะรวบรวมข้อมูลวินิจฉัย โพสต์ได้ที่ #bug-reports บน Discord</item>
     </string-array>
     <string name="session_channel">เซสชัน</string>
     <string name="session_channel_description">แสดงขณะมีเซสชัน Steam หรือเดสก์ท็อปเปิดอยู่</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">ทัชแพด</string>
     <string name="mode_touch_direct">โดยตรง</string>
     <string name="mode_touch_note">อัตโนมัติ: ทัชแพดในเดสก์ท็อป โดยตรงใน Steam</string>
+    <string name="mode_pen">ปากกา</string>
+    <string name="mode_pen_mouse">เมาส์</string>
+    <string name="mode_pen_touch">การสัมผัส</string>
+    <string name="mode_pen_button">ปุ่มด้านข้าง</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">ปิด</string>
     <string name="perf_cap_auto">ค่าเริ่มต้นของไดรเวอร์</string>
     <string name="perf_zram_client">บีบอัด Steam ขณะเล่นเกม</string>
+    <string name="perf_zram_idle">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งาน</string>
+    <string name="perf_zram_idle_hint">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งานเมื่อ RAM เหลือน้อย ปิดไว้หากเกมค้างไม่กี่วินาทีทุกประมาณครึ่งนาที มีผลเมื่อเริ่มเซสชันครั้งถัดไป</string>
     <string name="perf_zram_client_hint">20 วินาทีหลังเกมเริ่ม ไคลเอนต์ Steam จะถูกบีบอัดลงใน zRAM เพื่อเหลือหน่วยความจำให้เกมมากขึ้น และอ่านกลับเมื่อปิดเกม ปิดตัวเลือกนี้หากเซสชันปิดไปไม่นานหลังเริ่มเกม ขีดจำกัด RAM ด้านบนยังคงบีบอัด Steam เมื่อเซสชันใช้เกินขีดจำกัด</string>
     <string name="perf_ram_cap">ขีดจำกัด RAM</string>
     <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
     <string name="perf_sysmem">Turnip: การเรนเดอร์ sysmem</string>
-    <string name="perf_sysmem_hint">เร็วขึ้นสำหรับไคลเอนต์ Steam ในเกมไดรเวอร์จะเลือกการเรนเดอร์แบบไทล์หรือในหน่วยความจำระบบในแต่ละพาส จำเป็นสำหรับ Adreno 710/720/722</string>
+    <string name="perf_sysmem_hint">ใช้กับไคลเอนต์ Steam และเกม จำเป็นสำหรับ Adreno 710/720/722</string>
     <string name="perf_xalia">ข้ามตัวช่วย xalia ของ Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">ตัวแทนในระดับยูสเซอร์สเปซของไดรเวอร์ ntsync ของ Linux เมื่อเปิดใช้ Proton จะใช้สิ่งนี้แทน droiddeck-esync และ droiddeck-fsync ใช้ได้กับ Proton Experimental ARM64, GE-Proton และ proton-cachyos จะมีผลในเซสชันถัดไป</string>
@@ -1065,6 +1091,29 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">การแก้ไขล่าสุด ก่อนถึง Stable</string>
     <string name="upd_preview_current">เป็นรุ่นล่าสุดแล้ว</string>
+    <string name="upd_copy_build">คัดลอกรายละเอียดบิลด์</string>
+    <string name="upd_copied">คัดลอกรายละเอียดบิลด์แล้ว</string>
+    <string name="upd_ahead_preview_status">ใหม่กว่า Preview</string>
+    <string name="upd_ahead_preview_headline">คุณนำหน้า Preview</string>
+    <string name="upd_ahead_preview_detail">บิลด์นี้ใหม่กว่า Preview ล่าสุด บิลด์ Preview ถัดไปจะอัปเดตให้</string>
+    <string name="upd_preview_pick">เลือกบิลด์เพื่อดูการเปลี่ยนแปลงหรือติดตั้ง</string>
+    <string name="upd_installed_tag">ติดตั้งแล้ว</string>
+    <string name="upd_install_this">ติดตั้งบิลด์นี้%1$s</string>
+    <string name="upd_rollback_this">ย้อนกลับไปบิลด์นี้%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">คอมมิต %1$s</string>
+    <string name="upd_link_release">หน้ารีลีส</string>
+    <string name="upd_newer_commit">PR นี้มีคอมมิตใหม่กว่า (%1$s) บิลด์ทดสอบของคอมมิตนั้นยังไม่พร้อม บิลด์นี้จึงยังไม่มีคอมมิตนั้น</string>
+    <string name="upd_newer_commit_short">มีคอมมิตใหม่ รอบิลด์</string>
+    <string name="upd_tests_find">หมายเลข PR ชื่อ หรือผู้เขียน</string>
+    <string name="upd_tests_no_match">ไม่มีบิลด์ทดสอบที่ตรงกัน</string>
+    <string name="upd_tests_old_row">ต้องบิลด์ใหม่ (versionCode %1$d)</string>
+    <string name="upd_watch_channel">อัปเดตบิลด์ทดสอบ</string>
+    <string name="upd_watch_title">บิลด์ทดสอบใหม่ของ PR #%1$d</string>
+    <string name="upd_watch_text">%1$s เปิดอัปเดตเพื่อติดตั้ง</string>
+    <string name="upd_show_more">แสดงเพิ่ม (%1$d)</string>
+    <string name="upd_tests_old">ต้องบิลด์ใหม่สำหรับ versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">บิลด์ Preview บน main หลังบิลด์ทดสอบนี้: %1$d</string>
     <string name="upd_tests">บิลด์ทดสอบ</string>
     <string name="upd_tests_hint">ลองการแก้ไขก่อนเผยแพร่จริง</string>
     <string name="upd_tests_none">ไม่มีในขณะนี้</string>
@@ -1141,7 +1190,6 @@
     <string name="agent_plan_untouched">ยังไม่มีการเปลี่ยนแปลง</string>
     <string name="agent_plan_go_message">ดำเนินการตามแผนได้เลย</string>
     <string name="agent_send_now">ส่งตอนนี้</string>
-    <string name="agent_message">ข้อความ</string>
     <string name="agent_more">เพิ่มเติม</string>
     <string name="agent_close">ปิด</string>
     <string name="agent_latest">ล่าสุด</string>
@@ -1447,11 +1495,6 @@
     <string name="rail_more">เพิ่มเติม</string>
     <string name="more_edit_tabs">แก้ไขแท็บ</string>
     <string name="setup_group_tabs">แท็บ</string>
-    <string name="tabs_place_bar">แสดง</string>
-    <string name="tabs_place_more">ในเพิ่มเติม</string>
-    <string name="tabs_place_hidden">ซ่อน</string>
-    <string name="tabs_move_up">ย้าย %1$s ขึ้น</string>
-    <string name="tabs_move_down">ย้าย %1$s ลง</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">ดำเนินการต่อ %1$s</string>
     <string name="roms_text">แสดงเป็น /root/ROMs ในแต่ละเซสชัน พื้นที่จัดเก็บภายในอยู่ที่ /root/Storage</string>
@@ -1799,6 +1842,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">ล้าง</string>
     <string name="game_sync_err_runtime">ติดตั้งรันไทม์ก่อน</string>
     <string name="game_sync_err_steam_library">ไลบรารี Steam ไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_previous_sd">ไลบรารี SD ก่อนหน้าไม่พร้อมใช้งาน</string>
@@ -2536,7 +2580,6 @@
     <string name="setup_agent_pet_float">เหนือแอปอื่น</string>
     <string name="setup_agent_pet_float_hint">ให้ DeeDee ลอยเหนือทุกแอปและเปิดแชทได้จากตรงนั้น</string>
     <string name="setup_agent_pet_allow">อนุญาต</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">แชทกับ DeeDee</string>
     <string name="library_display">การแสดงผล</string>
     <string name="library_display_larger">การ์ดใหญ่ขึ้น</string>
@@ -3335,6 +3378,7 @@
     <string name="boot_movie_sound">เสียง</string>
     <string name="boot_movie_skip">ข้ามวิดีโอเริ่มต้น</string>
     <string name="boot_movie_skip_hint">ใช้คลิปสีดำความยาว 0.1 วินาทีเป็นวิดีโอเริ่มต้นของ Steam มีผลในเซสชันถัดไป</string>
+    <string name="boot_movie_shuffle">สุ่ม</string>
     <string name="boot_movie_custom">วิดีโอของคุณเอง</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV หรือ WebM รูปแบบอื่นและไฟล์ที่ใหญ่กว่า %1$d MB จะถูกแปลงเป็น WebM 720p บนอุปกรณ์ ความยาวไม่เกิน %2$d วินาที</string>
     <string name="boot_movie_import">นำเข้า</string>
@@ -3792,8 +3836,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน</string>
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
-    <string name="integration_shortcuts_service">ปุ่มระบบของ DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ให้ Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน DroidDeck ที่ใช้งานอยู่แทน Android</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
     <string name="setup_gpu_bridge_off">บริดจ์ Mali: ปิด</string>
     <string name="setup_gpu_bridge_unusable">%1$s ใช้บริดจ์ Mali ไม่ได้ (ต้องการ GPU Mali ที่ยังไม่มีเส้นทางไดรเวอร์ระบบ) สวิตช์นี้จึงไม่มีผลบนเครื่องนี้</string>
@@ -3953,10 +3995,11 @@
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>
+    <string name="epic_third_party_managed">ติดตั้งผ่าน %1$s</string>
 
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     <string name="theme_white_red_detail">พื้นผิวสีขาวมีสีแดงเป็นสีเน้น</string>
-    
+
     <string name="rail_soundtracks">ซาวด์แทร็ก</string>
     <string name="rail_music">เพลง</string>
     <string name="soundtracks_options">ตัวเลือกการเล่น</string>
@@ -4021,4 +4064,16 @@
     <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
     <string name="stores_rockstar_launch_unavailable">ไม่สามารถเปิดได้</string>
     <string name="agent_browser_unavailable">ไม่มีเว็บเบราว์เซอร์ที่เปิดลิงก์นี้ได้</string>
+    <string name="hud_hint_grab">หยิบ</string>
+    <string name="hud_hint_drop">วาง</string>
+    <string name="hud_hint_save">บันทึก</string>
+    <string name="hud_hint_reset">กดค้างเพื่อรีเซ็ต</string>
+    <string name="setup_stores">สโตร์</string>
+    <string name="hud_metric_latency">เวลาเฟรม</string>
+    <string name="hud_metric_avg">อัตราเฟรมเฉลี่ย</string>
+    <string name="hud_metric_display">เซิร์ฟเวอร์แสดงผล</string>
+    <string name="hud_metric_hdr">สถานะ HDR</string>
+    <string name="hud_readings_shown">ที่แสดง</string>
+    <string name="hud_readings_count">%1$d จาก %2$d</string>
+    <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
 </resources>

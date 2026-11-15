@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck kunde inte starta om automatiskt. Stäng appen helt och öppna den sedan igen.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Första starten laddar ned Steam. Det kan ta några minuter.</item>
-        <item>Som standard pausas Steam när du lämnar appen. Det fortsätter där det slutade när du kommer tillbaka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
+        <item>Första körningen laddar ner Steam. Det kan ta några minuter.</item>
+        <item>Din kontroll visas för Steam som en Steam Deck-kontroll. Byt till en Steam Controller-, DualShock 4-, DualSense- eller Xbox 360-kontroll i sessionsinställningarna; det gäller från nästa session.</item>
+        <item>Håll Bakåt på kontrollen för att öppna Steams Snabbåtkomst-meny. Håll Bakåt för Steam-genvägar måste vara på i sessionsinställningarna.</item>
+        <item>Bakgrundsbeteende avgör vad som händer när du lämnar appen: Inbyggd förbereder Steam för vila, Auto pausar den, Manuell väntar på Återuppta, Aldrig håller den igång.</item>
+        <item>Steam-spel använder Steams Bildgräns i Snabbåtkomst. Skärmen växlar till en uppdateringsfrekvens som gränsen delas jämnt av när det finns en.</item>
+        <item>Läge för låg latens i sessionsmenyn skickar kontrollinmatning med 1000 Hz i stället för 250 Hz, mot lite mer CPU och batteri.</item>
+        <item>Varje spel har en egen profil med Proton, FEX, komponenter och miljöinställningar.</item>
+        <item>Sessionsmenyn har en mikrofonknapp för röstchatt och en Pausa nu-knapp för att frysa sessionen när du vill.</item>
+        <item>Dra DroidDeck-HUD:en för att flytta den, nyp för att ändra storlek och skjut den över en kant för att docka den som en liten FPS-flik.</item>
+        <item>På handhållna enheter med två skärmar kan nedre skärmen visa nedladdningar, aviseringar, skärmdumpar och Steam-chatt. Byt skärmar lägger spelet där nere i stället.</item>
+        <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
+        <item>Butiker låter dig logga in på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
+        <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
+        <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
+        <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>
+        <item>Går spelet långsamt? Begränsa bildfrekvensen i Snabbåtkomst och prova sedan en annan Proton-version eller FEX-förinställning i spelets komponenter.</item>
+        <item>Knaster eller saknat ljud i spelet? Prova växlaren DirectAudio för spel i Steam-inställningarna under Ljud.</item>
+        <item>Konfiguration och sedan Lagring kan rensa shader-cachar och kvarglömda prefix från spel du tagit bort.</item>
+        <item>Stöter du på ett fel? Dela loggar i sessionsmenyn paketerar diagnostik. Posta dem i #bug-reports på Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Första starten konfigurerar skrivbordet. Det kan ta några minuter.</item>
-        <item>Som standard pausas sessionen när du lämnar appen. Den fortsätter där den slutade när du kommer tillbaka.</item>
-        <item>Pekskärmen fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
+        <item>Första körningen konfigurerar skrivbordet. Det kan ta några minuter.</item>
+        <item>Beröring fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
+        <item>Bakgrundsbeteende avgör vad som händer när du lämnar appen: Manuell väntar på Återuppta som standard, Auto pausar, Aldrig håller den igång.</item>
+        <item>Svep in från högerkanten för att öppna sessionsmenyn och välj sedan PC-tangentbord för att skriva i appar som ignorerar Android-tangentbordet.</item>
+        <item>PC-tangentbordet i sessionsmenyn har justerbar storlek, opacitet och tangentgrupper.</item>
+        <item>Din kontroll visas som en Xbox 360-kontroll. Annars använder du kontrollerna på skärmen.</item>
+        <item>Sessionsmenyn har en mikrofonknapp och en Pausa nu-knapp för att frysa sessionen när du vill.</item>
+        <item>Stöter du på ett fel? Dela loggar i sessionsmenyn paketerar diagnostik. Posta dem i #bug-reports på Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Visas medan en Steam- eller skrivbordssession är öppen</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Pekplatta</string>
     <string name="mode_touch_direct">Direkt</string>
     <string name="mode_touch_note">Auto: pekplatta på skrivbordet, direkt i Steam.</string>
+    <string name="mode_pen">Penna</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Pekskärm</string>
+    <string name="mode_pen_button">Sidoknapp</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>
@@ -604,6 +628,8 @@
     <string name="perf_cap_off">Av</string>
     <string name="perf_cap_auto">Drivrutinens standard</string>
     <string name="perf_zram_client">Komprimera Steam medan ett spel körs</string>
+    <string name="perf_zram_idle">Komprimera spelets inaktiva minne</string>
+    <string name="perf_zram_idle_hint">Komprimerar spelets inaktiva minne när RAM-minnet är lågt. Stäng av om spel fryser några sekunder ungefär var halvminut. Gäller nästa gång sessionen startar.</string>
     <string name="perf_zram_client_hint">20 s efter att ett spel startat komprimeras Steam-klienten till zRAM för att ge spelet mer minne, och läses tillbaka när spelet stängs. Stäng av om sessionen stängs strax efter att spel startar. En RAM-gräns ovan komprimerar fortfarande Steam när sessionen överskrider den.</string>
     <string name="perf_ram_cap">RAM-gräns</string>
     <string name="perf_ram_cap_hint">Gäller medan Steam-klienten körs, i Steam-läge eller från skrivbordet. När sessionen använder mer än detta komprimeras Steam och sedan sessionens övriga processer som stöds till zRAM. En mjuk gräns: inget stängs, men spel kan hacka medan sidor läses tillbaka.</string>
@@ -614,7 +640,7 @@
     <string name="perf_gpuclock_hint">Bara Adreno. Färre hack, högre batteriförbrukning och mer värme.</string>
     <string name="perf_fixes">Sessionsfixar</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Snabbare för Steam-klienten; i spel väljer drivrutinen kakel- eller systemminnesrendering för varje pass. Krävs på Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Gäller Steam-klienten och spel. Krävs på Adreno 710/720/722.</string>
     <string name="perf_xalia">Hoppa över Steams xalia-hjälp</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">En ersättning i användarutrymmet för Linux ntsync-drivrutinen. Medan det är på använder Proton det i stället för droiddeck-esync och droiddeck-fsync. Fungerar med Proton Experimental ARM64, GE-Proton och proton-cachyos. Gäller från nästa session.</string>
@@ -1068,6 +1094,29 @@
     <string name="upd_preview">Förhandsversion</string>
     <string name="upd_preview_hint">De senaste fixarna, före Stabil</string>
     <string name="upd_preview_current">Senaste versionen</string>
+    <string name="upd_copy_build">Kopiera bygguppgifter</string>
+    <string name="upd_copied">Bygguppgifter kopierade</string>
+    <string name="upd_ahead_preview_status">Före Förhandsversion</string>
+    <string name="upd_ahead_preview_headline">Du ligger före Förhandsversion</string>
+    <string name="upd_ahead_preview_detail">Det här bygget är nyare än den senaste förhandsversionen. Nästa förhandsbygge uppdaterar det.</string>
+    <string name="upd_preview_pick">Välj ett bygge för att se ändringarna eller installera det.</string>
+    <string name="upd_installed_tag">Installerat</string>
+    <string name="upd_install_this">Installera det här bygget%1$s</string>
+    <string name="upd_rollback_this">Gå tillbaka till det här bygget%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Versionssida</string>
+    <string name="upd_newer_commit">PR:en har en nyare commit (%1$s). Dess testbygge är inte klart än, så det här innehåller den inte.</string>
+    <string name="upd_newer_commit_short">Nyare commit, bygge väntar</string>
+    <string name="upd_tests_find">PR-nummer, titel eller författare</string>
+    <string name="upd_tests_no_match">Inget testbygge matchar</string>
+    <string name="upd_tests_old_row">Måste byggas om (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Uppdateringar av testbyggen</string>
+    <string name="upd_watch_title">Nytt testbygge för PR #%1$d</string>
+    <string name="upd_watch_text">%1$s. Öppna Uppdateringar för att installera det.</string>
+    <string name="upd_show_more">Visa fler (%1$d)</string>
+    <string name="upd_tests_old">Måste byggas om för versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Förhandsbyggen på main sedan det här testbygget: %1$d</string>
     <string name="upd_tests">Testbyggen</string>
     <string name="upd_tests_hint">Prova en fix innan den släpps</string>
     <string name="upd_tests_none">Inga just nu</string>
@@ -1144,7 +1193,6 @@
     <string name="agent_plan_untouched">Inget har ändrats ännu</string>
     <string name="agent_plan_go_message">Kör planen.</string>
     <string name="agent_send_now">Skicka nu</string>
-    <string name="agent_message">Meddelande</string>
     <string name="agent_more">Mer</string>
     <string name="agent_close">Stäng</string>
     <string name="agent_latest">Senaste</string>
@@ -1454,11 +1502,6 @@
     <string name="rail_more">Mer</string>
     <string name="more_edit_tabs">Redigera flikar</string>
     <string name="setup_group_tabs">Flikar</string>
-    <string name="tabs_place_bar">Visas</string>
-    <string name="tabs_place_more">I Mer</string>
-    <string name="tabs_place_hidden">Dold</string>
-    <string name="tabs_move_up">Flytta upp %1$s</string>
-    <string name="tabs_move_down">Flytta ner %1$s</string>
     <string name="rail_percent">%1$d %%</string>
     <string name="rail_resume_named">Återuppta %1$s</string>
     <string name="roms_text">Visas som /root/ROMs i varje session. Det interna lagringsutrymmet finns på /root/Storage.</string>
@@ -1817,6 +1860,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Rensa</string>
     <string name="game_sync_err_runtime">Installera körmiljön först</string>
     <string name="game_sync_err_steam_library">Steam-biblioteket är inte tillgängligt</string>
     <string name="game_sync_err_previous_sd">Det tidigare SD-biblioteket är inte tillgängligt</string>
@@ -2561,7 +2605,6 @@
     <string name="setup_agent_pet_float">Över andra appar</string>
     <string name="setup_agent_pet_float_hint">Låt DeeDee sväva över alla appar och öppna chatten där</string>
     <string name="setup_agent_pet_allow">Tillåt</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chatta med DeeDee</string>
     <string name="library_display">Visning</string>
     <string name="library_display_larger">Större kort</string>
@@ -3364,6 +3407,7 @@
     <string name="boot_movie_sound">Ljud</string>
     <string name="boot_movie_skip">Hoppa över uppstartsfilmen</string>
     <string name="boot_movie_skip_hint">Använd ett svart klipp på 0,1 sekunder som uppstartsfilm för Steam. Tillämpas nästa session.</string>
+    <string name="boot_movie_shuffle">Blanda</string>
     <string name="boot_movie_custom">Egen video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andra format och filer över %1$d MB konverteras till 720p-WebM på enheten, upp till %2$d sekunder.</string>
     <string name="boot_movie_import">Importera</string>
@@ -3821,8 +3865,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-tangenten och Hem-knappen stannar i sessionen</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonat i Android? Appinfo → ⋮ → Tillåt begränsade inställningar</string>
     <string name="integration_shortcuts_restricted">Blockerat av Android · Appinfo → ⋮ → Tillåt begränsade inställningar</string>
-    <string name="integration_shortcuts_service">DroidDeck-systemtangenter</string>
-    <string name="integration_shortcuts_service_description">Håller Alt+Tab, Win-tangenten och Hem-knappen i en aktiv DroidDeck-session i stället för Android.</string>
     <string name="integration_brightness_needed">Slå på Ljusstyrka under Konfiguration → Steam-integration</string>
     <string name="setup_gpu_bridge_off">Mali-brygga: av</string>
     <string name="setup_gpu_bridge_unusable">%1$s kan inte använda Mali-bryggan (den kräver en Mali-GPU utan en väg via systemdrivrutinen), så det här reglaget har ingen effekt här.</string>
@@ -3983,10 +4025,11 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+    <string name="epic_third_party_managed">Installeras via %1$s</string>
 
     <string name="theme_white_red">Scharlakansröd snö</string>
     <string name="theme_white_red_detail">Vita ytor med röda accenter.</string>
-    
+
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Uppspelningsalternativ</string>
@@ -4051,4 +4094,16 @@
     <string name="soundtracks_no_tracks">Inga ljudfiler i detta soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Kan inte starta</string>
     <string name="agent_browser_unavailable">Ingen webbläsare är tillgänglig för att öppna den här länken.</string>
+    <string name="hud_hint_grab">Greppa</string>
+    <string name="hud_hint_drop">Släpp</string>
+    <string name="hud_hint_save">Spara</string>
+    <string name="hud_hint_reset">Håll för att återställa</string>
+    <string name="setup_stores">Butiker</string>
+    <string name="hud_metric_latency">Bildtid</string>
+    <string name="hud_metric_avg">Genomsnittlig bildfrekvens</string>
+    <string name="hud_metric_display">Visningsserver</string>
+    <string name="hud_metric_hdr">HDR-status</string>
+    <string name="hud_readings_shown">Visade</string>
+    <string name="hud_readings_count">%1$d av %2$d</string>
+    <string name="exit_hint_back">Tryck tillbaka igen för att avsluta</string>
 </resources>
