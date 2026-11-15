@@ -64,6 +64,17 @@ class AgentHelpersTest {
         assertEquals("new", File(root, "${Codex.skills}/diagnose-game/SKILL.md").readText())
     }
 
+    @Test fun aSkillThatFailedPartWayIsRetriedNextTurn() {
+        val root = tmp.newFolder("rootfs5")
+        val skills = mapOf("diagnose-game" to listOf("SKILL.md"))
+
+        val failed = AgentSetup.installSkills(root, skills) { throw java.io.IOException("asset unreadable") }
+        assertEquals(AgentHarness.all.size, failed.size)
+
+        assertEquals(emptyList<String>(), AgentSetup.installSkills(root, skills) { "new".byteInputStream() })
+        for (harness in AgentHarness.all) assertEquals("new", File(root, "${harness.skills}/diagnose-game/SKILL.md").readText())
+    }
+
     @Test fun instructionsBehindAGuestSymlinkAreWrittenWhereItPoints() {
         val root = tmp.newFolder("rootfs4")
         val dotfile = File(root, "root/dotfiles/CLAUDE.md").apply { parentFile!!.mkdirs(); writeText("my rule\n") }

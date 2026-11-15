@@ -224,8 +224,9 @@ object AgentSetup {
             // A folder of that name without DroidDeck's mark is the user's own skill: keep it.
             if (dir.exists() && !File(dir, SKILL_MARK).exists()) return@runCatching
             dir.mkdirs()
-            for (file in files) open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
+            // Marked before copying, so a copy that fails part way is retried next turn, not taken for the user's.
             File(dir, SKILL_MARK).writeText("Installed by DroidDeck and replaced on every turn. Delete this file to keep your own edits.\n")
+            for (file in files) open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
         }.onFailure {
             android.util.Log.w("AgentSetup", "could not install skill $name for ${harness.name}", it)
             failed += "skill $name"
