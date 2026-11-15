@@ -361,6 +361,7 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
+DS_APP_IDS = {"1190460", "1850570"}
 DS_SIZE = 86479872
 DS_WINDOW_OFFSET = 0x38FE190
 DS_WINDOW = bytes.fromhex("48895c240848896c2410488974241848897c242041564883ec70458bf1498bf0488bfa488be94885c9")
@@ -368,10 +369,10 @@ DS_ORIGINAL = bytes.fromhex("0f85a5000000")
 DS_FIXED = bytes.fromhex("e9a600000090")
 
 
-def death_stranding_allocator(exe):
+def death_stranding_allocator(app_id, exe):
     # The game's bundled mimalloc tries one random address between 4 and 8 TiB and never falls back,
     # but a 39-bit kernel cannot map anything above 512 GiB. Jumping straight to its aligned path avoids it.
-    if os.path.basename(exe).lower() != "ds.exe":
+    if app_id not in DS_APP_IDS or os.path.basename(exe).lower() != "ds.exe":
         return False
     try:
         with open(exe, "r+b") as game:
@@ -1330,7 +1331,7 @@ def main():
         if waiting:
             command = skip_red_launcher(command)
             if len(command) > 2:
-                death_stranding_allocator(command[2])
+                death_stranding_allocator(app_id, command[2])
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
