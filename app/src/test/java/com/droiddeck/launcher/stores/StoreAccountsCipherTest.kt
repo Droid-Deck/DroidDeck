@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import android.app.Application
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], application = Application::class)
 class StoreAccountsCipherTest {
     private val app get() = RuntimeEnvironment.getApplication()
     private fun newKey(): SecretKey = SecretKeySpec(ByteArray(32).also { SecureRandom().nextBytes(it) }, "AES")

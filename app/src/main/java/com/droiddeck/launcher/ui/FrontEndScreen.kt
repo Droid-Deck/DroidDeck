@@ -69,6 +69,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -99,6 +102,8 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
+    val gameDebugLogsEnabled: Boolean = false,
+    val gameDebugLogsNeedsRestart: Boolean = false,
     val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
     val graphicsLogs: Boolean = false,
@@ -129,6 +134,11 @@ class FrontEndState(
     val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
     val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
+    val dualScreen: Boolean = false,
+    val dualScreenDevice: Boolean = false,
+    val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
+    val dualScreenLauncher: Boolean = true,
+    val dualScreenControls: Boolean = true,
     val packages: List<PackageRow>? = null,
     val packageCatalogLoading: Boolean = false,
     val packageBusyId: String? = null,
@@ -169,7 +179,7 @@ class FrontEndState(
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
-    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
+    val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )
@@ -224,6 +234,7 @@ class FrontEndActions(
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
+    val onGameDebugLogs: () -> Unit = {},
     val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
     val onGraphicsLogs: () -> Unit = {},
@@ -244,6 +255,9 @@ class FrontEndActions(
     val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onDualScreenMode: (String) -> Unit = {},
+    val onDualScreenLauncher: (Boolean) -> Unit = {},
+    val onDualScreenControls: (Boolean) -> Unit = {},
     val onDownloadSource: (String) -> Unit = {},
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
@@ -273,6 +287,8 @@ class FrontEndActions(
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
+    val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
+    val onShowPhantomGate: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
@@ -414,10 +430,14 @@ internal suspend fun focusSoon(target: () -> FocusRequester) {
 @Composable
 fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
     val frontFocus = remember { FrontFocus() }
+    val textInput = androidx.compose.ui.platform.LocalTextInputService.current
+    val bottomTextInput = remember(textInput) { textInput?.let { androidx.compose.ui.text.input.TextInputService(BottomScreenTextInput(it)) } }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalFrontFocus provides frontFocus,
             LocalNarrowPane provides (maxWidth < NarrowPaneWidth),
+            androidx.compose.ui.platform.LocalTextInputService provides (if (s.dualScreen) bottomTextInput else textInput),
+            LocalBottomTyping provides s.dualScreen,
         ) { FrontEndScreenBody(s, a, page, frontFocus) }
     }
 }
@@ -443,6 +463,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
@@ -451,8 +473,48 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
+        developerChoiceGuided = false
+        developerChoiceToggle = false
         if (s.secondScreenDisplays.isEmpty()) a.onOpenDeveloperOptions(null)
         else showDeveloperDisplayChoice = true
+    }
+    val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
+        if (developerChoiceGuided) a.onStartWirelessAdbPairing()
+        val guided = developerChoiceGuided || developerChoiceToggle
+        if (!guided || !a.onStartPairingGuide(displayId, developerChoiceToggle)) a.onOpenDeveloperOptions(displayId)
+        developerChoiceGuided = false
+        developerChoiceToggle = false
+    }
+    val requestChildProcessToggle = {
+        if (!PhantomProcessLimit.hasDeveloperToggle() || com.droiddeck.launcher.core.GlobalSettings.developerOptionsOn(ctx)) {
+            requestDeveloperOptions()
+        } else {
+            developerChoiceGuided = false
+            developerChoiceToggle = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
+    }
+    val startGuidedPairing = {
+        if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
+            wirelessAdbDesiredEnabled = false
+            showWirelessAdbFix = true
+        } else {
+            developerChoiceGuided = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
+    }
+    var applyingSavedPairing by remember { mutableStateOf(false) }
+    val fixPhantomLimit = {
+        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing()
+        else if (!applyingSavedPairing) {
+            applyingSavedPairing = true
+            a.onSetPhantomProcessLimit(false) { error ->
+                applyingSavedPairing = false
+                if (error != null) startGuidedPairing()
+            }
+        }
     }
     val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
         wirelessAdbDesiredEnabled = enabled
@@ -495,6 +557,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
+    val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
         if (key == "components") a.onComponents(focusContent)
@@ -520,6 +583,18 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
+    val paneRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    suspend fun focusDualPane() {
+        repeat(30) {
+            withFrameNanos { }
+            if (anyFocused) return
+            runCatching { paneRequester.requestFocus() }
+            if (anyFocused) return
+            focusManager.moveFocus(FocusDirection.Down)
+            if (anyFocused) return
+        }
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
@@ -530,7 +605,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
@@ -552,16 +628,22 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 return@LaunchedEffect
             }
             if (anyFocused) return@LaunchedEffect
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } } ?: return@LaunchedEffect
+            val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
+            if (entry == null) {
+                if (s.dualScreen) focusDualPane()
+                return@LaunchedEffect
+            }
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
         val paneFocus = Modifier
+            .focusRequester(paneRequester)
             .focusProperties {
                 enter = { frontFocus.paneEntry() }
                 exit = { direction ->
@@ -587,23 +669,52 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+            if (processSettingsPageVisible) return@DualPanelPublisher
+            if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+            focusManager.clearFocus(force = true)
+            onRailSelect(key)
+        }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         LauncherLayout(
-            bottomNavigation, pal.line,
-            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() },
+            bottomNavigation && !s.dualScreen, pal.line,
+            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
+                .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
+                    val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
+                    if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        keys.getOrNull(at + step)?.let { key ->
+                            PageSwipe.direction = step
+                            onRailSelect(key)
+                        }
+                    }
+                    true
+                } else Modifier),
             navigation = {
-                if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
+                if (s.dualScreen) Unit
+                else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             },
         ) {
                 Pane(
-                    s, selected, a, page, Modifier.fillMaxSize().then(paneFocus), { selected = it },
+                    s, selected, a, page,
+                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
+                            PageSwipe.direction = dir
+                            showRailPage(key, false)
+                        }
+                    },
+                    { selected = it },
                     onAndroidAppClick = { app ->
                         if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
                     },
-                    onOpenDeveloperOptions = requestDeveloperOptions,
+                    onOpenDeveloperOptions = requestChildProcessToggle,
                     onRequestWirelessAdb = requestWirelessAdbFix,
+                    onPairWirelessDebugging = startGuidedPairing,
                 )
         }
 
@@ -636,11 +747,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 PhantomProcessGatePage(
                     status = s.phantomProcessStatus,
                     onDismiss = a.onDismissPhantomGate,
-                    onOpenDeveloperOptions = requestDeveloperOptions,
-                    onFixWithWirelessDebugging = {
-                        a.onStartWirelessAdbPairing()
-                        requestDeveloperOptions()
-                    },
+                    onOpenDeveloperOptions = requestChildProcessToggle,
+                    applyingSavedPairing = applyingSavedPairing,
+                    onFixWithWirelessDebugging = fixPhantomLimit,
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
                     onOpenNotificationSettings = a.onOpenNotificationSettings,
@@ -666,13 +775,17 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 },
                 onMainScreen = {
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(null)
+                    openDeveloperOptionsOn(null)
                 },
                 onSecondaryScreen = { displayId ->
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(displayId)
+                    openDeveloperOptionsOn(displayId)
                 },
-                onDismiss = { showDeveloperDisplayChoice = false },
+                onDismiss = {
+                    showDeveloperDisplayChoice = false
+                    developerChoiceGuided = false
+                    developerChoiceToggle = false
+                },
             )
         }
     }

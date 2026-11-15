@@ -19,7 +19,8 @@ class SessionDrawerPageTest {
         assertEquals(SessionDrawerPage.DISPLAY, connected.step(SessionDrawerPage.SECOND_SCREEN, 1))
         assertEquals(sessionDrawerPages(false), connected.filter { it != SessionDrawerPage.SECOND_SCREEN })
         for (pages in listOf(connected, sessionDrawerPages(false))) {
-            assertEquals(SessionDrawerPage.EFFECTS, pages.step(SessionDrawerPage.DISPLAY, 1))
+            assertEquals(SessionDrawerPage.HUD, pages.step(SessionDrawerPage.DISPLAY, 1))
+            assertEquals(SessionDrawerPage.EFFECTS, pages.step(SessionDrawerPage.HUD, 1))
             assertEquals(SessionDrawerPage.VR, pages.step(SessionDrawerPage.EFFECTS, 1))
             assertEquals(SessionDrawerPage.GAMES, pages.step(SessionDrawerPage.VR, 1))
             assertEquals(SessionDrawerPage.SESSION, pages.step(SessionDrawerPage.GAMES, 1))

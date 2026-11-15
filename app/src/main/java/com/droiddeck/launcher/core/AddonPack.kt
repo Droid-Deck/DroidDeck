@@ -146,5 +146,7 @@ internal class AddonPack(
             listOf("version", "xodus-cli", "xodus-service"))
         val COMET = AddonPack("comet", BuildConfig.PACK_COMET_SHA256, BuildConfig.PACK_COMET_SIZE,
             listOf("version", "comet"))
+        val BUTLER = AddonPack("butler", BuildConfig.PACK_BUTLER_SHA256, BuildConfig.PACK_BUTLER_SIZE,
+            listOf("version", "butler", "7z.so", "libc7zip.so"))
     }
 }

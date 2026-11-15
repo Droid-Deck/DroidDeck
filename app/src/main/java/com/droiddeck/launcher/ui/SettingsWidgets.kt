@@ -210,7 +210,7 @@ internal fun TabStrip(
 }
 
 @Composable
-private fun BumperKey(label: String, description: String, onClick: () -> Unit) {
+internal fun BumperKey(label: String, description: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val cap = RoundedCornerShape(7.dp)

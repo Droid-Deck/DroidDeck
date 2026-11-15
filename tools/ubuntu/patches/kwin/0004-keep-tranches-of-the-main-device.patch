@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 10:02:00 -0400
+Subject: [PATCH] Keep dmabuf tranches that target the main device
+
+---
+ src/wayland-client/linuxdmabuf.cpp | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/src/wayland-client/linuxdmabuf.cpp b/src/wayland-client/linuxdmabuf.cpp
+--- a/src/wayland-client/linuxdmabuf.cpp
++++ b/src/wayland-client/linuxdmabuf.cpp
+@@ -130,15 +130,17 @@
+         drmFreeDevice(&mainDevice);
+         drmFreeDevice(&trancheDevice);
+     });
+-    if (drmGetDeviceFromDevId(feedback->m_mainDeviceId, 0, &mainDevice) != 0
+-        || drmGetDeviceFromDevId(feedback->m_trancheDeviceId, 0, &trancheDevice) != 0) {
+-        qCWarning(KWIN_WAYLAND_CLIENT, "drmGetDeviceFromDevId() failed");
+-        return;
+-    }
+-    if (!drmDevicesEqual(mainDevice, trancheDevice)) {
+-        // TODO take multi GPU handling into account as well
+-        qCDebug(KWIN_WAYLAND_CLIENT, "Ignoring tranche from non-main device");
+-        return;
++    if (feedback->m_mainDeviceId != feedback->m_trancheDeviceId) {
++        if (drmGetDeviceFromDevId(feedback->m_mainDeviceId, 0, &mainDevice) != 0
++            || drmGetDeviceFromDevId(feedback->m_trancheDeviceId, 0, &trancheDevice) != 0) {
++            qCWarning(KWIN_WAYLAND_CLIENT, "drmGetDeviceFromDevId() failed");
++            return;
++        }
++        if (!drmDevicesEqual(mainDevice, trancheDevice)) {
++            // TODO take multi GPU handling into account as well
++            qCDebug(KWIN_WAYLAND_CLIENT, "Ignoring tranche from non-main device");
++            return;
++        }
+     }
+ 
+     struct linux_dmabuf_feedback_v1_table_entry

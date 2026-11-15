@@ -35,7 +35,7 @@ public final class LinuxRuntimeInstaller {
     private static final String TAG = "LinuxRuntimeInstaller";
 
     public static final String CATALOG_URL =
-            "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs.json";
+            "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs-ubuntu.json";
 
     private static final String VERSION_FILE = ".version";
 
@@ -88,8 +88,20 @@ public final class LinuxRuntimeInstaller {
         return v == null ? null : v.trim();
     }
 
+    private static String catalogUrl() {
+        if (!com.droiddeck.launcher.BuildConfig.DEBUG) return CATALOG_URL;
+        try {
+            Object value = Class.forName("android.os.SystemProperties").getMethod("get", String.class)
+                    .invoke(null, "debug.droiddeck.linuxfs");
+            if (value instanceof String && ((String) value).startsWith("http")) return (String) value;
+        } catch (ReflectiveOperationException e) {
+            Log.w(TAG, "catalog override: " + e);
+        }
+        return CATALOG_URL;
+    }
+
     public static Release fetchRelease() {
-        String body = Downloader.downloadString(CATALOG_URL);
+        String body = Downloader.downloadString(catalogUrl());
         if (body == null || body.isEmpty()) return null;
         try {
             JSONObject json = new JSONObject(body);
@@ -292,7 +304,7 @@ public final class LinuxRuntimeInstaller {
             recoverInterruptedSwap(root, staging, old);
             if (!discard(staging, null) || !staging.mkdirs()) return false;
             if (listener != null) listener.onProgress(context.getString(R.string.rtinst_extracting), -1);
-            if (!extract(context, archive, staging, listener)) {
+            if (!extract(context, archive, staging, root, listener)) {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
@@ -346,7 +358,11 @@ public final class LinuxRuntimeInstaller {
                 return false;
             }
             new File(root, CARRY_MARKER).delete();
+            try { RuntimeFileTree.dropStaleState(root); }
+            catch (IOException e) { Log.w(TAG, "could not clear caches left by the previous runtime", e); }
             discard(old, null);
+            try { com.droiddeck.launcher.session.SessionFiles.INSTANCE.stage(context, root, false); }
+            catch (Exception e) { Log.w(TAG, "could not stage the session files into the new runtime", e); }
             return LinuxRuntime.isInstalled(context);
         } catch (Exception e) {
             Log.e(TAG, "install", e);
@@ -513,6 +529,10 @@ public final class LinuxRuntimeInstaller {
     // Packages extract over the live runtime and their archives list a link before the file it
     // names, so a kill mid-way must leave neither a truncated file nor a link to a missing one.
     public static boolean extract(Context context, File archive, File destination, ProgressListener listener) {
+        return extract(context, archive, destination, destination, listener);
+    }
+
+    static boolean extract(Context context, File archive, File destination, File linkRoot, ProgressListener listener) {
         long entries = 0;
         String extracting = context.getString(R.string.rtinst_extracting);
         java.util.LinkedHashMap<File, String> links = new java.util.LinkedHashMap<>();
@@ -537,7 +557,7 @@ public final class LinuxRuntimeInstaller {
                     links.remove(file);
                     links.put(file, entry.getLinkName());
                 } else if (entry.isLink()) {
-                    File target = ArchivePaths.inside(destination, entry.getLinkName());
+                    File target = hardLinkTarget(destination, entry.getLinkName());
                     if (target == null) {
                         Log.w(TAG, "skipping hard link outside the rootfs: " + entry.getLinkName());
                         continue;
@@ -548,11 +568,11 @@ public final class LinuxRuntimeInstaller {
                     try {
                         Files.createLink(part.toPath(), target.toPath());
                     } catch (IOException | UnsupportedOperationException e) {
-                        if (target.isFile()) {
+                        if (!l2sLink(target, part, destination, linkRoot) && target.isFile()) {
                             Files.copy(target.toPath(), part.toPath(), StandardCopyOption.REPLACE_EXISTING);
                         }
                     }
-                    if (part.exists()) place(part, file);
+                    if (Files.exists(part.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) place(part, file);
                 } else if (entry.isFile()) {
                     links.remove(file);
                     File part = partFile(file);
@@ -585,6 +605,67 @@ public final class LinuxRuntimeInstaller {
             return true;
         } catch (Exception e) {
             Log.e(TAG, "extract", e);
+            return false;
+        }
+    }
+
+    static File hardLinkTarget(File destination, String name) throws IOException {
+        java.nio.file.Path path = java.nio.file.Paths.get(name).normalize();
+        java.nio.file.Path last = path.getFileName();
+        if (last == null || last.toString().isEmpty() || last.toString().equals("..")) return null;
+        java.nio.file.Path parent = path.getParent();
+        File dir = parent == null ? destination : ArchivePaths.inside(destination, parent.toString());
+        return dir == null ? null : new File(dir, last.toString());
+    }
+
+    private static final String L2S = ".l2s.";
+
+    static boolean l2sLink(File target, File link) {
+        return l2sLink(target, link, null, null);
+    }
+
+    static boolean l2sLink(File target, File link, File tree, File linkTree) {
+        java.nio.file.Path here = tree == null ? null : tree.toPath().toAbsolutePath().normalize();
+        java.nio.file.Path there = linkTree == null ? here : linkTree.toPath().toAbsolutePath().normalize();
+        java.util.function.UnaryOperator<java.nio.file.Path> shown = path -> {
+            java.nio.file.Path p = path.toAbsolutePath().normalize();
+            return here == null || !p.startsWith(here) ? p : there.resolve(here.relativize(p));
+        };
+        java.util.function.UnaryOperator<java.nio.file.Path> actual = path -> {
+            java.nio.file.Path p = path.toAbsolutePath().normalize();
+            return there == null || !p.startsWith(there) ? p : here.resolve(there.relativize(p));
+        };
+        try {
+            java.nio.file.Path original = target.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path intermediate;
+            if (Files.isSymbolicLink(original)) {
+                intermediate = actual.apply(Files.readSymbolicLink(original));
+                if (!intermediate.getFileName().toString().startsWith(L2S) || !Files.isSymbolicLink(intermediate)) return false;
+                java.nio.file.Path fin = actual.apply(Files.readSymbolicLink(intermediate));
+                String name = fin.getFileName().toString();
+                int count = Integer.parseInt(name.substring(name.length() - 4)) + 1;
+                java.nio.file.Path next = fin.resolveSibling(name.substring(0, name.length() - 4) + String.format(java.util.Locale.ROOT, "%04d", count));
+                Files.move(fin, next, StandardCopyOption.ATOMIC_MOVE);
+                Files.delete(intermediate);
+                Files.createSymbolicLink(intermediate, shown.apply(next));
+            } else {
+                if (!Files.isRegularFile(original, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return false;
+                java.nio.file.Path dir = original.getParent();
+                String base = L2S + original.getFileName();
+                int suffix = 1;
+                do {
+                    intermediate = dir.resolve(base + String.format(java.util.Locale.ROOT, "%04d", suffix++));
+                } while (Files.exists(intermediate, java.nio.file.LinkOption.NOFOLLOW_LINKS) && suffix < 1000);
+                java.nio.file.Path fin = dir.resolve(intermediate.getFileName() + ".0002");
+                Files.move(original, fin, StandardCopyOption.ATOMIC_MOVE);
+                Files.createSymbolicLink(intermediate, shown.apply(fin));
+                Files.createSymbolicLink(original, shown.apply(intermediate));
+            }
+            Files.deleteIfExists(link.toPath());
+            Files.createSymbolicLink(link.toPath(), shown.apply(intermediate));
+            return true;
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "l2s link " + link + " -> " + target + ": " + e);
             return false;
         }
     }

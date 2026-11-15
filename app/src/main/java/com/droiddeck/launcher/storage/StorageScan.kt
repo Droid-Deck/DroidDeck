@@ -19,7 +19,7 @@ enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, STORES, DESKTOP, SYSTEM
 class GameUsage(
     val appId: Int, val name: String, val art: File?, val library: String, val internal: Boolean, val lastPlayed: Long,
     val game: Long, val prefix: Long, val shaders: Long, val workshop: Long, val shaderDir: File?,
-    val x64: Boolean = false,
+    val x64: Boolean = false, val prefixDir: File? = null,
 ) {
     val data: Long get() = prefix + shaders + workshop
     val total: Long get() = game + data
@@ -175,14 +175,16 @@ object StorageScan {
                 }
                 if (!m.installed) continue
                 val gameBytes = dir?.let { File(lib.root, "steamapps/common/$it") }?.takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
-                val prefix = File(lib.data, "steamapps/compatdata/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
+                val compatRoot = File(lib.data, "steamapps/compatdata").takeIf { it.isDirectory } ?: File(lib.root, "steamapps/compatdata")
+                val prefixDir = File(compatRoot, m.appId.toString()).takeIf { it.isDirectory }
+                val prefix = prefixDir?.let { walker.measure(it) } ?: 0
                 val shaderDir = File(lib.data, "steamapps/shadercache/${m.appId}").takeIf { it.isDirectory }
                 val shaders = shaderDir?.let { walker.measure(it) } ?: 0
                 val workshop = File(lib.root, "steamapps/workshop/content/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
                 val known = art[lib.x64]?.get(m.appId)
                 games.add(GameUsage(
                     m.appId, known?.name ?: m.name, known?.art, lib.label, lib.internal, m.lastPlayed,
-                    gameBytes, prefix, shaders, workshop, shaderDir, lib.x64,
+                    gameBytes, prefix, shaders, workshop, shaderDir, lib.x64, prefixDir,
                 ))
             }
         }

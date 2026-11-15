@@ -66,6 +66,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.droiddeck.launcher.session.SessionPrefs
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,7 +86,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
 
@@ -99,15 +103,15 @@ internal fun BottomBar(
     val keys = navigationKeys(s)
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
-    var barAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
     Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
-            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onGloballyPositioned { barAt = it.boundsInRoot().topLeft }) {
-                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown]?.translate(-barAt), tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
+            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
+                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
                     NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
-                        place = { key -> Modifier.onGloballyPositioned { bounds[key] = it.boundsInRoot(); Hops.railBounds[key] = it.boundsInRoot() } },
+                        place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
             }
@@ -116,12 +120,26 @@ internal fun BottomBar(
     }
 }
 
-private fun navigationKeys(s: FrontEndState) = buildList {
+internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
     if (s.gameStoresEnabled) add("stores")
     add("desktop"); add("components")
     if (s.isHomeApp) add("android-apps")
     add("setup"); add("updates")
+}
+
+internal object RailLabels {
+    var shown by mutableStateOf(true)
+        private set
+
+    fun load(context: android.content.Context) {
+        shown = SessionPrefs.railLabels(context)
+    }
+
+    fun set(context: android.content.Context, show: Boolean) {
+        shown = show
+        SessionPrefs.setRailLabels(context, show)
+    }
 }
 
 @Composable
@@ -131,7 +149,9 @@ internal fun SideRail(
 ) {
     val colors = MaterialTheme.colorScheme
     val compact = LocalConfiguration.current.screenHeightDp < 420
-    val iconOnly = isNarrowScreen()
+    val railContext = LocalContext.current
+    remember { RailLabels.load(railContext) }
+    val iconOnly = isNarrowScreen() || !RailLabels.shown
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
@@ -143,18 +163,18 @@ internal fun SideRail(
         val keys = navigationKeys(s)
         val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
         val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
-        var railAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onGloballyPositioned { railAt = it.boundsInRoot().topLeft }) {
-        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown]?.translate(-railAt), tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
+        val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
+        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth().selectableGroup(),
         ) {
             val place: (String) -> Modifier = { key ->
-                Modifier.onGloballyPositioned {
-                    bounds[key] = it.boundsInRoot()
-                    Hops.railBounds[key] = it.boundsInRoot()
+                Modifier.onGloballyPositioned { item ->
+                    content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }
+                    Hops.railBounds[key] = item.boundsInRoot()
                 }
             }
             NavigationItems(s, shown, compact, iconOnly, fit, if (iconOnly) 52.dp else 80.dp, place, onSelect, onFocusSelect)
@@ -171,24 +191,28 @@ internal fun SideRail(
     }
 }
 
+internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
+    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
+    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
+    "components" -> R.string.rail_components to Icons.Outlined.Layers
+    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
+    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+}
+
+internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+
 @Composable
 private fun NavigationItems(
     s: FrontEndState, shown: String, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
-    val setupNeedsAttention = !s.ready || (s.available != null && s.available != s.installed) ||
-        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+    val setupNeedsAttention = setupNeedsAttention(s)
     for (key in navigationKeys(s)) {
-        val (label, icon) = when (key) {
-            "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-            "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-            "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-            "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
-            "components" -> R.string.rail_components to Icons.Outlined.Layers
-            "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-            "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-            else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
-        }
+        val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),

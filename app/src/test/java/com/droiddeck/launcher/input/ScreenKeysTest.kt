@@ -68,6 +68,22 @@ class ScreenKeysTest {
         assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
     }
 
+    @Test fun takesTouchAtMatchesWhatATouchDoes() {
+        val keys = ScreenKeys(context) { _, _ -> }
+        keys.layout(0, 0, 1000, 600)
+        keys.add(listOf(KeyEvent.KEYCODE_W))
+        var checked = 0
+        for (x in 0 until 1000 step 25) for (y in 0 until 600 step 25) {
+            val expected = keys.takesTouchAt(x.toFloat(), y.toFloat())
+            val down = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_DOWN, x.toFloat(), y.toFloat(), 0)
+            assertEquals("($x, $y)", expected, keys.onTouchEvent(down))
+            down.recycle()
+            MotionEvent.obtain(0L, 1L, MotionEvent.ACTION_UP, x.toFloat(), y.toFloat(), 0).also { keys.onTouchEvent(it); it.recycle() }
+            if (expected) checked++
+        }
+        assertTrue("some points land on the key", checked > 0)
+    }
+
     @Test fun loadingLayoutReleasesLatchedKeysBeforeReplacingEntries() {
         val sent = mutableListOf<Pair<Int, Boolean>>()
         val keys = ScreenKeys(context) { code, down -> sent += code to down }

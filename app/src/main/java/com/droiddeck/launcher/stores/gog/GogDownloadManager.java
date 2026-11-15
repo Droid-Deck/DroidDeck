@@ -106,7 +106,7 @@ public final class GogDownloadManager {
         String builds1Json = httpGet(builds1Url, null);
         if (builds1Json == null) builds1Json = httpGet(builds1Url, token);
         if (builds1Json == null) throw new InstallException("No builds available for this game");
-        Gen1Outcome one = runGen1(ctx, game, token, builds1Json, installPath, cb, cancelled);
+        Gen1Outcome one = runGen1(ctx, game, token, builds1Json, installPath, cb, cancelled, lang);
         if (one.result != null || cancelled.get()) return one.result;
         if (!"NO_CS_BUILDS".equals(one.error)) throw new InstallException("Download failed: " + one.error);
         cb.onProgress("No Galaxy builds; fetching the installer…", 12);
@@ -250,6 +250,11 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more chunks failed to download"; return out; }
 
             cb.onProgress("Finishing…", 96);
+            try {
+                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), resolved);
+            } catch (Exception e) {
+                cb.onLog("gog: maintenance inventory not recorded: " + e.getMessage());
+            }
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"buildId\":\"" + gm.buildId + "\"}").getBytes("UTF-8"));
             deleteCounted(new File(installPath, ".gog_chunks"), cb);
             String clientId = manifest.optString("clientId", null);
@@ -279,7 +284,7 @@ public final class GogDownloadManager {
             String buildId = null, manifestUrl = null;
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.getJSONObject(i);
-                if ("windows".equals(item.optString("os"))) {
+                if ("windows".equals(item.optString("os")) && (item.isNull("branch") || item.optString("branch").isEmpty())) {
                     buildId = item.optString("build_id");
                     manifestUrl = item.optString("link");
                     if (manifestUrl == null || manifestUrl.isEmpty()) manifestUrl = item.optString("meta_url");
@@ -328,7 +333,7 @@ public final class GogDownloadManager {
 
     private static final class Gen1Outcome { Result result; String error; }
 
-    private static Gen1Outcome runGen1(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled) {
+    private static Gen1Outcome runGen1(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled, String language) {
         Gen1Outcome out = new Gen1Outcome();
         try {
             JSONObject builds = new JSONObject(buildsJson);
@@ -346,6 +351,15 @@ public final class GogDownloadManager {
             String manifestStr = decompressBytes(raw);
             if (manifestStr == null) { out.error = "manifest decompress failed"; return out; }
             JSONObject manifest = new JSONObject(manifestStr);
+            if (manifest.has("product")) {
+                try {
+                    out.result = GogMaintenance.installContent(ctx, game, installPath, builds, language, cb, cancelled);
+                    if (out.result == null && !cancelled.get()) out.error = "no usable public Windows build";
+                } catch (Exception e) {
+                    out.error = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                }
+                return out;
+            }
             JSONArray depots = manifest.optJSONArray("depot");
             if (depots == null) { out.error = "no depot array"; return out; }
             List<Gen1File> files = new ArrayList<>();
@@ -472,6 +486,7 @@ public final class GogDownloadManager {
             String exe = pickExe(installPath, null, game.title);
             if (exe.isEmpty()) throw new InstallException("The installer was extracted but no game executable was found");
             cb.onLog("gog: installer extracted natively; game exe " + exe);
+            GogMaintenance.captureOffline(game.gameId, installPath, downloads);
             return new Result(exe, "", total);
         } catch (InstallerException e) {
             throw e;
@@ -576,13 +591,13 @@ public final class GogDownloadManager {
         return cleaned.isEmpty() ? "game" : cleaned;
     }
 
-    private static String resolveRedirect(String url, String token) {
+    static String resolveRedirect(String url, String token) {
         try {
             if (url.startsWith("/")) url = "https://www.gog.com" + url;
             for (int hop = 0; hop < 5; hop++) {
                 HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
                 conn.setConnectTimeout(TIMEOUT); conn.setReadTimeout(TIMEOUT); conn.setInstanceFollowRedirects(false);
-                if (token != null) conn.setRequestProperty("Authorization", "Bearer " + token);
+                if (token != null && (new URL(url).getHost().equals("gog.com") || new URL(url).getHost().endsWith(".gog.com"))) conn.setRequestProperty("Authorization", "Bearer " + token);
                 int code = conn.getResponseCode();
                 String location = conn.getHeaderField("Location");
                 if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
@@ -686,6 +701,7 @@ public final class GogDownloadManager {
                     cb.onBytes(shown, planned, speedBps.get());
                 }
                 @Override public void onLog(String line) { cb.onLog(line); }
+                @Override public void onMaintenance(long networkBytes, long reusedBytes, long appliedBytes) {}
                 @Override public void onComplete(boolean success, boolean wasCancelled, boolean linkExpiry, String error, long bytesWritten, int filesDone) {
                     okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
                 }

@@ -244,6 +244,9 @@ class SteamTouchControls(
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
 
+    /** Whether a finger going down at ([x], [y]) lands on something here, as [onTouchEvent] decides it. */
+    fun takesTouchAt(x: Float, y: Float): Boolean = editing || menuOpen || hit(live(), x, y) != null
+
     private fun live(): List<Element> =
         if (shakenAway) emptyList() else if (options.inputMode == SteamTouchConfig.INPUT_MOUSE) elements.filter { it.type == SteamTouchConfig.THUMB } else elements
 

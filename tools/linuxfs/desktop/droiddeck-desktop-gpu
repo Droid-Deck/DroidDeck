@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import os
 import re
+import shutil
 
 HOME = os.environ.get("HOME", "/root")
 SYSTEM_DIR = "/usr/share/applications"
@@ -9,6 +10,8 @@ FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/application
 USER_DIR = os.path.join(HOME, ".local/share/applications")
 MARK = "X-DroidDeck-GPU=1"
 SKIP = re.compile(r"^(steam|droiddeck-game-|droiddeck-steam|steamdeck-)", re.I)
+CHROMIUM_ENV = "env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 ELECTRON_DISABLE_SANDBOX=1 "
+CHROMIUM_FLAGS = " --no-sandbox --ozone-platform=x11"
 
 
 def enabled():
@@ -25,6 +28,33 @@ def main_group(text):
     return lines[:start + 1], lines[start + 1:end], lines[end:]
 
 
+def split_program(exec_line):
+    if exec_line.startswith('"'):
+        end = exec_line.find('"', 1)
+        if end < 0:
+            return None, None
+        return exec_line[:end + 1], exec_line[end + 1:]
+    program, _, rest = exec_line.partition(" ")
+    return program, (" " + rest) if rest else ""
+
+
+def chromium(exec_line):
+    program, _ = split_program(exec_line)
+    if not program:
+        return False
+    program = program.strip('"')
+    path = program if os.path.isabs(program) else shutil.which(program)
+    if not path:
+        return False
+    here = os.path.dirname(os.path.realpath(path))
+    return any(os.path.exists(os.path.join(d, "chrome-sandbox")) for d in (here, os.path.dirname(here)))
+
+
+def chromium_exec(exec_line):
+    program, rest = split_program(exec_line)
+    return CHROMIUM_ENV + program + CHROMIUM_FLAGS + rest
+
+
 def gpu_exec(exec_line):
     """The Exec that runs a program on the GPU; a Flatpak app goes through its launcher, which
     keeps it on gamescope's X server instead of the desktop's Wayland socket."""
@@ -33,7 +63,7 @@ def gpu_exec(exec_line):
     return "droiddeck-gpu " + exec_line
 
 
-def wrap(text):
+def wrap(text, gpu_on=True):
     head, group, rest = main_group(text)
     if group is None:
         return None
@@ -42,14 +72,30 @@ def wrap(text):
         if "=" in l and not l.lstrip().startswith("#"):
             k, v = l.split("=", 1)
             keys.setdefault(k.strip(), v)
-    cats = set(filter(None, keys.get("Categories", "").split(";")))
-    if not cats & {"Game", "Emulator"}:
-        return None
     if keys.get("Type", "Application") != "Application" or keys.get("NoDisplay", "").lower() == "true":
         return None
     exec_line = keys.get("Exec", "").strip()
     if not exec_line or exec_line.startswith("droiddeck-gpu "):
         return None
+    cats = set(filter(None, keys.get("Categories", "").split(";")))
+    gpu = gpu_on and bool(cats & {"Game", "Emulator"})
+    browser = chromium(exec_line)
+    if not gpu and not browser:
+        return None
+    if browser:
+        exec_line = chromium_exec(exec_line)
+    if not gpu:
+        def fix(lines):
+            return ["Exec=" + chromium_exec(l[5:].strip()) if l.startswith("Exec=") and chromium(l[5:].strip()) else l
+                    for l in lines]
+        out_group = fix(group)
+        while out_group and not out_group[-1].strip():
+            out_group.pop()
+        out_group.append(MARK)
+        out_rest = fix(rest)
+        if out_rest and out_rest[0].strip():
+            out_rest.insert(0, "")
+        return "\n".join(head + out_group + out_rest) + "\n"
     out_group = []
     actions = keys.get("Actions", "")
     for l in group:
@@ -68,7 +114,8 @@ def wrap(text):
     wrapped_rest = []
     for l in rest:
         if l.startswith("Exec=") and not l[5:].startswith("droiddeck-gpu "):
-            l = "Exec=" + gpu_exec(l[5:])
+            action = l[5:].strip()
+            l = "Exec=" + gpu_exec(chromium_exec(action) if chromium(action) else action)
         wrapped_rest.append(l)
     if wrapped_rest and wrapped_rest[0].strip():
         wrapped_rest.insert(0, "")
@@ -87,7 +134,7 @@ def main():
     on = enabled()
     os.makedirs(USER_DIR, exist_ok=True)
     written = set()
-    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR, FLATPAK_DIR) if os.path.isdir(d)] if on else []
+    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR, FLATPAK_DIR) if os.path.isdir(d)]
     for source in sources:
         for name in sorted(os.listdir(source)):
             if not name.endswith(".desktop") or SKIP.match(name):
@@ -97,7 +144,7 @@ def main():
                 continue
             try:
                 with open(os.path.join(source, name), encoding="utf-8", errors="replace") as f:
-                    text = wrap(f.read())
+                    text = wrap(f.read(), on)
             except OSError:
                 continue
             if text is None:

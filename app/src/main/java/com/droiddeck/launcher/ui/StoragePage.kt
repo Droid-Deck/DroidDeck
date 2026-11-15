@@ -270,13 +270,10 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val safe = StorageState.safeBytes(report)
     val low = report.free < StorageState.LOW_SPACE_BYTES
     ActionStatus()
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val summary = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+    val usage: @Composable (Modifier) -> Unit = { m -> Column(m) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.storage_internal), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text("· " + stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 Pill(stringResource(R.string.storage_free, gb(report.free)), if (low) AttentionAmber else pal.good)
@@ -292,14 +289,21 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
                 Bucket.entries.forEach { Legend(BucketColors.getValue(it), bucketLabel(it)) }
                 Legend(OtherApps, stringResource(R.string.storage_other_apps))
             }
-        }
+        } }
+    val freeable: @Composable (Modifier) -> Unit = { m -> Column(m) {
+        Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
+        Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
+        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
+    } }
+    if (wide) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = summary) {
+        usage(Modifier.weight(1f))
         Box(Modifier.width(1.dp).height(120.dp).background(pal.line))
-        Column(Modifier.widthIn(min = 170.dp, max = 210.dp)) {
-            Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
-            Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
-            Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
-            PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
-        }
+        freeable(Modifier.widthIn(min = 170.dp, max = 210.dp))
+    } else Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = summary) {
+        usage(Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        freeable(Modifier.fillMaxWidth())
     }
     if (sessionRunning) {
         Spacer(Modifier.height(8.dp))
@@ -846,17 +850,23 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val ctx = LocalContext.current
     val busy = sessionRunning || StorageState.cleaning
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
+    var confirmPrefix by remember { mutableStateOf<com.droiddeck.launcher.storage.GameUsage?>(null) }
     SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack)
     ActionStatus()
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
-    val games = report.games.filter { it.data >= ONE_MB }.sortedByDescending { it.data }
+    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
     SectionTitle(stringResource(R.string.storage_data_installed), gb(games.sumOf { it.data }))
     ListCard {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
-                action = { SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) } },
+                action = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) }
+                        SecondaryButton(stringResource(R.string.storage_reset_prefix), compact = true, enabled = !busy && g.prefixDir != null) { confirmPrefix = g }
+                    }
+                },
             )
         }
     }
@@ -887,6 +897,13 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     if (report.otherPrefixes > 0) {
         SectionTitle(stringResource(R.string.storage_data_other), null)
         ListCard { ItemRow(stringResource(R.string.storage_data_other_title), stringResource(R.string.storage_data_other_detail), report.otherPrefixes, true) }
+    }
+    confirmPrefix?.let { g ->
+        ConfirmDialog(
+            stringResource(R.string.storage_reset_prefix_title, gameName(g)),
+            stringResource(R.string.storage_reset_prefix_confirm, gb(g.prefix), g.library), stringResource(R.string.storage_reset_prefix),
+            onConfirm = { StorageState.resetPrefix(ctx, g) }, onDismiss = { confirmPrefix = null },
+        )
     }
     confirm?.let { l ->
         ConfirmDialog(

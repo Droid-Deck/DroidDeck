@@ -82,9 +82,9 @@ class TouchscreenGesturesTest {
     @Test fun aVeryFastDoubleTapKeepsFullPressesAndAReleaseGap() {
         tap(); tap(); advance(250)
         assertEquals(4, leftClicks.size)
-        assertTrue(leftClicks[1].time - leftClicks[0].time >= 50)
-        assertTrue(leftClicks[2].time - leftClicks[1].time >= 50)
-        assertTrue(leftClicks[3].time - leftClicks[2].time >= 50)
+        assertTrue(leftClicks[1].time - leftClicks[0].time >= TouchTiming.CLICK_MS)
+        assertTrue(leftClicks[2].time - leftClicks[1].time >= TouchTiming.CLICK_MS)
+        assertTrue(leftClicks[3].time - leftClicks[2].time >= TouchTiming.CLICK_MS)
     }
 
     @Test fun doubleTapUsesTheFirstClickLocationDespiteNormalFingerDrift() {
@@ -121,7 +121,7 @@ class TouchscreenGesturesTest {
         gestures.configure(TouchGestureConfig(tapEnabled = false))
         tap(); tap(); advance(250)
         assertEquals(4, leftClicks.size)
-        assertTrue(leftClicks[2].time - leftClicks[1].time >= 50)
+        assertTrue(leftClicks[2].time - leftClicks[1].time >= TouchTiming.CLICK_MS)
     }
 
     @Test fun aRapidThirdTapDoesNotDiscardThePendingSecondClick() {
@@ -285,11 +285,11 @@ class TouchscreenGesturesTest {
     @Test fun twoFingerTapKeepsItsPressAfterTheLastFingerLifts() {
         twoFingerTap()
         assertEquals(listOf("button 273 true"), buttons())
-        advance(49)
+        advance(TouchTiming.CLICK_MS - 1)
         assertEquals(1, rightClicks.size)
         advance(1)
         assertEquals(listOf(true, false), rightClicks.map { it.down })
-        assertEquals(50L, rightClicks[1].time - rightClicks[0].time)
+        assertEquals(TouchTiming.CLICK_MS, rightClicks[1].time - rightClicks[0].time)
     }
 
     @Test fun threeFingerKeyboardTapHasAnObservablePressAndReleases() {
@@ -298,14 +298,14 @@ class TouchscreenGesturesTest {
         assertEquals(listOf("key 18 true"), events.filter { it.startsWith("key") })
         advance(50)
         assertEquals(listOf("key 18 true", "key 18 false"), events.filter { it.startsWith("key") })
-        assertEquals(50L, timedKeys.last().first - timedKeys.first().first)
+        assertEquals(TouchTiming.CLICK_MS, timedKeys.last().first - timedKeys.first().first)
     }
 
     @Test fun twoFingerKeyboardTapHasAnObservablePressAndReleases() {
         gestures.configure(TouchGestureConfig(twoFingerTapAction = "key_E"))
         twoFingerTap(); advance(50)
         assertEquals(listOf(true, false), timedKeys.map { it.third })
-        assertEquals(50L, timedKeys.last().first - timedKeys.first().first)
+        assertEquals(TouchTiming.CLICK_MS, timedKeys.last().first - timedKeys.first().first)
     }
 
     @Test fun threeFingerMouseTapHasAnObservablePressAndReleases() {
@@ -314,7 +314,7 @@ class TouchscreenGesturesTest {
         assertEquals(listOf("button 273 true"), buttons())
         advance(50)
         assertEquals(listOf(true, false), rightClicks.map { it.down })
-        assertEquals(50L, rightClicks[1].time - rightClicks[0].time)
+        assertEquals(TouchTiming.CLICK_MS, rightClicks[1].time - rightClicks[0].time)
     }
 
     @Test fun cancellingAMultiFingerTapReleasesItsButtonAndStopsCallbacks() {
@@ -338,7 +338,7 @@ class TouchscreenGesturesTest {
         gestures.configure(TouchGestureConfig(tapAction = "right_click", doubleTapEnabled = false))
         tap(); tap(); advance(250)
         assertEquals(listOf(true, false, true, false), rightClicks.map { it.down })
-        assertTrue(rightClicks[2].time - rightClicks[1].time >= 50)
+        assertTrue(rightClicks[2].time - rightClicks[1].time >= TouchTiming.CLICK_MS)
     }
 
     @Test fun aFastTwoFingerSwipeDuringSettlingDoesNotClick() {

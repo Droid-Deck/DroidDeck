@@ -202,7 +202,6 @@ internal fun BusyChip(s: FrontEndState) {
 internal fun RuntimeChip(s: FrontEndState) = when {
     s.busy -> Chip(if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage, ok = false)
     s.removalPending -> Chip(stringResource(R.string.runtime_removal_incomplete), ok = false)
-    !s.ready -> Chip(stringResource(R.string.games_runtime_first_play), ok = false)
     s.available != null && s.available != s.installed -> Chip(stringResource(R.string.games_runtime_update), ok = false)
     else -> Chip(stringResource(R.string.games_runtime_ready), ok = true)
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import base64
+import fcntl
 import json
 import os
 import signal
@@ -87,6 +88,7 @@ class Spec:
         self.info_fds = []
         self.json_fds = []
         self.keep_fds = []
+        self.lock_files = []
         self.command = []
         self.argv0 = None
 
@@ -159,6 +161,8 @@ def parse(argv):
             read_fd(int(args[0]))
         elif a == "--sync-fd":
             s.keep_fds.append(int(args[0]))
+        elif a == "--lock-file":
+            s.lock_files.append(args[0])
         elif a == "--info-fd":
             s.info_fds.append(int(args[0]))
         elif a == "--json-status-fd":
@@ -201,6 +205,31 @@ def remaps_nothing(s):
             if op["dest"] != "/" + t:
                 return False
     return True
+
+
+def host_path(s, path):
+    for op in reversed(s.ops):
+        if op["t"] != "bind":
+            continue
+        dest = op["dest"].rstrip("/")
+        if path == dest or path.startswith(dest + "/"):
+            return op["src"].rstrip("/") + path[len(dest):]
+    return path
+
+
+def hold_locks(s):
+    for path in s.lock_files:
+        try:
+            fd = os.open(host_path(s, path), os.O_RDONLY)
+        except OSError as e:
+            sys.stderr.write("bwrap: Can't open lock file %s: %s\n" % (path, e.strerror))
+            sys.exit(1)
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError as e:
+            sys.stderr.write("bwrap: Can't lock file %s: %s\n" % (path, e.strerror))
+            sys.exit(1)
+        os.set_inheritable(fd, True)
 
 
 def report_pid(s, pid):
@@ -282,7 +311,7 @@ def run_by_app(s):
         if payload is None:
             break
         if kind == b"P":
-            report_pid(s, int(payload))
+            report_pid(s, os.getpid())
         elif kind == b"O":
             out.write(payload)
             out.flush()
@@ -301,6 +330,7 @@ def run_by_app(s):
 
 def main():
     s = parse(expand(sys.argv[1:]))
+    hold_locks(s)
     if remaps_nothing(s):
         run_here(s)
     else:

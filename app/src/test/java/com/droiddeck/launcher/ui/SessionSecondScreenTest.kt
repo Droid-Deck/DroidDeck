@@ -7,7 +7,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.TextView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.SemanticsProperties.StateDescription
 import androidx.compose.runtime.MutableState
@@ -22,6 +22,7 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -72,9 +73,81 @@ class SessionSecondScreenTest {
         compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertDoesNotExist()
     }
 
+    @Test fun provisionalBottomScreenPanelSettlesOnlyOnceTheSessionIsInFront() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val previousMode = SessionState.secondScreenMode
+        val previousProvisional = SessionState.secondScreenProvisional
+        SessionState.secondScreenMode = SecondScreenMode.NONE
+        try {
+            val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+            val pip: MutableState<Boolean> = ReflectionHelpers.getField(activity, "pipUi\$delegate")
+            fun settle() = ReflectionHelpers.callInstanceMethod<Unit>(activity, "settleDualScreenControls")
+            SessionState.secondScreenProvisional = true
+            ReflectionHelpers.setField(activity, "started", true)
+            pip.value = true
+            settle()
+            assertTrue(SessionState.secondScreenProvisional)
+            pip.value = false
+            ReflectionHelpers.setField(activity, "started", false)
+            settle()
+            assertTrue(SessionState.secondScreenProvisional)
+            ReflectionHelpers.setField(activity, "started", true)
+            settle()
+            assertFalse(SessionState.secondScreenProvisional)
+        } finally {
+            SessionState.secondScreenMode = previousMode
+            SessionState.secondScreenProvisional = previousProvisional
+        }
+    }
+
+    @Test fun terminalOpenedBeforeItWasReadyIsRetriedButOtherPanelsAreLeftAlone() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {}, {}, {}, {})
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            val root = panel.window!!.decorView
+            val trackpad = descendants(root).toList()
+            panel.retryTerminal()
+            assertEquals(trackpad, descendants(root).toList())
+            panel.showMode(SecondScreenMode.TERMINAL)
+            val notReady = context.getString(R.string.second_terminal_not_ready)
+            val before = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            panel.retryTerminal()
+            val after = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            assertTrue(before !== after)
+        } finally {
+            panel.closeControls()
+        }
+    }
+
     @Test fun desktopTrackpadOmitsSteamShortcuts() = checkShortcuts(steam = false)
 
     @Test fun steamTrackpadKeepsWorkingSteamShortcuts() = checkShortcuts(steam = true)
+
+    @Test fun trackpadMenuButtonOnlyAppearsWhenTheMenuCanMove() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val label = context.getString(R.string.touch_droiddeck_menu)
+        for (movable in listOf(false, true)) {
+            var menus = 0
+            val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {},
+                {}, {}, {}, onMenu = if (movable) ({ menus++ }) else null)
+            try {
+                panel.create()
+                panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+                val buttons = descendants(panel.window!!.decorView).filter { it.contentDescription == label }.toList()
+                assertEquals(if (movable) 1 else 0, buttons.size)
+                buttons.forEach { it.performClick() }
+                assertEquals(if (movable) 1 else 0, menus)
+            } finally {
+                panel.closeControls()
+            }
+        }
+    }
 
     @Test
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
@@ -86,7 +159,7 @@ class SessionSecondScreenTest {
             SessionState.mode = mode
             val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
             fun <T> state(name: String): MutableState<T> = ReflectionHelpers.getField(activity, "$name\$delegate")
-            state<Boolean>("drawerOpen").value = true
+            state<Boolean>("drawerOpenState").value = true
             state<Boolean>("drawerControllerActive").value = true
             state<List<SecondScreenDisplay>>("secondScreenDisplays").value = listOf(SecondScreenDisplay(1, "Bottom screen"))
             for ((button, page) in listOf(KeyEvent.KEYCODE_BUTTON_R1 to SessionDrawerPage.SECOND_SCREEN,
@@ -106,7 +179,7 @@ class SessionSecondScreenTest {
         shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
         SessionState.mode = SessionService.MODE_STEAM
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpen\$delegate")
+        val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpenState\$delegate")
         val controller: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerControllerActive\$delegate")
         controller.value = true
         for (button in listOf(KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_START)) {
@@ -188,9 +261,9 @@ class SessionSecondScreenTest {
         try {
             panel.create()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
-            val buttons = descendants(panel.window!!.decorView).filterIsInstance<Button>().toList()
+            val buttons = descendants(panel.window!!.decorView).filterIsInstance<TextView>().filter { it.isClickable }.toList()
             assertTrue(buttons.any { it.text == context.getString(R.string.second_show_keyboard) })
-            val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "…" }
+            val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "•••" }
             if (steam) {
                 assertEquals(2, shortcuts.size)
                 shortcuts.forEach { it.performClick() }

@@ -21,6 +21,11 @@ object DownloadQueue {
         fun diskSize(bytes: Long) = update(key) { if (bytes > 0) it.copy(diskBytes = bytes) else it }
         fun progress(bytesDone: Long, bytesTotal: Long, detail: String? = null, @Suppress("UNUSED_PARAMETER") speedBps: Long = -1L) = measure(key, bytesDone, bytesTotal, detail?.let(::stripSpeed))
         fun log(line: String) = StoresState.logLine(line)
+        fun interruptible(value: Boolean) = update(key) {
+            check(value || !cancelled.get()) { "The operation was paused before installer application" }
+            it.copy(interruptible = value)
+        }
+        fun maintenance(reusedBytes: Long, appliedBytes: Long) = update(key) { it.copy(reusedBytes = reusedBytes, appliedBytes = appliedBytes) }
     }
 
     private fun stripSpeed(s: String): String = s.replace(Regex("\\s+\\S+ [KMG]B/s\\s*$"), "").trimEnd()
@@ -166,12 +171,13 @@ object DownloadQueue {
     fun pause(key: String) {
         val item = synchronized(lock) { items[key] } ?: return
         synchronized(lock) {
+            if (!item.entry.interruptible) return
             if (item.entry.state == DownloadState.QUEUED) { item.entry = item.entry.copy(state = DownloadState.PAUSED, queuePosition = 0); renumber(); publishLocked(); return }
             if (item.entry.state != DownloadState.RUNNING) return
             item.pauseRequested = true
+            item.cancelled.set(true)
+            item.job?.cancel(deleteFiles = false)
         }
-        item.cancelled.set(true)
-        item.job?.cancel(deleteFiles = false)
         StoresState.logLine("paused \"${item.entry.name}\"")
     }
 
@@ -204,17 +210,19 @@ object DownloadQueue {
         val wasRunning: Boolean
         synchronized(lock) {
             item = items[key] ?: return
+            if (!item.entry.interruptible) return
             wasRunning = item.entry.state == DownloadState.RUNNING
+            if (wasRunning) {
+                item.cancelled.set(true)
+                item.job?.cancel(deleteFiles = true)
+            }
             if (!wasRunning) {
                 item.entry = item.entry.copy(state = DownloadState.CANCELLED, queuePosition = 0, finishedAt = System.currentTimeMillis())
                 renumber()
                 publishLocked()
             }
         }
-        if (wasRunning) {
-            item.cancelled.set(true)
-            item.job?.cancel(deleteFiles = true)
-        } else {
+        if (!wasRunning) {
             Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-cancel").start()
         }
         StoresState.logLine("cancelled \"${item.entry.name}\"")

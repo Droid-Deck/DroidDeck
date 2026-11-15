@@ -201,7 +201,7 @@ internal fun IntegrationSuggestion(state: SteamIntegration.State, onOpen: () -> 
         }
         val closeSrc = remember { MutableInteractionSource() }
         val closeHot = rememberHot(closeSrc)
-        val later = stringResource(R.string.integration_later)
+        val later = stringResource(R.string.common_close)
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.padding(end = 4.dp).size(32.dp).clip(CircleShape)

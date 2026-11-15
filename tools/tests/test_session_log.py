@@ -9,8 +9,8 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 
 
 def log_redirect():
-    match = re.search(r"^\s*(exec > >\(.*\) 2>&1)$", SESSION.read_text(), re.M)
-    return match.group(1)
+    match = re.search(r"^\s*(dd=.*)\n\s*(exec > >\(.*\) 2>&1)$", SESSION.read_text(), re.M)
+    return "%s\n%s" % match.groups()
 
 
 class SessionLogTest(unittest.TestCase):

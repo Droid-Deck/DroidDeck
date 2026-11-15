@@ -39,6 +39,7 @@ if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
     echo "droiddeck-steam-launch: the desktop client did not become ready" >&2
     exit 69
   fi
+  [ "$url" = steam://exit ] && exit 0
   export BL_INSIDE=1 BL_STEAM_UI=desktop
   exec /usr/local/bin/droiddeck-session steam "${url:-steam://open/library}"
 fi

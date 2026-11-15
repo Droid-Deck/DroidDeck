@@ -220,7 +220,12 @@ class SessionGestureRoutingTest {
             override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) { directButtons += button to pressed }
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
-        }) {}.also { it.configure(config) }
+        }, object : DirectTouchHold.Touch {
+            override fun down(pointerId: Int, x: Float, y: Float) {}
+            override fun move(pointerId: Int, x: Float, y: Float) {}
+            override fun up(pointerId: Int, x: Float, y: Float) {}
+            override fun cancel() {}
+        }).also { it.configure(config) }
         setField("directTouchHold", directHold)
         launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
             override fun onMove(x: Float, y: Float) { scrollPositions += x to y }

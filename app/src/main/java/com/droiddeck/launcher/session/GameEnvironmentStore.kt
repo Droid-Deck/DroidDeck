@@ -13,6 +13,7 @@ object GameEnvironmentStore {
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
     const val DXVK_CONFIG = "dxvkConfig"
     const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
+    const val GAME_DEBUG_LOGS = "gameDebugLogs"
 
     @Synchronized
     fun read(context: Context): GameEnvironment.Config {
@@ -87,7 +88,11 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
-    fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
+    fun publish(
+        context: Context,
+        config: GameEnvironment.Config = read(context),
+        gameDebugLogsOverride: Boolean? = null,
+    ) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
@@ -110,6 +115,11 @@ object GameEnvironmentStore {
             )
         }
         if (gameDxvk.length() > 0) json.put(DXVK_CONFIG_GAMES, gameDxvk)
+        json.put(
+            GAME_DEBUG_LOGS,
+            gameDebugLogsOverride ?: (SessionPrefs.logsEnabled(context) &&
+                SessionPrefs.gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context)),
+        )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }
 

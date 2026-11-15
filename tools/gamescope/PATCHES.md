@@ -64,69 +64,72 @@ library list, before anything is published.
   refresh output they now wait for it too, for at most `external_overlay_hold_cycles` refreshes (4,
   so 30 fps at 120 Hz still merges), and are painted on their own after that.
 
+The non-Adreno test branch's own patches are numbered 0920-0935 (0120-0135 until main took
+0121-0125), so they apply after DroidDeck's. Applied in either order the tree is the same.
+
 The system PowerVR driver uses the existing SDL/Wayland swapchain backend. Its additional patches are:
 
-- `0120-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
+- `0920-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
   support, image count, alpha and extent; use offscreen composition and GPU copies when required.
-- `0121-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
+- `0921-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
   where the quad variant fails compilation.
-- `0122-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
+- `0922-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
   rejects the mutable-format query, and intersect imported-image and FD memory-type masks.
-- `0123-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
+- `0923-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
   the shader's `rgba8` storage view. The tested workaround leaves other vendors, HDR and direct
   composition unchanged; it does not restrict game-facing BGRA formats.
-- `0124-sdl-preserve-explicit-refresh.patch` and `0125-sdl-wait-before-present.patch`: preserve
+- `0924-sdl-preserve-explicit-refresh.patch` and `0925-sdl-wait-before-present.patch`: preserve
   configured refresh across SDL events and finish composition before presenting without a
   render-finished semaphore. The build runs the focused capability, format and refresh tests.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
-- `0126-explicit-sync-switch.patch`: `GAMESCOPE_DISABLE_EXPLICIT_SYNC=1` makes the nested
+- `0926-explicit-sync-switch.patch`: `GAMESCOPE_DISABLE_EXPLICIT_SYNC=1` makes the nested
   (Wayland and SDL) backends report no explicit sync, so gamescope does not offer
   wp_linux_drm_syncobj_manager_v1 and clients use implicit sync. The app sets it on a GPU that is
   not an Adreno when the kernel is older than 6.6 (no DRM_IOCTL_SYNCOBJ_EVENTFD: an Exynos 2400e
   on 6.1 logged hundreds of "timeline: DRM_IOCTL_SYNCOBJ_EVENTFD failed" and a game hung at a
   black screen) or when the render node is Mali's stand-in (/dev/mali0 has no DRM syncobjs).
-- `0127-shm-buffers-upload-every-commit.patch` (David Cimo, for Mali through Venus; his `0114`): with
+- `0927-shm-buffers-upload-every-commit.patch` (David Cimo, for Mali through Venus; his `0114`): with
   no DRM node, Xwayland has no glamor and commits a few wl_shm buffers over and over with new pixels.
   gamescope memoizes one texture per `wlr_buffer`, and a shm buffer's texture is a copy taken at
   import, so the screen cycled through the first few frames forever while Steam ran on behind them.
   Only dma-buf textures are memoized now; a shm buffer is uploaded on every commit. Adreno never
   takes this path, since its Xwayland hands over dma-bufs. Also what XWAYLAND_NO_GLAMOR sessions need.
-- `0129-log-failing-compute-pipeline.patch`: when `vkCreateComputePipelines` fails, one extra line
+- `0929-log-failing-compute-pipeline.patch`: when `vkCreateComputePipelines` fails, one extra line
   per shader type names the pipeline (shader type, layer count, ycbcr/colorspace masks, fp16) and the
   SPIR-V capabilities its shader declares. A Mali-G615 through Venus refused all 119 composite
   pipelines with VK_ERROR_INITIALIZATION_FAILED and nothing said which feature it objected to.
-- `0130-composite-without-immutable-ycbcr-samplers.patch`: one composite pipeline is compiled at
+- `0930-composite-without-immutable-ycbcr-samplers.patch`: one composite pipeline is compiled at
   start-up; when the driver refuses it, the descriptor layout is rebuilt without binding 4's immutable
   YCbCr samplers (that binding then takes the slot's ordinary sampler) and the probe tried again, with
   both outcomes in the log. `GAMESCOPE_NO_YCBCR_SAMPLERS=1` forces it. A Mali-G615 through Venus
   refused every composite shader (blit, blur, RCAS: SPIR-V capabilities Shader, Sampled1D,
   ImageQuery, no Float16) while EASU, NIS and the NV12 converter, which share the layout but never
   touch binding 4, compiled.
-- `0131-memory-type-fallback-keep-probe.patch`: `findMemoryType` asked for DEVICE_LOCAL|HOST_VISIBLE
+- `0931-memory-type-fallback-keep-probe.patch`: `findMemoryType` asked for DEVICE_LOCAL|HOST_VISIBLE
   memory falls back to host-visible memory without DEVICE_LOCAL, and a failure logs the requested
   properties, the type bits and every memory type. The Mali bridge models a unified-memory GPU like a
   discrete one (host-visible types without DEVICE_LOCAL), so the upload buffer found nothing and the
-  backend failed. Also: 0130's probe pipeline is kept instead of destroyed, and skipped when
+  backend failed. Also: 0930's probe pipeline is kept instead of destroyed, and skipped when
   `GAMESCOPE_NO_YCBCR_SAMPLERS=1` (destroying a pipeline the Venus host had refused killed the
   render server).
-- `0132-name-hung-up-waitable.patch`: "IWaitable hung up. Aborting." now names the waitable's class,
+- `0932-name-hung-up-waitable.patch`: "IWaitable hung up. Aborting." now names the waitable's class,
   its fd and what the fd is (`/proc/self/fd`), and the Wayland backend's input thread says why the
   compositor connection ended (protocol error or errno) first. An S24 FE aborted there after 60/120 Hz
   flips and after a resume with nothing else in the log.
-- `0133-flippable-image-unexportable-modifiers.patch`: a flippable (dma-buf exported) image whose
+- `0933-flippable-image-unexportable-modifiers.patch`: a flippable (dma-buf exported) image whose
   modifiers the driver supports but does not report EXPORTABLE uses them anyway, and an image with no
   usable modifier fails with a log line instead of asserting in `CVulkanTexture::BInit`. The Mali
   bridge forwards the phone driver's answer, which leaves EXPORTABLE out, though it exports dma-bufs.
-- `0134-flippable-image-no-backend-modifiers.patch`: when the nested backend offers no modifier at all
+- `0934-flippable-image-no-backend-modifiers.patch`: when the nested backend offers no modifier at all
   for a flippable image's format, `CVulkanTexture::BInit` tries linear and logs it instead of asserting
   `!modifiers.empty()`. NieR Replicant ended the session there on a Pixel 9a under Venus.
-- `0135-flippable-image-linear-when-driver-rejects-all.patch`: when the driver answers every offered
+- `0935-flippable-image-linear-when-driver-rejects-all.patch`: when the driver answers every offered
   modifier with `VK_ERROR_FORMAT_NOT_SUPPORTED` and linear was among them, the flippable image tries
   linear anyway; if it cannot be made, `BInit` fails as before. An r32p1 Mali-G610 (Vulkan 1.1) behind
   the Mali bridge rejected both of the backend's modifiers for AR24, so the session ended at start
-  (0133's "no usable modifier"); the bridge makes such images without the handle type and exports
+  (0933's "no usable modifier"); the bridge makes such images without the handle type and exports
   them through a dma-heap.
 
 The shared DroidDeck patch also includes `0116-release-cursor-shm-buffers.patch`: pointer cursor
@@ -218,3 +221,56 @@ A host mode switch can report a passing rate for a few frames (72 Hz between 144
 120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
 been reported for 300 ms. Without the variable the reported rate is taken at once, as
 upstream does.
+
+The rate comes from the feedback of a frame gamescope presents, so with nothing moving
+on screen no feedback arrived and the old rate stayed. With following on, gamescope
+presents once when the host's `wl_output` mode changes (DroidDeck's compositor sends
+the new mode) and keeps presenting while a new rate is pending (since p16).
+
+## 0121 Xwayland: skip the X tree walk for a repeated window override
+
+The WSI layer sends `override_window_content` on every present of an X11 swapchain.
+gamescope first walked from that window to its top-level window with `XQueryTree`, one
+blocking X round trip per level under the wlserver lock, and only then noticed that the
+same swapchain already overrides that window. At thousands of frames per second that is
+thousands of round trips to Xwayland every second.
+
+The override now remembers the window it was asked for. When the same swapchain and
+surface ask for the same window again within 100 ms, the request returns at once; after
+100 ms the walk runs again, so a window that moved to another top level is still found.
+
+## 0122 Wayland: wake steamcompmgr after reading host events
+
+Backport of upstream commit 2962992 by Matthew Schwartz (ValveSoftware/gamescope).
+The nested Wayland backend's input thread reads the host display, but steamcompmgr
+does not watch that file descriptor, so buffer releases and presentation feedback
+queued by that read could wait up to one refresh for steamcompmgr's next poll. The
+input thread now wakes steamcompmgr after each read.
+
+## 0123 commit: fence lifetime fixes from upstream
+
+Backport of upstream commits 0efe47c and 666c52b by Matthew Schwartz (ValveSoftware/gamescope).
+Pending commits share ownership of their completion list with the Xwayland context, so a late
+fence signal can no longer append to a list freed with the context; and a commit being destroyed
+no longer hands the image waiter a new reference to itself. Both touch the code 0124 changes.
+
+## 0124 commit: mark a finished frame done at import
+
+Every game frame took two passes of steamcompmgr's loop: the import duplicated the buffer's
+fence and handed the commit to the image waiter (epoll add), then the waiter thread saw the fence
+signalled, removed and closed it and woke steamcompmgr again to handle the finished commit.
+`update_wayland_res` now polls the fence without waiting first. A frame that is already finished
+is marked done at once - no duplicate fence, no epoll add or delete, no waiter wake - and the main
+loop handles it in the same pass, after the import (FIFO commits still wait for a vblank). The
+`commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
+`xwm` log counts fences ready at import and waited for, every 10 s.
+
+## 0125 steamcompmgr: share mangoapp's frame times with DroidDeck's HUD
+
+DroidDeck's in-app HUD shows the same frame rate and frame times as Steam's performance overlay.
+DroidDeck's mangoapp (Valve's 20260902.1 build) reads the field at byte 16 of gamescope's messages as
+its frame time; gamescope 3.16.29 puts `app_frametime_ns` there, the time between signalled commits of
+the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES` set (droiddeck-session
+sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
+whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
+The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.

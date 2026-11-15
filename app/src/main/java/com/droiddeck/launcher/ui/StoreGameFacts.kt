@@ -177,6 +177,60 @@ internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: S
     }
 }
 
+/** The headline scores, small enough to sit inside the action capsule. */
+@Composable
+internal fun CapsuleScores(scores: GameScores, modifier: Modifier = Modifier) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = modifier) {
+        Looked(scores.metacritic, exit = fadeOut()) { lookup ->
+            val found = (lookup as? Lookup.Found)?.value
+            CapsuleStat(stringResource(R.string.stores_fact_metacritic), found?.url, showLabel = false) {
+                if (found != null) MetacriticBadge(found.score, small = true) else Placeholder(28.dp)
+            }
+        }
+        Looked(scores.hltb, exit = fadeOut()) { lookup ->
+            val found = (lookup as? Lookup.Found)?.value
+            val lead = found?.let { hltbRuns(it).firstOrNull() }
+            CapsuleStat(lead?.second ?: stringResource(R.string.stores_hltb_main), found?.url) {
+                if (lead != null) Text(hltbTime(lead.first), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
+                else Placeholder(40.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapsuleStat(label: String, link: String?, showLabel: Boolean = true, value: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val src = remember { MutableInteractionSource() }
+    val hot = link != null && rememberHot(src)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = Modifier.then(linkSurface(label, link, src, hot, CapsuleStatShape)).padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        value()
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            val tint = colors.onSurfaceVariant.copy(alpha = if (hot) 1f else 0.85f)
+            if (showLabel) Text(label.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = tint, maxLines = 1)
+            if (link != null) Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = if (showLabel) null else label, tint = tint, modifier = Modifier.size(10.dp))
+        }
+    }
+}
+
+/** Credits and times as label and value rows, for the details panel. */
+@Composable
+internal fun StoreDetailRows(developer: String, publisher: String, releaseDate: String, scores: GameScores) {
+    val released = remember(releaseDate) { GameFacts.releaseLabel(releaseDate) }
+    val publishedBy = publisher.takeUnless { it.isBlank() || it.trim().equals(developer.trim(), ignoreCase = true) }
+    val credits = listOf(
+        stringResource(R.string.stores_fact_developer) to developer,
+        stringResource(R.string.stores_fact_publisher) to publishedBy.orEmpty(),
+        stringResource(R.string.stores_fact_released) to released.orEmpty(),
+    ).filter { it.second.isNotBlank() }
+    val runs = ((scores.hltb as? Lookup.Found)?.value)?.let { hltbRuns(it) }.orEmpty()
+    credits.forEach { (label, value) -> FactRow(label, value, labelWidth = 96.dp) }
+    runs.forEach { (secs, what) -> FactRow(what, hltbTime(secs), labelWidth = 96.dp) }
+}
+
 @Composable
 private fun LineLink(label: String, link: String, content: @Composable () -> Unit) {
     val pal = LocalPalette.current
@@ -202,6 +256,7 @@ private fun <T> Looked(lookup: Lookup<T>, exit: ExitTransition, content: @Compos
 }
 
 private val StatShape = RoundedCornerShape(12.dp)
+private val CapsuleStatShape = RoundedCornerShape(99.dp)
 private val LinkShape = RoundedCornerShape(10.dp)
 private val BadgeHeight = 32.dp
 

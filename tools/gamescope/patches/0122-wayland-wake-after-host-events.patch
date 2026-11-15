@@ -1,0 +1,14 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 1b85e63..370661d 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -2977,6 +2977,9 @@ namespace gamescope
+                 LogDisplayError( "Failed to read events on input thread", m_pBackend->GetDisplay() );
+                 abort();
+             }
++
++            // Reading also queues releases and presentation feedback for steamcompmgr.
++            nudge_steamcompmgr();
+         }
+     }
+ 

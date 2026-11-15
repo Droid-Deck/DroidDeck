@@ -9,7 +9,12 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
     NONE("none", R.string.second_mode_none),
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad),
     TERMINAL("terminal", R.string.second_mode_terminal),
-    DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls),
+    DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls);
+
+    companion object {
+        fun opening(remembered: String?, deckPad: Boolean): SecondScreenMode =
+            entries.firstOrNull { it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) } ?: if (deckPad) DECK_CONTROLS else KEYBOARD_TRACKPAD
+    }
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)

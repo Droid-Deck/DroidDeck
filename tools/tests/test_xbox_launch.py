@@ -136,7 +136,7 @@ class XboxLaunchTest(unittest.TestCase):
                     self.assertNotIn('DROIDDECK_XBOX_COMMAND_FILE', child_env)
                     self.assertEqual(child_env['XODUS_BRIDGE_KEY'], 'runtime-key')
 
-    def test_launch_view_runs_from_a_short_drive_letter(self):
+    def test_launch_view_runs_from_its_own_folder_on_a_short_drive_letter(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             prefix = root / 'compat/pfx'
@@ -156,7 +156,7 @@ class XboxLaunchTest(unittest.TestCase):
             with patch.dict(os.environ, env), patch.dict(xbox['wine'].__globals__, RUNTIME=runtime.parent), patch('subprocess.run') as initialize, patch('subprocess.call', side_effect=call):
                 initialize.return_value.returncode = 0
                 self.assertEqual(xbox['wine']([str(view / 'Bin/Game.exe')]), 0)
-            self.assertEqual(seen, [(['/selected/proton', 'waitforexitandrun', 'X:\\Bin\\Game.exe'], str(view))])
+            self.assertEqual(seen, [(['/selected/proton', 'waitforexitandrun', 'X:\\droiddeck-xbox-1ZpM3D\\Bin\\Game.exe'], str(view.parent))])
             self.assertFalse(os.path.lexists(prefix / 'dosdevices/x:'))
 
     def test_view_drive_keeps_drives_in_use_and_reuses_a_stale_view(self):
@@ -170,8 +170,8 @@ class XboxLaunchTest(unittest.TestCase):
             (devices / 'w:').symlink_to(root / 'games')
             (devices / 'v:').symlink_to(views / 'launch-0/droiddeck-xbox-gone')
             exe, link = xbox['view_drive'](root / 'pfx', str(view / 'Game.exe'))
-            self.assertEqual((exe, link), ('V:\\Game.exe', devices / 'v:'))
-            self.assertEqual(os.readlink(devices / 'v:'), str(view))
+            self.assertEqual((exe, link), ('V:\\droiddeck-xbox-new\\Game.exe', devices / 'v:'))
+            self.assertEqual(os.readlink(devices / 'v:'), str(view.parent))
             self.assertEqual(os.readlink(devices / 'x:'), str(live))
             self.assertEqual(sorted(p.name for p in devices.iterdir()), ['v:', 'w:', 'x:'])
             self.assertEqual(xbox['view_drive'](root / 'pfx', '/games/Game.exe'), ('/games/Game.exe', None))

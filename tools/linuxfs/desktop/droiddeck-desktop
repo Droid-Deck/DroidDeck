@@ -11,6 +11,7 @@ export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_S
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
 export MOZ_SHM_NO_SEALS=1
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+export KWIN_USE_OVERLAYS=0
 [ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
 for conf in client client-rt; do
   mkdir -p "/etc/pipewire/$conf.conf.d" && printf 'context.properties = {\n    module.rt = false\n}\n' >"/etc/pipewire/$conf.conf.d/droiddeck-rt.conf"
@@ -35,7 +36,7 @@ cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
 Type=Application
 Name=Steam x86-64 (FEX, experimental)
 Comment=Valve's x86-64 Linux client under FEX, in its own home with its own login
-Exec=qterminal -e /usr/local/bin/droiddeck-steam-x64
+Exec=konsole -e /usr/local/bin/droiddeck-steam-x64
 Icon=steam
 Categories=System;
 ENTRY
@@ -43,6 +44,20 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
 /usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
+( python3 /usr/local/bin/droiddeck-library-perms 2>&1 | sed 's/^/[perms] /' ) &
+mkdir -p /usr/local/share/applications
+cat > /usr/local/share/applications/droiddeck-ime.desktop <<'ENTRY'
+[Desktop Entry]
+Type=Application
+Name=Android keyboard
+Exec=/usr/local/bin/droiddeck-ime
+NoDisplay=true
+X-KDE-Wayland-VirtualKeyboard=true
+ENTRY
+input_method=$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)
+case $input_method in
+  ''|*/droiddeck-ime.desktop) kwriteconfig6 --file kwinrc --group Wayland --key InputMethod /usr/local/share/applications/droiddeck-ime.desktop ;;
+esac
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
 export APPIMAGE_EXTRACT_AND_RUN=1
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
@@ -55,6 +70,19 @@ if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
   touch "$HOME/.config/droiddeck-desktop-icons"
 fi
 [ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
+if command -v flatpak >/dev/null 2>&1 && [ ! -d /var/lib/pacman ]; then
+  FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 &
+fi
+skel_done=$HOME/.local/share/droiddeck/skel-copied
+if [ -d /etc/skel ] && [ ! -e "$skel_done" ]; then
+  cp -rn /etc/skel/. "$HOME/" 2>/dev/null
+  mkdir -p "${skel_done%/*}" && : > "$skel_done"
+fi
+if [ -x /usr/lib/snapd/snap-confine ] && [ ! -d /var/lib/pacman ]; then
+  /usr/local/bin/droiddeck-snapd >/dev/null 2>&1 &
+  export XDG_DATA_DIRS=/var/lib/snapd/desktop:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}
+  export PATH=$PATH:/snap/bin
+fi
 update-mime-database /usr/share/mime >/dev/null 2>&1 &
 [ -f /usr/share/icons/hicolor/icon-theme.cache ] || gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null &
 [ -f /usr/share/glib-2.0/schemas/gschemas.compiled ] || glib-compile-schemas /usr/share/glib-2.0/schemas 2>/dev/null
@@ -82,6 +110,10 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   if [ -z "${KWIN_RENDER_NODES:-}" ] && [ -c /dev/dri/renderD0 ]; then
     export KWIN_RENDER_NODES=/dev/dri/renderD0
   fi
+  mkdir -p /run/droiddeck/kwin
+  printf '#!/bin/sh\nGALLIUM_THREAD=0 exec /usr/bin/kwin_wayland "$@"\n' > /run/droiddeck/kwin/kwin_wayland
+  chmod 755 /run/droiddeck/kwin/kwin_wayland
+  export PATH=/run/droiddeck/kwin:$PATH
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland

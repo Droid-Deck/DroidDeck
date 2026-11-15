@@ -36,7 +36,7 @@ public final class TouchscreenGestures {
     private final Output output;
     private final float doubleTapSlop;
     private TouchGestureConfig gestureConfig = new TouchGestureConfig();
-    private static final int CLICK_DELAYED_TIME = 50;
+    private static final int CLICK_DELAYED_TIME = 30;
     private Runnable delayedPress, pendingHoldClickRelease;
     private Runnable pendingTapPress;
     private final ArrayDeque<TapClick> pendingTapClicks = new ArrayDeque<>();

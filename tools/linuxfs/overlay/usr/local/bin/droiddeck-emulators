@@ -1,0 +1,22 @@
+#!/bin/bash
+set -u
+export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
+cores="libretro-core-info libretro-beetle-pce-fast libretro-beetle-psx libretro-beetle-vb libretro-beetle-wswan
+  libretro-bsnes-mercury-performance libretro-desmume libretro-gambatte libretro-genesisplusgx libretro-mgba
+  libretro-nestopia libretro-sameboy libretro-snes9x"
+case "${1:-}" in
+install)
+  echo "== STEP RetroArch"
+  droiddeck-root /usr/bin/apt-get update -q || { echo "== FAIL apt-get update"; exit 1; }
+  droiddeck-root /usr/bin/apt-get install -y -q retroarch retroarch-assets $cores || { echo "== FAIL apt-get install"; exit 1; }
+  echo "== STEP PPSSPP"
+  flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || { echo "== FAIL flathub"; exit 1; }
+  flatpak install --user -y --noninteractive flathub org.ppsspp.PPSSPP || { echo "== FAIL org.ppsspp.PPSSPP"; exit 1; }
+  printf '#!/bin/sh\nexec /usr/local/bin/droiddeck-flatpak-run org.ppsspp.PPSSPP "$@"\n' > /usr/local/bin/PPSSPPSDL.new &&
+    chmod 755 /usr/local/bin/PPSSPPSDL.new && mv -f /usr/local/bin/PPSSPPSDL.new /usr/local/bin/PPSSPPSDL || { echo "== FAIL PPSSPPSDL"; exit 1; }
+  ;;
+*)
+  echo "usage: droiddeck-emulators install" >&2
+  exit 2
+  ;;
+esac

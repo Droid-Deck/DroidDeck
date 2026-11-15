@@ -306,6 +306,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             if (steam && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
                 Note(stringResource(R.string.back_native_qam_hint))
             }
+            PhysicalShortcutRows()
         }
     }
     if (tab == SheetTab.AUDIO && steam) {

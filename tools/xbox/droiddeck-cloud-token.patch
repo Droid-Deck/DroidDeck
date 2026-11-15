@@ -1,21 +1,43 @@
-diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
-index 5a66715..5b310e4 100644
 --- a/crates/xodus-cli/src/commands.rs
 +++ b/crates/xodus-cli/src/commands.rs
-@@ -6,6 +6,7 @@ pub mod license;
+@@ -6,6 +6,7 @@
  pub mod login;
  pub mod logout;
  pub mod profile;
 +pub mod cloud_token;
+ pub mod social;
  pub mod game_activity;
  pub mod achievements;
- pub mod subscription;
-diff --git a/crates/xodus-cli/src/commands/cloud_token.rs b/crates/xodus-cli/src/commands/cloud_token.rs
-new file mode 100644
-index 0000000..fbd0ed0
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -70,6 +70,8 @@
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
++    CloudToken,
+     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
+     Profile {
+         #[arg(long, default_value_t = false)]
+@@ -251,6 +253,7 @@
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::CloudToken
+             | SubCommand::Social { .. }
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+@@ -317,6 +320,7 @@
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
+         SubCommand::Social { .. } => commands::social::run(&tokens).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/cloud_token.rs
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,237 @@
 +//! Xbox Cloud Gaming streaming token for the stored account (DroidDeck). Same bearer
 +//! RPS -> Xbox user -> XSTS exchange as the profile read, for the cloud gaming relying party,
 +//! then the streaming service's user login (as xbox.com and Greenlight's xal-node do).
@@ -41,7 +63,7 @@ index 0000000..fbd0ed0
 +        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(response)) => *response,
 +        _ => return Err("msa-response"),
 +    };
-+    // Token::from panics on token types it does not know; only take the compact forms here. The cloud
++    // Only accept compact forms here and reject incomplete token responses. The cloud
 +    // transfer purpose answers with a login proof token, which is what /connect takes (Greenlight
 +    // sends the MSAL response's "lpt").
 +    let kind = response.token_type.clone();
@@ -64,7 +86,7 @@ index 0000000..fbd0ed0
 +        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 ticket-type-{slug}");
 +        return Err("msa-ticket");
 +    }
-+    let Token::Compact(ticket) = Token::from(response) else { return Err("msa-ticket"); };
++    let Token::Compact(ticket) = Token::try_from(response).map_err(|_| "msa-ticket")? else { return Err("msa-ticket"); };
 +    Ok((account, ticket))
 +}
 +
@@ -92,30 +114,53 @@ index 0000000..fbd0ed0
 +    }).take(32).collect()).unwrap_or_default()
 +}
 +
++fn offering_response(body: &[u8]) -> Result<Value, &'static str> {
++    let value: Value = serde_json::from_slice(body).map_err(|_| "gssv-json")?;
++    value["gsToken"].as_str().filter(|token| !token.is_empty() && token.len() <= 16384).ok_or("gs-token")?;
++    Ok(value)
++}
++
++async fn request_offering(client: &reqwest::Client, endpoint: &str, xsts: &str, offering: &str) -> Result<Value, &'static str> {
++    let response = client.post(endpoint)
++        .header("x-gssv-client", "XboxComBrowser").header("Cache-Control", "no-store, must-revalidate, no-cache")
++        .json(&json!({ "token": xsts, "offeringId": offering })).send().await.map_err(|_| "gssv-request")?;
++    let body = super::profile::bounded(response, 256 * 1024).await.map_err(|_| "gssv-response")?;
++    offering_response(&body)
++}
++
++async fn select_offering<F, Fut>(mut request: F) -> Result<(&'static str, Value), String>
++where
++    F: FnMut(&'static str) -> Fut,
++    Fut: std::future::Future<Output = Result<Value, &'static str>>,
++{
++    let mut failures = Vec::new();
++    for offering in OFFERINGS {
++        match request(offering).await {
++            Ok(value) => return Ok((offering, value)),
++            Err(stage) => failures.push(format!("{offering}:{stage}")),
++        }
++    }
++    Err(format!("gssv-login {}", failures.join(" ")))
++}
++
 +async fn login(tokens: &TokenManager) -> Result<Value, String> {
 +    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
 +        .timeout(super::session::REQUEST_TIMEOUT).user_agent("xodus-nexus-cloud/1").build().map_err(|_| "http-client")?;
 +    let (account, xsts) = xsts(tokens, &client).await?;
-+    let mut failures = Vec::new();
-+    for offering in OFFERINGS {
-+        let response = client.post(format!("https://{offering}.gssv-play-prod.xboxlive.com/v2/login/user"))
-+            .header("x-gssv-client", "XboxComBrowser").header("Cache-Control", "no-store, must-revalidate, no-cache")
-+            .json(&json!({ "token": xsts, "offeringId": offering })).send().await.map_err(|_| "gssv-request")?;
-+        let status = response.status().as_u16();
-+        let body = super::profile::bounded(response, 256 * 1024).await;
-+        let Ok(body) = body else { failures.push(format!("{offering}:{status}")); continue; };
-+        let value: Value = serde_json::from_slice(&body).map_err(|_| "gssv-json")?;
-+        let token = value["gsToken"].as_str().filter(|token| !token.is_empty() && token.len() <= 16384).ok_or("gs-token")?;
-+        // Diagnostic lines are letters and dashes only (the app's allow-list).
-+        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 gssv-login-ok-{}", if offering == "xgpuweb" { "gamepass" } else { "free" });
-+        let transfer = transfer_token(tokens, &client).await;
-+        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 transfer-token-{}", if transfer.is_ok() { "ok" } else { "missing" });
-+        if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed".into()); }
-+        return Ok(json!({ "schema": 1, "account": account, "offering": offering, "gsToken": token, "userToken": transfer.ok(),
-+            "durationInSeconds": value["durationInSeconds"].as_u64().unwrap_or(0), "market": value["market"].as_str().unwrap_or_default(),
-+            "regions": regions(&value) }));
-+    }
-+    Err(format!("gssv-login {}", failures.join(" ")))
++    let (offering, value) = select_offering(|offering| {
++        let endpoint = format!("https://{offering}.gssv-play-prod.xboxlive.com/v2/login/user");
++        let client = &client;
++        let xsts = &xsts;
++        async move { request_offering(client, &endpoint, xsts, offering).await }
++    }).await?;
++    // Diagnostic lines are letters and dashes only (the app's allow-list).
++    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 gssv-login-ok-{}", if offering == "xgpuweb" { "gamepass" } else { "free" });
++    let transfer = transfer_token(tokens, &client).await;
++    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 transfer-token-{}", if transfer.is_ok() { "ok" } else { "missing" });
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed".into()); }
++    Ok(json!({ "schema": 1, "account": account, "offering": offering, "gsToken": value["gsToken"], "userToken": transfer.ok(),
++        "durationInSeconds": value["durationInSeconds"].as_u64().unwrap_or(0), "market": value["market"].as_str().unwrap_or_default(),
++        "regions": regions(&value) }))
 +}
 +
 +pub async fn run(tokens: &TokenManager) -> ExitCode {
@@ -139,33 +184,94 @@ index 0000000..fbd0ed0
 +        assert_eq!(list.len(), 1);
 +        assert_eq!(list[0]["baseUri"], "https://weu.core.gssv-play-prod.xboxlive.com");
 +    }
++    #[tokio::test]
++    async fn cloud_fallback_first_success_does_not_call_second_offering() {
++        let mut calls = Vec::new();
++        let (offering, value) = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(Ok(json!({"gsToken":"synthetic"})))
++        }).await.unwrap();
++        assert_eq!(calls, vec!["xgpuweb"]);
++        assert_eq!(offering, "xgpuweb");
++        assert_eq!(value["gsToken"], "synthetic");
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_request_failure_tries_second_offering() {
++        let mut calls = Vec::new();
++        let (offering, _) = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(if name == "xgpuweb" { Err("gssv-request") }
++                else { Ok(json!({"gsToken":"synthetic"})) })
++        }).await.unwrap();
++        assert_eq!(calls, OFFERINGS);
++        assert_eq!(offering, "xgpuwebf2p");
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_invalid_json_or_token_tries_second_offering() {
++        let invalid = vec![b"not-json".to_vec(), b"{}".to_vec(),
++            br#"{"gsToken":""}"#.to_vec(), br#"{"gsToken":17}"#.to_vec(),
++            serde_json::to_vec(&json!({"gsToken":"x".repeat(16385)})).unwrap()];
++        for body in invalid {
++            let mut calls = Vec::new();
++            let (offering, _) = select_offering(|name| {
++                calls.push(name);
++                std::future::ready(if name == "xgpuweb" { offering_response(&body) }
++                    else { offering_response(br#"{"gsToken":"synthetic"}"#) })
++            }).await.unwrap();
++            assert_eq!(calls, OFFERINGS);
++            assert_eq!(offering, "xgpuwebf2p");
++        }
++        assert!(offering_response(&serde_json::to_vec(&json!({"gsToken":"x".repeat(16384)})).unwrap()).is_ok());
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_all_failures_report_only_fixed_stages() {
++        let mut calls = Vec::new();
++        let error = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(offering_response(b"private response containing a token or URL"))
++        }).await.unwrap_err();
++        assert_eq!(calls, OFFERINGS);
++        assert_eq!(error, "gssv-login xgpuweb:gssv-json xgpuwebf2p:gssv-json");
++    }
++
++    async fn http_fixture(status: u16, body: Vec<u8>) -> (String, tokio::task::JoinHandle<()>) {
++        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
++        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let address = server.local_addr().unwrap();
++        let task = tokio::spawn(async move {
++            let (mut socket, _) = server.accept().await.unwrap();
++            let mut request = Vec::new();
++            let mut buffer = [0u8; 4096];
++            loop {
++                let n = socket.read(&mut buffer).await.unwrap();
++                assert!(n > 0 && request.len() + n < 16384);
++                request.extend_from_slice(&buffer[..n]);
++                if let Some(end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
++                    let headers = String::from_utf8_lossy(&request[..end]).to_ascii_lowercase();
++                    let length: usize = headers.lines().find_map(|line| line.strip_prefix("content-length:").map(str::trim)).unwrap_or("0").parse().unwrap();
++                    if request.len() >= end + 4 + length { break; }
++                }
++            }
++            let header = format!("HTTP/1.1 {status} Fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
++            if socket.write_all(header.as_bytes()).await.is_ok() { let _ = socket.write_all(&body).await; }
++        });
++        (format!("http://{address}/login"), task)
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_http_refusal_or_oversized_body_reaches_second_offering() {
++        let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(15)).build().unwrap();
++        for (status, body) in [(403, b"<html>Forbidden</html>".to_vec()), (200, vec![b'x'; 256 * 1024 + 1])] {
++            let (first, first_task) = http_fixture(status, body).await;
++            let (second, second_task) = http_fixture(200, br#"{"gsToken":"synthetic"}"#.to_vec()).await;
++            let (offering, _) = select_offering(|name| request_offering(&client,
++                if name == "xgpuweb" { &first } else { &second }, "synthetic-xsts", name)).await.unwrap();
++            assert_eq!(offering, "xgpuwebf2p");
++            first_task.await.unwrap(); second_task.await.unwrap();
++        }
++    }
++
 +}
-diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
-index 1ae4167..4b0ac26 100644
---- a/crates/xodus-cli/src/main.rs
-+++ b/crates/xodus-cli/src/main.rs
-@@ -68,6 +68,8 @@ enum SubCommand {
-         #[arg(long, default_value_t = false)]
-         json: bool,
-     },
-+    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
-+    CloudToken,
-     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
-     Profile {
-         #[arg(long, default_value_t = false)]
-@@ -239,6 +241,7 @@ async fn main() -> ExitCode {
-         args.command,
-         SubCommand::Account { .. }
-             | SubCommand::Profile { .. }
-+            | SubCommand::CloudToken
-             | SubCommand::GameActivity { .. }
-             | SubCommand::Achievements { .. }
-             | SubCommand::Library { .. }
-@@ -304,6 +307,7 @@ async fn main() -> ExitCode {
-             }
-         },
-         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
-+        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
-         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
-         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
-         SubCommand::Login => commands::login::run(&client, &tokens).await,

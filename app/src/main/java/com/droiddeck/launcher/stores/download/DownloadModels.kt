@@ -31,6 +31,9 @@ data class DownloadEntry(
     val stageItemsTotal: Int = 0,
     val diskBytes: Long = 0L,
     val stagesPassed: Int = 0,
+    val interruptible: Boolean = true,
+    val reusedBytes: Long = 0L,
+    val appliedBytes: Long = 0L,
 ) {
     fun passed(s: DownloadStage): Boolean = state == DownloadState.INSTALLED || (stagesPassed and (1 shl s.ordinal)) != 0
 

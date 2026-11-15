@@ -6,20 +6,41 @@ import android.graphics.Bitmap
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
+import android.graphics.Rect
+import android.os.Process
+import android.os.UserHandle
+import android.os.UserManager
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import kotlin.math.roundToInt
 
 object HomeApp {
+    private const val ICON_DP = 72
+
     data class LaunchableApp(
         val label: String,
         val packageName: String,
         val className: String,
         val icon: Bitmap?,
-    )
+        val system: Boolean = false,
+        val game: Boolean = false,
+        val installedAt: Long = 0L,
+        val updatedAt: Long = 0L,
+        val user: UserHandle? = null,
+        val userSerial: Long = 0L,
+    ) {
+        val component get() = ComponentName(packageName, className)
+        val key get() = "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+        val work get() = userSerial != 0L
+    }
 
     fun isHomeScreenEnabled(context: Context): Boolean =
         context.packageManager.getComponentEnabledSetting(ComponentName(context, HomeActivity::class.java)) ==
@@ -69,33 +90,79 @@ object HomeApp {
     fun settingsIntent(): Intent = Intent(Settings.ACTION_HOME_SETTINGS)
 
     fun launchableApps(context: Context): List<LaunchableApp> {
+        val launcher = context.getSystemService(LauncherApps::class.java)
+        val users = context.getSystemService(UserManager::class.java)
         val pm = context.packageManager
-        val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps = pm.queryIntentActivities(launch, 0)
-            .asSequence()
-            .mapNotNull { result ->
-                val activity = result.activityInfo ?: return@mapNotNull null
-                if (!activity.exported || activity.packageName == context.packageName) return@mapNotNull null
-                val label = result.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { activity.packageName }
-                val icon = runCatching { result.loadIcon(pm).toBitmap(48, 48) }.getOrNull()
-                LaunchableApp(label, activity.packageName, activity.name, icon)
+        val own = Process.myUserHandle()
+        val iconPx = (ICON_DP * context.resources.displayMetrics.density).roundToInt()
+        val apps = users.userProfiles.flatMap { user ->
+            val serial = if (user == own) 0L else users.getSerialNumberForUser(user)
+            runCatching { launcher.getActivityList(null, user) }.getOrDefault(emptyList()).mapNotNull { info ->
+                val component = info.componentName
+                if (component.packageName == context.packageName && user == own) return@mapNotNull null
+                val label = info.label?.toString()?.trim().orEmpty().ifEmpty { component.packageName }
+                val icon = runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
+                val app = info.applicationInfo
+                val updated = if (user == own) runCatching { pm.getPackageInfo(component.packageName, 0).lastUpdateTime }.getOrNull() else null
+                @Suppress("DEPRECATION")
+                val game = app.category == ApplicationInfo.CATEGORY_GAME || app.flags and ApplicationInfo.FLAG_IS_GAME != 0
+                LaunchableApp(
+                    label, component.packageName, component.className, icon,
+                    system = app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    game = game,
+                    installedAt = info.firstInstallTime,
+                    updatedAt = updated ?: info.firstInstallTime,
+                    user = user,
+                    userSerial = serial,
+                )
             }
-            .distinctBy { it.packageName }
-            .toList()
-        return apps.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
+        }
+        return apps.distinctBy { it.key }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
     }
 
-    fun launch(context: Context, app: LaunchableApp, displayId: Int? = null) {
-        val intent = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(ComponentName(app.packageName, app.className))
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (displayId == null) {
-            context.startActivity(intent)
-            return
-        }
-        val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId)
-        context.startActivity(intent, options.toBundle())
+    fun launch(context: Context, app: LaunchableApp, displayId: Int? = null, bounds: Rect? = null) {
+        val options = displayId?.let { ActivityOptions.makeBasic().setLaunchDisplayId(it).toBundle() }
+        val launcher = context.getSystemService(LauncherApps::class.java)
+        launcher.startMainActivity(app.component, app.user ?: Process.myUserHandle(), bounds, options)
+    }
+
+    fun canUseShortcuts(context: Context): Boolean =
+        runCatching { context.getSystemService(LauncherApps::class.java).hasShortcutHostPermission() }.getOrDefault(false)
+
+    fun shortcuts(context: Context, app: LaunchableApp): List<ShortcutInfo> {
+        if (!canUseShortcuts(context)) return emptyList()
+        val query = LauncherApps.ShortcutQuery()
+            .setPackage(app.packageName)
+            .setActivity(app.component)
+            .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST)
+        return runCatching { context.getSystemService(LauncherApps::class.java).getShortcuts(query, app.user ?: Process.myUserHandle()) }
+            .getOrNull().orEmpty()
+            .filter { it.isEnabled }
+            .sortedWith(compareBy<ShortcutInfo> { if (it.isDeclaredInManifest) 0 else 1 }.thenBy { it.rank })
+            .take(5)
+    }
+
+    fun shortcutIcon(context: Context, info: ShortcutInfo, px: Int = (ICON_DP * context.resources.displayMetrics.density).roundToInt()): Bitmap? = runCatching {
+        context.getSystemService(LauncherApps::class.java)
+            .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
+    }.getOrNull()
+
+    fun startShortcut(context: Context, info: ShortcutInfo) {
+        context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+    }
+
+    fun openAppInfo(context: Context, app: LaunchableApp) {
+        context.getSystemService(LauncherApps::class.java)
+            .startAppDetailsActivity(app.component, app.user ?: Process.myUserHandle(), null, null)
+    }
+
+    fun canUninstall(app: LaunchableApp): Boolean = !app.system && !app.work
+
+    fun uninstall(context: Context, app: LaunchableApp) {
+        context.startActivity(
+            Intent(Intent.ACTION_DELETE, Uri.fromParts("package", app.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     fun isActiveSteamSession(): Boolean =

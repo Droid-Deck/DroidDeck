@@ -39,12 +39,16 @@ class X64SignInTest(unittest.TestCase):
         self.write(self.x64 / 'config/loginusers.vdf', '"users"\n{\n}\n')
         self.write(self.x64 / 'config/config.vdf', CONFIG % '')
         self.write(self.home / '.droiddeck-x64/.steam/registry.vdf', REGISTRY % '')
+        self.bin = self.home / 'bin'
+        self.bin.mkdir()
+        (self.bin / 'pgrep').write_text('#!/bin/sh\nexit 1\n')
+        (self.bin / 'pgrep').chmod(0o755)
 
     def write(self, path, text):
         path.write_text(text)
 
     def sync(self):
-        env = dict(os.environ, HOME=str(self.home))
+        env = dict(os.environ, HOME=str(self.home), PATH='%s:%s' % (self.bin, os.environ['PATH']))
         env.pop('XDG_DATA_HOME', None)
         env.pop('BL_X64_HOME', None)
         return subprocess.run(['bash', str(SCRIPT), '--sync-login'], env=env, capture_output=True, text=True, check=True)

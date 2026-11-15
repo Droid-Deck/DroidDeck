@@ -2,10 +2,13 @@ package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
+import java.io.Writer
 
 class SessionSteamLogsTest {
     @get:Rule val tmp = TemporaryFolder()
@@ -58,5 +61,38 @@ class SessionSteamLogsTest {
         val copied = SessionArtifacts.copySessionLogs(logs, tmp.newFolder("session"), out)
         assertEquals(listOf("web.txt"), names(copied))
         assertFalse(File(out, "web.txt").readText().contains("abcdef123456"))
+    }
+
+    @Test fun aCopyFailurePreservesThePreviousSnapshotAndRemovesPartialStaging() {
+        val logs = tmp.newFolder("logs")
+        val session = tmp.newFolder("session")
+        val out = tmp.newFolder("out")
+        File(logs, "console_log.txt").writeText("new complete line\n")
+        val snapshot = File(out, "console_log.txt").apply { writeText("previous valid snapshot\n") }
+        lateinit var staging: File
+
+        val copied = SessionArtifacts.copySessionLogs(logs, session, out) { target ->
+            staging = target
+            val delegate = target.bufferedWriter()
+            object : Writer() {
+                private var failed = false
+
+                override fun write(buffer: CharArray, offset: Int, length: Int) {
+                    if (!failed) {
+                        delegate.write(buffer, offset, minOf(length, 4))
+                        delegate.flush()
+                        failed = true
+                    }
+                    throw IOException("injected writer failure")
+                }
+
+                override fun flush() = delegate.flush()
+                override fun close() = delegate.close()
+            }
+        }
+
+        assertTrue(copied.isEmpty())
+        assertEquals("previous valid snapshot\n", snapshot.readText())
+        assertFalse(staging.exists())
     }
 }

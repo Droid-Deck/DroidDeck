@@ -799,13 +799,25 @@ x64_gpu_watch() {
   x64_gpu_probe
 }
 
+x64_arm_webhelper_cpu_supported() {
+  local status=0
+  # Valve's native ARM web helper contains LSE atomics; missing CPU data cannot establish incompatibility.
+  awk -F: '
+    $1 ~ /^[[:space:]]*Features[[:space:]]*$/ {
+      if ($2 !~ /(^|[[:space:]])atomics([[:space:]]|$)/) unsupported = 1
+    }
+    END { exit unsupported ? 1 : 0 }
+  ' /proc/cpuinfo 2>/dev/null || status=$?
+  [ "$status" != 1 ]
+}
+
 x64_exec() {
   x64_env
   cd "$STEAM_X64"
   # The client checksums its files at start and reinstalls over edited ones, so the session shim (preload/net.c)
   # swaps the web helper at exec. The arm64 helper only comes up against a client of the same build.
   if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
-     [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ]; then
+     [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ] && x64_arm_webhelper_cpu_supported; then
     local chan x86_build arm_build
     chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
     x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest" 2>/dev/null || true)

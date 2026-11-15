@@ -360,8 +360,10 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 when (d.state) {
                     DownloadState.RUNNING, DownloadState.QUEUED -> {
-                        RoundAction(Icons.Filled.Pause, stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(d.key) }
-                        CancelAction { DownloadQueue.cancel(ctx, d.key) }
+                        if (d.interruptible) {
+                            RoundAction(Icons.Filled.Pause, stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(d.key) }
+                            CancelAction { DownloadQueue.cancel(ctx, d.key) }
+                        }
                     }
                     DownloadState.PAUSED -> {
                         RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.resume(ctx, d.key) }

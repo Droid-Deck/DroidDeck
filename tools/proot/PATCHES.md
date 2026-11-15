@@ -39,8 +39,8 @@ Ported from WinNative (`main`, 53836ca9, "Fix/performance and vac"):
 - `0007-proc-self-thread-group.patch` - tracees track their thread group, `/proc/self` names it
   instead of the calling thread, and `/proc/thread-self` resolves to `/proc/<tgid>/task/<tid>`.
 - `0008-fchmodat2-openat2.patch` - `fchmodat2` paths are translated (honouring
-  `AT_SYMLINK_NOFOLLOW`), `openat2` answers `ENOSYS` so callers fall back to the translated
-  `openat`, and syscall numbers past the end of a table are rejected instead of read.
+  `AT_SYMLINK_NOFOLLOW`), and syscall numbers past the end of a table are rejected instead of read.
+  Its `openat2` answer is replaced by `0019`.
 - `0009-tracee-relatives-sweep.patch` - tracees count their children, so a terminating thread
   with no children or ptracees no longer walks every tracee; the per-stop memory collector is
   emptied instead of freed and reallocated.
@@ -113,6 +113,20 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   first tracee starts at `-w`'s, so relative lookups inside the tracee resolve where proot would.
   SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
   8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.
+
+- `0019-openat2-emulation.patch` - `openat2` without `resolve` flags runs as a translated `openat`
+  with the same flag and mode checks as the kernel. Any `resolve` flag still answers `ENOSYS`,
+  because PRoot cannot confine symlinks or mounts, so callers keep their own confined fallback.
+- `0022-fake-root-statx-owners.patch` - with `0013` dropping the `statx` exit stop, fake root never
+  rewrote the owner `statx` returns, so files read as owned by the app's uid while the process was
+  root. Rust's `metadata` and GNU `stat` use `statx`, so uutils' `test -w` (Ubuntu's `/usr/bin/test`)
+  said root could not write to its own directories and apt's AppStream hook never built Discover's
+  catalog. fake_id0 keeps that exit stop when it fakes ids; identity-only mode is unchanged.
+- `0023-reused-pid-new-child.patch` - when a thread that is not its process's leader calls `execve`,
+  the kernel retires that thread's ID without reporting an exit, so PRoot keeps its entry. Once the
+  IDs wrap (32768 on many Android kernels) a new child can get that ID, and PRoot aborted on the
+  assertion that a new child has no state, ending the whole session. Chromium-based programs such as
+  Steam's client do this. PRoot now retires the stale entry and sets the new child up from scratch.
 
 Old kernel fixes:
 

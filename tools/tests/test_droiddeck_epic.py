@@ -326,6 +326,15 @@ class SignInHandoffTest(EpicTestCase):
         self.assertEqual((None, None, "unix:abstract=a11y"),
                          (carried.get("NO_AT_BRIDGE"), carried.get("GTK_A11Y"), carried.get("AT_SPI_BUS_ADDRESS")))
 
+    def test_only_the_hidden_launcher_skips_the_store_and_fab_pages(self):
+        with mock.patch.dict(G, {"fex_environment": lambda fex, files, base: {}}):
+            visible = G["client_environment"]({}, None, None, ":0", "bus", "broker")
+            hidden = G["client_environment"]({}, None, None, ":2", "bus", "broker", hidden=True)
+        self.assertNotIn("DROIDDECK_EPIC_HIDDEN", visible)
+        self.assertNotIn("EGL_DISABLE_STORE_PREWARM", visible)
+        self.assertEqual(("1", "1"), (hidden.get("DROIDDECK_EPIC_HIDDEN"), hidden.get("EGL_DISABLE_STORE_PREWARM")))
+        self.assertEqual(visible["WEBKIT_SKIA_ENABLE_CPU_RENDERING"], hidden["WEBKIT_SKIA_ENABLE_CPU_RENDERING"])
+
     def session(self):
         session = G["Session"]("visible")
         session.carried = True
@@ -906,6 +915,20 @@ class BrokerTest(EpicTestCase):
         self.assertNotIn(G["STEAM_PRELOAD"], envs[0])
         self.assertNotIn("LD_PRELOAD", envs[1])
 
+
+    def test_a_game_started_by_the_hidden_launcher_does_not_inherit_its_page_switches(self):
+        folder = self.tmp / "Fig"
+        folder.mkdir()
+        envs = []
+
+        def popen(command, env=None, cwd=None, start_new_session=False):
+            envs.append(env)
+            return mock.Mock(wait=mock.Mock(return_value=0))
+
+        with mock.patch.object(subprocess, "Popen", popen):
+            G["run_game"]({"exe": str(folder / "Fig.exe"), "args": []}, dict(G["HIDDEN_ENV"], PATH="/usr/bin"))
+        self.assertFalse(set(G["HIDDEN_ENV"]) & set(envs[0]))
+        self.assertEqual("/usr/bin", envs[0]["PATH"])
     def test_an_owner_gone_ends_a_game_the_open_launcher_handed_to_steam(self):
         broker, _ = self.broker("visible")
         session = G["Session"]("visible")

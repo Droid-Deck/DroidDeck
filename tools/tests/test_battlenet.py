@@ -896,6 +896,27 @@ class LaunchTest(Harness):
         self.assertEqual(image.read_bytes(), b"BM1152x720")
         self.assertIn('"WallpaperStyle"="2"', (pfx / "user.reg").read_text())
 
+    def test_a_large_desktop_scales_battle_net_to_fit_it(self):
+        sizes = {("1280", "720"): 96, ("1920", "1080"): 96, ("2400", "1504"): 120, ("2448", "1848"): 120,
+                 ("1080", "2400"): 96, ("3840", "2160"): 192, ("2560", "1600"): 120}
+        for (width, height), want in sizes.items():
+            with mock.patch.dict(os.environ, {"BL_WIDTH": width, "BL_HEIGHT": height}):
+                self.assertEqual(BNET["desktop_dpi"](), want, (width, height))
+
+    def test_battle_nets_desktop_scale_is_written_once_and_follows_the_size(self):
+        self.install()
+        pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
+        (pfx / "user.reg").write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"LogPixels"=dword:00000060\n')
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720"}):
+            self.assertTrue(BNET["dpi"](self.root))
+        self.assertEqual((pfx / "user.reg").read_text().count("LogPixels"), 1)
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "2448", "BL_HEIGHT": "1848"}):
+            self.assertTrue(BNET["dpi"](self.root))
+            self.assertTrue(BNET["dpi"](self.root))
+        reg = (pfx / "user.reg").read_text()
+        self.assertEqual(reg.count('"LogPixels"=dword:00000078'), 1)
+        self.assertTrue(reg.rstrip().endswith('"LogPixels"=dword:00000078'))
+
     def test_an_open_battle_net_is_handed_the_game(self):
         self.install()
         up = self.clients()

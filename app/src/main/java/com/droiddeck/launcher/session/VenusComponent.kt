@@ -104,7 +104,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
                 "DROIDDECK_MALI_COMPAT=1",
                 "BL_VENUS=1",
                 // gamescope's composite layout without immutable YCbCr samplers from the start
-                // (patch 0130): a Mali-G615 refused every composite pipeline with them, and testing
+                // (patch 0930): a Mali-G615 refused every composite pipeline with them, and testing
                 // that through Venus took the render server down.
                 "GAMESCOPE_NO_YCBCR_SAMPLERS=1",
             )

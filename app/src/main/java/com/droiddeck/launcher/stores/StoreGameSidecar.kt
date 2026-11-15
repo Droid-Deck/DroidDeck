@@ -63,7 +63,7 @@ class StoreGameSidecar(
         val file = File(folder, FILE_NAME)
         val tmp = File(folder, "$FILE_NAME.tmp")
         tmp.writeText(toJson().toString(2))
-        if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
+        if (!tmp.renameTo(file)) java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
 
     companion object {
