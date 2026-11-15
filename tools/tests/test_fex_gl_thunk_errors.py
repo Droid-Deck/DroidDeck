@@ -160,6 +160,12 @@ int main(int argc, char** argv) {
 REAL_HARNESS = r"""
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <dlfcn.h>
+#include <GL/glx.h>
+#include <GL/glxext.h>
+#include <X11/Xmd.h>
+#include <GL/glxproto.h>
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -193,8 +199,13 @@ static Display* guest;
 static std::atomic<int> app_calls;
 static std::atomic<int> guest_calls;
 static unsigned long app_serial;
+static int app_error;
+static int app_minor;
+static std::atomic<bool> forwarding_started {false};
 
 static int guest_forward(void* display, guest_long resourceid, int error_code, int request_code, int minor_code) {
+  forwarding_started = true;
+  forwarding_started.notify_one();
   return ForwardXError(static_cast<Display*>(display), resourceid, error_code, request_code, minor_code);
 }
 
@@ -202,6 +213,8 @@ static int app_handler(Display* display, XErrorEvent* event) {
   if (display == guest) {
     guest_calls++;
     app_serial = event->serial;
+    app_error = event->error_code;
+    app_minor = event->minor_code;
   }
   app_calls++;
   return 0;
@@ -224,7 +237,7 @@ static bool host_usable_from_other_thread() {
   return true;
 }
 
-int main() {
+int main(int argc, char** argv) {
   XInitThreads();
   host = XOpenDisplay(nullptr);
   guest = XOpenDisplay(nullptr);
@@ -236,12 +249,63 @@ int main() {
   XSetErrorHandler(app_handler);
   fexfn_impl_libGL_GL_SetGuestXErrorForward(0, 0);
 
+  if (argc > 1) {
+    auto library = dlopen("libGL.so.1", RTLD_NOW | RTLD_LOCAL);
+    if (!library) {
+      return 3;
+    }
+    auto choose = reinterpret_cast<decltype(&glXChooseFBConfig)>(dlsym(library, "glXChooseFBConfig"));
+    auto get_proc = reinterpret_cast<decltype(&glXGetProcAddressARB)>(dlsym(library, "glXGetProcAddressARB"));
+    auto query = reinterpret_cast<decltype(&glXQueryExtension)>(dlsym(library, "glXQueryExtension"));
+    auto destroy = reinterpret_cast<decltype(&glXDestroyContext)>(dlsym(library, "glXDestroyContext"));
+    if (!choose || !get_proc || !query || !destroy) {
+      return 4;
+    }
+    auto create = reinterpret_cast<PFNGLXCREATECONTEXTATTRIBSARBPROC>(get_proc(
+      reinterpret_cast<const GLubyte*>("glXCreateContextAttribsARB")));
+    if (!create) {
+      return 5;
+    }
+    int error_base, event_base, count;
+    if (!query(host, &error_base, &event_base)) {
+      return 6;
+    }
+    const int config_attribs[] = {GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT, None};
+    auto configs = choose(host, DefaultScreen(host), config_attribs, &count);
+    if (!configs || count == 0) {
+      return 7;
+    }
+    const int supported[] = {GLX_CONTEXT_MAJOR_VERSION_ARB, 2, GLX_CONTEXT_MINOR_VERSION_ARB, 1, None};
+    auto initial = create(host, configs[0], nullptr, True, supported);
+    if (!initial) {
+      return 8;
+    }
+    destroy(host, initial);
+    if (strcmp(argv[1], "default") == 0) {
+      XSetErrorHandler(nullptr);
+      fexfn_impl_libGL_GL_SetGuestXErrorForward(0, 0);
+    }
+    const int unsupported[] = {GLX_CONTEXT_MAJOR_VERSION_ARB, 4, GLX_CONTEXT_MINOR_VERSION_ARB, 6, None};
+    auto rejected = create(host, configs[0], nullptr, True, unsupported);
+    XSync(host, False);
+    auto fallback = create(host, configs[0], nullptr, True, supported);
+    printf("valid_config=1 rejected=%d guest_errors=%d bad_fbconfig=%d minor_zero=%d fallback=%d\n",
+           rejected == nullptr, guest_calls.load(), app_error == error_base + GLXBadFBConfig,
+           app_minor == 0, fallback != nullptr);
+    if (fallback) {
+      destroy(host, fallback);
+    }
+    XFree(configs);
+    fflush(stdout);
+    _exit(0);
+  }
+
   std::atomic<bool> guest_held {false};
   std::atomic<bool> host_reached {false};
   std::thread contender([&] {
     XLockDisplay(guest);
     guest_held = true;
-    usleep(300000);
+    forwarding_started.wait(false);
     XNoOp(host);
     XFlush(host);
     host_reached = true;
@@ -354,18 +418,26 @@ class FexGlThunkErrorForwardRealXlibTest(FexGlThunkErrorForwardTest):
         cls.server.wait()
         super().tearDownClass()
 
-    def run_real(self):
+    def run_real(self, *args, expected_returncode=0):
         try:
-            result = subprocess.run([str(self.program)], capture_output=True, text=True, timeout=20,
-                                    env={**os.environ, "DISPLAY": self.display})
+            result = subprocess.run([str(self.program), *args], capture_output=True, text=True, timeout=20,
+                                    env={**os.environ, "DISPLAY": self.display, "LIBGL_ALWAYS_SOFTWARE": "1",
+                                         "MESA_GL_VERSION_OVERRIDE": "4.5"})
         except subprocess.TimeoutExpired:
             self.fail("the host error handler deadlocked")
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, expected_returncode, result.stderr)
         return result.stdout.strip()
 
     def test_real_error_reaches_the_program_while_another_thread_holds_its_display(self):
         self.assertEqual(self.run_real(),
                          "app_calls=1 guest_calls=1 host_reached=1 usable=1 serial_from_guest=1")
+
+    def test_valid_config_with_unsupported_version_reaches_handler_and_allows_fallback(self):
+        self.assertEqual(self.run_real("glx"),
+                         "valid_config=1 rejected=1 guest_errors=1 bad_fbconfig=1 minor_zero=1 fallback=1")
+
+    def test_program_without_error_handler_keeps_default_fatal_behavior(self):
+        self.run_real("default", expected_returncode=1)
 
     test_error_on_a_host_display_reaches_the_programs_handler = None
     test_forwarded_error_carries_the_programs_own_serial = None
