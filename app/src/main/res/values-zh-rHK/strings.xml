@@ -20,7 +20,7 @@
         <item>拖曳 DroidDeck HUD 可移動它，雙指捏合可調整大小，推到螢幕邊緣可停靠為小型 FPS 分頁。</item>
         <item>在雙螢幕掌機上，下方螢幕可以顯示下載、通知、截圖和 Steam 聊天。「交換螢幕」會改為把遊戲放到下方螢幕。</item>
         <item>可加入 SD 卡、USB 隨身碟或 SSD 上的 Steam 遊戲庫，DroidDeck 會把這些遊戲集中在你的收藏庫中。</item>
-        <item>「商店」讓你登入 GOG、itch.io、Battle.net、Amazon Games 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
+        <item>「商店」讓你登入 Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
         <item>FEX、DXVK 和 VKD3D-Proton 等元件會自動更新，預設使用 Proton Experimental ARM64，安裝 Proton 11.0 ARM64 後則預設使用它。</item>
         <item>「遊戲執行時壓縮 Steam」可在記憶體不足的裝置上釋放 RAM。</item>
         <item>從右邊緣向內滑動可開啟工作階段選單：觸控板模式、電腦鍵盤、低延遲、遊戲設定檔等。</item>

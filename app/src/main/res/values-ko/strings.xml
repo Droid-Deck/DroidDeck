@@ -20,7 +20,7 @@
         <item>DroidDeck HUD는 드래그해서 옮기고, 핀치해서 크기를 바꾸고, 화면 가장자리 밖으로 밀면 작은 FPS 탭으로 고정됩니다.</item>
         <item>듀얼 스크린 휴대용 기기에서는 아래쪽 화면에 다운로드, 알림, 스크린샷, Steam 채팅을 표시할 수 있습니다. 화면 바꾸기를 누르면 게임이 그쪽으로 옮겨집니다.</item>
         <item>SD 카드, USB 드라이브, SSD에서 Steam 라이브러리를 추가할 수 있으며, DroidDeck이 게임을 라이브러리에 함께 모아 줍니다.</item>
-        <item>스토어에서는 GOG, itch.io, Battle.net, Amazon Games, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
+        <item>스토어에서는 Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
         <item>FEX, DXVK, VKD3D-Proton 같은 구성 요소는 스스로 업데이트되며, 기본값은 Proton Experimental ARM64이고 Proton 11.0 ARM64 빌드가 설치되면 그쪽이 기본값이 됩니다.</item>
         <item>게임 실행 중 Steam 압축은 메모리가 부족한 기기에서 RAM을 확보해 줍니다.</item>
         <item>오른쪽 가장자리에서 안쪽으로 스와이프하면 세션 메뉴가 열립니다. 터치패드 모드, PC 키보드, 저지연 모드, 게임 프로필 등이 있습니다.</item>

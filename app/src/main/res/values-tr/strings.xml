@@ -20,7 +20,7 @@
         <item>DroidDeck HUD\'unu taşımak için sürükle, boyutlandırmak için iki parmakla yakınlaştır ve küçük bir FPS sekmesi olarak yuvalamak için kenara doğru it.</item>
         <item>Çift ekranlı el konsollarında alt ekran indirmeleri, bildirimleri, ekran görüntülerini ve Steam sohbetini gösterebilir. Ekranları değiştir oyunu bunun yerine alta koyar.</item>
         <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
-        <item>Mağazalar, GOG, itch.io, Battle.net, Amazon Games ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
+        <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
         <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
         <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
         <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>

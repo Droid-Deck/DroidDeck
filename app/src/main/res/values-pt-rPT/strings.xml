@@ -20,7 +20,7 @@
         <item>Arraste o HUD do DroidDeck para o mover, junte os dedos em pinça para o redimensionar e empurre-o para um limite do ecrã para o fixar como um pequeno separador de FPS.</item>
         <item>Em consolas portáteis com dois ecrãs, o ecrã de baixo pode mostrar transferências, notificações, capturas de ecrã e a conversa do Steam. Trocar ecrãs coloca lá o jogo.</item>
         <item>Adicione bibliotecas Steam de um cartão SD, unidade USB ou SSD, e o DroidDeck mantém os jogos juntos na sua Biblioteca.</item>
-        <item>Lojas permite iniciar sessão no GOG, itch.io, Battle.net, Amazon Games e Game Jolt, e depois instalar e atualizar os jogos deles a partir do DroidDeck.</item>
+        <item>Lojas permite iniciar sessão no Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, e depois instalar e atualizar os jogos deles a partir do DroidDeck.</item>
         <item>Componentes como FEX, DXVK e VKD3D-Proton atualizam-se sozinhos, e o Proton Experimental ARM64 é o predefinido, ou o Proton 11.0 ARM64 quando essa versão estiver instalada.</item>
         <item>Comprimir o Steam durante um jogo liberta RAM em dispositivos com pouca memória.</item>
         <item>Deslize a partir do limite direito para abrir o menu da sessão: modo de painel tátil, Teclado de PC, Modo de baixa latência, perfil do jogo e mais.</item>

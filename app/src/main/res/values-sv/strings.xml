@@ -20,7 +20,7 @@
         <item>Dra DroidDeck-HUD:en för att flytta den, nyp för att ändra storlek och skjut den över en kant för att docka den som en liten FPS-flik.</item>
         <item>På handhållna enheter med två skärmar kan nedre skärmen visa nedladdningar, aviseringar, skärmdumpar och Steam-chatt. Byt skärmar lägger spelet där nere i stället.</item>
         <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
-        <item>Butiker låter dig logga in på GOG, itch.io, Battle.net, Amazon Games och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
+        <item>Butiker låter dig logga in på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
         <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
         <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
         <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>

@@ -20,7 +20,7 @@
         <item>Siirrä DroidDeckin HUD vetämällä, muuta sen kokoa nipistämällä ja telakoi se pieneksi FPS-välilehdeksi työntämällä se reunan yli.</item>
         <item>Kaksinäyttöisissä käsikonsoleissa alanäyttö voi näyttää lataukset, ilmoitukset, kuvakaappaukset ja Steam-chatin. Vaihda näytöt siirtää pelin sinne.</item>
         <item>Lisää Steam-kirjastoja SD-kortilta, USB-asemalta tai SSD-levyltä, ja DroidDeck pitää pelit yhdessä Kirjastossasi.</item>
-        <item>Kaupat-osiossa voit kirjautua sisään palveluihin GOG, itch.io, Battle.net, Amazon Games ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
+        <item>Kaupat-osiossa voit kirjautua sisään palveluihin Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
         <item>Komponentit, kuten FEX, DXVK ja VKD3D-Proton, päivittyvät itsestään, ja oletuksena on Proton Experimental ARM64 tai Proton 11.0 ARM64, kun kyseinen versio on asennettu.</item>
         <item>Pakkaa Steam pelin ollessa käynnissä vapauttaa RAM-muistia laitteilla, joilla muisti on vähissä.</item>
         <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon: kosketuslevytila, PC-näppäimistö, matalan viiveen tila, pelin profiili ja muuta.</item>

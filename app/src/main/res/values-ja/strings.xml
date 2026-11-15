@@ -20,7 +20,7 @@
         <item>DroidDeckのHUDはドラッグで移動、ピンチでサイズ変更でき、画面の端へ押し出すと小さなFPSタブとしてドックされます。</item>
         <item>2画面のハンドヘルドでは、下の画面にダウンロード、通知、スクリーンショット、Steamチャットを表示できます。「画面を入れ替え」を使うと、代わりにゲームをそこに表示します。</item>
         <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
-        <item>ストアでは、GOG、itch.io、Battle.net、Amazon Games、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
+        <item>ストアでは、Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
         <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
         <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
         <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
