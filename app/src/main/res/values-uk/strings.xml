@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck не вдалося перезапуститися автоматично. Повністю закрийте додаток, а потім відкрийте його знову.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Під час першого запуску завантажується Steam. Це може зайняти кілька хвилин.</item>
-        <item>За замовчуванням вихід із додатка ставить Steam на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
-        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
+        <item>Під час першого запуску завантажується Steam. Це може тривати кілька хвилин.</item>
+        <item>Для Steam ваш контролер виглядає як контролер Steam Deck. У налаштуваннях сеансу його можна перемкнути на Steam Controller, DualShock 4, DualSense або Xbox 360; зміна діє з наступного сеансу.</item>
+        <item>Утримуйте «Назад» на контролері, щоб відкрити меню «Швидкий доступ» у Steam. У налаштуваннях сеансу має бути ввімкнено «Утримання «Назад» для комбінацій Steam».</item>
+        <item>«Робота у фоні» визначає, що станеться, коли ви залишите додаток: «Нативний» готує Steam до сну, «Авто» призупиняє його, «Вручну» чекає на «Відновити», «Ніколи» залишає його працювати.</item>
+        <item>Ігри Steam використовують «Обмеження кадрів» Steam у меню «Швидкий доступ». Якщо є частота оновлення, на яку обмеження ділиться націло, екран перемикається на неї.</item>
+        <item>«Режим низької затримки» в меню сеансу надсилає введення з контролера з частотою 1000 Гц замість 250 Гц, за трохи більше навантаження на CPU й акумулятор.</item>
+        <item>Кожна гра має власний профіль із Proton, FEX, компонентами та налаштуваннями середовища.</item>
+        <item>У меню сеансу є перемикач мікрофона для голосового чату та кнопка «Призупинити зараз», щоб заморозити сеанс будь-коли.</item>
+        <item>Перетягніть HUD DroidDeck, щоб перемістити його, зведіть пальці, щоб змінити розмір, а щоб закріпити його як невелику вкладку FPS, відсуньте його до краю.</item>
+        <item>На портативних пристроях із двома екранами нижній екран може показувати завантаження, сповіщення, знімки екрана та чат Steam. «Поміняти екрани» натомість переносить гру на нижній екран.</item>
+        <item>Додавайте бібліотеки Steam із SD-картки, USB-накопичувача чи SSD, і DroidDeck збере ігри разом у вашій «Бібліотеці».</item>
+        <item>«Магазини» дають змогу увійти в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io і Game Jolt, а потім установлювати й оновлювати їхні ігри з DroidDeck.</item>
+        <item>Компоненти, як-от FEX, DXVK і VKD3D-Proton, оновлюються самі, а типовою є Proton Experimental ARM64 або Proton 11.0 ARM64, щойно цю збірку встановлено.</item>
+        <item>«Стискати Steam під час гри» звільняє оперативну пам\'ять на пристроях, яким її бракує.</item>
+        <item>Проведіть від правого краю, щоб відкрити меню сеансу: режим сенсорної панелі, «Клавіатура ПК», низька затримка, профіль гри та інше.</item>
+        <item>Гра гальмує? Обмежте частоту кадрів у меню «Швидкий доступ», потім спробуйте іншу версію Proton або набір налаштувань FEX у компонентах гри.</item>
+        <item>Тріск або зникає звук у грі? Спробуйте перемикач «DirectAudio для ігор» у налаштуваннях Steam у розділі «Звук».</item>
+        <item>«Налаштування», а потім «Сховище» можуть очистити кеші шейдерів і залишені префікси від видалених ігор.</item>
+        <item>Натрапили на помилку? «Поділитися журналами» в меню сеансу збирає діагностику. Опублікуйте їх у #bug-reports на Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Під час першого запуску налаштовується робочий стіл. Це може зайняти кілька хвилин.</item>
-        <item>За замовчуванням вихід із додатка ставить сеанс на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
-        <item>Екран працює як сенсорна панель: проводьте пальцем, щоб рухати вказівник, і торкайтеся, щоб клацнути.</item>
-        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
+        <item>Під час першого запуску налаштовується робочий стіл. Це може тривати кілька хвилин.</item>
+        <item>Дотик працює як сенсорна панель: проведіть, щоб перемістити вказівник, торкніться, щоб клацнути.</item>
+        <item>«Робота у фоні» визначає, що станеться, коли ви залишите додаток: «Вручну» за замовчуванням чекає на «Відновити», «Авто» призупиняє, «Ніколи» залишає працювати.</item>
+        <item>Проведіть від правого краю, щоб відкрити меню сеансу, а потім виберіть «Клавіатура ПК», щоб вводити текст у додатках, які ігнорують клавіатуру Android.</item>
+        <item>«Клавіатура ПК» в меню сеансу має регульований розмір, непрозорість і групи клавіш.</item>
+        <item>Ваш контролер виглядає як геймпад Xbox 360. Інакше користуйтеся елементами керування на екрані.</item>
+        <item>У меню сеансу є перемикач мікрофона та кнопка «Призупинити зараз», щоб заморозити сеанс будь-коли.</item>
+        <item>Натрапили на помилку? «Поділитися журналами» в меню сеансу збирає діагностику. Опублікуйте їх у #bug-reports на Discord.</item>
     </string-array>
     <string name="session_channel">Сеанс</string>
     <string name="session_channel_description">Відображається, поки відкрито сеанс Steam або робочого столу</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Сенсорна панель</string>
     <string name="mode_touch_direct">Пряме</string>
     <string name="mode_touch_note">«Авто»: сенсорна панель на робочому столі, пряме введення в Steam.</string>
+    <string name="mode_pen">Перо</string>
+    <string name="mode_pen_mouse">Миша</string>
+    <string name="mode_pen_touch">Сенсорне введення</string>
+    <string name="mode_pen_button">Бічна кнопка</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">«Авто» показує екранне керування, коли контролер не під’єднано.</string>
@@ -608,6 +632,8 @@
     <string name="perf_cap_off">Вимк.</string>
     <string name="perf_cap_auto">Типово для драйвера</string>
     <string name="perf_zram_client">Стискати Steam під час гри</string>
+    <string name="perf_zram_idle">Стискати неактивну пам’ять гри</string>
+    <string name="perf_zram_idle_hint">Стискає неактивну пам’ять гри, коли мало RAM. Вимкніть, якщо ігри зависають на кілька секунд приблизно кожні пів хвилини. Застосовується під час наступного запуску сеансу.</string>
     <string name="perf_zram_client_hint">Через 20 с після запуску гри клієнт Steam стискається в zRAM, щоб залишити грі більше памʼяті, і зчитується назад, коли гра закривається. Вимкніть, якщо сеанс закривається невдовзі після запуску ігор. Ліміт RAM вище все одно стискає Steam, коли сеанс його перевищує.</string>
     <string name="perf_ram_cap">Ліміт RAM</string>
     <string name="perf_ram_cap_hint">Діє, поки працює клієнт Steam, у режимі Steam або з робочого столу. Коли сеанс використовує більше цього значення, Steam, а потім інші підтримувані процеси сеансу стискаються в zRAM. Мʼякий ліміт: нічого не закривається, але ігри можуть підвисати, поки сторінки повертаються.</string>
@@ -618,7 +644,7 @@
     <string name="perf_gpuclock_hint">Лише Adreno. Менше запинок, вища витрата заряду та нагрів.</string>
     <string name="perf_fixes">Виправлення сеансу</string>
     <string name="perf_sysmem">Turnip: рендеринг через sysmem</string>
-    <string name="perf_sysmem_hint">Швидше для клієнта Steam; в іграх драйвер для кожного проходу вибирає тайловий рендеринг або рендеринг у системній пам’яті. Потрібно для Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Застосовується до клієнта Steam та ігор. Потрібно для Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропускати помічник Steam xalia</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Програмна заміна драйвера ntsync ядра Linux у просторі користувача. Поки це увімкнено, Proton використовує її замість droiddeck-esync і droiddeck-fsync. Працює з Proton Experimental ARM64, GE-Proton і proton-cachyos. Застосовується в наступному сеансі.</string>
@@ -1872,6 +1898,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Очистити</string>
     <string name="game_sync_err_runtime">Спершу встановіть середовище</string>
     <string name="game_sync_err_steam_library">Бібліотека Steam недоступна</string>
     <string name="game_sync_err_previous_sd">Попередня бібліотека на SD-карті недоступна</string>
@@ -3915,8 +3942,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, клавіша Win і кнопка «Додому» працюють у сеансі</string>
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? «Про додаток» → ⋮ → «Дозволити обмежені налаштування»</string>
     <string name="integration_shortcuts_restricted">Заблоковано Android · «Про додаток» → ⋮ → «Дозволити обмежені налаштування»</string>
-    <string name="integration_shortcuts_service">Системні клавіші DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Залишає Alt+Tab, клавішу Win і кнопку «Додому» в активному сеансі DroidDeck, а не в Android.</string>
     <string name="integration_brightness_needed">Увімкніть «Яскравість» у «Налаштування → Інтеграція зі Steam»</string>
     <string name="setup_gpu_bridge_off">Міст Mali: вимк.</string>
     <string name="setup_gpu_bridge_unusable">%1$s не може використовувати міст Mali (для цього потрібен GPU Mali без маршруту через системний драйвер), тому цей перемикач тут не діє.</string>
@@ -4079,10 +4104,11 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+    <string name="epic_third_party_managed">Встановлюється через %1$s</string>
 
     <string name="theme_white_red">Багряний сніг</string>
     <string name="theme_white_red_detail">Білі поверхні з червоними акцентами.</string>
-    
+
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музика</string>
     <string name="soundtracks_options">Параметри відтворення</string>

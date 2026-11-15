@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck kunne ikke genstarte automatisk. Luk appen helt, og åbn den så igen.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Den første start downloader Steam. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter Steam på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
+        <item>Første kørsel downloader Steam. Det kan tage et par minutter.</item>
+        <item>Din controller vises i Steam som en Steam Deck-controller. Skift den til Steam Controller, DualShock 4, DualSense eller Xbox 360 i sessionsindstillingerne. Det gælder fra næste session.</item>
+        <item>Hold Tilbage nede på din controller for at åbne Steams Hurtig adgang-menu. Hold Tilbage for Steam-genveje skal være slået til i sessionsindstillingerne.</item>
+        <item>Baggrundsopførsel bestemmer, hvad der sker, når du forlader appen: Native gør Steam klar til dvale, Auto sætter det på pause, Manuel venter på Genoptag, Aldrig lader det køre.</item>
+        <item>Steam-spil bruger Steams Frame Limit i Hurtig adgang. Skærmen skifter til en opdateringsfrekvens, som grænsen går op i, hvis der findes en.</item>
+        <item>Lav forsinkelse i sessionsmenuen sender controllerinput med 1000 Hz i stedet for 250 Hz, til gengæld for lidt mere CPU og batteri.</item>
+        <item>Hvert spil har sin egen profil med Proton, FEX, komponenter og miljøindstillinger.</item>
+        <item>Sessionsmenuen har en mikrofonknap til stemmechat og en Sæt på pause nu-knap, der fryser sessionen efter behov.</item>
+        <item>Træk DroidDeck HUD for at flytte det, knib for at ændre størrelsen, og skub det ud mod en kant for at fæstne det som en lille FPS-fane.</item>
+        <item>På håndholdte med to skærme kan den nederste skærm vise downloads, notifikationer, skærmbilleder og Steam-chat. Byt skærme lægger i stedet spillet dernede.</item>
+        <item>Tilføj Steam-biblioteker fra et SD-kort, et USB-drev eller en SSD, så samler DroidDeck spillene i dit Bibliotek.</item>
+        <item>Butikker lader dig logge ind på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io og Game Jolt og derefter installere og opdatere deres spil fra DroidDeck.</item>
+        <item>Komponenter som FEX, DXVK og VKD3D-Proton opdaterer sig selv, og Proton Experimental ARM64 er standard, eller Proton 11.0 ARM64, når den version er installeret.</item>
+        <item>Komprimer Steam, mens et spil kører frigør RAM på enheder med lidt hukommelse.</item>
+        <item>Stryg ind fra højre kant for at åbne sessionsmenuen: touchpad-tilstand, PC-tastatur, Lav forsinkelse, spilprofil og mere.</item>
+        <item>Kører spillet langsomt? Begræns billedfrekvensen i Hurtig adgang, og prøv så en anden Proton-version eller FEX-forudindstilling i spillets komponenter.</item>
+        <item>Knitrende eller manglende lyd i spillet? Prøv kontakten DirectAudio til spil i Steam-indstillingerne under Lyd.</item>
+        <item>Opsætning og så Lager kan rydde shader-caches og overskydende præfikser fra spil, du har fjernet.</item>
+        <item>Har du ramt en fejl? Del logs i sessionsmenuen samler diagnostik. Send dem i #bug-reports på Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Den første start sætter skrivebordet op. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter sessionen på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Berøring fungerer som et touchpad: Træk for at flytte markøren, tryk for at klikke.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
+        <item>Første kørsel sætter skrivebordet op. Det kan tage et par minutter.</item>
+        <item>Touch fungerer som et touchpad: træk for at flytte markøren, tryk for at klikke.</item>
+        <item>Baggrundsopførsel bestemmer, hvad der sker, når du forlader appen: Manuel venter som standard på Genoptag, Auto sætter på pause, Aldrig lader det køre.</item>
+        <item>Stryg ind fra højre kant for at åbne sessionsmenuen, og vælg så PC-tastatur for at skrive i apps, der ignorerer Android-tastaturet.</item>
+        <item>PC-tastaturet i sessionsmenuen har justerbar størrelse, gennemsigtighed og tastgrupper.</item>
+        <item>Din controller vises som en Xbox 360-controller. Ellers kan du bruge betjeningen på skærmen.</item>
+        <item>Sessionsmenuen har en mikrofonknap og en Sæt på pause nu-knap, der fryser sessionen efter behov.</item>
+        <item>Har du ramt en fejl? Del logs i sessionsmenuen samler diagnostik. Send dem i #bug-reports på Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Vises, når en Steam- eller skrivebordssession er åben</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkte</string>
     <string name="mode_touch_note">Auto: touchpad på Skrivebord, direkte i Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_button">Sideknap</string>
     <string name="mode_osc">Kontroller på skærmen</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollerne, når ingen controller er tilsluttet.</string>
@@ -604,6 +628,8 @@
     <string name="perf_cap_off">Fra</string>
     <string name="perf_cap_auto">Driverstandard</string>
     <string name="perf_zram_client">Komprimer Steam, mens et spil kører</string>
+    <string name="perf_zram_idle">Komprimer spillets inaktive hukommelse</string>
+    <string name="perf_zram_idle_hint">Pager spillets inaktive hukommelse ud, når RAM er lav. Slå det fra, hvis spil fryser i et par sekunder cirka hvert halve minut. Træder i kraft, næste gang sessionen starter.</string>
     <string name="perf_zram_client_hint">20 s efter et spil starter, komprimeres Steam-klienten i zRAM for at give spillet mere hukommelse, og læses tilbage, når spillet lukkes. Slå fra, hvis sessionen lukker kort efter, at spil starter. En RAM-grænse ovenfor komprimerer stadig Steam, når sessionen overskrider den.</string>
     <string name="perf_ram_cap">RAM-grænse</string>
     <string name="perf_ram_cap_hint">Gælder, mens Steam-klienten kører, i Steam-tilstand eller fra skrivebordet. Når sessionen bruger mere end dette, komprimeres Steam og derefter sessionens andre understøttede processer i zRAM. En blød grænse: intet lukkes, men spil kan hakke, mens sider hentes tilbage.</string>
@@ -614,7 +640,7 @@
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Hurtigere til Steam-klienten; i spil vælger driveren flise- eller systemhukommelses-rendering for hvert pass. Påkrævet på Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Gælder Steam-klienten og spil. Påkrævet på Adreno 710/720/722.</string>
     <string name="perf_xalia">Spring Steams xalia-hjælper over</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">En stand-in til ntsync-driveren i Linux-kernen, i brugerrum. Mens den er til, bruger Proton den i stedet for droiddeck-esync og droiddeck-fsync. Fungerer med Proton Experimental ARM64, GE-Proton og proton-cachyos. Gælder fra næste session.</string>
@@ -1834,6 +1860,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Ryd</string>
     <string name="game_sync_err_runtime">Installer runtime først</string>
     <string name="game_sync_err_steam_library">Steam-biblioteket er ikke tilgængeligt</string>
     <string name="game_sync_err_previous_sd">Det tidligere SD-bibliotek er ikke tilgængeligt</string>
@@ -3837,8 +3864,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-tasten og Hjem-knappen bliver i sessionen</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_restricted">Blokeret af Android · Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
-    <string name="integration_shortcuts_service">DroidDeck-systemtaster</string>
-    <string name="integration_shortcuts_service_description">Holder Alt+Tab, Win-tasten og Hjem-knappen i en aktiv DroidDeck-session i stedet for Android.</string>
     <string name="integration_brightness_needed">Slå Lysstyrke til under Opsætning → Steam-integration</string>
     <string name="setup_gpu_bridge_off">Mali-bro: fra</string>
     <string name="setup_gpu_bridge_unusable">%1$s kan ikke bruge Mali-broen (den kræver en Mali-GPU uden en rute gennem systemdriveren), så denne kontakt har ingen virkning her.</string>
@@ -3999,10 +4024,11 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
+    <string name="epic_third_party_managed">Installeres via %1$s</string>
 
     <string name="theme_white_red">Skarlagensne</string>
     <string name="theme_white_red_detail">Hvide overflader med røde accenter.</string>
-    
+
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Afspilningsindstillinger</string>
