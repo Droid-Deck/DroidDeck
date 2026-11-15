@@ -280,7 +280,7 @@ private fun Content(
         return
     }
     if (selected == "games" || selected.startsWith("app:") || selected == "soundtracks" || selected.startsWith("sound:")) {
-        LibraryPage(s, a, selected, onSelect, modifier)
+        LibraryPage(s, a, selected, onSelect, modifier, onAndroidAppClick)
         return
     }
     if (selected == "desktop") {
