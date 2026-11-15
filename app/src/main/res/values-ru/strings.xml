@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Тачпад</string>
     <string name="mode_touch_direct">Прямой</string>
     <string name="mode_touch_note">Авто: тачпад для рабочего стола, прямой сенсорный ввод для Steam.</string>
+    <string name="mode_pen">Перо</string>
+    <string name="mode_pen_mouse">Мышь</string>
+    <string name="mode_pen_touch">Сенсорный ввод</string>
+    <string name="mode_pen_button">Боковая кнопка</string>
     <string name="mode_osc">Экранные элементы управления</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматический режим показывает экранные элементы управления, если контроллер не подключен.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Только для Adreno. Меньше подтормаживаний, но больше энергопотребления и нагрева.</string>
     <string name="perf_fixes">Исправления сессии</string>
     <string name="perf_sysmem">Turnip: рендеринг sysmem</string>
-    <string name="perf_sysmem_hint">Клиент Steam будет быстрее; в играх драйвер для каждого прохода выбирает тайловый рендеринг или рендеринг в системной памяти. Требуется для Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Применяется к клиенту Steam и играм. Требуется на Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропустить помощник xalia в Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Замена драйвера ntsync Linux в пространстве пользователя. Пока включено, Proton использует ее вместо droiddeck-esync и droiddeck-fsync. Работает с Proton Experimental ARM64, GE-Proton и proton-cachyos. Вступит в силу в следующей сессии.</string>
@@ -4079,10 +4083,11 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+    <string name="epic_third_party_managed">Устанавливается через %1$s</string>
 
     <string name="theme_white_red">Алый снег</string>
     <string name="theme_white_red_detail">Белые поверхности с красными акцентами.</string>
-    
+
     <string name="rail_soundtracks">Саундтреки</string>
     <string name="rail_music">Музыка</string>
     <string name="soundtracks_options">Параметры воспроизведения</string>

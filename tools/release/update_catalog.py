@@ -184,8 +184,12 @@ def source_meta(source: GitHub, repo: str, ref: str):
     return code, version, variants, signer
 
 
-def asset_for_suffix(assets: list[dict], suffix: str, all_suffixes: list[str]):
+def asset_for_suffix(assets: list[dict], suffix: str, all_suffixes: list[str], commit: str = ""):
     others = [s for s in all_suffixes if s and s != suffix]
+    # A test build's release briefly holds the previous push's APKs too; the one named for this commit wins.
+    current = f"-{commit[:7].lower()}{suffix}.apk" if len(commit) >= 7 else None
+    if current:
+        assets = sorted(assets, key=lambda a: not (a.get("name") or "").lower().endswith(current))
     for asset in assets:
         name = asset.get("name", "")
         if not name.endswith(f"{suffix}.apk"):
@@ -220,7 +224,7 @@ def release_entry(
     suffixes = [suffix for _, suffix in variants]
     apks = {}
     for package, suffix in variants:
-        asset = asset_for_suffix(release.get("assets") or [], suffix, suffixes)
+        asset = asset_for_suffix(release.get("assets") or [], suffix, suffixes, commit)
         if not asset:
             continue
         asset.update(
@@ -246,24 +250,30 @@ def release_entry(
     }
 
 
+def complete_apks(preview: dict, variants: list[tuple[str, str]]) -> bool:
+    apks = preview.get("apks") or {}
+    return set(apks) == {package for package, _ in variants} and all(
+        SHA256.fullmatch((apk.get("sha256") or "").lower()) and SHA256.fullmatch((apk.get("signerSha256") or "").lower())
+        for apk in apks.values()
+    )
+
+
+def newest_complete(ordered: list[dict], variants: list[tuple[str, str]]) -> dict | None:
+    """The Preview to offer and to judge merges by: the newest one whose APKs have all been uploaded."""
+    return next((p for p in ordered if complete_apks(p, variants)), None)
+
+
 def preview_history_entry(release: dict, preview: dict, variants: list[tuple[str, str]]):
     tag = release.get("tag_name") or ""
     tag_match = MAIN_TAG.fullmatch(tag)
     commit = (preview.get("commit") or "").lower()
-    expected_packages = {package for package, _ in variants}
-    apks = preview.get("apks") or {}
     if (
         release.get("draft")
         or not release.get("prerelease")
         or not tag_match
         or not re.fullmatch(r"[0-9a-f]{40}", commit)
         or not commit.startswith(tag_match.group(1))
-        or set(apks) != expected_packages
-        or any(
-            not SHA256.fullmatch((apk.get("sha256") or "").lower())
-            or not SHA256.fullmatch((apk.get("signerSha256") or "").lower())
-            for apk in apks.values()
-        )
+        or not complete_apks(preview, variants)
     ):
         return None
     return {
@@ -341,6 +351,38 @@ class Cache:
         return self.commits[sha]
 
 
+MERGED_GRACE_DAYS = 3
+
+
+def in_preview(source: GitHub, repo: str, pull: dict, preview_commit: str | None, now_millis: int | None = None) -> bool:
+    """Whether the newest Preview build was built from a main that already holds the PR's merge.
+
+    A merge that main's build skips (documentation only) never reaches a Preview build, so after
+    MERGED_GRACE_DAYS it counts as carried anyway.
+    """
+    merge = pull.get("merge_commit_sha") or ""
+    merged_at = iso_millis(pull.get("merged_at"))
+    if not merged_at or not merge:
+        return False
+    now = now_millis if now_millis is not None else int(time.time() * 1000)
+    if now - merged_at > MERGED_GRACE_DAYS * 86_400_000:
+        return True
+    if not preview_commit:
+        return False
+    try:
+        status = source.get(f"/repos/{repo}/compare/{q(merge)}...{q(preview_commit)}").get("status")
+    except ApiError:
+        return False
+    return status in ("ahead", "identical")
+
+
+def keeps_test_build(pull: dict) -> bool:
+    """An open PR keeps its test build; a merged one keeps it until a Preview build carries the merge."""
+    if pull.get("draft") or (pull.get("base") or {}).get("ref") != "main":
+        return False
+    return pull.get("state") == "open" or bool(pull.get("merged_at"))
+
+
 def unique_previews(previews: list[dict]) -> list[dict]:
     ordered = sorted(previews, key=lambda r: (r.get("committedAt") or r["publishedAt"], r["publishedAt"]), reverse=True)
     result = []
@@ -381,6 +423,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
     previews = []
     preview_history = []
     tests = []
+    merged_pulls: dict[int, dict | None] = {}
     for release in releases:
         if release.get("draft"):
             continue
@@ -421,7 +464,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
             pull = source.get(f"/repos/{source_repo}/pulls/{pr}")
         except ApiError:
             continue
-        if pull.get("state") != "open" or pull.get("draft") or pull.get("base", {}).get("ref") != "main":
+        if not keeps_test_build(pull):
             continue
         commit = release_body_value(body, "Commit")
         if not commit or not re.fullmatch(r"[0-9a-f]{7,40}", commit):
@@ -443,6 +486,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
             except (ApiError, KeyError):
                 pass
         title, summary = ci_description(release)
+        merged_pulls[pr] = pull if pull.get("state") != "open" else None
         tests.append(
             release_entry(
                 release,
@@ -468,6 +512,9 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
         )
 
     ordered = unique_previews(previews)
+    usable = newest_complete(ordered, main_variants)
+    newest = usable["commit"] if usable else None
+    tests = [t for t in tests if not (merged_pulls.get(t["pr"]) and in_preview(source, source_repo, merged_pulls[t["pr"]], newest))]
     tests.sort(key=lambda r: r["publishedAt"], reverse=True)
     return {
         "schema": 1,
@@ -476,7 +523,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
         "generatedAt": int(time.time() * 1000),
         "mainVersionCode": main_code,
         "stable": stable,
-        "preview": ordered[0] if ordered else None,
+        "preview": usable,
         "recentPreviews": recent_previews(preview_history),
         "previews": ordered,
         "tests": tests,

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">لوحة اللمس</string>
     <string name="mode_touch_direct">مباشر</string>
     <string name="mode_touch_note">تلقائي: لوحة لمس على سطح المكتب، ولمس مباشر في Steam.</string>
+    <string name="mode_pen">القلم</string>
+    <string name="mode_pen_mouse">الفأرة</string>
+    <string name="mode_pen_touch">اللمس</string>
+    <string name="mode_pen_button">الزر الجانبي</string>
     <string name="mode_osc">عناصر التحكم على الشاشة</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">يعرض الخيار «تلقائي» عناصر التحكم عند عدم توصيل وحدة تحكم.</string>
@@ -622,7 +626,7 @@
     <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
-    <string name="perf_sysmem_hint">أسرع لعميل Steam؛ في الألعاب يختار برنامج التشغيل بين العرض المقسّم إلى مربعات والعرض في ذاكرة النظام لكل مرحلة. مطلوب على Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">ينطبق على عميل Steam والألعاب. مطلوب على Adreno 710/720/722.</string>
     <string name="perf_xalia">تجاوز مساعد xalia في Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">بديل في مساحة المستخدم لبرنامج تشغيل ntsync في Linux. أثناء تفعيله، يستخدمه Proton بدلًا من droiddeck-esync وdroiddeck-fsync. يعمل مع Proton Experimental ARM64 وGE-Proton وproton-cachyos. يُطبَّق في الجلسة التالية.</string>
@@ -4159,10 +4163,11 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+    <string name="epic_third_party_managed">يُثبّت عبر %1$s</string>
 
     <string name="theme_white_red">ثلج قرمزي</string>
     <string name="theme_white_red_detail">أسطح بيضاء مع لمسات حمراء.</string>
-    
+
     <string name="rail_soundtracks">الموسيقى التصويرية</string>
     <string name="rail_music">الموسيقى</string>
     <string name="soundtracks_options">خيارات التشغيل</string>

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkt</string>
     <string name="mode_touch_note">Auto: Touchpad auf dem Desktop, direkt in Steam.</string>
+    <string name="mode_pen">Stift</string>
+    <string name="mode_pen_mouse">Maus</string>
+    <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_button">Seitentaste</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>
@@ -614,7 +618,7 @@
     <string name="perf_gpuclock_hint">Nur Adreno. Weniger Ruckler, mehr Akkuverbrauch und Wärme.</string>
     <string name="perf_fixes">Sitzungskorrekturen</string>
     <string name="perf_sysmem">Turnip: Sysmem-Rendering</string>
-    <string name="perf_sysmem_hint">Schneller für den Steam-Client; in Spielen wählt der Treiber pro Durchgang zwischen Kachel- und Systemspeicher-Rendering. Erforderlich bei Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Gilt für den Steam-Client und Spiele. Erforderlich bei Adreno 710/720/722.</string>
     <string name="perf_xalia">Steams xalia-Helfer überspringen</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Ein Userspace-Ersatz für den Linux-Treiber ntsync. Solange er aktiv ist, nutzt Proton ihn statt droiddeck-esync und droiddeck-fsync. Funktioniert mit Proton Experimental ARM64, GE-Proton und proton-cachyos. Gilt ab der nächsten Sitzung.</string>
@@ -3999,10 +4003,11 @@
     <string name="input_reset_positions">Positionen zurücksetzen</string>
     <string name="input_show_label">Beschriftung anzeigen</string>
     <string name="input_layout_import_failed">Dieses Layout konnte nicht importiert werden</string>
+    <string name="epic_third_party_managed">Wird über %1$s installiert</string>
 
     <string name="theme_white_red">Scharlachroter Schnee</string>
     <string name="theme_white_red_detail">Weiße Oberflächen mit roten Akzenten.</string>
-    
+
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Wiedergabeoptionen</string>

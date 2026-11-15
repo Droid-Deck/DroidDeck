@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Přímé</string>
     <string name="mode_touch_note">Automaticky: touchpad na Ploše, přímo ve Steamu.</string>
+    <string name="mode_pen">Pero</string>
+    <string name="mode_pen_mouse">Myš</string>
+    <string name="mode_pen_touch">Dotyk</string>
+    <string name="mode_pen_button">Boční tlačítko</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>
@@ -618,7 +622,7 @@
     <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>
     <string name="perf_sysmem">Turnip: vykreslování sysmem</string>
-    <string name="perf_sysmem_hint">Rychlejší pro klienta Steam; ve hrách ovladač pro každý průchod volí dlaždicové vykreslování, nebo vykreslování v systémové paměti. Vyžadováno na Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Platí pro klienta Steam i hry. Vyžadováno na Adreno 710/720/722.</string>
     <string name="perf_xalia">Vynechat Steamova pomocníka xalia</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Uživatelská náhrada linuxového ovladače ntsync. Když je zapnuto, Proton ho používá místo droiddeck-esync a droiddeck-fsync. Funguje s Proton Experimental ARM64, GE-Proton a proton-cachyos. Použije se od příští relace.</string>
@@ -4079,10 +4083,11 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
+    <string name="epic_third_party_managed">Instaluje se přes %1$s</string>
 
     <string name="theme_white_red">Šarlatový sníh</string>
     <string name="theme_white_red_detail">Bílé povrchy s červenými akcenty.</string>
-    
+
     <string name="rail_soundtracks">Soundtracky</string>
     <string name="rail_music">Hudba</string>
     <string name="soundtracks_options">Možnosti přehrávání</string>

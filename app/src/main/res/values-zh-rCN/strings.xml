@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">触控板</string>
     <string name="mode_touch_direct">直接</string>
     <string name="mode_touch_note">自动：桌面用触控板，Steam 中用直接触摸。</string>
+    <string name="mode_pen">手写笔</string>
+    <string name="mode_pen_mouse">鼠标</string>
+    <string name="mode_pen_touch">触摸</string>
+    <string name="mode_pen_button">侧键</string>
     <string name="mode_osc">屏幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自动模式会在未连接手柄时显示屏幕控制。</string>
@@ -612,7 +616,7 @@
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
-    <string name="perf_sysmem_hint">Steam 客户端更快；游戏中驱动会为每个渲染通道选择分块渲染或系统内存渲染。Adreno 710/720/722 必需。</string>
+    <string name="perf_sysmem_hint">适用于 Steam 客户端和游戏。Adreno 710/720/722 必需。</string>
     <string name="perf_xalia">跳过 Steam 的 xalia 助手</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linux ntsync 驱动的用户态替代品。开启时，Proton 使用它代替 droiddeck-esync 和 droiddeck-fsync。适用于 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。将在下次会话生效。</string>
@@ -3969,10 +3973,11 @@
     <string name="input_reset_positions">重置位置</string>
     <string name="input_show_label">显示标签</string>
     <string name="input_layout_import_failed">无法导入此布局</string>
+    <string name="epic_third_party_managed">通过 %1$s 安装</string>
 
     <string name="theme_white_red">猩红之雪</string>
     <string name="theme_white_red_detail">白色界面配红色点缀。</string>
-    
+
     <string name="rail_soundtracks">原声音乐</string>
     <string name="rail_music">音乐</string>
     <string name="soundtracks_options">播放选项</string>

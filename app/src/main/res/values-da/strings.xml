@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkte</string>
     <string name="mode_touch_note">Auto: touchpad på Skrivebord, direkte i Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_button">Sideknap</string>
     <string name="mode_osc">Kontroller på skærmen</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollerne, når ingen controller er tilsluttet.</string>
@@ -614,7 +618,7 @@
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Hurtigere til Steam-klienten; i spil vælger driveren flise- eller systemhukommelses-rendering for hvert pass. Påkrævet på Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Gælder Steam-klienten og spil. Påkrævet på Adreno 710/720/722.</string>
     <string name="perf_xalia">Spring Steams xalia-hjælper over</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">En stand-in til ntsync-driveren i Linux-kernen, i brugerrum. Mens den er til, bruger Proton den i stedet for droiddeck-esync og droiddeck-fsync. Fungerer med Proton Experimental ARM64, GE-Proton og proton-cachyos. Gælder fra næste session.</string>
@@ -3999,10 +4003,11 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
+    <string name="epic_third_party_managed">Installeres via %1$s</string>
 
     <string name="theme_white_red">Skarlagensne</string>
     <string name="theme_white_red_detail">Hvide overflader med røde accenter.</string>
-    
+
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Afspilningsindstillinger</string>

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Тъчпад</string>
     <string name="mode_touch_direct">Директно</string>
     <string name="mode_touch_note">Автоматично: тъчпад на работния плот, директно в Steam.</string>
+    <string name="mode_pen">Писалка</string>
+    <string name="mode_pen_mouse">Мишка</string>
+    <string name="mode_pen_touch">Докосване</string>
+    <string name="mode_pen_button">Страничен бутон</string>
     <string name="mode_osc">Екранни контроли</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>
@@ -614,7 +618,7 @@
     <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
     <string name="perf_sysmem">Turnip: рендиране sysmem</string>
-    <string name="perf_sysmem_hint">По-бързо за клиента на Steam; в игрите драйверът избира за всеки проход между рендериране на плочки и в системната памет. Задължително на Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Прилага се за клиента на Steam и игрите. Изисква се при Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропускане на помощника xalia на Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Заместител на потребителско ниво за драйвера ntsync на Linux. Докато е включен, Proton го използва вместо droiddeck-esync и droiddeck-fsync. Работи с Proton Experimental ARM64, GE-Proton и proton-cachyos. Прилага се от следващата сесия.</string>
@@ -3999,10 +4003,11 @@
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>
+    <string name="epic_third_party_managed">Инсталира се чрез %1$s</string>
 
     <string name="theme_white_red">Ален сняг</string>
     <string name="theme_white_red_detail">Бели повърхности с червени акценти.</string>
-    
+
     <string name="rail_soundtracks">Саундтраци</string>
     <string name="rail_music">Музика</string>
     <string name="soundtracks_options">Опции за възпроизвеждане</string>

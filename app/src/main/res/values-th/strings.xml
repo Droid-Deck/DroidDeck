@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">ทัชแพด</string>
     <string name="mode_touch_direct">โดยตรง</string>
     <string name="mode_touch_note">อัตโนมัติ: ทัชแพดในเดสก์ท็อป โดยตรงใน Steam</string>
+    <string name="mode_pen">ปากกา</string>
+    <string name="mode_pen_mouse">เมาส์</string>
+    <string name="mode_pen_touch">การสัมผัส</string>
+    <string name="mode_pen_button">ปุ่มด้านข้าง</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
@@ -612,7 +616,7 @@
     <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
     <string name="perf_sysmem">Turnip: การเรนเดอร์ sysmem</string>
-    <string name="perf_sysmem_hint">เร็วขึ้นสำหรับไคลเอนต์ Steam ในเกมไดรเวอร์จะเลือกการเรนเดอร์แบบไทล์หรือในหน่วยความจำระบบในแต่ละพาส จำเป็นสำหรับ Adreno 710/720/722</string>
+    <string name="perf_sysmem_hint">ใช้กับไคลเอนต์ Steam และเกม จำเป็นสำหรับ Adreno 710/720/722</string>
     <string name="perf_xalia">ข้ามตัวช่วย xalia ของ Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">ตัวแทนในระดับยูสเซอร์สเปซของไดรเวอร์ ntsync ของ Linux เมื่อเปิดใช้ Proton จะใช้สิ่งนี้แทน droiddeck-esync และ droiddeck-fsync ใช้ได้กับ Proton Experimental ARM64, GE-Proton และ proton-cachyos จะมีผลในเซสชันถัดไป</string>
@@ -3969,10 +3973,11 @@
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>
+    <string name="epic_third_party_managed">ติดตั้งผ่าน %1$s</string>
 
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     <string name="theme_white_red_detail">พื้นผิวสีขาวมีสีแดงเป็นสีเน้น</string>
-    
+
     <string name="rail_soundtracks">ซาวด์แทร็ก</string>
     <string name="rail_music">เพลง</string>
     <string name="soundtracks_options">ตัวเลือกการเล่น</string>

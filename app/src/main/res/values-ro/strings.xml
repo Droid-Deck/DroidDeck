@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Automat: touchpad pe Desktop, direct în Steam.</string>
+    <string name="mode_pen">Stilou</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Atingere</string>
+    <string name="mode_pen_button">Buton lateral</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
@@ -616,7 +620,7 @@
     <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
     <string name="perf_sysmem">Turnip: randare sysmem</string>
-    <string name="perf_sysmem_hint">Mai rapidă pentru clientul Steam; în jocuri, driverul alege la fiecare trecere între randarea pe dale și cea în memoria sistemului. Necesară pe Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Se aplică clientului Steam și jocurilor. Necesară pe Adreno 710/720/722.</string>
     <string name="perf_xalia">Omite asistentul xalia al Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un substitut la nivel de utilizator pentru driverul Linux ntsync. Cât timp este activ, Proton îl folosește în locul droiddeck-esync și droiddeck-fsync. Funcționează cu Proton Experimental ARM64, GE-Proton și proton-cachyos. Se aplică la sesiunea următoare.</string>
@@ -4039,10 +4043,11 @@
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>
+    <string name="epic_third_party_managed">Se instalează prin %1$s</string>
 
     <string name="theme_white_red">Zăpadă stacojie</string>
     <string name="theme_white_red_detail">Suprafețe albe cu accente roșii.</string>
-    
+
     <string name="rail_soundtracks">Coloane sonore</string>
     <string name="rail_music">Muzică</string>
     <string name="soundtracks_options">Opțiuni de redare</string>

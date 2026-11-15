@@ -297,6 +297,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto: touchpad on Desktop, direct in Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>
@@ -642,7 +646,7 @@
     <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
-    <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
     <string name="perf_xalia">Skip Steam\'s xalia helper</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
@@ -766,6 +770,13 @@
     <string name="hud_reset_button">Reset</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
+    <string name="screen_effects_target">Edit profile</string>
+    <string name="screen_effects_target_hint">Choose which profile to change screen effects for.</string>
+    <string name="screen_effects_target_auto">Current session (automatic)</string>
+    <string name="screen_effects_reset">Reset effects</string>
+    <string name="screen_effects_reset_hint">Restore the default-off effect values for this profile.</string>
+    <string name="screen_effects_delete">Delete saved override</string>
+    <string name="screen_effects_delete_hint">Remove saved effects for this game so it inherits the Default profile.</string>
     <string name="drawer_effects">Screen effects</string>
     <string name="drawer_effects_hint">Live. Costs a little GPU time while any effect is on.</string>
     <string name="drawer_look">Presets</string>
@@ -1182,6 +1193,8 @@
     <string name="rail_agent">Agent</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent is working</string>
+    <string name="agent_drawer_inline">Compact chat in the session drawer</string>
+    <string name="agent_drawer_inline_hint">The model, usage and menu share the message row, leaving more room for the conversation</string>
     <string name="agent_tools">MCP servers and skills</string>
     <string name="agent_tools_servers">MCP servers</string>
     <string name="agent_tools_skills">Skills in ~/.claude/skills</string>
@@ -3338,7 +3351,7 @@
     <string name="hand_camera_done">Done</string>
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
-    <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura.</string>
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
@@ -4068,7 +4081,12 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+    <string name="epic_third_party_managed">Installs through %1$s</string>
 
+    <string name="theme_true_black">True black</string>
+    <string name="theme_true_black_detail">Pure black page and panels, so an OLED screen switches those pixels off. You pick the highlight color.</string>
+    <string name="theme_true_black_highlight">Highlight</string>
+    <string name="theme_true_black_highlight_hint">The color of everything selected.</string>
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="rail_soundtracks">Soundtracks</string>
