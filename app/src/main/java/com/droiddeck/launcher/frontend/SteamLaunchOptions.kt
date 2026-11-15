@@ -13,6 +13,8 @@ import java.nio.file.StandardCopyOption
 object SteamLaunchOptions {
     private const val TAG = "SteamLaunchOptions"
     private val STEAM = listOf("UserLocalConfigStore", "Software", "Valve", "Steam")
+    // Steam keeps per-game settings such as UseSteamControllerConfig in the root apps section, and launch options under Software/Valve/Steam.
+    private val ROOT = listOf("UserLocalConfigStore")
 
     fun current(context: Context, appId: Int): String? =
         SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId)
@@ -49,18 +51,21 @@ object SteamLaunchOptions {
     internal fun steamAppSetting(steamHome: File, appId: Int, key: String, default: String): String? {
         val config = AddedGames.accountConfig(steamHome) ?: return null
         val text = runCatching { File(config, "localconfig.vdf").readText() }.getOrNull() ?: return null
-        if (section(text, STEAM) == null) return null
-        return appValue(text, appId, key) ?: default
+        if (section(text, ROOT) == null) return null
+        return settingValue(text, appId, key) ?: default
     }
+
+    private fun settingValue(text: String, appId: Int, key: String): String? =
+        appValue(text, appId, key, ROOT) ?: appValue(text, appId, key, STEAM)
 
     internal fun writeSteamAppSetting(
         steamHome: File, appId: Int, key: String, expected: String, value: String?, default: String,
     ): Boolean {
         val config = AddedGames.accountConfig(steamHome)?.let { File(it, "localconfig.vdf") } ?: return false
         val text = runCatching { config.readText() }.getOrNull() ?: return false
-        if (section(text, STEAM) == null || (appValue(text, appId, key) ?: default) != expected) return false
-        val updated = (if (value == null) withoutAppValue(text, appId, key) else withAppValue(text, appId, key, value))
-            ?: return false
+        if (section(text, ROOT) == null || (settingValue(text, appId, key) ?: default) != expected) return false
+        val updated = (if (value == null) withoutAppValue(text, appId, key, ROOT) else withAppValue(text, appId, key, value, ROOT))
+            ?.let { withoutAppValue(it, appId, key, STEAM) } ?: return false
         return writeConfig(config, text, updated)
     }
 
@@ -86,8 +91,8 @@ object SteamLaunchOptions {
         return appValue(text, appId, "LaunchOptions")
     }
 
-    private fun appValue(text: String, appId: Int, key: String): String? {
-        val app = section(text, STEAM + "apps" + appId.toString()) ?: return null
+    private fun appValue(text: String, appId: Int, key: String, base: List<String> = STEAM): String? {
+        val app = section(text, base + "apps" + appId.toString()) ?: return null
         return entries(text, app.valueStart, app.end).firstOrNull { !it.section && it.key.equals(key, true) }
             ?.let { unescape(text.substring(it.valueStart + 1, it.end)) }
     }
@@ -95,10 +100,10 @@ object SteamLaunchOptions {
     internal fun withLaunchOptions(text: String, appId: Int, options: String): String? =
         withAppValue(text, appId, "LaunchOptions", options)
 
-    private fun withAppValue(text: String, appId: Int, key: String, rawValue: String): String? {
+    private fun withAppValue(text: String, appId: Int, key: String, rawValue: String, base: List<String> = STEAM): String? {
         val newline = if (text.contains("\r\n")) "\r\n" else "\n"
         var updated = text
-        var path = STEAM
+        var path = base
         for (pathPart in listOf("apps", appId.toString())) {
             updated = withSection(updated, section(updated, path) ?: return null, pathPart, newline) ?: return null
             path = path + pathPart
@@ -113,8 +118,8 @@ object SteamLaunchOptions {
         return updated.substring(0, lineStart) + indent + "\"${escape(key)}\"\t\t" + value + newline + updated.substring(lineStart)
     }
 
-    private fun withoutAppValue(text: String, appId: Int, key: String): String {
-        val app = section(text, STEAM + "apps" + appId.toString()) ?: return text
+    private fun withoutAppValue(text: String, appId: Int, key: String, base: List<String> = STEAM): String {
+        val app = section(text, base + "apps" + appId.toString()) ?: return text
         val entry = entries(text, app.valueStart, app.end).firstOrNull { !it.section && it.key.equals(key, true) } ?: return text
         val lineStart = text.lastIndexOf('\n', entry.start - 1) + 1
         val lineEnd = text.indexOf('\n', entry.end + 1).let { if (it < 0) text.length else it }

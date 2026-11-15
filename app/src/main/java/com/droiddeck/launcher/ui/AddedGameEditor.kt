@@ -33,6 +33,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -331,10 +332,28 @@ internal fun SteamInputOverridePanel(appId: Int) {
     var saving by remember(appId) { mutableStateOf(false) }
     var loading by remember(appId) { mutableStateOf(true) }
     var error by remember(appId) { mutableStateOf<Int?>(null) }
+    var saves by remember(appId) { mutableIntStateOf(0) }
+    // SessionState.running is not snapshot state, so the panel polls it while shown.
+    val sessionRunning by produceState(SessionState.running) {
+        while (true) {
+            value = SessionState.running
+            kotlinx.coroutines.delay(1000)
+        }
+    }
 
     LaunchedEffect(appId, version) {
-        selected = withContext(Dispatchers.IO) { SteamInputOverride.current(app, appId) }
+        val savesAtStart = saves
+        val read = withContext(Dispatchers.IO) { SteamInputOverride.current(app, appId) }
+        // A save that finished while this read ran already set the selection; the read may predate it.
+        if (!saving && saves == savesAtStart) selected = read
         loading = false
+    }
+    LaunchedEffect(sessionRunning) {
+        if (!sessionRunning && error == R.string.edit_steam_input_running) {
+            error = null
+            loading = true
+            version++
+        }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, appId) {
@@ -361,7 +380,6 @@ internal fun SteamInputOverridePanel(appId: Int) {
             color = colors.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
         )
-        val sessionRunning = SessionState.running
         choices.forEach { (mode, label) ->
             MenuItem(
                 stringResource(label),
@@ -378,8 +396,10 @@ internal fun SteamInputOverridePanel(appId: Int) {
                             SteamInputOverride.Saved.NO -> R.string.edit_steam_input_not_saved
                             SteamInputOverride.Saved.RUNNING -> R.string.edit_steam_input_running
                         }
-                        if (saved == SteamInputOverride.Saved.YES) selected = mode
-                        else version++
+                        if (saved == SteamInputOverride.Saved.YES) {
+                            saves++
+                            selected = mode
+                        } else version++
                     } finally {
                         saving = false
                     }
