@@ -31,7 +31,11 @@ object AgentHost {
         data class Said(val text: String) : Entry
         data class Thought(val text: String) : Entry
         /** A tool call; [output] stays null until its result arrives. */
-        data class Used(val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false) : Entry
+        /** [background]: the call starts work that can wake the CLI after its turn (run_in_background, Monitor). */
+        data class Used(
+            val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null,
+            val failed: Boolean = false, val background: Boolean = false,
+        ) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
         /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
         data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null, val planned: Boolean = false) : Entry
@@ -147,6 +151,8 @@ object AgentHost {
     private var turnPlanned = false
     private var loaded = false
     private var appContext: Context? = null
+    /** A tool call in this CLI process started work that can wake it after its turn (run_in_background). */
+    private var launchedBackground = false
 
     val turnPid: Int get() = turn?.pid ?: 0
 
@@ -398,6 +404,8 @@ object AgentHost {
     /** Ends the CLI process kept between turns, and with it whatever it still runs in the background. */
     private fun dropSession() {
         main.removeCallbacks(reap)
+        launchedBackground = false
+        appContext?.let { AgentHostService.backgroundDone(it) }
         val kept = session ?: return
         session = null
         AgentProcesses.killTree(kept.pid)
@@ -522,7 +530,7 @@ object AgentHost {
         state = State.IDLE
         unseen = true
         failed = error != null
-        AgentHostService.stop(app)
+        if (session != null && launchedBackground) AgentHostService.waitForBackground(app) else AgentHostService.stop(app)
         // Claude Code now and then ends a resumed turn at once without reading the message; nothing
         // happened, so the message is sent once more.
         val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
@@ -552,6 +560,7 @@ object AgentHost {
 
     private fun record(app: Context, entry: Entry) {
         if (!AgentChats.merge(entries, entry)) return
+        if (entry is Entry.Used && entry.background) launchedBackground = true
         chat?.let { AgentChats.append(AgentChats.file(app, it), entry) }
     }
 

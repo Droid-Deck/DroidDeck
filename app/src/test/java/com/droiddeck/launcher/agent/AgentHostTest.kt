@@ -88,6 +88,15 @@ class AgentHostTest {
         assertEquals("API Error: overloaded", event.backgroundError)
     }
 
+    @Test fun aToolCallThatRunsInTheBackgroundIsMarked() {
+        fun used(tool: String, input: String) = ClaudeCode.parse(
+            """{"type":"assistant","session_id":"s","message":{"content":[{"type":"tool_use","id":"t","name":"$tool","input":$input}]}}"""
+        )!!.entries.single() as Entry.Used
+        assertTrue(used("Bash", """{"command":"./gradlew test","run_in_background":true}""").background)
+        assertFalse(used("Bash", """{"command":"ls"}""").background)
+        assertTrue(used("Monitor", """{"command":"tail -f log"}""").background)
+    }
+
     @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {
         val first = ClaudeCode.turn("hi", null, AgentHarness.Options())
         assertTrue("bypassPermissions" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)

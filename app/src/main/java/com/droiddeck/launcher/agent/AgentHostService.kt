@@ -55,6 +55,23 @@ class AgentHostService : Service() {
             if (awaiting == 0) context.stopService(Intent(context, AgentHostService::class.java))
         }
 
+        /**
+         * The turn has ended but its CLI process stays open with background work that can wake it; the app must stay
+         * alive to read that answer, so the service keeps running until the process is dropped.
+         */
+        @Volatile private var waiting = false
+
+        fun waitForBackground(context: Context) {
+            waiting = true
+            if (started) update(context) else start(context)
+        }
+
+        fun backgroundDone(context: Context) {
+            if (!waiting) return
+            waiting = false
+            if (AgentHost.state != AgentHost.State.WORKING) stop(context)
+        }
+
         fun setupStarted(context: Context) {
             setupSteps++
             start(context)
@@ -80,7 +97,8 @@ class AgentHostService : Service() {
             AgentSetup.detail[AgentSetup.Step.GITHUB]?.takeIf {
                 AgentSetup.status[AgentSetup.Step.GITHUB] == AgentSetup.Status.WORKING && it.startsWith("GitHub device code:")
             }?.let { return it }
-            if (AgentHost.state != AgentHost.State.WORKING) return context.getString(R.string.agent_setting_up)
+            if (AgentHost.state != AgentHost.State.WORKING)
+                return context.getString(if (waiting && setupSteps == 0) R.string.agent_waiting_background else R.string.agent_setting_up)
             val tool = AgentHost.running()
             val elapsed = minutes((SystemClock.elapsedRealtime() - AgentHost.turnStarted) / 1000)
             return if (tool != null) "${tool.tool} · ${tool.detail}".take(120) + " · $elapsed" else context.getString(R.string.agent_thinking_for, elapsed)

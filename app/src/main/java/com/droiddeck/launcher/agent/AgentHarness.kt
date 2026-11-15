@@ -142,7 +142,10 @@ object ClaudeCode : AgentHarness {
                         "thinking" -> block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
                         "tool_use" -> {
                             val input = block.optJSONObject("input")
-                            AgentHost.Entry.Used(block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input))
+                            AgentHost.Entry.Used(
+                                block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input),
+                                background = input?.optBoolean("run_in_background") == true || block.optString("name") == "Monitor",
+                            )
                         }
                         else -> null
                     }
