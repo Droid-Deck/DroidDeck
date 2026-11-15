@@ -42,20 +42,15 @@ static int is_trace_marker(const char *path) {
           || strcmp(path, "/sys/kernel/debug/tracing/trace_marker") == 0);
 }
 
-int open(const char *path, int flags, ...) {
-  va_list ap;
-  mode_t mode;
+static int open_from(const char *path, int flags, mode_t mode, const void *caller) {
   int fd;
 
-  va_start(ap, flags);
-  mode = va_arg(ap, mode_t);
-  va_end(ap);
   if (is_trace_marker(path)) {
     errno = EACCES;
     return -1;
   }
   path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
-  if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
+  if ((fd = bl_status_without_tracer(path, flags, caller)) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
   if ((fd = bl_venc_open(path, flags)) != -2) return fd;
   if ((fd = bl_vdec_open(path, flags)) != -2) return fd;
@@ -70,20 +65,15 @@ int open(const char *path, int flags, ...) {
   return fd;
 }
 
-int openat(int dirfd, const char *path, int flags, ...) {
-  va_list ap;
-  mode_t mode;
+static int openat_from(int dirfd, const char *path, int flags, mode_t mode, const void *caller) {
   int fd;
 
-  va_start(ap, flags);
-  mode = va_arg(ap, mode_t);
-  va_end(ap);
   if (is_trace_marker(path)) {
     errno = EACCES;
     return -1;
   }
   path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
-  if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
+  if ((fd = bl_status_without_tracer(path, flags, caller)) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
   if ((fd = bl_venc_open(path, flags)) != -2) return fd;
   if ((fd = bl_vdec_open(path, flags)) != -2) return fd;
@@ -98,5 +88,47 @@ int openat(int dirfd, const char *path, int flags, ...) {
   return fd;
 }
 
+int open(const char *path, int flags, ...) {
+  va_list ap;
+  mode_t mode;
+
+  va_start(ap, flags);
+  mode = va_arg(ap, mode_t);
+  va_end(ap);
+  return open_from(path, flags, mode, __builtin_return_address(0));
+}
+
+int openat(int dirfd, const char *path, int flags, ...) {
+  va_list ap;
+  mode_t mode;
+
+  va_start(ap, flags);
+  mode = va_arg(ap, mode_t);
+  va_end(ap);
+  return openat_from(dirfd, path, flags, mode, __builtin_return_address(0));
+}
+
+#ifdef __OFF_T_MATCHES_OFF64_T
 int open64(const char *path, int flags, ...) __attribute__((alias("open")));
 int openat64(int dirfd, const char *path, int flags, ...) __attribute__((alias("openat")));
+#else
+int open64(const char *path, int flags, ...) {
+  va_list ap;
+  mode_t mode;
+
+  va_start(ap, flags);
+  mode = va_arg(ap, mode_t);
+  va_end(ap);
+  return open_from(path, flags | O_LARGEFILE, mode, __builtin_return_address(0));
+}
+
+int openat64(int dirfd, const char *path, int flags, ...) {
+  va_list ap;
+  mode_t mode;
+
+  va_start(ap, flags);
+  mode = va_arg(ap, mode_t);
+  va_end(ap);
+  return openat_from(dirfd, path, flags | O_LARGEFILE, mode, __builtin_return_address(0));
+}
+#endif
