@@ -45,6 +45,11 @@ object OnScreenLayout {
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
         elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
 
+    fun editorFrame(layout: SavedInputLayout, displayed: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val byId = displayed.associateBy { it.id }
+        return layout.elements.map { byId[it.id] ?: it }
+    }
+
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
         val w = width.toFloat()
         val h = height.toFloat()
@@ -84,7 +89,8 @@ object OnScreenLayout {
             val aspectSize = layout.aspect.takeIf { layout.id == InputLibraries.OVERLAY && it > 0f }
                 ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
             for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
-                if (matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements())) return (w.toFloat() to h.toFloat()) to true
+                val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
+                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
             }
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)

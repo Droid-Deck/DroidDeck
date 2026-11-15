@@ -59,7 +59,7 @@ import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionState
 
 private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
-    val clicks: Map<String, InputAction>, val scale: Float)
+    val clicks: Map<String, InputAction>, val scale: Float, val aspect: Float)
 
 private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
@@ -83,6 +83,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var clickProperties by mutableStateOf(false)
     var history by mutableStateOf<List<SurfaceSnapshot>>(emptyList())
     var layoutScale by mutableFloatStateOf(layout.scale)
+    var aspect by mutableFloatStateOf(layout.aspect)
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
     private val rescales get() = gamepad != null && elements.any { it.id in gamepad.ids }
@@ -94,9 +95,14 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(it) })
         ?.takeIf { it != elements || rescales && layoutScale != 1f }
     val element get() = elements.firstOrNull { it.id == selected }
-    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
-    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale)).takeLast(40) }
-    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; history = history.dropLast(1) } }
+    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
+    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
+    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
+    fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float) {
+        checkpoint()
+        elements = OnScreenLayout.editorFrame(layout, displayed)
+        this.aspect = aspect
+    }
     fun scaleAll(percent: Int) {
         val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (rescales) layoutScale else 0f).also { checkpoint() }
         val factor = percent / 100f
@@ -111,10 +117,6 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
-
-@Suppress("DEPRECATION")
-private fun displayAspect(display: Display): Float? = android.util.DisplayMetrics().also(display::getRealMetrics)
-    .takeIf { it.widthPixels > 0 && it.heightPixels > 0 }?.let { (it.widthPixels.toFloat() / it.heightPixels).coerceIn(.05f, 20f) }
 
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
@@ -153,7 +155,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements, aspect = target?.let(::displayAspect) ?: l.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
@@ -256,7 +258,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
             view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
-            view.onBeginEdit = draft::checkpoint
+            view.onBeginEdit = draft::beginEdit
             view.onChange = { e -> if (!draft.properties) draft.elements = draft.elements.map { if (it.id == e.id) e else it } }
 
         })

@@ -176,7 +176,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
     }
 
 
-    fun elements(): List<InputSurfaceElement> {
+    fun elements(previousStickGeometry: Boolean = false): List<InputSurfaceElement> {
         fit = fitScale()
         controls.forEach { it.radius = scaled(it.radiusDp) }
         placeAuto(width.toFloat(), height.toFloat())
@@ -189,7 +189,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         }.map { c ->
             InputSurfaceElement(requireNotNull(InputControl.fromId(c.id)), (c.cx - c.halfW) / width, (c.cy - c.halfH) / height,
                 2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks,
-                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let(::widenStick).bounded()
+                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let { if (previousStickGeometry) widenStickPreviously(it) else widenStick(it) }.bounded()
         }.toMutableList()
         if (settings.keyboardButton) result += keyboard()
         return result
@@ -313,6 +313,15 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val cx = centreX + ((e.x + e.width / 2f) * width - centreX) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
         val cy = centreY + ((e.y + e.height / 2f) * height - centreY) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
         return e.copy(x = (cx - radius) / width, y = (cy - radius) / height, width = 2 * radius / width, height = 2 * radius / height)
+    }
+
+    private fun widenStickPreviously(e: InputSurfaceElement): InputSurfaceElement {
+        val extra = e.width * (STICK_REACH - 1f)
+        return when (e.control) {
+            InputControl.LS -> (e.x - extra).coerceAtLeast(0f).let { x -> e.copy(x = x, width = e.x + e.width - x) }
+            InputControl.RS -> e.copy(width = (e.width + extra).coerceAtMost(1f - e.x))
+            else -> e
+        }
     }
 
     private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {

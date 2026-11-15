@@ -30,7 +30,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var selected: String? = null
         set(value) { field = value; invalidate() }
     var onSelect: (String?) -> Unit = {}
-    var onBeginEdit: () -> Unit = {}
+    var onBeginEdit: (List<InputSurfaceElement>, Float) -> Unit = { _, _ -> }
     var onChange: (InputSurfaceElement) -> Unit = {}
     private val preview = InputSurfaceView(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 159, 255); strokeWidth = 2 * resources.displayMetrics.density }
@@ -42,7 +42,6 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     private var dragging = false
 
     private var visibleElements: List<InputSurfaceElement> = emptyList()
-    private var edited = false
 
     init {
         setBackgroundColor(Color.rgb(10, 11, 13))
@@ -51,7 +50,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
 
     private fun refreshElements() {
         visibleElements = sourceLayout?.let { layout ->
-            OnScreenLayout.editorElements(context, layout.copy(elements = elements), width, height, edited)
+            OnScreenLayout.editorElements(context, layout.copy(elements = elements), width, height, elements != layout.elements)
         } ?: elements
         preview.updateCustomLayout(visibleElements)
     }
@@ -100,7 +99,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             MotionEvent.ACTION_MOVE -> {
                 val e = original ?: return true
                 if (!dragging && abs(event.x - downX) + abs(event.y - downY) > ViewConfiguration.get(context).scaledTouchSlop) {
-                    dragging = true; onBeginEdit()
+                    dragging = true; onBeginEdit(visibleElements, width.toFloat() / height)
                 }
                 if (!dragging) return true
                 val dx = (event.x - downX) / width; val dy = (event.y - downY) / height
@@ -116,7 +115,6 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
                     9 * resources.displayMetrics.density / height, corner) else null
                 if (aligned != null && (aligned.x != null && aligned.x != guideX || aligned.y != null && aligned.y != guideY)) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 guideX = aligned?.x; guideY = aligned?.y
-                edited = true
                 onChange(aligned?.element ?: next)
                 invalidate()
             }

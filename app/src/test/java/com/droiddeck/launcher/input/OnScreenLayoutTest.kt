@@ -56,6 +56,40 @@ class OnScreenLayoutTest {
         assertEquals(LegacyGamepadLayout(context, 2048, 1200).regenerate(saved.elements), placed)
     }
 
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun previouslyGeneratedEdgeSticksRegenerateWithoutOverridingCustomGeometry() {
+        val w = 2608
+        val h = 1200
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
+        val generator = LegacyGamepadLayout(context, w, h)
+        val old = generator.elements(previousStickGeometry = true)
+        val current = generator.elements()
+        assertTrue(old.filter { it.control == InputControl.LS || it.control == InputControl.RS }.zip(current.filter { it.control == InputControl.LS || it.control == InputControl.RS }).any { (a, b) -> kotlin.math.abs(a.width - b.width) > .01f })
+        val saved = gamepad().copy(elements = old, aspect = w.toFloat() / h)
+        assertEquals(LegacyGamepadLayout(context, 2048, h).regenerate(old), OnScreenLayout.elements(context, saved, 2048, h, Rect()))
+        val custom = saved.copy(elements = old.map { if (it.id == "legacy:a") it.copy(x = .4f) else it })
+        assertEquals(OnScreenLayout.fit(custom.elements, custom.aspect, 1f, 2048, h, Rect()), OnScreenLayout.elements(context, custom, 2048, h, Rect()))
+    }
+
+    @Test fun savingTheEditorFrameKeepsEveryControlWhereTheEditorShowsIt() {
+        val w = 2608
+        val h = 1200
+        val layout = SavedInputLayout("custom", "Custom", listOf(
+            InputSurfaceElement(InputControl.A, .1f, .2f, .1f, .2f, "custom:a"),
+            InputSurfaceElement(InputControl.B, .7f, .6f, .1f, .2f, "custom:b")), aspect = 16f / 9f)
+        val displayed = OnScreenLayout.editorElements(context, layout, w, h, edited = true)
+        val moved = displayed.map { if (it.id == "custom:a") it.copy(x = .4f) else it }
+        val frame = OnScreenLayout.editorFrame(layout, moved + InputSurfaceElement(InputControl.X, .5f, .5f, .1f, .1f, "builtin:keyboard"))
+        assertEquals(layout.elements.map { it.id }, frame.map { it.id })
+        val saved = layout.copy(elements = frame, aspect = w.toFloat() / h)
+        val game = OnScreenLayout.elements(context, saved, w, h, Rect())
+        val editor = OnScreenLayout.editorElements(context, saved, w, h, edited = true)
+        for (shown in moved) {
+            assertArrayEquals(px(shown, w, h), px(game.first { it.id == shown.id }, w, h), .001f)
+            assertArrayEquals(px(shown, w, h), px(editor.first { it.id == shown.id }, w, h), .001f)
+        }
+    }
+
     @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
         val layout = gamepad()
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
