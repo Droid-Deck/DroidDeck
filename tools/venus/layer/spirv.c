@@ -984,6 +984,15 @@ static bool available_in_1_3(const struct module *m, const struct newer_feature 
 
 #define AVAILABLE(m, table, value) available_in_1_3(m, table, sizeof(table) / sizeof(table[0]), value)
 
+static bool declares_capability(const struct module *m, uint32_t capability)
+{
+    for (size_t i = 5; i < m->first_declaration; i += LENGTH(m->w[i])) {
+        if (OPCODE(m->w[i]) == SpvOpCapability && LENGTH(m->w[i]) >= 2 && m->w[i + 1] == capability)
+            return true;
+    }
+    return false;
+}
+
 static uint32_t image_operands_at(uint32_t op)
 {
     switch (op) {
@@ -1065,7 +1074,16 @@ static bool valid_in_1_3(const struct module *m, size_t i)
     case SpvOpDecorate:
     case SpvOpDecorateId:
     case SpvOpDecorateString:
-        return length >= 3 && AVAILABLE(m, newer_decorations, m->w[i + 2]);
+        if (length < 3 || !AVAILABLE(m, newer_decorations, m->w[i + 2]))
+            return false;
+        if (m->w[i + 2] == SpvDecorationNonWritable) {
+            size_t d = definition(m, m->w[i + 1]);
+            if (!d || (OPCODE(m->w[d]) == SpvOpVariable &&
+                       (LENGTH(m->w[d]) < 4 || m->w[d + 3] == SpvStorageClassPrivate ||
+                        m->w[d + 3] == SpvStorageClassFunction)))
+                return false;
+        }
+        return true;
     case SpvOpMemberDecorate:
     case SpvOpMemberDecorateString:
         return length >= 4 && AVAILABLE(m, newer_decorations, m->w[i + 3]);
@@ -1073,6 +1091,10 @@ static bool valid_in_1_3(const struct module *m, size_t i)
         return length >= 4 && !(m->w[i + 3] & NEWER_LOOP_CONTROLS);
     case SpvOpSelect:
         return length >= 6 && selects_scalar_vector_or_pointer(m, m->w[i + 1]);
+    case SpvOpSpecConstantOp:
+        return length >= 5 && (m->w[i + 3] != SpvOpUConvert ||
+                               declares_capability(m, SpvCapabilityKernel) ||
+                               declares_extension(m, "SPV_AMD_gpu_shader_int16"));
     case SpvOpExtInstImport:
         return length >= 3 && (!names_prefix(&m->w[i + 2], length - 2, "NonSemantic.") ||
                                declares_extension(m, "SPV_KHR_non_semantic_info"));

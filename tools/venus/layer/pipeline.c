@@ -430,6 +430,8 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
     VkGraphicsPipelineCreateInfo *copies = calloc(count, sizeof(*copies));
     struct pipeline_rewrite *rewrites = calloc(count, sizeof(*rewrites));
     if (count && (!copies || !rewrites)) {
+        for (uint32_t i = 0; i < count; i++)
+            pipelines[i] = VK_NULL_HANDLE;
         free(copies);
         free(rewrites);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -454,6 +456,8 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(VkDevice device, VkPipelin
     VkComputePipelineCreateInfo *copies = calloc(count, sizeof(*copies));
     struct pipeline_rewrite *rewrites = calloc(count, sizeof(*rewrites));
     if (count && (!copies || !rewrites)) {
+        for (uint32_t i = 0; i < count; i++)
+            pipelines[i] = VK_NULL_HANDLE;
         free(copies);
         free(rewrites);
         return VK_ERROR_OUT_OF_HOST_MEMORY;

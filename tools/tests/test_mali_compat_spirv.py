@@ -37,13 +37,16 @@ class MaliCompatSpirvTest(unittest.TestCase):
             extension = Path(tmp) / "extension.spv"
             scalar = Path(tmp) / "scalar.spv"
             debug = Path(tmp) / "debug.spv"
+            private_readonly = Path(tmp) / "private-readonly.spv"
+            converted = Path(tmp) / "converted.spv"
             built = subprocess.run(
                 [compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-UNDEBUG",
                  "-pthread", "-Dcalloc=test_calloc", "-I", str(LAYER), "-I", str(vulkan), "-I", str(spirv),
                  str(HARNESS), str(LAYER / "spirv.c"), str(LAYER / "pipeline.c"), "-o", str(program)],
                 capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar), str(debug)],
+            ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar), str(debug),
+                                  str(private_readonly), str(converted)],
                                  capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("mali compat spirv ok", ran.stdout)
@@ -55,6 +58,27 @@ class MaliCompatSpirvTest(unittest.TestCase):
             validator = shutil.which("spirv-val")
             if not validator:
                 return
+            for original in (private_readonly, converted):
+                checked = subprocess.run([validator, "--target-env", "vulkan1.3", str(original)],
+                                         capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+                downgraded = bytearray(original.read_bytes())
+                downgraded[4:8] = (0x00010300).to_bytes(4, "little")
+                offset = 20
+                while True:
+                    instruction = int.from_bytes(downgraded[offset:offset + 4], "little")
+                    length, opcode = instruction >> 16, instruction & 0xffff
+                    if opcode == 15:
+                        downgraded[offset:offset + 4] = (((length - 1) << 16) | opcode).to_bytes(4, "little")
+                        del downgraded[offset + (length - 1) * 4:offset + length * 4]
+                        break
+                    offset += length * 4
+                original.write_bytes(downgraded)
+                checked = subprocess.run([validator, "--target-env", "vulkan1.1", str(original)],
+                                         capture_output=True, text=True)
+                self.assertNotEqual(checked.returncode, 0, "the 1.3 form must be rejected")
+                expected = "NonWritable" if original == private_readonly else "UConvert"
+                self.assertIn(expected, checked.stdout + checked.stderr)
             for lowered in (module, guest, extension, scalar, debug):
                 checked = subprocess.run([validator, "--target-env", "vulkan1.1", str(lowered)],
                                          capture_output=True, text=True)

@@ -365,12 +365,18 @@ static void check_pipelines(void)
     driver_calls = 0;
     failed_allocations = 0;
     fail_allocations = true;
-    VkResult compute_result = CreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute, NULL, &pipeline);
-    VkResult graphics_result = CreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphics, NULL, &pipeline);
+    VkPipeline compute_outputs[2] = {(VkPipeline)(uintptr_t)1, (VkPipeline)(uintptr_t)2};
+    VkPipeline graphics_outputs[2] = {(VkPipeline)(uintptr_t)1, (VkPipeline)(uintptr_t)2};
+    VkResult compute_result = CreateComputePipelines(device, VK_NULL_HANDLE, 2, &compute, NULL, compute_outputs);
+    VkResult graphics_result = CreateGraphicsPipelines(device, VK_NULL_HANDLE, 2, &graphics, NULL, graphics_outputs);
     fail_allocations = false;
     check(failed_allocations > 0, "the allocations were made to fail");
     check(compute_result == VK_ERROR_OUT_OF_HOST_MEMORY, "a compute pipeline without memory reports it");
     check(graphics_result == VK_ERROR_OUT_OF_HOST_MEMORY, "a graphics pipeline without memory reports it");
+    check(compute_outputs[0] == VK_NULL_HANDLE && compute_outputs[1] == VK_NULL_HANDLE,
+          "failed compute pipeline outputs are cleared");
+    check(graphics_outputs[0] == VK_NULL_HANDLE && graphics_outputs[1] == VK_NULL_HANDLE,
+          "failed graphics pipeline outputs are cleared");
     check(driver_calls == 0, "the driver is not called without memory");
     pthread_mutex_destroy(&test_device.lock);
 }
@@ -404,6 +410,38 @@ int main(int argc, char **argv)
           "a module selecting a structure is left alone");
     check(!spirv_cap_version(nonsemantic, nonsemantic_count, &kept),
           "a module importing a NonSemantic set without SPV_KHR_non_semantic_info is left alone");
+    uint32_t private_readonly[sizeof(zinklike) / sizeof(uint32_t) + 3];
+    size_t declaration = 5;
+    while (OPCODE(zinklike[declaration]) != SpvOpTypeVoid)
+        declaration += LENGTH(zinklike[declaration]);
+    memcpy(private_readonly, zinklike, declaration * sizeof(uint32_t));
+    private_readonly[declaration] = (3u << 16) | SpvOpDecorate;
+    private_readonly[declaration + 1] = 3;
+    private_readonly[declaration + 2] = SpvDecorationNonWritable;
+    memcpy(private_readonly + declaration + 3, zinklike + declaration,
+           (zinklike_count - declaration) * sizeof(uint32_t));
+    check(!spirv_cap_version(private_readonly, zinklike_count + 3, &kept),
+          "a private NonWritable variable is left alone");
+    if (argc > 6) {
+        struct spirv_code source = {.words = private_readonly, .count = zinklike_count + 3};
+        write_module(argv[6], &source);
+    }
+    uint32_t converted[sizeof(zinklike) / sizeof(uint32_t) + 9];
+    size_t function = declaration;
+    while (OPCODE(zinklike[function]) != SpvOpFunction)
+        function += LENGTH(zinklike[function]);
+    memcpy(converted, zinklike, function * sizeof(uint32_t));
+    const uint32_t conversion[] = {(4u << 16) | SpvOpTypeInt, 23, 32, 0,
+                                   (5u << 16) | SpvOpSpecConstantOp, 23, 24, SpvOpUConvert, 15};
+    memcpy(converted + function, conversion, sizeof(conversion));
+    memcpy(converted + function + 9, zinklike + function, (zinklike_count - function) * sizeof(uint32_t));
+    converted[3] = 25;
+    check(!spirv_cap_version(converted, zinklike_count + 9, &kept),
+          "a specialization UConvert without its extension is left alone");
+    if (argc > 7) {
+        struct spirv_code source = {.words = converted, .count = zinklike_count + 9};
+        write_module(argv[7], &source);
+    }
     check(kept.words == NULL, "no rejected module is handed back");
 
     struct spirv_code extension = {0};
