@@ -12,15 +12,16 @@ object ProotFastPath {
     const val LIBRARY = "/usr/local/lib/libblfastpath.so"
     const val MAX_BINDS = 256
 
-    fun allows(preference: Boolean, noSeccomp: Boolean, source: String): Boolean =
-        preference && !noSeccomp && source == LinuxRuntime.PROOT_PACK
+    fun allows(preference: Boolean, noSeccomp: Boolean, source: String, nativeUserland: Boolean = false): Boolean =
+        preference && !noSeccomp && !nativeUserland && source == LinuxRuntime.PROOT_PACK
 
     fun enabled(context: Context): Boolean {
         val preference = SessionPrefs.prootFastPath(context)
         val noSeccomp = SessionPrefs.prootNoSeccomp(context)
+        val nativeUserland = SessionPrefs.nativeUserland(context)
         val source = LinuxRuntime.prootSource(context)
-        val on = allows(preference, noSeccomp, source)
-        if (preference && !noSeccomp && !on)
+        val on = allows(preference, noSeccomp, source, nativeUserland)
+        if (preference && !noSeccomp && !nativeUserland && !on)
             Log.i(TAG, "proot: fast path off - binary is $source, not the patched proot")
         return on
     }
