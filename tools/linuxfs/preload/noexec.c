@@ -94,8 +94,17 @@ static int copy_to_anonymous(void *addr, size_t len, int prot) {
   size_t count = 0, opened = 0;
   if (start & (page - 1) || end <= start || !(count = private_range(start, end, spans, sizeof spans / sizeof *spans))) return -1;
   size_t size = end - start;
-  void *copy = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (copy == MAP_FAILED) return -1;
+  int fd = memfd_create("noexec-image", MFD_CLOEXEC);
+  if (fd < 0) return -1;
+  if (ftruncate(fd, (off_t)size)) {
+    close(fd);
+    return -1;
+  }
+  void *copy = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (copy == MAP_FAILED) {
+    close(fd);
+    return -1;
+  }
   while (opened < count && ((spans[opened].prot & PROT_READ) ||
                             !real_mprotect((void *)spans[opened].lo, spans[opened].hi - spans[opened].lo, spans[opened].prot | PROT_READ)))
     opened++;
@@ -103,18 +112,13 @@ static int copy_to_anonymous(void *addr, size_t len, int prot) {
   if (opened < count || process_vm_readv(getpid(), &local, 1, &remote, 1, 0) != (ssize_t)size || real_mprotect(copy, size, prot)) {
     restore(spans, opened);
     munmap(copy, size);
+    close(fd);
     return -1;
   }
-  if (mremap(copy, size, size, MREMAP_MAYMOVE | MREMAP_FIXED, addr) != MAP_FAILED) return 0;
-  int result = -1;
-  if (!real_mprotect(copy, size, PROT_READ) &&
-      mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == addr) {
-    memcpy(addr, copy, size);
-    result = real_mprotect(addr, size, prot);
-  } else {
-    restore(spans, count);
-  }
+  int result = mmap(addr, size, prot, MAP_PRIVATE | MAP_FIXED, fd, 0) == addr ? 0 : -1;
+  if (result) restore(spans, count);
   munmap(copy, size);
+  close(fd);
   return result;
 }
 
