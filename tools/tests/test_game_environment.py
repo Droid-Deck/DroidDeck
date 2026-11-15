@@ -2927,6 +2927,34 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], restore(str(compat), str(proton)))
             self.assertEqual([], self.run_repair(compat, proton))
 
+    def test_prefix_backup_directory_is_listed_once_per_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            system32 = windows / "system32"
+            for index in range(12):
+                name = "native_%02d.dll" % index
+                (builtins / name).write_bytes(pe_image(0xAA64))
+                (system32 / name).symlink_to(os.path.relpath(builtins / name, system32))
+                (system32 / (name + ".foreign-arch")).write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664))
+            original_listdir = os.listdir
+            visited = []
+
+            def counted_listdir(folder):
+                if Path(folder) == system32:
+                    visited.append(folder)
+                return original_listdir(folder)
+
+            with mock.patch("os.listdir", side_effect=counted_listdir):
+                restored = MODULE["restore_compatible_system_dlls"](str(compat), str(proton))
+                fixed = self.run_repair(compat, proton)
+            self.assertEqual(12, len(restored))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+            # One system32 listing for restore and one for repair, regardless
+            # of the number of DLLs and backup files in the prefix.
+            self.assertEqual(2, len(visited))
+
     def test_restore_takes_the_highest_backup_serial_across_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)

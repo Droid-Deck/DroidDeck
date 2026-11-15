@@ -941,36 +941,36 @@ def prefix_system_dlls(prefix, proton, env=None):
             names = sorted(os.listdir(windows / folder))
         except OSError:
             continue
+        # Both restoration and repair may examine many DLLs. Index the backup
+        # names from this directory listing instead of listing it for each DLL.
+        backups = {}
+        for entry in names:
+            stem, marker, suffix = entry.partition(FOREIGN_SUFFIX)
+            if not marker or not stem.lower().endswith(".dll"):
+                continue
+            if not suffix:
+                serial = 0
+            elif suffix.startswith(".") and suffix[1:].isdigit():
+                serial = int(suffix[1:])
+            else:
+                continue
+            backups.setdefault(stem, []).append((serial, windows / folder / entry))
+        for copies in backups.values():
+            copies.sort()
         for name in names:
             builtin_name = builtin_names.get(name.lower())
             source = builtins / builtin_name if builtin_name else builtins / name
             if name.lower().endswith(".dll") and source.is_file():
-                yield folder, name, windows / folder / name, source, machines, builtins
+                yield folder, name, windows / folder / name, source, machines, builtins, backups.get(name, ())
 
 
-def foreign_backups(path):
-    base = path.name + FOREIGN_SUFFIX
-    backups = []
-    try:
-        names = os.listdir(path.parent)
-    except OSError:
-        return backups
-    for name in names:
-        if name == base:
-            backups.append((0, path.parent / name))
-        elif name.startswith(base + ".") and name[len(base) + 1:].isdigit():
-            backups.append((int(name[len(base) + 1:]), path.parent / name))
-    return sorted(backups)
-
-
-def newest_foreign_backup(path):
-    backups = foreign_backups(path)
+def newest_foreign_backup(backups):
     return backups[-1][1] if backups else None
 
 
 def restore_compatible_system_dlls(prefix, proton, env=None):
     restored = []
-    for folder, name, path, source, machines, builtins in prefix_system_dlls(prefix, proton, env):
+    for folder, name, path, source, machines, builtins, backups in prefix_system_dlls(prefix, proton, env):
         if not path.is_symlink() or not path.is_file():
             continue
         try:
@@ -978,7 +978,7 @@ def restore_compatible_system_dlls(prefix, proton, env=None):
                 continue
         except OSError:
             continue
-        backup = newest_foreign_backup(path)
+        backup = newest_foreign_backup(backups)
         if backup is None or backup.is_symlink() or not backup.is_file():
             continue
         machine = pe_machine(backup)
@@ -994,14 +994,13 @@ def restore_compatible_system_dlls(prefix, proton, env=None):
 
 def repair_foreign_system_dlls(prefix, proton, env=None):
     repaired = []
-    for folder, name, path, source, machines, builtins in prefix_system_dlls(prefix, proton, env):
+    for folder, name, path, source, machines, builtins, backups in prefix_system_dlls(prefix, proton, env):
         if path.is_symlink() or not path.is_file():
             continue
         machine = pe_machine(path)
         if machine is None or PE["machine_compatible"](path, machines, machine, builtins):
             continue
         link = path.parent / (name + ".bl-new")
-        backups = foreign_backups(path)
         backup = path.parent / (name + FOREIGN_SUFFIX)
         if backups:
             backup = path.parent / (name + FOREIGN_SUFFIX + ".%d" % (backups[-1][0] + 1))
