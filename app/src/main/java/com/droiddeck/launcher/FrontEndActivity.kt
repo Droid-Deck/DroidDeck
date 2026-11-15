@@ -1871,7 +1871,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
 
         val wanted = ArrayList<String>()
-        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            // From targetSdk 30, shared storage outside the app's own folders is all-files access or nothing.
+            if (com.droiddeck.launcher.files.AllFilesAccess.missing() && !SessionPrefs.allFilesAsked(this)) {
+                SessionPrefs.setAllFilesAsked(this)
+                com.droiddeck.launcher.files.AllFilesAccess.open(this)
+            }
+        } else if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
         if (SessionPrefs.micEnabled(this) && !SessionPrefs.micAsked(this)

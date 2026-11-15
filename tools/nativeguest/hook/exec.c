@@ -149,7 +149,8 @@ static int exec_directly(const char *path) {
 static int exec_interp_missing(int fd) {
     Elf64_Ehdr eh;
     if (syscall(SYS_pread64, fd, &eh, sizeof(eh), 0) != (long)sizeof(eh) || eh.e_ident[EI_CLASS] != ELFCLASS64 ||
-        eh.e_phentsize != sizeof(Elf64_Phdr))
+        eh.e_machine != EM_AARCH64 || (eh.e_type != ET_EXEC && eh.e_type != ET_DYN) ||
+        eh.e_phentsize != sizeof(Elf64_Phdr) || eh.e_phnum == 0 || eh.e_phnum > 64)
         return ENOEXEC;
     for (int i = 0; i < eh.e_phnum; i++) {
         Elf64_Phdr ph;
@@ -161,7 +162,7 @@ static int exec_interp_missing(int fd) {
             syscall(SYS_pread64, fd, interp, ph.p_filesz, (long)ph.p_offset) != (long)ph.p_filesz)
             return ENOEXEC;
         interp[ph.p_filesz] = 0;
-        int ifd = (int)syscall(SYS_openat, AT_FDCWD, interp, O_RDONLY | O_CLOEXEC);
+        int ifd = (int)syscall(SYS_openat, AT_FDCWD, interp, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
         if (ifd < 0) return errno;
         syscall(SYS_close, ifd);
         return 0;
@@ -173,7 +174,7 @@ static int exec_interp_missing(int fd) {
 // a shell walking $PATH moves on at ENOENT and EACCES, and runs a file without "#!" as a script at
 // ENOEXEC.
 static int exec_preflight(const char *path) {
-    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) return errno;
     struct stat st;
     int err = 0;
