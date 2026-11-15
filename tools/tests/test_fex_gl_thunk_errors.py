@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 import shutil
@@ -156,6 +157,111 @@ int main(int argc, char** argv) {
 """
 
 
+REAL_HARNESS = r"""
+#include <cstdint>
+#include <cstdio>
+#include <atomic>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <unistd.h>
+#include <X11/Xlibint.h>
+using guest_long = long;
+
+struct X11Manager {
+  MUTEX_SOURCE
+  std::map<_XDisplay*, _XDisplay*> displays;
+  FORWARD_SOURCE
+  FIND_SOURCE
+  static XErrorHandler HostXSetErrorHandler(XErrorHandler Handler) { return XSetErrorHandler(Handler); }
+  static void HostXLockDisplay(Display* a) { XLockDisplay(a); }
+  static void HostXUnlockDisplay(Display* a) { XUnlockDisplay(a); }
+};
+
+static X11Manager x11_manager;
+static int (*pending_forward)(void*, guest_long, int, int, int);
+
+template<typename F>
+static void MakeHostTrampolineForGuestFunctionAt(uintptr_t, uintptr_t, F** Func) { *Func = pending_forward; }
+
+GUEST_SOURCE
+
+HOST_SOURCE
+
+static Display* host;
+static Display* guest;
+static std::atomic<int> app_calls;
+static std::atomic<int> guest_calls;
+static unsigned long app_serial;
+
+static int guest_forward(void* display, guest_long resourceid, int error_code, int request_code, int minor_code) {
+  return ForwardXError(static_cast<Display*>(display), resourceid, error_code, request_code, minor_code);
+}
+
+static int app_handler(Display* display, XErrorEvent* event) {
+  if (display == guest) {
+    guest_calls++;
+    app_serial = event->serial;
+  }
+  app_calls++;
+  return 0;
+}
+
+static bool host_usable_from_other_thread() {
+  std::atomic<bool> done {false};
+  std::thread other([&] {
+    XNoOp(host);
+    XSync(host, False);
+    done = true;
+  });
+  for (int i = 0; i < 300 && !done; i++) {
+    usleep(10000);
+  }
+  if (!done) {
+    return false;
+  }
+  other.join();
+  return true;
+}
+
+int main() {
+  XInitThreads();
+  host = XOpenDisplay(nullptr);
+  guest = XOpenDisplay(nullptr);
+  if (!host || !guest) {
+    return 2;
+  }
+  x11_manager.displays[guest] = host;
+  pending_forward = guest_forward;
+  XSetErrorHandler(app_handler);
+  fexfn_impl_libGL_GL_SetGuestXErrorForward(0, 0);
+
+  std::atomic<bool> guest_held {false};
+  std::atomic<bool> host_reached {false};
+  std::thread contender([&] {
+    XLockDisplay(guest);
+    guest_held = true;
+    usleep(300000);
+    XNoOp(host);
+    XFlush(host);
+    host_reached = true;
+    XUnlockDisplay(guest);
+  });
+  while (!guest_held) {
+    usleep(1000);
+  }
+  XFreePixmap(host, 1);
+  XSync(host, False);
+  contender.join();
+  bool usable = host_usable_from_other_thread();
+  printf("app_calls=%d guest_calls=%d host_reached=%d usable=%d serial_from_guest=%d\n", app_calls.load(),
+         guest_calls.load(), host_reached.load(), usable, app_serial != 0 && app_serial <= guest->request);
+  fflush(stdout);
+  _exit(0);
+}
+"""
+
+
 def compile_cpp(source, output):
     return subprocess.run(["c++", "-std=c++20", "-O1", "-Wall", "-Werror", "-pthread", "-o", str(output), str(source), "-lX11"],
                           capture_output=True, text=True)
@@ -163,6 +269,8 @@ def compile_cpp(source, output):
 
 @unittest.skipUnless(shutil.which("c++"), "needs c++")
 class FexGlThunkErrorForwardTest(unittest.TestCase):
+    HARNESS_SOURCE = HARNESS
+
     @classmethod
     def setUpClass(cls):
         guest = added("ThunkLibs/libGL/libGL_Guest.cpp", "static int ForwardXError(", "\n}")
@@ -178,7 +286,7 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
         if compile_cpp(probe, cls.tmp / "probe").returncode != 0:
             raise unittest.SkipTest("needs the Xlib development files")
         source = cls.tmp / "harness.cpp"
-        source.write_text(HARNESS.replace("MUTEX_SOURCE", mutex).replace("FORWARD_SOURCE", forward)
+        source.write_text(cls.HARNESS_SOURCE.replace("MUTEX_SOURCE", mutex).replace("FORWARD_SOURCE", forward)
                           .replace("FIND_SOURCE", find).replace("GUEST_SOURCE", guest).replace("HOST_SOURCE", host))
         cls.program = cls.tmp / "harness"
         result = compile_cpp(source, cls.program)
@@ -219,6 +327,52 @@ class FexGlThunkErrorForwardTest(unittest.TestCase):
 
     def test_error_on_a_display_the_gl_thunk_does_not_own_keeps_the_previous_handler(self):
         self.assertEqual(self.run_harness()[1], "foreign=3 previous_calls=1 previous_display_is_other=1")
+
+
+@unittest.skipUnless(shutil.which("c++") and shutil.which("Xvfb"), "needs c++ and Xvfb")
+class FexGlThunkErrorForwardRealXlibTest(FexGlThunkErrorForwardTest):
+    HARNESS_SOURCE = REAL_HARNESS
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        read, write = os.pipe()
+        cls.server = subprocess.Popen(["Xvfb", "-displayfd", str(write), "-nolisten", "tcp", "-screen", "0", "64x64x24"],
+                                      pass_fds=(write,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.close(write)
+        with os.fdopen(read) as stream:
+            number = stream.readline().strip()
+        if not number:
+            cls.server.kill()
+            cls.server.wait()
+            raise unittest.SkipTest("Xvfb did not start")
+        cls.display = ":" + number
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.terminate()
+        cls.server.wait()
+        super().tearDownClass()
+
+    def run_real(self):
+        try:
+            result = subprocess.run([str(self.program)], capture_output=True, text=True, timeout=20,
+                                    env={**os.environ, "DISPLAY": self.display})
+        except subprocess.TimeoutExpired:
+            self.fail("the host error handler deadlocked")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.strip()
+
+    def test_real_error_reaches_the_program_while_another_thread_holds_its_display(self):
+        self.assertEqual(self.run_real(),
+                         "app_calls=1 guest_calls=1 host_reached=1 usable=1 serial_from_guest=1")
+
+    test_error_on_a_host_display_reaches_the_programs_handler = None
+    test_forwarded_error_carries_the_programs_own_serial = None
+    test_forwarding_never_swaps_the_programs_handler = None
+    test_error_while_the_display_lock_is_held_does_not_block = None
+    test_error_while_another_thread_holds_the_programs_display_lock_does_not_deadlock = None
+    test_error_on_a_display_the_gl_thunk_does_not_own_keeps_the_previous_handler = None
 
 
 if __name__ == "__main__":
