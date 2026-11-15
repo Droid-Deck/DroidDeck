@@ -3999,6 +3999,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+    <string name="epic_third_party_managed">A telepítés itt történik: %1$s</string>
 
     <string name="theme_white_red">Skarlátvörös hó</string>
     <string name="theme_white_red_detail">Fehér felületek piros kiemelésekkel.</string>

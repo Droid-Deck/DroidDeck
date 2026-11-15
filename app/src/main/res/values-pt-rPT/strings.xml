@@ -4038,6 +4038,7 @@
     <string name="input_reset_positions">Repor posições</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">Não foi possível importar este esquema</string>
+    <string name="epic_third_party_managed">Instala-se através de %1$s</string>
 
     <string name="theme_white_red">Neve Escarlate</string>
     <string name="theme_white_red_detail">Superfícies brancas com detalhes vermelhos.</string>
