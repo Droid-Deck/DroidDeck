@@ -112,6 +112,10 @@ private const val HISTORY_LIMIT = 50
 internal fun canNavigateUp(currentDir: File, currentRoot: File): Boolean =
     currentDir != currentRoot && currentDir.parentFile?.exists() == true
 
+// Back leaves after a drive hop instead of replaying a stack of hops one press at a time.
+internal fun backExitsAtRootHop(currentDir: File, currentRoot: File, previous: Pair<File, File>): Boolean =
+    currentDir == currentRoot && previous.first == previous.second
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileManagerScreen(
@@ -269,8 +273,10 @@ fun FileManagerScreen(
                 if (showFavorites) showFavorites = false
                 else {
                     while (history.isNotEmpty() && !history.last().first.isDirectory) history.removeAt(history.lastIndex)
-                    val previous = history.removeLastOrNull()
-                    if (previous != null) {
+                    val previous = history.lastOrNull()
+                    if (previous != null && backExitsAtRootHop(currentDir, currentRoot, previous)) onExit?.invoke()
+                    else if (previous != null) {
+                        history.removeLastOrNull()
                         currentRoot = previous.second
                         loadDirectory(previous.first, record = false)
                     } else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it, record = false) }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Προφίλ εισόδου</string>
+    <string name="input_profiles">Προφίλ</string>
+    <string name="input_physical">Φυσικό χειριστήριο</string>
+    <string name="input_primary">Κύρια οθόνη</string>
+    <string name="input_secondary">Δευτερεύουσα οθόνη</string>
+    <string name="input_native">Εγγενές / Steam Input</string>
+    <string name="input_native_target">Εγγενές: %1$s</string>
+    <string name="input_remap_native">Αποστολή άλλης εντολής χειριστηρίου</string>
+    <string name="input_disabled">Απενεργοποιημένο</string>
+    <string name="input_keys">Πλήκτρο ή συνδυασμός πλήκτρων</string>
+    <string name="input_direction_keys">Πλήκτρα κατεύθυνσης</string>
+    <string name="input_pointer">Μετακίνηση δείκτη</string>
+    <string name="input_pointer_speed">Ταχύτητα δείκτη: %1$d</string>
+    <string name="input_scroll">Κύλιση</string>
+    <string name="input_scroll_vertical">Κατακόρυφη κύλιση</string>
+    <string name="input_mouse_left">Αριστερό κουμπί ποντικιού</string>
+    <string name="input_mouse_right">Δεξί κουμπί ποντικιού</string>
+    <string name="input_mouse_middle">Μεσαίο κουμπί ποντικιού</string>
+    <string name="input_command_menu">Άνοιγμα μενού DroidDeck</string>
+    <string name="input_command_keyboard">Εμφάνιση πληκτρολογίου</string>
+    <string name="input_command_steam">Άνοιγμα μενού Steam</string>
+    <string name="input_command_qam">Άνοιγμα γρήγορης πρόσβασης Steam</string>
+    <string name="input_remove_element">Αφαίρεση στοιχείου</string>
+    <string name="input_add_element">Προσθήκη στοιχείου</string>
+    <string name="input_extra_keys">Κουμπιά ειδικά για τη συσκευή</string>
+    <string name="input_capture">Αντιστοίχιση φυσικού κουμπιού</string>
+    <string name="input_capture_confirm">Αφήστε το κουμπί και επιλέξτε Επεξεργασία, Επανάληψη ή Ακύρωση. Το B ή το Πίσω ακυρώνει αφού αφήσετε το κουμπί.</string>
+    <string name="input_capture_retry">Επανάληψη</string>
+    <string name="input_capture_hint">Πατήστε ένα κουμπί, ακόμη και Πίσω που αναφέρεται ως πλήκτρο. Τα πλήκτρα έντασης και τα πλήκτρα συστήματος Android είναι δεσμευμένα. Η αντιστοίχιση ισχύει μόνο για αυτή τη συσκευή.</string>
+    <string name="input_remove_binding">Αφαίρεση αντιστοίχισης</string>
+    <string name="input_latency">Διάγνωση εισόδου</string>
+    <string name="input_measure">Καταγραφή χρόνου αποστολής εισόδου</string>
+    <string name="input_read_timing">Ανάγνωση μετρήσεων</string>
+    <string name="input_latency_hint">Μετρά την αποστολή από το Android έως τη δημοσίευση στη μεταφορά εισόδου. Δεν περιλαμβάνει άφιξη Bluetooth, δειγματοληψία επισκέπτη, απόδοση και καθυστέρηση οθόνης. Η καταγραφή είναι απενεργοποιημένη από προεπιλογή.</string>
+    <string name="input_normal_binding">Χρήση κανονικής αντιστοίχισης εισόδου</string>
+</resources>

@@ -195,4 +195,16 @@ class MouseBackInputTest {
         assertTrue(external.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true))
         assertEquals(listOf(true), presses)
     }
+
+    @Test fun aControllersOwnMouseInterfaceDoesNotCount() {
+        fun usb(id: Int, name: String, sources: Int, product: Int) = InputDeviceBuilder.newBuilder().setId(id).setName(name)
+            .setDescriptor("$name-$id").setExternal(true).setSources(sources).setVendorId(0x2dc8).setProductId(product).build()
+        val padMouse = usb(26, "8BitDo Ultimate Mobile Gaming Controller", 0x20004, 0x301f)
+        val pad = usb(28, "8BitDo Ultimate Mobile Gaming Controller", 0x1000511, 0x301f)
+        val mouse = usb(30, "8BitDo Retro R8 Mouse", InputDevice.SOURCE_MOUSE, 0x5200)
+        assertTrue(MouseBackInput.isExternalMouse(padMouse))
+        assertNull(MouseBackInput.externalMouse(listOf(padMouse, pad, null)))
+        assertSame(padMouse, MouseBackInput.externalMouse(listOf(padMouse)))
+        assertSame(mouse, MouseBackInput.externalMouse(listOf(padMouse, pad, mouse)))
+    }
 }
