@@ -2834,6 +2834,12 @@ def program_image(machine, imports):
     return bytes(image)
 
 
+def bytes_path(folder, data):
+    path = folder / "image.exe"
+    path.write_bytes(data)
+    return path
+
+
 class ForeignSystemDllTest(unittest.TestCase):
     def prefix(self, tmp, arm=True):
         proton = Path(tmp) / "Proton"
@@ -2966,6 +2972,9 @@ class ForeignSystemDllTest(unittest.TestCase):
             builtins = proton.parent / "files/lib/wine/aarch64-windows"
             (builtins / "cut.exe").write_bytes(program_image(0xAA64, ["concrt140.dll"])[:0x20A])
             self.assertIsNone(MODULE["PE"]["pe_imports"](builtins / "cut.exe"))
+            moved = bytearray(program_image(0xAA64, ["concrt140.dll"]))
+            moved[208:212] = (0x3000).to_bytes(4, "little")
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), moved)))
             (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
             (windows / "system32/concrt140.dll").write_bytes(pe_image(0x8664))
             self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))

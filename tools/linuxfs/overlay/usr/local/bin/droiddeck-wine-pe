@@ -109,7 +109,10 @@ def pe_imports(path):
 
         names = set()
         for directory, step, field in ((1, 20, 12), (13, 32, 4)):
-            entry = offset(int.from_bytes(image[directories + directory * 8:directories + directory * 8 + 4], "little"))
+            rva = int.from_bytes(image[directories + directory * 8:directories + directory * 8 + 4], "little")
+            entry = offset(rva) if rva else None
+            if rva and entry is None:
+                return None
             while entry is not None:
                 if entry + step > len(image):
                     return None
