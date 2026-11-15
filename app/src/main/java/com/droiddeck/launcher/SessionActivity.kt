@@ -984,7 +984,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             androidx.compose.runtime.DisposableEffect(Unit) {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
-            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, inputSettingsOpen, pipUi, bottomOutputActive) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, inputSettingsOpen, pipUi, bottomOutputActive, wowChatOnTop) { updatePointerCapture() }
             androidx.compose.runtime.LaunchedEffect(bottomOutputActive) { hud.setHidden(pipUi || bottomOutputActive) }
             androidx.compose.runtime.LaunchedEffect(pipUi) {
                 hud.setHidden(pipUi || bottomOutputActive)
@@ -4225,7 +4225,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen && !pipUi && !bottomOutputActive && !touchEditorOpen && mouseAttached()
+        val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen && !pipUi && !bottomOutputActive && !touchEditorOpen && !wowChatOnTop && mouseAttached()
         releaseDesktopMouseGrab()
         updateUsbMouse(want)
         if (want == view.hasPointerCapture()) return
