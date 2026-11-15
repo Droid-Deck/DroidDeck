@@ -250,24 +250,25 @@ def release_entry(
     }
 
 
+def complete_apks(preview: dict, variants: list[tuple[str, str]]) -> bool:
+    apks = preview.get("apks") or {}
+    return set(apks) == {package for package, _ in variants} and all(
+        SHA256.fullmatch((apk.get("sha256") or "").lower()) and SHA256.fullmatch((apk.get("signerSha256") or "").lower())
+        for apk in apks.values()
+    )
+
+
 def preview_history_entry(release: dict, preview: dict, variants: list[tuple[str, str]]):
     tag = release.get("tag_name") or ""
     tag_match = MAIN_TAG.fullmatch(tag)
     commit = (preview.get("commit") or "").lower()
-    expected_packages = {package for package, _ in variants}
-    apks = preview.get("apks") or {}
     if (
         release.get("draft")
         or not release.get("prerelease")
         or not tag_match
         or not re.fullmatch(r"[0-9a-f]{40}", commit)
         or not commit.startswith(tag_match.group(1))
-        or set(apks) != expected_packages
-        or any(
-            not SHA256.fullmatch((apk.get("sha256") or "").lower())
-            or not SHA256.fullmatch((apk.get("signerSha256") or "").lower())
-            for apk in apks.values()
-        )
+        or not complete_apks(preview, variants)
     ):
         return None
     return {
@@ -506,7 +507,9 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
         )
 
     ordered = unique_previews(previews)
-    newest = ordered[0]["commit"] if ordered else None
+    # A Preview whose APKs are still uploading neither carries a merge nor is offered.
+    usable = next((p for p in ordered if complete_apks(p, main_variants)), ordered[0] if ordered else None)
+    newest = usable["commit"] if usable and complete_apks(usable, main_variants) else None
     tests = [t for t in tests if not (merged_pulls.get(t["pr"]) and in_preview(source, source_repo, merged_pulls[t["pr"]], newest))]
     tests.sort(key=lambda r: r["publishedAt"], reverse=True)
     return {
@@ -516,7 +519,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
         "generatedAt": int(time.time() * 1000),
         "mainVersionCode": main_code,
         "stable": stable,
-        "preview": ordered[0] if ordered else None,
+        "preview": usable,
         "recentPreviews": recent_previews(preview_history),
         "previews": ordered,
         "tests": tests,

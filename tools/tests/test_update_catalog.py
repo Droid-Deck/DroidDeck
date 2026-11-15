@@ -3,6 +3,7 @@ import unittest
 from tools.release.update_catalog import (
     Cache,
     asset_for_suffix,
+    complete_apks,
     merged_pr,
     ci_description,
     parse_gradle,
@@ -68,6 +69,14 @@ pubg com.tencent.ig -pubg
         self.assertEqual("DroidDeck-PR.7-2222222.apk", asset_for_suffix(assets, "", suffixes, "2222222abc")["name"])
         self.assertEqual("DroidDeck-PR.7-2222222-pubg.apk", asset_for_suffix(assets, "-pubg", suffixes, "2222222abc")["name"])
         self.assertEqual("DroidDeck-PR.7-1111111.apk", asset_for_suffix(assets, "", suffixes)["name"])
+
+    def test_a_preview_counts_only_with_every_package_and_digest(self):
+        variants = [("com.droiddeck.launcher", ""), ("com.tencent.ig", "-pubg")]
+        good = {"sha256": "a" * 64, "signerSha256": "b" * 64}
+        self.assertTrue(complete_apks({"apks": {"com.droiddeck.launcher": good, "com.tencent.ig": good}}, variants))
+        self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good}}, variants))
+        self.assertFalse(complete_apks({"apks": {}}, variants))
+        self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good, "com.tencent.ig": {"sha256": "x"}}}, variants))
 
     def test_ci_description(self):
         title, summary = ci_description(
