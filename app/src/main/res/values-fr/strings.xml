@@ -4148,7 +4148,7 @@
     <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
 
     <string name="display_integer_scaling">Mise à l’échelle entière</string>
-    <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier qui tient à l’écran. Les bords peuvent être légèrement rognés pour permettre un facteur entier plus élevé. Si la source dépasse la sortie, l’image entière est ajustée pour rester visible. La résolution se configure séparément.</string>
+    <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier qui tient à l’écran. Les bords peuvent être légèrement rognés pour permettre un facteur entier plus élevé. Si la source dépasse la sortie, l’image entière est ajustée pour rester visible. La résolution se configure séparément. Cela utilise une mise à l’échelle fractionnaire, par exemple de 1920×1080 vers 1280×720.</string>
     <string name="display_scaling_integer">Entier</string>
     <string name="display_scaling_fit">Ajuster</string>
 </resources>

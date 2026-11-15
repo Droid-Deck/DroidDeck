@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
 
     <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
-    <string name="display_integer_scaling_hint">Käyttää suurinta kokonaislukukerrointa, joka mahtuu näyttöön. Suurempi kokonaislukukerroin voi leikata reunoja hieman. Jos lähdekuva on tulostetta suurempi, se sovitetaan niin, että koko kuva näkyy. Tarkkuus määritetään erikseen.</string>
+    <string name="display_integer_scaling_hint">Käyttää suurinta kokonaislukukerrointa, joka mahtuu näyttöön. Suurempi kokonaislukukerroin voi leikata reunoja hieman. Jos lähdekuva on tulostetta suurempi, se sovitetaan niin, että koko kuva näkyy. Tarkkuus määritetään erikseen. Tällöin käytetään murto-osaskaalauksen kerrointa, esimerkiksi 1920×1080-koosta 1280×720-kokoon.</string>
     <string name="display_scaling_integer">Kokonaisluku</string>
     <string name="display_scaling_fit">Sovita</string>
 </resources>

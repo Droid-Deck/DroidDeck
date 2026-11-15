@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">Nhấn lại để thoát</string>
 
     <string name="display_integer_scaling">Tỷ lệ nguyên</string>
-    <string name="display_integer_scaling_hint">Sử dụng tỷ lệ nguyên lớn nhất vừa với màn hình. Các mép có thể bị cắt nhẹ để dùng tỷ lệ nguyên lớn hơn. Nếu ảnh nguồn lớn hơn đầu ra, ảnh sẽ được thu phóng để hiển thị đầy đủ. Độ phân giải được thiết lập riêng.</string>
+    <string name="display_integer_scaling_hint">Sử dụng tỷ lệ nguyên lớn nhất vừa với màn hình. Các mép có thể bị cắt nhẹ để dùng tỷ lệ nguyên lớn hơn. Nếu ảnh nguồn lớn hơn đầu ra, ảnh sẽ được thu phóng để hiển thị đầy đủ. Độ phân giải được thiết lập riêng. Trường hợp này sử dụng tỷ lệ thu phóng phân số, chẳng hạn từ 1920×1080 xuống 1280×720.</string>
     <string name="display_scaling_integer">Số nguyên</string>
     <string name="display_scaling_fit">Vừa màn hình</string>
 </resources>

@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
 
     <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
-    <string name="display_integer_scaling_hint">Menggunakan skala bilangan bulat terbesar yang muat. Tepi layar mungkin sedikit terpotong agar skala bilangan bulat yang lebih besar dapat digunakan. Jika sumber lebih besar daripada keluaran, gambar disesuaikan agar terlihat utuh. Resolusi diatur secara terpisah.</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala bilangan bulat terbesar yang muat. Tepi layar mungkin sedikit terpotong agar skala bilangan bulat yang lebih besar dapat digunakan. Jika sumber lebih besar daripada keluaran, gambar disesuaikan agar terlihat utuh. Resolusi diatur secara terpisah. Ini menggunakan penskalaan pecahan, misalnya dari 1920×1080 ke 1280×720.</string>
     <string name="display_scaling_integer">Bilangan bulat</string>
     <string name="display_scaling_fit">Sesuaikan</string>
 </resources>
