@@ -22,6 +22,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -91,6 +92,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalContext
@@ -146,6 +148,9 @@ private sealed interface AppEntry : AppEntryKey {
         override val updatedAt get() = 0L
     }
 }
+
+/** The focus id of the tile an entry is shown as. */
+private fun tileId(entry: AppEntry): String = "tile:" + if (entry is AppEntry.App) entry.app.key else entry.key
 
 private fun indexLetter(label: String): String {
     val c = label.trim().firstOrNull()?.uppercaseChar() ?: return "#"
@@ -336,7 +341,28 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
         openFolder = f.id
     }
 
-    Box(modifier) {
+    val ff = LocalFrontFocus.current
+    var holdFocus by remember { mutableStateOf<String?>(null) }
+    var pageFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(holdFocus) {
+        val key = "tile:folder:${holdFocus ?: return@LaunchedEffect}"
+        // A folder closed from its name field: the platform field and the fading sheet both drop focus after the sheet asked for the tile, so keep asking until the sheet is gone.
+        val until = System.nanoTime() + 400_000_000L
+        while (System.nanoTime() < until) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (ff != null && !(ff.last == key && pageFocused)) runCatching { ff.items[key]?.requestFocus() }
+        }
+        holdFocus = null
+    }
+    Box(
+        modifier.onFocusChanged { pageFocused = it.hasFocus }
+            // A fresh press means the user is moving on, so the hold must not pull focus back to the folder.
+            .onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (holdFocus != null && k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) holdFocus = null
+                false
+            },
+    ) {
         Column(Modifier.fillMaxSize().imePadding()) {
             Box(Modifier.fillMaxWidth().padding(start = padH, end = padH, top = if (narrow) 8.dp else 12.dp)) {
                 ModeHeader(
@@ -360,7 +386,27 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            val front = LocalFrontFocus.current
+            val steer = rememberCoroutineScope()
+            // Down goes to the tile straight below. The grid's own search only sees the tiles laid out so far, so above a short or
+            // unseen last row it lands on a tile further left; above a gap in a short last row the row's last tile takes it.
+            Box(Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { event ->
+                val k = event.nativeKeyEvent
+                if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN || front == null) return@onPreviewKeyEvent false
+                val from = entries.indexOfFirst { tileId(it) == front.last }
+                val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                if (from < 0 || from / columns == entries.lastIndex / columns) return@onPreviewKeyEvent false
+                if (k.action == KeyEvent.ACTION_DOWN) {
+                    val id = tileId(entries[minOf(from + columns, entries.lastIndex)])
+                    val shown = (front.attached[id] ?: 0) > 0
+                    if (!shown || runCatching { front.items.getValue(id).requestFocus() }.isFailure) steer.launch {
+                        // The row below is not laid out yet: bring it in, then take it.
+                        if (!shown) grid.scrollBy((grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index == from + leadItems }?.size?.height ?: 0).toFloat())
+                        focusSoon { front.items.getValue(id) }
+                    }
+                }
+                true
+            }) {
                 val scroller = q.isEmpty() && byName && entries.size > 16
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp),
@@ -418,7 +464,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }, onHoldFocus = { holdFocus = f.id }) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -788,7 +834,7 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
 private fun FolderSheet(
     folder: HomeFolders.Folder, apps: List<HomeApp.LaunchableApp>, renameFirst: Boolean,
     onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
-    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onClose: () -> Unit,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onHoldFocus: () -> Unit, onClose: () -> Unit,
 ) {
     SwipeLock()
     val ctx = LocalContext.current
@@ -806,20 +852,24 @@ private fun FolderSheet(
     val ff = LocalFrontFocus.current
     val grid = rememberLazyGridState()
     var closing by remember { mutableStateOf(false) }
+    var inside by remember { mutableStateOf(false) }
     LaunchedEffect(renaming, inputMode) {
         if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
             grid.scrollToItem(0)
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            if (!closing) runCatching { firstApp.requestFocus() }
+            androidx.compose.runtime.withFrameNanos { }
+            // After touch, focus starts outside the page and the first request is turned to the page's own entry, behind the sheet. Ask until it is in here.
+            focusWithinFrames({ inside || closing }) { firstApp }
         }
     }
     val close = {
+        val wasRenaming = renaming
         closing = true
         if (renaming) commit()
         onClose()
         if (inputMode == InputMode.Keyboard && ff != null) {
             runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
                 .onFailure { runCatching { ff.firstTile.requestFocus() } }
+            if (wasRenaming) onHoldFocus()
         }
     }
     BackHandler { close() }
@@ -836,6 +886,7 @@ private fun FolderSheet(
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
                     .controllerBack(close)
+                    .onFocusChanged { inside = it.hasFocus }
                     .focusProperties {
                         exit = { dir ->
                             if (dir == FocusDirection.Up || dir == FocusDirection.Down || dir == FocusDirection.Left || dir == FocusDirection.Right) FocusRequester.Cancel
@@ -900,7 +951,7 @@ private fun WidgetCard(w: HomeWidgets.Placed, maxWidthDp: Int) {
     val activity = remember(ctx) { ctx.findActivity() }
     Box {
         Box(
-            Modifier.size(width.dp, w.heightDp.dp)
+            Modifier.paneItem("widget:${w.id}").size(width.dp, w.heightDp.dp)
                 .clip(Shape16)
                 .background(colors.surface.copy(alpha = 0.35f))
                 .glideBorder(hot || menu, Shape16, pal.signal)

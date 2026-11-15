@@ -38,4 +38,9 @@ class AgentChangesTest {
         assertEquals("1.5M", tokens(1_500_000))
         assertEquals("23k", tokens(23_400))
     }
+
+    @Test fun aTurnsReplyIsEverythingItSaid() {
+        val turn = listOf(Entry.Said("One."), Entry.Used("e1", "Bash", "ls"), Entry.Said("Two."))
+        assertEquals("One.\n\nTwo.", turnReply(turn))
+    }
 }
