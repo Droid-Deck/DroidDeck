@@ -4076,4 +4076,7 @@
     <string name="hud_readings_shown">ที่แสดง</string>
     <string name="hud_readings_count">%1$d จาก %2$d</string>
     <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
+
+    <string name="display_integer_scaling">การปรับขนาดจำนวนเต็ม</string>
+    <string name="display_integer_scaling_hint">ใช้ตัวคูณการปรับขนาดจำนวนเต็มที่ใหญ่ที่สุดที่พอดี หากภาพต้นฉบับใหญ่เกินไป จะปรับภาพทั้งหมดให้พอดีเพื่อหลีกเลี่ยงการตัดภาพ โดยตั้งค่าความละเอียดแยกต่างหาก</string>
 </resources>
