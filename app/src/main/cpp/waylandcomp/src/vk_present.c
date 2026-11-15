@@ -417,10 +417,12 @@ static void update_map(int scene_w, int scene_h) {
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
             float nearest = roundf(m);
-            if (nearest >= 1.0f && nearest > m && nearest - m < 0.15f)
+            if (nearest >= 1.0f && nearest > m &&
+                nearest - m < 0.15f) {
                 aspect = nearest;
-            else
+            } else {
                 aspect = m >= 1.0f ? (float)(int)m : m;
+            }
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
