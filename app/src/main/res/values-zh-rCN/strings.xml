@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR 图形已停止工作</string>
     <string name="steamvr_recovery_countdown">DroidDeck 将在 %1$d 秒后重启，以重置图形并重新打开 SteamVR。正在运行的游戏将被关闭，未保存的进度无法恢复。</string>

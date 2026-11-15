@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="steamvr_recovery_title">Grafische weergave van SteamVR gestopt</string>
     <string name="steamvr_recovery_countdown">DroidDeck start over %1$d seconden opnieuw om de grafische weergave te resetten en SteamVR weer te openen. Je game wordt gesloten; niet-opgeslagen voortgang kan niet worden hersteld.</string>

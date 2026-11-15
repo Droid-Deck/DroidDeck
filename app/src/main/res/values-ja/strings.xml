@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR のグラフィックが停止しました</string>
     <string name="steamvr_recovery_countdown">グラフィックをリセットして SteamVR を開き直すため、DroidDeck は%1$d秒後に再起動します。実行中のゲームは終了し、保存されていない進行状況は復元できません。</string>
