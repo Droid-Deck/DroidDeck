@@ -1,0 +1,22 @@
+From: DroidDeck contributor
+Subject: [PATCH] gamescope_<convar>=0 reads a bool convar as true
+
+The environment override builds the Lua line `gamescope.convars.NAME.value = VALUE`. For a bool
+convar, 0 and 1 are Lua numbers and every number is true, so `gamescope_composite_force=0` switched
+the convar on; only `=false` switched it off. A number given to a bool convar now becomes `value ~= 0`.
+Other convar types and `true`/`false` are unchanged.
+
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -924,7 +924,9 @@
+ 					std::string_view value( strtok( nullptr, "=" ) );
+ 					if ( script.Manager().Gamescope().Convars.Base[name].valid() )
+ 					{
+-						auto override_script = std::format( "gamescope.convars.{}.value = {}", name, value );
++						// A bool convar given 0 or 1 gets a Lua number, and every number is true in Lua.
++						auto override_script = std::format( "do local c = gamescope.convars.{0}; local v = {1}; "
++							"if type( c.value ) == 'boolean' and type( v ) == 'number' then v = ( v ~= 0 ) end; c.value = v end", name, value );
+ 						console_log.infof( "Overriding from environment variable: %s", override_script.c_str() );
+ 						script->script( override_script );
+ 					}

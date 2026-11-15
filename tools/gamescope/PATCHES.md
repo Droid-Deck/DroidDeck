@@ -358,3 +358,9 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0936 main: `gamescope_<convar>=0` switches a bool convar off
+`gamescope_NAME=VALUE` in the environment is run as the Lua line `gamescope.convars.NAME.value = VALUE`. For a bool convar
+`0` and `1` are Lua numbers, and every number is true, so `gamescope_composite_force=0` turned the convar on; only `=false` turned it
+off. A number given to a bool convar now becomes `value ~= 0`. Other types and `true`/`false` behave as before.
+`tools/tests/test_gamescope_convar_env.py` checks that the patch applies to the lines it changes and the Lua rule itself.
