@@ -1,8 +1,10 @@
+import base64
 import unittest
 
 from tools.release.update_catalog import (
     Cache,
     asset_for_suffix,
+    build_catalog,
     complete_apks,
     newest_complete,
     merged_pr,
@@ -87,6 +89,37 @@ pubg com.tencent.ig -pubg
         self.assertIsNone(newest_complete([uploading], variants))
         self.assertIsNone(newest_complete([], variants))
         self.assertIs(done, newest_complete([uploading, done], variants))
+
+    def test_the_catalog_publishes_no_preview_while_its_apks_are_uploading(self):
+        commit = "c" * 40
+        files = {
+            "app/build.gradle": "        versionCode 19\n        versionName \"0.7.1\"\n",
+            "tools/release/variants.txt": "standard com.droiddeck.launcher -\n",
+            "keystore/release-signer.sha256": "b" * 64 + "\n",
+        }
+
+        class FakeGitHub:
+            def get_all(self, path, limit=1000):
+                if "DroidDeck-CI/releases" in path:
+                    return [{
+                        "tag_name": f"main-{commit[:7]}", "prerelease": True, "assets": [],
+                        "published_at": "2026-11-14T10:00:00Z",
+                        "body": f"**Merged to main** - [PR #5](u): fix: x\n\nCommit: {commit}\nVersionCode: 19\n",
+                    }]
+                return []
+
+            def get(self, path):
+                for name, text in files.items():
+                    if f"/contents/{name.replace('/', '%2F')}?" in path:
+                        return {"encoding": "base64", "content": base64.b64encode(text.encode()).decode()}
+                if "/commits/" in path:
+                    return {"author": {"login": "dev"}, "commit": {"committer": {"date": "2026-11-14T09:59:00Z"}}}
+                raise AssertionError(path)
+
+        gh = FakeGitHub()
+        catalog = build_catalog(gh, gh, "Droid-Deck/DroidDeck", "Droid-Deck/DroidDeck-CI")
+        self.assertIsNone(catalog["preview"])
+        self.assertEqual([commit], [p["commit"] for p in catalog["previews"]])
 
     def test_ci_description(self):
         title, summary = ci_description(
