@@ -64,6 +64,8 @@ data class AgentEvent(
     val usage: AgentHost.Usage? = null,
     /** This ends a turn the CLI started itself, such as the answer to a finished background task. */
     val background: Boolean = false,
+    /** The error a background turn ended with, if it failed. */
+    val backgroundError: String? = null,
 )
 
 /** Claude Code: `claude -p` with stream-json input and output, resumed by session id. */
@@ -166,7 +168,10 @@ object ClaudeCode : AgentHarness {
                     o.optJSONObject("usage")?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") } ?: 0,
                     o.optJSONObject("usage")?.optLong("output_tokens") ?: 0,
                 )
-                if (o.optJSONObject("origin")?.optString("kind") == "task-notification") AgentEvent(conversation, usage = usage, background = true)
+                if (o.optJSONObject("origin")?.optString("kind") == "task-notification") AgentEvent(
+                    conversation, usage = usage, background = true,
+                    backgroundError = if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null,
+                )
                 else AgentEvent(
                     conversation,
                     listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),

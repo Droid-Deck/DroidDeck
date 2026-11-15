@@ -79,6 +79,13 @@ class AgentHostTest {
         assertTrue(event.background)
         assertTrue(event.entries.isEmpty())
         assertEquals(4L, event.usage?.outputTokens)
+        assertNull(event.backgroundError)
+    }
+
+    @Test fun aFailedTaskNotificationResultKeepsItsError() {
+        val event = ClaudeCode.parse("""{"type":"result","is_error":true,"result":"API Error: overloaded","session_id":"s","usage":{"input_tokens":0,"output_tokens":0},"origin":{"kind":"task-notification"}}""")!!
+        assertTrue(event.background)
+        assertEquals("API Error: overloaded", event.backgroundError)
     }
 
     @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {

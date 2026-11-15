@@ -377,7 +377,7 @@ object AgentHost {
     private fun handle(app: Context, from: Turn, event: AgentEvent) {
         if (event.background) {
             // A leftover task answered before the user's message is not the user's turn; one the CLI started is its own.
-            if (background && state == State.WORKING) finish(app, null, usage = event.usage)
+            if (background && state == State.WORKING) finish(app, event.backgroundError, usage = event.usage)
             return
         }
         val content = event.text != null || event.thinking != null || event.entries.any { it !is Entry.Finished }
