@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Geluid</string>
     <string name="boot_movie_skip">Opstartvideo overslaan</string>
     <string name="boot_movie_skip_hint">Gebruik een zwart fragment van 0,1 seconde als opstartvideo van Steam. Wordt toegepast in de volgende sessie.</string>
+    <string name="boot_movie_shuffle">Willekeurig</string>
     <string name="boot_movie_custom">Eigen video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV of WebM. Andere formaten en bestanden boven %1$d MB worden op het apparaat omgezet naar 720p-WebM, tot %2$d seconden.</string>
     <string name="boot_movie_import">Importeren</string>

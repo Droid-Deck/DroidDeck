@@ -3407,6 +3407,7 @@
     <string name="boot_movie_sound">Ääni</string>
     <string name="boot_movie_skip">Ohita käynnistysvideo</string>
     <string name="boot_movie_skip_hint">Käytä 0,1 sekunnin mustaa leikettä Steam-käynnistysvideona. Otetaan käyttöön seuraavassa istunnossa.</string>
+    <string name="boot_movie_shuffle">Satunnainen</string>
     <string name="boot_movie_custom">Oma video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV tai WebM. Muut muodot ja yli %1$d Mt:n tiedostot muunnetaan laitteella 720p-WebM-muotoon, enintään %2$d sekuntia.</string>
     <string name="boot_movie_import">Tuo</string>

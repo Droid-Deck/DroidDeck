@@ -3485,6 +3485,7 @@
     <string name="boot_movie_sound">Dźwięk</string>
     <string name="boot_movie_skip">Pomiń film startowy</string>
     <string name="boot_movie_skip_hint">Użyj 0,1-sekundowego czarnego klipu jako filmu startowego Steam. Zacznie obowiązywać w następnej sesji.</string>
+    <string name="boot_movie_shuffle">Losowo</string>
     <string name="boot_movie_custom">Własny film</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV lub WebM. Inne formaty i pliki powyżej %1$d MB są konwertowane na urządzeniu do WebM 720p, do %2$d sekund.</string>
     <string name="boot_movie_import">Importuj</string>

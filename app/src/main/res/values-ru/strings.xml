@@ -3485,6 +3485,7 @@
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_skip">Пропускать стартовое видео</string>
     <string name="boot_movie_skip_hint">Использовать 0,1-секундный чёрный клип в качестве стартового видео Steam. Применится в следующем сеансе.</string>
+    <string name="boot_movie_shuffle">Случайный порядок</string>
     <string name="boot_movie_custom">Своё видео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Другие форматы и файлы больше %1$d МБ преобразуются на устройстве в WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Импорт</string>
