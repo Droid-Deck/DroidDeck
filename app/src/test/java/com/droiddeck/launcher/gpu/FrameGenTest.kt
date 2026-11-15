@@ -2,6 +2,8 @@ package com.droiddeck.launcher.gpu
 
 import android.content.Context
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,4 +47,22 @@ class FrameGenTest {
             .putString("engine", "winfg").putInt("multiplier", 2).commit()
         assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 2), FrameGen.mode(context))
     }
+
+    @Test fun perGameOverrideIsIsolatedFromGlobalMode() {
+        val global = FrameGen.Mode(FrameGen.ENGINE_LSFG, target = 90)
+        val game = FrameGen.Mode(FrameGen.ENGINE_DDFG, 3)
+
+        FrameGen.set(context, global)
+        FrameGen.setForGame(context, "12345", game)
+
+        assertEquals(global, FrameGen.mode(context))
+        assertEquals(game, FrameGen.mode(context, "12345"))
+        assertTrue(FrameGen.hasGameOverride(context, "12345"))
+
+        FrameGen.clearGame(context, "12345")
+
+        assertFalse(FrameGen.hasGameOverride(context, "12345"))
+        assertEquals(global, FrameGen.mode(context, "12345"))
+    }
+
 }

@@ -83,7 +83,23 @@ int inotify_add_watch(int fd, const char *path, uint32_t mask) {
     errno = ENOSPC;
     return -1;
   }
+  if (getenv("NESTED") && (mask & IN_ONLYDIR)) {
+    static DIR *(*uncounted)(const char *);
+    if (!uncounted) uncounted = dlsym(RTLD_NEXT, "opendir");
+    mkdir(path, 0755);
+    DIR *d = uncounted("/proc/self/fd");
+    while (d && readdir(d)) {}
+    if (d) closedir(d);
+  }
   return next(fd, path, mask);
+}
+
+int remove(const char *path) {
+  static int (*next)(const char *);
+  if (!next) next = dlsym(RTLD_NEXT, "remove");
+  if (!getenv("NESTED")) return next(path);
+  if (unlink(path) == 0) return 0;
+  return errno == EISDIR ? rmdir(path) : -1;
 }
 
 int statfs(const char *path, struct statfs *out) {
@@ -337,9 +353,9 @@ class DirCachePreloadTest(unittest.TestCase):
         environment.update(env or {})
         return environment
 
-    def run_program(self, *args, program=None, env=None):
+    def run_program(self, *args, program=None, env=None, timeout=60):
         result = subprocess.run([str(program or self.steam), *map(str, args)], env=self.environment(env),
-                                capture_output=True, text=True, check=True, timeout=60)
+                                capture_output=True, text=True, check=True, timeout=timeout)
         return result.stdout.splitlines()
 
     def run_paused(self, *args, between, env=None):
@@ -674,6 +690,20 @@ class DirCachePreloadTest(unittest.TestCase):
         out = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
                                env={"BL_NO_DIR_CACHE": "1"})
         self.assertEqual(["-1 2", "-1 2", "2"], out[1:])
+
+    def test_a_preload_below_calling_back_while_a_folder_is_watched_does_not_hang(self):
+        common = self.lib / "common/Game"
+        common.mkdir(parents=True)
+        (common / "game.exe").touch()
+        out = self.run_program("list", self.staging, "list", common, "list", common, "opens",
+                               env={"NESTED": "1"}, timeout=20)
+        self.assertEqual(["a.bundle,b.bundle", "game.exe", "game.exe", "2"], out)
+
+    def test_a_preload_below_removing_through_unlink_does_not_hang(self):
+        s = self.staging
+        out = self.run_program("list", s, "remove", s / "a.bundle", "list", s, "raw", s, "opens",
+                               env={"NESTED": "1"}, timeout=20)
+        self.assertEqual(["a.bundle,b.bundle", "b.bundle", "b.bundle", "1"], out)
 
     def test_can_be_turned_off(self):
         out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"BL_NO_DIR_CACHE": "1"})
