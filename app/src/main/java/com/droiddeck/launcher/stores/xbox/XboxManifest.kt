@@ -7,10 +7,19 @@ internal object XboxManifest {
     data class Info(val storeId: String, val name: String, val publisher: String, val version: String,
         val dependency: String, val related: List<String>, val executables: List<String>)
 
+    /** A GameCore title describes itself with the config; a legacy package does not. */
+    private const val GAME_CONFIG = "MicrosoftGame.config"
+    private const val APPX_MANIFEST = "AppxManifest.xml"
+
     fun read(folder: File): Info {
-        val manifests = folder.listFiles().orEmpty().filter { it.name.equals("MicrosoftGame.config", true) && it.isFile }
-        require(manifests.size == 1) { "Missing or ambiguous MicrosoftGame.config." }
-        val manifest = manifests.single()
+        // Both manifests are read the same way: an identity, an executable path and,
+        // for a Store package, related content.
+        val files = folder.listFiles().orEmpty()
+        val config = files.filter { it.name.equals(GAME_CONFIG, true) && it.isFile }
+        val legacy = files.filter { it.name.equals(APPX_MANIFEST, true) && it.isFile }
+        require(config.size + legacy.size == 1) { "Missing or ambiguous game manifest." }
+        val manifest = (config + legacy).single()
+        val rootTag = if (config.isEmpty()) "Package" else "Game"
         require(manifest.length() <= 1_048_576)
         val parser = android.util.Xml.newPullParser().apply { setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false) }
         val identities = ArrayList<List<String>>()
@@ -29,14 +38,16 @@ internal object XboxManifest {
                     XmlPullParser.DOCDECL -> error("Xbox game manifests cannot contain a DTD.")
                     XmlPullParser.START_TAG -> {
                         require(++elements <= 10_000 && parser.depth <= 64) { "Xbox game manifest is too complex." }
-                        if (parser.depth == 1) { require(!root && parser.name == "Game"); root = true }
+                        if (parser.depth == 1) { require(!root && parser.name == rootTag); root = true }
                         when (parser.name) {
                             "Identity" -> identities.add(listOf(attribute("Name"), attribute("Publisher"), attribute("Version")))
                             "StoreId" -> storeIds.add(parser.nextText().trim())
                             "MainPackageDependency" -> dependencies.add(attribute("Name"))
                             "RelatedProduct" -> related.add(parser.nextText().trim())
-                            "Executable" -> {
-                                val path = attribute("Name").replace('\\', '/')
+                            // Both carry the launch path: an attribute on the config's
+                            // Executable, or on the AppxManifest's Application.
+                            "Executable", "Application" -> {
+                                val path = attribute("Name").ifEmpty { attribute("Executable") }.replace('\\', '/')
                                 if (path.endsWith(".exe", true) && attribute("TargetDeviceFamily") in listOf("", "PC", "Windows.Desktop") &&
                                     !attribute("IsDevOnly").equals("true", true)) entries.add(path)
                             }

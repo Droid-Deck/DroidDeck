@@ -834,7 +834,9 @@ internal fun ArtCard(
             },
         )
         badge?.invoke(this)
-        if (chip != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { StateChip(chip, ChipTone.BUSY, small = true) }
+        if (chip != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+            StateChip(chip, ChipTone.BUSY, small = true, fraction = download?.stageFraction?.takeIf { it >= 0f })
+        }
         val showName = LibraryDisplay.title || hot
         val showDetail = LibraryDisplay.size || hot
         if (showName || showDetail) Column(
