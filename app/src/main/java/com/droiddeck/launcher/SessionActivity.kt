@@ -2589,7 +2589,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         runCatching { com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release) }
         val ok = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.install(this, release,
             progressFor(RUNTIME_LINES, release.size / 1_000_000))
-        if (ok) return null
+        if (ok) {
+            com.droiddeck.launcher.session.SessionFiles.ensureDirtStandIn(this)
+            return null
+        }
         SessionEvents.record("runtime.failed", mapOf("step" to "install", "reason" to com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installError()))
         return getString(R.string.session_runtime_install_failed)
     }

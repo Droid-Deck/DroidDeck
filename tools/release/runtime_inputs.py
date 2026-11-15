@@ -14,12 +14,13 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
-          'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft',
+          'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
+          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
@@ -211,12 +212,27 @@ def pack_digests(root, name):
     return digests
 
 
+def windows_binaries(package):
+    found = []
+    for info in package.infolist():
+        if info.is_dir():
+            continue
+        with package.open(info) as entry:
+            if entry.read(2) == b'MZ':
+                found.append(info.filename)
+    return found
+
+
 def check_apk(apk, root=ROOT):
     data = verify(root)
     packs = {name: pack_digests(root, name) for name in PACK_NAMES
-             if name != 'ubisoft' or (root / PACKS / 'ubisoft.tar.zst').is_file()}
+             if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
     with ZipFile(apk) as package:
         names = set(package.namelist())
+        for name in sorted(names):
+            prefix = next((p for p in PACKED if name.startswith(p)), None)
+            if prefix:
+                raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
         for library in PACKED_LIBRARIES:
             if library in names:
                 raise ValueError('APK still carries ' + library + ', which the tracking pack provides')
@@ -243,6 +259,9 @@ def check_apk(apk, root=ROOT):
                 raise ValueError('APK missing ' + name)
             if hashlib.sha256(content).hexdigest() != output['sha256']:
                 raise ValueError('APK has stale runtime input: ' + name)
+        found = windows_binaries(package)
+        if found:
+            raise ValueError('APK carries Windows executables, which ship in add-on packs: ' + ', '.join(found))
 
 
 if __name__ == '__main__':

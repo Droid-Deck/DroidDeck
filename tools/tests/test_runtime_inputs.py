@@ -36,6 +36,10 @@ class RuntimeInputsTest(unittest.TestCase):
         service = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
         service.parent.mkdir(parents=True)
         service.write_bytes(b'MZ service')
+        rockstar = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar'
+        rockstar.mkdir(parents=True)
+        (rockstar / 'Launcher32.exe').write_bytes(b'MZ launcher 32')
+        (rockstar / 'Launcher64.exe').write_bytes(b'MZ launcher 64')
         self.audio(['pactl', 'modules/arm64/module-aaudio-sink.so', 'modules/arm64/module-directaudio-native-sink.so'])
         self.packs()
 
@@ -188,6 +192,46 @@ class RuntimeInputsTest(unittest.TestCase):
         apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ service'})
         with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
             runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_rockstar_service_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Launcher32.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ launcher 32'})
+        with self.assertRaisesRegex(ValueError, 'rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_a_packed_file_the_manifest_does_not_list_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Unlisted.bin'
+        self.assertNotIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'helper data'})
+        with self.assertRaisesRegex(ValueError, 'Unlisted.bin, which the rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_a_stale_rockstar_pack_is_rejected(self):
+        apk = self.current_apk(self.root / 'current.apk')
+        self.pack('rockstar', {'Launcher32.exe': b'MZ older launcher', 'Launcher64.exe': b'MZ launcher 64'})
+        with self.assertRaisesRegex(ValueError, 'rockstar is missing or has a stale'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_carrying_any_windows_executable_is_rejected(self):
+        for name in ('assets/linuxfs/usr/local/lib/new-helper/helper.exe', 'assets/anything/renamed.bin', 'res/raw/x.dll'):
+            with self.subTest(name=name):
+                apk = self.current_apk(self.root / 'windows.apk', {name: b'MZ helper'})
+                with self.assertRaisesRegex(ValueError, 'Windows executables.*' + name):
+                    runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_dirt_stand_in_is_rejected(self):
+        dirt = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-dirt'
+        dirt.mkdir(parents=True)
+        (dirt / 'ws2_32.dll').write_bytes(b'MZ droiddeck-dirt-ws2_32')
+        self.packs()
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-dirt/ws2_32.dll'
+        self.assertIn(name, runtime.outputs(self.root))
+        self.assertEqual('dirt', runtime.PACKED['assets/linuxfs/usr/local/lib/droiddeck-dirt/'])
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ droiddeck-dirt-ws2_32'})
+        with self.assertRaisesRegex(ValueError, 'dirt pack provides'):
+            runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
