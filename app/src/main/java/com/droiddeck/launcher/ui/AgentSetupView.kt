@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.agent.AgentSetup.Status
 import com.droiddeck.launcher.agent.AgentSetup.Step
 import com.droiddeck.launcher.core.WirelessAdbPairingService
@@ -116,6 +117,15 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                         if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
                     }
                 }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.agent_drawer_inline), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                Text(stringResource(R.string.agent_drawer_inline_hint), fontSize = 12.5.sp, color = pal.onSurfaceVariant)
+            }
+            ToggleSwitch(AgentDrawerLayout.inline, label = stringResource(R.string.agent_drawer_inline), modifier = Modifier.testTag("setting-agent-drawer-inline")) {
+                AgentDrawerLayout.set(context, it)
             }
         }
         if (AgentSetup.ready || AgentSetup.completed(context)) PrimaryButton(stringResource(R.string.agent_setup_done), main = true, onClick = onDone)

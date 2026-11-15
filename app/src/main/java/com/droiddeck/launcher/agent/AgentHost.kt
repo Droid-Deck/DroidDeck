@@ -21,7 +21,8 @@ import java.nio.file.Files
 
 /**
  * The launcher's agent: a coding agent CLI ([AgentHarness]) from the Linux userland, run headless
- * one process per turn, outside any game or desktop session. Conversations are kept on disk
+ * outside any game or desktop session: one process per turn, or for a CLI that takes its messages over
+ * stdin one process kept open between turns, so background work can start a turn of its own. Conversations are kept on disk
  * ([AgentChats]), so a restart (a Lab build, a crash) continues the same one.
  */
 object AgentHost {
@@ -29,10 +30,13 @@ object AgentHost {
         data class Asked(val text: String, val files: List<String> = emptyList()) : Entry
         data class Said(val text: String) : Entry
         data class Thought(val text: String) : Entry
-        /** A tool call; [output] stays null until its result arrives. [parent] is the subagent call it was made under, if any. */
+        /**
+         * A tool call; [output] stays null until its result arrives. [parent] is the subagent call it was made under, if any.
+         * [background]: the call starts work that can wake the CLI after its turn (run_in_background, Monitor).
+         */
         data class Used(
             val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false,
-            val parent: String = "",
+            val parent: String = "", val background: Boolean = false,
         ) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
         /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
@@ -126,10 +130,19 @@ object AgentHost {
     var lab by mutableStateOf<LabProgress?>(null)
         private set
 
-    private class Turn(val process: Process, val pid: Int)
+    private class Turn(val process: Process, val pid: Int, val stdin: java.io.OutputStream? = null)
 
     private val main = Handler(Looper.getMainLooper())
     private var turn: Turn? = null
+    /**
+     * The CLI process when it takes its messages over stdin. It outlives a turn, so work it started in the
+     * background can wake it: the answer to a finished task then arrives without a message from the user.
+     */
+    private var session: Turn? = null
+    private var sessionKey: String? = null
+    /** The running turn is one the CLI started itself, not an answer to the user. */
+    private var background = false
+    private val reap = Runnable { if (state != State.WORKING) dropSession() }
     /** Counts turns, so a process that starts after its turn was stopped is not adopted by the next one. */
     private var generation = 0
     private var labProcess: Process? = null
@@ -142,6 +155,8 @@ object AgentHost {
     private var turnPlanned = false
     private var loaded = false
     private var appContext: Context? = null
+    /** A tool call in this CLI process started work that can wake it after its turn (run_in_background). */
+    private var launchedBackground = false
 
     val turnPid: Int get() = turn?.pid ?: 0
 
@@ -197,6 +212,7 @@ object AgentHost {
             AgentSetup.forget()
             refresh(app)
         }
+        dropSession()
         load(app, id)
         prefs(app).edit().putString(CHAT_KEY, id).apply()
     }
@@ -289,7 +305,33 @@ object AgentHost {
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
         turnPlanned = plan && current.plans
-        val command = current.turn(prompt, conversation, AgentHarness.Options(model, turnPlanned, BRIEF, effort))
+        val options = AgentHarness.Options(model, turnPlanned, BRIEF, effort)
+        val command = current.turn(prompt, conversation, options)
+        val line = current.input(prompt)
+        val key = "${current.id}|$id|$model|$turnPlanned|$effort"
+        background = false
+        val kept = session
+        if (kept != null && line != null && sessionKey == key && kept.process.isAlive) {
+            main.removeCallbacks(reap)
+            turn = kept
+            Thread({
+                val written = runCatching { synchronized(kept) { kept.stdin?.apply { write((line + "\n").toByteArray()); flush() } != null } }.getOrDefault(false)
+                // The process died between turns: the same message goes to a new one, which resumes the conversation.
+                if (!written) main.post {
+                    if (generation == gen && session === kept) {
+                        dropSession()
+                        turn = null
+                        spawn(app, gen, current, current.turn(prompt, conversation, options), line, key)
+                    }
+                }
+            }, "agent-input").start()
+            return
+        }
+        dropSession()
+        spawn(app, gen, current, command, line, key)
+    }
+
+    private fun spawn(app: Context, gen: Int, current: AgentHarness, command: List<String>, line: String?, key: String) {
         val workdir = workspace(app)
         var threadConversation = conversation
         Thread({
@@ -304,38 +346,75 @@ object AgentHost {
                 main.post { if (generation == gen) finish(app, e.message ?: "could not start") }
                 return@Thread
             }
-            val started = Turn(child, AgentProcesses.pidOf(child))
+            val started = Turn(child, AgentProcesses.pidOf(child), if (line != null) child.outputStream else null)
             OrphanReaper.keep(started.pid)
-            main.post { if (generation == gen && state == State.WORKING && turn == null) turn = started else AgentProcesses.killTree(started.pid) }
-            child.outputStream.close()
-            var ended = false
+            main.post {
+                if (generation == gen && state == State.WORKING && turn == null) {
+                    turn = started
+                    if (line != null) { session = started; sessionKey = key }
+                } else AgentProcesses.killTree(started.pid)
+            }
+            if (line != null) runCatching { child.outputStream.apply { write((line + "\n").toByteArray()); flush() } } else child.outputStream.close()
             val raw = runCatching {
                 val log = File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }
                 log.renameTo(File(app.filesDir, "$TURN_LOG.1"))
                 log.bufferedWriter()
             }.getOrNull()
             runCatching {
-                child.inputStream.bufferedReader().forEachLine { line ->
-                    runCatching { raw?.apply { write(line); newLine(); flush() } }
-                    val parsed = current.parse(line) ?: return@forEachLine
+                child.inputStream.bufferedReader().forEachLine { output ->
+                    runCatching { raw?.apply { write(output); newLine(); flush() } }
+                    val parsed = current.parse(output) ?: return@forEachLine
                     parsed.conversation?.let { threadConversation = it }
                     val done = parsed.entries.any { it is Entry.Finished }
-                    if (done) ended = true
                     val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
                         ?.let { parsed.copy(context = it.context ?: parsed.context, window = it.window ?: parsed.window, limits = it.limits ?: parsed.limits) } ?: parsed
-                    main.post { if (turn === started) apply(app, event) }
+                    main.post { if (turn === started || session === started) handle(app, started, event) }
                 }
             }
             runCatching { raw?.close() }
             val status = runCatching { child.waitFor() }.getOrDefault(-1)
             OrphanReaper.release(started.pid)
             main.post {
+                if (session === started) { session = null; main.removeCallbacks(reap) }
                 if (turn === started) {
                     turn = null
-                    if (state == State.WORKING && !ended) finish(app, app.getString(R.string.agent_exited, current.name, status))
+                    if (state == State.WORKING) finish(app, app.getString(R.string.agent_exited, current.name, status))
                 }
             }
         }, "agent-output").start()
+    }
+
+    /** One event from the CLI, which may belong to a turn it started on its own once the user's has ended. */
+    private fun handle(app: Context, from: Turn, event: AgentEvent) {
+        if (event.background) {
+            // A leftover task answered before the user's message is not the user's turn; one the CLI started is its own.
+            if (background && state == State.WORKING) finish(app, event.backgroundError, usage = event.usage)
+            return
+        }
+        val content = event.text != null || event.thinking != null || event.entries.any { it !is Entry.Finished }
+        if (content && state == State.IDLE && session === from) {
+            main.removeCallbacks(reap)
+            background = true
+            turn = from
+            turnPlanned = false
+            state = State.WORKING
+            live = ""
+            liveThinking = ""
+            turnStarted = SystemClock.elapsedRealtime()
+            AgentHostService.start(app)
+        }
+        apply(app, event)
+    }
+
+    /** Ends the CLI process kept between turns, and with it whatever it still runs in the background. */
+    private fun dropSession() {
+        main.removeCallbacks(reap)
+        launchedBackground = false
+        appContext?.let { AgentHostService.backgroundDone(it) }
+        val kept = session ?: return
+        session = null
+        AgentProcesses.killTree(kept.pid)
+        kept.process.destroy()
     }
 
     /** Ends the turn now: its process and everything it started, a build included. */
@@ -349,6 +428,7 @@ object AgentHost {
             AgentProcesses.killTree(running.pid)
             running.process.destroy()
         }
+        dropSession()
         if (state == State.WORKING) finish(app, null, stopped = true)
     }
 
@@ -443,6 +523,10 @@ object AgentHost {
     private fun finish(app: Context, error: String?, stopped: Boolean = false, usage: Usage? = null) {
         if (state != State.WORKING) return
         turn = null
+        val answeredTask = background
+        background = false
+        main.removeCallbacks(reap)
+        if (session != null) main.postDelayed(reap, LINGER_MS)
         if (!stopped) labFromTurn = false
         live = ""
         liveThinking = ""
@@ -451,11 +535,11 @@ object AgentHost {
         state = State.IDLE
         unseen = true
         failed = error != null
-        AgentHostService.stop(app)
+        if (session != null && launchedBackground) AgentHostService.waitForBackground(app) else AgentHostService.stop(app)
         // Claude Code now and then ends a resumed turn at once without reading the message; nothing
         // happened, so the message is sent once more.
         val asked = entries.lastOrNull { it is Entry.Asked } as? Entry.Asked
-        if (!stopped && error == null && asked != null && answerless(entries) && !retrying) {
+        if (!stopped && error == null && !answeredTask && asked != null && answerless(entries) && !retrying) {
             retrying = true
             val retryChat = chat
             resend = Runnable {
@@ -493,6 +577,7 @@ object AgentHost {
 
     private fun record(app: Context, entry: Entry) {
         if (!AgentChats.merge(entries, entry)) return
+        if (entry is Entry.Used && entry.background) launchedBackground = true
         chat?.let { AgentChats.append(AgentChats.file(app, it), entry) }
     }
 
@@ -645,6 +730,8 @@ object AgentHost {
     /** The raw output of the latest turn, for working out what a CLI did when the chat shows nothing. */
     private const val TURN_LOG = "agent/turn.log"
     private const val RETRY_MS = 3_000L
+    /** How long the CLI process stays open after a turn, waiting for background work to wake it. */
+    private const val LINGER_MS = 20 * 60_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
     private fun limitsKey(harness: AgentHarness) = "limits_${harness.id}"
