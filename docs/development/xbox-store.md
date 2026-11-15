@@ -1,7 +1,8 @@
 # Xbox / PC Game Pass on Thor
 
-This integrates PC Microsoft Store MSIXVC packages,
-not Xbox console emulation or UWP/APPX packages.
+This integrates PC Microsoft Store packages, both streamed MSIXVC packages and the legacy
+EAppx containers older desktop titles still ship as. It is not Xbox console emulation and
+does not run UWP titles in a packaged-app host.
 
 ## Testing on Thor
 
@@ -69,13 +70,66 @@ not Xbox console emulation or UWP/APPX packages.
    cleanup must preserve installed game files reached through view symlinks.
 10. Sign out from Xbox. Installed files should remain, account library data should
    clear, and Play/download licensing should require sign-in again.
+11. Install a legacy title that ships an EAppx bundle, such as Forza Horizon 4
+   (`9PNQKHFLD2WQ`). The download shows as a percentage rather than a streamed
+   install, Stop kills it rather than pausing, and a finished install registers
+   the executable named by `AppxManifest.xml`. Expect tens of gigabytes: check
+   free space first, since the preflight needs the download plus two copies of
+   the largest container.
 
 Do not uninstall DroidDeck or clear application data to troubleshoot this build.
 The signed APK is installed in place to retain existing Steam and store data.
 
+## Legacy EAppx packages
+
+A title that predates MSIXVC ships as an EAppx bundle: an archive of Appx packages, encrypted,
+with an `AppxManifest.xml` per package instead of `MicrosoftGame.config`. `streaming` rejects the
+format, so the installer reads the format the catalogue recorded and runs `xodus-cli
+legacy-install` instead. `MSIXVC`, `EAPPX` and `EAPPXBUNDLE` are the only formats listed for a
+`Windows.Desktop` package; the format is carried into the install record so a later update or
+resume dispatches the same way.
+
+The verb resolves, licenses, downloads, extracts, then hoists the manifest to the game root:
+
+- **Resolution.** The Xbox content service is asked first. Some legacy bundles it answers with no
+  files at all; Windows Update (`fe3cr.delivery.mp.microsoft.com`, SOAP `GetCookie`,
+  `SyncUpdates`, `GetExtendedUpdateInfo2`) is asked next through the title's `WuCategoryId` and
+  returns the full bundle with a time-signed CDN URL. That endpoint is a public Windows Update
+  service and needs no Xbox credential, but it presents a certificate chained to Microsoft's ECC
+  Product Root CA 2018, which Android's CA bundle does not carry, so `wu-root.pem` is pinned for
+  those requests only. A WU result is reduced to its `.eappx`/`.eappxbundle` files: the plain
+  `.appx` framework packages delivered beside it (VCLibs) and the differential `.cab` metadata are
+  not containers this path can unpack.
+- **Licensing.** The existing `license` verb runs before the first byte is fetched and must return
+  content keys; no keys means no install.
+- **Space.** Free space is checked up front against the download plus two copies of the largest
+  container, because a bundle is expanded in place. Each container is removed as soon as it is
+  unpacked, so the peak is the archive plus its contents rather than both plus the earlier
+  archives.
+- **Pause and resume.** A legacy download has no control channel: Stop kills the downloader, and
+  the next attempt starts that container again from byte zero. Nothing is checkpointed, so a
+  stopped legacy install costs the bytes already transferred.
+- **Failure detail.** A release build hides logcat from adb, so a failed install writes the
+  backend's stderr tail to `files/xbox-install.log` beside the app and repeats the last lines in
+  the failure message.
+
 ## Evidence and limits
 
 Verified during development:
+
+- The catalogue lists a legacy title beside the MSIXVC ones, and its detail page
+  offers Install with the recorded format.
+- Resolution of a real legacy PC bundle on Thor without any Xbox token: Forza
+  Horizon 4 (`9PNQKHFLD2WQ`) through Windows Update as
+  `Microsoft.SunriseBaseGame_2023.1122.1704.2_neutral_~_8wekyb3d8bbwe.eappxbundle`,
+  85,219,173,025 bytes, with a signed CDN URL. The Xbox content service returns
+  no files for that product, which is why the WU route exists.
+- `AppxManifest.xml` identity and executable extraction, and its rejection rules,
+  are unit-tested against a manifest of that shape.
+- An install of that bundle ran on Thor and fetched the container at roughly
+  1 GB/min. The full download, its extraction and the manifest hoist were still
+  in progress when this was written; treat a completed legacy install, its
+  decrypted contents and a launch from the hoisted root as unverified.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this

@@ -29,7 +29,10 @@ internal object XboxLibraryCache {
                     .put("image", game.imageUrl).put("poster", game.tallImageUrl).put("description", game.description)
                     .put("developer", game.developer).put("publisher", game.publisher).put("size", game.sizeBytes)
                     .put("access", if (game.subscription) "gamepass" else if (game.owned) "owned" else "none")
-                    .put("pc", game.xboxPc).put("cloud", game.xboxCloud).put("cloudId", game.extra["cloudId"].orEmpty()))
+                    .put("pc", game.xboxPc).put("cloud", game.xboxCloud).put("cloudId", game.extra["cloudId"].orEmpty())
+                    // The installer picks its subcommand from this; without it a
+                    // cached legacy game would fall back to streaming.
+                    .put("format", game.extra["format"].orEmpty()))
             }).toString()
 
     internal fun decode(text: String?, account: String, market: String, now: Long = System.currentTimeMillis()): Snapshot? = runCatching {
@@ -46,13 +49,15 @@ internal object XboxLibraryCache {
             val title = row.getString("title")
             val access = row.getString("access")
             val cloudId = row.optString("cloudId").takeIf { it.matches(Regex("[A-Z0-9]{12}")) }.orEmpty()
+            val format = row.optString("format").takeIf { XboxCatalog.installableFormat(it) }.orEmpty()
             require(id.matches(Regex("[A-Z0-9]{12}")) && title.isNotBlank() && access in setOf("owned", "gamepass"))
             CatalogItem(Store.XBOX, id, title, row.optString("image").takeIf { it.isNotEmpty() },
                 tallImageUrl = row.optString("poster").takeIf { it.isNotEmpty() },
                 description = row.optString("description"), developer = row.optString("developer"), publisher = row.optString("publisher"),
                 sizeBytes = row.optLong("size"), owned = access == "owned", subscription = access == "gamepass",
                 storeUrl = "https://www.xbox.com/games/store/$id", extra = mapOf("market" to market, "access" to access,
-                    "pc" to XboxCatalog.flag(row.getBoolean("pc")), "cloud" to XboxCatalog.flag(row.getBoolean("cloud")), "cloudId" to cloudId))
+                    "pc" to XboxCatalog.flag(row.getBoolean("pc")), "cloud" to XboxCatalog.flag(row.getBoolean("cloud")), "cloudId" to cloudId,
+                    "format" to format))
         }
         require(games.map { it.id }.distinct().size == games.size)
         Snapshot(games, savedAt)

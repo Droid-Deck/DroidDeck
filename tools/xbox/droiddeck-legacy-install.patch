@@ -1,0 +1,1239 @@
+diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
+index 36b101b..79ca8d1 100644
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -3,9 +3,11 @@ pub mod download;
+ pub mod extract;
+ pub mod extract_eappx;
+ pub mod license;
++pub mod legacy_install;
+ pub mod login;
+ pub mod logout;
+ pub mod profile;
++pub mod store_delivery;
+ pub mod cloud_token;
+ pub mod social;
+ pub mod game_activity;
+diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
+new file mode 100644
+index 0000000..4e8f118
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/legacy_install.rs
+@@ -0,0 +1,699 @@
++//! Installs a legacy Store title: resolve, license, download, extract.
++//!
++//! `streaming` only understands MSIXVC, where the container *is* the game and
++//! the bytes arrive in the block layout the runtime reads. A legacy title ships
++//! as an EAppx bundle instead, so its bytes have to be fetched whole, licensed
++//! and decrypted before anything is launchable.
++//!
++//! Two delivery routes exist and both are needed in practice: the Xbox content
++//! service serves MSIXVC and some legacy packages, and Windows Update serves the
++//! legacy desktop bundles it refuses (see `store_delivery`). Each is tried in
++//! turn and whichever names a container is used.
++//!
++//! The three verbs under that (`license`, `download`, `extract-eappx`) are chained
++//! here rather than from the app because each process would restart the progress
++//! sequence, and the installer requires it to increase within one stream.
++
++use std::path::{Path, PathBuf};
++use std::process::ExitCode;
++use std::time::{Duration, Instant};
++
++use futures_util::StreamExt;
++use tokio::io::AsyncWriteExt;
++use xodus::tokens::TokenManager;
++
++/// Downloaded containers live here until extraction succeeds. They are large and
++/// useless afterwards, so they are removed on success and kept on failure.
++const CONTAINER_DIR: &str = ".xodus-container";
++/// Content keys for the containers above, removed alongside them.
++const KEYS_DIR: &str = ".xodus-keys";
++/// The manifest the launcher resolves executables against, expected at the root.
++const MANIFEST: &str = "MicrosoftGame.config";
++/// A legacy package carries this instead of the config above.
++const LEGACY_MANIFEST: &str = "AppxManifest.xml";
++
++fn is_legacy_name(name: &str) -> bool {
++    let name = name.to_ascii_lowercase();
++    name.ends_with(".eappx") || name.ends_with(".eappxbundle")
++}
++
++/// Free bytes on the filesystem holding `path`, or `None` when it cannot be read.
++///
++/// The install runs inside the device's own Linux environment, where `df -P -k` is
++/// the one portable free-space query that needs no extra crate, and a failed read
++/// only skips the check rather than blocking a valid install.
++fn free_bytes(path: &Path) -> Option<u64> {
++    let output = std::process::Command::new("df").arg("-kP").arg(path).output().ok()?;
++    if !output.status.success() {
++        return None;
++    }
++    let text = String::from_utf8_lossy(&output.stdout);
++    let available = text.lines().nth(1)?.split_whitespace().nth(3)?;
++    available.parse::<u64>().ok().map(|kib| kib.saturating_mul(1024))
++}
++
++/// Reports why the install stopped without disclosing anything sensitive.
++///
++/// The app only forwards stderr lines that are on a known allowlist, so a bare
++/// message is invisible there. Two lines are emitted instead: a stable stage code,
++/// and the message reduced to lowercase words with every token that could carry a
++/// path, URL or identifier dropped.
++fn fail(code: &str, message: &str) -> ExitCode {
++    eprintln!("NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 {code}");
++    let mut detail = String::new();
++    for word in message.split_whitespace() {
++        if word.contains('/') || word.contains(':') || word.contains('\\') {
++            continue;
++        }
++        let cleaned: String = word
++            .chars()
++            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
++            .collect::<String>()
++            .to_ascii_lowercase();
++        if cleaned.is_empty() {
++            continue;
++        }
++        if !detail.is_empty() {
++            detail.push(' ');
++        }
++        detail.push_str(&cleaned);
++        if detail.len() >= 200 {
++            break;
++        }
++    }
++    if !detail.is_empty() {
++        eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {detail}");
++    }
++    eprintln!("{message}");
++    ExitCode::FAILURE
++}
++
++/// The installer parses this and only this, so it must match the streaming
++/// schema exactly; `phase` drives its stage display.
++struct Progress {
++    json: bool,
++    sequence: u64,
++    phase: &'static str,
++    completed: u64,
++    total: Option<u64>,
++    previous: u64,
++    last: Instant,
++}
++
++impl Progress {
++    fn new(json: bool) -> Self {
++        let mut progress = Self {
++            json,
++            sequence: 0,
++            phase: "metadata",
++            completed: 0,
++            total: None,
++            previous: 0,
++            last: Instant::now(),
++        };
++        progress.emit();
++        progress
++    }
++
++    fn total(&mut self, total: u64) {
++        self.total = Some(total);
++        self.emit();
++    }
++
++    /// Stage transitions are always reported; byte updates are rate limited so a
++    /// multi-gigabyte download cannot flood the pipe.
++    fn phase(&mut self, phase: &'static str) {
++        self.phase = phase;
++        self.completed = 0;
++        self.previous = 0;
++        self.emit();
++    }
++
++    fn advance(&mut self, delta: u64) {
++        self.completed = self.completed.saturating_add(delta);
++        if self.last.elapsed() >= Duration::from_millis(200) {
++            self.emit();
++        }
++    }
++
++    fn complete(&mut self, success: bool) {
++        self.phase = if success { "complete" } else { "failed" };
++        self.emit();
++    }
++
++    fn emit(&mut self) {
++        let elapsed = self.last.elapsed();
++        let rate = (self.completed.saturating_sub(self.previous) as f64 / elapsed.as_secs_f64().max(0.001)) as u64;
++        self.previous = self.completed;
++        self.last = Instant::now();
++        if self.json {
++            let record = serde_json::json!({
++                "schema": 1,
++                "event": "progress",
++                "sequence": self.sequence,
++                "phase": self.phase,
++                "paused": false,
++                "canPause": false,
++                "completedBytes": self.completed,
++                "totalBytes": self.total,
++                "bytesPerSecond": rate,
++            });
++            println!("NEXUS_PROGRESS {record}");
++        } else {
++            match self.total {
++                Some(total) => println!("{}: {}/{} bytes", self.phase, self.completed, total),
++                None => println!("{}: {} bytes", self.phase, self.completed),
++            }
++        }
++        self.sequence += 1;
++    }
++}
++
++/// A container to fetch, wherever its location came from.
++struct Container {
++    name: String,
++    url: String,
++    size: u64,
++}
++
++/// What to install and which content ids its keys may be licensed under.
++struct Install {
++    content_ids: Vec<String>,
++    containers: Vec<Container>,
++    /// Why the other route was not used, for the failure message.
++    note: String,
++}
++
++/// Resolves the legacy containers the Xbox content service is willing to serve.
++///
++/// Every legacy-format member of the offer is tried, because a product can carry
++/// more than one content id and only some of them are served files. Measured on
++/// FH4: the desktop EAppxBundle is acknowledged with an empty file list while the
++/// console XVC of the same product is served normally, so the empty answer is
++/// reported as such rather than as a title that is not owned.
++async fn from_xbox_service(
++    client: &reqwest::Client,
++    tokens: &TokenManager,
++    product: &str,
++    market: &str,
++    preferred: Option<&str>,
++) -> Result<Install, String> {
++    let region = market.to_uppercase();
++    let mut candidates: Vec<String> = Vec::new();
++    if let Some(preferred) = preferred.filter(|id| uuid::Uuid::try_parse(id).is_ok()) {
++        candidates.push(preferred.to_string());
++    } else if uuid::Uuid::try_parse(product).is_ok() {
++        candidates.push(product.to_string());
++    } else {
++        let plan = crate::package_plan::resolve(client, &product.to_uppercase(), &region)
++            .await
++            .map_err(|error| format!("resolve {error}"))?;
++        for choice in &plan.choices {
++            let legacy_format = choice.format == "EAPPX" || choice.format == "EAPPXBUNDLE";
++            if legacy_format && !candidates.contains(&choice.content_id) {
++                candidates.push(choice.content_id.clone());
++            }
++        }
++        // The catalogue names the package a listing shows, which need not be the
++        // container the content service hands over, so the resolver's own choice
++        // is asked first and the rest of the offer is only a fallback.
++        if let Ok(pick) = plan.without_durable_selection().select(None) {
++            candidates.retain(|candidate| *candidate != pick);
++            candidates.insert(0, pick);
++        }
++    }
++    if candidates.is_empty() {
++        return Err("the Store offer names no legacy package".into());
++    }
++
++    let mut probe: Vec<String> = Vec::new();
++    for (index, candidate) in candidates.iter().take(4).enumerate() {
++        match crate::package::get_packages(client, tokens, candidate.clone()).await {
++            Ok(package) => {
++                let legacy: Vec<_> = package
++                    .package_files
++                    .iter()
++                    .filter(|file| is_legacy_name(&file.file_name))
++                    .collect();
++                probe.push(format!("c{index} n{} l{}", package.package_files.len(), legacy.len()));
++                if legacy.is_empty() {
++                    continue;
++                }
++                let mut containers = Vec::new();
++                for file in legacy {
++                    let Some(root) = file.cdn_root_paths.first() else {
++                        return Err("a package file has no download location".into());
++                    };
++                    containers.push(Container {
++                        name: file.file_name.clone(),
++                        url: format!("{root}{}", file.relative_url),
++                        size: file.file_size.max(0) as u64,
++                    });
++                }
++                return Ok(Install { content_ids: vec![candidate.clone()], containers, note: probe.join(" ") });
++            }
++            Err(error) => probe.push(format!("c{index} {error}")),
++        }
++    }
++    Err(format!("{} candidates, {}", candidates.len(), probe.join(" ")))
++}
++
++pub async fn run(
++    client: &reqwest::Client,
++    tokens: &TokenManager,
++    product: String,
++    destination: String,
++    market: Option<String>,
++    selected_content_id: Option<String>,
++    progress_json: bool,
++    resolve_only: bool,
++) -> ExitCode {
++    let destination = PathBuf::from(destination);
++    if let Err(error) = tokio::fs::create_dir_all(&destination).await {
++        return fail("destination-failed", &format!("Could not prepare the install folder: {error}"));
++    }
++    let mut progress = Progress::new(progress_json);
++    let region = market.clone().unwrap_or("US".into()).to_uppercase();
++
++    // One client covers both routes: a package the content service serves is also
++    // downloaded from a delivery host, so both download and update calls use it.
++    let delivery_client = match crate::commands::store_delivery::client() {
++        Ok(client) => client,
++        Err(error) => return fail("update-client-failed", &error),
++    };
++    let install = match from_xbox_service(client, tokens, &product, &region, selected_content_id.as_deref()).await {
++        Ok(install) => install,
++        Err(xbox_error) => {
++            // The content service does not serve legacy desktop bundles, so the
++            // Windows Update route is the one that has to work.
++            match crate::commands::store_delivery::resolve(&delivery_client, &product, &region).await {
++                Ok(delivery) => Install {
++                    content_ids: delivery.content_ids,
++                    containers: delivery
++                        .files
++                        .into_iter()
++                        .map(|file| Container { name: file.name, url: file.url, size: file.size })
++                        .collect(),
++                    note: "windows-update".into(),
++                },
++                Err(update_error) => {
++                    return fail(
++                        "no-container",
++                        &format!("{xbox_error}; windows update: {update_error}"),
++                    )
++                }
++            }
++        }
++    };
++    if install.containers.is_empty() {
++        return fail("no-container", "No package files were listed for this title");
++    }
++    let total: u64 = install.containers.iter().map(|container| container.size).sum();
++    let largest = install.containers.iter().map(|container| container.size).max().unwrap_or(0);
++    progress.total(total);
++    if resolve_only {
++        // Printing locations is what makes a failure diagnosable without spending
++        // hours on a download, so this stops before any byte is written.
++        println!("content-id: {} ({})", install.content_ids.join(","), install.note);
++        for container in &install.containers {
++            println!("{} {} {}", container.size, container.name, container.url);
++        }
++        return ExitCode::SUCCESS;
++    }
++
++    let store = destination.join(CONTAINER_DIR);
++    // A retry after a failed extraction keeps what it already fetched, and
++    // re-fetching eighty gigabytes to reach the same step would make the install
++    // impossible to iterate on. A container of the expected size is reused;
++    // anything else is discarded so a partial transfer cannot pass for a whole one.
++    let mut kept: Vec<PathBuf> = Vec::new();
++    let mut kept_bytes = 0u64;
++    for container in &install.containers {
++        // Only the container's own name is used, never a server-provided path.
++        let Some(name) = Path::new(&container.name).file_name() else {
++            return fail("unusable-name", "Microsoft returned an unusable package name");
++        };
++        let target = store.join(name);
++        let complete = container.size > 0
++            && std::fs::metadata(&target).is_ok_and(|meta| meta.is_file() && meta.len() == container.size);
++        if complete {
++            kept_bytes = kept_bytes.saturating_add(container.size);
++            kept.push(target);
++        } else {
++            tokio::fs::remove_file(&target).await.ok();
++        }
++    }
++    if !kept.is_empty() {
++        println!(
++            "NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 download-reused {}",
++            kept.len()
++        );
++        progress.advance(kept_bytes);
++    }
++
++    // Expanding a bundle in place keeps the bundle, the package it holds and that
++    // package's contents on disk at the same time, so the peak is the download plus
++    // two copies of the largest container. Refusing now is far kinder than filling
++    // the device at the end of an eighty gigabyte install. Containers already on
++    // disk are part of that peak, not something still to be found.
++    if let Some(free) = free_bytes(&destination) {
++        let needed = total
++            .saturating_add(largest.saturating_mul(2))
++            .saturating_sub(kept_bytes);
++        if free < needed {
++            return fail(
++                "insufficient-space",
++                &format!(
++                    "An install this size needs about {} GB free to unpack, and {} GB is available",
++                    needed / 1_000_000_000,
++                    free / 1_000_000_000
++                ),
++            );
++        }
++    }
++
++    // The license verb already writes the [Keys] text eappx reads, so reuse it
++    // rather than re-deriving the content keys here.
++    let keys = destination.join(KEYS_DIR);
++    if let Err(error) = tokio::fs::create_dir_all(&keys).await {
++        return fail("keys-folder-failed", &format!("Could not prepare the key folder: {error}"));
++    }
++    // The standalone verb defaults to "neutral" and that is the market this path
++    // was proven against, so default the same way rather than forwarding a
++    // region the license service may not accept.
++    let license_market = market.clone().unwrap_or("neutral".into());
++    // A Windows Update reply can name several packages, and only the update that
++    // owns the container carries an id the licence service accepts, so try the
++    // candidates in order. Licensing costs seconds and no download, which is far
++    // cheaper than failing after eighty gigabytes.
++    let mut licensed = ExitCode::FAILURE;
++    println!(
++        "NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 license-candidates {}",
++        install.content_ids.len()
++    );
++    for content_id in &install.content_ids {
++        licensed = crate::commands::license::run(
++            client,
++            tokens,
++            content_id.clone(),
++            license_market.clone(),
++            keys.display().to_string(),
++        )
++        .await;
++        if licensed == ExitCode::SUCCESS {
++            break;
++        }
++    }
++    if licensed != ExitCode::SUCCESS {
++        return fail(
++            "license-failed",
++            &format!(
++                "No license for {} content ids ({})",
++                install.content_ids.len(),
++                install.note
++            ),
++        );
++    }
++    let key_file = keys.join("eappx-keys.txt");
++    if !key_file.is_file() {
++        return fail("no-keys", "The license contained no content keys for this title");
++    }
++
++    if let Err(error) = tokio::fs::create_dir_all(&store).await {
++        return fail("staging-folder-failed", &format!("Could not prepare the staging folder: {error}"));
++    }
++    progress.phase("downloading");
++    let mut downloaded: Vec<PathBuf> = Vec::new();
++    for container in &install.containers {
++        // Only the container's own name is used, never a server-provided path.
++        let Some(name) = Path::new(&container.name).file_name() else {
++            return fail("unusable-name", "Microsoft returned an unusable package name");
++        };
++        let target = store.join(name);
++        if kept.contains(&target) {
++            downloaded.push(target);
++            continue;
++        }
++        let response = match delivery_client.get(&container.url).send().await {
++            Ok(response) => response,
++            Err(_) => return fail("download-request-failed", "Could not reach the download server"),
++        };
++        if !response.status().is_success() {
++            return fail(
++                &format!("download-refused-{}", response.status().as_u16()),
++                "The download server refused this package",
++            );
++        }
++        let mut file = match tokio::fs::File::create(&target).await {
++            Ok(file) => file,
++            Err(error) => return fail("download-write-failed", &format!("Could not write the package: {error}")),
++        };
++        let mut stream = response.bytes_stream();
++        while let Some(chunk) = stream.next().await {
++            let Ok(chunk) = chunk else {
++                return fail("download-interrupted", "The transfer was interrupted; resume to retry");
++            };
++            if let Err(error) = file.write_all(&chunk).await {
++                return fail("download-write-failed", &format!("Could not write the package: {error}"));
++            }
++            progress.advance(chunk.len() as u64);
++        }
++        if let Err(error) = file.flush().await {
++            return fail("download-flush-failed", &format!("Could not finish writing the package: {error}"));
++        }
++        downloaded.push(target);
++    }
++
++    progress.phase("finalizing");
++    let key_file_text = key_file.display().to_string();
++    for container in &downloaded {
++        let extracted = crate::commands::extract_eappx::run(
++            container.display().to_string(),
++            destination.display().to_string(),
++            Some(key_file_text.clone()),
++        )
++        .await;
++        if extracted != ExitCode::SUCCESS {
++            let name = container
++                .file_name()
++                .map(|name| name.to_string_lossy().into_owned())
++                .unwrap_or_default();
++            return fail(
++                "extract-failed",
++                &format!("Could not unpack {name}; the download is kept for a retry"),
++            );
++        }
++        // Drop each container as soon as it is unpacked: a full title is tens of
++        // gigabytes, and holding the archive and its contents at once can fill
++        // the device mid-install.
++        tokio::fs::remove_file(container).await.ok();
++    }
++
++    // A bundle extracts each member into its own directory, so the manifest ends
++    // up one level down. The launcher resolves executables relative to the game
++    // folder and requires the manifest at its root, so lift a lone member up.
++    if let Err(error) = hoist(&destination) {
++        return fail("hoist-failed", &error);
++    }
++
++    tokio::fs::remove_dir_all(&store).await.ok();
++    tokio::fs::remove_dir_all(&keys).await.ok();
++    progress.complete(true);
++    ExitCode::SUCCESS
++}
++
++fn has_manifest(folder: &Path) -> bool {
++    std::fs::read_dir(folder).is_ok_and(|entries| {
++        entries.filter_map(Result::ok).any(|entry| {
++            let name = entry.file_name();
++            let named = name.eq_ignore_ascii_case(MANIFEST) || name.eq_ignore_ascii_case(LEGACY_MANIFEST);
++            named && entry.file_type().is_ok_and(|kind| kind.is_file())
++        })
++    })
++}
++
++/// Lifts the largest nested package directory to the game folder.
++///
++/// A bundle's members each extract into their own directory, so the manifest ends
++/// up one level down while the launcher resolves executables from the game folder.
++/// Add-on content is stored without a manifest, so nothing to lift is not an
++/// error. When several members carry one, the largest wins: a base game is orders
++/// of magnitude bigger than the DLC or framework packages beside it, and moving a
++/// smaller member would put an add-on where the base game belongs.
++fn hoist(destination: &Path) -> Result<(), String> {
++    if has_manifest(destination) {
++        return Ok(());
++    }
++    let mut candidates: Vec<PathBuf> = std::fs::read_dir(destination)
++        .map_err(|error| format!("Could not list the install folder: {error}"))?
++        .filter_map(Result::ok)
++        .map(|entry| entry.path())
++        .filter(|path| path.is_dir() && !path.ends_with(CONTAINER_DIR) && !path.ends_with(KEYS_DIR))
++        .filter(|path| has_manifest(path))
++        .collect();
++    if candidates.is_empty() {
++        return Ok(());
++    }
++    if candidates.len() > 1 {
++        candidates.sort_by_key(|path| std::cmp::Reverse(entry_count(path, 0)));
++        println!(
++            "NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 hoist-largest {}",
++            candidates.len()
++        );
++    }
++    let inner = candidates.remove(0);
++    for entry in std::fs::read_dir(&inner)
++        .map_err(|error| format!("Could not list the package folder: {error}"))?
++        .filter_map(Result::ok)
++    {
++        let target = destination.join(entry.file_name());
++        if target.exists() {
++            // Two members can share a file name; the larger member is the one the
++            // base game needs, so the other's copy is dropped rather than fatal.
++            continue;
++        }
++        std::fs::rename(entry.path(), &target)
++            .map_err(|error| format!("Could not move an extracted file: {error}"))?;
++    }
++    std::fs::remove_dir_all(&inner).ok();
++    Ok(())
++}
++
++/// Entries under `folder`, bounded so a deep or hostile tree cannot stall the call.
++fn entry_count(folder: &Path, depth: usize) -> u64 {
++    if depth > 8 {
++        return 0;
++    }
++    let Ok(entries) = std::fs::read_dir(folder) else { return 0 };
++    let mut count = 0;
++    for entry in entries.filter_map(Result::ok) {
++        count += 1;
++        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
++            count += entry_count(&entry.path(), depth + 1);
++            if count > 10_000_000 {
++                return count;
++            }
++        }
++    }
++    count
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn scratch(name: &str) -> PathBuf {
++        let path = std::env::temp_dir().join(format!("xodus-legacy-{name}-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&path);
++        std::fs::create_dir_all(&path).unwrap();
++        path
++    }
++
++    #[test]
++    fn only_eappx_containers_are_treated_as_legacy() {
++        for name in ["a.eappx", "A.EAPPX", "game.eappxbundle", "Game.EAppxBundle"] {
++            assert!(is_legacy_name(name), "{name} should be legacy");
++        }
++        for name in ["game.msixvc", "game.appx", "game.zip", "eappx", "notes.txt"] {
++            assert!(!is_legacy_name(name), "{name} should not be legacy");
++        }
++    }
++
++    #[test]
++    fn free_bytes_reads_the_available_column() {
++        let root = scratch("free");
++        let free = free_bytes(&root).expect("df should answer for an existing folder");
++        assert!(free > 0, "a writable filesystem reports some free space");
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_lifts_a_lone_bundle_member_to_the_game_folder() {
++        let root = scratch("hoist");
++        let inner = root.join("Microsoft.SunriseBaseGame");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join(MANIFEST), "<Game/>").unwrap();
++        std::fs::write(inner.join("ForzaHorizon4.exe"), b"MZ").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(MANIFEST).is_file());
++        assert!(root.join("ForzaHorizon4.exe").is_file());
++        assert!(!inner.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_lifts_a_legacy_package_folder_too() {
++        let root = scratch("legacy-hoist");
++        let inner = root.join("Microsoft.SunriseBaseGame_2023.1122.1704.2_x64__8wekyb3d8bbwe");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(inner.join("ForzaHorizon4.exe"), b"MZ").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(LEGACY_MANIFEST).is_file());
++        assert!(root.join("ForzaHorizon4.exe").is_file());
++        assert!(!inner.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_leaves_a_folder_that_already_has_the_manifest_alone() {
++        let root = scratch("flat");
++        std::fs::write(root.join(MANIFEST), "<Game/>").unwrap();
++        std::fs::create_dir_all(root.join("Content")).unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join("Content").is_dir());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_lifts_the_largest_of_several_package_folders() {
++        let root = scratch("ambiguous");
++        let small = root.join("Dlc");
++        std::fs::create_dir_all(&small).unwrap();
++        std::fs::write(small.join(MANIFEST), "<Package/>").unwrap();
++        let large = root.join("Base");
++        std::fs::create_dir_all(large.join("Content")).unwrap();
++        for index in 0..16 {
++            std::fs::write(large.join("Content").join(format!("asset{index}.bin")), b"1").unwrap();
++        }
++        std::fs::write(large.join(MANIFEST), "<Package/>").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(MANIFEST).is_file());
++        assert!(root.join("Content").is_dir());
++        assert!(!root.join("Base").exists());
++        assert!(small.join(MANIFEST).is_file(), "an add-on is left where it was");
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn download_staging_folders_are_never_hoisted() {
++        let root = scratch("staging");
++        std::fs::create_dir_all(root.join(CONTAINER_DIR)).unwrap();
++        std::fs::write(root.join(CONTAINER_DIR).join(MANIFEST), "<Game/>").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(CONTAINER_DIR).join(MANIFEST).is_file());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn add_on_content_without_a_manifest_is_left_in_place() {
++        let root = scratch("content");
++        std::fs::create_dir_all(root.join("Content")).unwrap();
++        std::fs::write(root.join("Content").join("pack.bin"), b"data").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join("Content").join("pack.bin").is_file());
++        std::fs::remove_dir_all(&root).ok();
++    }
++}
+diff --git a/crates/xodus-cli/src/commands/store_delivery.rs b/crates/xodus-cli/src/commands/store_delivery.rs
+new file mode 100644
+index 0000000..fac02ab
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/store_delivery.rs
+@@ -0,0 +1,420 @@
++//! Windows Update delivery for Store packages.
++//!
++//! The Xbox content service (`GetBasePackage`) serves MSIXVC titles but answers a
++//! legacy desktop bundle with `PackageFound: true` and an empty file list, on every
++//! request shape. Measured on Forza Horizon 4: its EAppxBundle (85.2 GB) is never
++//! served that way, while the same product's console XVC is served normally as
++//! `.xsp` chunks.
++//!
++//! Those bytes are delivered through Windows Update instead, which is what the
++//! Store client itself uses for legacy packages and which needs no Xbox Live auth.
++//! Three SOAP calls do it: an anonymous cookie, a sync scoped to the product's
++//! `WuCategoryId`, then a signed URL for each file whose digest matches.
++//!
++//! Two details cost time to learn and are relied on below:
++//!   * the update fragments inside `<Xml>` are escaped twice, so they have to be
++//!     decoded twice before they contain any tags;
++//!   * a file's content digest, not its id, is what ties it to a return URL.
++
++use std::path::Path;
++use std::time::Duration;
++
++/// The service the Store client talks to. `fe3cr` and `fe3` are both live.
++const BASE: &str = "https://fe3cr.delivery.mp.microsoft.com/ClientWebService/client.asmx";
++const SECURED: &str = "https://fe3cr.delivery.mp.microsoft.com/ClientWebService/client.asmx/secured";
++const NAMESPACE: &str = "http://www.microsoft.com/SoftwareDistribution/Server/ClientWebService";
++const AGENT: &str = "Windows-Update-Agent/10.0.10011.16384 Client-Protocol/2.1";
++
++/// The update service is issued from Microsoft's Windows Update PKI, whose root is
++/// distributed by Windows Update itself rather than by Mozilla, so neither this
++/// device's bundle nor a normal Linux install trusts it and every handshake ends
++/// with "unable to get local issuer certificate". Only the roots those hosts chain
++/// to are added, on a client used for this path alone.
++///
++/// `wu-root.pem` is Microsoft ECC Product Root Certificate Authority 2018, fetched
++/// from the issuer URL in the server's own authority-information extension
++/// (`www.microsoft.com/pkiops/certs/...`). Its serial 14982666DC7CCD8F4053677BB999EC85
++/// and SHA-1 06F1AA330B927B753A40E68CDF22E34BCBEF3352 match the copy Windows ships
++/// in its own root store, and 2043-02-27 20:50:46 GMT is its expiry.
++const UPDATE_ROOT: &str = include_str!("wu-root.pem");
++
++/// A client for the update service and its download hosts: the system trust store
++/// plus the one root above.
++pub fn client() -> Result<reqwest::Client, String> {
++    let root = reqwest::Certificate::from_pem(UPDATE_ROOT.as_bytes())
++        .map_err(|error| format!("the pinned update root could not be read: {error}"))?;
++    reqwest::Client::builder()
++        .user_agent(AGENT)
++        .add_root_certificate(root)
++        .build()
++        .map_err(|error| format!("the update client could not be created: {error}"))
++}
++
++/// Timestamps are not validated by the service, so fixed values keep this free of
++/// a date dependency, as the working reference implementations do.
++const CREATED: &str = "2017-08-05T02:03:05.038Z";
++const EXPIRES: &str = "2044-08-02T20:09:03Z";
++
++/// The device reports itself as a retail Windows desktop: the catalogue serves the
++/// desktop package for this shape, and `App=WU_STORE` is what exposes app categories.
++const ATTRIBUTES: &str = concat!(
++    "BranchReadinessLevel=CB;CurrentBranch=;OEMModel=Virtual Machine;FlightRing=Retail;",
++    "AttrDataVer=21;SystemManufacturer=Microsoft Corporation;InstallLanguage=en-US;",
++    "OSUILocale=en-US;InstallationType=Client;FlightingBranchName=;",
++    "FirmwareVersion=Hyper-V UEFI Release v2.5;SystemProductName=Virtual Machine;OSSkuId=48;",
++    "FlightContent=Mainline;App=WU_STORE;OEMName_Uncleaned=Microsoft Corporation;",
++    "AppVer=0.0.0.0;OSArchitecture=AMD64;SystemSKU=None;UpdateManagementGroup=2;",
++    "IsFlightingEnabled=0;IsDeviceRetailDemo=0;TelemetryLevel=3;OSVersion=10.0.22621.1;",
++    "DeviceFamily=Windows.Desktop;"
++);
++
++/// Baseline category ids a Windows client always claims to have installed. The
++/// service silently expects them; without them the sync returns no metadata.
++const BASELINE: &[u32] = &[
++    1, 2, 3, 10, 11, 17, 19, 2359974, 2359977, 5143990, 5169043, 5169044, 5169047, 8788830, 8806526,
++    9125350, 9154769, 10809856, 23110993, 23110994, 23110995, 23110996, 23110999, 23111000,
++    23111001, 23111002, 23111003, 23111004, 24513870, 28880263, 30077688, 30486944, 59830006,
++    59830007, 59830008, 60484010, 62450018, 62450019, 62450020, 98959022, 98959023, 98959024,
++    98959025, 98959026, 105939029, 105995585, 106017178, 107825194, 117765322, 129905029,
++    130040030, 130040031, 130040032, 130040033, 133399034, 138372035, 138372036, 139536037,
++    139536038, 139536039, 139536040, 142045136, 158941041, 158941042, 158941043, 158941044,
++    159776047, 160733048, 160733049, 160733050, 160733051, 160733055, 160733056, 161870057,
++    161870058, 161870059,
++];
++
++/// One downloadable package file.
++pub struct DeliveryFile {
++    pub name: String,
++    pub url: String,
++    pub size: u64,
++}
++
++/// A product's installable files, plus the content ids its keys may be licensed
++/// under, best candidate first.
++pub struct Delivery {
++    pub content_ids: Vec<String>,
++    pub files: Vec<DeliveryFile>,
++}
++
++fn unescape(text: &str) -> String {
++    // Fragments are escaped twice, so a single pass leaves `&lt;Files&gt;` behind.
++    let mut current = text.to_string();
++    for _ in 0..3 {
++        let next = current
++            .replace("&lt;", "<")
++            .replace("&gt;", ">")
++            .replace("&quot;", "\"")
++            .replace("&apos;", "'")
++            .replace("&amp;", "&");
++        if next == current {
++            break;
++        }
++        current = next;
++    }
++    current
++}
++
++fn element(text: &str, tag: &str) -> Option<String> {
++    let open = format!("<{tag}>");
++    let close = format!("</{tag}>");
++    let start = text.find(&open)? + open.len();
++    let end = start + text[start..].find(&close)?;
++    Some(text[start..end].to_string())
++}
++
++fn blocks(text: &str, tag: &str) -> Vec<String> {
++    let open = format!("<{tag}>");
++    let close = format!("</{tag}>");
++    let mut found = Vec::new();
++    let mut rest = text;
++    while let Some(start) = rest.find(&open) {
++        let after = start + open.len();
++        let Some(length) = rest[after..].find(&close) else { break };
++        found.push(rest[after..after + length].to_string());
++        rest = &rest[after + length + close.len()..];
++    }
++    found
++}
++
++fn attribute(text: &str, name: &str) -> Option<String> {
++    let needle = format!("{name}=\"");
++    let start = text.find(&needle)? + needle.len();
++    let end = start + text[start..].find('"')?;
++    Some(text[start..end].to_string())
++}
++
++async fn soap(client: &reqwest::Client, url: &str, body: &str) -> Result<String, String> {
++    let response = client
++        .post(url)
++        .header("Content-Type", "application/soap+xml; charset=utf-8")
++        .header("User-Agent", AGENT)
++        .timeout(Duration::from_secs(60))
++        .body(body.to_string())
++        .send()
++        .await
++        .map_err(|error| format!("update service unreachable: {error}"))?;
++    if !response.status().is_success() {
++        return Err(format!("update service returned HTTP {}", response.status().as_u16()));
++    }
++    let text = response.text().await.map_err(|_| "update service reply unreadable".to_string())?;
++    Ok(unescape(&text))
++}
++
++fn envelope(action: &str, to: &str, body: &str) -> String {
++    format!(
++        r#"<s:Envelope xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:s="http://www.w3.org/2003/05/soap-envelope"><s:Header><a:Action s:mustUnderstand="1">http://www.microsoft.com/SoftwareDistribution/Server/ClientWebService/{action}</a:Action><a:MessageID>urn:uuid:{message}</a:MessageID><a:To s:mustUnderstand="1">{to}</a:To><o:Security s:mustUnderstand="1" xmlns:o="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><Timestamp xmlns="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><Created>{CREATED}</Created><Expires>{EXPIRES}</Expires></Timestamp><wuws:WindowsUpdateTicketsToken wsu:id="ClientMSA" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" xmlns:wuws="http://schemas.microsoft.com/msus/2014/10/WindowsUpdateAuthorization"></wuws:WindowsUpdateTicketsToken></o:Security></s:Header>{body}</s:Envelope>"#,
++        action = action,
++        to = to,
++        message = uuid::Uuid::new_v4(),
++        body = body,
++    )
++}
++
++/// Reads the `WuCategoryId` the catalogue carries for the product's packages.
++async fn category(client: &reqwest::Client, product: &str, market: &str) -> Result<String, String> {
++    let url = format!(
++        "https://displaycatalog.mp.microsoft.com/v7.0/products/{product}?market={market}&languages=en,neutral"
++    );
++    let text = client
++        .get(url)
++        .timeout(Duration::from_secs(30))
++        .send()
++        .await
++        .map_err(|_| "Store metadata request failed".to_string())?
++        .text()
++        .await
++        .map_err(|_| "Store metadata reply unreadable".to_string())?;
++    let start = text
++        .find("\"WuCategoryId\":\"")
++        .ok_or("This product has no Windows Update category, so it has no legacy package")?;
++    let rest = &text[start + "\"WuCategoryId\":\"".len()..];
++    let end = rest.find('"').ok_or("Unreadable Windows Update category")?;
++    Ok(rest[..end].to_string())
++}
++
++async fn cookie(client: &reqwest::Client) -> Result<(String, String), String> {
++    let body = format!(
++        r#"<s:Body><GetCookie xmlns="{NAMESPACE}"><oldCookie><Expiration>2016-07-27T07:18:09Z</Expiration></oldCookie><lastChange>2015-10-21T17:01:07.1472913Z</lastChange><currentTime>{CREATED}</currentTime><protocolVersion>2.50</protocolVersion></GetCookie></s:Body>"#
++    );
++    let reply = soap(client, BASE, &envelope("GetCookie", BASE, &body)).await?;
++    let encrypted = element(&reply, "EncryptedData").ok_or("Update service issued no session cookie")?;
++    let expiration = element(&reply, "Expiration").unwrap_or_else(|| EXPIRES.to_string());
++    Ok((encrypted, expiration))
++}
++
++struct Revision {
++    update_id: String,
++    revision: String,
++    digest: String,
++    name: String,
++    size: u64,
++    /// The content id of the update this file belongs to. A reply can carry
++    /// several updates, and each names its own package, so this has to travel
++    /// with the file rather than be picked once for the whole reply.
++    content_id: String,
++}
++
++/// One packager per file: the revision identity and the digest are what the
++/// download URL is issued against.
++async fn revisions(
++    client: &reqwest::Client,
++    cookie: &str,
++    expiration: &str,
++    content_id: &str,
++) -> Result<Vec<Revision>, String> {
++    let baseline: String = BASELINE.iter().map(|id| format!("<int>{id}</int>")).collect();
++    let body = format!(
++        r#"<s:Body><SyncUpdates xmlns="{NAMESPACE}"><cookie><Expiration>{expiration}</Expiration><EncryptedData>{cookie}</EncryptedData></cookie><parameters><ExpressQuery>false</ExpressQuery><InstalledNonLeafUpdateIDs>{baseline}</InstalledNonLeafUpdateIDs><OtherCachedUpdateIDs></OtherCachedUpdateIDs><SkipSoftwareSync>false</SkipSoftwareSync><NeedTwoGroupOutOfScopeUpdates>true</NeedTwoGroupOutOfScopeUpdates><FilterAppCategoryIds><CategoryIdentifier><Id>{content_id}</Id></CategoryIdentifier></FilterAppCategoryIds><TreatAppCategoryIdsAsInstalled>true</TreatAppCategoryIdsAsInstalled><AlsoPerformRegularSync>false</AlsoPerformRegularSync><ComputerSpec /><ExtendedUpdateInfoParameters><XmlUpdateFragmentTypes><XmlUpdateFragmentType>Extended</XmlUpdateFragmentType></XmlUpdateFragmentTypes><Locales><string>en-US</string><string>en</string></Locales></ExtendedUpdateInfoParameters><ClientPreferredLanguages><string>en-US</string></ClientPreferredLanguages><ProductsParameters><SyncCurrentVersionOnly>false</SyncCurrentVersionOnly><DeviceAttributes>{ATTRIBUTES}</DeviceAttributes><CallerAttributes>Interactive=1;IsSeeker=0;</CallerAttributes><Products /></ProductsParameters></parameters></SyncUpdates></s:Body>"#
++    );
++    let reply = soap(client, BASE, &envelope("SyncUpdates", BASE, &body)).await?;
++
++    let core = blocks(&reply, "UpdateInfo");
++    let extended = blocks(&reply, "ExtendedUpdateInfo");
++    let Some(extended) = extended.first() else {
++        return Err("Update service returned no package metadata for this category".into());
++    };
++    let mut core_by_id: Vec<(String, String)> = Vec::new();
++    for entries in &core {
++        if let (Some(id), Some(xml)) = (element(entries, "ID"), element(entries, "Xml")) {
++            core_by_id.push((id, xml));
++        }
++    }
++
++    let mut found = Vec::new();
++    for entries in blocks(extended, "Update") {
++        let (Some(id), Some(xml)) = (element(&entries, "ID"), element(&entries, "Xml")) else { continue };
++        // The file list lives in one fragment and the identity the URL is issued
++        // against in the other, so both are needed for the same revision.
++        let Some((_, core_xml)) = core_by_id.iter().find(|(key, _)| *key == id) else { continue };
++        let combined = format!("{xml}{core_xml}");
++        if !combined.contains("<Files") || !combined.contains("SecuredFragment") {
++            continue;
++        }
++        let (Some(update_id), Some(revision)) =
++            (attribute(&combined, "UpdateID"), attribute(&combined, "RevisionNumber"))
++        else {
++            continue;
++        };
++        let package_content_id = attribute(&combined, "PackageContentId").unwrap_or_default();
++        for attributes in file_attributes(&combined) {
++            let Some(name) = attribute(&attributes, "FileName") else { continue };
++            // The differential map is not content, and a cab is update plumbing.
++            if attribute(&attributes, "PatchingType").as_deref() == Some("DynamicMetadata")
++                || name.starts_with("Abm_")
++                || name.to_ascii_lowercase().ends_with(".cab")
++            {
++                continue;
++            }
++            // Only EAppx containers can be unpacked and decrypted here. The plain
++            // `.appx` framework packages delivered alongside one are kept out: they
++            // are a different container format and would fail the whole install.
++            let lower = name.to_ascii_lowercase();
++            if !(lower.ends_with(".eappx") || lower.ends_with(".eappxbundle")) {
++                continue;
++            }
++            found.push(Revision {
++                update_id: update_id.clone(),
++                revision: revision.clone(),
++                digest: attribute(&attributes, "Digest").unwrap_or_default(),
++                name,
++                size: attribute(&attributes, "Size").and_then(|size| size.parse().ok()).unwrap_or(0),
++                content_id: package_content_id.clone(),
++            });
++        }
++    }
++    Ok(found)
++}
++
++/// Collects the attribute text of every `<File ... />` node.
++fn file_attributes(text: &str) -> Vec<String> {
++    let mut found = Vec::new();
++    let mut rest = text;
++    while let Some(start) = rest.find("<File ") {
++        let after = &rest[start + "<File ".len()..];
++        let Some(end) = after.find('>') else { break };
++        found.push(after[..end].trim_end_matches('/').to_string());
++        rest = &after[end..];
++    }
++    found
++}
++
++async fn download_url(
++    client: &reqwest::Client,
++    cookie: &str,
++    expiration: &str,
++    revision: &Revision,
++) -> Result<String, String> {
++    let body = format!(
++        r#"<s:Body><GetExtendedUpdateInfo2 xmlns="{NAMESPACE}"><cookie><Expiration>{expiration}</Expiration><EncryptedData>{cookie}</EncryptedData></cookie><updateIDs><UpdateIdentity><UpdateID>{update}</UpdateID><RevisionNumber>{number}</RevisionNumber></UpdateIdentity></updateIDs><infoTypes><XmlUpdateFragmentType>FileUrl</XmlUpdateFragmentType><XmlUpdateFragmentType>FileDecryption</XmlUpdateFragmentType></infoTypes><deviceAttributes>{ATTRIBUTES}</deviceAttributes></GetExtendedUpdateInfo2></s:Body>"#,
++        update = revision.update_id,
++        number = revision.revision
++    );
++    let reply = soap(client, SECURED, &envelope("GetExtendedUpdateInfo2", SECURED, &body)).await?;
++    for location in blocks(&reply, "FileLocation") {
++        if element(&location, "FileDigest").as_deref() != Some(revision.digest.as_str()) {
++            continue;
++        }
++        if let Some(url) = element(&location, "Url") {
++            return Ok(url);
++        }
++    }
++    Err(format!("No download location was issued for {}", revision.name))
++}
++
++/// Resolves the legacy packages of a Store product through Windows Update.
++pub async fn resolve(
++    client: &reqwest::Client,
++    product: &str,
++    market: &str,
++) -> Result<Delivery, String> {
++    let category = category(client, product, market).await?;
++    let (cookie, expiration) = cookie(client).await?;
++    let revisions = revisions(client, &cookie, &expiration, &category).await?;
++    if revisions.is_empty() {
++        return Err("Windows Update lists no package files for this product".into());
++    }
++    let mut files = Vec::new();
++    for revision in &revisions {
++        let url = download_url(client, &cookie, &expiration, revision).await?;
++        files.push(DeliveryFile { name: revision.name.clone(), url, size: revision.size });
++    }
++    // A bundle's own name is its content id, so that update is the one to licence
++    // first: the others in the same reply belong to different packages and the
++    // licence service rejects their ids. Larger files come first after that,
++    // because the base game is what the licence has to unlock.
++    let mut ordered: Vec<&Revision> = revisions.iter().collect();
++    ordered.sort_by_key(|revision| {
++        let own = Path::new(&revision.name)
++            .file_stem()
++            .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case(&revision.content_id));
++        (std::cmp::Reverse(own), std::cmp::Reverse(revision.size))
++    });
++    let mut content_ids: Vec<String> = Vec::new();
++    for revision in ordered {
++        if !revision.content_id.is_empty() && !content_ids.contains(&revision.content_id) {
++            content_ids.push(revision.content_id.clone());
++        }
++    }
++    if content_ids.is_empty() {
++        return Err("Windows Update did not name the package's content id".into());
++    }
++    Ok(Delivery { content_ids, files })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn the_pinned_root_is_the_expected_microsoft_update_authority() {
++        // The PEM travels with the patch, so a swapped or truncated file must fail
++        // here rather than silently widening what the update client trusts.
++        assert_eq!(UPDATE_ROOT.matches("BEGIN CERTIFICATE").count(), 1);
++        let der = UPDATE_ROOT
++            .lines()
++            .filter(|line| !line.starts_with("-----"))
++            .collect::<String>();
++        use base64::{Engine, engine::general_purpose::STANDARD};
++        let der = STANDARD.decode(der).expect("the pinned root is not valid base64");
++        assert!(der.len() > 500 && der[0] == 0x30, "the pinned root is not a DER SEQUENCE");
++        // Serial number and subject live verbatim in the DER for this certificate.
++        assert!(der.windows(4).any(|w| w == [0x14, 0x98, 0x26, 0x66]), "unexpected serial");
++        let subject = b"Microsoft ECC Product Root Certificate Authority 2018";
++        assert!(
++            der.windows(subject.len()).any(|window| window == subject),
++            "unexpected subject"
++        );
++        assert!(client().is_ok());
++    }
++
++    #[test]
++    fn fragments_escaped_twice_are_decoded_until_stable() {
++        assert_eq!(unescape("&amp;lt;Files&amp;gt;"), "<Files>");
++        assert_eq!(unescape("&lt;File FileName=&quot;a.eappxbundle&quot;/&gt;"), "<File FileName=\"a.eappxbundle\"/>");
++        assert_eq!(unescape("plain text"), "plain text");
++    }
++
++    #[test]
++    fn self_closing_file_nodes_yield_their_attributes() {
++        let text = r#"<Files><File FileName="x.eappxbundle" Digest="abc" Size="99"/><File FileName="Abm_1.cab" Digest="def"/></Files>"#;
++        let attributes = file_attributes(text);
++        assert_eq!(attributes.len(), 2);
++        assert_eq!(attribute(&attributes[0], "FileName").as_deref(), Some("x.eappxbundle"));
++        assert_eq!(attribute(&attributes[0], "Size").as_deref(), Some("99"));
++        assert_eq!(attribute(&attributes[1], "FileName").as_deref(), Some("Abm_1.cab"));
++    }
++
++    #[test]
++    fn blocks_stop_at_the_matching_close_tag() {
++        let text = "<Updates><Update><ID>1</ID></Update><Update><ID>2</ID></Update></Updates>";
++        let updates = blocks(text, "Update");
++        assert_eq!(updates.len(), 2);
++        assert_eq!(element(&updates[1], "ID").as_deref(), Some("2"));
++    }
++
++    #[test]
++    fn element_returns_none_when_absent() {
++        assert!(element("<A>1</A>", "B").is_none());
++        assert_eq!(element("<A></A>", "A").as_deref(), Some(""));
++    }
++}
+diff --git a/crates/xodus-cli/src/commands/wu-root.pem b/crates/xodus-cli/src/commands/wu-root.pem
+new file mode 100644
+index 0000000..63467d7
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/wu-root.pem
+@@ -0,0 +1,19 @@
++-----BEGIN CERTIFICATE-----
++MIIDIzCCAqigAwIBAgIQFJgmZtx8zY9AU2d7uZnshTAKBggqhkjOPQQDAzCBlDEL
++MAkGA1UEBhMCVVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1JlZG1v
++bmQxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjE+MDwGA1UEAxM1TWlj
++cm9zb2Z0IEVDQyBQcm9kdWN0IFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9yaXR5IDIw
++MTgwHhcNMTgwMjI3MjA0MjA4WhcNNDMwMjI3MjA1MDQ2WjCBlDELMAkGA1UEBhMC
++VVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1JlZG1vbmQxHjAcBgNV
++BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjE+MDwGA1UEAxM1TWljcm9zb2Z0IEVD
++QyBQcm9kdWN0IFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9yaXR5IDIwMTgwdjAQBgcq
++hkjOPQIBBgUrgQQAIgNiAATHERYqdh1Wjr65YmXUw8608MMw7I9t1245vMhJq6u4
++40N41YEGXe/HfZ/O1rOQdd4MsJDeI7rI0T5n4BmpG4YxHl80Le4X/RX7fieKMqHq
++yY/JfhjLLzssSHp9pvQBB6yjgbwwgbkwDgYDVR0PAQH/BAQDAgGGMA8GA1UdEwEB
++/wQFMAMBAf8wHQYDVR0OBBYEFEPvcIe4nb/siBncxsRrdQ11NDMIMBAGCSsGAQQB
++gjcVAQQDAgEAMGUGA1UdIAReMFwwBgYEVR0gADBSBgwrBgEEAYI3TIN9AQEwQjBA
++BggrBgEFBQcCARY0aHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9Eb2Nz
++L1JlcG9zaXRvcnkuaHRtADAKBggqhkjOPQQDAwNpADBmAjEAocBJRF0yVSfMPpBu
++JSKdJFubUTXHkUlJKqP5b08czd2c4bVXyZ7CIkWbBhVwHEW/AjEAxdMo63LHPrCs
++Jwl/Yj1geeWS8UUquaUC5GC7/nornGCntZkU8rC+8LsFllZWj8Fo
++-----END CERTIFICATE-----
+diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
+index 679e05a..1b2eb40 100644
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -136,6 +136,27 @@ enum SubCommand {
+         #[arg(short, long)]
+         market: Option<String>,
+     },
++    #[command(
++        about = "Install a legacy EAppx/EAppxBundle title: license, download, extract"
++    )]
++    LegacyInstall {
++        product: String,
++        destination: String,
++        #[arg(short, long)]
++        market: Option<String>,
++        #[arg(long, help = "Content ID explicitly selected from resolve-package for this Store product")]
++        selected_content_id: Option<String>,
++        #[arg(
++            long,
++            help = "Emit Nexus progress protocol v1 as newline-delimited JSON"
++        )]
++        progress_json: bool,
++        #[arg(
++            long,
++            help = "Resolve the download locations and stop without downloading"
++        )]
++        resolve_only: bool,
++    },
+     #[cfg(unix)]
+     #[command(about = "Run a Game with xodus wine")]
+     Run {
+@@ -260,6 +281,7 @@ async fn main() -> ExitCode {
+             | SubCommand::Library { .. }
+             | SubCommand::Clep { .. }
+             | SubCommand::SpLicense { .. }
++            | SubCommand::ExtractEappx { .. }
+             | SubCommand::Logout { .. }
+     );
+     if needs_device_credentials {
+@@ -371,6 +393,26 @@ async fn main() -> ExitCode {
+             )
+             .await
+         }
++        SubCommand::LegacyInstall {
++            product,
++            destination,
++            market,
++            selected_content_id,
++            progress_json,
++            resolve_only,
++        } => {
++            commands::legacy_install::run(
++                &client,
++                &tokens,
++                product,
++                destination,
++                market,
++                selected_content_id,
++                progress_json,
++                resolve_only,
++            )
++            .await
++        }
+         #[cfg(unix)]
+         SubCommand::Run {
+             source,

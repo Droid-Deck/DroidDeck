@@ -1,0 +1,351 @@
+diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
+index c8d5ebf..ab67b8b 100644
+--- a/crates/xodus-cli/src/commands/extract_eappx.rs
++++ b/crates/xodus-cli/src/commands/extract_eappx.rs
+@@ -1,80 +1,192 @@
+-use std::path::PathBuf;
++use std::path::{Path, PathBuf};
+ use std::process::ExitCode;
+ 
+ use eappx::EAppxFile;
+-use eappx::keys::KeyCollection;
++use eappx::keys::{KeyCollection, KeyId};
+ 
+-/// Extracts a locally-stored EAppx/EMSIX package.
+-///
+-/// This is intentionally local-only for now: no store lookup or download.
+-/// See issue #91 - the initial goal is understanding/unpacking the format,
+-/// not full download integration, which can build on this once it lands.
+-pub async fn run(path: String, destination: String, key_file: Option<String>) -> ExitCode {
+-    let infile = PathBuf::from(&path);
+-    let outdir = PathBuf::from(&destination);
+-
+-    let file = match std::fs::File::open(&infile) {
+-        Ok(f) => f,
+-        Err(e) => {
+-            eprintln!("Failed to open {:?}: {e}", infile);
+-            return ExitCode::FAILURE;
++/// A bundle header names each content key as a pair of GUIDs, `(content id,
++/// package id)`, while the licence names the same key by its 16-byte content id
++/// alone. The crate reads a 16-byte id as `(static prefix, content id)`, so the
++/// two never compare equal and a complete key file looks incomplete. Pair every
++/// key the header asks for with the licence entry that carries its content id.
++fn align_keys(keys: &mut KeyCollection, needed: &[KeyId]) {
++    for id in needed {
++        if keys.keys.contains_key(id) {
++            continue;
+         }
+-    };
+-    let mut reader = std::io::BufReader::new(file);
+-
+-    let mut eappx = match EAppxFile::from_stream(&mut reader) {
+-        Ok(e) => e,
+-        Err(e) => {
+-            eprintln!("Failed to parse EAppx header: {e}");
+-            return ExitCode::FAILURE;
++        let KeyId::Guid((content, other)) = id else { continue };
++        let carried = keys.keys.iter().find_map(|(candidate, data)| match candidate {
++            KeyId::Guid((_, listed)) if listed == content && listed != other => Some(data.clone()),
++            _ => None,
++        });
++        if let Some(data) = carried {
++            keys.add(id.clone(), data);
+         }
+-    };
++    }
++}
+ 
+-    println!("{eappx}");
++/// A bundle can hold another bundle, but nesting is bounded so a malformed
++/// archive cannot drive unbounded recursion.
++const MAX_BUNDLE_DEPTH: usize = 3;
+ 
++/// Extracts a locally-stored EAppx/EMSIX package.
++///
++/// A bundle is extracted in place, then each inner package that is itself an
++/// EAppx container is decrypted with the same content keys. Inner files that
++/// are plain ZIP-based packages are left as extracted: they carry no EAppx
++/// header, so there is nothing to decrypt.
++pub async fn run(path: String, destination: String, key_file: Option<String>) -> ExitCode {
+     let mut key_collection = KeyCollection::default();
+     if let Some(key_file) = key_file {
+         let mut keyfile = match std::fs::File::open(&key_file) {
+             Ok(f) => f,
+             Err(e) => {
+-                eprintln!("Failed to open key file {:?}: {e}", key_file);
+-                return ExitCode::FAILURE;
++                return report(
++                    &Failure::new("key-file-open", &key_file, &e.to_string()),
++                    ExitCode::FAILURE,
++                );
+             }
+         };
+         match KeyCollection::from_reader(&mut keyfile) {
+             Ok(loaded) => key_collection.extend(loaded.keys),
+             Err(e) => {
+-                eprintln!("Failed to parse key file: {e}");
+-                return ExitCode::FAILURE;
++                return report(
++                    &Failure::new("key-file-parse", &key_file, &e.to_string()),
++                    ExitCode::FAILURE,
++                );
+             }
+         }
+     }
+ 
+-    if !key_collection.has_required_keys(&eappx.header.key_ids) {
+-        eprintln!("Missing one or more required content keys for this package");
+-        return ExitCode::FAILURE;
++    match derive(Path::new(&path), Path::new(&destination), &key_collection, 0) {
++        Ok(()) => ExitCode::SUCCESS,
++        Err(failure) => report(&failure, ExitCode::FAILURE),
+     }
++}
+ 
+-    if let Err(e) = eappx.load_keys(&key_collection) {
+-        eprintln!("Failed to load keys: {e}");
+-        return ExitCode::FAILURE;
+-    }
++/// A failure the launcher can name without printing a device path.
++///
++/// The app only forwards stderr lines that are on a known allowlist, so the two
++/// lines below are what make a stopped install say why it stopped. The reason is
++/// reduced to letters, digits and a few punctuation marks, which keeps a path or
++/// a key out of the log while still naming the cause.
++struct Failure {
++    code: &'static str,
++    name: String,
++    reason: String,
++}
+ 
+-    if !outdir.exists() {
+-        if let Err(e) = std::fs::create_dir_all(&outdir) {
+-            eprintln!("Failed to create output directory {:?}: {e}", outdir);
+-            return ExitCode::FAILURE;
++impl Failure {
++    fn new(code: &'static str, name: &str, reason: &str) -> Self {
++        Self {
++            code,
++            name: sanitize(name, 60),
++            reason: sanitize(reason, 120),
+         }
+     }
+ 
+-    match eappx.extract(&mut reader, &outdir) {
+-        Ok(_) => {
+-            println!("Extracted {:?} to {:?}", infile, outdir);
+-            ExitCode::SUCCESS
+-        }
+-        Err(e) => {
+-            eprintln!("Extraction failed: {e}");
+-            ExitCode::FAILURE
+-        }
++    fn at(code: &'static str, path: &Path, reason: &str) -> Self {
++        let name = path.file_name().map(|name| name.to_string_lossy().into_owned());
++        Self::new(code, &name.unwrap_or_default(), reason)
++    }
++}
++
++fn sanitize(text: &str, limit: usize) -> String {
++    text.chars()
++        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-') { c } else { '?' })
++        .take(limit)
++        .collect::<String>()
++        .trim()
++        .to_string()
++}
++
++fn report(failure: &Failure, code: ExitCode) -> ExitCode {
++    eprintln!("NEXUS_EXTRACT_DIAGNOSTIC_V1 {}", failure.code);
++    eprintln!("NEXUS_EXTRACT_DETAIL_V1 {} {}", failure.name, failure.reason);
++    eprintln!("Extraction failed: {}: {}: {}", failure.code, failure.name, failure.reason);
++    code
++}
++
++// EAppxMagic is EXPH (single), EXSH and EXBH (bundle). Anything else is not an
++// EAppx container, so a bundle's plain ZIP members are not recursed into.
++fn is_eappx(path: &Path) -> bool {
++    use std::io::Read;
++    let Ok(mut file) = std::fs::File::open(path) else { return false };
++    let mut magic = [0u8; 4];
++    if file.read_exact(&mut magic).is_err() {
++        return false;
++    }
++    matches!(&magic, b"EXPH" | b"EXSH" | b"EXBH")
++}
++
++fn derive(
++    infile: &Path,
++    outdir: &Path,
++    keys: &KeyCollection,
++    depth: usize,
++) -> Result<(), Failure> {
++    let file = std::fs::File::open(infile)
++        .map_err(|e| Failure::at("open", infile, &e.to_string()))?;
++    let mut reader = std::io::BufReader::new(file);
++
++    let mut eappx = EAppxFile::from_stream(&mut reader)
++        .map_err(|e| Failure::at("header", infile, &e.to_string()))?;
++
++    println!("{eappx}");
++
++    // The licence and the header name the same key differently, so the set is
++    // rebuilt per package and reconciled before the header is judged.
++    let mut required = KeyCollection::new(&keys.keys);
++    align_keys(&mut required, &eappx.header.key_ids);
++
++    if !required.has_required_keys(&eappx.header.key_ids) {
++        // The count is the useful part: a license that carries one key cannot
++        // open a bundle whose members each declare their own.
++        return Err(Failure::new(
++            "missing-keys",
++            &infile.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
++            &format!("{} of {} content keys present", required.keys.len(), eappx.header.key_ids.len()),
++        ));
+     }
++
++    eappx
++        .load_keys(&required)
++        .map_err(|e| Failure::at("load-keys", infile, &e.to_string()))?;
++
++    std::fs::create_dir_all(outdir)
++        .map_err(|e| Failure::at("create-dir", outdir, &e.to_string()))?;
++
++    eappx
++        .extract(&mut reader, outdir)
++        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++
++    println!("Extracted {}", infile.file_name().unwrap_or_default().to_string_lossy());
++
++    let mut nested: Vec<PathBuf> = std::fs::read_dir(outdir)
++        .map_err(|e| Failure::at("list", outdir, &e.to_string()))?
++        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
++        .filter(|path| path.is_file() && is_eappx(path))
++        .collect();
++    nested.sort();
++
++    if nested.is_empty() {
++        return Ok(());
++    }
++    if depth >= MAX_BUNDLE_DEPTH {
++        return Err(Failure::at("nesting", infile, "bundle nesting exceeds the limit"));
++    }
++
++    for child in nested {
++        let name = child
++            .file_stem()
++            .map(|name| name.to_string_lossy().into_owned())
++            .ok_or_else(|| Failure::at("no-name", &child, "package without a usable name"))?;
++        derive(&child, &outdir.join(&name), keys, depth + 1)?;
++        // The member's bytes are no longer needed once its contents are on disk.
++        // A bundle of a full title holds tens of gigabytes, and keeping every
++        // member beside the decrypted copy doubles what the install occupies.
++        std::fs::remove_file(&child).ok();
++    }
++
++    Ok(())
+ }
+diff --git a/crates/xodus-cli/src/commands/license.rs b/crates/xodus-cli/src/commands/license.rs
+index f0a820b..5c3acf7 100644
+--- a/crates/xodus-cli/src/commands/license.rs
++++ b/crates/xodus-cli/src/commands/license.rs
+@@ -1,5 +1,6 @@
+ use std::process::ExitCode;
+ 
++use base64::{Engine, engine::general_purpose::STANDARD};
+ use tokio::fs::OpenOptions;
+ use tokio::io::AsyncWriteExt;
+ use xodus::tokens::TokenManager;
+@@ -21,6 +22,10 @@ pub async fn run(
+ 
+     let (key, game_splicense) = license.unwrap();
+     tokio::fs::create_dir_all(&ciks).await.unwrap();
++    // eappx-rs reads a text [Keys] file with base64 Key IDs, while the .cik
++    // format below is the binary form other tools expect. Write both so the
++    // same license dump serves either extractor.
++    let mut eappx_keys = String::from("[Keys]\n");
+     for (uuid, content_key) in game_splicense.content_keys {
+         let unpacked = content_key.unpack(&key).expect("failed to unpack");
+         let mut file = OpenOptions::new()
+@@ -33,7 +38,21 @@ pub async fn run(
+         file.write_all(&uuid_buf).await.unwrap();
+         file.write_all(&*unpacked).await.unwrap();
+         file.flush().await.unwrap();
++        eappx_keys.push_str(&format!(
++            "\"{}\" \"{}\"\n",
++            STANDARD.encode(uuid_buf),
++            STANDARD.encode(&*unpacked),
++        ));
+     }
++    let mut keys_file = OpenOptions::new()
++        .create(true)
++        .write(true)
++        .truncate(true)
++        .open(format!("{ciks}/eappx-keys.txt"))
++        .await
++        .unwrap();
++    keys_file.write_all(eappx_keys.as_bytes()).await.unwrap();
++    keys_file.flush().await.unwrap();
+ 
+     ExitCode::SUCCESS
+ }
+diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
+index b528b14..8365c7d 100644
+--- a/crates/xodus-cli/src/commands/streaming.rs
++++ b/crates/xodus-cli/src/commands/streaming.rs
+@@ -157,7 +157,19 @@ pub async fn run(
+                 .iter()
+                 .find(|p| p.file_name.ends_with(".msixvc"))
+             else {
+-                eprintln!("No .msixvc file found");
++                // Legacy EAppx titles carry no .msixvc member: their bytes come
++                // from the download command and are unpacked by extract-eappx.
++                let legacy = package.package_files.iter().any(|p| {
++                    let name = p.file_name.to_ascii_lowercase();
++                    name.ends_with(".eappx") || name.ends_with(".eappxbundle")
++                });
++                if legacy {
++                    eprintln!(
++                        "This title uses a legacy EAppx package; use download then extract-eappx for this title"
++                    );
++                } else {
++                    eprintln!("No .msixvc file found");
++                }
+                 return ExitCode::FAILURE;
+             };
+             let Some(root) = file.cdn_root_paths.first() else {
+diff --git a/crates/xodus-cli/src/package_plan.rs b/crates/xodus-cli/src/package_plan.rs
+index 6187d56..f784c07 100644
+--- a/crates/xodus-cli/src/package_plan.rs
++++ b/crates/xodus-cli/src/package_plan.rs
+@@ -93,7 +93,11 @@ fn inspect(product: &Value, id: &str) -> Result<(Vec<Choice>, Vec<String>), Stri
+                 .filter(|name| package_family(name)).map(str::to_string);
+             let durable = kind == "Durable" && parent_product_id.is_some() && main_package_family_name.is_some()
+                 && list(package, "Architectures").iter().any(|arch| arch.as_str() == Some("x64"));
+-            let supported = desktop && format == "MSIXVC"
++            // Legacy Store packages are installable on PC too. FH4 and other
++            // pre-MSIXVC titles ship as EAPPXBUNDLE/EAPPX and were refused here,
++            // which made the Store offer look unavailable even when owned.
++            let supported = desktop
++                && matches!(format.as_str(), "MSIXVC" | "EAPPX" | "EAPPXBUNDLE")
+                 && (kind == "Game" || kind == "GameAddOn" || durable)
+                 && properties["IsTrial"].as_bool() != Some(true)
+                 && properties["IsPreOrder"].as_bool() != Some(true);
+@@ -326,6 +330,17 @@ mod tests {
+         assert!(plan.select(None).is_err()); assert!(plan.select(Some(CID)).is_ok());
+         assert_eq!(plan.json("9CCCCCCCCCCC","US")["status"],"choice");
+     }
++    #[test] fn legacy_desktop_package_formats_are_installable() {
++        for format in ["EAPPX", "EAPPXBUNDLE"] {
++            let plan = from_products(ROOT,&BTreeMap::from([(ROOT.into(),package(ROOT,"Windows.Desktop",format))])).unwrap();
++            assert_eq!(plan.select(None).unwrap(), CID, "{format}");
++            assert_eq!(plan.json(ROOT,"US")["status"], "ready", "{format}");
++        }
++        // A console legacy package is still not installable on PC.
++        let plan = from_products(ROOT,&BTreeMap::from([(ROOT.into(),package(ROOT,"Xbox.One","EAPPXBUNDLE"))])).unwrap();
++        assert!(plan.select(None).is_err());
++        assert!(plan.select(Some(CID)).is_err());
++    }
+     #[test] fn durable_entitlement_back_references_do_not_form_bundle_cycles() {
+         const DURABLE: &str = "9DDDDDDDDDDD";
+         let durable = json!({"ProductId":DURABLE,"ProductType":"Durable",

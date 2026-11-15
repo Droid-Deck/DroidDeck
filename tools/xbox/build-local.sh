@@ -8,6 +8,7 @@ build='
         curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$version"
     fi
     bash tools/xbox/build.sh
+    chown -R "$HOST_UID:$HOST_GID" /src/app/src/main/assets/linuxfs /src/app/build 2>/dev/null || true
 '
 if [[ $(uname -m) = x86_64 ]]; then
     cache=${DROIDDECK_XBOX_CACHE:-"${HOME}/.cache/droiddeck-xbox-cross"}
@@ -27,5 +28,7 @@ else
 fi
 mkdir -p "$cache"
 docker run --rm --platform "$platform" -v "$repo:/src" -v "$cache:/work" -w /src \
-    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build "$image" \
+    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build \
+    -e RUST_TEST_THREADS="${RUST_TEST_THREADS:-}" \
+    -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" "$image" \
     bash -lc "set -euo pipefail$build"
