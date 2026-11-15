@@ -1037,6 +1037,7 @@ class SessionService : Service() {
             guest.add("BL_ZRAM=1")
             if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_RAM_CAP_MB=$it") }
             if (!SessionPrefs.zramClient(this)) guest.add("BL_ZRAM_CLIENT=0")
+            if (!SessionPrefs.zramIdle(this)) guest.add("BL_ZRAM_IDLE=0")
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
@@ -2263,10 +2264,11 @@ class SessionService : Service() {
         syncWatcher = null
         val prootPid = sessionPid
         sessionPid = -1
+        // The kept shell goes through the same teardown, which reads its descendants before signalling it.
+        val shell = SessionTerminal.detach(sessionGen)?.let { pid -> readStat(pid)?.second?.let { pid to it } }
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
-        }
-        SessionTerminal.clear(sessionGen)
+        } + listOfNotNull(shell)
         BottomDesktop.stop(this, stoppedGen)
         val controller = suspendController
         suspendController = null

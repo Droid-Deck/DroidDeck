@@ -182,6 +182,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var paceCores by mutableStateOf(true)
     private var ramCapMb by mutableStateOf(0)
     private var zramClient by mutableStateOf(true)
+    private var zramIdle by mutableStateOf(true)
     private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -366,15 +367,78 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             SteamIntegration.Feature.BRIGHTNESS -> integrationSettings(SteamIntegration.brightnessSettings(this))
             SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
-                if (!integrationState.shortcuts) shortcutsTried = true
-                SteamIntegration.setShortcutsListed(this, true)
-                integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                if (integrationState.shortcuts) openShortcutSettings() else installShortcuts()
             }
         }
     }
 
-    private fun openAppInfo() =
-        integrationSettings(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+    private fun openShortcutSettings() =
+        integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+
+    private fun installShortcuts() {
+        if (ShortcutsInstall.running) return
+        ShortcutsInstall.running = true
+        Thread({
+            val result = runCatching {
+                val apk = SteamIntegration.bundledShortcuts(this)
+                when {
+                    SteamIntegration.shortcutsInstalled(this, apk) -> {
+                        ShortcutsInstall.running = false
+                        ui.post { shortcutsReady() }
+                    }
+                    !com.droiddeck.launcher.update.SelfInstaller.canInstall(this) -> {
+                        ShortcutsInstall.running = false
+                        ui.post { integrationSettings(com.droiddeck.launcher.update.SelfInstaller.permissionIntent(this)) }
+                    }
+                    else -> com.droiddeck.launcher.update.SelfInstaller.install(this, apk, com.droiddeck.shortcuts.Relay.PACKAGE,
+                        SteamIntegration.SHORTCUTS_STATUS) { id -> ShortcutsInstall.session = id }
+                }
+            }
+            result.onFailure { e ->
+                ShortcutsInstall.running = false
+                ui.post { shortcutsFailed(e.message) }
+            }
+        }, "shortcuts-install").start()
+    }
+
+    private fun shortcutsReady() {
+        shortcutsTried = true
+        Thread({
+            val deadline = android.os.SystemClock.uptimeMillis() + 3000
+            while (!SteamIntegration.shortcutsListed(this) && android.os.SystemClock.uptimeMillis() < deadline) Thread.sleep(100)
+            ui.post { openShortcutSettings() }
+        }, "shortcuts-listed").start()
+    }
+
+    private fun shortcutsFailed(message: String?) {
+        android.widget.Toast.makeText(this, message?.let { getString(R.string.integration_shortcuts_install_failed_with, it) }
+            ?: getString(R.string.integration_shortcuts_install_failed), android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    private val shortcutsInstallStatus = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            val session = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_SESSION_ID, -1)
+            if (session < 0 || session != ShortcutsInstall.session) return
+            val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
+                android.content.pm.PackageInstaller.STATUS_FAILURE)
+            if (status != android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                ShortcutsInstall.session = -1
+                ShortcutsInstall.running = false
+            }
+            when (status) {
+                android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    val confirm = if (android.os.Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                    val safe = confirm?.let { com.droiddeck.launcher.update.SelfInstaller.safeConfirmIntent(this@FrontEndActivity, it) }
+                    if (safe == null || runCatching { startActivity(safe) }.isFailure) shortcutsFailed(null)
+                }
+                android.content.pm.PackageInstaller.STATUS_SUCCESS -> shortcutsReady()
+                else -> shortcutsFailed(intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE))
+            }
+        }
+    }
+
+    private fun openAppInfo() = integrationSettings(SteamIntegration.shortcutsAppInfo())
 
     private fun openWifiDiscoverySettings() {
         if (!WifiDiscovery.permissionGranted(this)) {
@@ -1139,6 +1203,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
+        val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
+        if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
+        else registerReceiver(shortcutsInstallStatus, shortcutsFilter)
         readGameIntent(intent)
         // A Lab build is usually the agent's work, so the app comes back where the agent is.
         if (savedInstanceState == null && navRequest == null && com.droiddeck.launcher.lab.LabOverlay.promoted && com.droiddeck.launcher.agent.AgentTab.visible) navRequest = "agent"
@@ -1975,7 +2042,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
         homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
-        SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
@@ -2084,6 +2150,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
         updates.unregister()
+        runCatching { unregisterReceiver(shortcutsInstallStatus) }
         super.onDestroy()
     }
 
@@ -2635,7 +2702,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient,
+            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient, zramIdle = zramIdle,
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
             ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
@@ -2655,6 +2722,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
             onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
+            onZramIdle = { on -> SessionPrefs.setZramIdle(this, on); zramIdle = on },
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
@@ -2954,6 +3022,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         paceCores = SessionPrefs.paceCores(this)
         ramCapMb = SessionPrefs.ramCapMb(this)
         zramClient = SessionPrefs.zramClient(this)
+        zramIdle = SessionPrefs.zramIdle(this)
         vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
@@ -3304,4 +3373,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
     }
+}
+
+// The install session outlives the activity when Android recreates it mid-install.
+private object ShortcutsInstall {
+    @Volatile var session = -1
+    @Volatile var running = false
 }

@@ -64,6 +64,7 @@ object CompositorHost {
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
+            SessionPrefs.androidDriver(context).isEmpty(),
         )
         attached = surface
         started = true

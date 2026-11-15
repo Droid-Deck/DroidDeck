@@ -10,14 +10,34 @@
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace Steam pozastaví; po návratu pokračuje, kde skončil.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
+        <item>Váš ovladač se Steamu hlásí jako ovladač Steam Deck. V nastavení relace ho přepněte na Steam Controller, DualShock 4, DualSense nebo Xbox 360; použije se od příští relace.</item>
+        <item>Podržením Zpět na ovladači otevřete nabídku Quick Access ve Steamu. V nastavení relace musí být zapnuté Podržení Zpět pro zkratky Steam.</item>
+        <item>Chování na pozadí určuje, co se stane po opuštění aplikace: Nativní připraví Steam na uspání, Automaticky ho pozastaví, Manuální čeká na Obnovit, Nikdy ho nechá běžet.</item>
+        <item>Hry ze Steamu používají Frame Limit ze Steamu v Quick Access. Displej se přepne na obnovovací frekvenci, kterou limit dělí beze zbytku, pokud nějaká existuje.</item>
+        <item>Režim nízkého zpoždění v nabídce relace posílá vstup z ovladače rychlostí 1000 Hz místo 250 Hz za cenu o něco vyššího zatížení procesoru a baterie.</item>
+        <item>Každá hra má vlastní profil s nastavením Proton, FEX, komponent a prostředí.</item>
+        <item>Nabídka relace obsahuje přepínač mikrofonu pro hlasový chat a tlačítko Pozastavit teď, které relaci na požádání zmrazí.</item>
+        <item>HUD DroidDeck přesunete přetažením, velikost změníte roztažením prsty a když ho odsunete k okraji, připne se jako malá karta s FPS.</item>
+        <item>U kapesních konzolí se dvěma displeji může spodní displej zobrazovat stahování, oznámení, snímky obrazovky a chat Steamu. Prohodit obrazovky tam místo toho přesune hru.</item>
+        <item>Přidejte knihovny Steamu z SD karty, USB disku nebo SSD a DroidDeck udrží hry pohromadě v Knihovně.</item>
+        <item>Obchody vám umožní přihlásit se do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io a Game Jolt a pak instalovat a aktualizovat jejich hry přímo z DroidDeck.</item>
+        <item>Komponenty jako FEX, DXVK a VKD3D-Proton se aktualizují samy a výchozí je Proton Experimental ARM64, případně Proton 11.0 ARM64, jakmile je tato verze nainstalovaná.</item>
+        <item>Komprimovat Steam během hry uvolní RAM na zařízeních s nedostatkem paměti.</item>
+        <item>Přejetím od pravého okraje otevřete nabídku relace: režim touchpadu, Klávesnice PC, Režim nízkého zpoždění, profil hry a další.</item>
+        <item>Hra běží pomalu? Omezte snímkovou frekvenci v Quick Access a zkuste jinou verzi Proton nebo jinou předvolbu FEX v komponentách hry.</item>
+        <item>Praskání nebo chybějící zvuk ve hře? Zkuste přepínač DirectAudio pro hry v nastavení Steamu v části Zvuk.</item>
+        <item>Příprava a potom Úložiště umí vymazat mezipaměti shaderů a zbylé prefixy po odstraněných hrách.</item>
+        <item>Narazili jste na chybu? Sdílet protokoly v nabídce relace sbalí diagnostiku. Pošlete ji do #bug-reports na Discordu.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>První spuštění připraví Plochu. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace relace pozastaví; po návratu pokračuje, kde skončila.</item>
-        <item>Dotyk funguje jako touchpad: tažením posouváte kurzor, dotykem klikáte.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
+        <item>První spuštění připraví plochu. Může to trvat několik minut.</item>
+        <item>Dotyk funguje jako touchpad: tažením pohybujete ukazatelem, klepnutím klikáte.</item>
+        <item>Chování na pozadí určuje, co se stane po opuštění aplikace: Manuální ve výchozím stavu čeká na Obnovit, Automaticky pozastaví, Nikdy nechá běžet.</item>
+        <item>Přejetím od pravého okraje otevřete nabídku relace a poté zvolte Klávesnice PC, abyste mohli psát v aplikacích, které ignorují klávesnici Androidu.</item>
+        <item>Klávesnice PC v nabídce relace má nastavitelnou velikost, průhlednost a skupiny kláves.</item>
+        <item>Váš ovladač se hlásí jako ovladač Xbox 360. Jinak použijte ovládací prvky na obrazovce.</item>
+        <item>Nabídka relace obsahuje přepínač mikrofonu a tlačítko Pozastavit teď, které relaci na požádání zmrazí.</item>
+        <item>Narazili jste na chybu? Sdílet protokoly v nabídce relace sbalí diagnostiku. Pošlete ji do #bug-reports na Discordu.</item>
     </string-array>
     <string name="session_channel">Relace</string>
     <string name="session_channel_description">Zobrazuje se, když je otevřená relace Steamu nebo Plochy</string>
@@ -614,6 +634,8 @@
     <string name="perf_cap_off">Vypnuto</string>
     <string name="perf_cap_auto">Výchozí ovladače</string>
     <string name="perf_zram_client">Komprimovat Steam během hry</string>
+    <string name="perf_zram_idle">Komprimovat neaktivní paměť hry</string>
+    <string name="perf_zram_idle_hint">Při nedostatku RAM stránkuje neaktivní paměť hry. Vypněte to, pokud hry zhruba každou půlminutu na několik sekund zamrznou. Projeví se při příštím spuštění relace.</string>
     <string name="perf_zram_client_hint">20 s po spuštění hry se klient Steam zkomprimuje do zRAM, aby hře zbylo více paměti, a po zavření hry se načte zpět. Vypněte, pokud se relace krátce po spuštění her zavírá. Limit RAM výše stále komprimuje Steam, když ho relace překročí.</string>
     <string name="perf_ram_cap">Limit RAM</string>
     <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
@@ -3921,8 +3943,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, klávesa Win a tlačítko Domů zůstanou v relaci</string>
     <string name="integration_shortcuts_maybe_restricted">V Androidu zašedlé? Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_restricted">Blokováno Androidem · Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
-    <string name="integration_shortcuts_service">Systémové klávesy DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Ponechá Alt+Tab, klávesu Win a tlačítko Domů v aktivní relaci DroidDeck místo Androidu.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="setup_gpu_bridge_off">Most Mali: vypnuto</string>
     <string name="setup_gpu_bridge_unusable">%1$s nemůže použít most Mali (potřebuje GPU Mali bez trasy přes systémový ovladač), takže tento přepínač tady nemá žádný účinek.</string>
