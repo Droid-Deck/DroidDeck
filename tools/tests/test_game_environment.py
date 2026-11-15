@@ -958,19 +958,32 @@ class GameEnvironmentTest(unittest.TestCase):
             calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)})
             self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
 
-    def test_the_install_script_seeder_skips_the_probe_when_proton_has_a_template_prefix(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for template in ("default_pfx", "default_pfx_arm64"):
-                with self.subTest(template=template):
-                    reg = root / "files/share" / template / "system.reg"
-                    reg.parent.mkdir(parents=True)
-                    reg.write_text("")
-                    calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
-                                                           "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
-                    self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
-                    reg.unlink()
-                    reg.parent.rmdir()
+    def test_the_install_script_seeder_checks_only_the_selected_template(self):
+        for machine in ("aarch64", "x86_64"):
+            for setting in (None, "1", "0", ""):
+                for arm64_bin in (False, True):
+                    for template in ("default_pfx", "default_pfx_arm64"):
+                        with self.subTest(machine=machine, setting=setting, arm64_bin=arm64_bin, template=template):
+                            with tempfile.TemporaryDirectory() as tmp:
+                                root = Path(tmp)
+                                if arm64_bin:
+                                    (root / "files/bin-arm64").mkdir(parents=True)
+                                reg = root / "files/share" / template / "system.reg"
+                                reg.parent.mkdir(parents=True)
+                                reg.write_text("")
+                                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                       "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                                if setting is not None:
+                                    env["PROTON_USE_ARM64"] = setting
+                                before = dict(env)
+                                with patch("platform.machine", return_value=machine):
+                                    calls = self.run_install_marker(root, env)
+                                selected = "default_pfx_arm64" if machine == "aarch64" and arm64_bin and setting in (None, "1") else "default_pfx"
+                                expected = [MODULE["SEED_REDISTS"]]
+                                if template != selected:
+                                    expected = [str(root / "proton"), str(root / ("files/bin-arm64/wineserver")), *expected]
+                                self.assertEqual([args[0] for args, _ in calls], expected)
+                                self.assertEqual(env, before)
 
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
