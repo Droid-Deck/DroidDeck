@@ -528,8 +528,8 @@ public final class PadBridge {
         }
         float lx = event.getAxisValue(MotionEvent.AXIS_X);
         float ly = event.getAxisValue(MotionEvent.AXIS_Y);
-        boolean wired = wiredXboxLayout(event);
-        boolean rxRyStick = rightStickUsesRxRy(event, rightStickLayouts);
+        boolean wired = wiredXboxLayout(device, event.getSource());
+        boolean rxRyStick = rightStickUsesRxRy(event, device, rightStickLayouts);
         float rx = event.getAxisValue(rxRyStick ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
         float ry = event.getAxisValue(rxRyStick ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
         retainStick(slot, JoyCon.LEFT, lx, ly);
@@ -538,14 +538,14 @@ public final class PadBridge {
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
-        boolean signedLeft = signedZTriggers(event, wired, rxRyStick, true);
-        boolean signedRight = signedZTriggers(event, wired, rxRyStick, false);
+        boolean signedLeft = signedZTriggers(event, device, wired, rxRyStick, true);
+        boolean signedRight = signedZTriggers(event, device, wired, rxRyStick, false);
         if (signedLeft || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)) {
-            lt = axisTrigger(triggerValue(event, wired, rxRyStick, true), keyTriggers[slot], 0);
+            lt = axisTrigger(triggerValue(event, device, wired, rxRyStick, true), keyTriggers[slot], 0);
             pad.leftTrigger = lt;
         }
         if (signedRight || hasAxis(device, source, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)) {
-            rt = axisTrigger(triggerValue(event, wired, rxRyStick, false), keyTriggers[slot], 1);
+            rt = axisTrigger(triggerValue(event, device, wired, rxRyStick, false), keyTriggers[slot], 1);
             pad.rightTrigger = rt;
         }
         if (hasAxis(device, source, MotionEvent.AXIS_HAT_X)) {
@@ -603,10 +603,9 @@ public final class PadBridge {
         return false;
     }
 
-    static boolean rightStickUsesRxRy(MotionEvent event, Map<Integer, Boolean> layouts) {
-        if (wiredXboxLayout(event)) return true;
-        InputDevice device = event.getDevice();
+    static boolean rightStickUsesRxRy(MotionEvent event, InputDevice device, Map<Integer, Boolean> layouts) {
         int source = event.getSource();
+        if (wiredXboxLayout(device, source)) return true;
         boolean hasRxRy = hasAxis(device, source, MotionEvent.AXIS_RX)
                 && hasAxis(device, source, MotionEvent.AXIS_RY);
         boolean hasZRz = hasAxis(device, source, MotionEvent.AXIS_Z)
@@ -625,10 +624,9 @@ public final class PadBridge {
         return useRxRy;
     }
 
-    static boolean signedZTriggers(MotionEvent event, boolean wired, boolean rxRyStick, boolean left) {
+    static boolean signedZTriggers(MotionEvent event, InputDevice device, boolean wired, boolean rxRyStick, boolean left) {
         if (wired) return true;
         if (!rxRyStick) return false;
-        InputDevice device = event.getDevice();
         int source = event.getSource();
         int signedAxis = left ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RZ;
         int dedicatedAxis = left ? MotionEvent.AXIS_LTRIGGER : MotionEvent.AXIS_RTRIGGER;
@@ -637,23 +635,19 @@ public final class PadBridge {
                 && !hasAxis(device, source, dedicatedAxis, alternateAxis);
     }
 
-    static float triggerValue(MotionEvent event, boolean wired, boolean rxRyStick, boolean left) {
-        if (signedZTriggers(event, wired, rxRyStick, left)) {
+    static float triggerValue(MotionEvent event, InputDevice device, boolean wired, boolean rxRyStick, boolean left) {
+        if (signedZTriggers(event, device, wired, rxRyStick, left)) {
             int axis = left ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RZ;
             float value = event.getAxisValue(axis);
-            if (!wired) {
-                InputDevice device = event.getDevice();
-                if (device != null) {
-                    InputDevice.MotionRange range = device.getMotionRange(axis, event.getSource());
-                    if (range != null && range.getMax() > range.getMin()) {
-                        return Math.max(0f, Math.min(1f,
-                                (value - range.getMin()) / (range.getMax() - range.getMin())));
-                    }
+            if (!wired && device != null) {
+                InputDevice.MotionRange range = device.getMotionRange(axis, event.getSource());
+                if (range != null && range.getMax() > range.getMin()) {
+                    return Math.max(0f, Math.min(1f,
+                            (value - range.getMin()) / (range.getMax() - range.getMin())));
                 }
             }
             return Math.max(0f, Math.min(1f, (value + 1f) / 2f));
         }
-        InputDevice device = event.getDevice();
         int source = event.getSource();
         int axis = left ? MotionEvent.AXIS_LTRIGGER : MotionEvent.AXIS_RTRIGGER;
         int alternate = left ? MotionEvent.AXIS_BRAKE : MotionEvent.AXIS_GAS;

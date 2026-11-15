@@ -88,17 +88,21 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
     fun onMotion(event: MotionEvent): Boolean {
         if (event.actionMasked != MotionEvent.ACTION_MOVE) return true
         val sticks = physical.getOrPut(event.deviceId) { Sticks() }
-        val wired = wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) }
-        val rxRyStick = PadBridge.rightStickUsesRxRy(event, rightStickLayouts)
+        val device = event.device
+        val wired = wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(device, event.source) }
+        val rxRyStick = PadBridge.rightStickUsesRxRy(event, device, rightStickLayouts)
         sticks.leftX = event.getAxisValue(MotionEvent.AXIS_X)
         sticks.leftY = event.getAxisValue(MotionEvent.AXIS_Y)
         sticks.rightX = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RX else MotionEvent.AXIS_Z)
         sticks.rightY = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
-        val signedLeft = PadBridge.signedZTriggers(event, wired, rxRyStick, true)
-        val signedRight = PadBridge.signedZTriggers(event, wired, rxRyStick, false)
-        if (hasTriggerAxes(event) || signedLeft || signedRight) {
-            sticks.leftTrigger = PadBridge.triggerValue(event, wired, rxRyStick, true)
-            sticks.rightTrigger = PadBridge.triggerValue(event, wired, rxRyStick, false)
+        val signedLeft = PadBridge.signedZTriggers(event, device, wired, rxRyStick, true)
+        val signedRight = PadBridge.signedZTriggers(event, device, wired, rxRyStick, false)
+        val analogTriggers = hasTriggerAxes(event)
+        if (analogTriggers || signedLeft) {
+            sticks.leftTrigger = PadBridge.triggerValue(event, device, wired, rxRyStick, true)
+        }
+        if (analogTriggers || signedRight) {
+            sticks.rightTrigger = PadBridge.triggerValue(event, device, wired, rxRyStick, false)
         }
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
         val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
