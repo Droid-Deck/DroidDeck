@@ -15,6 +15,7 @@ object BootMovie {
     const val DROIDDECK_30 = "dd30"
     const val DROIDDECK_60 = "dd60"
     const val CUSTOM = "custom"
+    private const val SKIP = "skip"
     const val MAX_BYTES = 50L shl 20
     const val MAX_CONVERT_SECONDS = 60
     val PICKER_EXTENSIONS = listOf("webm", "mkv", "mp4", "mov", "m4v", "3gp")
@@ -22,6 +23,7 @@ object BootMovie {
     private val ASSETS = mapOf(
         DROIDDECK_30 to "droiddeck-startup.webm",
         DROIDDECK_60 to "droiddeck-startup-60.webm",
+        SKIP to "skip-startup.webm",
     )
 
     internal val VIDEO_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1)
@@ -74,6 +76,7 @@ object BootMovie {
 
     fun prepare(context: Context): File? {
         BootMovieLibrary.restore(context)
+        if (SessionPrefs.skipBootMovie(context)) return assetFile(context, SKIP)
         val source = sourceOf(context, choice(context)) ?: return null
         return variant(context, source)
     }
@@ -147,13 +150,29 @@ object BootMovie {
         folder.listFiles()?.forEach { if (it.name != keep) it.delete() }
     }
 
-    internal fun syncShuffleFromSteam(context: Context, config: File) {
-        val steam = SessionFiles.startupMovieShuffle(config) ?: return
-        if (SessionPrefs.bootMovieShuffleSeen(context, config) != steam) SessionPrefs.setBootMovieShuffle(context, steam)
-        SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
-    }
+    internal fun syncShuffleFromSteam(context: Context, config: File) = syncShuffleFromSteam(context, listOf(config))
 
-    internal fun syncShuffleFromSteam(context: Context, configs: List<File>) = configs.forEach { syncShuffleFromSteam(context, it) }
+    // Staging writes Shuffle and its baseline under the same lock, so a poll never reads a half-staged value as Steam's.
+    internal fun syncShuffleFromSteam(context: Context, configs: List<File>) = synchronized(SessionFiles.STEAM_CONFIG) {
+        val read = configs.mapNotNull { config -> SessionFiles.startupMovieShuffle(config)?.let { config to it } }
+        val (known, unseen) = read.partition { (config, _) -> SessionPrefs.bootMovieShuffleSeen(context, config) != null }
+        var changed = false
+        known.forEach { (config, steam) ->
+            if (SessionPrefs.bootMovieShuffleSeen(context, config) != steam) {
+                SessionPrefs.setBootMovieShuffle(context, steam)
+                changed = true
+            }
+            SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
+        }
+        // A config read for the first time only sets the choice when no known config changed, so it cannot undo a change.
+        unseen.forEach { (config, steam) ->
+            if (!changed && SessionPrefs.bootMovieShuffle(context) != steam) {
+                SessionPrefs.setBootMovieShuffle(context, steam)
+                changed = true
+            }
+            SessionPrefs.setBootMovieShuffleSeen(context, config, steam)
+        }
+    }
 
     fun syncFromSteam(context: Context): Boolean {
         val active = BootMovieLibrary.steamConfig(context)

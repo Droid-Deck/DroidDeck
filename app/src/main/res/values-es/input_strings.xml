@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Perfiles de entrada</string>
+    <string name="input_profiles">Perfiles</string>
+    <string name="input_physical">Mando físico</string>
+    <string name="input_primary">Pantalla principal</string>
+    <string name="input_secondary">Pantalla secundaria</string>
+    <string name="input_native">Nativo / Steam Input</string>
+    <string name="input_native_target">Nativo: %1$s</string>
+    <string name="input_remap_native">Enviar otro control del mando</string>
+    <string name="input_disabled">Desactivado</string>
+    <string name="input_keys">Tecla o combinación de teclas</string>
+    <string name="input_direction_keys">Teclas de dirección</string>
+    <string name="input_pointer">Mover el puntero</string>
+    <string name="input_pointer_speed">Velocidad del puntero: %1$d</string>
+    <string name="input_scroll">Desplazar</string>
+    <string name="input_scroll_vertical">Desplazar verticalmente</string>
+    <string name="input_mouse_left">Botón izquierdo del ratón</string>
+    <string name="input_mouse_right">Botón derecho del ratón</string>
+    <string name="input_mouse_middle">Botón central del ratón</string>
+    <string name="input_command_menu">Abrir el menú de DroidDeck</string>
+    <string name="input_command_keyboard">Mostrar el teclado</string>
+    <string name="input_command_steam">Abrir el menú de Steam</string>
+    <string name="input_command_qam">Abrir el acceso rápido de Steam</string>
+    <string name="input_remove_element">Quitar control</string>
+    <string name="input_add_element">Añadir control</string>
+    <string name="input_extra_keys">Botones específicos del dispositivo</string>
+    <string name="input_capture">Asignar un botón físico</string>
+    <string name="input_capture_confirm">Suelta el botón y elige Editar, Reintentar o Cancelar. B o Atrás cancela tras soltarlo.</string>
+    <string name="input_capture_retry">Reintentar</string>
+    <string name="input_capture_hint">Pulsa un botón, incluido un botón Atrás informado como tecla. Las teclas de volumen y del sistema Android están reservadas. La asignación solo se aplica a este dispositivo.</string>
+    <string name="input_remove_binding">Quitar asignación</string>
+    <string name="input_latency">Diagnóstico de entrada</string>
+    <string name="input_measure">Registrar el tiempo de envío de entrada</string>
+    <string name="input_read_timing">Leer mediciones</string>
+    <string name="input_latency_hint">Mide el envío de Android hasta su publicación en el transporte de entrada existente. No incluye la llegada por Bluetooth, el sondeo del invitado, el renderizado ni la latencia de pantalla. La grabación está desactivada de forma predeterminada.</string>
+    <string name="input_normal_binding">Usar la asignación de entrada normal</string>
+</resources>

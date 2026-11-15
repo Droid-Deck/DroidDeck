@@ -175,4 +175,28 @@ class StartupMovieConfigTest {
         BootMovie.syncShuffleFromSteam(app, listOf(inactive, active))
         assertTrue(SessionPrefs.bootMovieShuffle(app))
     }
+
+    @Test fun aChangeInAnInactiveHomeIsNotUndoneByAnActiveHomeReadForTheFirstTime() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("session", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val inactive = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        val active = File(folder.root, "unreadable.vdf")
+        BootMovie.syncShuffleFromSteam(app, listOf(inactive, active))
+        SessionFiles.setStartupMovieShuffle(inactive, true)
+        active.writeText(inactive.readText())
+        SessionFiles.setStartupMovieShuffle(active, false)
+        BootMovie.syncShuffleFromSteam(app, listOf(inactive, active))
+        assertTrue(SessionPrefs.bootMovieShuffle(app))
+        assertEquals(false, SessionPrefs.bootMovieShuffleSeen(app, active))
+    }
+
+    @Test fun aShuffleLineWithATrailingCommentIsReplacedNotDuplicated() {
+        val file = config(SessionFiles.BOOT_MOVIE_PATH, "0", SessionFiles.BOOT_MOVIE_PATH)
+        file.writeText(file.readText().replace("\t\t\t\"LocalPath\"", "\t\t\t\"Shuffle\"\t\t\"1\" // set in Steam\n\t\t\t\"LocalPath\""))
+        assertEquals(true, SessionFiles.startupMovieShuffle(file))
+        assertTrue(SessionFiles.setStartupMovieShuffle(file, false))
+        assertEquals(false, SessionFiles.startupMovieShuffle(file))
+        assertEquals(1, Regex("\"Shuffle\"").findAll(file.readText().substringAfter("Customization")).count())
+        assertTrue(file.readText().contains("\"0\" // set in Steam"))
+    }
 }
