@@ -173,12 +173,12 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             ElementSource.DOUBLE -> b.doubleAction(e)
             null -> b.action(e)
         } }
-            ?: editing.key?.let { k -> b.keys.firstOrNull { it.key == k && it.part == null }?.action ?: InputAction.Disabled }
+            ?: editing.key?.let { k -> b.keys.firstOrNull { it.key == k && it.part == editing.part }?.action ?: InputAction.Disabled }
             ?: b.controls[editing.control] ?: InputAction.Native()
         InputActionEditor(editing.control, current, when (editing.part) {
-            ElementSource.CLICK -> stringResource(R.string.input_click_name, editing.element!!.name)
-            ElementSource.HOLD -> stringResource(R.string.input_hold_name, editing.element!!.name)
-            ElementSource.DOUBLE -> stringResource(R.string.input_double_name, editing.element!!.name)
+            ElementSource.CLICK -> stringResource(R.string.input_click_name, editing.element?.name ?: editing.key?.label ?: "")
+            ElementSource.HOLD -> stringResource(R.string.input_hold_name, editing.element?.name ?: editing.key?.label ?: "")
+            ElementSource.DOUBLE -> stringResource(R.string.input_double_name, editing.element?.name ?: editing.key?.label ?: "")
             null -> editing.element?.name ?: editing.key?.label ?: editing.control.label
         },
             properties = { action -> when (editing.part) {
@@ -199,15 +199,14 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                     })) else l
                     geometry.withPreset(when {
                     editing.element != null && editing.part == ElementSource.CLICK -> b.copy(clicks = b.clicks + (editing.element.id to action))
-                    editing.element != null && editing.part == ElementSource.HOLD -> b.copy(holds = b.holds + (editing.element.id to action))
-                    editing.element != null && editing.part == ElementSource.DOUBLE -> b.copy(doubles = b.doubles + (editing.element.id to action))
+                    editing.element != null && editing.part == ElementSource.HOLD -> b.copy(holds = if (action is InputAction.Disabled) b.holds - editing.element.id else b.holds + (editing.element.id to action))
+                    editing.element != null && editing.part == ElementSource.DOUBLE -> b.copy(doubles = if (action is InputAction.Disabled) b.doubles - editing.element.id else b.doubles + (editing.element.id to action))
                     editing.element != null -> b.copy(elements = b.elements + (editing.element.id to action))
                     editing.key != null -> b.copy(keys = run {
-                        val rest = b.keys.filterNot { it.key == editing.key && (it.part == editing.part || editing.part == ElementSource.HOLD && it.part == null) }
-                        val normal = rest.firstOrNull { it.key == editing.key && it.part == null }
-                        val withoutNormal = if (editing.part == ElementSource.HOLD) rest.filterNot { it.key == editing.key && it.part == null } else rest
-                        withoutNormal + listOfNotNull(normal?.copy(repeat = if (editing.part == ElementSource.HOLD) holdRepeat else normal.repeat)) +
-                            PhysicalInputBinding(editing.key, action, editing.part)
+                        val normal = b.keys.firstOrNull { it.key == editing.key && it.part == null }
+                        val others = b.keys.filterNot { it.key == editing.key && (it.part == editing.part || it.part == null) }
+                        val normalOut = normal?.let { if (editing.part == ElementSource.HOLD) it.copy(repeat = holdRepeat) else it }
+                        others + listOfNotNull(normalOut, PhysicalInputBinding(editing.key, action, editing.part))
                     })
                     else -> b.copy(controls = b.controls + (editing.control to action))
                 }) }) edit = null

@@ -131,9 +131,11 @@ class PhysicalInputBindings(private val router: InputRouter) {
         }
         if (entry.double != null) {
             entry.pendingSingle = true
-            val run = Runnable { startHeld(entry) }
-            entry.startHeldRun = run
-            handler.postDelayed(run, ScreenKeyTiming.doubleMs)
+            if (entry.hold == null && !entry.repeat) {
+                val run = Runnable { startHeld(entry) }
+                entry.startHeldRun = run
+                handler.postDelayed(run, ScreenKeyTiming.doubleMs)
+            }
         } else entry.channel.update(1f)
         if (entry.hold != null || entry.repeat) {
             val run = Runnable { startHold(entry) }
@@ -145,18 +147,20 @@ class PhysicalInputBindings(private val router: InputRouter) {
     private fun releasePress(entry: Entry) {
         if (!entry.pressed) return
         entry.pressed = false
+        val wasDoubleFiring = entry.doubleFiring
+        val wasHolding = entry.holding
+        val hadPendingSingle = entry.pendingSingle
         clearTimers(entry)
-        if (entry.doubleFiring) {
-            entry.doubleFiring = false
+        if (wasDoubleFiring) {
             entry.double?.update(0f)
             return
         }
-        if (entry.holding) {
+        if (wasHolding) {
             entry.hold?.update(0f)
             entry.channel.update(0f)
             return
         }
-        if (entry.pendingSingle) {
+        if (hadPendingSingle) {
             entry.pendingSingle = false
             if (entry.double != null && SystemClock.uptimeMillis() - entry.pressedAt < ScreenKeyTiming.holdMs) {
                 entry.awaitingDouble = true

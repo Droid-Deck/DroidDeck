@@ -248,8 +248,8 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                             draft.checkpoint()
                             when (draft.actionPart) {
                                 ElementSource.CLICK -> draft.clicks = draft.clicks + (element.id to action)
-                                ElementSource.HOLD -> draft.holds = draft.holds + (element.id to action)
-                                ElementSource.DOUBLE -> draft.doubles = draft.doubles + (element.id to action)
+                                ElementSource.HOLD -> draft.holds = if (action is InputAction.Disabled) draft.holds - element.id else draft.holds + (element.id to action)
+                                ElementSource.DOUBLE -> draft.doubles = if (action is InputAction.Disabled) draft.doubles - element.id else draft.doubles + (element.id to action)
                                 null -> draft.actions = draft.actions + (element.id to action)
                             }
                             draft.elements = draft.elements.map { if (it.id == element.id)

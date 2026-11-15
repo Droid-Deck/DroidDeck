@@ -104,7 +104,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         }
         if (double.configured) {
             pendingSingle = true
-            handler.postDelayed(startHeld, ScreenKeyTiming.doubleMs)
+            if (!hold.configured && !element.repeat) handler.postDelayed(startHeld, ScreenKeyTiming.doubleMs)
         } else update(1f)
         if (hold.configured || element.repeat) handler.postDelayed(startHold, ScreenKeyTiming.holdMs)
     }
@@ -125,7 +125,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
             if (double.configured && SystemClock.uptimeMillis() - pressedAt < ScreenKeyTiming.holdMs) {
                 awaitingDouble = true
                 handler.postDelayed(singleTap, ScreenKeyTiming.doubleMs)
-            } else tap(route)
+            } else tap()
             return
         }
         update(0f)
@@ -144,7 +144,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
 
     private val singleTap = Runnable {
         awaitingDouble = false
-        if (!pressed && !closed) tap(route)
+        if (!pressed && !closed) tap()
     }
 
     private val startHeld = Runnable {
@@ -156,6 +156,8 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     private val startHold = Runnable {
         if (!pressed || closed || holding) return@Runnable
         holding = true
+        pendingSingle = false
+        handler.removeCallbacks(startHeld)
         if (hold.configured) {
             update(0f)
             hold.set(true)
@@ -167,10 +169,10 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     private val repeatTick = object : Runnable {
         override fun run() {
             if (!pressed || closed || !repeating) return
-            if (hold.configured) hold.set(true) else route?.update(1f)
+            if (hold.configured) hold.set(true) else update(1f)
             handler.postDelayed({
                 if (pressed && !closed && repeating) {
-                    if (hold.configured) hold.set(false) else route?.update(0f)
+                    if (hold.configured) hold.set(false) else update(0f)
                 }
             }, ScreenKeyTiming.repeatMs / 2)
             handler.postDelayed(this, ScreenKeyTiming.repeatMs)
@@ -201,9 +203,9 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         doubleFiring = false
     }
 
-    private fun tap(channel: InputRouter.Channel?) {
-        channel?.update(1f)
-        channel?.update(0f)
+    private fun tap() {
+        update(1f)
+        update(0f)
     }
 
     fun click(down: Boolean) {
@@ -248,8 +250,13 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
             InputTiming.end(timing)
         }
 
-        fun close() { channel?.close(); deckSource?.close() }
-        fun release() { channel?.release(); deckSource?.release() }
+        private fun clear() {
+            if (onPad) writePad(owner, null) { state -> state.clear() }
+            if (onDeck) deckSource?.native(null, 0f, 0f, false)
+            onPad = false; onDeck = false
+        }
+        fun close() { clear(); channel?.close(); deckSource?.close() }
+        fun release() { clear(); channel?.release(); deckSource?.release() }
     }
 
     private fun writePad(owner: Any, target: InputControl?, mutation: (PadState) -> Unit) {
