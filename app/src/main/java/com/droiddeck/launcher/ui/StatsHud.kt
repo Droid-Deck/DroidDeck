@@ -98,6 +98,7 @@ internal class HudData(
     val tempColor: (HudMetrics.TempSensor, Int) -> Color,
     val redC: (HudMetrics.TempSensor) -> Int?,
     val historySeconds: Int = 0,
+    val graphEnd: Long = 0L,
 ) {
     val frametimeMs: Float? get() = fps?.takeIf { it > 0f }?.let { 1000f / it }
     val hz: Int get() = if (refreshHz > 0) refreshHz else 60
@@ -268,18 +269,26 @@ private fun lowsText(d: HudData, size: TextUnit, accent: Color, deep: Boolean = 
 private val GRAPH_MIN_GAP = 3.dp
 
 @Composable
-private fun Graph(values: List<Float>, lo: Float, hi: Float, color: Color, modifier: Modifier) {
+private fun Graph(values: List<Float>, lo: Float, hi: Float, color: Color, modifier: Modifier, end: Long = 0L) {
     Canvas(modifier) {
         if (values.size < 2 || hi <= lo) return@Canvas
         val stride = ceil(GRAPH_MIN_GAP.toPx() * (values.size - 1) / size.width).toInt().coerceAtLeast(1)
-        val points = if (stride == 1) values else values.chunked(stride) { it.average().toFloat() }
-        if (points.size < 2) return@Canvas
+        // Buckets start at multiples of stride counted from the first sample ever drawn, so a sample keeps
+        // its bucket as the window scrolls; counted from the window's start, every new frame re-paired them.
+        val skip = Math.floorMod(values.size.toLong() - end, stride.toLong()).toInt()
         val path = Path()
-        points.forEachIndexed { i, v ->
-            val x = i / (points.size - 1f) * size.width
-            val y = size.height - ((v - lo) / (hi - lo)).coerceIn(0f, 1f) * size.height
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        var drawn = 0
+        var start = skip
+        while (start < values.size) {
+            val stop = minOf(start + stride, values.size)
+            var sum = 0f
+            for (i in start until stop) sum += values[i]
+            val x = (start + stop - 1) / 2f / (values.size - 1f) * size.width
+            val y = size.height - ((sum / (stop - start) - lo) / (hi - lo)).coerceIn(0f, 1f) * size.height
+            if (drawn++ == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            start = stop
         }
+        if (drawn < 2) return@Canvas
         drawPath(path, color.copy(alpha = 0.22f), style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(path, color, style = Stroke(width = 2.2f.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
@@ -287,7 +296,7 @@ private fun Graph(values: List<Float>, lo: Float, hi: Float, color: Color, modif
 
 @Composable
 private fun FrameGraph(d: HudData, accent: Color, height: Dp) {
-    Graph(d.graph.toList(), 0f, FrameStats.GRAPH_MAX_MS, lerp(accent, Color.White, 0.3f), Modifier.fillMaxWidth().height(height))
+    Graph(d.graph.toList(), 0f, FrameStats.GRAPH_MAX_MS, lerp(accent, Color.White, 0.3f), Modifier.fillMaxWidth().height(height), d.graphEnd)
 }
 
 @Composable
@@ -589,7 +598,7 @@ private fun ColumnScope.Pacing(d: HudData, accent: Color) {
                 drawLine(color, Offset(0f, y), Offset(size.width, y), 1.dp.toPx(), pathEffect = dash)
             }
         }
-        Graph(d.graph.toList(), 0f, FrameStats.GRAPH_MAX_MS, graphColor, Modifier.fillMaxSize())
+        Graph(d.graph.toList(), 0f, FrameStats.GRAPH_MAX_MS, graphColor, Modifier.fillMaxSize(), d.graphEnd)
         for ((ms, color) in listOf(target to HudInk.dim, target * 2 to HudInk.amber)) {
             Small("%.1f ms · %d fps".format(ms, (1000f / ms).roundToInt()), 11.sp, color,
                 Modifier.align(Alignment.TopEnd).offset(y = maxHeight * (1f - ms / FrameStats.GRAPH_MAX_MS) - 17.dp))
