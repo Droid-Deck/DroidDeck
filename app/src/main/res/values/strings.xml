@@ -297,6 +297,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto: touchpad on Desktop, direct in Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>

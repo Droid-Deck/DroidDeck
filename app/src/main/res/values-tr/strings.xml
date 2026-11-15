@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Dokunmatik yüzey</string>
     <string name="mode_touch_direct">Doğrudan</string>
     <string name="mode_touch_note">Otomatik: Masaüstünde dokunmatik yüzey, Steam\'de doğrudan.</string>
+    <string name="mode_pen">Kalem</string>
+    <string name="mode_pen_mouse">Fare</string>
+    <string name="mode_pen_touch">Dokunma</string>
+    <string name="mode_pen_button">Yan düğme</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>

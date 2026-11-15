@@ -535,6 +535,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var upscaleSharpness by mutableStateOf(75)
     private var hdrReason by mutableStateOf<String?>(null)
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
+    private var pen by mutableStateOf<SessionPrefs.Pen?>(null)
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
@@ -2471,6 +2472,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
+                pen = pen,
                 suspendPolicy = suspendPolicy,
                 steamDownloadsInBackground = steamDownloadsInBackground,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
@@ -2523,6 +2525,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onUpscaler = { m -> SessionPrefs.setUpscaler(this, m); upscaler = m },
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
                 onTouch = { t -> SessionPrefs.setTouchMode(this, t); touchMode = t },
+                onPen = { key, value -> SessionPrefs.setPenSetting(this, key, value); pen = SessionPrefs.pen(this) },
                 onSuspendPolicy = { policy -> SessionPrefs.setSuspendPolicy(this, mode, policy); suspendPolicy = policy },
                 onSteamDownloadsInBackground = { enabled ->
                     SessionPrefs.setSteamDownloadsInBackground(this, enabled)
@@ -2869,6 +2872,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         hdrReason = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason
         touchMode = SessionPrefs.touchMode(this)
+        if (!SessionPrefs.penSeen(this) && com.droiddeck.launcher.input.PenStream.penConnected()) SessionPrefs.setPenSeen(this)
+        pen = SessionPrefs.pen(this).takeIf { SessionPrefs.penSeen(this) }
         suspendPolicy = SessionPrefs.suspendPolicy(this, mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)

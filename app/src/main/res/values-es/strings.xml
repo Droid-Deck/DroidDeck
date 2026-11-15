@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Directo</string>
     <string name="mode_touch_note">Auto: touchpad en Escritorio, directo en Steam.</string>
+    <string name="mode_pen">Lápiz</string>
+    <string name="mode_pen_mouse">Ratón</string>
+    <string name="mode_pen_touch">Táctil</string>
+    <string name="mode_pen_button">Botón lateral</string>
     <string name="mode_osc">Controles en pantalla</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto muestra los controles cuando no hay ningún mando conectado.</string>

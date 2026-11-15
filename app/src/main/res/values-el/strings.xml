@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Πινακίδα αφής</string>
     <string name="mode_touch_direct">Απευθείας</string>
     <string name="mode_touch_note">Αυτόματο: πινακίδα αφής στην Επιφάνεια εργασίας, απευθείας στο Steam.</string>
+    <string name="mode_pen">Γραφίδα</string>
+    <string name="mode_pen_mouse">Ποντίκι</string>
+    <string name="mode_pen_touch">Αφή</string>
+    <string name="mode_pen_button">Πλαϊνό κουμπί</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>

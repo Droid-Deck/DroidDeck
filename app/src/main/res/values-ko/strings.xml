@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">터치패드</string>
     <string name="mode_touch_direct">직접 터치</string>
     <string name="mode_touch_note">자동: 데스크톱에서는 터치패드, Steam에서는 직접 터치를 사용합니다.</string>
+    <string name="mode_pen">펜</string>
+    <string name="mode_pen_mouse">마우스</string>
+    <string name="mode_pen_touch">터치</string>
+    <string name="mode_pen_button">측면 버튼</string>
     <string name="mode_osc">화면 컨트롤</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">자동 모드에서는 컨트롤러가 연결되지 않은 경우 화면 컨트롤을 표시합니다.</string>

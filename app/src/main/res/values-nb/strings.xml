@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Styreflate</string>
     <string name="mode_touch_direct">Direkte</string>
     <string name="mode_touch_note">Auto: styreflate på Skrivebord, direkte i Steam.</string>
+    <string name="mode_pen">Penn</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_button">Sideknapp</string>
     <string name="mode_osc">Skjermkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollene når ingen kontroller er tilkoblet.</string>

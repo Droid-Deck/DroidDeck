@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkt</string>
     <string name="mode_touch_note">Auto: Touchpad auf dem Desktop, direkt in Steam.</string>
+    <string name="mode_pen">Stift</string>
+    <string name="mode_pen_mouse">Maus</string>
+    <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_button">Seitentaste</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>

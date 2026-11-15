@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Pad sentuh</string>
     <string name="mode_touch_direct">Terus</string>
     <string name="mode_touch_note">Auto: pad sentuh pada Desktop, terus dalam Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Tetikus</string>
+    <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_button">Butang sisi</string>
     <string name="mode_osc">Kawalan pada skrin</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto memaparkan kawalan apabila tiada pengawal disambungkan.</string>

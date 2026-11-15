@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Тачпад</string>
     <string name="mode_touch_direct">Прямой</string>
     <string name="mode_touch_note">Авто: тачпад для рабочего стола, прямой сенсорный ввод для Steam.</string>
+    <string name="mode_pen">Перо</string>
+    <string name="mode_pen_mouse">Мышь</string>
+    <string name="mode_pen_touch">Сенсорный ввод</string>
+    <string name="mode_pen_button">Боковая кнопка</string>
     <string name="mode_osc">Экранные элементы управления</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматический режим показывает экранные элементы управления, если контроллер не подключен.</string>

@@ -269,6 +269,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Automatisch: touchpad op Desktop, direct in Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Muis</string>
+    <string name="mode_pen_touch">Aanraken</string>
+    <string name="mode_pen_button">Zijknop</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>

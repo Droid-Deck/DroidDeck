@@ -162,6 +162,8 @@ public final class WaylandCompositor {
 
     public static native void nativeSendTouch(int action, int pointerId, int x, int y);
 
+    public static native void nativeSendPen(int flags, int x, int y);
+
     public static native int nativeCursorSnapshot(int[] out);
 
     public static native int nativeCursorSerial();
