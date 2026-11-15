@@ -20,6 +20,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.droiddeck.launcher.runtime.NativeGuest.init(this)
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)

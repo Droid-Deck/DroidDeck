@@ -7,6 +7,9 @@
 #ifndef DDNATV_HOST_TEST
 
 static char g_real_exe[PATH_MAX] = {0};
+// DDNATV_EXEC: the app's libddexec.so. A targetSdk 29+ app may not execve() its data files; this
+// executable maps one and starts it as the kernel would ("libddexec.so <file> <argv0> [args...]").
+static char g_exec_loader[PATH_MAX] = {0};
 // DDNATV_PRELOAD: guest paths of libraries every program loads before the hook (what
 // /etc/ld.so.preload does for programs run by the rootfs's own ld.so), and the same as host paths.
 static char *g_preload_guest = NULL;
@@ -34,12 +37,14 @@ static void init_ddnatv_hook(void) {
         }
     }
     ddnatv_load_binds(getenv("DDNATV_BINDS"));
+    const char *exec_loader = getenv("DDNATV_EXEC");
+    if (exec_loader && exec_loader[0] == '/' && strlen(exec_loader) < sizeof(g_exec_loader))
+        ddnatv_copy_cstr(g_exec_loader, sizeof(g_exec_loader), exec_loader);
     const char *hostname = getenv("DDNATV_HOSTNAME");
     if (hostname && hostname[0] && strlen(hostname) < sizeof(g_hostname)) ddnatv_copy_cstr(g_hostname, sizeof(g_hostname), hostname);
     const char *link_root = getenv("DDNATV_LINK_ROOT");
     if (link_root && link_root[0] == '/' && strlen(link_root) < sizeof(g_link_root)) {
-        ddnatv_copy_cstr(g_link_root, sizeof(g_link_root), link_root);
-        g_link_root_len = strlen(g_link_root);
+        g_link_root_len = ddnatv_kernel_path(link_root, strlen(link_root), g_link_root, sizeof(g_link_root));
         while (g_link_root_len > 1 && g_link_root[g_link_root_len - 1] == '/') g_link_root[--g_link_root_len] = 0;
     }
     const char *preload = getenv("DDNATV_PRELOAD");
