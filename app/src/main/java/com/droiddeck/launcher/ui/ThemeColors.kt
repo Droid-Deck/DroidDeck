@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import com.droiddeck.launcher.R
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -144,6 +145,20 @@ internal object ThemeColors {
             line = tint(first, 0.40f, 0.16f), line2 = tint(first, 0.36f, 0.22f),
             onBackground = tint(first, 0.05f, 0.97f), onSurfaceVariant = tint(first, 0.16f, 0.68f),
             primary = Color(first), primary2 = Color(second), onPrimary = ink, signal = Color(first),
+            good = Color(0xFF4CD37F),
+        )
+    }
+
+    // Page and panels are pure black so an OLED panel leaves those pixels off; only raised cards, rules and the highlight are lit.
+    fun trueBlack(highlight: Int): Palette {
+        val seen = readable(highlight)
+        val ink = inkFor(seen, seen)
+        val accent = Color(fitTo(ink, seen))
+        return Palette(
+            Themes.TRUE_BLACK, R.string.theme_true_black, R.string.theme_true_black_detail,
+            background = Color.Black, surface = Color.Black, surfaceVariant = Color(0xFF0C0C0D), line = Color(0xFF1C1D20), line2 = Color(0xFF2A2C30),
+            onBackground = Color(0xFFF2F4F7), onSurfaceVariant = Color(0xFF8E9196),
+            primary = accent, primary2 = accent, onPrimary = ink, signal = accent,
             good = Color(0xFF4CD37F),
         )
     }

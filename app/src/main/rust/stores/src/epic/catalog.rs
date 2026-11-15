@@ -51,6 +51,20 @@ fn attribute_of(entry: &Value, name: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+fn third_party_managed_app(entry: &Value) -> Option<String> {
+    let value = attribute_of(entry, "ThirdPartyManagedApp")?;
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let launcher = match value.to_ascii_lowercase().as_str() {
+        "origin" | "ea app" | "the ea app" => "EA app",
+        "ubisoft connect" | "uplay" => "Ubisoft Connect",
+        _ => value,
+    };
+    Some(launcher.to_string())
+}
+
 pub fn details_of(entry: &Value) -> Value {
     let publisher = attribute_of(entry, "publisherName")
         .map(|p| p.trim().to_string())
@@ -73,6 +87,7 @@ pub fn details_of(entry: &Value) -> Value {
         "wide": image(entry, &["DieselGameBox", "Thumbnail"]),
         "logo": image(entry, &["DieselGameBoxLogo"]),
         "canRunOffline": offline,
+        "thirdPartyManagedApp": third_party_managed_app(entry).unwrap_or_default(),
         "dlc": main_game.is_some_and(|m| !m.is_null()),
         "mainGameId": main_game.map(|m| net::str_of(m, "id")).unwrap_or(""),
     })
@@ -118,6 +133,7 @@ mod tests {
         assert_eq!(d["logo"], "logo");
         assert_eq!(d["publisher"], "Pub");
         assert_eq!(d["canRunOffline"], false);
+        assert_eq!(d["thirdPartyManagedApp"], "");
         assert_eq!(d["releaseDate"], "2020-01-01T00:00:00.000Z");
         assert_eq!(d["dlc"], false);
         let dlc = details_of(&json!({"mainGameItem": {"id": "base"}, "seller": {"name": "S"}, "viewableDate": "v"}));
@@ -128,5 +144,15 @@ mod tests {
         assert_eq!(dlc["canRunOffline"], true);
         assert_eq!(dlc["logo"], "");
         assert_eq!(pick_entry(&json!({"x": {"title": "Only"}}), "y").unwrap()["title"], "Only");
+    }
+
+    #[test]
+    fn parses_third_party_managed_launchers() {
+        let ea = details_of(&json!({"customAttributes": {"ThirdPartyManagedApp": {"value": "Origin"}}}));
+        let ubisoft = details_of(&json!({"customAttributes": {"ThirdPartyManagedApp": {"value": "Ubisoft Connect"}}}));
+        let none = details_of(&json!({}));
+        assert_eq!(ea["thirdPartyManagedApp"], "EA app");
+        assert_eq!(ubisoft["thirdPartyManagedApp"], "Ubisoft Connect");
+        assert_eq!(none["thirdPartyManagedApp"], "");
     }
 }

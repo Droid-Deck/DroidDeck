@@ -22,6 +22,7 @@ object EaApi {
         val downloadable: Boolean,
         val trial: Boolean,
         val ownership: List<String>,
+        val productName: String = "",
     )
 
     class Offer(
@@ -109,6 +110,7 @@ object EaApi {
                 downloadable = product.optBoolean("downloadable", true),
                 trial = product.optJSONObject("trialDetails")?.optString("trialType").orEmpty().let { it.isNotEmpty() && it != "null" },
                 ownership = (0 until (methods?.length() ?: 0)).map { methods!!.optString(it) },
+                productName = product.optString("name").replace("\n", " ").trim(),
             )
         }
         val next = owned.optString("next").takeIf { it.isNotBlank() && it != "null" }
@@ -196,6 +198,18 @@ object EaApi {
             Build(it.optString("buildId"), it.optString("gameVersion").takeIf { v -> v != "null" }.orEmpty(), it.optString("buildLiveDate"))
         }
     }
+
+    /** The free offer EA sells under a store slug, or null when the game has none. */
+    fun freeOffer(token: String, slug: String): String? {
+        val variables = JSONObject().put("slug", slug).put("locale", "en-us").put("overrideCountryCode", "US")
+        val product = call(token, "GetGameProductOfferIds", variables).optJSONObject("game")?.optJSONObject("lowestPriceGameProduct") ?: return null
+        return product.optString("originOfferId").takeIf { product.optBoolean("isFree") && it.isNotBlank() && it != "null" }
+    }
+
+    /** Adds a free offer to the account, as the EA app's "Get for free" does; the answer names what EA refused. */
+    fun grantEntitlement(token: String, offerId: String): JSONObject =
+        call(token, "grantEntitlement", JSONObject().put("input", JSONObject().put("offerId", offerId).put("source", EaAuth.CLIENT_ID)))
+            .optJSONObject("grantEntitlement") ?: throw EaApiException(0, "EA gave no answer to the grant")
 
     fun legacyEntitlements(token: String): List<JSONObject> {
         val out = ArrayList<JSONObject>()

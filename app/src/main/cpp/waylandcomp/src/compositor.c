@@ -36,6 +36,7 @@
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
+#include "clock_domain.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -125,6 +126,9 @@ static int log_budget(void) {
 #endif
 #ifndef BTN_RIGHT
 #define BTN_RIGHT 0x111
+#endif
+#ifndef BTN_MIDDLE
+#define BTN_MIDDLE 0x112
 #endif
 
 #define INPUT_SPACE_W 1920
@@ -581,6 +585,13 @@ int droiddeck_cursor_snapshot(int *out, int cap) {
 }
 struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
+#define PEN_IN (1 << 0)
+#define PEN_TIP (1 << 1)
+#define PEN_RIGHT (1 << 2)
+#define PEN_MIDDLE (1 << 3)
+#define PEN_BIT(button) (1 << ((button) - BTN_LEFT))
+struct pen_state { int in, buttons; struct surface *grab; };
+static struct pen_state g_pen;
 static void touch_cancel_surface(struct surface *surface);
 static struct surface *g_grab;
 static void publish_query_state(void);
@@ -727,9 +738,7 @@ static void on_pending_buffer_destroyed(struct wl_listener *l, void *data) {
 static void fire_frames(struct wl_list *frames) {
     struct wl_resource *cb, *tmp;
     uint32_t t;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    t = (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    t = droiddeck_clock_domain_now_ms();
     wl_resource_for_each_safe(cb, tmp, frames) {
         wl_callback_send_done(cb, t);
         wl_resource_destroy(cb);
@@ -1061,6 +1070,7 @@ static int64_t presented_ns(int64_t render_ns) {
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {
     struct wl_resource *fb, *tmp;
+    t = droiddeck_clock_domain_adjust_ns(t);
     uint64_t sec = (uint64_t)(t / 1000000000LL);
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
@@ -1339,6 +1349,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     if (g_grab == s) g_grab = NULL;
     if (g_key_target == s) g_key_target = NULL;
     if (g_ime_click == s) g_ime_click = NULL;
+    if (g_pen.grab == s) g_pen.grab = NULL;
     droiddeck_text_input_surface_gone(r);
     if (g_desktop == s) { g_desktop = NULL; droiddeck_log("desktop", "the desktop closed"); }
     if (g_hud_surface == s) { g_hud_surface = NULL; droiddeck_on_game_surface(NULL, NULL); }
@@ -2493,8 +2504,7 @@ static void on_vsync(int64_t frame_time_ns) {
 
 
 static uint32_t now_ms(void) {
-    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    return droiddeck_clock_domain_now_ms();
 }
 
 static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint32_t serial,
@@ -3114,12 +3124,10 @@ static void relative_pointers_pointer_gone(struct wl_resource *pointer) {
 
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     struct relative_pointer *rp;
-    struct timespec ts;
     uint64_t ut;
     int sent = 0;
     if (dx == 0 && dy == 0) return 0;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ut = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000;
+    ut = (uint64_t)(droiddeck_clock_domain_now_ns() / 1000);
     wl_list_for_each(rp, &g_relative_pointers, link) {
         if (!rp->pointer || wl_resource_get_client(rp->pointer) != client) continue;
         zwp_relative_pointer_v1_send_relative_motion(rp->resource, (uint32_t)(ut >> 32), (uint32_t)ut,
@@ -3243,14 +3251,14 @@ static void deliver_pointer(const struct input_msg *m) {
     pointer_event(x, y, m->p1 == 1 ? 0 : BTN_LEFT, m->p1 == 0);
 }
 
-static void input_output_to_scene(int px, int py, double *x, double *y) {
+static void input_output_to_scene(double px, double py, double *x, double *y) {
     int w, h, ow, oh;
     scene_size(&w, &h);
     vkp_output_size(&ow, &oh);
     if (ow <= 0 || oh <= 0 ||
-        !vkp_output_to_scene((double)px * ow / INPUT_SPACE_W, (double)py * oh / INPUT_SPACE_H, x, y)) {
-        *x = (double)px * w / INPUT_SPACE_W;
-        *y = (double)py * h / INPUT_SPACE_H;
+        !vkp_output_to_scene(px * ow / INPUT_SPACE_W, py * oh / INPUT_SPACE_H, x, y)) {
+        *x = px * w / INPUT_SPACE_W;
+        *y = py * h / INPUT_SPACE_H;
     }
     if (*x < 0) *x = 0;
     if (*y < 0) *y = 0;
@@ -3479,6 +3487,57 @@ static void deliver_touch(const struct input_msg *m) {
     publish_query_state();
 }
 
+static void pen_log_target(void) {
+    static struct wl_client *said;
+    for (int i = 0; i < g_nptrs; i++) {
+        if (!g_ptrs[i].focus) continue;
+        struct wl_client *client = wl_resource_get_client(g_ptrs[i].focus);
+        if (client != said && log_budget()) {
+            char name[160];
+            describe(wl_resource_get_user_data(g_ptrs[i].focus), name, sizeof(name));
+            droiddeck_log("pen", "%s gets the pen as the pointer", name);
+        }
+        said = client;
+        return;
+    }
+}
+
+static int pen_buttons(int flags) {
+    int held = 0;
+    if (flags & PEN_TIP) held |= PEN_BIT(BTN_LEFT);
+    if (flags & PEN_RIGHT) held |= PEN_BIT(BTN_RIGHT);
+    if (flags & PEN_MIDDLE) held |= PEN_BIT(BTN_MIDDLE);
+    return held;
+}
+
+static void pen_release(int buttons) {
+    for (uint32_t button = BTN_LEFT; button <= BTN_MIDDLE; button++)
+        if (buttons & PEN_BIT(button)) pointer_button(button, 0);
+}
+
+static void deliver_pen(const struct input_msg *m) {
+    if (!(m->p1 & PEN_IN)) {
+        pen_release(g_pen.buttons);
+        if (g_pen.in) g_raw_valid = 0;
+        memset(&g_pen, 0, sizeof(g_pen));
+        return;
+    }
+    int held = pen_buttons(m->p1);
+    if (!g_pen.in) g_raw_valid = 0;
+    g_pen.in = 1;
+    double x, y;
+    input_output_to_scene(m->p2 / 256.0, m->p3 / 256.0, &x, &y);
+    if (g_pen.buttons) g_grab = g_pen.grab;
+    if (!pointer_locked_for_cursor()) pointer_event(x, y, 0, 0);
+    for (uint32_t button = BTN_LEFT; button <= BTN_MIDDLE; button++)
+        if (held & ~g_pen.buttons & PEN_BIT(button)) pointer_button(button, 1);
+    g_pen.grab = g_grab;
+    pen_release(g_pen.buttons & ~held);
+    if (held) g_grab = g_pen.grab;
+    g_pen.buttons = held;
+    pen_log_target();
+}
+
 static void key_event(uint32_t evdev, int pressed);
 struct wl_resource *droiddeck_ime_target(void);
 static void deliver_key(const struct input_msg *m) {
@@ -3630,6 +3689,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 10: break;
         case 11: axis_event(m.p1, m.p2, 0); break;
         case 12: axis_event(m.p1, m.p2, 1); break;
+        case 13: deliver_pen(&m); break;
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         case 22: schedule_render(); break;
@@ -3665,6 +3725,13 @@ void droiddeck_wayland_send_pointer(int action, int x, int y) {
 void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 7, action, pointer_id, x, y };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_send_pen(int flags, int x, int y) {
+    if (g_input_pipe[1] < 0) return;
+    struct input_msg m = { 13, flags, x, y, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
 }

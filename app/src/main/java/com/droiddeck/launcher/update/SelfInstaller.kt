@@ -90,10 +90,11 @@ object SelfInstaller {
         }
     }
 
-    fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
+    fun install(context: Context, apk: File, packageName: String = context.packageName, action: String = ACTION_STATUS,
+                onSession: (Int) -> Unit = {}) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-            setAppPackageName(context.packageName)
+            setAppPackageName(packageName)
             setSize(apk.length())
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
@@ -105,7 +106,7 @@ object SelfInstaller {
                     session.fsync(out)
                 }
             }
-            val status = Intent(ACTION_STATUS).setPackage(context.packageName)
+            val status = Intent(action).setPackage(context.packageName)
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
             onSession(id)
             session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
