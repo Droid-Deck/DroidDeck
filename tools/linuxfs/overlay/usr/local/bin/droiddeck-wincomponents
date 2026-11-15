@@ -509,7 +509,8 @@ def component_guests(compat, proton, machines, planned, owned):
     except OSError:
         present = []
     names.update(entry.name for entry in present if entry.name.lower().endswith(".dll") and not entry.is_symlink()
-                 and ("drive_c/windows/system32/" + entry.name).lower() not in removed and plain_x64(entry.path))
+                 and ("drive_c/windows/system32/" + entry.name).lower() not in removed
+                 and ("drive_c/windows/system32/" + entry.name).lower() not in planned_rels and plain_x64(entry.path))
     names.update(Path(rel).name for rel in removed.values()
                  if rel.lower().endswith(".dll") and (compat / BACKUP / rel).is_file() and plain_x64(compat / BACKUP / rel))
     if not names:
@@ -588,9 +589,13 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             saved_requires = dict(saved_requires, **{cid: loose})
             inferred.add(cid)
     kept_overrides, kept_requires = {}, {}
-    planned = [entry for cid in expand(store, ids, saved_requires) for entry in (component(store, cid) or ([], [], [], []))[1]]
-    guests = component_guests(compat, proton, machines, planned, state["files"])
-    for cid in expand(store, ids, saved_requires):
+    expanded = expand(store, ids, saved_requires)
+    planned = [entry for cid in expanded for entry in (component(store, cid) or ([], [], [], []))[1]]
+    retained = {cid for cid in expanded if component(store, cid) is None
+                and (cid in saved_requires or cid in recorded or cid in owners or cid in registry_owners)}
+    guests = component_guests(compat, proton, machines, planned,
+                              {rel: cid for rel, cid in state["files"].items() if cid not in retained})
+    for cid in expanded:
         found = component(store, cid)
         if found is None:
             if cid in saved_requires or cid in recorded or cid in owners or cid in registry_owners:

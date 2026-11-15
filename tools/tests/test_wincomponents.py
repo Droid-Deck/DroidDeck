@@ -147,6 +147,30 @@ class WinComponentsTest(unittest.TestCase):
         self.apply(proton)
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
 
+    def test_arm64_d3dx9_replacing_an_x64_copy_does_not_keep_an_x64_compiler(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/d3dx9_43.dll").write_bytes(self.pe_image(0x8664))
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": pe_image_importing(0xAA64)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0xAA64)
+        self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
+
+    def test_held_component_files_still_count_as_x64_importers(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        self.apply(proton)
+        for path in sorted((self.store / "d3dx9").rglob("*"), reverse=True):
+            path.rmdir() if path.is_dir() else path.unlink()
+        (self.store / "d3dx9").rmdir()
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
     def test_x64_compiler_alone_is_skipped_while_the_builtin_d3dx9_imports_it(self):
         proton = self.proton()
         self.component("d3dcompiler", ["d3dcompiler_43"], {
