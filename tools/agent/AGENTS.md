@@ -31,8 +31,9 @@ from what tripped agents up on real devices.
   the session with `droiddeckctl stop`, anything else by its pid after checking what it is
   (`ps -o pid,args -p <pid>`): a pid near a game can be the Steam client.
 - `DEVICE_RESOLUTION_FAILED`: run `adb devices` and use the serial it lists.
-- Do not chain `sleep` before a check. Start long work in the background; when it ends you are
-  started again.
+- Do not chain `sleep` before a check. Start long work in the background. In Claude Code, its end
+  starts you again; other harnesses are not woken, so check it before ending your turn or tell the
+  user it is still running.
 
 ## What applies when
 
@@ -67,6 +68,7 @@ The source is checked out at `/root/DroidDeck` once the Agent tab's build tools 
 
 DroidDeck writes this block into your global instructions (`~/.claude/CLAUDE.md`,
 `~/.codex/AGENTS.md`) before every turn, and its skills into `~/.claude/skills` and
-`~/.codex/skills`. It replaces only its own block and its own skills: the user's rules go outside
-the block, and their skills stay. To change DroidDeck's, edit `tools/agent/AGENTS.md` and
+`~/.codex/skills`. It replaces only its own block and its own skills (folders holding a `.droiddeck` file): the
+user's rules go outside the block, and their skills stay, even one with the same name. Deleting a
+skill's `.droiddeck` file keeps local edits to it. To change DroidDeck's, edit `tools/agent/AGENTS.md` and
 `tools/agent/skills` in the source.

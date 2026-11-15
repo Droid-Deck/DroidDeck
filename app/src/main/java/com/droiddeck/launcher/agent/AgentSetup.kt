@@ -219,14 +219,36 @@ object AgentSetup {
      */
     internal fun installSkills(root: File, skills: Map<String, List<String>>, open: (String) -> java.io.InputStream): List<String> {
         val failed = mutableListOf<String>()
-        for (harness in AgentHarness.all) for ((name, files) in skills) for (file in files) runCatching {
-            val dir = File(root, "${harness.skills}/$name").apply { mkdirs() }
-            open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
+        for (harness in AgentHarness.all) for ((name, files) in skills) runCatching {
+            val dir = File(root, "${harness.skills}/$name")
+            // A folder of that name without DroidDeck's mark is the user's own skill: keep it.
+            if (dir.exists() && !File(dir, SKILL_MARK).exists()) return@runCatching
+            dir.mkdirs()
+            for (file in files) open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
+            File(dir, SKILL_MARK).writeText("Installed by DroidDeck and replaced on every turn. Delete this file to keep your own edits.\n")
         }.onFailure {
             android.util.Log.w("AgentSetup", "could not install skill $name for ${harness.name}", it)
             failed += "skill $name"
         }
         return failed
+    }
+
+    /** Marks a skill folder as DroidDeck's, so it may be replaced; one without it belongs to the user. */
+    internal const val SKILL_MARK = ".droiddeck"
+
+    /**
+     * Where [file] really is when it is a symlink, as the guest sees it: an absolute target is a
+     * userland path, so it is looked up under [root]. A dotfiles link keeps working that way.
+     */
+    internal fun guestTarget(root: File, file: File): File {
+        var current = file
+        repeat(8) {
+            val path = current.toPath()
+            if (!java.nio.file.Files.isSymbolicLink(path)) return current
+            val target = java.nio.file.Files.readSymbolicLink(path).toString()
+            current = if (target.startsWith("/")) File(root, target.removePrefix("/")) else File(current.parentFile, target)
+        }
+        return current
     }
 
     internal const val BLOCK_BEGIN = "<!-- BEGIN DroidDeck: replaced on every turn. Write your own rules outside this block. -->"
@@ -239,7 +261,7 @@ object AgentSetup {
     internal fun installInstructions(root: File, rules: String): List<String> {
         val failed = mutableListOf<String>()
         for (harness in AgentHarness.all) runCatching {
-            val file = File(root, harness.instructions).apply { parentFile?.mkdirs() }
+            val file = guestTarget(root, File(root, harness.instructions)).apply { parentFile?.mkdirs() }
             val existing = if (file.exists()) file.readText() else null
             val merged = withBlock(existing, rules)
             if (merged != existing) replaceFile(merged.byteInputStream(), file, executable = false)

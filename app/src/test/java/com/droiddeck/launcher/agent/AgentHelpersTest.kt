@@ -41,15 +41,40 @@ class AgentHelpersTest {
         val root = tmp.newFolder("rootfs")
         val mine = File(root, "root/.claude/skills/my-skill/SKILL.md").apply { parentFile!!.mkdirs(); writeText("mine") }
         val stale = File(root, "root/.codex/skills/diagnose-game/SKILL.md").apply { parentFile!!.mkdirs(); writeText("old") }
+        File(stale.parentFile, AgentSetup.SKILL_MARK).writeText("")
 
-        AgentSetup.installSkills(root, mapOf("diagnose-game" to listOf("SKILL.md"))) { "new $it".byteInputStream() }
+        val failed = AgentSetup.installSkills(root, mapOf("diagnose-game" to listOf("SKILL.md"))) { "new $it".byteInputStream() }
 
+        assertEquals(emptyList<String>(), failed)
         for (harness in AgentHarness.all) {
             assertEquals("new diagnose-game/SKILL.md", File(root, "${harness.skills}/diagnose-game/SKILL.md").readText())
         }
-        assertEquals("new diagnose-game/SKILL.md", stale.readText())
         assertEquals("mine", mine.readText())
         assertFalse(File(root, "${ClaudeCode.skills}/diagnose-game/SKILL.md").canExecute())
+    }
+
+    @Test fun aSkillTheUserMadeWithTheSameNameIsKept() {
+        val root = tmp.newFolder("rootfs3")
+        val own = File(root, "${ClaudeCode.skills}/diagnose-game/SKILL.md").apply { parentFile!!.mkdirs(); writeText("my version") }
+
+        AgentSetup.installSkills(root, mapOf("diagnose-game" to listOf("SKILL.md"))) { "new".byteInputStream() }
+
+        assertEquals("my version", own.readText())
+        assertFalse(File(own.parentFile, AgentSetup.SKILL_MARK).exists())
+        assertEquals("new", File(root, "${Codex.skills}/diagnose-game/SKILL.md").readText())
+    }
+
+    @Test fun instructionsBehindAGuestSymlinkAreWrittenWhereItPoints() {
+        val root = tmp.newFolder("rootfs4")
+        val dotfile = File(root, "root/dotfiles/CLAUDE.md").apply { parentFile!!.mkdirs(); writeText("my rule\n") }
+        val link = File(root, ClaudeCode.instructions).apply { parentFile!!.mkdirs() }
+        Files.createSymbolicLink(link.toPath(), File("/root/dotfiles/CLAUDE.md").toPath())
+
+        AgentSetup.installInstructions(root, "rules")
+
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertTrue(dotfile.readText().contains("rules"))
+        assertTrue(dotfile.readText().endsWith("\nmy rule\n"))
     }
 
     @Test fun theRulesGoFirstInAFileThatHasNoBlockYetAndKeepTheUsersOwn() {
