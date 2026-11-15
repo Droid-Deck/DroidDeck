@@ -2237,8 +2237,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             ?.trim()
             ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
         val steamUrlGameId = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
-            ?.takeIf { it.startsWith("steam://rungameid/") }
-            ?.removePrefix("steam://rungameid/")
+            ?.let { url ->
+                when {
+                    url.startsWith("steam://rungameid/") ->
+                        url.removePrefix("steam://rungameid/")
+                    url.startsWith("steam://run/") ->
+                        url.removePrefix("steam://run/")
+                    else -> null
+                }
+            }
             ?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
         val gameId = explicitGameId ?: steamUrlGameId
 

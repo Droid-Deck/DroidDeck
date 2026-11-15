@@ -396,8 +396,15 @@ class SessionService : Service() {
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
         val steamUrlGameId = SessionState.steamUrl
-            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }
-            ?.removePrefix(GAME_URL_PREFIX)
+            ?.let { url ->
+                when {
+                    url.startsWith(GAME_URL_PREFIX) ->
+                        url.removePrefix(GAME_URL_PREFIX)
+                    url.startsWith("steam://run/") ->
+                        url.removePrefix("steam://run/")
+                    else -> null
+                }
+            }
             ?.takeIf(GameLaunchLink::validId)
         val resolvedGameId = intent?.getStringExtra(EXTRA_GAME_ID)
             ?.trim()
@@ -1629,7 +1636,7 @@ class SessionService : Service() {
             var goneSince = 0L
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
-                val startupSuspended = SessionState.suspended || SessionState.suspending
+                val startupSuspended = SessionState.suspended || SessionState.suspending || SessionState.phase != SessionPhase.READY
                 if (!seen) {
                     if (startupSuspended) {
                         startupWasSuspended = true
