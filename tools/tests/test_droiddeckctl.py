@@ -332,6 +332,21 @@ class DroiddeckctlTest(FakeAdbTest):
         shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
         self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
 
+    def test_screenshot_with_two_screens_takes_the_main_display(self):
+        self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "111"], shot["args"])
+
+    def test_screenshot_with_one_screen_names_no_display(self):
+        one = DUMPSYS_DISPLAY.split("  Display 4:")[0]
+        self.configure({}, dumpsys_display=one)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p"], shot["args"])
+
     def test_displays(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
         code, out = self.run_ctl("displays")
