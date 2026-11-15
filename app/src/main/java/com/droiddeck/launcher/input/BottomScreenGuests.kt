@@ -1,10 +1,8 @@
 package com.droiddeck.launcher.input
 
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
@@ -12,9 +10,9 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import android.view.Display
-import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.inputmethod.InputMethodManager
+import com.droiddeck.shortcuts.Relay
 import java.util.concurrent.ConcurrentHashMap
 
 object BottomScreenGuests {
@@ -45,7 +43,7 @@ object BottomScreenGuests {
         sdk >= 33 && DualScreen.yieldsBottom(model)
 }
 
-class BottomScreenWatch(private val service: AccessibilityService) {
+class BottomScreenWatch(private val service: Context) {
     private class Arrival(val pkg: String, val at: Long)
 
     private val thread = HandlerThread("bottom-screen").apply { start() }
@@ -57,33 +55,22 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private var holders: Map<Int, String?> = emptyMap()
     private var ownWindows: Map<Int, Set<Int>> = emptyMap()
     private val ownShownAt = mutableMapOf<Int, Long>()
-    private val check = Runnable { evaluate() }
 
     fun start() {
         current = this
-        service.serviceInfo = service.serviceInfo?.apply {
-            eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-        }
         handler.post {
             homes = homePackages()
             keyboards = keyboardPackages()
-            evaluate()
         }
     }
 
-    fun onEvent(event: AccessibilityEvent) {
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                val pkg = event.packageName?.toString() ?: return
-                if (event.displayId == Display.DEFAULT_DISPLAY || pkg == own || pkg == SYSTEM_UI) return
-                arrivals[event.displayId] = Arrival(pkg, event.eventTime)
-            }
-            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> Unit
-            else -> return
-        }
-        handler.removeCallbacks(check)
-        handler.postDelayed(check, 150)
+    fun onArrival(displayId: Int, pkg: String, at: Long) {
+        if (displayId == Display.DEFAULT_DISPLAY || pkg == own || pkg == SYSTEM_UI) return
+        arrivals[displayId] = Arrival(pkg, at)
+    }
+
+    fun onWindows(all: Map<Int, List<Relay.Window>>) {
+        handler.post { evaluate(all) }
     }
 
     fun stop() {
@@ -97,25 +84,22 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         thread.quitSafely()
     }
 
-    private fun evaluate() {
+    private fun evaluate(all: Map<Int, List<Relay.Window>>) {
         val seen = HashMap(arrivals)
-        val all = runCatching { service.windowsOnAllDisplays }.getOrNull() ?: return
         val displays = service.getSystemService(DisplayManager::class.java) ?: return
         val taken = mutableMapOf<Int, String?>()
         val shown = mutableMapOf<Int, Set<Int>>()
         val now = SystemClock.uptimeMillis()
-        for (i in 0 until all.size()) {
-            val id = all.keyAt(i)
+        for ((id, list) in all) {
             if (id == Display.DEFAULT_DISPLAY) continue
             val display = displays.getDisplay(id)?.takeIf(DualScreen::builtIn) ?: continue
-            val windows = all.valueAt(i)
+            val windows = list
                 .filter { !BottomScreenGuests.ignorable(it.type) && cover(it, display) >= BottomScreenGuests.MIN_COVER }
                 .sortedByDescending { it.layer }
-                .map { it to packageOf(it) }
-            val ours = windows.filter { it.second == own }.map { it.first.id }.toSet()
+            val ours = windows.filter { it.pkg == own }.map { it.id }.toSet()
             if (!ownWindows[id].orEmpty().containsAll(ours)) ownShownAt[id] = now
             shown[id] = ours
-            val topPkg = windows.firstNotNullOfOrNull { it.second?.takeUnless { pkg -> pkg == own } }
+            val topPkg = windows.firstNotNullOfOrNull { it.pkg?.takeUnless { pkg -> pkg == own } }
             val arrival = seen[id]?.takeIf { BottomScreenGuests.current(it.at, ownShownAt[id]) }
             seen[id]?.takeIf { topPkg != null || arrival == null }?.let { arrivals.remove(id, it) }
             BottomScreenGuests.holder(topPkg, arrival?.pkg?.takeUnless { it in keyboards }, homes)?.let { taken[id] = it }
@@ -127,14 +111,10 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         DualScreen.setTaken(taken.keys)
     }
 
-    private fun cover(window: AccessibilityWindowInfo, display: Display): Float {
-        val bounds = Rect().also(window::getBoundsInScreen)
+    private fun cover(window: Relay.Window, display: Display): Float {
         val area = display.mode.physicalWidth.toFloat() * display.mode.physicalHeight
-        return if (area <= 0f) 0f else bounds.width().toFloat() * bounds.height() / area
+        return if (area <= 0f) 0f else window.bounds.width().toFloat() * window.bounds.height() / area
     }
-
-    private fun packageOf(window: AccessibilityWindowInfo): String? =
-        runCatching { window.getRoot(0)?.packageName?.toString() }.getOrNull()
 
     private fun homePackages(): Set<String> {
         val pm = service.packageManager
@@ -154,6 +134,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
 
     private companion object {
         @Volatile var current: BottomScreenWatch? = null
+
         const val TAG = "BottomScreen"
         const val SYSTEM_UI = "com.android.systemui"
     }
