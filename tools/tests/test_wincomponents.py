@@ -179,6 +179,24 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0xAA64)
         self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
 
+    def test_rejected_later_entry_does_not_hide_an_accepted_x64_entry(self):
+        proton = self.proton()
+        self.component("a-x64", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("b-x86", ["d3dx9_43"], {"system32/d3dx9_43.dll": pe_image_importing(0x14C)})
+        self.component("c-compiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("a-x64", "b-x86", "c-compiler")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_nested_system32_file_does_not_count_as_an_importer(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/drivers/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        self.apply(proton)
+        self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
+
     def test_held_component_files_still_count_as_x64_importers(self):
         proton = self.proton()
         self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})

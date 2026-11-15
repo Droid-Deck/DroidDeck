@@ -500,15 +500,17 @@ def component_guests(compat, proton, machines, planned, owned):
     if not machines or 0xA641 not in machines["system32"][1]:
         return frozenset()
     system32 = compat / "pfx/drive_c/windows/system32"
+    def top_dll(rel):
+        return len(Path(rel).parts) == 4 and system_folder(rel) == "system32" and rel.lower().endswith(".dll")
+
     final = {}
     for rel, src in planned:
-        if system_folder(rel) == "system32" and rel.lower().endswith(".dll"):
+        if top_dll(rel) and (plain_x64(src) or machine_compatible(src, machines["system32"][1])):
             final[rel.lower()] = (rel, src)
     planned_rels = {rel.lower() for rel, src in planned}
-    removed = {rel.lower(): rel for rel in owned if rel.lower() not in planned_rels and system_folder(rel) == "system32"}
+    removed = {rel.lower(): rel for rel in owned if rel.lower() not in planned_rels and top_dll(rel)}
     names = {Path(rel).name for rel, src in final.values() if plain_x64(src)}
-    replaced = {key for key, (rel, src) in final.items()
-                if not plain_x64(src) and machine_compatible(src, machines["system32"][1])}
+    replaced = {key for key, (rel, src) in final.items() if not plain_x64(src)}
     try:
         present = list(os.scandir(system32))
     except OSError:
