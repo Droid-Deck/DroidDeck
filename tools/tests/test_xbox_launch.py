@@ -211,3 +211,160 @@ class XboxLaunchTest(unittest.TestCase):
                 with patch('subprocess.run', **outcome), patch('sys.stderr', new_callable=io.StringIO) as err:
                     self.assertIsNone(xbox['register_classes']('/selected/proton', prefix, {}))
                 self.assertIn('registration failed', err.getvalue())
+
+
+def pe_with_exports(names, forward=None, machine=0x8664):
+    """A minimal x64 PE image whose export table names `names`; with `forward`, every export is forwarded there."""
+    rva, raw = 0x1000, 0x200
+    functions = rva + 40
+    name_pointers = functions + 4 * len(names)
+    ordinals = name_pointers + 4 * len(names)
+    strings = ordinals + 2 * len(names)
+    blob = bytearray()
+    name_rvas, forward_rvas = [], []
+    for name in names:
+        name_rvas.append(strings + len(blob))
+        blob += name.encode() + b'\0'
+    for name in names:
+        forward_rvas.append(strings + len(blob))
+        if forward:
+            blob += ('%s.%s' % (forward, name)).encode() + b'\0'
+    size = strings + len(blob) - rva
+    directory = bytearray(40)
+    directory[16:20] = (1).to_bytes(4, 'little')
+    directory[20:24] = directory[24:28] = len(names).to_bytes(4, 'little')
+    directory[28:32] = functions.to_bytes(4, 'little')
+    directory[32:36] = name_pointers.to_bytes(4, 'little')
+    directory[36:40] = ordinals.to_bytes(4, 'little')
+    section = bytearray(directory)
+    for index in range(len(names)):
+        section += (forward_rvas[index] if forward else 0x3000 + index).to_bytes(4, 'little')
+    for value in name_rvas:
+        section += value.to_bytes(4, 'little')
+    for index in range(len(names)):
+        section += index.to_bytes(2, 'little')
+    section += blob
+    image = bytearray(raw)
+    image[:2] = b'MZ'
+    image[60:64] = (0x40).to_bytes(4, 'little')
+    image[0x40:0x44] = b'PE\0\0'
+    image[0x44:0x46] = machine.to_bytes(2, 'little')
+    image[0x46:0x48] = (1).to_bytes(2, 'little')
+    image[0x54:0x56] = (240).to_bytes(2, 'little')
+    optional = 0x58
+    image[optional:optional + 2] = (0x20B).to_bytes(2, 'little')
+    image[optional + 108:optional + 112] = (16).to_bytes(4, 'little')
+    image[optional + 112:optional + 116] = rva.to_bytes(4, 'little')
+    image[optional + 116:optional + 120] = size.to_bytes(4, 'little')
+    header = optional + 240
+    image[header + 8:header + 12] = len(section).to_bytes(4, 'little')
+    image[header + 12:header + 16] = rva.to_bytes(4, 'little')
+    image[header + 16:header + 20] = len(section).to_bytes(4, 'little')
+    image[header + 20:header + 24] = raw.to_bytes(4, 'little')
+    return bytes(image + section)
+
+
+class PlayFabProxyTest(unittest.TestCase):
+    SDK = pe_with_exports(xbox['PGS_EXPORTS'])
+    NEWER_SDK = SDK + b'\0update'
+    PROXY = pe_with_exports(xbox['PGS_EXPORTS'], forward='nexus_pgs_native')
+
+    def stage(self, root, proxy=PROXY):
+        runtime = Path(root) / 'runtime'
+        if proxy is not None:
+            (runtime / 'compat').mkdir(parents=True, exist_ok=True)
+            (runtime / 'compat/PlayFabGameSave.dll').write_bytes(proxy)
+        with patch.dict(xbox['stage_playfab_proxy'].__globals__, PGS_PROXY=runtime / 'compat/PlayFabGameSave.dll'), \
+             patch('sys.stderr', new_callable=io.StringIO):
+            return xbox['stage_playfab_proxy'](Path(root) / 'game')
+
+    def game(self, root, data, sub='Bin'):
+        folder = Path(root) / 'game' / sub
+        folder.mkdir(parents=True)
+        (folder / 'PlayFabGameSave.dll').write_bytes(data)
+        return folder
+
+    def test_sdk_and_proxy_are_told_apart_by_their_exports(self):
+        self.assertTrue(xbox['playfab_sdk'](self.SDK))
+        self.assertFalse(xbox['playfab_proxy'](self.SDK))
+        self.assertTrue(xbox['playfab_proxy'](self.PROXY))
+        self.assertFalse(xbox['playfab_sdk'](self.PROXY))
+        other = pe_with_exports(list(xbox['PGS_EXPORTS'][:-1]) + ['PFGameSaveFilesSomethingNew'])
+        self.assertFalse(xbox['playfab_sdk'](other))
+        self.assertFalse(xbox['playfab_sdk'](pe_with_exports(xbox['PGS_EXPORTS'], machine=0xAA64)))
+        self.assertIsNone(xbox['pe_exports'](b'not a pe image'))
+
+    def test_first_launch_keeps_the_sdk_and_puts_the_proxy_in_front(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, self.SDK)
+            self.assertEqual(self.stage(root), 1)
+            self.assertEqual((folder / 'nexus_pgs_native.dll').read_bytes(), self.SDK)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.PROXY)
+            self.assertEqual(self.stage(root), 1)
+            self.assertEqual((folder / 'nexus_pgs_native.dll').read_bytes(), self.SDK)
+            self.assertEqual(sorted(path.name for path in folder.iterdir()), ['PlayFabGameSave.dll', 'nexus_pgs_native.dll'])
+
+    def test_a_game_update_replaces_the_kept_sdk(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, self.SDK)
+            self.stage(root)
+            (folder / 'PlayFabGameSave.dll').write_bytes(self.NEWER_SDK)
+            self.assertEqual(self.stage(root), 1)
+            self.assertEqual((folder / 'nexus_pgs_native.dll').read_bytes(), self.NEWER_SDK)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.PROXY)
+
+    def test_an_older_proxy_is_refreshed_only_while_its_sdk_is_there(self):
+        older = self.PROXY + b'\0older'
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, older)
+            (folder / 'nexus_pgs_native.dll').write_bytes(self.SDK)
+            self.assertEqual(self.stage(root), 1)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.PROXY)
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, older)
+            self.assertEqual(self.stage(root), 0)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), older)
+
+    def test_unknown_sdk_symlinks_and_a_runtime_without_the_proxy_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as root:
+            unknown = pe_with_exports(['PFGameSaveFilesInitialize'])
+            folder = self.game(root, unknown)
+            self.assertEqual(self.stage(root), 0)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), unknown)
+            self.assertFalse((folder / 'nexus_pgs_native.dll').exists())
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, self.SDK)
+            self.assertEqual(self.stage(root, proxy=None), 0)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.SDK)
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root) / 'elsewhere.dll'
+            target.write_bytes(self.SDK)
+            folder = Path(root) / 'game'
+            folder.mkdir()
+            (folder / 'PlayFabGameSave.dll').symlink_to(target)
+            self.assertEqual(self.stage(root), 0)
+            self.assertEqual(target.read_bytes(), self.SDK)
+
+    def test_launch_stages_the_proxy_without_dll_overrides_and_survives_a_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            runtime = root / 'windows'
+            runtime.mkdir()
+            for name in xbox['DLLS']:
+                (runtime / name).touch()
+            store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
+                     'ask': unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1',
+                                                            'exe': '/Game.exe'})}
+            wine = unittest.mock.Mock(return_value=0)
+            staged = []
+            def failing(folder):
+                raise RuntimeError('unreadable game folder')
+            for stage in (lambda folder: staged.append(folder) or 1, failing):
+                wine.reset_mock()
+                with patch('runpy.run_path', return_value=store), patch('sys.stderr', new_callable=io.StringIO), \
+                     patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=lambda path: (1, 'key', lambda: None),
+                                wine=wine, stage_playfab_proxy=stage):
+                    self.assertEqual(xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'],
+                                                    {'BL_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
+                self.assertEqual(wine.call_args.args[1]['WINEDLLOVERRIDES'], 'd3d11=n')
+            self.assertEqual(staged, [root])
