@@ -56,6 +56,10 @@ gamescope and the session's processes are only reachable through `guest`.
   carries app code and resources only, so a script, native or asset change needs a new APK: the
   CI test build of its pull request (Updates > Test builds).
 
+**Skills.** `tools/agent/skills/<name>/SKILL.md` ship in the APK, and before every turn the app
+writes them into each harness's own skills folder (`~/.claude/skills`, `~/.codex/skills`), so every
+agent gets the same ones. Skills the user added there are left alone. Edit them here, not on the device.
+
 **Building and testing.**
 - The checkout often has the user's uncommitted work and a stale local `main`. Branch from
   `origin/main` in a worktree (`git worktree add -b <branch> ../<dir> origin/main`).

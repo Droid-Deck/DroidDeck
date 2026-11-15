@@ -35,6 +35,8 @@ interface AgentHarness {
     fun input(message: String): String? = null
     /** One line of the CLI's output, or null when it carries nothing to show. */
     fun parse(line: String): AgentEvent?
+    /** The folder, under the userland's root, where the CLI loads user skills (`<name>/SKILL.md`). */
+    val skills: String
     /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
     fun prepare(rootfs: File) {}
     /** Context and plan limits the CLI keeps on disk rather than printing, read once a turn of [conversation] is done. */
@@ -83,6 +85,7 @@ object ClaudeCode : AgentHarness {
      * Commits and pull requests the agent makes carry no Claude Code credit or co-author line by
      * default. Only keys the user has not set are written, so their own choice stays.
      */
+    override val skills = "root/.claude/skills"
     override fun prepare(rootfs: File) {
         val file = File(rootfs, "root/.claude/settings.json")
         val settings = if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() ?: return else JSONObject()
@@ -254,6 +257,7 @@ object Codex : AgentHarness {
     override val id = "codex"
     override val name = "Codex"
     override val binary = "/root/.local/bin/codex"
+    override val skills = "root/.codex/skills"
     // Code mode runs in a helper that each release ships as its own download.
     private const val HOST = "/root/.local/bin/codex-code-mode-host"
     override val files get() = listOf(binary, HOST)

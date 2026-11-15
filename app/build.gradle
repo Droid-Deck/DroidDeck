@@ -280,6 +280,7 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     from(rootProject.file('tools/linuxfs/innoextract'))
     from(rootProject.file('tools')) { include 'droiddeckctl', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
     from(rootProject.file('docs/agent-control.md')) { into('agent/ctl') }
+    from(rootProject.file('tools/agent/skills')) { into('agent/skills') }
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
 }

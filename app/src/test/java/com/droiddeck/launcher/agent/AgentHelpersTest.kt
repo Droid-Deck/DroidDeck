@@ -36,4 +36,19 @@ class AgentHelpersTest {
         assertEquals("new", target.readText())
         assertEquals(listOf("droiddeckctl"), bin.list()!!.toList())
     }
+
+    @Test fun skillsGoToEveryHarnessAndLeaveTheUsersOwnAlone() {
+        val root = tmp.newFolder("rootfs")
+        val mine = File(root, "root/.claude/skills/my-skill/SKILL.md").apply { parentFile!!.mkdirs(); writeText("mine") }
+        val stale = File(root, "root/.codex/skills/diagnose-game/SKILL.md").apply { parentFile!!.mkdirs(); writeText("old") }
+
+        AgentSetup.installSkills(root, mapOf("diagnose-game" to listOf("SKILL.md"))) { "new $it".byteInputStream() }
+
+        for (harness in AgentHarness.all) {
+            assertEquals("new diagnose-game/SKILL.md", File(root, "${harness.skills}/diagnose-game/SKILL.md").readText())
+        }
+        assertEquals("new diagnose-game/SKILL.md", stale.readText())
+        assertEquals("mine", mine.readText())
+        assertFalse(File(root, "${ClaudeCode.skills}/diagnose-game/SKILL.md").canExecute())
+    }
 }

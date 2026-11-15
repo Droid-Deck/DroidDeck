@@ -41,6 +41,8 @@ object AgentSetup {
     private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
     private const val CHECKOUT = "/root/DroidDeck"
     private val HELPERS = listOf("android-open", "dd-gh-login", "droiddeckctl")
+    /** DroidDeck's own skills (tools/agent/skills), given to every harness. */
+    private const val SKILLS = "agent/skills"
     internal const val CTL = "/root/.local/share/droiddeck/ctl"
     private const val PROBE_TIMEOUT_S = 60L
 
@@ -191,7 +193,21 @@ object AgentSetup {
         for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
         val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
         for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+        val skills = app.assets.list(SKILLS).orEmpty().associateWith { app.assets.list("$SKILLS/$it").orEmpty().toList() }
+        installSkills(root, skills) { app.assets.open("$SKILLS/$it") }
         unpinAdbSerial(File(root, "root/.bashrc"))
+    }
+
+    /**
+     * Writes each of DroidDeck's [skills] (name to its files) into every harness's skills folder, so
+     * Claude Code, Codex and any later harness load the same ones, as of this DroidDeck version.
+     * Skills the user added there are left alone.
+     */
+    internal fun installSkills(root: File, skills: Map<String, List<String>>, open: (String) -> java.io.InputStream) {
+        for (harness in AgentHarness.all) for ((name, files) in skills) for (file in files) runCatching {
+            val dir = File(root, "${harness.skills}/$name").apply { mkdirs() }
+            open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
+        }.onFailure { android.util.Log.w("AgentSetup", "could not install skill $name for ${harness.name}", it) }
     }
 
     /** Older tools/agent/setup pinned the adb port in .bashrc, which overrides the live port DroidDeck passes. */
@@ -211,10 +227,10 @@ object AgentSetup {
     }
 
     /** Replaces [target], or the symlink at it, with [input]. */
-    internal fun replaceFile(input: java.io.InputStream, target: File) {
+    internal fun replaceFile(input: java.io.InputStream, target: File, executable: Boolean = true) {
         val staged = File(target.parentFile, ".${target.name}.part")
         staged.outputStream().use { input.copyTo(it) }
-        staged.setExecutable(true, false)
+        if (executable) staged.setExecutable(true, false)
         if (!staged.renameTo(target)) {
             staged.delete()
             throw java.io.IOException("could not replace $target")
