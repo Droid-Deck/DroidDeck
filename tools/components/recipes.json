@@ -171,7 +171,8 @@
       "tools/components/build-arm64-preloads.sh",
       "tools/linuxfs/preload",
       "app/src/main/cpp/fakeinput_steam.cpp",
-      "tools/components/recipes/arm64-preloads.sh"
+      "tools/components/recipes/arm64-preloads.sh",
+      "tools/nativeguest"
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/libfakeinput.so",
@@ -179,7 +180,8 @@
       "app/src/main/assets/linuxfs/libblfastpath.so",
       "app/src/main/assets/linuxfs/libblaudit.so",
       "app/src/main/assets/linuxfs/libssbs.so",
-      "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard"
+      "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard",
+      "app/src/main/assets/linuxfs/libddnatv-hook.so"
     ],
     "packages": [
       "gcc-aarch64-linux-gnu",
@@ -194,7 +196,8 @@
       "tools/quest/kgsl_compat.h",
       "tools/proot/fastpath",
       "tools/linuxfs/ssbs",
-      "tools/linuxfs/clipboard"
+      "tools/linuxfs/clipboard",
+      "tools/nativeguest"
     ],
     "snapshot_outputs": [
       "libfakeinput.so",
@@ -202,7 +205,8 @@
       "libblfastpath.so",
       "libblaudit.so",
       "libssbs.so",
-      "usr/local/bin/droiddeck-clipboard"
+      "usr/local/bin/droiddeck-clipboard",
+      "libddnatv-hook.so"
     ]
   },
   "preload-snapshot": {

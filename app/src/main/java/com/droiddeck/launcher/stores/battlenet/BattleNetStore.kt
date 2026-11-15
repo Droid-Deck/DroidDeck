@@ -192,6 +192,7 @@ object BattleNetBackend : StoreBackend {
     override fun install(context: Context, item: CatalogItem, root: File) {
         if (!BattleNetInstall.headless(item)) return BattleNetClient.installGame(context, item.id, root)
         val app = context.applicationContext
+        BattleNetInstall.updateFolder(item)?.let { return BattleNetInstall.enqueue(app, item, it, update = true) }
         BattleNetInstall.enqueue(app, item, StoreInstallRoot.folderFor(app, store, item.id, item.title, root))
     }
 

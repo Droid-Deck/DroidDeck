@@ -1069,26 +1069,36 @@ class LauncherTest(SyncTestCase):
         dist = self.dist_of(pack["id"], tool)
         game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
         command = [str(tool / "proton"), "waitforexitandrun", "game.exe"]
-        env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="1", WINEESYNC="1")
-        calls = []
+        cases = (
+            ({}, {"WINEDLLOVERRIDES": "tabtip.exe=d"}),
+            ({"WINEDLLOVERRIDES": "dxgi=n"}, {"WINEDLLOVERRIDES": "dxgi=n;tabtip.exe=d"}),
+            ({"WINEDLLOVERRIDES": "dxgi=n;tabtip.exe=b"}, {"WINEDLLOVERRIDES": "dxgi=n;tabtip.exe=b"}),
+            ({"SteamDeck": "1"}, {"SteamDeck": "1"}),
+        )
+        for inherited, expected in cases:
+            with self.subTest(inherited=inherited):
+                env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="1", WINEESYNC="1", **inherited)
+                calls = []
 
-        def execvpe(path, args, environment):
-            calls.append((path, list(args), dict(environment)))
-            if len(calls) == 1:
-                raise PermissionError("denied")
-            raise SystemExit(0)
+                def execvpe(path, args, environment):
+                    calls.append((path, list(args), dict(environment)))
+                    if len(calls) == 1:
+                        raise PermissionError("denied")
+                    raise SystemExit(0)
 
-        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", ["droiddeck-game-env"] + command), \
-                mock.patch("os.execvpe", execvpe), contextlib.redirect_stderr(io.StringIO()) as said:
-            with self.assertRaises(SystemExit):
-                game_env["main"]()
-        self.assertEqual([call[:2] for call in calls], [(str(dist / "proton"), [str(dist / "proton")] + command[1:]),
-                                                        (str(tool / "proton"), command)])
-        self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
-        self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
-                                               vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
-                                               GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1"))
-        self.assertIn("could not start (", said.getvalue())
+                with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", ["droiddeck-game-env"] + command), \
+                        mock.patch("os.execvpe", execvpe), contextlib.redirect_stderr(io.StringIO()) as said:
+                    with self.assertRaises(SystemExit):
+                        game_env["main"]()
+                self.assertEqual([call[:2] for call in calls], [(str(dist / "proton"), [str(dist / "proton")] + command[1:]),
+                                                                (str(tool / "proton"), command)])
+                self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
+                self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
+                                                       vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
+                                                       GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1", **expected))
+                self.assertEqual(calls[0][2].get("WINEDLLOVERRIDES"), expected.get("WINEDLLOVERRIDES"))
+                self.assertEqual(calls[0][2].get("SteamDeck"), expected.get("SteamDeck"))
+                self.assertIn("could not start (", said.getvalue())
 
     def test_generated_launchers_run_the_dist_proton(self):
         root = self.store()

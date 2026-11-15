@@ -12,6 +12,15 @@ use crate::epic::chunk::testing::encode;
 use crate::epic::manifest::testing::{build, chunk, TestFile, TestManifest};
 use crate::epic::manifest::{guid_text, PartRef};
 
+#[test]
+fn rejects_third_party_managed_install_before_manifest_parsing() {
+    let request = serde_json::json!({"thirdPartyManagedApp": "EA app"});
+    match Request::from_json(&request) {
+        Err(error) => assert_eq!(error, "third-party-managed:EA app"),
+        Ok(_) => panic!("third-party-managed install was accepted"),
+    }
+}
+
 fn serve(files: HashMap<String, Vec<u8>>, hits: Arc<AtomicUsize>) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
