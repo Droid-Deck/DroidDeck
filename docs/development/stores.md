@@ -296,7 +296,10 @@ it, the cloud copies before an upload replaces them, under
 A game launched before Proton has made its prefix (a first launch) gets its download deferred: the
 request is answered at once (`result=deferred reason=no-prefix`) and the download runs as soon as
 the prefix's user folder appears, within a minute. Every path logs
-`cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`.
+`cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`. A failure adds
+`detail="..."`: the exception chain with the step (`list`, `get`, `put`), HTTP status, file and the
+start of the server's error body, with URLs cut to their host and tokens, secrets and codes redacted.
+GOG uploads stage their gzip body in the app's cache folder, which is created if it is missing.
 
 - **The folder:** GOG's public remote-config gives a location template per game (by its Galaxy client
   id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`; Epic's catalog gives
@@ -328,7 +331,10 @@ the prefix's user folder appears, within a minute. Every path logs
   migration runs once per game (`cloud_layout_<id>`), so a game that legitimately keeps a folder
   named like the location is not relocated again; a non-prefixed listing is left unchanged.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
-  own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
+  own client (the client secret is kept at install; the Galaxy token is the fallback). Every
+  cloudstorage request sends Galaxy's communication-service `User-Agent` (`GOG_CLOUD_UA`, the
+  same string Heroic's gogdl and Lutris send), and PUT repeats it as `X-Object-Meta-User-Agent`;
+  the bare `GOG Galaxy` value is now refused with HTTP 400 `invalid_version`. Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
   `epic/savesync.rs`; the template's root token and `{EpicId}` / `{AppName}` are read by
   `EpicSaveTemplate`).

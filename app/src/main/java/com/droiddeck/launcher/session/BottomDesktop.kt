@@ -194,7 +194,7 @@ object BottomDesktop {
         send(target, Message.obtain(null, Comp.MSG_POINTER, x, y))
     }
 
-    /** Button (3), wheel (4) and smooth-scroll (12) input, as `WaylandCompositor.nativeSendSceneInput` takes it. */
+    /** Button, wheel and finger-scroll input, using the `WaylandCompositor.SCENE_*` types `nativeSendSceneInput` takes. */
     fun sendScene(type: Int, a: Int, b: Int = 0) {
         val target = service ?: return
         send(target, Message.obtain(null, Comp.MSG_SCENE, type, a).apply {

@@ -1,5 +1,5 @@
 #include "ddfg_vkd.h"
-#include "../VulkanRendererContext.h"
+#include "../VkDispatchTable.h"
 #include <android/log.h>
 
 bool ddfgVkdInit(const VkTable& table, ddfg::DeviceDispatch& dd, ddfg::InstanceDispatch& id) {

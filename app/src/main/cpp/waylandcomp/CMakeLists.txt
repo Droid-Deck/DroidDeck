@@ -1,5 +1,6 @@
 add_library(droiddeckwayland SHARED
         src/compositor.c
+        src/clock_domain.c
         src/vk_present.c
         src/effects_chain.c
         src/cardboard.c
