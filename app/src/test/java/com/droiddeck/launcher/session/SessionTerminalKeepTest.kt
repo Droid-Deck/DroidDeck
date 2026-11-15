@@ -48,6 +48,22 @@ class SessionTerminalKeepTest {
         assertNull(SessionTerminal.reuse(client))
     }
 
+    @Test fun detachingDropsTheShellWithoutAPidForAShellThatNeverStarted() {
+        prepare(1)
+        SessionTerminal.keep(unstarted())
+        assertNull(SessionTerminal.detach(1))
+        prepare(1)
+        assertNull(SessionTerminal.reuse(client))
+    }
+
+    @Test fun detachingAnotherGenerationKeepsTheShell() {
+        prepare(2)
+        val shell = unstarted()
+        SessionTerminal.keep(shell)
+        assertNull(SessionTerminal.detach(1))
+        assertSame(shell, SessionTerminal.reuse(client))
+    }
+
     @Test fun clearingTheSessionDropsTheKeptShell() {
         prepare(1)
         SessionTerminal.keep(unstarted())

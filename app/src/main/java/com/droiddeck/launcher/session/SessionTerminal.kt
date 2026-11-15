@@ -65,4 +65,14 @@ object SessionTerminal {
             kept = null
         }
     }
+
+    /** Ends this generation's terminal without killing its shell, and returns the shell's pid if it still runs. */
+    fun detach(generation: Int): Int? {
+        val current = launch ?: return null
+        if (current.generation != generation) return null
+        launch = null
+        val pid = kept?.session?.takeIf { it.isRunning && it.pid > 0 }?.pid
+        kept = null
+        return pid
+    }
 }
