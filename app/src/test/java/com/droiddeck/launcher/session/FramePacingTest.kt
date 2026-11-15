@@ -64,6 +64,15 @@ class FramePacingTest {
         assertTrue(pacing.line(10_000 * ms, 3_000)!!.endsWith("1% low n/a, 0.1% low n/a"))
     }
 
+    @Test fun theLowsKeepEverySampleOfTheLastThirtySecondsAtHighFps() {
+        val pacing = FramePacing()
+        var now = 1_000 * ms
+        repeat(10) { now += 100 * ms; pacing.add(100 * ms, now) }
+        repeat(8_700) { now += 3_333_333L; pacing.add(3_333_333L, now) }
+        val line = pacing.line(now, 3_000)!!
+        assertTrue(line, line.endsWith("1% low 300.0 fps, 0.1% low 10.0 fps"))
+    }
+
     @Test fun aPauseCountsAsAFreezeButNotInTheLows() {
         val pacing = FramePacing()
         var now = 1_000 * ms

@@ -166,6 +166,7 @@ internal class GameFrameFeed(
     private val clockControl: File? = null,
     private val onFrame: ((Long, Long) -> Unit)? = null,
     private val keepBacklog: Boolean = false,
+    private val notBeforeNs: Long = Long.MIN_VALUE,
 ) {
     private var handle = 0L
     private var lastGuestNs = Long.MIN_VALUE
@@ -205,15 +206,18 @@ internal class GameFrameFeed(
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
             if (handle == 0L) return compositorAdded
-            if (!keepBacklog || lastGuestNs == Long.MIN_VALUE) HudFrames.nativePoll(handle, frametimes, times)
+            if (!keepBacklog) HudFrames.nativePoll(handle, frametimes, times)
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
+        var shift = 0L
+        if (n > 0) {
+            shift = guestClockShift(nowNs, if (keepBacklog) 0L else SHIFT_NS)
+            if (nowNs - (times[n - 1] + shift) > LIVE_NS) shift = guestClockShift(nowNs, SHIFT_RECHECK_NS)
+        }
         var first = 0
-        if (keepBacklog) while (first < n && times[first] <= lastGuestNs) first++
+        if (keepBacklog) while (first < n && (times[first] <= lastGuestNs || times[first] + shift < notBeforeNs)) first++
         if (n > first) {
             if (keepBacklog) lastGuestNs = times[n - 1]
-            var shift = guestClockShift(nowNs, SHIFT_NS)
-            if (nowNs - (times[n - 1] + shift) > LIVE_NS) shift = guestClockShift(nowNs, SHIFT_RECHECK_NS)
             for (i in first until n) times[i] += shift
             if (!fromGamescope) {
                 stats.reset()
@@ -286,9 +290,10 @@ internal class GameFrameFeed(
         private const val SHIFT_RECHECK_NS = 100_000_000L
         private const val CLOCK_CONTROL_PATH = "tmp/.bl-clock"
 
+        /** With [onFrame], frames drawn after the feed was made are delivered at most once, across reopens of the ring. */
         fun forRoot(root: File, onFrame: ((Long, Long) -> Unit)? = null) =
             GameFrameFeed(File(root, HudFrames.PATH), clockControl = File(root, CLOCK_CONTROL_PATH), onFrame = onFrame,
-                keepBacklog = onFrame != null)
+                keepBacklog = onFrame != null, notBeforeNs = if (onFrame != null) System.nanoTime() else Long.MIN_VALUE)
 
         fun engineLabel(name: String): String = when (name) {
             "DXVK" -> "DXVK"

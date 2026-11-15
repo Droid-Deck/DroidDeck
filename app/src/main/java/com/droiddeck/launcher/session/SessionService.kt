@@ -576,6 +576,9 @@ class SessionService : Service() {
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        synchronized(stopLock) {
+            if (gen == sessionGen && SessionState.running && SessionPrefs.extendedLogs(this)) FrameLog.start(root, gen)
+        }
         try {
             SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
         } catch (e: Exception) {
@@ -918,7 +921,6 @@ class SessionService : Service() {
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"), SessionPaths.startedAt(sessionDir))
         MemoryLog.start()
-        if (SessionPrefs.extendedLogs(this)) FrameLog.start(LinuxRuntime.rootDir(this))
         return sessionDir
     }
 
@@ -2178,7 +2180,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
-                FrameLog.stop()
+                FrameLog.stop(stoppedGen)
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
                 if (status == 0) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
@@ -2242,6 +2244,7 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
+            FrameLog.stop(sessionGen)
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch

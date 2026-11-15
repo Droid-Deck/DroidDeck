@@ -6,8 +6,8 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 internal class FramePacing {
-    private val times = LongArray(RING)
-    private val frametimes = LongArray(RING)
+    private var times = LongArray(INITIAL_RING)
+    private var frametimes = LongArray(INITIAL_RING)
     private var head = 0
     private var size = 0
     private var frames = 0
@@ -24,24 +24,37 @@ internal class FramePacing {
         if (frametimeNs > worstNs) worstNs = frametimeNs
         if (frametimeNs > HITCH_NS) over50++
         if (frametimeNs > FREEZE_NS) over250++
+        while (size > 0 && timeNs - times[(head - size + times.size) % times.size] > LOWS_WINDOW_NS) size--
+        if (size == times.size) grow()
         times[head] = timeNs
         frametimes[head] = frametimeNs
-        head = (head + 1) % RING
-        if (size < RING) size++
+        head = (head + 1) % times.size
+        if (size < times.size) size++
+    }
+
+    private fun grow() {
+        val cap = times.size
+        if (cap >= MAX_RING) return
+        val oldest = (head - size + cap) % cap
+        val oldTimes = times
+        val oldFrametimes = frametimes
+        times = LongArray(cap * 2) { if (it < size) oldTimes[(oldest + it) % cap] else 0L }
+        frametimes = LongArray(cap * 2) { if (it < size) oldFrametimes[(oldest + it) % cap] else 0L }
+        head = size
     }
 
     @Synchronized
     fun line(nowNs: Long, periodMs: Long): String? {
         if (frames == 0) {
             if (size == 0) return null
-            val since = nowNs - times[(head - 1 + RING) % RING]
+            val since = nowNs - times[(head - 1 + times.size) % times.size]
             return if (since > LOWS_WINDOW_NS) null
                 else String.format(Locale.ROOT, "last %.0f s: no frames, last one %.1f s ago", periodMs / 1000.0, since / 1e9)
         }
         val recent = LongArray(size)
         var n = 0
         for (i in 0 until size) {
-            val at = (head - 1 - i + RING) % RING
+            val at = (head - 1 - i + times.size) % times.size
             if (nowNs - times[at] > LOWS_WINDOW_NS) continue
             if (frametimes[at] < PAUSE_NS) recent[n++] = frametimes[at]
         }
@@ -62,7 +75,8 @@ internal class FramePacing {
     }
 
     companion object {
-        private const val RING = 8192
+        private const val INITIAL_RING = 8192
+        private const val MAX_RING = 1 shl 18
         private const val HITCH_NS = 50_000_000L
         private const val FREEZE_NS = 250_000_000L
         private const val PAUSE_NS = 1_000_000_000L
@@ -74,11 +88,15 @@ object FrameLog {
     private const val TAG = "Frames"
     private const val POLL_MS = 1_000L
     private const val PERIOD_MS = 3_000L
-    @Volatile private var thread: Thread? = null
+    private var thread: Thread? = null
+    private var owner = 0
 
+    /** Logs frame pacing for session [gen], replacing a logger an older session left running. */
     @Synchronized
-    fun start(root: File) {
-        if (thread != null) return
+    fun start(root: File, gen: Int) {
+        if (thread != null && owner == gen) return
+        thread?.interrupt()
+        owner = gen
         thread = Thread({
             val pacing = FramePacing()
             val feed = runCatching { GameFrameFeed.forRoot(root) { ft, at -> pacing.add(ft, at) } }.getOrNull() ?: return@Thread
@@ -103,8 +121,10 @@ object FrameLog {
         }, "frame-log").apply { isDaemon = true; start() }
     }
 
+    /** Stops the logger if session [gen] started it; a stale session's teardown leaves a newer one running. */
     @Synchronized
-    fun stop() {
+    fun stop(gen: Int) {
+        if (gen != owner) return
         thread?.interrupt()
         thread = null
     }
