@@ -143,7 +143,7 @@ class SecondScreenPresentation(
         val view = androidx.compose.ui.platform.ComposeView(context).apply {
             isFocusable = true
             isFocusableInTouchMode = true
-            setContent { content() }
+            setContent { PresentationWindows(content) }
         }
         chatView = view
         root.addView(view, 1.coerceAtMost(root.childCount), LinearLayout.LayoutParams(-1, -2))
@@ -179,7 +179,7 @@ class SecondScreenPresentation(
                 isFocusable = true
                 isFocusableInTouchMode = true
                 defaultFocusHighlightEnabled = false
-                setContent { content() }
+                setContent { PresentationWindows(content) }
                 frame.addView(this, FrameLayout.LayoutParams(-1, -1))
                 menuView = this
             }
@@ -344,7 +344,7 @@ class SecondScreenPresentation(
     private fun renderDashboard() {
         val content = dashboard ?: return
         bar(SecondScreenMode.DASHBOARD)
-        val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { content() } }
+        val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { PresentationWindows(content) } }
         dashboardView = view
         root.addView(view, weightParams())
     }
@@ -368,7 +368,7 @@ class SecondScreenPresentation(
 
     private fun renderTerminal() {
         bar(SecondScreenMode.TERMINAL)
-        val panel = SessionTerminalPanel(context)
+        val panel = SessionTerminalPanel(context, keepShell = true)
         terminalPanel = panel
         root.addView(panel, weightParams())
     }
@@ -391,4 +391,9 @@ class SecondScreenPresentation(
             or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
     }
+}
+
+@androidx.compose.runtime.Composable
+private fun PresentationWindows(content: @androidx.compose.runtime.Composable () -> Unit) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalPresentationWindow provides true) { content() }
 }

@@ -79,4 +79,18 @@ class LegacyNamesTest {
         assertEquals("Exec=/usr/local/bin/bannerlator-steam-launch\n",
             File(root, "usr/local/share/applications/firefox.desktop").readText())
     }
+
+    @Test fun catalogAppImageMenusStartThroughTheSharedLauncher() {
+        write("usr/share/applications/droiddeck-rpcs3.desktop",
+            "[Desktop Entry]\nName=RPCS3\nExec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n")
+        write("usr/share/applications/droiddeck-steam-x64.desktop", "[Desktop Entry]\nExec=droiddeck-steam-x64\n")
+        write("usr/share/applications/other.desktop", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n")
+        LegacyNames.migrateRootfs(root)
+        LegacyNames.migrateRootfs(root)
+        assertEquals("[Desktop Entry]\nName=RPCS3\nExec=/usr/local/bin/droiddeck-appimage-exec /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n",
+            File(root, "usr/share/applications/droiddeck-rpcs3.desktop").readText())
+        assertEquals("[Desktop Entry]\nExec=droiddeck-steam-x64\n", File(root, "usr/share/applications/droiddeck-steam-x64.desktop").readText())
+        assertEquals("Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n",
+            File(root, "usr/share/applications/other.desktop").readText())
+    }
 }

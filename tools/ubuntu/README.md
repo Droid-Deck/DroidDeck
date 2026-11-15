@@ -9,7 +9,8 @@ Steam on the desktop). The app installs it into `files/linuxfs` and runs it unde
   `/dev/kgsl-3d0`, and KWin with `patches/kwin` (nested desktop scale, an explicit render node,
   scroll source/discrete forwarding). Both get a `+droiddeck` version. `patches/mesa` adds KGSL
   UBWC 5/6 (backported from upstream Mesa) and the KGSL device numbers for WSI (from
-  [Droid-Deck/Drivers](https://github.com/Droid-Deck/Drivers)).
+  [Droid-Deck/Drivers](https://github.com/Droid-Deck/Drivers)). It also carries Icenowy Zheng's upstream
+  Zink fix that keeps the Imagination depth/stencil swizzle off colour views (Mesa d55418dae7).
 - The runtime's built-in Vulkan driver is DroidDeck's DD-Turnip Linux build (`DD_TURNIP_URL` and
   `DD_TURNIP_SHA256` in `base.env`): Ubuntu's Turnip is diverted to `libvulkan_freedreno.so.distrib`
   because it lacks the Adreno 8xx fixes. Zink, EGL and llvmpipe stay Ubuntu's.

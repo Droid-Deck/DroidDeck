@@ -14,6 +14,7 @@ object SessionEvents {
         SessionPaths.take()
         val dir = SessionPaths.beginOrCurrent(context, label ?: SessionPaths.label(mode, null))
         synchronized(SessionState) {
+            SessionState.clearRelaunch()
             SessionState.phase = SessionPhase.PREPARING
             SessionState.mode = mode
             SessionState.sessionId = dir.name
@@ -71,6 +72,17 @@ object SessionEvents {
             }
         } catch (e: Exception) {
             Log.w(TAG, "writing ${target.name}", e)
+        }
+    }
+
+    inline fun <T> step(name: String, block: () -> T): T {
+        val dir = SessionState.logDirectory ?: SessionPaths.current()
+        record("start.step", mapOf("step" to name, "state" to "begin"), dir)
+        val began = android.os.SystemClock.elapsedRealtime()
+        try {
+            return block()
+        } finally {
+            record("start.step", mapOf("step" to name, "state" to "end", "ms" to android.os.SystemClock.elapsedRealtime() - began), dir)
         }
     }
 

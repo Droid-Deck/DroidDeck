@@ -151,7 +151,7 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
             ?.let { UserApps.Request(UserApps.Source.Script(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
         AddSource.APPIMAGE -> imagePath?.takeIf { it.endsWith(".appimage", ignoreCase = true) }?.let { File(it) }
             ?.let { UserApps.Request(UserApps.Source.AppImage(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
-        AddSource.GITHUB -> repoId?.let { UserApps.Request(UserApps.Source.GitHub(it), custom, iconPath) to (custom ?: it) }
+        AddSource.GITHUB -> repoId?.let { UserApps.Request(UserApps.Source.GitHub(it, UserApps.githubAsset(repo)), custom, iconPath) to (custom ?: it) }
         AddSource.FLATPAK -> bundlePath?.takeIf { it.endsWith(".flatpak", ignoreCase = true) }?.let { File(it) }
             ?.let { UserApps.Request(UserApps.Source.FlatpakBundle(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
             ?: flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
@@ -301,6 +301,9 @@ internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolea
     return shown
 }
 
+private val DIALOG_MARGIN = 12.dp
+private val SIDE_GAP = 24.dp
+
 @Composable
 internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
@@ -309,17 +312,23 @@ internal fun AppDialog(
     back: (() -> Unit)? = null,
     scrollable: Boolean = true,
     scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
+    side: (@Composable () -> Unit)? = null,
+    sideRoom: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
+    val panelCap = maxWidth ?: if (wide) 860.dp else 560.dp
     VeilRing()
     Dialog(onDismissRequest = back ?: close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
       CompositionLocalProvider(LocalFrontFocus provides null) {
-        Box(
+        BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize().imePadding()
                 .tapOutside(close),
         ) {
+            val panel = (this.maxWidth - DIALOG_MARGIN * 2).coerceAtMost(panelCap)
+            val free = (this.maxWidth - panel) / 2 - SIDE_GAP
+            val beside = side != null && free >= sideRoom
             AnimatedVisibility(
                 visibleState = shown,
                 enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f),
@@ -329,8 +338,8 @@ internal fun AppDialog(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
-                        .padding(12.dp)
-                        .widthIn(max = maxWidth ?: if (wide) 860.dp else 560.dp)
+                        .padding(DIALOG_MARGIN)
+                        .widthIn(max = panelCap)
                         .then(
                             when {
                                 width != null -> Modifier.width(width)
@@ -348,8 +357,21 @@ internal fun AppDialog(
                         .then(modifier)
                         .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
-                    content = content,
-                )
+                ) {
+                    content()
+                    if (side != null && !beside) side()
+                }
+            }
+            if (side != null && beside) {
+                AnimatedVisibility(
+                    visibleState = shown,
+                    enter = fadeIn(Motion.tw(180)),
+                    exit = fadeOut(Motion.tw(140)),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = SIDE_GAP),
+                    label = "$label-side",
+                ) {
+                    Box(Modifier.widthIn(max = free).blockTouches()) { side() }
+                }
             }
         }
       }

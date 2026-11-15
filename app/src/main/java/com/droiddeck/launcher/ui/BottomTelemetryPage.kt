@@ -55,7 +55,6 @@ import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.GameFrameFeed
-import com.droiddeck.launcher.hud.HudFrames
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.hud.KeyValueSet
 import com.droiddeck.launcher.hud.MangoReadings
@@ -144,7 +143,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var perfTick by remember { mutableIntStateOf(0) }
     var traceTick by remember { mutableIntStateOf(0) }
     var clock by remember { mutableStateOf("") }
-    val frames = remember { GameFrameFeed(File(LinuxRuntime.rootDir(context), HudFrames.PATH)) }
+    val frames = remember { GameFrameFeed.forRoot(LinuxRuntime.rootDir(context)) }
     DisposableEffect(frames) { onDispose { frames.close() } }
     val currentFps = { if (frames.live) frames.stats.fps else fps() }
     var hud by remember { mutableStateOf(StatsHud.from(SessionPrefs.statsHud(context))) }
@@ -304,7 +303,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                     val now = System.nanoTime()
                     val live = frames.live
                     val stats = frames.stats
-                    val graph = FloatArray(FrameStats.GRAPH_FRAMES).also { if (live) stats.graph(it) }
+                    val graph = FloatArray(FrameStats.GRAPH_FRAMES)
+                    val graphEnd = if (live) stats.graph(graph) else 0L
                     val hz = (frames.refreshMilliHz + 499) / 1000
                     val data = HudData(
                         fps = fpsNow, avgFps = if (live) stats.averageFps() else null, lows = if (live) stats.lows(now) else FrameStats.Lows.EMPTY,
@@ -317,6 +317,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                         title = title, cover = cover, played = playedSeconds?.let(::playedText), clock = clock,
                         fpsHistory = fpsHistory.snapshot(), cpuHistory = cpuHistory.snapshot(), gpuHistory = gpuHistory.snapshot(),
                         historySeconds = maxOf(fpsHistory.spanSeconds(), cpuHistory.spanSeconds(), gpuHistory.spanSeconds()),
+                        graphEnd = graphEnd,
                         coreGroups = coreGroups, gameCores = gameCores, fahrenheit = tempDisplay.fahrenheit,
                         tempColor = { sensor, c ->
                             thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)

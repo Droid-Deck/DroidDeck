@@ -17,6 +17,7 @@ import com.droiddeck.launcher.ui.UpdatesActions
 import com.droiddeck.launcher.ui.UpdatesState
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
+import com.droiddeck.launcher.update.UpdateWatch
 
 internal class UpdatesMenu(private val activity: Activity, private val ui: Handler) {
     var catalog by mutableStateOf<AppUpdates.Catalog?>(null)
@@ -43,6 +44,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                 .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
         },
         onDismissPermission = { askPermission = false; pending = null },
+        onSeen = { r -> UpdateWatch.seen(activity, r) },
     )
 
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
@@ -77,6 +79,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     private fun choose(f: AppUpdates.Follow) {
         AppUpdates.setFollow(activity, f)
+        UpdateWatch.sync(activity, f, catalog?.let { AppUpdates.release(it, f) })
         follow = f
         error = null
     }
@@ -93,7 +96,17 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         percent = 0
         Thread({
             val result = runCatching {
-                val file = SelfInstaller.download(activity, apk) { pct -> ui.post { percent = pct } }
+                val file = try {
+                    SelfInstaller.download(activity, apk) { pct -> ui.post { percent = pct } }
+                } catch (e: java.io.IOException) {
+                    // Each push replaces a test build's APK, so a list read before the push names a file that is gone.
+                    if (r.pr <= 0) throw e
+                    val fresh = runCatching { AppUpdates.refresh(activity) }.getOrNull() ?: throw e
+                    ui.post { catalog = fresh }
+                    val newer = fresh.tests.firstOrNull { it.tag == r.tag }?.apk?.takeIf { it.url != apk.url } ?: throw e
+                    ui.post { percent = 0 }
+                    SelfInstaller.download(activity, newer) { pct -> ui.post { percent = pct } }
+                }
                 ui.post { stage = activity.getString(R.string.upd_stage_installing); percent = -1 }
                 SelfInstaller.install(activity, file) { id -> session = id }
             }
