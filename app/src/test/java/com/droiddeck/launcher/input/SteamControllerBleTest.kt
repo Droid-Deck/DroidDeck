@@ -48,9 +48,16 @@ class SteamControllerBleTest {
         controller.start()
     }
 
+    /** Runs what stop() posted unless stop() already quit the looper, then quits it. */
+    private fun drain(looper: android.os.Looper) {
+        runCatching { shadowOf(looper).idle() }
+        looper.quit()
+    }
+
     @After fun close() {
         controller.stop()
-        handler.looper.quit()
+        // The stop posts a disconnect; run it now, while Robolectric's environment still exists.
+        drain(handler.looper)
     }
 
     @Test fun stopReleasesAndDetachesInputBeforeQueuedCallbacksCanPublish() {
@@ -126,7 +133,7 @@ class SteamControllerBleTest {
             assertTrue(Writer.reports.last().all { it == 0.toByte() })
         } finally {
             replacement.stop()
-            replacementHandler.looper.quit()
+            drain(replacementHandler.looper)
         }
     }
 
@@ -142,7 +149,7 @@ class SteamControllerBleTest {
             assertEquals(reports, Writer.reports.size)
         } finally {
             unused.stop()
-            ReflectionHelpers.getField<Handler>(unused, "handler").looper.quit()
+            drain(ReflectionHelpers.getField<Handler>(unused, "handler").looper)
         }
     }
 

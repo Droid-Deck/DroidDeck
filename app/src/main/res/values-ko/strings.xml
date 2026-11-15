@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
-        <item>기본적으로 앱을 나가면 Steam이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
+        <item>처음 실행하면 Steam을 다운로드합니다. 몇 분 걸릴 수 있습니다.</item>
+        <item>컨트롤러는 Steam에 Steam Deck 컨트롤러로 표시됩니다. 세션 설정에서 Steam Controller, DualShock 4, DualSense 또는 Xbox 360 패드로 바꿀 수 있으며, 다음 세션부터 적용됩니다.</item>
+        <item>컨트롤러의 뒤로를 길게 누르면 Steam의 빠른 액세스 메뉴가 열립니다. 세션 설정에서 뒤로 길게 눌러 Steam 단축키가 켜져 있어야 합니다.</item>
+        <item>백그라운드 동작은 앱을 벗어났을 때 어떻게 할지 정합니다. 네이티브는 Steam을 절전에 대비시키고, 자동은 일시 중지하고, 수동은 재개를 기다리며, 안 함은 계속 실행합니다.</item>
+        <item>Steam 게임은 빠른 액세스의 Steam 프레임 제한을 사용합니다. 제한값으로 나누어떨어지는 주사율이 있으면 디스플레이가 그 주사율로 전환됩니다.</item>
+        <item>세션 메뉴의 저지연 모드는 컨트롤러 입력을 250 Hz 대신 1000 Hz로 보내며, CPU와 배터리를 조금 더 사용합니다.</item>
+        <item>각 게임에는 Proton, FEX, 구성 요소, 환경 설정이 포함된 자체 프로필이 있습니다.</item>
+        <item>세션 메뉴에는 음성 채팅용 마이크 토글과 필요할 때 세션을 정지시키는 지금 일시 중지 버튼이 있습니다.</item>
+        <item>DroidDeck HUD는 드래그해서 옮기고, 핀치해서 크기를 바꾸고, 화면 가장자리 밖으로 밀면 작은 FPS 탭으로 고정됩니다.</item>
+        <item>듀얼 스크린 휴대용 기기에서는 아래쪽 화면에 다운로드, 알림, 스크린샷, Steam 채팅을 표시할 수 있습니다. 화면 바꾸기를 누르면 게임이 그쪽으로 옮겨집니다.</item>
+        <item>SD 카드, USB 드라이브, SSD에서 Steam 라이브러리를 추가할 수 있으며, DroidDeck이 게임을 라이브러리에 함께 모아 줍니다.</item>
+        <item>스토어에서는 Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
+        <item>FEX, DXVK, VKD3D-Proton 같은 구성 요소는 스스로 업데이트되며, 기본값은 Proton Experimental ARM64이고 Proton 11.0 ARM64 빌드가 설치되면 그쪽이 기본값이 됩니다.</item>
+        <item>게임 실행 중 Steam 압축은 메모리가 부족한 기기에서 RAM을 확보해 줍니다.</item>
+        <item>오른쪽 가장자리에서 안쪽으로 스와이프하면 세션 메뉴가 열립니다. 터치패드 모드, PC 키보드, 저지연 모드, 게임 프로필 등이 있습니다.</item>
+        <item>게임이 느린가요? 빠른 액세스에서 프레임 레이트를 제한한 다음, 게임의 구성 요소에서 다른 Proton 버전이나 FEX 프리셋을 시도해 보세요.</item>
+        <item>게임 소리가 지직거리거나 나오지 않나요? Steam 설정의 오디오에서 게임에서 DirectAudio 사용 토글을 시도해 보세요.</item>
+        <item>설정의 저장 공간에서 셰이더 캐시와 삭제한 게임에 남은 프리픽스를 정리할 수 있습니다.</item>
+        <item>버그를 만났나요? 세션 메뉴의 로그 공유가 진단 정보를 묶어 줍니다. Discord의 #bug-reports에 올려 주세요.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>첫 실행 시 데스크톱을 설정합니다. 몇 분 정도 걸릴 수 있습니다.</item>
-        <item>기본적으로 앱을 나가면 세션이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>터치는 트랙패드처럼 작동합니다. 드래그하여 포인터를 이동하고, 탭하여 클릭합니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
+        <item>처음 실행하면 데스크톱을 설정합니다. 몇 분 걸릴 수 있습니다.</item>
+        <item>터치는 터치패드처럼 동작합니다. 드래그하면 포인터가 움직이고, 탭하면 클릭합니다.</item>
+        <item>백그라운드 동작은 앱을 벗어났을 때 어떻게 할지 정합니다. 수동은 기본적으로 재개를 기다리고, 자동은 일시 중지하며, 안 함은 계속 실행합니다.</item>
+        <item>오른쪽 가장자리에서 안쪽으로 스와이프해 세션 메뉴를 연 다음 PC 키보드를 선택하면, Android 키보드를 무시하는 앱에서도 입력할 수 있습니다.</item>
+        <item>세션 메뉴의 PC 키보드는 크기, 불투명도, 키 그룹을 조절할 수 있습니다.</item>
+        <item>컨트롤러는 Xbox 360 패드로 표시됩니다. 그렇지 않으면 화면 컨트롤을 사용하세요.</item>
+        <item>세션 메뉴에는 마이크 토글과 필요할 때 세션을 정지시키는 지금 일시 중지 버튼이 있습니다.</item>
+        <item>버그를 만났나요? 세션 메뉴의 로그 공유가 진단 정보를 묶어 줍니다. Discord의 #bug-reports에 올려 주세요.</item>
     </string-array>
     <string name="session_channel">세션</string>
     <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">터치패드</string>
     <string name="mode_touch_direct">직접 터치</string>
     <string name="mode_touch_note">자동: 데스크톱에서는 터치패드, Steam에서는 직접 터치를 사용합니다.</string>
+    <string name="mode_pen">펜</string>
+    <string name="mode_pen_mouse">마우스</string>
+    <string name="mode_pen_touch">터치</string>
+    <string name="mode_pen_button">측면 버튼</string>
     <string name="mode_osc">화면 컨트롤</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">자동 모드에서는 컨트롤러가 연결되지 않은 경우 화면 컨트롤을 표시합니다.</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">끄기</string>
     <string name="perf_cap_auto">드라이버 기본값</string>
     <string name="perf_zram_client">게임 실행 중 Steam 압축</string>
+    <string name="perf_zram_idle">유휴 게임 메모리 압축</string>
+    <string name="perf_zram_idle_hint">RAM이 부족할 때 유휴 게임 메모리를 압축합니다. 게임이 약 30초마다 몇 초씩 멈추면 끄세요. 다음 세션을 시작할 때 적용됩니다.</string>
     <string name="perf_zram_client_hint">게임이 시작되고 20초 후 Steam 클라이언트를 zRAM으로 압축해 게임에 더 많은 메모리를 남기고, 게임이 종료되면 다시 읽어 들입니다. 게임 시작 직후 세션이 종료되면 이 옵션을 끄세요. 위의 RAM 제한을 설정하면 세션이 이를 초과할 때 여전히 Steam을 압축합니다.</string>
     <string name="perf_ram_cap">RAM 제한</string>
     <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>
     <string name="perf_sysmem">Turnip: sysmem 렌더링</string>
-    <string name="perf_sysmem_hint">Steam 클라이언트가 빨라집니다. 게임에서는 드라이버가 패스마다 타일 렌더링과 시스템 메모리 렌더링 중 하나를 고릅니다. Adreno 710/720/722에 필수입니다.</string>
+    <string name="perf_sysmem_hint">Steam 클라이언트와 게임에 적용됩니다. Adreno 710/720/722에 필수입니다.</string>
     <string name="perf_xalia">Steam의 xalia 도우미 건너뛰기</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linux ntsync 드라이버를 사용자 공간에서 대신하는 기능입니다. 켜져 있으면 Proton이 droiddeck-esync와 droiddeck-fsync 대신 이 기능을 사용합니다. Proton Experimental ARM64, GE-Proton 및 proton-cachyos에서 작동합니다. 다음 세션에 적용됩니다.</string>
@@ -1816,6 +1842,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">지우기</string>
     <string name="game_sync_err_runtime">먼저 런타임을 설치하세요</string>
     <string name="game_sync_err_steam_library">Steam 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_previous_sd">이전 SD 라이브러리를 사용할 수 없습니다</string>
@@ -3351,6 +3378,7 @@
     <string name="boot_movie_sound">소리</string>
     <string name="boot_movie_skip">시작 동영상 건너뛰기</string>
     <string name="boot_movie_skip_hint">0.1초짜리 검은 화면 클립을 Steam 시작 동영상으로 사용합니다. 다음 세션부터 적용됩니다.</string>
+    <string name="boot_movie_shuffle">셔플</string>
     <string name="boot_movie_custom">내 동영상</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
     <string name="boot_movie_import">가져오기</string>
@@ -3808,8 +3836,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win 키, 홈 버튼이 세션 안에서 작동합니다</string>
     <string name="integration_shortcuts_maybe_restricted">Android에서 회색으로 표시되나요? 앱 정보 → ⋮ → 제한된 설정 허용</string>
     <string name="integration_shortcuts_restricted">Android에서 차단됨 · 앱 정보 → ⋮ → 제한된 설정 허용</string>
-    <string name="integration_shortcuts_service">DroidDeck 시스템 키</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win 키, 홈 버튼을 Android 대신 사용 중인 DroidDeck 세션에서 작동하게 합니다.</string>
     <string name="integration_brightness_needed">설정 → Steam 연동에서 밝기를 켜세요</string>
     <string name="setup_gpu_bridge_off">Mali 브리지: 끔</string>
     <string name="setup_gpu_bridge_unusable">Mali 브리지에는 시스템 드라이버 경로가 없는 Mali GPU가 필요하므로 %1$s에서는 사용할 수 없으며, 이 스위치는 여기서 아무 효과가 없습니다.</string>
@@ -3969,10 +3995,11 @@
     <string name="input_reset_positions">위치 초기화</string>
     <string name="input_show_label">라벨 표시</string>
     <string name="input_layout_import_failed">이 레이아웃을 가져올 수 없습니다</string>
+    <string name="epic_third_party_managed">%1$s을(를) 통해 설치합니다</string>
 
     <string name="theme_white_red">진홍빛 눈</string>
     <string name="theme_white_red_detail">빨간색 포인트가 있는 흰색 표면.</string>
-    
+
     <string name="rail_soundtracks">사운드트랙</string>
     <string name="rail_music">음악</string>
     <string name="soundtracks_options">재생 옵션</string>
@@ -4048,4 +4075,5 @@
     <string name="hud_metric_hdr">HDR 상태</string>
     <string name="hud_readings_shown">표시됨</string>
     <string name="hud_readings_count">%2$d 중 %1$d</string>
+    <string name="exit_hint_back">한 번 더 뒤로를 누르면 종료됩니다</string>
 </resources>

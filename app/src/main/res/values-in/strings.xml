@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck tidak bisa dimulai ulang secara otomatis. Tutup aplikasi sepenuhnya, lalu buka lagi.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Proses pertama mengunduh Steam. Ini mungkin memerlukan beberapa menit.</item>
-        <item>Secara default, keluar dari aplikasi akan menjeda Steam; sesi dilanjutkan dari posisi terakhir saat Anda kembali.</item>
-        <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
+        <item>Saat pertama kali dijalankan, Steam akan diunduh. Ini mungkin memerlukan beberapa menit.</item>
+        <item>Kontrolermu terlihat oleh Steam sebagai kontroler Steam Deck. Ubah menjadi pad Steam Controller, DualShock 4, DualSense, atau Xbox 360 di pengaturan sesi; perubahan berlaku pada sesi berikutnya.</item>
+        <item>Tahan Kembali di kontrolermu untuk membuka menu Akses cepat Steam. Tahan Kembali untuk pintasan Steam harus aktif di pengaturan sesi.</item>
+        <item>Perilaku latar belakang menentukan apa yang terjadi saat kamu meninggalkan aplikasi: Native menyiapkan Steam untuk tidur, Otomatis menjedanya, Manual menunggu Lanjutkan, Tidak pernah membiarkannya tetap berjalan.</item>
+        <item>Gim Steam memakai Batas frame Steam di Akses cepat. Layar beralih ke refresh rate yang dapat dibagi rata oleh batas tersebut jika ada.</item>
+        <item>Mode latensi rendah di menu sesi mengirim input kontroler pada 1000 Hz, bukan 250 Hz, dengan sedikit tambahan penggunaan CPU dan baterai.</item>
+        <item>Setiap gim punya profilnya sendiri dengan Proton, FEX, komponen, dan pengaturan lingkungan.</item>
+        <item>Menu sesi memiliki tombol mikrofon untuk obrolan suara dan tombol Jeda sekarang untuk membekukan sesi sesuai permintaan.</item>
+        <item>Seret HUD DroidDeck untuk memindahkannya, cubit untuk mengubah ukurannya, dan dorong ke luar tepi layar untuk menambatkannya sebagai tab FPS kecil.</item>
+        <item>Pada konsol genggam layar ganda, layar bawah dapat menampilkan unduhan, notifikasi, tangkapan layar, dan obrolan Steam. Tukar layar menempatkan gim di sana.</item>
+        <item>Tambahkan pustaka Steam dari kartu SD, drive USB, atau SSD, dan DroidDeck menyatukan semua gim di Pustaka kamu.</item>
+        <item>Toko memungkinkanmu masuk ke Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, dan Game Jolt, lalu memasang dan memperbarui gim mereka dari DroidDeck.</item>
+        <item>Komponen seperti FEX, DXVK, dan VKD3D-Proton memperbarui diri sendiri, dan Proton Experimental ARM64 menjadi default, atau Proton 11.0 ARM64 setelah build tersebut terpasang.</item>
+        <item>Kompres Steam saat gim berjalan membebaskan RAM pada perangkat yang kekurangan memori.</item>
+        <item>Geser masuk dari tepi kanan untuk membuka menu sesi: mode touchpad, Keyboard PC, Mode latensi rendah, Profil gim, dan lainnya.</item>
+        <item>Gim berjalan lambat? Batasi frame rate di Akses cepat, lalu coba versi Proton lain atau preset FEX lain di komponen gim.</item>
+        <item>Audio gim pecah atau tidak ada? Coba opsi DirectAudio untuk gim di pengaturan Steam pada bagian Audio.</item>
+        <item>Penyiapan, lalu Penyimpanan, dapat membersihkan cache shader dan prefix sisa dari gim yang sudah kamu hapus.</item>
+        <item>Menemukan bug? Bagikan log di menu sesi mengumpulkan data diagnostik. Kirim ke #bug-reports di Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Proses pertama menyiapkan desktop. Ini mungkin memerlukan beberapa menit.</item>
-        <item>Secara default, keluar dari aplikasi akan menjeda sesi; sesi dilanjutkan dari posisi terakhir saat Anda kembali.</item>
-        <item>Sentuhan berfungsi seperti touchpad: geser untuk menggerakkan penunjuk, ketuk untuk mengeklik.</item>
-        <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
+        <item>Saat pertama kali dijalankan, desktop disiapkan. Ini mungkin memerlukan beberapa menit.</item>
+        <item>Sentuhan berfungsi sebagai touchpad: seret untuk menggerakkan penunjuk, ketuk untuk mengeklik.</item>
+        <item>Perilaku latar belakang menentukan apa yang terjadi saat kamu meninggalkan aplikasi: Manual menunggu Lanjutkan secara default, Otomatis menjeda, Tidak pernah membiarkannya tetap berjalan.</item>
+        <item>Geser masuk dari tepi kanan untuk membuka menu sesi, lalu pilih Keyboard PC untuk mengetik di aplikasi yang mengabaikan keyboard Android.</item>
+        <item>Keyboard PC di menu sesi memiliki ukuran, opasitas, dan grup tombol yang dapat diatur.</item>
+        <item>Kontrolermu terlihat sebagai pad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
+        <item>Menu sesi memiliki tombol mikrofon dan tombol Jeda sekarang untuk membekukan sesi sesuai permintaan.</item>
+        <item>Menemukan bug? Bagikan log di menu sesi mengumpulkan data diagnostik. Kirim ke #bug-reports di Discord.</item>
     </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_channel_description">Ditampilkan saat sesi Steam atau desktop berjalan</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Langsung</string>
     <string name="mode_touch_note">Otomatis: touchpad di Desktop, langsung di Steam.</string>
+    <string name="mode_pen">Pena</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Sentuhan</string>
+    <string name="mode_pen_button">Tombol samping</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">Nonaktif</string>
     <string name="perf_cap_auto">Default driver</string>
     <string name="perf_zram_client">Kompres Steam saat gim berjalan</string>
+    <string name="perf_zram_idle">Kompres memori game yang tidak aktif</string>
+    <string name="perf_zram_idle_hint">Mengompres memori game yang tidak aktif saat RAM rendah. Matikan jika game membeku beberapa detik kira-kira setiap setengah menit. Berlaku saat sesi dimulai berikutnya.</string>
     <string name="perf_zram_client_hint">20 detik setelah gim dimulai, klien Steam dikompres ke zRAM agar gim mendapat lebih banyak memori, lalu dibaca kembali saat gim ditutup. Nonaktifkan jika sesi tertutup sesaat setelah gim dimulai. Batas RAM di atas tetap mengompres Steam saat sesi melampauinya.</string>
     <string name="perf_ram_cap">Batas RAM</string>
     <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
-    <string name="perf_sysmem_hint">Lebih cepat untuk klien Steam; di gim, driver memilih rendering ubin atau memori sistem untuk setiap pass. Diperlukan pada Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Berlaku untuk klien Steam dan gim. Diperlukan pada Adreno 710/720/722.</string>
     <string name="perf_xalia">Lewati bantuan xalia milik Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Pengganti userspace untuk driver ntsync Linux. Saat aktif, Proton menggunakannya sebagai pengganti droiddeck-esync dan droiddeck-fsync. Berfungsi dengan Proton Experimental ARM64, GE-Proton, dan proton-cachyos. Berlaku pada sesi berikutnya.</string>
@@ -1816,6 +1842,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Bersihkan</string>
     <string name="game_sync_err_runtime">Instal runtime terlebih dahulu</string>
     <string name="game_sync_err_steam_library">Pustaka Steam tidak tersedia</string>
     <string name="game_sync_err_previous_sd">Pustaka SD sebelumnya tidak tersedia</string>
@@ -3351,6 +3378,7 @@
     <string name="boot_movie_sound">Suara</string>
     <string name="boot_movie_skip">Lewati video pembukaan</string>
     <string name="boot_movie_skip_hint">Gunakan klip hitam berdurasi 0,1 detik sebagai video pembukaan Steam. Berlaku pada sesi berikutnya.</string>
+    <string name="boot_movie_shuffle">Acak</string>
     <string name="boot_movie_custom">Video sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV, atau WebM. Format lain dan file di atas %1$d MB dikonversi ke WebM 720p di perangkat, hingga %2$d detik.</string>
     <string name="boot_movie_import">Impor</string>
@@ -3808,8 +3836,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, tombol Win, dan tombol Beranda tetap di sesi</string>
     <string name="integration_shortcuts_maybe_restricted">Berwarna abu-abu di Android? Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
     <string name="integration_shortcuts_restricted">Diblokir oleh Android · Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
-    <string name="integration_shortcuts_service">Tombol sistem DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Menjaga Alt+Tab, tombol Win, dan tombol Beranda tetap di sesi DroidDeck yang aktif, bukan di Android.</string>
     <string name="integration_brightness_needed">Aktifkan Kecerahan di Penyiapan → Integrasi Steam</string>
     <string name="setup_gpu_bridge_off">Jembatan Mali: mati</string>
     <string name="setup_gpu_bridge_unusable">%1$s tidak dapat menggunakan jembatan Mali (jembatan ini membutuhkan GPU Mali tanpa jalur driver sistem), sehingga sakelar ini tidak berpengaruh di sini.</string>
@@ -3969,10 +3995,11 @@
     <string name="input_reset_positions">Atur ulang posisi</string>
     <string name="input_show_label">Tampilkan label</string>
     <string name="input_layout_import_failed">Tata letak ini tidak dapat diimpor</string>
+    <string name="epic_third_party_managed">Diinstal melalui %1$s</string>
 
     <string name="theme_white_red">Salju Kirmizi</string>
     <string name="theme_white_red_detail">Permukaan putih dengan aksen merah.</string>
-    
+
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Opsi pemutaran</string>
@@ -4048,4 +4075,5 @@
     <string name="hud_metric_hdr">Status HDR</string>
     <string name="hud_readings_shown">Ditampilkan</string>
     <string name="hud_readings_count">%1$d dari %2$d</string>
+    <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
 </resources>
