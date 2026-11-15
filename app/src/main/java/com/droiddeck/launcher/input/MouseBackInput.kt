@@ -57,6 +57,16 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
                 !device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
         }
 
+        /** A controller's own mouse interface (8BitDo Ultimate Mobile) is not a mouse the user right-clicks with. */
+        fun externalMouse(devices: List<InputDevice?>): InputDevice? {
+            val controllers = devices.filterNotNull().filter { PadBridge.isFromController(it) }
+            return devices.filterNotNull().firstOrNull { mouse ->
+                isExternalMouse(mouse) && controllers.none {
+                    it.vendorId != 0 && it.vendorId == mouse.vendorId && it.productId == mouse.productId
+                }
+            }
+        }
+
         private val VIRTUAL_NAME = Regex("\\bvirtual\\b", RegexOption.IGNORE_CASE)
 
         fun declaresVirtual(name: String?): Boolean = name != null && VIRTUAL_NAME.containsMatchIn(name)
