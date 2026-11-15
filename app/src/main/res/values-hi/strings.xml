@@ -4104,4 +4104,5 @@
     <string name="hud_metric_hdr">HDR स्थिति</string>
     <string name="hud_readings_shown">दिखाए गए</string>
     <string name="hud_readings_count">%2$d में से %1$d</string>
+    <string name="exit_hint_back">बाहर निकलने के लिए फिर से बैक दबाएँ</string>
 </resources>

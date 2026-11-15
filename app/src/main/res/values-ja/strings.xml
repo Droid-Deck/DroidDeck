@@ -4074,4 +4074,5 @@
     <string name="hud_metric_hdr">HDR 状態</string>
     <string name="hud_readings_shown">表示中</string>
     <string name="hud_readings_count">%2$d 中 %1$d</string>
+    <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 </resources>
