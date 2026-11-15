@@ -222,7 +222,7 @@ class AgentHostTest {
         AgentChats.start(file, "claude")
         AgentChats.appendConversation(file, "abc")
         val written = listOf(
-            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}"),
+            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Notice("service unavailable"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}"),
             Entry.Result("t1", "contents", false), Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         )
@@ -232,7 +232,7 @@ class AgentHostTest {
         assertEquals("claude", loaded.harness)
         assertEquals("abc", loaded.conversation)
         assertEquals(listOf(
-            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}", "contents", false),
+            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Notice("service unavailable"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}", "contents", false),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         ), loaded.entries)
@@ -241,6 +241,7 @@ class AgentHostTest {
 
     @Test fun aTurnThatEndsWithNothingIsAnswerless() {
         assertTrue(AgentHost.answerless(listOf(Entry.Said("x"), Entry.Asked("go on"), Entry.Finished(null))))
+        assertTrue(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Notice("service unavailable"), Entry.Finished(null))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Said("ok"), Entry.Finished(null))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished("boom"))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished(null, stopped = true))))
