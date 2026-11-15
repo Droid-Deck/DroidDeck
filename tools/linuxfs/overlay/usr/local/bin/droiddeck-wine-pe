@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import re
+import os
 from pathlib import Path
 
 
@@ -76,18 +76,85 @@ def pe_has_arm64ec_metadata(path):
     return False
 
 
-# Only x64 code and members of the same runtime family import these, so an x64 copy loads in an
-# ARM64EC prefix, and games check for a newer version than Wine's builtins report.
-VC_RUNTIME = re.compile(r"(msvc[pr]\d.*|vcruntime\d.*|vcomp\d*|vcamp\d.*|vccorlib\d.*|concrt\d.*|mfcm?\d.*)\.dll",
-                        re.IGNORECASE)
+def pe_imports(path):
+    try:
+        with open(path, "rb") as source:
+            image = source.read()
+    except OSError:
+        return set()
+    try:
+        if image[:2] != b"MZ":
+            return set()
+        pe_offset = int.from_bytes(image[60:64], "little")
+        if image[pe_offset:pe_offset + 4] != b"PE\0\0":
+            return set()
+        section_count = int.from_bytes(image[pe_offset + 6:pe_offset + 8], "little")
+        optional_size = int.from_bytes(image[pe_offset + 20:pe_offset + 22], "little")
+        optional = pe_offset + 24
+        magic = int.from_bytes(image[optional:optional + 2], "little")
+        directories = optional + (112 if magic == 0x20B else 96)
+        sections = []
+        for index in range(min(section_count, 96)):
+            entry = optional + optional_size + index * 40
+            sections.append((int.from_bytes(image[entry + 12:entry + 16], "little"),
+                             max(int.from_bytes(image[entry + 8:entry + 12], "little"),
+                                 int.from_bytes(image[entry + 16:entry + 20], "little")),
+                             int.from_bytes(image[entry + 20:entry + 24], "little")))
+
+        def offset(rva):
+            for address, size, raw in sections:
+                if address <= rva < address + size:
+                    return rva - address + raw
+            return None
+
+        names = set()
+        for directory, step, field in ((1, 20, 12), (13, 32, 4)):
+            entry = offset(int.from_bytes(image[directories + directory * 8:directories + directory * 8 + 4], "little"))
+            while entry is not None and entry + step <= len(image):
+                name = offset(int.from_bytes(image[entry + field:entry + field + 4], "little"))
+                if name is None:
+                    break
+                end = image.find(b"\0", name)
+                if end < 0:
+                    break
+                names.add(image[name:end].decode("ascii", "replace").lower())
+                entry += step
+        return names
+    except (IndexError, ValueError):
+        return set()
 
 
-def machine_compatible(path, machines, machine=None):
+PROGRAM_IMPORTS = {}
+
+
+def program_imports(builtins):
+    key = str(builtins)
+    if key not in PROGRAM_IMPORTS:
+        try:
+            files = {name.lower(): Path(builtins) / name for name in os.listdir(builtins)}
+        except OSError:
+            files = {}
+        pending = [name for name in files if name.endswith(".exe")]
+        seen = set()
+        while pending:
+            name = pending.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            if name in files:
+                pending.extend(pe_imports(files[name]))
+        PROGRAM_IMPORTS[key] = frozenset(name for name in seen if name.endswith(".dll"))
+    return PROGRAM_IMPORTS[key]
+
+
+def machine_compatible(path, machines, machine=None, builtins=None, name=None):
     machine = pe_machine(path) if machine is None else machine
-    if machine == 0x8664 and 0xA641 in machines and VC_RUNTIME.fullmatch(Path(path).name):
-        return True
+    if machine == 0x8664 and 0xA641 in machines:
+        if pe_has_arm64ec_metadata(path):
+            return True
+        return builtins is not None and (name or Path(path).name).lower() not in program_imports(builtins)
     if machine == 0x8664 and pe_has_arm64ec_metadata(path):
-        return 0xA641 in machines
+        return False
     return machine in machines
 
 

@@ -927,14 +927,11 @@ PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
 pe_machine = PE["pe_machine"]
 
 
-def repair_foreign_system_dlls(prefix, proton, env=None):
+def prefix_system_dlls(prefix, proton, env=None):
     dist = Path(proton).parent / "files/lib/wine"
     windows = Path(prefix) / "pfx/drive_c/windows"
     machines_by_folder = PE["proton_pe_machines"](proton, env or {})
-    if machines_by_folder is None:
-        return []
-    repaired = []
-    for folder, (libdir, machines) in machines_by_folder.items():
+    for folder, (libdir, machines) in (machines_by_folder or {}).items():
         builtins = dist / libdir
         try:
             builtin_names = {name.lower(): name for name in os.listdir(builtins)}
@@ -945,34 +942,75 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
         except OSError:
             continue
         for name in names:
-            path = windows / folder / name
             builtin_name = builtin_names.get(name.lower())
             source = builtins / builtin_name if builtin_name else builtins / name
-            if path.is_symlink() or not name.lower().endswith(".dll") or not source.is_file() or not path.is_file():
+            if name.lower().endswith(".dll") and source.is_file():
+                yield folder, name, windows / folder / name, source, machines, builtins
+
+
+def newest_foreign_backup(path):
+    backup = path.with_name(path.name + FOREIGN_SUFFIX)
+    newest = None
+    serial = 1
+    while os.path.lexists(backup):
+        newest = backup
+        backup = path.with_name(path.name + FOREIGN_SUFFIX + ".%d" % serial)
+        serial += 1
+    return newest
+
+
+def restore_compatible_system_dlls(prefix, proton, env=None):
+    restored = []
+    for folder, name, path, source, machines, builtins in prefix_system_dlls(prefix, proton, env):
+        if not path.is_symlink() or not path.is_file():
+            continue
+        try:
+            if not os.path.samefile(path, source):
                 continue
-            machine = pe_machine(path)
-            if machine is None or PE["machine_compatible"](path, machines, machine):
-                continue
-            link = windows / folder / (name + ".bl-new")
-            backup = windows / folder / (name + FOREIGN_SUFFIX)
-            serial = 1
-            while os.path.lexists(backup):
-                backup = windows / folder / (name + FOREIGN_SUFFIX + ".%d" % serial)
-                serial += 1
+        except OSError:
+            continue
+        backup = newest_foreign_backup(path)
+        if backup is None or backup.is_symlink() or not backup.is_file():
+            continue
+        machine = pe_machine(backup)
+        if machine is None or not PE["machine_compatible"](backup, machines, machine, builtins, name):
+            continue
+        try:
+            os.replace(backup, path)
+        except OSError:
+            continue
+        restored.append("%s/%s (machine 0x%x)" % (folder, name, machine))
+    return restored
+
+
+def repair_foreign_system_dlls(prefix, proton, env=None):
+    repaired = []
+    for folder, name, path, source, machines, builtins in prefix_system_dlls(prefix, proton, env):
+        if path.is_symlink() or not path.is_file():
+            continue
+        machine = pe_machine(path)
+        if machine is None or PE["machine_compatible"](path, machines, machine, builtins):
+            continue
+        link = path.parent / (name + ".bl-new")
+        backup = path.parent / (name + FOREIGN_SUFFIX)
+        serial = 1
+        while os.path.lexists(backup):
+            backup = path.parent / (name + FOREIGN_SUFFIX + ".%d" % serial)
+            serial += 1
+        try:
+            os.symlink(os.path.relpath(source, path.parent), link)
+            os.replace(path, backup)
             try:
-                os.symlink(os.path.relpath(source, path.parent), link)
-                os.replace(path, backup)
-                try:
-                    os.replace(link, path)
-                except OSError:
-                    if not os.path.lexists(path) and os.path.lexists(backup):
-                        os.replace(backup, path)
-                    raise
+                os.replace(link, path)
             except OSError:
-                if link.is_symlink():
-                    link.unlink()
-                continue
-            repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
+                if not os.path.lexists(path) and os.path.lexists(backup):
+                    os.replace(backup, path)
+                raise
+        except OSError:
+            if link.is_symlink():
+                link.unlink()
+            continue
+        repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
     return repaired
 
 
@@ -1302,10 +1340,14 @@ def main():
         components = win_components(prefix_path, app_id, command[0], effective_env)
     if prefix_path and command:
         try:
+            restored = restore_compatible_system_dlls(prefix_path, command[0], effective_env)
             fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
         except OSError as error:
-            fixed = []
+            restored = fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        if restored:
+            print("droiddeck-game-env: restored system DLLs this Proton's own programs do not load: %s" % ", ".join(restored),
+                  file=sys.stderr)
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
