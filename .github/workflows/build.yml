@@ -992,3 +992,35 @@ jobs:
     if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit
+
+  retire-tests:
+    needs: catalog
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.catalog.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete the test builds this Preview build replaces
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ github.token }}
+          CI_GITHUB_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: python3 tools/release/retire_test_builds.py
+
+  catalog-after-retire:
+    needs: retire-tests
+    if: ${{ always() && needs.retire-tests.result == 'success' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit
