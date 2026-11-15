@@ -64,6 +64,23 @@ class AgentHostTest {
         assertTrue(event == null || event.entries.none { it is Entry.Finished })
     }
 
+    @Test fun claudeTakesItsMessagesOverStdinSoItStaysOpen() {
+        val command = ClaudeCode.turn("hello there", null, AgentHarness.Options())
+        assertEquals("stream-json", command[command.indexOf("--input-format") + 1])
+        assertFalse("hello there" in command)
+        val line = org.json.JSONObject(ClaudeCode.input("hello there")!!)
+        assertEquals("user", line.getString("type"))
+        assertEquals("hello there", line.getJSONObject("message").getJSONArray("content").getJSONObject(0).getString("text"))
+        assertNull(Codex.input("hi"))
+    }
+
+    @Test fun aTaskNotificationResultIsMarkedBackgroundAndCarriesItsUsage() {
+        val event = ClaudeCode.parse("""{"type":"result","is_error":false,"session_id":"s","duration_ms":900,"total_cost_usd":0.01,"usage":{"input_tokens":3,"output_tokens":4},"origin":{"kind":"task-notification"}}""")!!
+        assertTrue(event.background)
+        assertTrue(event.entries.isEmpty())
+        assertEquals(4L, event.usage?.outputTokens)
+    }
+
     @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {
         val first = ClaudeCode.turn("hi", null, AgentHarness.Options())
         assertTrue("bypassPermissions" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)
