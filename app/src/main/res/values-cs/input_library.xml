@@ -42,7 +42,6 @@
     <string name="input_hide_tools">Skrýt nástroje</string>
     <string name="input_route_controller">Ovladač</string>
     <string name="input_controller_route_hint">Odesílá vstup ovladače do Steam Input nebo do hry.</string>
-    <string name="input_disabled_hint">Tento prvek neodesílá vstup ovladače, myši ani klávesnice.</string>
     <string name="input_mouse_click">Kliknutí myší</string>
     <string name="input_command">Akce DroidDeck</string>
     <string name="input_action">Akce</string>

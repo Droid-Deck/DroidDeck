@@ -43,6 +43,8 @@ data class SavedInputBindings(
     val elements: Map<String, InputAction> = emptyMap(),
     val keys: List<PhysicalInputBinding> = emptyList(),
     val clicks: Map<String, InputAction> = emptyMap(),
+    val holds: Map<String, InputAction> = emptyMap(),
+    val doubles: Map<String, InputAction> = emptyMap(),
 ) {
     fun compatible(layout: SavedInputLayout?) = if (physical) layout == null
         else layout != null && if (layout.editable) layoutId == layout.id else layoutId == null
@@ -53,6 +55,9 @@ data class SavedInputBindings(
 
     fun clickAction(element: InputSurfaceElement) = clicks[element.id]
         ?: defaultElementClick(element, action(element)) { controls[it] ?: InputAction.Native() }
+
+    fun holdAction(element: InputSurfaceElement) = holds[element.id] ?: InputAction.Disabled
+    fun doubleAction(element: InputSurfaceElement) = doubles[element.id] ?: InputAction.Disabled
 }
 
 data class InputSelection(
@@ -126,7 +131,9 @@ data class InputLibrary(
         return InputProfile(id, parts.mapValues { it.value.controls }.filterValues { it.isNotEmpty() },
             parts.getValue(InputRole.PHYSICAL).keys,
             parts.mapValues { it.value.elements }.filterValues { it.isNotEmpty() },
-            parts.mapValues { it.value.clicks }.filterValues { it.isNotEmpty() })
+            parts.mapValues { it.value.clicks }.filterValues { it.isNotEmpty() },
+            parts.mapValues { it.value.holds }.filterValues { it.isNotEmpty() },
+            parts.mapValues { it.value.doubles }.filterValues { it.isNotEmpty() })
     }
 
     fun usersOfBindings(id: String) = profiles.filter { p -> p.parts.values.any { it.bindings == id } }
@@ -137,7 +144,9 @@ data class InputLibrary(
     fun withLayout(value: SavedInputLayout) = copy(layouts = layouts.filterNot { it.id == value.id } + value,
         bindings = bindings.map { preset -> if (preset.layoutId != value.id) preset else preset.copy(
             elements = preset.elements.filter { (id, action) -> value.elements.any { it.id == id && action.validFor(it) } },
-            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } }) })
+            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } },
+            holds = preset.holds.filter { (id, action) -> value.elements.any { it.id == id && it.hasHold && action.validFor(it) } },
+            doubles = preset.doubles.filter { (id, action) -> value.elements.any { it.id == id && it.hasHold && action.validFor(it) } }) })
 
     fun duplicateProfile(id: String, name: String, newId: String = newInputId(), sharePhysical: Boolean = false): InputLibrary {
         require(profiles.size < 64)
@@ -261,19 +270,26 @@ data class InputLibrary(
                 require(e == e.bounded())
                 require(if (e.id.startsWith("legacy:")) e.id == "legacy:${e.control.id}" && e.kind == InputElementKind.from(e.control)
                     else e.control == e.kind.control)
+                require(!e.repeat || e.hasHold && !e.toggle)
             }
         }
         for (preset in bindings) {
             inputName(preset.name)
             require(preset.controls.all { (c, a) -> a.validFor(c) })
-            require(preset.elements.size <= 64 && preset.keys.size <= 64 && preset.clicks.size <= 64)
-            require(preset.keys.map { Triple(it.key.device, it.key.keyCode, it.key.scanCode) }.distinct().size == preset.keys.size)
+                require(preset.elements.size <= 64 && preset.keys.size <= 64 && preset.clicks.size <= 64 && preset.holds.size <= 64 && preset.doubles.size <= 64)
+            require(preset.keys.map { listOf(it.key.device, it.key.keyCode, it.key.scanCode, it.part?.name) }.distinct().size == preset.keys.size)
             require(preset.physical || preset.keys.isEmpty())
             val layout = preset.layoutId?.let { id -> layouts.first { it.id == id } }
-            require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty())
+            require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty() &&
+                preset.holds.isEmpty() && preset.doubles.isEmpty())
             require(preset.elements.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
             require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
+            require(preset.holds.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) && it.hasHold } == true && action.validForTap() })
+            require(preset.doubles.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) && it.hasHold } == true && action.validForTap() })
+            require(preset.holds.keys.intersect(preset.doubles.keys).isEmpty())
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
+                (!it.repeat || it.part == null) &&
+                (it.part == null || (it.action !is InputAction.Native && it.action.validForTap())) &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }
         require(selections.keys.all { it == InputProfile.GAME || it == InputProfile.DESKTOP })

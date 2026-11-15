@@ -1,17 +1,32 @@
 package com.droiddeck.launcher.input
 
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+
 class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole, val element: InputSurfaceElement) {
     private val router = pad.inputRouter
     private val route = router?.channel(role, element.control, element = element)
     private val deck = DeckControls.source(role, routed = true)
     private val clickDeck = DeckControls.source(role, routed = true)
     private val clickOwner = Any()
-    private val clickRoute = if (element.hasClick) router?.channel(role, InputControl.A, element = element, elementClick = true) else null
+    private val clickRoute = if (element.hasClick) router?.channel(role, InputControl.A, element = element, elementSource = ElementSource.CLICK) else null
+    private val hold = Aux(ElementSource.HOLD)
+    private val double = Aux(ElementSource.DOUBLE)
     private val gestureWheel = if (element.mouseGestures) router?.channel(role, InputControl.RIGHT_PAD, fixedAction = InputAction.Scroll()) else null
     private val gestureRight = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(273)) else null
     private val gestureMiddle = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(274)) else null
     val mouseGestures get() = element.mouseGestures && route?.action is InputAction.Pointer
     val directions get() = route?.action as? InputAction.Directions
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var pressedAt = 0L
+    private var pressed = false
+    private var pendingSingle = false
+    private var holding = false
+    private var awaitingDouble = false
+    private var doubleFiring = false
+    private var repeating = false
 
     fun gestureContact(touching: Boolean) { if (!closed) route?.update(0f, 0f, touching) }
     fun pointerDelta(dx: Float, dy: Float) {
@@ -40,8 +55,9 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     var latched = false
         private set
     var onStateChanged: () -> Unit = {}
+    var onHoldStarted: () -> Unit = {}
     private fun resetLatch() { latched = false; latchBlocked = fingerDown; onStateChanged() }
-    private val snapshot: () -> Unit = { releaseNative(); resetLatch(); if (element.toggle) route?.release() }
+    private val snapshot: () -> Unit = { releaseNative(); resetLatch(); clearTimers(); if (element.toggle) route?.release() }
 
     init { router?.beforeProfileChange(snapshot) }
 
@@ -72,10 +88,122 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         InputTiming.end(timing)
     }
 
+    fun press() {
+        if (closed || pressed) return
+        pressed = true
+        pressedAt = SystemClock.uptimeMillis()
+        if (!element.tapElement()) { update(1f); return }
+        if (awaitingDouble) {
+            awaitingDouble = false
+            handler.removeCallbacks(singleTap)
+            handler.removeCallbacks(startHeld)
+            handler.removeCallbacks(startHold)
+            doubleFiring = true
+            double.set(true)
+            return
+        }
+        if (double.configured) {
+            pendingSingle = true
+            handler.postDelayed(startHeld, ScreenKeyTiming.doubleMs)
+        } else update(1f)
+        if (hold.configured || element.repeat) handler.postDelayed(startHold, ScreenKeyTiming.holdMs)
+    }
+
+    fun releasePress() {
+        if (closed || !pressed) return
+        pressed = false
+        handler.removeCallbacks(startHeld)
+        handler.removeCallbacks(startHold)
+        if (doubleFiring) {
+            doubleFiring = false
+            double.set(false)
+            return
+        }
+        if (holding) { endHold(); return }
+        if (pendingSingle) {
+            pendingSingle = false
+            if (double.configured && SystemClock.uptimeMillis() - pressedAt < ScreenKeyTiming.holdMs) {
+                awaitingDouble = true
+                handler.postDelayed(singleTap, ScreenKeyTiming.doubleMs)
+            } else tap(route)
+            return
+        }
+        update(0f)
+    }
+
     fun cancel() {
         if (closed) return
+        pressed = false
+        clearTimers()
+        if (hold.configured) hold.set(false)
+        if (double.configured) double.set(false)
         route?.takeIf { it.action is InputAction.Command }?.release()
+        if (holding) { endHold(); return }
         update(0f)
+    }
+
+    private val singleTap = Runnable {
+        awaitingDouble = false
+        if (!pressed && !closed) tap(route)
+    }
+
+    private val startHeld = Runnable {
+        if (!pressed || closed || !pendingSingle) return@Runnable
+        pendingSingle = false
+        update(1f)
+    }
+
+    private val startHold = Runnable {
+        if (!pressed || closed || holding) return@Runnable
+        holding = true
+        if (hold.configured) {
+            update(0f)
+            hold.set(true)
+            onHoldStarted()
+            if (element.repeat) startRepeat()
+        } else if (element.repeat) startRepeat()
+    }
+
+    private val repeatTick = object : Runnable {
+        override fun run() {
+            if (!pressed || closed || !repeating) return
+            if (hold.configured) hold.set(true) else route?.update(1f)
+            handler.postDelayed({
+                if (pressed && !closed && repeating) {
+                    if (hold.configured) hold.set(false) else route?.update(0f)
+                }
+            }, ScreenKeyTiming.repeatMs / 2)
+            handler.postDelayed(this, ScreenKeyTiming.repeatMs)
+        }
+    }
+
+    private fun startRepeat() {
+        repeating = true
+        handler.postDelayed(repeatTick, ScreenKeyTiming.repeatMs)
+    }
+
+    private fun endHold() {
+        repeating = false
+        handler.removeCallbacks(repeatTick)
+        if (hold.configured) hold.set(false)
+        update(0f)
+        holding = false
+    }
+
+    private fun clearTimers() {
+        handler.removeCallbacks(singleTap)
+        handler.removeCallbacks(startHeld)
+        handler.removeCallbacks(startHold)
+        handler.removeCallbacks(repeatTick)
+        awaitingDouble = false
+        pendingSingle = false
+        repeating = false
+        doubleFiring = false
+    }
+
+    private fun tap(channel: InputRouter.Channel?) {
+        channel?.update(1f)
+        channel?.update(0f)
     }
 
     fun click(down: Boolean) {
@@ -91,6 +219,37 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         if (toDeck || clickDeckActive) clickDeck.native(if (toDeck) target else null, if (down) 1f else 0f, 0f, false)
         clickPad = toPad; clickDeckActive = toDeck
         InputTiming.end(timing)
+    }
+
+    private inner class Aux(source: ElementSource) {
+        val channel = if (element.tapElement()) router?.channel(role, element.control, element = element, elementSource = source) else null
+        private val deckSource = if (element.tapElement()) DeckControls.source(role, routed = true) else null
+        private val owner = Any()
+        private var onPad = false
+        private var onDeck = false
+        val configured get() = channel?.action.let { it != null && it != InputAction.Disabled }
+
+        fun set(down: Boolean) {
+            val channel = channel ?: return
+            if (closed) return
+            val timing = InputTiming.begin()
+            val target = channel.update(if (down) 1f else 0f)
+            if (down) {
+                val toPad = target?.isPad == true
+                val toDeck = target != null && !target.isPad
+                if (toPad) writePad(owner, target) { state -> state.clear(); state.add(target, 1f) }
+                if (toDeck) deckSource?.native(target, 1f, 0f, false)
+                onPad = toPad; onDeck = toDeck
+            } else {
+                if (onPad) writePad(owner, null) { state -> state.clear() }
+                if (onDeck) deckSource?.native(null, 0f, 0f, false)
+                onPad = false; onDeck = false
+            }
+            InputTiming.end(timing)
+        }
+
+        fun close() { channel?.close(); deckSource?.close() }
+        fun release() { channel?.release(); deckSource?.release() }
     }
 
     private fun writePad(owner: Any, target: InputControl?, mutation: (PadState) -> Unit) {
@@ -110,15 +269,19 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     fun close() {
         if (closed) return
         closed = true
+        handler.removeCallbacksAndMessages(null)
         router?.removeSnapshot(snapshot)
         releaseNative(); resetLatch()
         route?.close(); clickRoute?.close(); gestureWheel?.close(); gestureRight?.close(); gestureMiddle?.close(); deck.close(); clickDeck.close()
+        hold.close(); double.close()
     }
 
     fun release() {
         if (closed) return
+        clearTimers()
         releaseNative(); resetLatch()
         route?.release(); clickRoute?.release(); gestureWheel?.release(); gestureRight?.release(); gestureMiddle?.release()
+        hold.release(); double.release()
+        holding = false
     }
-
 }

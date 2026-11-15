@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -29,13 +30,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +55,7 @@ import com.droiddeck.launcher.input.PC_KEYS
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
 import com.droiddeck.launcher.input.PcKey
+import com.droiddeck.launcher.input.pcCodeOf
 import com.droiddeck.launcher.input.pcKeyLabel
 
 @Composable
@@ -64,6 +71,9 @@ fun KeyCombinationPicker(
     confirm: String = stringResource(R.string.gesture_save_changes),
 ) {
     var picked by remember { mutableStateOf(initial) }
+    var recording by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(recording) { if (recording) runCatching { focus.requestFocus() } }
     val p = LocalPalette.current
     val toggle: (Int) -> Unit = { code ->
         picked = if (sequence) {
@@ -82,7 +92,15 @@ fun KeyCombinationPicker(
     }
     val unit = remember { rows.maxOf { row -> row.fold(0f) { sum, key -> sum + key.weight } } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().systemBarsPadding().padding(10.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().systemBarsPadding().padding(10.dp)
+            .then(if (recording) Modifier.focusRequester(focus).focusable() else Modifier)
+            .onPreviewKeyEvent { event ->
+                if (!recording) return@onPreviewKeyEvent false
+                val native = event.nativeKeyEvent
+                val code = pcCodeOf(native.keyCode) ?: return@onPreviewKeyEvent false
+                if (native.action == android.view.KeyEvent.ACTION_DOWN && native.repeatCount == 0) toggle(code)
+                true
+            }, contentAlignment = Alignment.Center) {
             Surface(
                 Modifier.widthIn(max = 820.dp).fillMaxWidth().fillMaxHeight(), shape = RoundedCornerShape(20.dp),
                 color = p.background, contentColor = p.onBackground, border = BorderStroke(1.dp, p.line2),
@@ -90,6 +108,9 @@ fun KeyCombinationPicker(
                 Column {
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { recording = !recording }) {
+                            Text(stringResource(if (recording) R.string.input_recording else R.string.input_record_keys))
+                        }
                         IconButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Icon(Icons.Default.Close, null) }
                     }
                     Row(

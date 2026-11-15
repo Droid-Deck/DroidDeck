@@ -4064,3 +4064,16 @@
     <string name="display_scaling_fit">Muat</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
 </resources>
+    <string name="input_hold_properties">Sifat tekan lama</string>
+    <string name="input_hold_name">%1$s · Tekan lama</string>
+    <string name="input_double_properties">Sifat ketik dua kali</string>
+    <string name="input_double_name">%1$s · Ketik dua kali</string>
+    <string name="input_repeat">Ulang semasa ditahan</string>
+    <string name="input_record_keys">Rakam</string>
+    <string name="input_recording">Merakam…</string>
+    <string name="input_hold_delay">Lengah tekan lama</string>
+    <string name="input_double_window">Tetingkap ketik dua kali</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Selang ulangan</string>
+    <string name="input_export_dropped">Format susun atur Steam tidak menyimpan tekan lama, ketik dua kali atau ulangan, jadi susun atur ini tiada eksport.</string>
+</resources>

@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Gereedschap verbergen</string>
     <string name="input_route_controller">Controller</string>
     <string name="input_controller_route_hint">Stuur controllerinvoer naar Steam Input of het spel.</string>
-    <string name="input_disabled_hint">Dit element stuurt geen controller-, muis- of toetsenbordinvoer.</string>
     <string name="input_mouse_click">Muisklik</string>
     <string name="input_command">DroidDeck-actie</string>
     <string name="input_action">Actie</string>

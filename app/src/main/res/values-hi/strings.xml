@@ -4094,3 +4094,16 @@
     <string name="display_scaling_fit">फ़िट</string>
     <string name="drawer_antialiasing">एंटी-अलियासिंग</string>
 </resources>
+    <string name="input_hold_properties">लंबे दबाने के गुण</string>
+    <string name="input_hold_name">%1$s · लंबा दबाव</string>
+    <string name="input_double_properties">दोहरे टैप के गुण</string>
+    <string name="input_double_name">%1$s · दोहरा टैप</string>
+    <string name="input_repeat">दबाए रखने पर दोहराएँ</string>
+    <string name="input_record_keys">रिकॉर्ड करें</string>
+    <string name="input_recording">रिकॉर्ड हो रहा है…</string>
+    <string name="input_hold_delay">लंबे दबाने में देरी</string>
+    <string name="input_double_window">दोहरे टैप की अवधि</string>
+    <string name="input_millis">मि.से.</string>
+    <string name="input_repeat_delay">दोहराव अंतराल</string>
+    <string name="input_export_dropped">Steam का लेआउट फ़ॉर्मैट लंबा दबाव, दोहरा टैप या दोहराव संग्रहीत नहीं कर सकता, इसलिए इस लेआउट का निर्यात नहीं है।</string>
+</resources>

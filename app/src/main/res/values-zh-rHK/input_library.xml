@@ -9,7 +9,6 @@
     <string name="input_hide_tools">隱藏工具</string>
     <string name="input_route_controller">控制器</string>
     <string name="input_controller_route_hint">將控制器輸入傳送給 Steam Input 或遊戲。</string>
-    <string name="input_disabled_hint">此控制項不會傳送控制器、滑鼠或鍵盤輸入。</string>
     <string name="input_mouse_click">滑鼠點擊</string>
     <string name="input_command">DroidDeck 動作</string>
     <string name="input_action">動作</string>

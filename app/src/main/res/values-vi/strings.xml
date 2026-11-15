@@ -4064,3 +4064,16 @@
     <string name="display_scaling_fit">Vừa màn hình</string>
     <string name="drawer_antialiasing">Khử răng cưa</string>
 </resources>
+    <string name="input_hold_properties">Thuộc tính nhấn giữ</string>
+    <string name="input_hold_name">%1$s · Nhấn giữ</string>
+    <string name="input_double_properties">Thuộc tính nhấn đúp</string>
+    <string name="input_double_name">%1$s · Nhấn đúp</string>
+    <string name="input_repeat">Lặp lại khi giữ</string>
+    <string name="input_record_keys">Ghi</string>
+    <string name="input_recording">Đang ghi…</string>
+    <string name="input_hold_delay">Độ trễ nhấn giữ</string>
+    <string name="input_double_window">Khoảng nhấn đúp</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Khoảng lặp lại</string>
+    <string name="input_export_dropped">Định dạng bố cục của Steam không lưu được nhấn giữ, nhấn đúp hay lặp lại, nên bố cục này không xuất được.</string>
+</resources>

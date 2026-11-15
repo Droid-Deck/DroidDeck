@@ -4094,3 +4094,16 @@
     <string name="display_scaling_fit">Passend</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
 </resources>
+    <string name="input_hold_properties">Eigenschappen voor lang indrukken</string>
+    <string name="input_hold_name">%1$s · Lang indrukken</string>
+    <string name="input_double_properties">Eigenschappen voor dubbeltikken</string>
+    <string name="input_double_name">%1$s · Dubbeltikken</string>
+    <string name="input_repeat">Herhalen tijdens vasthouden</string>
+    <string name="input_record_keys">Opnemen</string>
+    <string name="input_recording">Opnemen…</string>
+    <string name="input_hold_delay">Vertraging voor lang indrukken</string>
+    <string name="input_double_window">Venster voor dubbeltikken</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Herhaalinterval</string>
+    <string name="input_export_dropped">Het layoutformaat van Steam bewaart geen lang indrukken, dubbeltikken of herhalen, dus deze layout heeft geen export.</string>
+</resources>

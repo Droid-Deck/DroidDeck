@@ -4064,3 +4064,16 @@
     <string name="display_scaling_fit">Sesuaikan</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
 </resources>
+    <string name="input_hold_properties">Properti tekan lama</string>
+    <string name="input_hold_name">%1$s · Tekan lama</string>
+    <string name="input_double_properties">Properti ketuk dua kali</string>
+    <string name="input_double_name">%1$s · Ketuk dua kali</string>
+    <string name="input_repeat">Ulangi saat ditahan</string>
+    <string name="input_record_keys">Rekam</string>
+    <string name="input_recording">Merekam…</string>
+    <string name="input_hold_delay">Jeda tekan lama</string>
+    <string name="input_double_window">Jendela ketuk dua kali</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Interval pengulangan</string>
+    <string name="input_export_dropped">Format tata letak Steam tidak menyimpan tekan lama, ketuk dua kali, atau pengulangan, jadi tata letak ini tidak bisa diekspor.</string>
+</resources>

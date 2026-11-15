@@ -4094,3 +4094,16 @@
     <string name="display_scaling_fit">Προσαρμογή</string>
     <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
 </resources>
+    <string name="input_hold_properties">Ιδιότητες παρατεταμένου πατήματος</string>
+    <string name="input_hold_name">%1$s · Παρατεταμένο πάτημα</string>
+    <string name="input_double_properties">Ιδιότητες διπλού πατήματος</string>
+    <string name="input_double_name">%1$s · Διπλό πάτημα</string>
+    <string name="input_repeat">Επανάληψη κατά το κράτημα</string>
+    <string name="input_record_keys">Εγγραφή</string>
+    <string name="input_recording">Εγγραφή…</string>
+    <string name="input_hold_delay">Καθυστέρηση παρατεταμένου πατήματος</string>
+    <string name="input_double_window">Παράθυρο διπλού πατήματος</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Διάστημα επανάληψης</string>
+    <string name="input_export_dropped">Η μορφή διάταξης του Steam δεν αποθηκεύει παρατεταμένο πάτημα, διπλό πάτημα ή επανάληψη, οπότε αυτή η διάταξη δεν εξάγεται.</string>
+</resources>

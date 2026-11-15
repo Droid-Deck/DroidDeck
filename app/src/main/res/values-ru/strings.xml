@@ -4174,3 +4174,16 @@
     <string name="display_scaling_fit">По размеру</string>
     <string name="drawer_antialiasing">Сглаживание</string>
 </resources>
+    <string name="input_hold_properties">Свойства долгого нажатия</string>
+    <string name="input_hold_name">%1$s · Долгое нажатие</string>
+    <string name="input_double_properties">Свойства двойного нажатия</string>
+    <string name="input_double_name">%1$s · Двойное нажатие</string>
+    <string name="input_repeat">Повторять при удержании</string>
+    <string name="input_record_keys">Запись</string>
+    <string name="input_recording">Идёт запись…</string>
+    <string name="input_hold_delay">Задержка долгого нажатия</string>
+    <string name="input_double_window">Окно двойного нажатия</string>
+    <string name="input_millis">мс</string>
+    <string name="input_repeat_delay">Интервал повтора</string>
+    <string name="input_export_dropped">Формат раскладки Steam не хранит долгое нажатие, двойное нажатие и повтор, поэтому эта раскладка не экспортируется.</string>
+</resources>

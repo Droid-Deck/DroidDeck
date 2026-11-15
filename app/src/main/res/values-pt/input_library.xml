@@ -42,7 +42,6 @@
     <string name="input_hide_tools">Ocultar ferramentas</string>
     <string name="input_route_controller">Controle</string>
     <string name="input_controller_route_hint">Envia a entrada do controle para o Steam Input ou para o jogo.</string>
-    <string name="input_disabled_hint">Este elemento não envia entrada de controle, mouse ou teclado.</string>
     <string name="input_mouse_click">Clique do mouse</string>
     <string name="input_command">Ação do DroidDeck</string>
     <string name="input_action">Ação</string>

@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Dölj verktyg</string>
     <string name="input_route_controller">Handkontroll</string>
     <string name="input_controller_route_hint">Skicka handkontrollens inmatning till Steam Input eller spelet.</string>
-    <string name="input_disabled_hint">Det här elementet skickar ingen inmatning från handkontroll, mus eller tangentbord.</string>
     <string name="input_mouse_click">Musklick</string>
     <string name="input_command">DroidDeck-åtgärd</string>
     <string name="input_action">Åtgärd</string>

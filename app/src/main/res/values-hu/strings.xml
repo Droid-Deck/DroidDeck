@@ -4094,3 +4094,16 @@
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
 </resources>
+    <string name="input_hold_properties">Hosszú nyomás tulajdonságai</string>
+    <string name="input_hold_name">%1$s · Hosszú nyomás</string>
+    <string name="input_double_properties">Dupla koppintás tulajdonságai</string>
+    <string name="input_double_name">%1$s · Dupla koppintás</string>
+    <string name="input_repeat">Ismétlés nyomva tartáskor</string>
+    <string name="input_record_keys">Felvétel</string>
+    <string name="input_recording">Felvétel…</string>
+    <string name="input_hold_delay">Hosszú nyomás késleltetése</string>
+    <string name="input_double_window">Dupla koppintás ablaka</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Ismétlési időköz</string>
+    <string name="input_export_dropped">A Steam elrendezésformátuma nem tárolja a hosszú nyomást, a dupla koppintást és az ismétlést, ezért ez az elrendezés nem exportálható.</string>
+</resources>

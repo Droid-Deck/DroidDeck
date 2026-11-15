@@ -4174,3 +4174,16 @@
     <string name="display_scaling_fit">Přizpůsobit</string>
     <string name="drawer_antialiasing">Vyhlazování hran</string>
 </resources>
+    <string name="input_hold_properties">Vlastnosti dlouhého stisku</string>
+    <string name="input_hold_name">%1$s · Dlouhý stisk</string>
+    <string name="input_double_properties">Vlastnosti dvojitého klepnutí</string>
+    <string name="input_double_name">%1$s · Dvojité klepnutí</string>
+    <string name="input_repeat">Opakovat při podržení</string>
+    <string name="input_record_keys">Nahrát</string>
+    <string name="input_recording">Nahrávání…</string>
+    <string name="input_hold_delay">Prodleva dlouhého stisku</string>
+    <string name="input_double_window">Okno dvojitého klepnutí</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Interval opakování</string>
+    <string name="input_export_dropped">Formát rozvržení Steamu neumí uložit dlouhý stisk, dvojité klepnutí ani opakování, proto toto rozvržení nelze exportovat.</string>
+</resources>

@@ -4064,3 +4064,16 @@
     <string name="display_scaling_fit">配合畫面</string>
     <string name="drawer_antialiasing">抗鋸齒</string>
 </resources>
+    <string name="input_hold_properties">長按屬性</string>
+    <string name="input_hold_name">%1$s · 長按</string>
+    <string name="input_double_properties">連按兩下屬性</string>
+    <string name="input_double_name">%1$s · 連按兩下</string>
+    <string name="input_repeat">按住時重複</string>
+    <string name="input_record_keys">錄製</string>
+    <string name="input_recording">錄製中…</string>
+    <string name="input_hold_delay">長按延遲</string>
+    <string name="input_double_window">連按兩下間隔</string>
+    <string name="input_millis">毫秒</string>
+    <string name="input_repeat_delay">重複間隔</string>
+    <string name="input_export_dropped">Steam 的版面格式無法儲存長按、連按兩下和重複，所以這個版面不能匯出。</string>
+</resources>

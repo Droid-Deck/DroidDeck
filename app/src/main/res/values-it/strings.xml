@@ -4133,3 +4133,16 @@
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
 </resources>
+    <string name="input_hold_properties">Proprietà pressione prolungata</string>
+    <string name="input_hold_name">%1$s · Pressione prolungata</string>
+    <string name="input_double_properties">Proprietà doppio tocco</string>
+    <string name="input_double_name">%1$s · Doppio tocco</string>
+    <string name="input_repeat">Ripeti tenendo premuto</string>
+    <string name="input_record_keys">Registra</string>
+    <string name="input_recording">Registrazione…</string>
+    <string name="input_hold_delay">Ritardo pressione prolungata</string>
+    <string name="input_double_window">Finestra doppio tocco</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Intervallo di ripetizione</string>
+    <string name="input_export_dropped">Il formato di layout di Steam non salva pressione prolungata, doppio tocco o ripetizione, quindi questo layout non è esportabile.</string>
+</resources>

@@ -4133,3 +4133,16 @@
     <string name="display_scaling_fit">Ajuster</string>
     <string name="drawer_antialiasing">Anticrénelage</string>
 </resources>
+    <string name="input_hold_properties">Propriétés de l\'appui long</string>
+    <string name="input_hold_name">%1$s · Appui long</string>
+    <string name="input_double_properties">Propriétés du double appui</string>
+    <string name="input_double_name">%1$s · Double appui</string>
+    <string name="input_repeat">Répéter en maintenant</string>
+    <string name="input_record_keys">Enregistrer</string>
+    <string name="input_recording">Enregistrement…</string>
+    <string name="input_hold_delay">Délai de l\'appui long</string>
+    <string name="input_double_window">Fenêtre du double appui</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Intervalle de répétition</string>
+    <string name="input_export_dropped">Le format de disposition de Steam ne conserve pas l\'appui long, le double appui ni la répétition : cette disposition n\'a pas d\'export.</string>
+</resources>

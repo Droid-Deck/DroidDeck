@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Araçları gizle</string>
     <string name="input_route_controller">Denetleyici</string>
     <string name="input_controller_route_hint">Denetleyici girişini Steam Input\'a veya oyuna gönder.</string>
-    <string name="input_disabled_hint">Bu öğe denetleyici, fare veya klavye girişi göndermez.</string>
     <string name="input_mouse_click">Fare tıklaması</string>
     <string name="input_command">DroidDeck eylemi</string>
     <string name="input_action">Eylem</string>

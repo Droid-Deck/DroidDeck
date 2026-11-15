@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Eszközök elrejtése</string>
     <string name="input_route_controller">Vezérlő</string>
     <string name="input_controller_route_hint">Vezérlő bemenet küldése a Steam Inputnak vagy a játéknak.</string>
-    <string name="input_disabled_hint">Ez az elem nem küld vezérlő-, egér- vagy billentyűzetbemenetet.</string>
     <string name="input_mouse_click">Egérkattintás</string>
     <string name="input_command">DroidDeck művelet</string>
     <string name="input_action">Művelet</string>

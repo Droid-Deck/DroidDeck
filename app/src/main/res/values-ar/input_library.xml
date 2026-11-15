@@ -42,7 +42,6 @@
     <string name="input_hide_tools">إخفاء الأدوات</string>
     <string name="input_route_controller">وحدة التحكم</string>
     <string name="input_controller_route_hint">إرسال إدخال وحدة التحكم إلى Steam Input أو اللعبة.</string>
-    <string name="input_disabled_hint">هذا العنصر لا يرسل إدخال وحدة تحكم أو فأرة أو لوحة مفاتيح.</string>
     <string name="input_mouse_click">نقرة الفأرة</string>
     <string name="input_command">إجراء DroidDeck</string>
     <string name="input_action">إجراء</string>

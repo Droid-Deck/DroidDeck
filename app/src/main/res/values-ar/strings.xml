@@ -4254,3 +4254,16 @@
     <string name="display_scaling_fit">ملاءمة</string>
     <string name="drawer_antialiasing">تنعيم الحواف</string>
 </resources>
+    <string name="input_hold_properties">خصائص الضغط المطوّل</string>
+    <string name="input_hold_name">%1$s · ضغط مطوّل</string>
+    <string name="input_double_properties">خصائص النقر المزدوج</string>
+    <string name="input_double_name">%1$s · نقر مزدوج</string>
+    <string name="input_repeat">التكرار عند الاستمرار بالضغط</string>
+    <string name="input_record_keys">تسجيل</string>
+    <string name="input_recording">جارٍ التسجيل…</string>
+    <string name="input_hold_delay">تأخير الضغط المطوّل</string>
+    <string name="input_double_window">نافذة النقر المزدوج</string>
+    <string name="input_millis">مللي ثانية</string>
+    <string name="input_repeat_delay">فاصل التكرار</string>
+    <string name="input_export_dropped">لا يمكن لتنسيق تخطيط Steam تخزين الضغط المطوّل أو النقر المزدوج أو التكرار، لذلك لا يوجد تصدير لهذا التخطيط.</string>
+</resources>

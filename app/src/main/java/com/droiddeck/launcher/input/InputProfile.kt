@@ -40,6 +40,8 @@ data class InputProfile(
     val keys: List<PhysicalInputBinding> = emptyList(),
     val elements: Map<InputRole, Map<String, InputAction>> = emptyMap(),
     val clicks: Map<InputRole, Map<String, InputAction>> = emptyMap(),
+    val holds: Map<InputRole, Map<String, InputAction>> = emptyMap(),
+    val doubles: Map<InputRole, Map<String, InputAction>> = emptyMap(),
 ) {
     fun action(role: InputRole, control: InputControl): InputAction =
         bindings[role]?.get(control) ?: InputAction.Native()
@@ -63,6 +65,11 @@ data class InputProfile(
         listOfNotNull(action, click).any { it is InputAction.MouseButton && it.validFor(element.control) }
     }
 
+    fun elementHoldAction(role: InputRole, element: InputSurfaceElement): InputAction =
+        holds[role]?.get(element.id) ?: InputAction.Disabled
+
+    fun elementDoubleAction(role: InputRole, element: InputSurfaceElement): InputAction =
+        doubles[role]?.get(element.id) ?: InputAction.Disabled
     companion object {
         const val GAME = "game"
         const val DESKTOP = "desktop"
@@ -104,6 +111,13 @@ internal fun defaultElementClick(element: InputSurfaceElement, action: InputActi
 internal fun InputAction.validForClick(): Boolean = if (this is InputAction.Native)
     target != null && target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT
 else validFor(InputControl.A)
+
+internal fun InputAction.validForTap(): Boolean = when (this) {
+    is InputAction.Native -> target == null || (target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT)
+    is InputAction.Keys, is InputAction.MouseButton, is InputAction.Command -> validFor(InputControl.A)
+    InputAction.Disabled -> true
+    else -> false
+}
 
 internal fun InputAction.validFor(control: InputControl): Boolean = when (this) {
     is InputAction.Native -> target == null || (control.isPad == target.isPad && control.dimensions == target.dimensions &&

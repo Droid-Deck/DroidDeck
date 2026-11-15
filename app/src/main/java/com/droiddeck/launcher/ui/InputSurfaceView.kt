@@ -37,6 +37,7 @@ import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.ScreenKeyTiming
 import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.atan2
@@ -57,7 +58,7 @@ class InputSurfaceView(
     private var customCanvas: ViewGroup? = null
     private val owners = HashMap<Int, View>()
     private var requestedLayout = customLayout
-    init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
+    init { ScreenKeyTiming.load(context); customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
     val shownElements: List<InputSurfaceElement> get() = customLayout
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
@@ -389,11 +390,13 @@ class InputSurfaceView(
 
         override fun onDetachedFromWindow() { cancel(); super.onDetachedFromWindow() }
 
+        init { source?.onHoldStarted = { feedback(this, HapticFeedbackConstants.LONG_PRESS) } }
+
         private fun set(pressed: Boolean, cancelled: Boolean = false) {
             if (down == pressed) return
             down = pressed
             if (pressed) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!pressed && cancelled) source?.cancel() else source?.update(if (pressed) 1f else 0f)
+            if (!pressed && cancelled) source?.cancel() else if (pressed) source?.press() else source?.releasePress()
             invalidate()
         }
     }

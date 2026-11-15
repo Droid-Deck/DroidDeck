@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 14
+    private const val VERSION = 15
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -304,7 +304,7 @@ object InputLibraries {
             for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
                 .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
+                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown).put("repeat", e.repeat))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
                 .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
@@ -314,11 +314,15 @@ object InputLibraries {
             val controls = JSONObject(); b.controls.forEach { (c, a) -> controls.put(c.id, InputProfiles.encode(a)) }
             val elements = JSONObject(); b.elements.forEach { (id, a) -> elements.put(id, InputProfiles.encode(a)) }
             val clicks = JSONObject(); b.clicks.forEach { (id, a) -> clicks.put(id, InputProfiles.encode(a)) }
+            val holds = JSONObject(); b.holds.forEach { (id, a) -> holds.put(id, InputProfiles.encode(a)) }
+            val doubles = JSONObject(); b.doubles.forEach { (id, a) -> doubles.put(id, InputProfiles.encode(a)) }
             val keys = JSONArray()
             b.keys.forEach { binding -> keys.put(JSONObject().put("device", binding.key.device).put("name", binding.key.name)
-                .put("keyCode", binding.key.keyCode).put("scanCode", binding.key.scanCode).put("action", InputProfiles.encode(binding.action))) }
+                .put("keyCode", binding.key.keyCode).put("scanCode", binding.key.scanCode).put("action", InputProfiles.encode(binding.action))
+                .put("part", binding.part?.name ?: JSONObject.NULL).put("repeat", binding.repeat)) }
             bindings.put(JSONObject().put("id", b.id).put("name", b.name).put("physical", b.physical)
-                .put("layout", b.layoutId).put("controls", controls).put("elements", elements).put("keys", keys).put("clicks", clicks))
+                .put("layout", b.layoutId).put("controls", controls).put("elements", elements).put("keys", keys).put("clicks", clicks)
+                .put("holds", holds).put("doubles", doubles))
         }
         val profiles = JSONArray()
         for (p in library.profiles) {
@@ -345,7 +349,8 @@ object InputLibraries {
                     e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
                     e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
                     e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
+                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false),
+                    e.optBoolean("repeat", false))
             }
             SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
@@ -355,11 +360,14 @@ object InputLibraries {
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }
-            val keys = b.getJSONArray("keys").objects(64).map { k -> PhysicalInputBinding(
-                PhysicalInputKey(k.getString("device"), k.getString("name"), k.getInt("keyCode"), k.getInt("scanCode")),
-                requireNotNull(InputProfiles.decode(k.getJSONObject("action")))) }
+            val keys = b.getJSONArray("keys").objects(64).map { k ->
+                val part = if (k.isNull("part") || k.optString("part").isEmpty()) null else ElementSource.valueOf(k.getString("part"))
+                PhysicalInputBinding(
+                    PhysicalInputKey(k.getString("device"), k.getString("name"), k.getInt("keyCode"), k.getInt("scanCode")),
+                    requireNotNull(InputProfiles.decode(k.getJSONObject("action"))), part, k.optBoolean("repeat")) }
             SavedInputBindings(b.getString("id"), b.getString("name"), b.getBoolean("physical"), b.optionalString("layout"),
-                controls, b.getJSONObject("elements").actions(64), keys, b.optJSONObject("clicks")?.actions(64).orEmpty())
+                controls, b.getJSONObject("elements").actions(64), keys, b.optJSONObject("clicks")?.actions(64).orEmpty(),
+                b.optJSONObject("holds")?.actions(64).orEmpty(), b.optJSONObject("doubles")?.actions(64).orEmpty())
         }
         val profiles = doc.getJSONArray("profiles").objects(64).map { p ->
             val parts = p.getJSONObject("parts")

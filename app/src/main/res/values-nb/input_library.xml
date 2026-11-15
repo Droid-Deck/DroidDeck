@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Skjul verktøy</string>
     <string name="input_route_controller">Kontroller</string>
     <string name="input_controller_route_hint">Send kontrollerinndata til Steam Input eller spillet.</string>
-    <string name="input_disabled_hint">Dette elementet sender ingen inndata fra kontroller, mus eller tastatur.</string>
     <string name="input_mouse_click">Museklikk</string>
     <string name="input_command">DroidDeck-handling</string>
     <string name="input_action">Handling</string>

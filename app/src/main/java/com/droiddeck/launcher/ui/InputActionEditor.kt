@@ -17,7 +17,7 @@ internal fun InputActionEditor(
     control: InputControl, current: InputAction, title: String, onBack: () -> Unit, onSave: (InputAction) -> Unit,
     element: InputSurfaceElement? = null, nativeTargets: Boolean = true, detail: String? = null,
     properties: (@Composable ColumnScope.(InputAction) -> Unit)? = null,
-    click: Boolean = false,
+    click: Boolean = false, tapOnly: Boolean = false,
 ) {
     val context = LocalContext.current
     val host = rememberMenuHost()
@@ -37,8 +37,11 @@ internal fun InputActionEditor(
     }
     var keys by remember { mutableStateOf(false) }
     var direction by remember { mutableStateOf<Int?>(null) }
-    fun valid(action: InputAction) = if (click) action.validForClick() else if (element != null) action.validFor(element) else action.validFor(control)
-    val nativeOptions = remember(control, element, nativeTargets, click) {
+    val nativeAllowed = !tapOnly || nativeTargets
+    fun valid(action: InputAction) = if (tapOnly) (nativeAllowed || action !is InputAction.Native) && action.validForTap()
+        else if (click) action.validForClick()
+        else if (element != null) action.validFor(element) else action.validFor(control)
+    val nativeOptions = remember(control, element, nativeTargets, click, tapOnly) {
         (listOf(InputAction.Native()) + if (nativeTargets) InputControl.entries.map { InputAction.Native(it) } else emptyList()).filter(::valid)
     }
     val route = when (draft) { is InputAction.Native -> 0; InputAction.Disabled -> 2; else -> 1 }
@@ -48,8 +51,10 @@ internal fun InputActionEditor(
             modifier = Modifier.testTag("input-action-save")) { onSave(draft) } }) {
         properties?.invoke(this, draft)
         Spacer(Modifier.height(12.dp))
-        SheetChips(listOf(stringResource(R.string.input_route_controller), stringResource(R.string.input_route_local), stringResource(R.string.input_disabled)), route) {
-            when (it) {
+        SheetChips((if (nativeAllowed) listOf(stringResource(R.string.input_route_controller)) else emptyList()) +
+            listOf(stringResource(R.string.input_route_local), stringResource(R.string.input_disabled)),
+            if (nativeAllowed) route else route - 1) { chips ->
+            when (val it = if (nativeAllowed) chips else chips + 1) {
                 0 -> switch("native") { nativeOptions.firstOrNull() ?: InputAction.Disabled }
                 2 -> switch("disabled") { InputAction.Disabled }
                 else -> switch(localType) { InputAction.Keys(listOf(28)) }
@@ -62,10 +67,10 @@ internal fun InputActionEditor(
                     nativeOptions.map { it to (it.target?.label ?: stringResource(if (nativeTargets) R.string.input_native else R.string.input_normal_binding)) },
                     draft as InputAction.Native) { draft = it }
             }
-            2 -> Text(stringResource(R.string.input_disabled_hint), Modifier.padding(16.dp))
+            2 -> Unit
             else -> {
                 val types = listOf("keys" to stringResource(R.string.input_keys), "mouse" to stringResource(R.string.input_mouse_click),
-                    "command" to stringResource(R.string.input_command)) + if (control.dimensions == 2) listOf(
+                    "command" to stringResource(R.string.input_command)) + if (!tapOnly && control.dimensions == 2) listOf(
                     "pointer" to stringResource(R.string.input_pointer), "scroll" to stringResource(R.string.input_scroll),
                     "directions" to stringResource(R.string.input_direction_keys)) else emptyList()
                 val type = when (draft) { is InputAction.MouseButton -> "mouse"; is InputAction.Command -> "command";

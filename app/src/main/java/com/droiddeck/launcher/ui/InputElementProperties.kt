@@ -38,7 +38,7 @@ internal fun InputElementProperties(element: InputSurfaceElement, action: InputA
                 withContext(Dispatchers.IO) { InputButtonImages.import(context.applicationContext, uri) }?.let { change(current.copy(icon = 0, image = it)) }
             }
         }
-        ToggleRow(host, "element-toggle", stringResource(R.string.input_toggle_button), stringResource(R.string.input_toggle_button_hint), element.toggle) { onChange(element.copy(toggle = it)) }
+        ToggleRow(host, "element-toggle", stringResource(R.string.input_toggle_button), stringResource(R.string.input_toggle_button_hint), element.toggle) { onChange(element.copy(toggle = it, repeat = if (it) false else element.repeat)) }
         ChoiceRow(host, "element-shape", stringResource(R.string.input_button_shape), null,
             InputButtonShape.entries.map { it to stringResource(when (it) { InputButtonShape.ROUNDED -> R.string.input_shape_rounded; InputButtonShape.PILL -> R.string.input_shape_pill; InputButtonShape.CIRCLE -> R.string.input_shape_circle; InputButtonShape.RECTANGLE -> R.string.input_shape_rectangle }) },
             element.buttonShape) { onChange(element.copy(buttonShape = it)) }

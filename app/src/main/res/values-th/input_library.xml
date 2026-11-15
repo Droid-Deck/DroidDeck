@@ -9,7 +9,6 @@
     <string name="input_hide_tools">ซ่อนเครื่องมือ</string>
     <string name="input_route_controller">คอนโทรลเลอร์</string>
     <string name="input_controller_route_hint">ส่งอินพุตคอนโทรลเลอร์ไปยัง Steam Input หรือเกม</string>
-    <string name="input_disabled_hint">องค์ประกอบนี้ไม่ส่งอินพุตคอนโทรลเลอร์ เมาส์ หรือคีย์บอร์ด</string>
     <string name="input_mouse_click">คลิกเมาส์</string>
     <string name="input_command">การทำงานของ DroidDeck</string>
     <string name="input_action">การทำงาน</string>
