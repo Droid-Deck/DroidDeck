@@ -57,7 +57,8 @@ static unsigned g_bfi_phase;
 static const char *g_bfi_blocked;
 static struct { unsigned lit, dark, failed; } g_bfi_stats;
 static int g_scene_w, g_scene_h;
-#define BFI_MAX_REFRESH_NS 10500000LL
+#define BFI_MIN_REFRESH_MHZ 99000
+static atomic_int g_output_refresh_mhz = 144000;
 static int vkp_cardboard_active(void) { return cardboard; }
 static int vkp_quest_layer_presentation(void) { return quest; }
 static int vkp_render_plain(int w, int h) { blacks++; return 0; }
@@ -217,9 +218,16 @@ int main(void) {
         framegen = 0;
         tick(t += refresh);
         assert(g_bfi_running == 1);
-        g_refresh_ns = 16666667;
+        g_output_refresh_mhz = 60000;
         tick(t += refresh);
         assert(g_bfi_running == 0);
+        g_output_refresh_mhz = 144000;
+        tick(t += refresh);
+        assert(g_bfi_running == 1);
+        /* late ticks under load do not switch it off while the panel runs fast */
+        g_refresh_ns = 16666667;
+        tick(t += refresh);
+        assert(g_bfi_running == 1);
         g_refresh_ns = refresh;
         g_scene_layer_only = 1;
         tick(t += refresh);

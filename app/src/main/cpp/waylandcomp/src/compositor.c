@@ -2478,7 +2478,10 @@ static void on_commit_idle(void *data) {
 /* Black frame insertion strobes on the display's refresh tick and paces the game to the lit refresh,
  * the design of BFI Presenter by artzox (https://github.com/artzox/BFI-Presenter, GPL-3.0), after Blur Busters'
  * research on MPRT and motion blur (https://blurbusters.com). No BFI Presenter code is used. */
-#define BFI_MAX_REFRESH_NS 10500000LL
+/* The panel's refresh from its display mode, not the measured tick rate: BFI's own presents can make ticks run
+ * late under load, and a measured rate would then dip under the limit and switch BFI off and on many times a
+ * second. 99 Hz lets panels that report 99.9 Hz for 100 Hz through. */
+#define BFI_MIN_REFRESH_MHZ 99000
 
 static const char *bfi_blocked(void) {
     if (atomic_load(&g_stream_on)) return "the picture is being streamed";
@@ -2486,7 +2489,7 @@ static const char *bfi_blocked(void) {
     if (vkp_cardboard_active()) return "Cardboard VR is on";
     if (vkp_quest_layer_presentation()) return "this headset composes its own layers";
     if (g_scene_layer_only) return "the game's frames cannot be imported, so it is shown on its own display layer";
-    if (g_refresh_ns > BFI_MAX_REFRESH_NS) return "the screen runs below 100 Hz";
+    if (atomic_load(&g_output_refresh_mhz) < BFI_MIN_REFRESH_MHZ) return "the screen runs below 100 Hz";
     return NULL;
 }
 
@@ -2500,10 +2503,11 @@ static void bfi_update(void) {
     g_bfi_running = run;
     g_bfi_phase = 0;
     g_dirty = 1;
-    if (run)
+    if (run) {
+        const int mhz = atomic_load(&g_output_refresh_mhz);
         droiddeck_log("bfi", "black frame insertion on: %.0f Hz screen, a black refresh after every picture, "
-                   "the game is paced to %.0f fps", 1e9 / (double)g_refresh_ns, 0.5e9 / (double)g_refresh_ns);
-    else {
+                   "the game is paced to %.0f fps", mhz / 1000.0, mhz / 2000.0);
+    } else {
         /* Lit refreshes advanced the frame deadline without being held to it; a stale one would stall rendering. */
         g_scene_due_ns = 0;
         droiddeck_log("bfi", "black frame insertion off");
