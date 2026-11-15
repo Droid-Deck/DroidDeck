@@ -258,6 +258,11 @@ def complete_apks(preview: dict, variants: list[tuple[str, str]]) -> bool:
     )
 
 
+def newest_complete(ordered: list[dict], variants: list[tuple[str, str]]) -> dict | None:
+    """The Preview to offer and to judge merges by: the newest one whose APKs have all been uploaded."""
+    return next((p for p in ordered if complete_apks(p, variants)), None)
+
+
 def preview_history_entry(release: dict, preview: dict, variants: list[tuple[str, str]]):
     tag = release.get("tag_name") or ""
     tag_match = MAIN_TAG.fullmatch(tag)
@@ -507,9 +512,8 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, pr
         )
 
     ordered = unique_previews(previews)
-    # A Preview whose APKs are still uploading neither carries a merge nor is offered.
-    usable = next((p for p in ordered if complete_apks(p, main_variants)), ordered[0] if ordered else None)
-    newest = usable["commit"] if usable and complete_apks(usable, main_variants) else None
+    usable = newest_complete(ordered, main_variants)
+    newest = usable["commit"] if usable else None
     tests = [t for t in tests if not (merged_pulls.get(t["pr"]) and in_preview(source, source_repo, merged_pulls[t["pr"]], newest))]
     tests.sort(key=lambda r: r["publishedAt"], reverse=True)
     return {

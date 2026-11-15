@@ -4,6 +4,7 @@ from tools.release.update_catalog import (
     Cache,
     asset_for_suffix,
     complete_apks,
+    newest_complete,
     merged_pr,
     ci_description,
     parse_gradle,
@@ -77,6 +78,15 @@ pubg com.tencent.ig -pubg
         self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good}}, variants))
         self.assertFalse(complete_apks({"apks": {}}, variants))
         self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good, "com.tencent.ig": {"sha256": "x"}}}, variants))
+
+    def test_no_preview_is_offered_until_one_has_every_apk(self):
+        variants = [("com.droiddeck.launcher", "")]
+        good = {"com.droiddeck.launcher": {"sha256": "a" * 64, "signerSha256": "b" * 64}}
+        uploading = {"commit": "2" * 40, "apks": {}}
+        done = {"commit": "1" * 40, "apks": good}
+        self.assertIsNone(newest_complete([uploading], variants))
+        self.assertIsNone(newest_complete([], variants))
+        self.assertIs(done, newest_complete([uploading, done], variants))
 
     def test_ci_description(self):
         title, summary = ci_description(
