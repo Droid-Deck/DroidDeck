@@ -1441,6 +1441,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudOrderReset = { hudConfig = DroidDeckHudConfig.clearOrder(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
+            integerScaling = integerScaling,
+            onIntegerScaling = { enabled ->
+                SessionPrefs.setIntegerScaling(this@SessionActivity, enabled)
+                integerScaling = enabled
+                applyGameAlignment()
+            },
             onUpscaler = { m ->
                 val target = effectsEditorTarget ?: screenEffectsTarget
                 val activeProfileId =

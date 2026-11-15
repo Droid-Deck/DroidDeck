@@ -244,6 +244,8 @@ class DrawerActions(
     val fexPreset: String,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
+    val integerScaling: Boolean = false,
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val effects: ScreenEffects = ScreenEffects.OFF,
     val screenEffectsTarget: String = "auto",
     val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
@@ -615,6 +617,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                SettingsRow(stringResource(R.string.display_integer_scaling), null) {
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { a.onIntegerScaling(!a.integerScaling) }
+                                    ) {
+                                        Text(stringResource(
+                                            if (a.integerScaling) R.string.display_scaling_auto
+                                            else R.string.display_scaling_fit
+                                        ))
+                                    }
+                                }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
