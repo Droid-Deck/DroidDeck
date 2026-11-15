@@ -948,23 +948,24 @@ def prefix_system_dlls(prefix, proton, env=None):
                 yield folder, name, windows / folder / name, source, machines, builtins
 
 
-def newest_foreign_backup(path):
+def foreign_backups(path):
     base = path.name + FOREIGN_SUFFIX
-    newest = None
+    backups = []
     try:
         names = os.listdir(path.parent)
     except OSError:
-        return None
+        return backups
     for name in names:
         if name == base:
-            serial = 0
+            backups.append((0, path.parent / name))
         elif name.startswith(base + ".") and name[len(base) + 1:].isdigit():
-            serial = int(name[len(base) + 1:])
-        else:
-            continue
-        if newest is None or serial > newest[0]:
-            newest = (serial, path.parent / name)
-    return newest[1] if newest else None
+            backups.append((int(name[len(base) + 1:]), path.parent / name))
+    return sorted(backups)
+
+
+def newest_foreign_backup(path):
+    backups = foreign_backups(path)
+    return backups[-1][1] if backups else None
 
 
 def restore_compatible_system_dlls(prefix, proton, env=None):
@@ -1000,11 +1001,10 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
         if machine is None or PE["machine_compatible"](path, machines, machine, builtins):
             continue
         link = path.parent / (name + ".bl-new")
+        backups = foreign_backups(path)
         backup = path.parent / (name + FOREIGN_SUFFIX)
-        serial = 1
-        while os.path.lexists(backup):
-            backup = path.parent / (name + FOREIGN_SUFFIX + ".%d" % serial)
-            serial += 1
+        if backups:
+            backup = path.parent / (name + FOREIGN_SUFFIX + ".%d" % (backups[-1][0] + 1))
         try:
             os.symlink(os.path.relpath(source, path.parent), link)
             os.replace(path, backup)

@@ -2949,6 +2949,27 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
             self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
 
+    def test_new_backup_goes_above_the_highest_existing_serial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            system32 = windows / "system32"
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664) + b"newest")
+            (system32 / "ucrtbase.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll.foreign-arch.2").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertTrue((system32 / "ucrtbase.dll.foreign-arch.3").read_bytes().endswith(b"newest"))
+            self.assertFalse((system32 / "ucrtbase.dll.foreign-arch.1").exists())
+
+    def test_truncated_import_table_keeps_the_conservative_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "cut.exe").write_bytes(program_image(0xAA64, ["concrt140.dll"])[:0x20A])
+            self.assertIsNone(MODULE["PE"]["pe_imports"](builtins / "cut.exe"))
+            (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
+            (windows / "system32/concrt140.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
+
     def test_restore_leaves_other_links_and_x64_proton_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp)
