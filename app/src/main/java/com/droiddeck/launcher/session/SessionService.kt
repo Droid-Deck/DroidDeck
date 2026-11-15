@@ -1018,7 +1018,10 @@ class SessionService : Service() {
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
-        mapOf("TU_DEBUG" to (tuOverride ?: if (tuDriver) "sysmem" else ""), "MESA_NO_ERROR" to "").forEach { (name, game) ->
+        val adrenoModel = com.droiddeck.launcher.gpu.GpuInfo.detect().model
+        val gameTu = gameTuDebug(tuOverride, tuDriver, adrenoModel)
+        if (tuOverride == null && !tuDriver && gameTu.isNotEmpty()) Log.i(TAG, "games: TU_DEBUG=$gameTu on Adreno $adrenoModel")
+        mapOf("TU_DEBUG" to gameTu, "MESA_NO_ERROR" to "").forEach { (name, game) ->
             if (extra.none { it.startsWith("$name=") }) guest.add("$GAME_PREFIX$name=$game")
         }
         extra.forEach { guest.add(it) }
@@ -2403,6 +2406,10 @@ class SessionService : Service() {
         private const val GAME_PREFIX = "DROIDDECK_GAME_"
         private const val LEGACY_ENV_SWITCH = "Download/droiddeck-env"
         private const val ENV_SWITCH_NAME = "droiddeck-env"
+
+        /** Adreno 830 games glitch with tile rendering (GMEM write page faults), so they keep sysmem. */
+        internal fun gameTuDebug(override: String?, sysmemDriver: Boolean, adrenoModel: Int): String =
+            override ?: if (sysmemDriver || adrenoModel == 830) "sysmem" else ""
 
         fun envSwitchFile(context: Context): File? =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
