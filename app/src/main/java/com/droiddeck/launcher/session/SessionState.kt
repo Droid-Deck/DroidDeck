@@ -73,7 +73,44 @@ object SessionState {
     @Volatile
     var steamClientArch: String? = null
     var steamVr by mutableStateOf(false)
+    @Volatile
     var relaunch: android.content.Intent? = null
+    @Volatile
+    private var relaunchSessionId: String? = null
+    @Volatile
+    private var relaunchStopRequested = false
+
+    fun queueRelaunch(intent: android.content.Intent) {
+        synchronized(this) {
+            relaunch = intent
+            relaunchSessionId = sessionId
+            relaunchStopRequested = false
+        }
+    }
+
+    fun confirmRelaunchStop() {
+        synchronized(this) {
+            relaunchStopRequested = relaunch != null && relaunchSessionId == sessionId
+        }
+    }
+
+    fun takeRelaunch(): android.content.Intent? = synchronized(this) {
+        val next = relaunch
+        val valid = relaunchStopRequested && relaunchSessionId == sessionId
+        relaunch = null
+        relaunchSessionId = null
+        relaunchStopRequested = false
+        next.takeIf { valid }
+    }
+
+    fun clearRelaunch() {
+        synchronized(this) {
+            relaunch = null
+            relaunchSessionId = null
+            relaunchStopRequested = false
+        }
+    }
+
     @JvmStatic var hdr = false
 
     @Volatile private var deckPadValue = false

@@ -63,6 +63,7 @@ class ModeSettings(
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
+    val pen: SessionPrefs.Pen? = null,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val pipSupported: Boolean = false,
@@ -116,6 +117,7 @@ class ModeSettingsActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
+    val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
@@ -224,6 +226,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
                         "bottom" to stringResource(R.string.display_position_bottom),
+                        "left" to stringResource(R.string.display_position_left),
+                        "right" to stringResource(R.string.display_position_right),
                         "center" to stringResource(R.string.display_position_center)),
                     position, onPick = a.onPicturePosition)
             }
@@ -319,6 +323,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             PhysicalShortcutRows()
         }
+        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen) }
     }
     if (tab == SheetTab.AUDIO && steam) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
