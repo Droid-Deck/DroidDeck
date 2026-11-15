@@ -184,8 +184,12 @@ def source_meta(source: GitHub, repo: str, ref: str):
     return code, version, variants, signer
 
 
-def asset_for_suffix(assets: list[dict], suffix: str, all_suffixes: list[str]):
+def asset_for_suffix(assets: list[dict], suffix: str, all_suffixes: list[str], commit: str = ""):
     others = [s for s in all_suffixes if s and s != suffix]
+    # A test build's release briefly holds the previous push's APKs too; the one named for this commit wins.
+    current = f"-{commit[:7].lower()}{suffix}.apk" if len(commit) >= 7 else None
+    if current:
+        assets = sorted(assets, key=lambda a: not (a.get("name") or "").lower().endswith(current))
     for asset in assets:
         name = asset.get("name", "")
         if not name.endswith(f"{suffix}.apk"):
@@ -220,7 +224,7 @@ def release_entry(
     suffixes = [suffix for _, suffix in variants]
     apks = {}
     for package, suffix in variants:
-        asset = asset_for_suffix(release.get("assets") or [], suffix, suffixes)
+        asset = asset_for_suffix(release.get("assets") or [], suffix, suffixes, commit)
         if not asset:
             continue
         asset.update(

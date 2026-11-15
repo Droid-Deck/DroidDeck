@@ -59,6 +59,16 @@ pubg com.tencent.ig -pubg
         self.assertEqual("DroidDeck-main-deadbee.apk", standard["name"])
         self.assertEqual("DroidDeck-main-deadbee-pubg.apk", pubg["name"])
 
+    def test_the_apk_named_for_the_build_commit_wins_over_a_previous_push(self):
+        def apk(name, digit):
+            return {"name": name, "size": 1, "digest": "sha256:" + digit * 64, "browser_download_url": "https://example/" + name}
+        assets = [apk("DroidDeck-PR.7-1111111.apk", "a"), apk("DroidDeck-PR.7-2222222.apk", "b"),
+                  apk("DroidDeck-PR.7-1111111-pubg.apk", "c"), apk("DroidDeck-PR.7-2222222-pubg.apk", "d")]
+        suffixes = ["", "-pubg"]
+        self.assertEqual("DroidDeck-PR.7-2222222.apk", asset_for_suffix(assets, "", suffixes, "2222222abc")["name"])
+        self.assertEqual("DroidDeck-PR.7-2222222-pubg.apk", asset_for_suffix(assets, "-pubg", suffixes, "2222222abc")["name"])
+        self.assertEqual("DroidDeck-PR.7-1111111.apk", asset_for_suffix(assets, "", suffixes)["name"])
+
     def test_ci_description(self):
         title, summary = ci_description(
             {

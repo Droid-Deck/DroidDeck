@@ -440,6 +440,14 @@ jobs:
           tag="pr-$PR_NUMBER"
           # An app that read the catalog just before it changed may still be starting that download.
           sleep 300
+          # Delete nothing the published catalog still names.
+          named=$(gh api -H "Accept: application/vnd.github.raw+json" "repos/$repo/contents/catalog.json?ref=main" |
+            jq -c --argjson pr "$PR_NUMBER" '[.tests[] | select(.pr == $pr) | .apks[].name]')
+          stale=$(jq -nr --argjson named "$named" --argjson keep "$KEEP" '$named - $keep | join(" ")')
+          if [ -n "$stale" ]; then
+            echo "::warning::The catalog still names $stale; keeping every file of $tag"
+            exit 0
+          fi
           gh api "repos/$repo/releases/tags/$tag" |
             jq -r --argjson keep "$KEEP" '.assets[] | select(.name as $n | $keep | index($n) | not) | .id' |
             while IFS= read -r id; do
