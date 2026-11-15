@@ -37,14 +37,34 @@
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
+        <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
+        <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
+        <item>Steam games use Steam\'s Frame Limit in Quick Access. The display switches to a refresh rate the cap divides evenly when it has one.</item>
+        <item>Low latency mode in the session menu sends controller input at 1000 Hz instead of 250 Hz, for a bit more CPU and battery.</item>
+        <item>Each game has its own profile with Proton, FEX, components and environment settings.</item>
+        <item>The session menu has a microphone toggle for voice chat and a Suspend now button to freeze the session on demand.</item>
+        <item>Drag the DroidDeck HUD to move it, pinch to resize it, and push it off an edge to dock it as a small FPS tab.</item>
+        <item>On dual-screen handhelds, the bottom screen can show downloads, notifications, screenshots and Steam chat. Swap screens puts the game down there instead.</item>
+        <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
+        <item>Stores lets you sign in to Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io and Game Jolt, then install and update their games from DroidDeck.</item>
+        <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and Proton Experimental ARM64 is the default, or Proton 11.0 ARM64 once that build is installed.</item>
+        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
+        <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
+        <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game\'s components.</item>
+        <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
+        <item>Setup, then Storage, can clear shader caches and leftover prefixes from games you removed.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>First run sets up the desktop. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses the session; it picks up where it left off when you come back.</item>
         <item>Touch works as a touchpad: drag to move the pointer, tap to click.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Background behavior decides what happens when you leave the app: Manual waits for Resume by default, Auto pauses, Never keeps it running.</item>
+        <item>Swipe in from the right edge to open the session menu, then pick PC keyboard to type in apps that ignore the Android keyboard.</item>
+        <item>The PC keyboard in the session menu has adjustable size, opacity and key groups.</item>
+        <item>Your controller shows up as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>The session menu has a microphone toggle and a Suspend now button to freeze the session on demand.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
@@ -297,6 +317,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
     <string name="mode_touch_note">Auto: touchpad on Desktop, direct in Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mouse</string>
+    <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>
@@ -632,6 +656,8 @@
     <string name="perf_cap_off">Off</string>
     <string name="perf_cap_auto">Driver default</string>
     <string name="perf_zram_client">Compress Steam while a game runs</string>
+    <string name="perf_zram_idle">Compress idle game memory</string>
+    <string name="perf_zram_idle_hint">Pages out idle game memory when RAM is low. Turn this off if games freeze for a few seconds about every half minute. Applies the next time the session starts.</string>
     <string name="perf_zram_client_hint">Compresses Steam while a game runs, starting sooner when memory is tight. Steam is read back after the game closes once enough RAM is available. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
     <string name="perf_ram_cap">RAM cap</string>
     <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
@@ -642,7 +668,7 @@
     <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
-    <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
     <string name="perf_xalia">Skip Steam\'s xalia helper</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
@@ -766,6 +792,13 @@
     <string name="hud_reset_button">Reset</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
+    <string name="screen_effects_target">Edit profile</string>
+    <string name="screen_effects_target_hint">Choose which profile to change screen effects for.</string>
+    <string name="screen_effects_target_auto">Current session (automatic)</string>
+    <string name="screen_effects_reset">Reset effects</string>
+    <string name="screen_effects_reset_hint">Restore the default-off effect values for this profile.</string>
+    <string name="screen_effects_delete">Delete saved override</string>
+    <string name="screen_effects_delete_hint">Remove saved effects for this game so it inherits the Default profile.</string>
     <string name="drawer_effects">Screen effects</string>
     <string name="drawer_effects_hint">Live. Costs a little GPU time while any effect is on.</string>
     <string name="drawer_look">Presets</string>
@@ -1130,6 +1163,29 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Newest fixes, before Stable</string>
     <string name="upd_preview_current">Up to date</string>
+    <string name="upd_copy_build">Copy build details</string>
+    <string name="upd_copied">Build details copied</string>
+    <string name="upd_ahead_preview_status">Ahead of Preview</string>
+    <string name="upd_ahead_preview_headline">You\'re ahead of Preview</string>
+    <string name="upd_ahead_preview_detail">This build is newer than the latest Preview. The next Preview build will update it.</string>
+    <string name="upd_preview_pick">Pick a build to see its changes or install it.</string>
+    <string name="upd_installed_tag">Installed</string>
+    <string name="upd_install_this">Install this build%1$s</string>
+    <string name="upd_rollback_this">Roll back to this build%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Release page</string>
+    <string name="upd_newer_commit">The PR has a newer commit (%1$s). Its test build isn\'t ready yet, so this one doesn\'t include it.</string>
+    <string name="upd_newer_commit_short">Newer commit pushed, build pending</string>
+    <string name="upd_tests_find">PR number, title or author</string>
+    <string name="upd_tests_no_match">No test build matches</string>
+    <string name="upd_tests_old_row">Needs a rebuild (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Test build updates</string>
+    <string name="upd_watch_title">New PR #%1$d test build</string>
+    <string name="upd_show_more">Show more (%1$d)</string>
+    <string name="upd_tests_old">Need a rebuild for versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Preview builds on main since this test build: %1$d</string>
+    <string name="upd_watch_text">%1$s. Open Updates to install it.</string>
     <string name="upd_tests">Test builds</string>
     <string name="upd_tests_hint">Try a fix before it\'s released</string>
     <string name="upd_tests_none">None right now</string>
@@ -1159,6 +1215,37 @@
     <string name="rail_agent">Agent</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent is working</string>
+    <string name="agent_drawer_inline">Compact chat in the session drawer</string>
+    <string name="agent_drawer_inline_hint">The model, usage and menu share the message row, leaving more room for the conversation</string>
+    <string name="agent_tools">MCP servers and skills</string>
+    <string name="agent_tools_servers">MCP servers</string>
+    <string name="agent_tools_skills">Skills in ~/.claude/skills</string>
+    <string name="agent_tools_loading">Asking Claude Code…</string>
+    <string name="agent_tools_failed">Claude Code could not do that</string>
+    <string name="agent_tools_no_servers">No MCP servers yet</string>
+    <string name="agent_tools_no_skills">No skills yet</string>
+    <string name="agent_tools_remove">Remove</string>
+    <string name="agent_tools_name">Name</string>
+    <string name="agent_tools_target">URL, or the command that starts it</string>
+    <string name="agent_tools_add_hint">Added for every project</string>
+    <string name="agent_tools_add">Add</string>
+    <string name="agent_voice">Dictate</string>
+    <string name="agent_voice_stop">Stop dictating</string>
+    <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
+    <string name="agent_attach_game">Attach what the game shows</string>
+    <string name="agent_attach_game_failed">Could not capture the game</string>
+    <string name="agent_done_channel">Agent replies</string>
+    <string name="agent_done">Agent finished</string>
+    <string name="agent_done_failed">Agent stopped with an error</string>
+    <string name="agent_done_question">Agent has a question</string>
+    <plurals name="agent_subagent_steps">
+        <item quantity="one">%d step</item>
+        <item quantity="other">%d steps</item>
+    </plurals>
+    <string name="agent_copy">Copy</string>
+    <string name="agent_copy_reply">Copy the reply</string>
+    <string name="agent_history_search">Search conversations</string>
+    <string name="agent_history_no_match">No conversation mentions that</string>
     <string name="agent_missing">Install Claude Code in the Linux userland to use the agent.</string>
     <string name="agent_hint">Ask about a game, a crash, or a change to DroidDeck</string>
     <string name="agent_send">Send</string>
@@ -1207,7 +1294,6 @@
     <string name="agent_plan_untouched">Nothing changed yet</string>
     <string name="agent_plan_go_message">Go ahead with the plan.</string>
     <string name="agent_send_now">Send now</string>
-    <string name="agent_message">Message</string>
     <string name="agent_more">More</string>
     <string name="agent_close">Close</string>
     <string name="agent_latest">Latest</string>
@@ -1578,11 +1664,6 @@
     <string name="rail_more">More</string>
     <string name="more_edit_tabs">Edit tabs</string>
     <string name="setup_group_tabs">Tabs</string>
-    <string name="tabs_place_bar">Shown</string>
-    <string name="tabs_place_more">In More</string>
-    <string name="tabs_place_hidden">Hidden</string>
-    <string name="tabs_move_up">Move %1$s up</string>
-    <string name="tabs_move_down">Move %1$s down</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Resume %1$s</string>
     <string name="roms_text">Shows up as /root/ROMs in each session. Internal storage is at /root/Storage.</string>
@@ -1941,6 +2022,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Clear</string>
     <string name="game_sync_err_runtime">Install the runtime first</string>
     <string name="game_sync_err_steam_library">Steam library is unavailable</string>
     <string name="game_sync_err_previous_sd">Previous SD library is unavailable</string>
@@ -2637,6 +2719,7 @@
     <string name="bnet_dl_queued">Waiting for the other Battle.net download…</string>
     <string name="bnet_dl_client_first">Open Battle.net and sign in once, then install its games here.</string>
     <string name="bnet_dl_failed">Blizzard\'s downloader stopped: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzard\'s downloader stopped making progress.</string>
     <string name="bnet_dl_agent_error">Blizzard error %1$s</string>
     <string name="bnet_update">Update</string>
     <string name="bnet_store">Blizzard games</string>
@@ -2707,7 +2790,6 @@
     <string name="setup_agent_pet_float">Over other apps</string>
     <string name="setup_agent_pet_float_hint">Let DeeDee float over every app and open its chat there</string>
     <string name="setup_agent_pet_allow">Allow</string>
-    <string name="agent_pet_name">DeeDee</string>
     <string name="agent_pet_open">Chat with DeeDee</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
@@ -3293,7 +3375,7 @@
     <string name="hand_camera_done">Done</string>
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
-    <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura.</string>
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
@@ -3952,9 +4034,9 @@
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
+    <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
+    <string name="integration_shortcuts_install_failed_with">System keys didn\'t install: %1$s</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
-    <string name="integration_shortcuts_service">DroidDeck system keys</string>
-    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
     <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>
@@ -4023,7 +4105,12 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+    <string name="epic_third_party_managed">Installs through %1$s</string>
 
+    <string name="theme_true_black">True black</string>
+    <string name="theme_true_black_detail">Pure black page and panels, so an OLED screen switches those pixels off. You pick the highlight color.</string>
+    <string name="theme_true_black_highlight">Highlight</string>
+    <string name="theme_true_black_highlight_hint">The color of everything selected.</string>
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="rail_soundtracks">Soundtracks</string>
@@ -4090,4 +4177,16 @@
     <string name="soundtracks_no_tracks">No audio files found in this soundtrack</string>
     <string name="stores_rockstar_launch_unavailable">Launch unavailable</string>
     <string name="agent_browser_unavailable">No web browser is available to open this link.</string>
+    <string name="hud_hint_grab">Grab</string>
+    <string name="hud_hint_drop">Drop</string>
+    <string name="hud_hint_save">Save</string>
+    <string name="hud_hint_reset">Hold to reset</string>
+    <string name="setup_stores">Stores</string>
+    <string name="hud_metric_latency">Frame time</string>
+    <string name="hud_metric_avg">Average frame rate</string>
+    <string name="hud_metric_display">Display server</string>
+    <string name="hud_metric_hdr">HDR state</string>
+    <string name="hud_readings_shown">Shown</string>
+    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="exit_hint_back">Press back once more to exit</string>
 </resources>

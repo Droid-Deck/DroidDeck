@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -165,6 +167,7 @@ internal fun GameDetail(
     if (nothing) return
     val source = game?.source ?: store?.id ?: Library.SOURCE_STEAM
     val title = game?.name ?: item?.title ?: installed?.sidecar?.title ?: id.orEmpty()
+    val favoriteKey = if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
     val scores = if (source != Library.ADDED) rememberGameScores(title.takeIf { it.isNotBlank() && it != id }) else null
     val achievements = remember(store, id, item?.accessible, installed) {
         when {
@@ -225,6 +228,7 @@ internal fun GameDetail(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
                             if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
+                            FavoriteButton(favoriteKey)
                             RemoveButton(title, game, installed, a)
                         }
                     }
@@ -632,7 +636,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, frosted: Boolean = false, onClick: () -> Unit) {
+internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, frosted: Boolean = false, tint: Color? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pill = LocalPillButtons.current
     val shape = if (pill) CircleShape else Shape12
@@ -657,10 +661,22 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
                 .controllerConfirm(enabled = enabled, onClick = onClick)
                 .semantics { contentDescription = label },
         ) {
-            Icon(icon, contentDescription = null, tint = if (danger && hot) colors.error else if (danger && !pill) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = tint ?: if (danger && hot) colors.error else if (danger && !pill) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
         }
     }
     if (frosted) Box(Modifier.glass(CircleShape)) { button() } else button()
+}
+
+@Composable
+internal fun FavoriteButton(key: String) {
+    val ctx = LocalContext.current
+    remember { LibraryFavorites.load(ctx) }
+    val on = key in LibraryFavorites.keys
+    IconAction(
+        if (on) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+        stringResource(if (on) R.string.fm_favorite_remove else R.string.fm_favorite_add),
+        "game:favorite", frosted = true, tint = if (on) FavoritesColours.dot else null,
+    ) { LibraryFavorites.toggle(ctx, key) }
 }
 
 @Composable

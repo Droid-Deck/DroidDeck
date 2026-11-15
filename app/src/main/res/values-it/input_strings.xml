@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profili di input</string>
+    <string name="input_profiles">Profili</string>
+    <string name="input_physical">Controller fisico</string>
+    <string name="input_primary">Schermo principale</string>
+    <string name="input_secondary">Schermo secondario</string>
+    <string name="input_native">Nativo / Steam Input</string>
+    <string name="input_native_target">Nativo: %1$s</string>
+    <string name="input_remap_native">Invia un altro controllo del controller</string>
+    <string name="input_disabled">Disattivato</string>
+    <string name="input_keys">Tasto o combinazione di tasti</string>
+    <string name="input_direction_keys">Tasti direzionali</string>
+    <string name="input_pointer">Sposta il puntatore</string>
+    <string name="input_pointer_speed">Velocità del puntatore: %1$d</string>
+    <string name="input_scroll">Scorri</string>
+    <string name="input_scroll_vertical">Scorri verticalmente</string>
+    <string name="input_mouse_left">Tasto sinistro del mouse</string>
+    <string name="input_mouse_right">Tasto destro del mouse</string>
+    <string name="input_mouse_middle">Tasto centrale del mouse</string>
+    <string name="input_command_menu">Apri il menu DroidDeck</string>
+    <string name="input_command_keyboard">Mostra tastiera</string>
+    <string name="input_command_steam">Apri il menu Steam</string>
+    <string name="input_command_qam">Apri l\'accesso rapido di Steam</string>
+    <string name="input_remove_element">Rimuovi controllo</string>
+    <string name="input_add_element">Aggiungi controllo</string>
+    <string name="input_extra_keys">Tasti specifici del dispositivo</string>
+    <string name="input_capture">Assegna un tasto fisico</string>
+    <string name="input_capture_confirm">Rilascia il tasto, poi scegli Modifica, Riprova o Annulla. B o Indietro annulla dopo il rilascio.</string>
+    <string name="input_capture_retry">Riprova</string>
+    <string name="input_capture_hint">Premi un tasto, incluso un tasto Indietro segnalato come tasto di tastiera. I tasti volume e di sistema Android sono riservati. L\'assegnazione vale solo per questo dispositivo.</string>
+    <string name="input_remove_binding">Rimuovi assegnazione</string>
+    <string name="input_latency">Diagnostica input</string>
+    <string name="input_measure">Registra il tempo di invio dell\'input</string>
+    <string name="input_read_timing">Leggi le misurazioni</string>
+    <string name="input_latency_hint">Misura l\'invio di Android fino alla pubblicazione nel trasporto di input esistente. Esclude l\'arrivo Bluetooth, il polling dell\'ospite, il rendering e la latenza dello schermo. La registrazione è disattivata per impostazione predefinita.</string>
+    <string name="input_normal_binding">Usa l\'assegnazione di input normale</string>
+</resources>

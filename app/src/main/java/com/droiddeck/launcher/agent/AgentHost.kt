@@ -30,11 +30,13 @@ object AgentHost {
         data class Asked(val text: String, val files: List<String> = emptyList()) : Entry
         data class Said(val text: String) : Entry
         data class Thought(val text: String) : Entry
-        /** A tool call; [output] stays null until its result arrives. */
-        /** [background]: the call starts work that can wake the CLI after its turn (run_in_background, Monitor). */
+        /**
+         * A tool call; [output] stays null until its result arrives. [parent] is the subagent call it was made under, if any.
+         * [background]: the call starts work that can wake the CLI after its turn (run_in_background, Monitor).
+         */
         data class Used(
-            val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null,
-            val failed: Boolean = false, val background: Boolean = false,
+            val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false,
+            val parent: String = "", val background: Boolean = false,
         ) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
         /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
@@ -76,7 +78,9 @@ object AgentHost {
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
         "The restart ends this process, and this conversation continues on the new build. " +
         "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments. " +
-        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note."
+        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note. " +
+        "To have the user pick between options, end your reply with a fenced code block whose language is choices, one short option per line, " +
+        "and end your turn: DroidDeck shows them as buttons and sends the one picked as the next message."
 
     val entries = mutableStateListOf<Entry>()
     val queue = mutableStateListOf<Queued>()
@@ -158,6 +162,7 @@ object AgentHost {
 
     fun seen() {
         unseen = false
+        appContext?.let { AgentNotice.clear(it) }
     }
 
     fun refresh(context: Context) {
@@ -547,7 +552,19 @@ object AgentHost {
         if (!stopped && queue.isNotEmpty()) {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)
+        } else if (!stopped) notifyEnded(app, error)
+    }
+
+    private fun notifyEnded(app: Context, error: String?) {
+        val start = entries.indexOfLast { it is Entry.Asked }
+        val said = entries.subList(start + 1, entries.size).lastOrNull { it is Entry.Said } as? Entry.Said
+        val reply = said?.let { choices(it.text) }
+        val kind = when {
+            error != null -> AgentNotice.Kind.FAILED
+            !reply?.options.isNullOrEmpty() -> AgentNotice.Kind.QUESTION
+            else -> AgentNotice.Kind.DONE
         }
+        AgentNotice.post(app, kind, error ?: reply?.text?.takeIf { it.isNotBlank() }?.let { firstLine(it) } ?: "")
     }
 
     /** A message typed or retried by the user replaces the automatic resend. */
@@ -587,7 +604,7 @@ object AgentHost {
     }
 
     /** The latest todo list the agent wrote in this conversation. */
-    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" }?.let { (it as Entry.Used).input }
+    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" && it.parent.isEmpty() }?.let { (it as Entry.Used).input }
 
     private fun tick() {
         now = SystemClock.elapsedRealtime()
@@ -732,4 +749,35 @@ object AgentHost {
     private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
+}
+
+/** A reply split into its text and the options of a trailing choices block. */
+internal data class Choices(val text: String, val options: List<String>)
+
+private val FENCE = Regex("""[ \t]{0,3}(`{3,}|~{3,})(.*)""")
+
+/** Walks Markdown fences so a choices block counts only at the top level and only as the last thing in the reply. */
+internal fun choices(reply: String): Choices {
+    val lines = reply.split('\n')
+    var open = ""
+    var opener = -1
+    var openChoices = false
+    var block: IntRange? = null
+    lines.forEachIndexed { i, line ->
+        val fence = FENCE.matchEntire(line)
+        if (open.isEmpty()) {
+            if (fence != null) {
+                open = fence.groupValues[1]
+                opener = i
+                openChoices = fence.groupValues[2].trim() == "choices"
+                block = null
+            } else if (line.isNotBlank()) block = null
+        } else if (fence != null && fence.groupValues[1][0] == open[0] && fence.groupValues[1].length >= open.length && fence.groupValues[2].isBlank()) {
+            block = if (openChoices) opener..i else null
+            open = ""
+        }
+    }
+    val found = block?.takeIf { open.isEmpty() } ?: return Choices(reply, emptyList())
+    val options = lines.subList(found.first + 1, found.last).map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
+    return Choices(lines.subList(0, found.first).joinToString("\n").trimEnd(), options)
 }

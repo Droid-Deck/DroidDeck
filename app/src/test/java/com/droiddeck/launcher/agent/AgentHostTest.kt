@@ -32,6 +32,22 @@ class AgentHostTest {
         assertEquals(105L, event.context)
     }
 
+    @Test fun aSubagentShowsOnlyItsToolCallsUnderItsParent() {
+        val event = ClaudeCode.parse(
+            """{"type":"assistant","session_id":"abc","parent_tool_use_id":"task1","message":{"content":[
+                {"type":"text","text":"I will look."},
+                {"type":"tool_use","id":"t2","name":"Grep","input":{"pattern":"crash"}}],"usage":{"input_tokens":10,"output_tokens":5}}}""",
+        )!!
+        assertEquals(listOf(Entry.Used("t2", "Grep", "crash", "{\n  \"pattern\": \"crash\"\n}", parent = "task1")), event.entries)
+        assertNull(event.context)
+        assertNull(ClaudeCode.parse("""{"type":"stream_event","parent_tool_use_id":"task1","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"x"}}}"""))
+    }
+
+    @Test fun aParentlessMessageReadsTheNullAsNoParent() {
+        val event = ClaudeCode.parse("""{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"text","text":"hi"}]}}""")!!
+        assertEquals(listOf(Entry.Said("hi")), event.entries)
+    }
+
     @Test fun claudeStreamsTextAsItIsWritten() {
         val event = ClaudeCode.parse("""{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}}""")!!
         assertEquals("Hel", event.text)

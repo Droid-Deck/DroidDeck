@@ -123,8 +123,11 @@ object ClaudeCode : AgentHarness {
     override fun parse(line: String): AgentEvent? {
         val o = runCatching { JSONObject(line) }.getOrNull() ?: return null
         val conversation = o.optString("session_id").takeIf { it.isNotEmpty() }
+        // A subagent's messages carry the call that started it; only its tool calls are shown, under that call.
+        val parent = o.optString("parent_tool_use_id").takeIf { it.isNotEmpty() && it != "null" }
         return when (o.optString("type")) {
             "stream_event" -> {
+                if (parent != null) return null
                 val delta = o.optJSONObject("event")?.takeIf { it.optString("type") == "content_block_delta" }?.optJSONObject("delta") ?: return null
                 when (delta.optString("type")) {
                     "text_delta" -> AgentEvent(conversation, text = delta.optString("text"))
@@ -138,12 +141,13 @@ object ClaudeCode : AgentHarness {
                 val entries = (0 until content.length()).mapNotNull { i ->
                     val block = content.optJSONObject(i) ?: return@mapNotNull null
                     when (block.optString("type")) {
-                        "text" -> block.optString("text").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Said(it) }
-                        "thinking" -> block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
+                        "text" -> if (parent != null) null else block.optString("text").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Said(it) }
+                        "thinking" -> if (parent != null) null else block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
                         "tool_use" -> {
                             val input = block.optJSONObject("input")
                             AgentHost.Entry.Used(
                                 block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input),
+                                parent = parent.orEmpty(),
                                 background = input?.optBoolean("run_in_background") == true || block.optString("name") == "Monitor",
                             )
                         }
@@ -152,7 +156,7 @@ object ClaudeCode : AgentHarness {
                 }
                 val usage = message?.optJSONObject("usage")
                 val context = usage?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") + it.optLong("output_tokens") }
-                AgentEvent(conversation, entries, context = context?.takeIf { it > 0 })
+                AgentEvent(conversation, entries, context = context?.takeIf { it > 0 && parent == null })
             }
             "user" -> {
                 val content = o.optJSONObject("message")?.optJSONArray("content") ?: return conversation?.let { AgentEvent(it) }
