@@ -33,6 +33,83 @@ class SupergiantDotnetReporterTest(unittest.TestCase):
         self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
 
 
+class DeathStrandingAllocatorTest(unittest.TestCase):
+    def make_exe(self, name="ds.exe", size=None, window=None, tail=None):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, name)
+        with open(path, "wb") as game:
+            game.truncate(MODULE["DS_SIZE"] if size is None else size)
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            game.write(b"<" + (MODULE["DS_WINDOW"] if window is None else window) + (MODULE["DS_ORIGINAL"] if tail is None else tail) + b">")
+        return path
+
+    def read_tail(self, path):
+        with open(path, "rb") as game:
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            return game.read(len(MODULE["DS_WINDOW"]) + len(MODULE["DS_ORIGINAL"]) + 2)
+
+    def run_fix(self, path):
+        errors = io.StringIO()
+        with mock.patch("sys.stderr", errors):
+            return MODULE["death_stranding_allocator"](path), errors.getvalue()
+
+    def test_window_and_patch_have_the_measured_shape(self):
+        self.assertEqual(41, len(MODULE["DS_WINDOW"]))
+        self.assertEqual(6, len(MODULE["DS_ORIGINAL"]))
+        self.assertEqual(6, len(MODULE["DS_FIXED"]))
+        self.assertEqual(0x38FE1B9, MODULE["DS_WINDOW_OFFSET"] + len(MODULE["DS_WINDOW"]))
+
+    def test_replaces_only_the_jump_in_the_original_build(self):
+        path = self.make_exe()
+        patched, message = self.run_fix(path)
+        self.assertTrue(patched)
+        self.assertIn("Death Stranding", message)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+        self.assertEqual(MODULE["DS_SIZE"], os.path.getsize(path))
+
+    def test_an_already_patched_game_is_left_alone(self):
+        path = self.make_exe(tail=MODULE["DS_FIXED"])
+        before = os.stat(path).st_mtime_ns
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, os.stat(path).st_mtime_ns)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+
+    def test_a_second_run_changes_nothing(self):
+        path = self.make_exe()
+        self.assertTrue(self.run_fix(path)[0])
+        after_first = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(after_first, self.read_tail(path))
+
+    def test_other_builds_of_the_game_are_not_touched(self):
+        for size, window in ((MODULE["DS_SIZE"] + 1, None), (None, bytes(len(MODULE["DS_WINDOW"])))):
+            path = self.make_exe(size=size, window=window)
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_an_unknown_instruction_at_the_patch_site_is_not_touched(self):
+        path = self.make_exe(tail=bytes.fromhex("0f85a6000000"))
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_other_executables_are_ignored(self):
+        path = self.make_exe(name="game.exe")
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_the_file_name_check_ignores_case(self):
+        self.assertTrue(self.run_fix(self.make_exe(name="DS.EXE"))[0])
+
+    def test_a_missing_game_file_is_reported_without_raising(self):
+        patched, message = self.run_fix(os.path.join(tempfile.gettempdir(), "droiddeck-no-such-folder", "ds.exe"))
+        self.assertFalse(patched)
+        self.assertIn("not applied", message)
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))
