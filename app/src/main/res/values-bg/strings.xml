@@ -4104,4 +4104,5 @@
     <string name="hud_metric_hdr">Състояние на HDR</string>
     <string name="hud_readings_shown">Показани</string>
     <string name="hud_readings_count">%1$d от %2$d</string>
+    <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
 </resources>
