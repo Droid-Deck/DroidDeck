@@ -13,6 +13,9 @@ internal fun FrameGenMenu(
     host: MenuHost, mode: FrameGen.Mode, lossless: Lossless.State,
     onPick: (FrameGen.Mode) -> Unit,
     onImportLossless: () -> Unit,
+    gameProfileId: String? = null,
+    hasGameOverride: Boolean = false,
+    onResetGame: () -> Unit = {},
 ) {
     val context = LocalContext.current
     AnchoredMenu(host.open == "fg", onDismiss = { if (host.open == "fg") host.open = null }, title = stringResource(R.string.frame_gen_title)) { firstItemFocus ->
@@ -27,6 +30,12 @@ internal fun FrameGenMenu(
                 onPick(m); host.open = null
             }
         item(FrameGen.Mode.OFF, focus = firstItemFocus)
+        if (gameProfileId != null) {
+            MenuItem(stringResource(R.string.comp_game_use_general), checked = !hasGameOverride) {
+                onResetGame()
+                host.open = null
+            }
+        }
         for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_DDFG, m))
         val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
             FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }

@@ -1,6 +1,6 @@
 
 #include "lsfg_probe.h"
-#include "../VulkanRendererContext.h"
+#include "../VkDispatchTable.h"
 
 #include <cstdio>
 #include <cstring>
