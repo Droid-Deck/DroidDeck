@@ -4186,4 +4186,7 @@
     <string name="hud_readings_shown">Zobrazeno</string>
     <string name="hud_readings_count">%1$d z %2$d</string>
     <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
+
+    <string name="display_integer_scaling">Celočíselné škálování</string>
+    <string name="display_integer_scaling_hint">Použije největší celočíselný násobek měřítka, který se vejde. Pokud je zdroj příliš velký, přizpůsobí celý obraz, aby nedošlo k oříznutí. Rozlišení se nastavuje samostatně.</string>
 </resources>

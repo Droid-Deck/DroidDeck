@@ -4186,4 +4186,7 @@
     <string name="hud_readings_shown">Показано</string>
     <string name="hud_readings_count">%1$d из %2$d</string>
     <string name="exit_hint_back">Нажмите «Назад» ещё раз, чтобы выйти</string>
+
+    <string name="display_integer_scaling">Целочисленное масштабирование</string>
+    <string name="display_integer_scaling_hint">Использует наибольший целочисленный коэффициент масштабирования, который помещается. Если исходное изображение слишком велико, оно уменьшается целиком, чтобы избежать обрезки. Разрешение настраивается отдельно.</string>
 </resources>
