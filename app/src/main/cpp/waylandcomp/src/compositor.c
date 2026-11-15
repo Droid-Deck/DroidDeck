@@ -302,6 +302,13 @@ static int g_fallback_armed;
 volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
+volatile int g_bfi;
+static int g_bfi_running;
+static unsigned g_bfi_phase;
+static const char *g_bfi_blocked;
+static int g_scene_layer_only;
+static struct { unsigned lit, dark, failed; } g_bfi_stats;
+
 volatile int g_hide_shell;
 
 volatile int g_zero_copy;
@@ -2267,6 +2274,9 @@ static void render_scene(void) {
     if (hdr_route == 3) { fx_on = 0; framegen = 0; }
     struct surface *ahb_only = ahb_layer_only_candidate(w, h);
     struct surface *layer_only = ahb_only ? ahb_only : hdr_unimported_fullscreen(&dl, w, h);
+    g_scene_layer_only = hdr_route == 3 || layer_only;
+    const int bfi = g_bfi_running && !g_scene_layer_only;
+    if (bfi && hdr_route == 1) hdr_route = 2;
     const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl, w);
     static int cursor_layer_said;
     if (layer_only && atomic_load(&g_cursor_composite) && !cursor_layer_said) {
@@ -2317,19 +2327,21 @@ static void render_scene(void) {
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
+    int li = (g_zero_copy && !framegen && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
     const int ov_blocks = (li >= 0 && over > 0 && !fx_blocks && !sc_layer_overlay_affordable());
     if (ov_blocks) { li = -1; over = 0; }
-    const int blocked = framegen ? 1 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
+    const int blocked = framegen ? 1 : bfi ? 4 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
     if (g_zero_copy && !cursor_on && blocked != g_zero_copy_paused) {
         g_zero_copy_paused = blocked;
         if (blocked == 1)
             droiddeck_log("framegen", "zero-copy paused: frame generation needs the compositor pass");
         else if (blocked == 2)
             droiddeck_log("effects", "zero-copy paused: a window above the game needs the compositor pass for the whole scene");
+        else if (blocked == 4)
+            droiddeck_log("bfi", "zero-copy paused: black frame insertion needs the compositor pass");
         else if (blocked == 3)
             droiddeck_log("layer", "zero-copy paused: a window above the game would need a second display layer, "
                                 "which this display cannot compose in hardware - whole scene on the copy path");
@@ -2340,6 +2352,7 @@ static void render_scene(void) {
     if (li < 0) ls = layer_only;
     if (cardboard) ls = NULL;
     if (cursor_on) ls = NULL;
+    if (bfi) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
         g_zero_copy_fx_skip_said = 1;
         droiddeck_log(framegen ? "framegen" : "effects",
@@ -2381,6 +2394,7 @@ static void render_scene(void) {
                  : fx_blocks ? "a window is above it and screen effects need the whole scene"
                  : !g_zero_copy ? "zero-copy presentation is off"
                  : framegen ? "frame generation needs the compositor pass"
+                 : bfi ? "black frame insertion needs the compositor pass"
                  : "it is not the one fullscreen window (only that one gets its own display layer)";
     }
     }
@@ -2423,7 +2437,8 @@ static int on_fallback_timer(void *data) {
 }
 
 static int commit_renders_on(void) {
-    return g_render_on_commit && g_release_unpaced && !atomic_load(&g_stream_on) && !vkp_framegen_active();
+    return g_render_on_commit && g_release_unpaced && !atomic_load(&g_stream_on) && !vkp_framegen_active() &&
+           !g_bfi_running;
 }
 
 static int render_on_commit(void) {
@@ -2459,6 +2474,49 @@ static void on_commit_idle(void *data) {
     render_scene();
 }
 
+/* Black frame insertion strobes on the display's refresh tick and paces the game to the lit refresh,
+ * the design of BFI Presenter by artzox (https://github.com/artzox/BFI-Presenter, GPL-3.0), after Blur Busters'
+ * research on MPRT and motion blur (https://blurbusters.com). No BFI Presenter code is used. */
+#define BFI_MAX_REFRESH_NS 10500000LL
+
+static const char *bfi_blocked(void) {
+    if (atomic_load(&g_stream_on)) return "the picture is being streamed";
+    if (vkp_framegen_active()) return "frame generation is on";
+    if (vkp_cardboard_active()) return "Cardboard VR is on";
+    if (vkp_quest_layer_presentation()) return "this headset composes its own layers";
+    if (g_scene_layer_only) return "the game's frames cannot be imported, so it is shown on its own display layer";
+    if (g_refresh_ns > BFI_MAX_REFRESH_NS) return "the screen runs below 100 Hz";
+    return NULL;
+}
+
+static void bfi_update(void) {
+    const char *why = g_bfi ? bfi_blocked() : NULL;
+    const int run = g_bfi && !why;
+    if (g_bfi && why && why != g_bfi_blocked)
+        droiddeck_log("bfi", "black frame insertion waits: %s", why);
+    g_bfi_blocked = why;
+    if (run == g_bfi_running) return;
+    g_bfi_running = run;
+    g_bfi_phase = 0;
+    g_dirty = 1;
+    if (run)
+        droiddeck_log("bfi", "black frame insertion on: %.0f Hz screen, a black refresh after every picture, "
+                   "the game is paced to %.0f fps", 1e9 / (double)g_refresh_ns, 0.5e9 / (double)g_refresh_ns);
+    else
+        droiddeck_log("bfi", "black frame insertion off");
+}
+
+static void bfi_tick(void) {
+    if ((g_bfi_phase++ & 1) == 0) {
+        g_bfi_stats.lit++;
+        render_scene();
+    } else if (vkp_render_plain(g_scene_w, g_scene_h) == 0) {
+        g_bfi_stats.dark++;
+    } else {
+        g_bfi_stats.failed++;
+    }
+}
+
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
     g_perf.ticks++;
@@ -2480,6 +2538,12 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_effects_sync()) tick_change = 1;
     if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
+    bfi_update();
+    if (g_bfi_running) {
+        g_tick_held = 0;
+        bfi_tick();
+        return;
+    }
     if (g_tick_held && g_dirty) g_hold_missed_ns = now;
     g_tick_held = 0;
     if (!tick_change && commit_renders_on() && g_dirty_since_ns && now - g_dirty_since_ns < g_refresh_ns &&
@@ -3791,6 +3855,11 @@ static int on_stats_timer(void *data) {
                    g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
                    g_pace.renders, g_pace.commit_renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
                    g_pace.presented, g_pace.replaced, g_pace.undrawn);
+    }
+    if (g_bfi_stats.lit || g_bfi_stats.dark || g_bfi_stats.failed) {
+        droiddeck_log("bfi", "last 10 s: %u pictures, %u black refreshes, %u black refreshes not presented",
+                   g_bfi_stats.lit, g_bfi_stats.dark, g_bfi_stats.failed);
+        memset(&g_bfi_stats, 0, sizeof(g_bfi_stats));
     }
     {
         const uint64_t seen = g_game_frames;

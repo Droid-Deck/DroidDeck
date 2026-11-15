@@ -649,6 +649,8 @@
     <string name="drawer_page_display">Scherm</string>
     <string name="drawer_frame_limit">Framelimiet</string>
     <string name="drawer_frame_limit_note">Begrenst deze game. Het scherm schakelt over naar een vernieuwingsfrequentie die precies deelbaar is door de limiet, als die er is; andere limieten kunnen ongelijkmatig ogen. Steam-games gebruiken de framelimiet van Steam in het Snelmenu.</string>
+    <string name="drawer_bfi">Zwarte frames invoegen</string>
+    <string name="drawer_bfi_note">Scherpere beweging: na elk frame volgt een zwarte verversing. Vereist 100 Hz of meer; de game draait op de helft van de verversingssnelheid en oogt donkerder. Uit zolang framegeneratie aanstaat.</string>
     <string name="drawer_page_effects">Effecten</string>
     <string name="drawer_page_controls">Bediening</string>
     <string name="drawer_page_components">Componenten</string>

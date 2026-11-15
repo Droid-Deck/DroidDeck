@@ -653,6 +653,8 @@
     <string name="drawer_page_display">Екран</string>
     <string name="drawer_frame_limit">Обмеження кадрів</string>
     <string name="drawer_frame_limit_note">Обмежує цю гру. Екран перемикається на частоту оновлення, яка ділиться на обмеження без залишку, якщо така є; інші обмеження можуть виглядати нерівно. Ігри Steam використовують обмеження кадрів Steam у меню швидкого доступу.</string>
+    <string name="drawer_bfi">Вставлення чорних кадрів</string>
+    <string name="drawer_bfi_note">Чіткіший рух: після кожного кадру йде чорне оновлення. Потрібно 100 Гц або більше; гра працює на половині частоти оновлення й виглядає темнішою. Вимкнено під час генерації кадрів.</string>
     <string name="drawer_page_effects">Ефекти</string>
     <string name="drawer_page_controls">Керування</string>
     <string name="drawer_page_components">Компоненти</string>

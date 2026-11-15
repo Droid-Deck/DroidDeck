@@ -456,6 +456,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
+    private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
@@ -1372,6 +1373,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 fpsLimit = fps
                 applyOutputPacing()
             },
+            blackFrameInsertion = blackFrameInsertion,
+            blackFrameInsertionAvailable = blackFrameInsertionAvailable(),
+            onBlackFrameInsertion = { on ->
+                SessionPrefs.setBlackFrameInsertion(this@SessionActivity, on)
+                blackFrameInsertion = on
+                CompositorHost.setBlackFrameInsertion(on, refreshHz(), outputFpsLimit())
+            },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
@@ -2060,6 +2068,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
+        blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
@@ -2504,6 +2513,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
+    }
+
+    private fun blackFrameInsertionAvailable(): Boolean {
+        val display = if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+        val peak = display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f
+        return minOf(peak, PerfMode.peakRefreshCap(this)) >= PerfMode.BFI_MIN_REFRESH_HZ
     }
 
     private fun mirrorRefreshLimit(): Int =

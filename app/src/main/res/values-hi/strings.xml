@@ -649,6 +649,8 @@
     <string name="drawer_page_display">डिस्प्ले</string>
     <string name="drawer_frame_limit">फ़्रेम सीमा</string>
     <string name="drawer_frame_limit_note">इस गेम को सीमित करता है। अगर डिस्प्ले में ऐसा रिफ़्रेश रेट है जिसे सीमा बराबर भाग देती है, तो वह उस पर चला जाता है; दूसरी सीमाएं असमान लग सकती हैं। Steam गेम, Quick Access मेनू में Steam की Frame Limit इस्तेमाल करते हैं।</string>
+    <string name="drawer_bfi">ब्लैक फ़्रेम इंसर्शन</string>
+    <string name="drawer_bfi_note">ज़्यादा साफ़ मोशन: हर फ़्रेम के बाद एक काला रिफ़्रेश आता है। 100 Hz या ज़्यादा चाहिए; गेम आधे रिफ़्रेश रेट पर चलता है और गहरा दिखता है। फ़्रेम जनरेशन चालू होने पर बंद रहता है।</string>
     <string name="drawer_page_effects">इफ़ेक्ट</string>
     <string name="drawer_page_controls">कंट्रोल</string>
     <string name="drawer_page_components">कॉम्पोनेंट</string>

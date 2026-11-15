@@ -651,6 +651,8 @@
     <string name="drawer_page_display">Ecrã</string>
     <string name="drawer_frame_limit">Limite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este jogo. O ecrã muda para uma taxa de atualização que o limite divida de forma exata, quando existe; outros limites podem parecer irregulares. Os jogos Steam utilizam o Limite de fotogramas do Steam no Menu de acesso rápido.</string>
+    <string name="drawer_bfi">Inserção de fotogramas pretos</string>
+    <string name="drawer_bfi_note">Movimento mais nítido: cada fotograma é seguido de uma atualização preta. Requer 100 Hz ou mais; o jogo corre a metade da taxa de atualização e fica mais escuro. Desligado com a geração de fotogramas.</string>
     <string name="drawer_page_effects">Efeitos</string>
     <string name="drawer_page_controls">Controlos</string>
     <string name="drawer_page_components">Componentes</string>

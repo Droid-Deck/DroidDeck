@@ -657,6 +657,8 @@
     <string name="drawer_page_display">العرض</string>
     <string name="drawer_frame_limit">حد الإطارات</string>
     <string name="drawer_frame_limit_note">يحدّ هذه اللعبة. تنتقل الشاشة إلى معدل تحديث يقبل القسمة على الحد إن وُجد، وقد تبدو الحدود الأخرى غير منتظمة. تستخدم ألعاب Steam حد الإطارات في Steam ضمن قائمة الوصول السريع.</string>
+    <string name="drawer_bfi">إدراج إطار أسود</string>
+    <string name="drawer_bfi_note">حركة أوضح: يتبع كل إطار تحديث أسود. يتطلب 100 هرتز أو أكثر؛ تعمل اللعبة بنصف معدل التحديث وتبدو أغمق. يتوقف أثناء تشغيل توليد الإطارات.</string>
     <string name="drawer_page_effects">المؤثرات</string>
     <string name="drawer_page_controls">عناصر التحكم</string>
     <string name="drawer_page_components">المكوّنات</string>

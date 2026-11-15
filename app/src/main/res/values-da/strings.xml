@@ -649,6 +649,8 @@
     <string name="drawer_page_display">Skærm</string>
     <string name="drawer_frame_limit">Billedgrænse</string>
     <string name="drawer_frame_limit_note">Begrænser dette spil. Skærmen skifter til en opdateringshastighed, som grænsen går lige op i, når den har en; andre grænser kan virke ujævne. Steam-spil bruger Steams Frame Limit i Hurtig adgang-menuen.</string>
+    <string name="drawer_bfi">Indsættelse af sorte billeder</string>
+    <string name="drawer_bfi_note">Skarpere bevægelse: hvert billede efterfølges af en sort opdatering. Kræver 100 Hz eller mere; spillet kører ved halv opdateringshastighed og ser mørkere ud. Slået fra under billedgenerering.</string>
     <string name="drawer_page_effects">Effekter</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>

@@ -647,6 +647,8 @@
     <string name="drawer_page_display">Paparan</string>
     <string name="drawer_frame_limit">Had bingkai</string>
     <string name="drawer_frame_limit_note">Mengehadkan permainan ini. Paparan bertukar kepada kadar segar semula yang boleh dibahagi sama rata dengan had jika ada; had lain mungkin kelihatan tidak sekata. Permainan Steam menggunakan Frame Limit Steam dalam menu Akses Pantas.</string>
+    <string name="drawer_bfi">Sisipan bingkai hitam</string>
+    <string name="drawer_bfi_note">Gerakan lebih tajam: setiap bingkai diikuti segar semula hitam. Perlu 100 Hz atau lebih; permainan berjalan pada separuh kadar segar semula dan kelihatan lebih gelap. Dimatikan semasa penjanaan bingkai.</string>
     <string name="drawer_page_effects">Kesan</string>
     <string name="drawer_page_controls">Kawalan</string>
     <string name="drawer_page_components">Komponen</string>
