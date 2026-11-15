@@ -618,7 +618,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {
-                                    androidx.compose.material3.TextButton(
+                                    PadTextButton(
                                         onClick = { a.onIntegerScaling(!a.integerScaling) }
                                     ) {
                                         Text(stringResource(
