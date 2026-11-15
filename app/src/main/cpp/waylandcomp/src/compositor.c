@@ -2276,7 +2276,8 @@ static void render_scene(void) {
     struct surface *layer_only = ahb_only ? ahb_only : hdr_unimported_fullscreen(&dl, w, h);
     g_scene_layer_only = hdr_route == 3 || layer_only;
     const int bfi = g_bfi_running && !g_scene_layer_only;
-    if (bfi && hdr_route == 1) hdr_route = 2;
+    /* The compositor pass BFI needs is route 2; a fullscreen HDR scene on route 0 would lose its HDR there too. */
+    if (bfi && (hdr_route == 1 || (hdr_route == 0 && hs.n_hdr > 0))) hdr_route = 2;
     const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl, w);
     static int cursor_layer_said;
     if (layer_only && atomic_load(&g_cursor_composite) && !cursor_layer_said) {
@@ -2502,8 +2503,11 @@ static void bfi_update(void) {
     if (run)
         droiddeck_log("bfi", "black frame insertion on: %.0f Hz screen, a black refresh after every picture, "
                    "the game is paced to %.0f fps", 1e9 / (double)g_refresh_ns, 0.5e9 / (double)g_refresh_ns);
-    else
+    else {
+        /* Lit refreshes advanced the frame deadline without being held to it; a stale one would stall rendering. */
+        g_scene_due_ns = 0;
         droiddeck_log("bfi", "black frame insertion off");
+    }
 }
 
 static void bfi_tick(void) {
