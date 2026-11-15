@@ -52,6 +52,9 @@ percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
 kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
 2.6 seconds, so the request has to leave room for both.
 
+Performance > Compress idle game memory turns this off (`BL_ZRAM_IDLE=0`); launcher compression
+and the RAM cap are unaffected.
+
 The session request runs when real headroom falls below a quarter of RAM (bounded to
 768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
