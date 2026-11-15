@@ -4642,9 +4642,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
                 outputHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
             } else {
-                val out = SessionState.outputSize
-                outputWidth = out.first.takeIf { it > 0 } ?: return null
-                outputHeight = out.second.takeIf { it > 0 } ?: return null
+                outputWidth = width.takeIf { it > 0 } ?: return null
+                outputHeight = height.takeIf { it > 0 } ?: return null
             }
 
             val nativeSize = IntArray(2)
