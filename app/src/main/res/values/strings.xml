@@ -37,14 +37,34 @@
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
+        <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
+        <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
+        <item>Steam games use Steam\'s Frame Limit in Quick Access. The display switches to a refresh rate the cap divides evenly when it has one.</item>
+        <item>Low latency mode in the session menu sends controller input at 1000 Hz instead of 250 Hz, for a bit more CPU and battery.</item>
+        <item>Each game has its own profile with Proton, FEX, components and environment settings.</item>
+        <item>The session menu has a microphone toggle for voice chat and a Suspend now button to freeze the session on demand.</item>
+        <item>Drag the DroidDeck HUD to move it, pinch to resize it, and push it off an edge to dock it as a small FPS tab.</item>
+        <item>On dual-screen handhelds, the bottom screen can show downloads, notifications, screenshots and Steam chat. Swap screens puts the game down there instead.</item>
+        <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
+        <item>Stores lets you sign in to Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io and Game Jolt, then install and update their games from DroidDeck.</item>
+        <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and Proton Experimental ARM64 is the default, or Proton 11.0 ARM64 once that build is installed.</item>
+        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
+        <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
+        <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game\'s components.</item>
+        <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
+        <item>Setup, then Storage, can clear shader caches and leftover prefixes from games you removed.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>First run sets up the desktop. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses the session; it picks up where it left off when you come back.</item>
         <item>Touch works as a touchpad: drag to move the pointer, tap to click.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Background behavior decides what happens when you leave the app: Manual waits for Resume by default, Auto pauses, Never keeps it running.</item>
+        <item>Swipe in from the right edge to open the session menu, then pick PC keyboard to type in apps that ignore the Android keyboard.</item>
+        <item>The PC keyboard in the session menu has adjustable size, opacity and key groups.</item>
+        <item>Your controller shows up as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>The session menu has a microphone toggle and a Suspend now button to freeze the session on demand.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
@@ -636,6 +656,8 @@
     <string name="perf_cap_off">Off</string>
     <string name="perf_cap_auto">Driver default</string>
     <string name="perf_zram_client">Compress Steam while a game runs</string>
+    <string name="perf_zram_idle">Compress idle game memory</string>
+    <string name="perf_zram_idle_hint">Pages out idle game memory when RAM is low. Turn this off if games freeze for a few seconds about every half minute. Applies the next time the session starts.</string>
     <string name="perf_zram_client_hint">Compresses Steam while a game runs, starting sooner when memory is tight. Steam is read back after the game closes once enough RAM is available. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
     <string name="perf_ram_cap">RAM cap</string>
     <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
@@ -1999,6 +2021,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Clear</string>
     <string name="game_sync_err_runtime">Install the runtime first</string>
     <string name="game_sync_err_steam_library">Steam library is unavailable</string>
     <string name="game_sync_err_previous_sd">Previous SD library is unavailable</string>
@@ -4010,9 +4033,9 @@
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
+    <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
+    <string name="integration_shortcuts_install_failed_with">System keys didn\'t install: %1$s</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
-    <string name="integration_shortcuts_service">DroidDeck system keys</string>
-    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
     <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>

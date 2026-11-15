@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">Nie udało się automatycznie uruchomić ponownie DroidDeck. Całkowicie zamknij aplikację, a potem otwórz ją ponownie.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Przy pierwszym uruchomieniu pobierany jest Steam. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje Steam; po powrocie wznowi on działanie tam, gdzie przerwał.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
+        <item>Pierwsze uruchomienie pobiera Steam. Może to potrwać kilka minut.</item>
+        <item>Twój kontroler jest widoczny dla Steam jako kontroler Steam Deck. W ustawieniach sesji przełącz go na Steam Controller, DualShock 4, DualSense lub pad Xbox 360; zmiana działa od następnej sesji.</item>
+        <item>Przytrzymaj Wstecz na kontrolerze, aby otworzyć menu Szybki dostęp Steam. Opcja Przytrzymaj Wstecz dla skrótów Steam musi być włączona w ustawieniach sesji.</item>
+        <item>Działanie w tle decyduje, co się dzieje po wyjściu z aplikacji: Natywnie przygotowuje Steam do uśpienia, Auto wstrzymuje go, Ręcznie czeka na Wznów, Nigdy pozostawia go uruchomionego.</item>
+        <item>Gry Steam używają Limitu klatek Steam w menu Szybki dostęp. Ekran przełącza się na częstotliwość odświeżania, przez którą limit dzieli się równo, jeśli taka istnieje.</item>
+        <item>Tryb niskiego opóźnienia w menu sesji wysyła dane z kontrolera z częstotliwością 1000 Hz zamiast 250 Hz, kosztem nieco większego zużycia CPU i baterii.</item>
+        <item>Każda gra ma własny profil z Proton, FEX, komponentami i ustawieniami środowiska.</item>
+        <item>Menu sesji ma przełącznik mikrofonu do czatu głosowego i przycisk Wstrzymaj teraz, który zamraża sesję na żądanie.</item>
+        <item>Przeciągnij HUD DroidDeck, aby go przesunąć, ściągnij palce, aby zmienić rozmiar, i przesuń go za krawędź, aby zadokować go jako małą kartę FPS.</item>
+        <item>Na konsolach z dwoma ekranami dolny ekran może pokazywać pobieranie, powiadomienia, zrzuty ekranu i czat Steam. Opcja Zamień ekrany przenosi tam grę.</item>
+        <item>Dodaj biblioteki Steam z karty SD, dysku USB lub SSD, a DroidDeck zbierze gry razem w Twojej Bibliotece.</item>
+        <item>Sklepy pozwalają zalogować się do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io i Game Jolt, a następnie instalować i aktualizować ich gry z poziomu DroidDeck.</item>
+        <item>Komponenty takie jak FEX, DXVK i VKD3D-Proton aktualizują się same, a domyślny jest Proton Experimental ARM64 albo Proton 11.0 ARM64, gdy ta wersja jest zainstalowana.</item>
+        <item>Kompresuj Steam podczas gry zwalnia pamięć RAM na urządzeniach, którym jej brakuje.</item>
+        <item>Przesuń palcem od prawej krawędzi, aby otworzyć menu sesji: tryb touchpada, Klawiatura PC, Tryb niskiego opóźnienia, profil gry i więcej.</item>
+        <item>Gra działa wolno? Ogranicz liczbę klatek w menu Szybki dostęp, a potem wypróbuj inną wersję Proton lub inny preset FEX w komponentach gry.</item>
+        <item>Trzaski lub brak dźwięku w grze? Wypróbuj przełącznik DirectAudio dla gier w ustawieniach Steam w sekcji Dźwięk.</item>
+        <item>Konfiguracja, a potem Pamięć, może wyczyścić pamięci podręczne shaderów i pozostałe prefiksy po usuniętych grach.</item>
+        <item>Znalazłeś błąd? Udostępnij logi w menu sesji tworzy pakiet diagnostyczny. Opublikuj go w #bug-reports na Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Przy pierwszym uruchomieniu konfigurowany jest pulpit. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje sesję; po powrocie wznowi się ona tam, gdzie została przerwana.</item>
-        <item>Ekran działa jak touchpad: przeciągnij, aby przesunąć kursor, dotknij, aby kliknąć.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
+        <item>Pierwsze uruchomienie konfiguruje pulpit. Może to potrwać kilka minut.</item>
+        <item>Dotyk działa jak touchpad: przeciągnij, aby przesunąć wskaźnik, stuknij, aby kliknąć.</item>
+        <item>Działanie w tle decyduje, co się dzieje po wyjściu z aplikacji: Ręcznie domyślnie czeka na Wznów, Auto wstrzymuje, Nigdy pozostawia uruchomione.</item>
+        <item>Przesuń palcem od prawej krawędzi, aby otworzyć menu sesji, a następnie wybierz Klawiatura PC, aby pisać w aplikacjach ignorujących klawiaturę Androida.</item>
+        <item>Klawiatura PC w menu sesji ma regulowany rozmiar, przezroczystość i grupy klawiszy.</item>
+        <item>Twój kontroler jest widoczny jako pad Xbox 360. W przeciwnym razie użyj sterowania ekranowego.</item>
+        <item>Menu sesji ma przełącznik mikrofonu i przycisk Wstrzymaj teraz, który zamraża sesję na żądanie.</item>
+        <item>Znalazłeś błąd? Udostępnij logi w menu sesji tworzy pakiet diagnostyczny. Opublikuj go w #bug-reports na Discord.</item>
     </string-array>
     <string name="session_channel">Sesja</string>
     <string name="session_channel_description">Widoczne, gdy otwarta jest sesja Steam lub pulpitu</string>
@@ -612,6 +632,8 @@
     <string name="perf_cap_off">Wyłączony</string>
     <string name="perf_cap_auto">Domyślny sterownika</string>
     <string name="perf_zram_client">Kompresuj Steam podczas gry</string>
+    <string name="perf_zram_idle">Kompresuj nieużywaną pamięć gry</string>
+    <string name="perf_zram_idle_hint">Kompresuje nieużywaną pamięć gry przy małej ilości RAM. Wyłącz, jeśli gry zawieszają się na kilka sekund mniej więcej co pół minuty. Działa od następnego uruchomienia sesji.</string>
     <string name="perf_zram_client_hint">20 s po starcie gry klient Steam jest kompresowany do zRAM, aby zostawić grze więcej pamięci, i wczytywany z powrotem po zamknięciu gry. Wyłącz, jeśli sesja zamyka się wkrótce po starcie gier. Powyższy limit RAM nadal kompresuje Steam, gdy sesja go przekroczy.</string>
     <string name="perf_ram_cap">Limit RAM</string>
     <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
@@ -1876,6 +1898,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Wyczyść</string>
     <string name="game_sync_err_runtime">Najpierw zainstaluj środowisko</string>
     <string name="game_sync_err_steam_library">Biblioteka Steam jest niedostępna</string>
     <string name="game_sync_err_previous_sd">Poprzednia biblioteka na karcie SD jest niedostępna</string>
@@ -3919,8 +3942,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, klawisz Win i przycisk Home pozostają w sesji</string>
     <string name="integration_shortcuts_maybe_restricted">Wyszarzone w Androidzie? Informacje o aplikacji → ⋮ → Zezwól na ustawienia z ograniczeniami</string>
     <string name="integration_shortcuts_restricted">Zablokowane przez Androida · Informacje o aplikacji → ⋮ → Zezwól na ustawienia z ograniczeniami</string>
-    <string name="integration_shortcuts_service">Klawisze systemowe DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Zatrzymuje Alt+Tab, klawisz Win i przycisk Home w aktywnej sesji DroidDeck zamiast w Androidzie.</string>
     <string name="integration_brightness_needed">Włącz Jasność w Konfiguracja → Integracja ze Steam</string>
     <string name="setup_gpu_bridge_off">Most Mali: wył.</string>
     <string name="setup_gpu_bridge_unusable">%1$s nie może używać mostku Mali (wymaga GPU Mali bez ścieżki sterownika systemowego), więc ten przełącznik nic tu nie zmienia.</string>
