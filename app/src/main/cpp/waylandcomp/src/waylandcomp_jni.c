@@ -347,6 +347,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKey(
     droiddeck_wayland_send_key(evdev, state);
 }
 
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKeyOrdered(
+        JNIEnv *env, jclass clazz, jint evdev, jint state) {
+    droiddeck_host_key(evdev, state);
+}
+
 JNIEXPORT jboolean JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFocusTakesTouch(
         JNIEnv *env, jclass clazz) {

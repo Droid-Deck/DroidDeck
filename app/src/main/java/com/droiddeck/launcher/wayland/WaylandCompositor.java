@@ -194,6 +194,9 @@ public final class WaylandCompositor {
 
     public static native void nativeSendKey(int evdev, int state);
 
+    // Ordered delivery: key events share the host queue with text commits so keys cannot overtake pending text.
+    public static native void nativeSendKeyOrdered(int evdev, int state);
+
     public static native boolean nativeFocusTakesTouch();
 
     public static native boolean nativeCursorInputPos(int[] out);

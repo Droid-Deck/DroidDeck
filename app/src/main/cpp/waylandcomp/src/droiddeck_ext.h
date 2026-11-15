@@ -27,6 +27,7 @@ void droiddeck_host_text_preedit(const char *utf8, int len, int cursor_begin, in
 void droiddeck_host_text_delete(int before, int after);
 void droiddeck_host_zero_copy(int on, int live);
 void droiddeck_host_hdr_output(int on);
+void droiddeck_host_key(int evdev, int state);
 
 void clipboard_init(struct wl_display *display);
 void clipboard_host_text(char *utf8, size_t len);
