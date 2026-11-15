@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">बाहर निकलने के लिए फिर से बैक दबाएँ</string>
 
     <string name="display_integer_scaling">पूर्णांक स्केलिंग</string>
-    <string name="display_integer_scaling_hint">फिट होने वाले सबसे बड़े पूर्णांक स्केल का उपयोग करता है। स्रोत बहुत बड़ा होने पर काटने से बचाने के लिए पूरी छवि को फिट करता है। रिज़ॉल्यूशन अलग से सेट किया जाता है।</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">पूर्णांक</string>
     <string name="display_scaling_fit">फ़िट</string>
 </resources>

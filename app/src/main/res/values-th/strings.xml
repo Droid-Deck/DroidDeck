@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
 
     <string name="display_integer_scaling">การปรับขนาดจำนวนเต็ม</string>
-    <string name="display_integer_scaling_hint">ใช้ตัวคูณการปรับขนาดจำนวนเต็มที่ใหญ่ที่สุดที่พอดี หากภาพต้นฉบับใหญ่เกินไป จะปรับภาพทั้งหมดให้พอดีเพื่อหลีกเลี่ยงการตัดภาพ โดยตั้งค่าความละเอียดแยกต่างหาก</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">จำนวนเต็ม</string>
     <string name="display_scaling_fit">พอดีหน้าจอ</string>
 </resources>

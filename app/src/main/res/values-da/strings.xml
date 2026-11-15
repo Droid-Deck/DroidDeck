@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
 
     <string name="display_integer_scaling">Heltalsskalering</string>
-    <string name="display_integer_scaling_hint">Bruger den største hele skaleringsfaktor, der kan være der. Hvis kilden er for stor, tilpasses hele billedet for at undgå beskæring. Opløsningen indstilles separat.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Tilpas</string>
 </resources>

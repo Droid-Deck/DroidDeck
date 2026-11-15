@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
 
     <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
-    <string name="display_integer_scaling_hint">Sığan en büyük tam sayı ölçekleme katsayısını kullanır. Kaynak çok büyükse kırpmayı önlemek için görüntünün tamamını sığdırır. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
 </resources>

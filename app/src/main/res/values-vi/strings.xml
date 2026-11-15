@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">Nhấn lại để thoát</string>
 
     <string name="display_integer_scaling">Tỷ lệ nguyên</string>
-    <string name="display_integer_scaling_hint">Sử dụng hệ số tỷ lệ nguyên lớn nhất có thể vừa màn hình. Nếu nguồn quá lớn, toàn bộ hình ảnh sẽ được thu vừa để tránh bị cắt. Độ phân giải được thiết lập riêng.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Số nguyên</string>
     <string name="display_scaling_fit">Vừa màn hình</string>
 </resources>

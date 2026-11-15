@@ -4148,7 +4148,7 @@
     <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
 
     <string name="display_integer_scaling">Mise à l’échelle entière</string>
-    <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier possible. Si la source est trop grande, l’image entière est ajustée pour éviter le recadrage. La résolution se règle séparément.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Entier</string>
     <string name="display_scaling_fit">Ajuster</string>
 </resources>

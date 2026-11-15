@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Druk nog één keer op terug om af te sluiten</string>
 
     <string name="display_integer_scaling">Gehele-getallenschaal</string>
-    <string name="display_integer_scaling_hint">Gebruikt de grootste gehele schaalfactor die past. Als de bron te groot is, wordt de volledige afbeelding passend gemaakt om bijsnijden te voorkomen. De resolutie wordt apart ingesteld.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
 </resources>

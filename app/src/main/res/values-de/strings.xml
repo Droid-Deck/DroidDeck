@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Noch einmal zurück drücken zum Beenden</string>
 
     <string name="display_integer_scaling">Ganzzahlige Skalierung</string>
-    <string name="display_integer_scaling_hint">Verwendet den größten ganzzahligen Skalierungsfaktor, der passt. Ist die Quelle zu groß, wird das gesamte Bild eingepasst, um Beschneidung zu vermeiden. Die Auflösung wird separat eingestellt.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
 </resources>

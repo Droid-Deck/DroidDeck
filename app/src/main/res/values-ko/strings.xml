@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">한 번 더 뒤로를 누르면 종료됩니다</string>
 
     <string name="display_integer_scaling">정수 배율 조정</string>
-    <string name="display_integer_scaling_hint">화면에 맞는 가장 큰 정수 배율을 사용합니다. 원본이 너무 크면 잘림을 방지하기 위해 전체 이미지를 맞춥니다. 해상도는 별도로 설정합니다.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">정수</string>
     <string name="display_scaling_fit">화면에 맞춤</string>
 </resources>

@@ -4189,7 +4189,7 @@
     <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
 
     <string name="display_integer_scaling">Skalowanie całkowite</string>
-    <string name="display_integer_scaling_hint">Używa największego całkowitego współczynnika skalowania, który się mieści. Jeśli źródło jest zbyt duże, dopasowuje cały obraz, aby uniknąć przycinania. Rozdzielczość ustawia się osobno.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
 </resources>

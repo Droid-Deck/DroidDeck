@@ -4189,7 +4189,7 @@
     <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
 
     <string name="display_integer_scaling">Celočíselné škálování</string>
-    <string name="display_integer_scaling_hint">Použije největší celočíselný násobek měřítka, který se vejde. Pokud je zdroj příliš velký, přizpůsobí celý obraz, aby nedošlo k oříznutí. Rozlišení se nastavuje samostatně.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Celé číslo</string>
     <string name="display_scaling_fit">Přizpůsobit</string>
 </resources>

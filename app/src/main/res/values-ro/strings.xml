@@ -4149,7 +4149,7 @@
     <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
 
     <string name="display_integer_scaling">Scalare cu numere întregi</string>
-    <string name="display_integer_scaling_hint">Folosește cel mai mare factor întreg de scalare care încape. Dacă sursa este prea mare, adaptează întreaga imagine pentru a evita decuparea. Rezoluția se configurează separat.</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May allow slight cropping at the screen edges to use a larger integer scale. Resolution is configured separately.</string>
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
 </resources>
