@@ -286,7 +286,6 @@ data class InputLibrary(
             require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
             require(preset.holds.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) && it.hasHold } == true && action.validForTap() })
             require(preset.doubles.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) && it.hasHold } == true && action.validForTap() })
-            require(preset.holds.keys.intersect(preset.doubles.keys).isEmpty())
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 (!it.repeat || it.part == null) &&
                 (it.part == null || (it.action !is InputAction.Native && it.action.validForTap())) &&
