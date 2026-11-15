@@ -715,11 +715,11 @@ class GameEnvironmentTest(unittest.TestCase):
             config.parent.mkdir(parents=True)
             config.write_text(json.dumps({"version": 1, "shared": {"PROTON_USE_ARM64": "1"},
                                           "games": {"42": {"PROTON_USE_ARM64": "0"}}}))
-            seen_components, seen_repair, seen_start = [], [], []
+            seen_components, seen_repair, seen_start, seen_mark = [], [], [], []
             globals = MODULE["main"].__globals__
             stubs = {
                 "game_gpu": lambda env: env,
-                "mark_install_scripts": lambda command, env: [],
+                "mark_install_scripts": lambda command, env: seen_mark.append(env.copy()) or [],
                 "install_scripts_done": lambda scripts, env: False,
                 "scripts_digest": lambda scripts: None,
                 "win_components": lambda *args: seen_components.append(args[3]) or "",
@@ -755,6 +755,15 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_mark])
+            seen_mark.clear()
+            seen_start.clear()
+            command[1] = "run"
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                    patch.dict(globals, stubs):
+                self.assertEqual(MODULE["main"](), 7)
+            self.assertEqual(["1"], [env["PROTON_USE_ARM64"] for env in seen_mark])
+            self.assertEqual(["1"], [env["PROTON_USE_ARM64"] for env in seen_start])
 
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch

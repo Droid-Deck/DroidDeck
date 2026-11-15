@@ -1300,7 +1300,7 @@ def main():
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
-    scripts = mark_install_scripts(command, env)
+    scripts = mark_install_scripts(command, effective_env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
