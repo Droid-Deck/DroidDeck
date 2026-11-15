@@ -197,6 +197,18 @@ class WinComponentsTest(unittest.TestCase):
         self.apply(proton)
         self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
 
+    def test_owned_x64_importer_with_a_rejected_new_source_does_not_keep_its_dependency(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+        (self.store / "d3dx9/system32/d3dx9_43.dll").write_bytes(pe_image_importing(0x14C))
+        self.apply(proton)
+        self.assertFalse((self.pfx / "system32/d3dx9_43.dll").exists())
+        self.assertFalse((self.pfx / "system32/d3dcompiler_43.dll").exists())
+
     def test_held_component_files_still_count_as_x64_importers(self):
         proton = self.proton()
         self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})

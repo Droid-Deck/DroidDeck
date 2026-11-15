@@ -507,8 +507,7 @@ def component_guests(compat, proton, machines, planned, owned):
     for rel, src in planned:
         if top_dll(rel) and (plain_x64(src) or machine_compatible(src, machines["system32"][1])):
             final[rel.lower()] = (rel, src)
-    planned_rels = {rel.lower() for rel, src in planned}
-    removed = {rel.lower(): rel for rel in owned if rel.lower() not in planned_rels and top_dll(rel)}
+    removed = {rel.lower(): rel for rel in owned if rel.lower() not in final and top_dll(rel)}
     names = {Path(rel).name for rel, src in final.values() if plain_x64(src)}
     replaced = {key for key, (rel, src) in final.items() if not plain_x64(src)}
     try:
