@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.gpu.FrameGen
 
 data class ProfileValue(val value: String, val inherited: Boolean)
 
@@ -17,6 +18,8 @@ data class SelectedGameProfile(
     val environmentOverrides: Int,
     val windowsComponentNames: List<String>,
     val startWithoutSteam: Boolean = false,
+    val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
+    val frameGenInherited: Boolean = true,
 ) {
     val hasOverrides: Boolean
         get() = !fexPreset.inherited ||
@@ -24,7 +27,8 @@ data class SelectedGameProfile(
             components.values.any { !it.inherited } ||
             environmentOverrides > 0 ||
             windowsComponentNames.isNotEmpty() ||
-            startWithoutSteam
+            startWithoutSteam ||
+            !frameGenInherited
 
     companion object {
         fun resolve(
@@ -38,6 +42,8 @@ data class SelectedGameProfile(
             gameProtonId: String?,
             gameComponents: Map<String, String>,
             gameWindowsComponents: List<String>,
+            frameGenMode: FrameGen.Mode = FrameGen.Mode.OFF,
+            frameGenInherited: Boolean = true,
         ): SelectedGameProfile? {
             val game = games.firstOrNull { it.profileKey == selectedAppId.toString() } ?: return null
             val fexOverride = GameEnvironment.gameFexPreset(environment, game.profileKey)
@@ -53,7 +59,7 @@ data class SelectedGameProfile(
                 )
             }
             val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys -
-                GameEnvironment.NO_STEAM
+                GameEnvironment.NO_STEAM - GameEnvironment.GAME_RESOLUTION
             return SelectedGameProfile(
                 appId = selectedAppId,
                 name = game.name,
@@ -68,6 +74,8 @@ data class SelectedGameProfile(
                 environmentOverrides = otherEnvironment.size,
                 windowsComponentNames = gameWindowsComponents.map(WinComponentNames::of),
                 startWithoutSteam = GameEnvironment.gameNoSteam(environment, game.profileKey),
+                frameGen = frameGenMode,
+                frameGenInherited = frameGenInherited,
             )
         }
     }

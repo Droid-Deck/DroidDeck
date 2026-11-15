@@ -6,6 +6,7 @@ import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -33,7 +34,7 @@ class SessionMenuHost(
                 isFocusable = true
                 isFocusableInTouchMode = true
                 defaultFocusHighlightEnabled = false
-                setContent { content() }
+                setContent { CompositionLocalProvider(LocalPresentationWindow provides true, content = content) }
                 frame.addView(this, FrameLayout.LayoutParams(-1, -1))
                 requestFocus()
             }

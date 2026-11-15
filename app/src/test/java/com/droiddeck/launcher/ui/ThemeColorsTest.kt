@@ -168,4 +168,24 @@ class ThemeColorsTest {
         Themes.setRgbSpeed(app, 1)
         assertTrue(Themes.rgbCycleMillis(1) > Themes.rgbCycleMillis(10))
     }
+
+    @Test fun trueBlackKeepsThePageAndPanelsBlackWhateverTheHighlight() {
+        for (highlight in listOf(0xFF1A9FFF, 0xFFFF0000, 0xFF00FF66, 0xFFFFFFFF, 0xFF000000, 0xFF00008B, 0xFFFFE600)) {
+            val p = ThemeColors.trueBlack(highlight.toInt())
+            assertEquals(Color.Black, p.background)
+            assertEquals(Color.Black, p.surface)
+            assertTrue("button text on $highlight", contrast(p.onPrimary, p.primary) >= 4.5f)
+            assertTrue("highlight $highlight shows on black", contrast(p.primary, Color.Black) >= 3f)
+        }
+    }
+
+    @Test fun trueBlackFollowsTheSavedHighlightAndComesBackAfterARestart() {
+        assertEquals(Themes.TRUE_BLACK, Themes.byId(Themes.TRUE_BLACK).id)
+        Themes.setTrueBlackHighlight(app, 0xFFFF8800.toInt())
+        assertEquals(Color(0xFFFF8800), Themes.byId(Themes.TRUE_BLACK).primary)
+        Themes.setTrueBlackHighlight(app, Themes.DEFAULT_HIGHLIGHT)
+        SessionPrefs.setTrueBlackHighlight(app, 0xFFFF8800.toInt())
+        SessionPrefs.setTheme(app, Themes.TRUE_BLACK)
+        assertEquals(Color(0xFFFF8800), Themes.current(app).primary)
+    }
 }

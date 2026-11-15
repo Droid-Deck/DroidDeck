@@ -92,7 +92,7 @@ class SessionMenuScreenTest {
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
         }
-        val panel = BottomGameScreen(activity, display, callbacks, { true }, menu = {})
+        val panel = BottomGameScreen(activity, display, callbacks, { true }, { false }, menu = {})
         try {
             panel.show()
             val holder = panel.holder
