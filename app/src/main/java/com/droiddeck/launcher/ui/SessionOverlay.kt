@@ -603,9 +603,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     format = { if (it <= SessionPrefs.FPS_LIMIT_OFF) offLabel else it.toString() },
                                     modifier = focus.track(page, "fps-limit"),
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
-                                if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),
-                                    stringResource(R.string.drawer_bfi_note), a.blackFrameInsertion,
-                                    chipModifier = focus.track(page, "bfi"), onChange = a.onBlackFrameInsertion)
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
@@ -1084,6 +1081,9 @@ private fun ScreenEffectsGroup(
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
         ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+        if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),
+            stringResource(R.string.drawer_bfi_note), a.blackFrameInsertion,
+            chipModifier = track("bfi"), onChange = a.onBlackFrameInsertion)
     }
     val source = remember { MutableInteractionSource() }
     val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
