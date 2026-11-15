@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profily vstupu</string>
+    <string name="input_profiles">Profily</string>
+    <string name="input_physical">Fyzický ovladač</string>
+    <string name="input_primary">Hlavní obrazovka</string>
+    <string name="input_secondary">Vedlejší obrazovka</string>
+    <string name="input_native">Nativní / Steam Input</string>
+    <string name="input_native_target">Nativní: %1$s</string>
+    <string name="input_remap_native">Odeslat jiný povel ovladače</string>
+    <string name="input_disabled">Zakázáno</string>
+    <string name="input_keys">Klávesa nebo kombinace kláves</string>
+    <string name="input_direction_keys">Směrové klávesy</string>
+    <string name="input_pointer">Pohyb ukazatele</string>
+    <string name="input_pointer_speed">Rychlost ukazatele: %1$d</string>
+    <string name="input_scroll">Posun</string>
+    <string name="input_scroll_vertical">Posun svisle</string>
+    <string name="input_mouse_left">Levé tlačítko myši</string>
+    <string name="input_mouse_right">Pravé tlačítko myši</string>
+    <string name="input_mouse_middle">Prostřední tlačítko myši</string>
+    <string name="input_command_menu">Otevřít nabídku DroidDeck</string>
+    <string name="input_command_keyboard">Zobrazit klávesnici</string>
+    <string name="input_command_steam">Otevřít nabídku Steam</string>
+    <string name="input_command_qam">Otevřít rychlý přístup Steam</string>
+    <string name="input_remove_element">Odebrat prvek</string>
+    <string name="input_add_element">Přidat prvek</string>
+    <string name="input_extra_keys">Tlačítka specifická pro zařízení</string>
+    <string name="input_capture">Přiřadit fyzické tlačítko</string>
+    <string name="input_capture_confirm">Uvolněte tlačítko a zvolte Upravit, Znovu nebo Zrušit. B nebo Zpět zruší po uvolnění.</string>
+    <string name="input_capture_retry">Znovu</string>
+    <string name="input_capture_hint">Stiskněte tlačítko, včetně tlačítka Zpět hlášeného jako klávesa. Klávesy hlasitosti a systémové klávesy Androidu jsou vyhrazené. Přiřazení platí jen pro toto zařízení.</string>
+    <string name="input_remove_binding">Odebrat přiřazení</string>
+    <string name="input_latency">Diagnostika vstupu</string>
+    <string name="input_measure">Zaznamenávat dobu odeslání vstupu</string>
+    <string name="input_read_timing">Přečíst měření</string>
+    <string name="input_latency_hint">Měří cestu od odeslání v Androidu po publikaci ve stávajícím vstupním přenosu. Nezahrnuje příchod přes Bluetooth, dotazování hosta, vykreslování ani zpoždění displeje. Záznam je ve výchozím nastavení vypnutý.</string>
+    <string name="input_normal_binding">Použít běžné přiřazení vstupu</string>
+</resources>

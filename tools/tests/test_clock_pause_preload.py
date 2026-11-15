@@ -1,12 +1,26 @@
 import os
 from pathlib import Path
+import queue
+import re
+import shlex
 import shutil
 import struct
 import subprocess
 import tempfile
+import threading
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
+
+
+def clock_reset_command(control):
+    script = (PRELOAD.parent / "overlay/usr/local/bin/droiddeck-session").read_text()
+    start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
+    end = script.index("\nfi", start) + len("\nfi")
+    paths = {"/tmp/.bl-clock": shlex.quote(str(control)),
+             "/tmp/.bl-zram": shlex.quote(str(control.parent / "zram"))}
+    pattern = "|".join(re.escape(token) for token in paths)
+    return 'BL_INSIDE=; BL_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -14,6 +28,7 @@ PROGRAM = r"""
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <sys/syscall.h>
 #include <sys/timerfd.h>
@@ -36,12 +51,26 @@ static int64_t start;
 static void begin(void) { start = ns(CLOCK_BOOTTIME); }
 static void end(const char *name) { printf("%s %lld\n", name, (long long)((ns(CLOCK_BOOTTIME) - start) / 1000000LL)); }
 
+static unsigned long long memory_probe(void) {
+  static volatile unsigned char memory[4 * 1024 * 1024];
+  unsigned long long checksum = 0;
+  for (size_t i = 0; i < sizeof(memory); i += 4096) memory[i] = (unsigned char)(i / 4096 + 1);
+  for (size_t i = 0; i < sizeof(memory); i += 4096) checksum += memory[i];
+  return checksum;
+}
+
 int main(void) {
   const int64_t wait = 60000000LL;
   printf("gap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ns(CLOCK_MONOTONIC)) / 1000000LL));
   struct timespec raw;
   syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &raw);
   printf("rawgap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ((int64_t)raw.tv_sec * 1000000000LL + raw.tv_nsec)) / 1000000LL));
+  printf("memory %llu\n", memory_probe());
+  if (getenv("CLOCK_PAUSE_WAIT")) { puts("ready"); fflush(stdout); getchar(); }
+  if (getenv("CLOCK_PAUSE_WAIT")) {
+    printf("livegap %lld\n", (long long)((ns(CLOCK_BOOTTIME) - ns(CLOCK_MONOTONIC)) / 1000000LL));
+    printf("livememory %llu\n", memory_probe());
+  }
 
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   pthread_condattr_t attr;
@@ -124,13 +153,123 @@ class ClockPausePreloadTest(unittest.TestCase):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
 
-    def test_other_programs_keep_the_real_clock(self):
+    def test_program_without_preload_keeps_the_real_clock(self):
         plain = self.run_program(self.other, 0, preload=False)
-        paused = self.run_program(self.other, SHIFT_MS)
+        paused = self.run_program(self.other, SHIFT_MS, preload=False)
         self.assertAlmostEqual(paused["gap"], plain["gap"], delta=50)
         for name in ("cond_mono", "clockwait", "sem", "nanosleep", "timerfd", "futex"):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
+
+    def test_every_session_program_stops_monotonic_clock_and_keeps_memory_access(self):
+        plain = self.run_program(self.other, 0)
+        paused = self.run_program(self.other, SHIFT_MS)
+        self.assertAlmostEqual(paused["gap"] - plain["gap"], SHIFT_MS, delta=50)
+        self.assertAlmostEqual(paused["rawgap"] - plain["rawgap"], SHIFT_MS, delta=50)
+        self.assertEqual(plain["memory"], 130560)
+        self.assertEqual(paused["memory"], 130560)
+
+    def test_running_session_program_observes_pause_offset_update(self):
+        self.check_running_offset_update(False)
+
+    def test_session_reset_preserves_live_guest_mapping(self):
+        self.check_running_offset_update(True)
+
+    def check_running_offset_update(self, reset):
+        self.control.write_bytes(struct.pack("<q", 0))
+        env = dict(os.environ)
+        env["LD_PRELOAD"] = str(self.preload)
+        env["CLOCK_PAUSE_WAIT"] = "1"
+        with tempfile.TemporaryFile(mode="w+") as errors:
+            process = subprocess.Popen([str(self.other)], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=errors, text=True)
+            lines = queue.Queue()
+
+            def read_handshake():
+                for _ in range(4):
+                    line = process.stdout.readline()
+                    lines.put(line)
+                    if not line:
+                        break
+
+            threading.Thread(target=read_handshake, daemon=True).start()
+            try:
+                handshake = []
+                for _ in range(4):
+                    try:
+                        line = lines.get(timeout=5)
+                    except queue.Empty:
+                        line = ""
+                    if not line:
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=5)
+                        errors.seek(0)
+                        self.fail(f"child handshake timed out or ended early (exit {process.returncode}): {errors.read()}")
+                    handshake.append(line.strip())
+                self.assertEqual(handshake[3], "ready")
+                self.assertTrue(handshake[0].startswith("gap "))
+                initial_gap = int(handshake[0].split()[1])
+                rawgap = handshake[1]
+                memory = handshake[2]
+                self.assertTrue(rawgap.startswith("rawgap "))
+                self.assertEqual(memory, "memory 130560")
+                if reset:
+                    inode = self.control.stat().st_ino
+                    subprocess.run(["bash", "-c", clock_reset_command(self.control)],
+                                   check=True, timeout=5)
+                    self.assertEqual(self.control.stat().st_ino, inode)
+                    self.assertEqual(self.control.read_bytes(), struct.pack("<q", 0))
+                with self.control.open("r+b") as control:
+                    control.write(struct.pack("<q", SHIFT_MS * 1000000))
+                    control.flush()
+                process.stdin.write("\n")
+                process.stdin.flush()
+                output, _ = process.communicate(timeout=5)
+                errors.seek(0)
+                self.assertEqual(process.returncode, 0, errors.read())
+                values = dict(line.split() for line in output.splitlines())
+                self.assertAlmostEqual(int(values["livegap"]) - initial_gap, SHIFT_MS, delta=50)
+                self.assertEqual(int(values["livememory"]), 130560)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
+
+
+class ClockResetCommandTest(unittest.TestCase):
+    def test_reset_keeps_paths_with_spaces_and_shell_syntax_as_single_arguments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "session dir; touch injected $(touch substituted) 'quoted'"
+            folder.mkdir()
+            control = folder / "clock"
+            control.write_bytes(struct.pack("<q", 10_000_000_000) + b"tail")
+            (folder / "zram").write_text("1")
+            bystander = root / "session"
+            bystander.write_text("keep")
+            inode = control.stat().st_ino
+            subprocess.run(["bash", "-c", clock_reset_command(control)], cwd=root, check=True, timeout=5)
+            self.assertEqual(control.stat().st_ino, inode)
+            self.assertEqual(control.read_bytes(), struct.pack("<q", 0) + b"tail")
+            self.assertFalse((folder / "zram").exists())
+            self.assertEqual(bystander.read_text(), "keep")
+            self.assertEqual(sorted(path.name for path in root.iterdir()), sorted([folder.name, bystander.name]))
+
+    def test_reset_does_not_rewrite_placeholders_inside_substituted_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "tmp/.bl-zram/$(touch injected)"
+            folder.mkdir(parents=True)
+            control = folder / "clock"
+            control.write_bytes(struct.pack("<q", 10_000_000_000))
+            (folder / "zram").write_text("1")
+            inode = control.stat().st_ino
+            subprocess.run(["bash", "-c", clock_reset_command(control)], cwd=root, check=True, timeout=5)
+            self.assertEqual(control.stat().st_ino, inode)
+            self.assertEqual(control.read_bytes(), struct.pack("<q", 0))
+            self.assertFalse((folder / "zram").exists())
+            self.assertEqual([path.name for path in root.iterdir()], ["tmp"])
 
 
 if __name__ == "__main__":
