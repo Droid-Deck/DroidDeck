@@ -13,8 +13,7 @@ from what tripped agents up on real devices.
 - `droiddeckctl stop`, `start steam` and `resume` end or restart only the session. You keep
   running, so restart it yourself when a change needs a new session.
 - The session shares your filesystem. Steam is in `/root/.local/share/Steam` (its logs in
-  `logs/`), and the session's live logs are in
-  `/data/user/0/com.droiddeck.launcher/files/logs/<session id>/` (the id is in `state`).
+  `logs/`), and the session's live logs are in the folder `state` gives as `session.logDir`.
   `logs latest` makes a redacted, partial copy: read the live folder yourself. X properties,
   gamescope and the session's processes are only reachable through `guest`.
 

@@ -4,11 +4,10 @@ description: Find why a game crashed, hung or ran badly in DroidDeck, from sessi
 ---
 
 1. `droiddeckctl state`: `session.phase`, `session.failure`, `session.focus.focusedApp` (769 is
-   Steam's own UI) and `session.id`.
-2. Read the session's live log folder directly; it is on your filesystem:
-   `/data/user/0/com.droiddeck.launcher/files/logs/<session id>/`. `ls -t` there finds earlier
-   sessions; the crash may be in the one before a restart. `logs latest` makes a redacted, partial
-   copy with renamed files: use it only to hand logs to someone.
+   Steam's own UI) and `session.logDir`.
+2. Read that log folder directly; it is on your filesystem. Earlier sessions are its siblings:
+   `ls -t "$(dirname <logDir>)"`; the crash may be in the one before a restart. `logs latest`
+   makes a redacted, partial copy with renamed files: use it only to hand logs to someone.
    - `games/<time>-<id>-<appid>/`, one folder per launch: `launch.txt` (exe, Proton, environment)
      and `steam-<appid>.log` (Proton and Wine).
    - `session.log` (the session script, `== ` lines), `wayland.log` (compositor), `app.log`,

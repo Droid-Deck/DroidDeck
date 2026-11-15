@@ -279,7 +279,8 @@ object AgentSetup {
 
     /** Replaces [target], or the symlink at it, with [input]. */
     internal fun replaceFile(input: java.io.InputStream, target: File, executable: Boolean = true) {
-        val staged = File(target.parentFile, ".${target.name}.part")
+        // A unique name, since an agent turn and a setup step can install at the same time.
+        val staged = File.createTempFile(".${target.name}.", ".part", target.parentFile)
         staged.outputStream().use { input.copyTo(it) }
         if (executable) staged.setExecutable(true, false)
         if (!staged.renameTo(target)) {
