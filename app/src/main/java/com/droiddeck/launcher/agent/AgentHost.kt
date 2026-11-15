@@ -29,13 +29,24 @@ object AgentHost {
         data class Asked(val text: String, val files: List<String> = emptyList()) : Entry
         data class Said(val text: String) : Entry
         data class Thought(val text: String) : Entry
-        /** A tool call; [output] stays null until its result arrives. */
-        data class Used(val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false) : Entry
+        /** A tool call; [output] stays null until its result arrives. [parent] is the subagent call it was made under, if any. */
+        data class Used(
+            val id: String, val tool: String, val detail: String, val input: String = "", val output: String? = null, val failed: Boolean = false,
+            val parent: String = "",
+        ) : Entry
         data class Result(val id: String, val output: String, val failed: Boolean) : Entry
-        data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null) : Entry
+        /** [planned]: the turn ran in plan mode, so it ends on a plan that nothing has carried out yet. */
+        data class Finished(val error: String?, val stopped: Boolean = false, val usage: Usage? = null, val planned: Boolean = false) : Entry
     }
 
-    data class Usage(val durationMs: Long, val costUsd: Double, val inputTokens: Long, val outputTokens: Long)
+    /** [context] of [window] tokens is what the conversation held when the turn ended. */
+    data class Usage(
+        val durationMs: Long, val costUsd: Double, val inputTokens: Long, val outputTokens: Long,
+        val context: Long = 0, val window: Long = 0,
+    )
+
+    /** A plan usage limit over a rolling window of [minutes]; [resetsAt] is in epoch seconds. */
+    data class Limit(val minutes: Int, val usedPercent: Int, val resetsAt: Long)
 
     /** A message typed while the agent was working, sent when the turn ends. */
     data class Queued(val text: String, val files: List<String>)
@@ -44,6 +55,7 @@ object AgentHost {
 
     private const val TAG = "AgentHost"
     private const val WORKSPACE = "/root/DroidDeck"
+    internal const val GUEST_PATH = "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     private const val TICK_MS = 1_000L
     private const val IDLE_TICK_MS = 5_000L
 
@@ -62,7 +74,9 @@ object AgentHost {
         "Run it with run_in_background and keep checking its output, so the user can talk to you meanwhile. " +
         "The restart ends this process, and this conversation continues on the new build. " +
         "Files the user attaches are listed at the end of their message, under /root/.cache/droiddeck/attachments. " +
-        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note."
+        "Commits and pull requests you make are the user's own: add no co-author line, AI credit or generated-by note. " +
+        "To have the user pick between options, end your reply with a fenced code block whose language is choices, one short option per line, " +
+        "and end your turn: DroidDeck shows them as buttons and sends the one picked as the next message."
 
     val entries = mutableStateListOf<Entry>()
     val queue = mutableStateListOf<Queued>()
@@ -77,6 +91,9 @@ object AgentHost {
         private set
     /** The chosen model for [harness]; null is the CLI's default. */
     var model by mutableStateOf<String?>(null)
+        private set
+    /** The chosen reasoning effort for [harness]; null is the CLI's default. */
+    var effort by mutableStateOf<String?>(null)
         private set
     var plan by mutableStateOf(false)
         private set
@@ -100,6 +117,12 @@ object AgentHost {
     /** Tokens in the conversation's context after its last step. */
     var context by mutableLongStateOf(0L)
         private set
+    /** Tokens the model's context can hold; 0 until a turn has told. */
+    var window by mutableLongStateOf(0L)
+        private set
+    /** The account's plan limits as [harness] last reported them. */
+    var limits by mutableStateOf<List<Limit>>(emptyList())
+        private set
     var lab by mutableStateOf<LabProgress?>(null)
         private set
 
@@ -116,6 +139,7 @@ object AgentHost {
     /** The running Lab build was asked for by the current turn, so stopping the turn stops it. */
     private var labFromTurn = false
     private var conversation: String? = null
+    private var turnPlanned = false
     private var loaded = false
     private var appContext: Context? = null
 
@@ -123,6 +147,7 @@ object AgentHost {
 
     fun seen() {
         unseen = false
+        appContext?.let { AgentNotice.clear(it) }
     }
 
     fun refresh(context: Context) {
@@ -131,7 +156,9 @@ object AgentHost {
         File(app.filesDir, "agent").mkdirs()
         harness = AgentHarness.byId(prefs(app).getString(HARNESS_KEY, null))
         model = prefs(app).getString(modelKey(harness), null)
+        effort = prefs(app).getString(effortKey(harness), null)?.takeIf { it in harness.efforts }
         plan = prefs(app).getBoolean(PLAN_KEY, false)
+        limits = decodeLimits(prefs(app).getString(limitsKey(harness), null))
         available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
         if (!installed) state = State.MISSING else if (state == State.MISSING) state = State.IDLE
@@ -154,7 +181,9 @@ object AgentHost {
         conversation = loaded.conversation
         entries.clear()
         entries.addAll(loaded.entries)
-        context = 0
+        val last = loaded.entries.lastOrNull { it is Entry.Finished && (it.usage?.context ?: 0) > 0 } as? Entry.Finished
+        context = last?.usage?.context ?: 0
+        window = last?.usage?.window ?: 0
     }
 
     /** Opens a kept conversation, switching to the CLI it belongs to. */
@@ -220,6 +249,11 @@ object AgentHost {
         prefs(context).edit().putString(modelKey(harness), id).apply()
     }
 
+    fun chooseEffort(context: Context, level: String?) {
+        effort = level
+        prefs(context).edit().putString(effortKey(harness), level).apply()
+    }
+
     fun choosePlan(context: Context, on: Boolean) {
         plan = on
         prefs(context).edit().putBoolean(PLAN_KEY, on).apply()
@@ -254,11 +288,15 @@ object AgentHost {
         AgentHostService.start(app)
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
-        val command = current.turn(prompt, conversation, AgentHarness.Options(model, plan && current.plans, BRIEF))
+        turnPlanned = plan && current.plans
+        val command = current.turn(prompt, conversation, AgentHarness.Options(model, turnPlanned, BRIEF, effort))
         val workdir = workspace(app)
+        var threadConversation = conversation
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
             runCatching { AgentSetup.installHelpers(app) }
+            // Without a session nothing else keeps the userland's resolver current.
+            runCatching { com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent(app, LinuxRuntime.rootDir(app)).publish() }
             val child = try {
                 guest(app, command, workdir).start()
             } catch (e: Exception) {
@@ -279,8 +317,12 @@ object AgentHost {
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { line ->
                     runCatching { raw?.apply { write(line); newLine(); flush() } }
-                    val event = current.parse(line) ?: return@forEachLine
-                    if (event.entries.any { it is Entry.Finished }) ended = true
+                    val parsed = current.parse(line) ?: return@forEachLine
+                    parsed.conversation?.let { threadConversation = it }
+                    val done = parsed.entries.any { it is Entry.Finished }
+                    if (done) ended = true
+                    val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
+                        ?.let { parsed.copy(context = it.context ?: parsed.context, window = it.window ?: parsed.window, limits = it.limits ?: parsed.limits) } ?: parsed
                     main.post { if (turn === started) apply(app, event) }
                 }
             }
@@ -314,6 +356,16 @@ object AgentHost {
         queue.remove(item)
     }
 
+    /** Sends [item] now: the running turn stops where it is, and the rest of the queue waits for the next one. */
+    fun sendNow(context: Context, item: Queued) {
+        val app = context.applicationContext
+        if (!queue.remove(item)) return
+        val rest = queue.toList()
+        stop(app)
+        queue.addAll(rest)
+        send(app, item.text, item.files)
+    }
+
     /** Starts a new conversation; the current one stays in the history. */
     fun forget(context: Context) {
         stop(context)
@@ -322,6 +374,7 @@ object AgentHost {
         chat = null
         conversation = null
         this.context = 0
+        window = 0
         prefs(context).edit().remove(CHAT_KEY).apply()
         state = if (installed) State.IDLE else State.MISSING
     }
@@ -331,11 +384,11 @@ object AgentHost {
      * proot over the installed rootfs, without a session. Loopback adb is connected first so
      * droiddeckctl reaches the app.
      */
-    fun guest(app: Context, command: List<String>, workdir: String = "/root", connectAdb: Boolean = true): ProcessBuilder {
+    fun guest(app: Context, command: List<String>, workdir: String = "/root", connectAdb: Boolean = true, fakeRoot: Boolean = false): ProcessBuilder {
         val adb = AgentAdb.prepare(app)
         val env = listOf(
-            "/usr/bin/env", "HOME=/root", "PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
-            "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}",
+            "/usr/bin/env", "HOME=/root", "PATH=$GUEST_PATH", "LANG=C.UTF-8",
+            "ADB_SERIAL=${adb.serial}", "ADB_VENDOR_KEYS=${adb.vendorKeys}", "DROIDDECK_PACKAGE=${app.packageName}",
             "DD_AGENT=1", "DD_AGENT_INBOX=${File(app.filesDir, "agent").path}", "BROWSER=/root/.local/bin/android-open", "DD_BROWSER_DISPLAY=${AgentAdb.browserDisplay}",
         )
         val shell = listOf(
@@ -344,7 +397,7 @@ object AgentHost {
             (if (connectAdb) "adb start-server >/dev/null 2>&1; adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " else "") +
                 "cd \"$1\" 2>/dev/null; shift; exec \"$@\"", "sh", workdir,
         )
-        val proot = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), env + shell + command)
+        val proot = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), null, env + shell + command, fakeRoot)
         return ProcessBuilder(proot).redirectErrorStream(true).apply {
             environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
@@ -371,6 +424,11 @@ object AgentHost {
         event.text?.let { live += it }
         event.thinking?.let { liveThinking += it }
         event.context?.let { context = it }
+        event.window?.let { window = it }
+        event.limits?.let { reported ->
+            limits = (limits.filter { old -> reported.none { it.minutes == old.minutes } } + reported).sortedBy { it.minutes }
+            prefs(app).edit().putString(limitsKey(harness), encodeLimits(limits)).apply()
+        }
         for (entry in event.entries) when (entry) {
             is Entry.Finished -> finish(app, entry.error, usage = event.usage)
             else -> {
@@ -388,7 +446,8 @@ object AgentHost {
         if (!stopped) labFromTurn = false
         live = ""
         liveThinking = ""
-        record(app, Entry.Finished(error, stopped, usage))
+        val held = if (context > 0) (usage ?: Usage(0, 0.0, 0, 0)).copy(context = context, window = window) else usage
+        record(app, Entry.Finished(error, stopped, held, planned = turnPlanned && !stopped && error == null))
         state = State.IDLE
         unseen = true
         failed = error != null
@@ -409,7 +468,19 @@ object AgentHost {
         if (!stopped && queue.isNotEmpty()) {
             val next = queue.removeAt(0)
             send(app, next.text, next.files)
+        } else if (!stopped) notifyEnded(app, error)
+    }
+
+    private fun notifyEnded(app: Context, error: String?) {
+        val start = entries.indexOfLast { it is Entry.Asked }
+        val said = entries.subList(start + 1, entries.size).lastOrNull { it is Entry.Said } as? Entry.Said
+        val reply = said?.let { choices(it.text) }
+        val kind = when {
+            error != null -> AgentNotice.Kind.FAILED
+            !reply?.options.isNullOrEmpty() -> AgentNotice.Kind.QUESTION
+            else -> AgentNotice.Kind.DONE
         }
+        AgentNotice.post(app, kind, error ?: reply?.text?.takeIf { it.isNotBlank() }?.let { firstLine(it) } ?: "")
     }
 
     /** A message typed or retried by the user replaces the automatic resend. */
@@ -448,13 +519,14 @@ object AgentHost {
     }
 
     /** The latest todo list the agent wrote in this conversation. */
-    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" }?.let { (it as Entry.Used).input }
+    fun todos(): String? = entries.lastOrNull { it is Entry.Used && it.tool == "TodoWrite" && it.parent.isEmpty() }?.let { (it as Entry.Used).input }
 
     private fun tick() {
         now = SystemClock.elapsedRealtime()
         appContext?.let { app ->
             claimLabRequest(app)
             claimOpenUrl(app)
+            claimDeviceCode(app)
             // proot comes from an add-on pack fetched after the app starts, so the runtime can become usable later.
             if (!available && state != State.WORKING) available = LinuxRuntime.hasRootfs(app)
             lab = LabProgress.read(LinuxRuntime.rootDir(app))
@@ -476,15 +548,43 @@ object AgentHost {
         val url = runCatching { claimed.readText().trim() }.getOrNull()
         claimed.delete()
         if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return
+        if (!openUrl(app, url)) runCatching { File(app.filesDir, "$OPEN_URL.failed").writeText("") }
+    }
+
+    /** dd-gh-login leaves "<code> <url>" here to float the code over the page, and an empty file when it ends. */
+    private fun claimDeviceCode(app: Context) {
+        val request = File(app.filesDir, DEVICE_CODE)
+        if (!request.isFile) return
+        val claimed = File(app.filesDir, "$DEVICE_CODE.claimed")
+        if (!request.renameTo(claimed)) return
+        val parts = runCatching { claimed.readText().trim() }.getOrDefault("").split(' ', limit = 2)
+        claimed.delete()
+        val code = parts[0]
+        val url = parts.getOrNull(1)?.takeIf { it.startsWith("https://") }
+        if (code.isEmpty() || url == null) {
+            com.droiddeck.launcher.DeviceCodeActivity.close()
+            return
+        }
+        if (!com.droiddeck.launcher.DeviceCodeActivity.show(app, code, url, AgentAdb.browserDisplay)) deviceCodeOpened(app, openUrl(app, url))
+    }
+
+    /** Tells dd-gh-login whether the device page opened, so it can fall back to android-open. */
+    fun deviceCodeOpened(app: Context, opened: Boolean) {
+        runCatching {
+            val part = File(app.filesDir, "$DEVICE_CODE.result.part")
+            part.writeText(if (opened) "ok" else "failed")
+            part.renameTo(File(app.filesDir, "$DEVICE_CODE.result"))
+        }
+    }
+
+    private fun openUrl(app: Context, url: String): Boolean {
         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(AgentAdb.browserDisplay).toBundle()
-        runCatching { app.startActivity(intent, options) }
+        return runCatching { app.startActivity(intent, options) }
             .recoverCatching { app.startActivity(intent) }
-            .onFailure {
-                Log.w(TAG, "could not open a sign-in link: ${it.javaClass.simpleName}")
-                runCatching { File(app.filesDir, "$OPEN_URL.failed").writeText("") }
-            }
+            .onFailure { Log.w(TAG, "could not open a sign-in link: ${it.javaClass.simpleName}") }
+            .isSuccess
     }
 
     /**
@@ -540,12 +640,57 @@ object AgentHost {
     private const val RESUME = "agent/resume"
     private const val LAB_REQUEST = "agent/lab-request"
     private const val OPEN_URL = "agent/open-url"
+    private const val DEVICE_CODE = "agent/device-code"
     private const val LAB_CHAT_KEY = "lab_chat"
     /** The raw output of the latest turn, for working out what a CLI did when the chat shows nothing. */
     private const val TURN_LOG = "agent/turn.log"
     private const val RETRY_MS = 3_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
+    private fun limitsKey(harness: AgentHarness) = "limits_${harness.id}"
+
+    @VisibleForTesting
+    internal fun encodeLimits(list: List<Limit>) = org.json.JSONArray(list.map {
+        org.json.JSONObject().put("minutes", it.minutes).put("used", it.usedPercent).put("resets", it.resetsAt)
+    }).toString()
+
+    @VisibleForTesting
+    internal fun decodeLimits(text: String?): List<Limit> = runCatching {
+        val a = org.json.JSONArray(text ?: return emptyList())
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Limit(it.optInt("minutes"), it.optInt("used"), it.optLong("resets")) }
+    }.getOrDefault(emptyList())
+    private fun effortKey(harness: AgentHarness) = "effort_${harness.id}"
 
     internal fun prefs(context: Context) = context.getSharedPreferences("agent", Context.MODE_PRIVATE)
+}
+
+/** A reply split into its text and the options of a trailing choices block. */
+internal data class Choices(val text: String, val options: List<String>)
+
+private val FENCE = Regex("""[ \t]{0,3}(`{3,}|~{3,})(.*)""")
+
+/** Walks Markdown fences so a choices block counts only at the top level and only as the last thing in the reply. */
+internal fun choices(reply: String): Choices {
+    val lines = reply.split('\n')
+    var open = ""
+    var opener = -1
+    var openChoices = false
+    var block: IntRange? = null
+    lines.forEachIndexed { i, line ->
+        val fence = FENCE.matchEntire(line)
+        if (open.isEmpty()) {
+            if (fence != null) {
+                open = fence.groupValues[1]
+                opener = i
+                openChoices = fence.groupValues[2].trim() == "choices"
+                block = null
+            } else if (line.isNotBlank()) block = null
+        } else if (fence != null && fence.groupValues[1][0] == open[0] && fence.groupValues[1].length >= open.length && fence.groupValues[2].isBlank()) {
+            block = if (openChoices) opener..i else null
+            open = ""
+        }
+    }
+    val found = block?.takeIf { open.isEmpty() } ?: return Choices(reply, emptyList())
+    val options = lines.subList(found.first + 1, found.last).map { it.trim().removePrefix("- ").removePrefix("* ").trim() }.filter { it.isNotEmpty() }
+    return Choices(lines.subList(0, found.first).joinToString("\n").trimEnd(), options)
 }

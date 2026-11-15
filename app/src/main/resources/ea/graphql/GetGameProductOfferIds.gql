@@ -1,0 +1,15 @@
+query GetGameProductOfferIds($slug: String!, $locale: Locale!, $overrideCountryCode: String!) {
+  game(slug: $slug, locale: $locale) {
+    id
+    isFreeToPlay
+    slug
+    lowestPriceGameProduct(availabilities: [ACQUIRABLE], overrideCountryCode: $overrideCountryCode) {
+      id
+      isFree
+      name
+      originOfferId
+      __typename
+    }
+    __typename
+  }
+}
