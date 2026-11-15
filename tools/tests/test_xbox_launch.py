@@ -213,11 +213,12 @@ class XboxLaunchTest(unittest.TestCase):
                 self.assertIn('registration failed', err.getvalue())
 
 
-def pe_with_exports(names, forward=None, machine=0x8664):
-    """A minimal x64 PE image whose export table names `names`; with `forward`, every export is forwarded there."""
+def pe_with_exports(names, forward=None, machine=0x8664, unnamed=0):
+    """A minimal x64 PE image whose export table names `names`; with `forward`, every export is forwarded there.
+    `unnamed` adds that many ordinal-only exports after the named ones."""
     rva, raw = 0x1000, 0x200
     functions = rva + 40
-    name_pointers = functions + 4 * len(names)
+    name_pointers = functions + 4 * (len(names) + unnamed)
     ordinals = name_pointers + 4 * len(names)
     strings = ordinals + 2 * len(names)
     blob = bytearray()
@@ -232,13 +233,16 @@ def pe_with_exports(names, forward=None, machine=0x8664):
     size = strings + len(blob) - rva
     directory = bytearray(40)
     directory[16:20] = (1).to_bytes(4, 'little')
-    directory[20:24] = directory[24:28] = len(names).to_bytes(4, 'little')
+    directory[20:24] = (len(names) + unnamed).to_bytes(4, 'little')
+    directory[24:28] = len(names).to_bytes(4, 'little')
     directory[28:32] = functions.to_bytes(4, 'little')
     directory[32:36] = name_pointers.to_bytes(4, 'little')
     directory[36:40] = ordinals.to_bytes(4, 'little')
     section = bytearray(directory)
     for index in range(len(names)):
         section += (forward_rvas[index] if forward else 0x3000 + index).to_bytes(4, 'little')
+    for index in range(unnamed):
+        section += (0x4000 + index).to_bytes(4, 'little')
     for value in name_rvas:
         section += value.to_bytes(4, 'little')
     for index in range(len(names)):
@@ -293,6 +297,9 @@ class PlayFabProxyTest(unittest.TestCase):
         self.assertFalse(xbox['playfab_sdk'](other))
         self.assertFalse(xbox['playfab_sdk'](pe_with_exports(xbox['PGS_EXPORTS'], machine=0xAA64)))
         self.assertIsNone(xbox['pe_exports'](b'not a pe image'))
+        self.assertEqual(xbox['pe_exports'](pe_with_exports(['A', 'B'], unnamed=1))[0], 3)
+        self.assertFalse(xbox['playfab_sdk'](pe_with_exports(xbox['PGS_EXPORTS'], unnamed=1)))
+        self.assertFalse(xbox['playfab_proxy'](pe_with_exports(xbox['PGS_EXPORTS'], forward='nexus_pgs_native', unnamed=1)))
 
     def test_first_launch_keeps_the_sdk_and_puts_the_proxy_in_front(self):
         with tempfile.TemporaryDirectory() as root:
@@ -324,6 +331,23 @@ class PlayFabProxyTest(unittest.TestCase):
             folder = self.game(root, older)
             self.assertEqual(self.stage(root), 0)
             self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), older)
+
+    def test_an_unknown_file_or_link_in_place_of_the_kept_sdk_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, self.SDK)
+            (folder / 'nexus_pgs_native.dll').write_bytes(b'MZ someone else')
+            self.assertEqual(self.stage(root), 0)
+            self.assertEqual((folder / 'nexus_pgs_native.dll').read_bytes(), b'MZ someone else')
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.SDK)
+        with tempfile.TemporaryDirectory() as root:
+            folder = self.game(root, self.SDK)
+            target = Path(root) / 'elsewhere.dll'
+            target.write_bytes(self.SDK)
+            (folder / 'nexus_pgs_native.dll').symlink_to(target)
+            self.assertEqual(self.stage(root), 0)
+            self.assertTrue((folder / 'nexus_pgs_native.dll').is_symlink())
+            self.assertEqual(target.read_bytes(), self.SDK)
+            self.assertEqual((folder / 'PlayFabGameSave.dll').read_bytes(), self.SDK)
 
     def test_unknown_sdk_symlinks_and_a_runtime_without_the_proxy_are_left_alone(self):
         with tempfile.TemporaryDirectory() as root:

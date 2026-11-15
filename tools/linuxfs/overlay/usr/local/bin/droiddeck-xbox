@@ -227,7 +227,8 @@ PGS_EXPORTS = (
 
 
 def pe_exports(data):
-    """(name, ordinal index, forwarder or None) for each named export of an x64 PE image, or None."""
+    """(export address table size, [(name, ordinal index, forwarder or None) for each named export]) of an x64
+    PE image, or None. The table size also counts exports that have no name."""
     def u16(offset):
         return int.from_bytes(data[offset:offset + 2], 'little')
 
@@ -275,21 +276,32 @@ def pe_exports(data):
             return None
         forward = string(offset_of(address)) if directory_rva <= address < directory_rva + directory_size else None
         exports.append((name, ordinal, forward))
-    return exports
+    return functions, exports
 
 
 def playfab_sdk(data):
-    """The PlayFab Game Saves SDK the proxy was written for: exactly its exports, none forwarded."""
-    exports = pe_exports(data)
-    return (exports is not None and [(name, ordinal) for name, ordinal, _ in exports] == list(zip(PGS_EXPORTS, range(40)))
+    """The PlayFab Game Saves SDK the proxy was written for: exactly its 40 exports, all named, none forwarded."""
+    parsed = pe_exports(data)
+    if parsed is None or parsed[0] != len(PGS_EXPORTS):
+        return False
+    exports = parsed[1]
+    return ([(name, ordinal) for name, ordinal, _ in exports] == list(zip(PGS_EXPORTS, range(len(PGS_EXPORTS))))
             and all(forward is None for _, _, forward in exports))
 
 
 def playfab_proxy(data):
-    """A save-folder proxy (this one or an earlier build): the same exports, forwarding into nexus_pgs_native."""
-    exports = pe_exports(data)
-    return (exports is not None and [name for name, _, _ in exports] == list(PGS_EXPORTS)
+    """A save-folder proxy (this one or an earlier build): the same 40 exports, forwarding into nexus_pgs_native."""
+    parsed = pe_exports(data)
+    if parsed is None or parsed[0] != len(PGS_EXPORTS):
+        return False
+    exports = parsed[1]
+    return ([name for name, _, _ in exports] == list(PGS_EXPORTS)
             and any((forward or '').startswith(PGS_NATIVE[:-4] + '.') for _, _, forward in exports))
+
+
+def kept_sdk(native):
+    """True when nexus_pgs_native.dll is a regular file holding a recognised SDK."""
+    return not native.is_symlink() and native.is_file() and playfab_sdk(native.read_bytes())
 
 
 def replace_file(directory, name, data):
@@ -328,13 +340,18 @@ def stage_playfab_proxy(folder):
                     continue
                 data = path.read_bytes()
                 if playfab_sdk(data):
-                    # A first launch, or a game update that brought a new SDK: the update's copy becomes the native one.
+                    # A first launch, or a game update that brought a new SDK: the update's copy becomes the native one,
+                    # but only in place of nothing or of an earlier SDK copy, never over an unknown file or a link.
+                    if os.path.lexists(native) and not kept_sdk(native):
+                        print('droiddeck-xbox: unknown %s next to the PlayFab Game Saves SDK in %s; left unchanged'
+                              % (PGS_NATIVE, directory), file=sys.stderr)
+                        continue
                     replace_file(directory, PGS_NATIVE, data)
                 elif not playfab_proxy(data):
                     print('droiddeck-xbox: PlayFab Game Saves SDK with unknown exports in %s; left unchanged' % directory,
                           file=sys.stderr)
                     continue
-                elif native.is_symlink() or not native.is_file() or not playfab_sdk(native.read_bytes()):
+                elif not kept_sdk(native):
                     print('droiddeck-xbox: PlayFab save proxy without its SDK in %s; left unchanged' % directory,
                           file=sys.stderr)
                     continue
