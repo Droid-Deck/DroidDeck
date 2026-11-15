@@ -391,18 +391,21 @@ class FocusWatcher(threading.Thread):
                         x.close()
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
+                self.publish({})
                 time.sleep(2)
                 continue
             if tag_game_windows(snap):
                 self.changed.set()
                 continue
-            body = {k: v for k, v in snap.items() if k != "t"}
-            if body == self.last:
-                continue
-            self.last = body
-            self.seq += 1
-            snap["seq"] = self.seq
-            write_json(self.path, snap)
+            self.publish(snap)
+
+    def publish(self, snap):
+        body = {k: v for k, v in snap.items() if k != "t"}
+        if body == self.last:
+            return
+        self.seq += 1
+        write_json(self.path, dict(snap, seq=self.seq))
+        self.last = body
 
     def listen(self):
         while True:

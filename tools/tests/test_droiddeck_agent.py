@@ -867,6 +867,44 @@ const value = subscribe => {
             return e
 
 
+class FocusSnapshotTest(unittest.TestCase):
+    def test_collection_failure_invalidates_and_recovery_republishes(self):
+        for error in (OSError('unavailable'), agent.AgentError('X', 'unavailable')):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'focus.json'
+                watcher = agent.FocusWatcher(path)
+                snapshot = {'focusedApp': 42, 't': 1}
+                watcher.publish(snapshot)
+                observed = []
+
+                def collect():
+                    observed.append(json.loads(path.read_text()))
+                    if len(observed) == 1:
+                        raise error
+                    return dict(snapshot, t=2)
+
+                with patch.object(threading.Thread, 'start'), \
+                     patch.object(watcher.changed, 'wait', side_effect=[True, True, StopIteration]), \
+                     patch.object(agent, 'vr_scene_app', return_value=None), \
+                     patch.object(agent, 'focus_snapshot', side_effect=collect), \
+                     patch.object(agent.time, 'sleep'), \
+                     patch.object(agent, 'log'):
+                    with self.assertRaises(StopIteration):
+                        watcher.run()
+                self.assertEqual(observed, [dict(snapshot, seq=1), {'seq': 2}])
+                self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 't': 2, 'seq': 3})
+
+    def test_unchanged_successful_focus_stays_valid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            watcher.publish({'focusedApp': 769, 't': 1})
+            with patch.object(agent, 'write_json') as write:
+                watcher.publish({'focusedApp': 769, 't': 100})
+            write.assert_not_called()
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 769, 't': 1, 'seq': 1})
+
+
 class VrFocusTest(unittest.TestCase):
     def test_scene_dashboard_and_external_focus_changes(self):
         focus = agent.VrSceneFocus()
