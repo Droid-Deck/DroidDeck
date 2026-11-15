@@ -2964,6 +2964,17 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual(["system32/d3dcompiler_43.dll (machine 0x8664)"], self.run_repair(compat, proton))
             self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/d3dcompiler_43.dll"))
 
+    def test_arm64ec_importer_does_not_let_an_x64_dependency_stay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            builtins.joinpath("d3dcompiler_43.dll").write_bytes(pe_image(0xAA64))
+            builtins.joinpath("d3dx9_43.dll").write_bytes(pe_image_importing(0xAA64, ("d3dcompiler_43.dll",)))
+            (windows / "system32/d3dx9_43.dll").write_bytes(arm64ec_pe_image())
+            (windows / "system32/d3dcompiler_43.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/d3dcompiler_43.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertFalse((windows / "system32/d3dx9_43.dll").is_symlink())
+
     def test_x64_proton_prefix_ignores_builtin_imports(self):
         with tempfile.TemporaryDirectory() as tmp:
             proton, compat, windows = self.prefix(tmp, arm=False)

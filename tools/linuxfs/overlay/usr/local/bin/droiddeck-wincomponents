@@ -492,18 +492,26 @@ def foreign_component(rel, path, machines, guests=frozenset()):
     return machine is not None and not machine_compatible(path, machines[folder][1], machine, guests, Path(rel).name)
 
 
-def component_guests(pfx, proton, machines, planned):
+def plain_x64(path):
+    return pe_machine(path) == 0x8664 and not PE["pe_has_arm64ec_metadata"](path)
+
+
+def component_guests(compat, proton, machines, planned, owned):
     if not machines or 0xA641 not in machines["system32"][1]:
         return frozenset()
-    system32 = pfx / "drive_c/windows/system32"
+    system32 = compat / "pfx/drive_c/windows/system32"
+    planned_rels = {rel.lower() for rel, src in planned}
+    removed = {rel.lower(): rel for rel in owned if rel.lower() not in planned_rels and system_folder(rel) == "system32"}
     names = {Path(rel).name for rel, src in planned
-             if system_folder(rel) == "system32" and rel.lower().endswith(".dll") and pe_machine(src) == 0x8664}
+             if system_folder(rel) == "system32" and rel.lower().endswith(".dll") and plain_x64(src)}
     try:
         present = list(os.scandir(system32))
     except OSError:
         present = []
     names.update(entry.name for entry in present if entry.name.lower().endswith(".dll") and not entry.is_symlink()
-                 and pe_machine(entry.path) == 0x8664)
+                 and ("drive_c/windows/system32/" + entry.name).lower() not in removed and plain_x64(entry.path))
+    names.update(Path(rel).name for rel in removed.values()
+                 if rel.lower().endswith(".dll") and (compat / BACKUP / rel).is_file() and plain_x64(compat / BACKUP / rel))
     if not names:
         return frozenset()
     return PE["x64_guests"](Path(proton).parent / "files/lib/wine" / machines["system32"][0], names)
@@ -581,7 +589,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             inferred.add(cid)
     kept_overrides, kept_requires = {}, {}
     planned = [entry for cid in expand(store, ids, saved_requires) for entry in (component(store, cid) or ([], [], [], []))[1]]
-    guests = component_guests(pfx, proton, machines, planned)
+    guests = component_guests(compat, proton, machines, planned, state["files"])
     for cid in expand(store, ids, saved_requires):
         found = component(store, cid)
         if found is None:

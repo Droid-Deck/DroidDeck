@@ -952,7 +952,7 @@ def restore_x64_guest_dlls(prefix, proton, env=None):
     for name in names:
         path = system32 / name
         if not path.is_symlink():
-            if pe_machine(path) == 0x8664:
+            if pe_machine(path) == 0x8664 and not PE["pe_has_arm64ec_metadata"](path):
                 present.append(name)
             continue
         if not os.path.realpath(path).startswith(os.path.realpath(builtins) + os.sep):
@@ -994,7 +994,8 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
         except OSError:
             continue
         candidates = [name for name in names if name.lower().endswith(".dll") and not (windows / folder / name).is_symlink()
-                      and pe_machine(windows / folder / name) == 0x8664]
+                      and pe_machine(windows / folder / name) == 0x8664
+                      and not PE["pe_has_arm64ec_metadata"](windows / folder / name)]
         guests = PE["x64_guests"](builtins, candidates) if candidates and 0xA641 in machines else frozenset()
         for name in names:
             path = windows / folder / name

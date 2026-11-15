@@ -124,6 +124,29 @@ class WinComponentsTest(unittest.TestCase):
         names, _ = self.apply(proton)
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
 
+    def test_deselected_x64_d3dx9_no_longer_keeps_its_compiler(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        self.apply(proton)
+        self.pick("d3dcompiler")
+        self.apply(proton)
+        self.assertFalse((self.pfx / "system32/d3dx9_43.dll").exists())
+        self.assertNotEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_deselected_component_restores_the_saved_x64_dll(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/d3dx9_43.dll").write_bytes(self.pe_image(0x8664))
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": pe_image_importing(0xAA64)})
+        self.pick("d3dx9")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0xAA64)
+        self.pick()
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+
     def test_x64_compiler_alone_is_skipped_while_the_builtin_d3dx9_imports_it(self):
         proton = self.proton()
         self.component("d3dcompiler", ["d3dcompiler_43"], {
