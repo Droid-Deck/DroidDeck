@@ -13,7 +13,7 @@ SOURCE = ROOT / 'app/src/main/cpp/waylandcomp/src/compositor.c'
 
 
 def extract_function(source, name):
-    match = re.search(r'^(?:static )?(?:void|int|uint32_t) ' + re.escape(name) + r'\([^;]*?\) \{',
+    match = re.search(r'^(?:static )?(?:void |int |uint32_t |const char \*)' + re.escape(name) + r'\([^;]*?\) \{',
                       source, re.MULTILINE)
     if match is None:
         raise AssertionError(f'Missing compositor function: {name}')
