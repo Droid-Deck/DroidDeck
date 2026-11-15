@@ -104,6 +104,7 @@ static bool declares_result_second(uint32_t op)
     case SpvOpUndef:
     case SpvOpVariable:
     case SpvOpFunction:
+    case SpvOpFunctionParameter:
         return true;
     default:
         return false;
@@ -1082,6 +1083,12 @@ static bool valid_in_1_3(const struct module *m, size_t i)
                        (LENGTH(m->w[d]) < 4 || m->w[d + 3] == SpvStorageClassPrivate ||
                         m->w[d + 3] == SpvStorageClassFunction)))
                 return false;
+            if (OPCODE(m->w[d]) == SpvOpFunctionParameter) {
+                size_t type = LENGTH(m->w[d]) >= 3 ? definition(m, m->w[d + 1]) : 0;
+                if (!type || OPCODE(m->w[type]) != SpvOpTypePointer || LENGTH(m->w[type]) < 4 ||
+                    m->w[type + 2] == SpvStorageClassPrivate || m->w[type + 2] == SpvStorageClassFunction)
+                    return false;
+            }
         }
         return true;
     case SpvOpMemberDecorate:

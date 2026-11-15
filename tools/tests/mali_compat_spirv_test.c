@@ -20,6 +20,35 @@ static const uint32_t newer[] = {
 };
 static const size_t newer_count = sizeof(newer) / sizeof(uint32_t);
 
+static const uint32_t readonly_parameter[] = {
+    SpvMagicNumber, 0x00010600, 0, 13, 0,
+    (2u << 16) | SpvOpCapability, SpvCapabilityShader,
+    (3u << 16) | SpvOpMemoryModel, SpvAddressingModelLogical, SpvMemoryModelGLSL450,
+    (5u << 16) | SpvOpEntryPoint, SpvExecutionModelFragment, 7, 0x6e69616d, 0,
+    (3u << 16) | SpvOpExecutionMode, 7, SpvExecutionModeOriginUpperLeft,
+    (3u << 16) | SpvOpDecorate, 3, SpvDecorationBlock,
+    (5u << 16) | SpvOpMemberDecorate, 3, 0, SpvDecorationOffset, 0,
+    (3u << 16) | SpvOpDecorate, 10, SpvDecorationNonWritable,
+    (4u << 16) | SpvOpDecorate, 12, SpvDecorationDescriptorSet, 0,
+    (4u << 16) | SpvOpDecorate, 12, SpvDecorationBinding, 0,
+    (2u << 16) | SpvOpTypeVoid, 1,
+    (3u << 16) | SpvOpTypeFloat, 2, 32,
+    (3u << 16) | SpvOpTypeStruct, 3, 2,
+    (4u << 16) | SpvOpTypePointer, 4, SpvStorageClassStorageBuffer, 3,
+    (4u << 16) | SpvOpVariable, 4, 12, SpvStorageClassStorageBuffer,
+    (3u << 16) | SpvOpTypeFunction, 5, 1,
+    (4u << 16) | SpvOpTypeFunction, 6, 1, 4,
+    (5u << 16) | SpvOpFunction, 1, 7, 0, 5,
+    (2u << 16) | SpvOpLabel, 8,
+    (1u << 16) | SpvOpReturn,
+    (1u << 16) | SpvOpFunctionEnd,
+    (5u << 16) | SpvOpFunction, 1, 9, 0, 6,
+    (3u << 16) | SpvOpFunctionParameter, 4, 10,
+    (2u << 16) | SpvOpLabel, 11,
+    (1u << 16) | SpvOpReturn,
+    (1u << 16) | SpvOpFunctionEnd,
+};
+
 static const uint32_t older[] = {
     0x07230203, 0x00010300, 0x00070000, 0x00000008, 0x00000000, 0x00020011, 0x00000001, 0x0003000e,
     0x00000000, 0x00000001, 0x0006000f, 0x00000004, 0x00000001, 0x6e69616d, 0x00000000, 0x00000002,
@@ -483,6 +512,30 @@ int main(int argc, char **argv)
         if (argc > 2)
             write_module(argv[2], &guest);
         free(guest.words);
+    }
+
+    struct spirv_code parameter = {0};
+    size_t parameter_count = sizeof(readonly_parameter) / sizeof(uint32_t);
+    check(spirv_cap_version(readonly_parameter, parameter_count, &parameter),
+          "a NonWritable storage buffer parameter is capped");
+    if (parameter.words) {
+        check(count_opcodes(parameter.words, parameter.count, SpvOpFunctionParameter) == 1,
+              "the storage buffer parameter is preserved");
+        if (argc > 8)
+            write_module(argv[8], &parameter);
+        free(parameter.words);
+    }
+    uint32_t incompatible_parameter[sizeof(readonly_parameter) / sizeof(uint32_t)];
+    memcpy(incompatible_parameter, readonly_parameter, sizeof(readonly_parameter));
+    for (size_t i = 5; i < parameter_count; i += LENGTH(incompatible_parameter[i])) {
+        if (OPCODE(incompatible_parameter[i]) == SpvOpTypePointer) {
+            incompatible_parameter[i + 2] = SpvStorageClassPrivate;
+            check(!spirv_cap_version(incompatible_parameter, parameter_count, &kept),
+                  "a NonWritable Private parameter is left alone");
+            incompatible_parameter[i + 2] = SpvStorageClassFunction;
+            check(!spirv_cap_version(incompatible_parameter, parameter_count, &kept),
+                  "a NonWritable Function parameter is left alone");
+        }
     }
 
     check_pipelines();
