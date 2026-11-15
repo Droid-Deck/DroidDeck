@@ -21,9 +21,11 @@ object LegacyNames {
         "etc/bannerlator-network.json" to "etc/droiddeck-network.json",
         "etc/bannerlator-wifi-scan-request" to "etc/droiddeck-wifi-scan-request",
     )
-    private const val MENU_DIR = "usr/local/share/applications"
-    private const val OLD_BIN = "/usr/local/bin/bannerlator-"
-    private const val NEW_BIN = "/usr/local/bin/droiddeck-"
+    private val MENU_REWRITES = listOf(
+        Triple("usr/local/share/applications", "/usr/local/bin/bannerlator-", "/usr/local/bin/droiddeck-"),
+        Triple("usr/share/applications", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/",
+            "Exec=${DesktopCatalog.APPIMAGE_EXEC} /opt/appimages/"),
+    )
 
     @JvmStatic
     @Synchronized
@@ -95,14 +97,16 @@ object LegacyNames {
     }
 
     private fun rewriteMenuEntries(root: File) {
-        val entries = File(root, MENU_DIR).listFiles { f -> f.isFile && f.name.startsWith("droiddeck-") && f.name.endsWith(".desktop") } ?: return
-        for (entry in entries) {
-            val text = FileUtils.readString(entry) ?: continue
-            if (!text.contains(OLD_BIN)) continue
-            val staged = File(entry.parentFile, entry.name + ".staged")
-            if (!FileUtils.writeString(staged, text.replace(OLD_BIN, NEW_BIN)) || !staged.renameTo(entry)) {
-                staged.delete()
-                Log.w(TAG, "could not rewrite $entry")
+        for ((dir, old, new) in MENU_REWRITES) {
+            val entries = File(root, dir).listFiles { f -> f.isFile && f.name.startsWith("droiddeck-") && f.name.endsWith(".desktop") } ?: continue
+            for (entry in entries) {
+                val text = FileUtils.readString(entry) ?: continue
+                if (!text.contains(old)) continue
+                val staged = File(entry.parentFile, entry.name + ".staged")
+                if (!FileUtils.writeString(staged, text.replace(old, new)) || !staged.renameTo(entry)) {
+                    staged.delete()
+                    Log.w(TAG, "could not rewrite $entry")
+                }
             }
         }
     }

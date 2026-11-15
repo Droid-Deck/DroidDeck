@@ -1,0 +1,55 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 42b2ec6..103baee 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -994,6 +994,8 @@ bool CVulkanDevice::createPools()
+ 	return true;
+ }
+ 
++static std::string s_shaderCaps[SHADER_TYPE_COUNT];
++
+ bool CVulkanDevice::createShaders()
+ {
+ 	struct ShaderInfo_t
+@@ -1040,6 +1042,25 @@ bool CVulkanDevice::createShaders()
+ 			.pCode = shaderInfos[i].spirv,
+ 		};
+ 
++		// The SPIR-V capabilities each shader declares, for the log when its pipeline is refused.
++		{
++			const uint32_t *pWords = shaderInfos[i].spirv;
++			size_t nWords = shaderInfos[i].size / sizeof(uint32_t);
++			std::string &sCaps = s_shaderCaps[i];
++			sCaps.clear();
++			for ( size_t w = 5; w < nWords; )
++			{
++				uint32_t uLen = pWords[w] >> 16;
++				if ( !uLen )
++					break;
++				if ( ( pWords[w] & 0xffffu ) == 17 /* OpCapability */ && w + 1 < nWords )
++					sCaps += " " + std::to_string( pWords[w + 1] );
++				else if ( ( pWords[w] & 0xffffu ) == 54 /* OpFunction: past the header */ )
++					break;
++				w += uLen;
++			}
++		}
++
+ 		VkResult res = vk.CreateShaderModule(device(), &shaderCreateInfo, nullptr, &m_shaderModules[i]);
+ 		if ( res != VK_SUCCESS )
+ 		{
+@@ -1240,6 +1261,15 @@ VkPipeline CVulkanDevice::compilePipeline(uint32_t layerCount, uint32_t ycbcrMas
+ 	VkResult res = vk.CreateComputePipelines(device(), VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &result);
+ 	if (res != VK_SUCCESS) {
+ 		vk_errorf( res, "vkCreateComputePipelines failed" );
++		// Which pipeline, once per shader type: a vendor driver through Venus may refuse one variant only.
++		static uint32_t s_uLoggedTypes = 0;
++		if ( !( s_uLoggedTypes & ( 1u << ( (uint32_t)type & 31u ) ) ) )
++		{
++			s_uLoggedTypes |= 1u << ( (uint32_t)type & 31u );
++			vk_log.errorf( "  failing compute pipeline: shader type %u, layers %u, ycbcr mask 0x%x, blur layers %u, colorspace mask 0x%x, output eotf %u, itm %u, fp16 %d, SPIR-V capabilities:%s",
++				(uint32_t)type, layerCount, ycbcrMask, blur_layer_count, colorspace_mask, (uint32_t)output_eotf, (uint32_t)itm_enable, m_bSupportsFp16 ? 1 : 0,
++				(uint32_t)type < SHADER_TYPE_COUNT ? s_shaderCaps[type].c_str() : "" );
++		}
+ 		return VK_NULL_HANDLE;
+ 	}
+ 

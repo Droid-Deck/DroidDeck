@@ -18,12 +18,15 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -82,6 +85,10 @@ class AgentBridgeProvider : ContentProvider() {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
         }
+        "native" -> {
+            AgentAccess.requireCommands(context)
+            AgentNative.run(context, request, timeoutMs(request, 30.0, 0))
+        }
         "cdp" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "cdp"), timeoutMs(request, 15.0, 5_000))
@@ -93,6 +100,7 @@ class AgentBridgeProvider : ContentProvider() {
         }
         "prefs" -> prefs(context, request)
         "glasses" -> glasses(context, request)
+        "logs" -> logs(context)
         "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
             .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
         else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
@@ -197,9 +205,46 @@ class AgentBridgeProvider : ContentProvider() {
     private fun hex(text: String, max: Int): Int? =
         text.removePrefix("0x").removePrefix("0X").takeIf { it.isNotEmpty() }?.toIntOrNull(16)?.takeIf { it in 0..max }
 
+    private fun logDir(context: Context): File? =
+        SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
+
+    private fun cleanupExpiredLogExports(exports: File) {
+        val now = System.currentTimeMillis()
+        val canonicalRoot = exports.canonicalFile
+        exports.listFiles()?.forEach { candidate ->
+            val isUuid = runCatching { UUID.fromString(candidate.name).toString() == candidate.name }.getOrDefault(false)
+            if (!isUuid || !candidate.isDirectory || Files.isSymbolicLink(candidate.toPath())) return@forEach
+            if (candidate.canonicalFile.parentFile != canonicalRoot) return@forEach
+            if (now - candidate.lastModified() >= LOG_EXPORT_RETENTION_MS) candidate.deleteRecursively()
+        }
+    }
+
+    // The session folder is app-private, so adb pulls this copy from external files instead.
+    private fun logs(context: Context): JSONObject {
+        val dir = logDir(context)?.takeIf { it.isDirectory }
+            ?: return error("NO_SESSION_LOGS", "No session artifact directory is available")
+        val externalFiles = context.getExternalFilesDir(null)
+            ?: return error("NO_SESSION_LOGS", "External app storage is unavailable")
+        val exports = File(externalFiles, "agent-logs")
+        if ((!exports.exists() && !exports.mkdirs()) || !exports.isDirectory) {
+            return error("NO_SESSION_LOGS", "Could not create the session export directory")
+        }
+        cleanupExpiredLogExports(exports)
+        val output = File(exports, UUID.randomUUID().toString())
+        val zip = try {
+            SessionLogShare.zipFolder(context, dir, output)
+        } catch (error: Exception) {
+            output.deleteRecursively()
+            throw error
+        }
+            ?: return error("NO_SESSION_LOGS", "The session artifact directory is empty")
+        return JSONObject().put("ok", true).put("command", "logs").put("sessionId", dir.name)
+            .put("zip", zip.absolutePath).put("cleanupDir", output.absolutePath)
+    }
+
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
-        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
+        val dir = logDir(context)
         val session = JSONObject()
             .put("id", SessionState.sessionId ?: dir?.name ?: JSONObject.NULL)
             .put("phase", SessionState.phase.name)
@@ -243,6 +288,8 @@ class AgentBridgeProvider : ContentProvider() {
         return JSONObject()
             .put("schema", SCHEMA)
             .put("build", BuildConfig.BUILD_LABEL)
+            .put("apkCommit", com.droiddeck.launcher.lab.LabOverlay.apkCommit)
+            .put("lab", com.droiddeck.launcher.lab.LabOverlay.active?.label ?: JSONObject.NULL)
             .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             .put("runtime", JSONObject()
                 .put("installed", LinuxRuntime.isInstalled(context))
@@ -351,6 +398,7 @@ class AgentBridgeProvider : ContentProvider() {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
         const val SCHEMA = 2
+        private const val LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000L
         private val recoveryComplete = CountDownLatch(1)
 
         fun awaitRecovery() {

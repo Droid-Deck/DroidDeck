@@ -15,6 +15,7 @@ object DesktopCatalog {
     const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
     const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
+    const val APPIMAGE_EXEC = "/usr/local/bin/droiddeck-appimage-exec"
 
     class Entry(
         val id: String, val name: String, val tier: Int, val version: String, val kind: String,
@@ -216,7 +217,7 @@ object DesktopCatalog {
                     target.setExecutable(true, false)
                     FileUtils.writeString(File(root, "usr/share/applications/droiddeck-${entry.id}.desktop"),
                         "[Desktop Entry]\nType=Application\nName=${entry.name}\n" +
-                        "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/${entry.id}.AppImage\n" +
+                        "Exec=$APPIMAGE_EXEC /opt/appimages/${entry.id}.AppImage\n" +
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
                 else -> {

@@ -59,6 +59,8 @@ class DualPanelModel(
     val appScale: Int,
     val onSelect: (String) -> Unit,
     val onResume: () -> Unit,
+    val title: String = selected,
+    val moreDownloads: Int = 0,
 )
 
 object DualScreenPanel {
@@ -322,7 +324,7 @@ internal fun DualPanelContent(model: DualPanelModel) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.app_name), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = pal.signal)
             Spacer(Modifier.size(12.dp))
-            val (label, _) = railLabelIcon(model.selected)
+            val (label, _) = railLabelIcon(model.title)
             Text(stringResource(label), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             PanelClock()
@@ -336,7 +338,7 @@ internal fun DualPanelContent(model: DualPanelModel) {
                 for (row in model.keys.chunked(columns)) {
                     Row(Modifier.fillMaxWidth().height(tileHeight), horizontalArrangement = Arrangement.spacedBy(gap)) {
                         for (key in row) PanelTile(key, key == model.selected, key in model.badges,
-                            if (key == "stores") model.storeDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
+                            if (key == "stores") model.storeDownloads else if (key == NavTabs.MORE) model.moreDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
                         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -400,12 +402,10 @@ private fun PanelClock() {
 }
 
 @Composable
-internal fun DualPanelPublisher(s: FrontEndState, selected: String, onSelect: (String) -> Unit, a: FrontEndActions) {
-    val badges = buildSet {
-        if (setupNeedsAttention(s)) add("setup")
-        if (s.updates.hasUpdate) add("updates")
-    }
-    val model = DualPanelModel(navigationKeys(s), selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume)
+internal fun DualPanelPublisher(s: FrontEndState, selected: String, title: String, onSelect: (String) -> Unit, a: FrontEndActions) {
+    val keys = navigationKeys(s)
+    val badges = keys.filter { railBadge(s, it) }.toSet()
+    val model = DualPanelModel(keys, selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume, title, railCount(s, NavTabs.MORE))
     androidx.compose.runtime.SideEffect { DualScreenPanel.model = model }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { DualScreenPanel.model = null } }
 }

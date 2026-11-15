@@ -1,0 +1,37 @@
+<resources>
+    <string name="input_settings">Input profiles</string>
+    <string name="input_profiles">Profiles</string>
+    <string name="input_physical">Physical controller</string>
+    <string name="input_primary">Main screen</string>
+    <string name="input_secondary">Second screen</string>
+    <string name="input_native">Native / Steam Input</string>
+    <string name="input_native_target">Native: %1$s</string>
+    <string name="input_remap_native">Send another controller control</string>
+    <string name="input_disabled">Disabled</string>
+    <string name="input_keys">Key or key combination</string>
+    <string name="input_direction_keys">Directional keys</string>
+    <string name="input_pointer">Move pointer</string>
+    <string name="input_pointer_speed">Pointer speed: %1$d</string>
+    <string name="input_scroll">Scroll</string>
+    <string name="input_scroll_vertical">Scroll vertically</string>
+    <string name="input_mouse_left">Left mouse button</string>
+    <string name="input_mouse_right">Right mouse button</string>
+    <string name="input_mouse_middle">Middle mouse button</string>
+    <string name="input_command_menu">Open DroidDeck menu</string>
+    <string name="input_command_keyboard">Show keyboard</string>
+    <string name="input_command_steam">Open Steam menu</string>
+    <string name="input_command_qam">Open Steam quick access</string>
+    <string name="input_remove_element">Remove control</string>
+    <string name="input_add_element">Add control</string>
+    <string name="input_extra_keys">Device-specific buttons</string>
+    <string name="input_capture">Assign a physical button</string>
+    <string name="input_capture_confirm">Release the button, then choose Edit, Retry, or Cancel. B or Back cancels after release.</string>
+    <string name="input_capture_retry">Retry</string>
+    <string name="input_capture_hint">Press a button, including a back button reported as a keyboard key. Volume and Android system keys are reserved. The assignment applies only to this device.</string>
+    <string name="input_remove_binding">Remove assignment</string>
+    <string name="input_latency">Input diagnostics</string>
+    <string name="input_measure">Record input dispatch time</string>
+    <string name="input_read_timing">Read measurements</string>
+    <string name="input_latency_hint">Measures Android dispatch through publication to the existing input transport. This excludes Bluetooth arrival, guest polling, rendering and display latency. Recording is off by default.</string>
+    <string name="input_normal_binding">Use normal input binding</string>
+</resources>

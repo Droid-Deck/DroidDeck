@@ -197,6 +197,172 @@ def wine(argv, source_env=None):
                 pass
 
 
+# PlayFab Game Saves picks its provider from the Gaming Runtime unless HKLM\SOFTWARE\Microsoft\GamingServices
+# ForceUseInprocGameSaves is set, and its in-process provider needs a save folder the title never passes on Windows.
+# The runtime has no GRTS saves, so titles such as Forza Horizon 6 stop with E:0-17. xodus-nexus ships a proxy
+# (scripts/runtime-compat/playfab-save-folder.c, MIT) that keeps the title's own SDK as nexus_pgs_native.dll and
+# supplies both; this stages it the same way.
+PGS_PROXY = RUNTIME / 'compat' / 'PlayFabGameSave.dll'
+PGS_NATIVE = 'nexus_pgs_native.dll'
+PGS_EXPORTS = (
+    'PFGameSaveFilesAddUserWithUiAsync', 'PFGameSaveFilesAddUserWithUiResult', 'PFGameSaveFilesGetFolder',
+    'PFGameSaveFilesGetFolderSize', 'PFGameSaveFilesGetRemainingQuota', 'PFGameSaveFilesGetSaveDescriptionForDebug',
+    'PFGameSaveFilesGetSaveDescriptionSizeForDebug', 'PFGameSaveFilesGetStatsJsonForDebug',
+    'PFGameSaveFilesGetStatsJsonSizeForDebug', 'PFGameSaveFilesInitialize', 'PFGameSaveFilesIsConnectedToCloud',
+    'PFGameSaveFilesPauseUploadForDebug', 'PFGameSaveFilesResetCloudAsync', 'PFGameSaveFilesResetCloudResult',
+    'PFGameSaveFilesResumeUploadForDebug', 'PFGameSaveFilesSetActiveDeviceChangedCallback',
+    'PFGameSaveFilesSetActiveDevicePollForceChangeForDebug', 'PFGameSaveFilesSetActiveDevicePollIntervalForDebug',
+    'PFGameSaveFilesSetForceNullPendingManifestForDebug', 'PFGameSaveFilesSetForceOutOfStorageErrorForDebug',
+    'PFGameSaveFilesSetForceSyncFailedErrorForDebug', 'PFGameSaveFilesSetMockDataFolderForDebug',
+    'PFGameSaveFilesSetMockDeviceIdForDebug', 'PFGameSaveFilesSetMockForceOfflineForDebug',
+    'PFGameSaveFilesSetMockManifestOffsetForDebug', 'PFGameSaveFilesSetMockRootFolderForDebug',
+    'PFGameSaveFilesSetSaveDescriptionAsync', 'PFGameSaveFilesSetSaveDescriptionResult',
+    'PFGameSaveFilesSetUiActiveDeviceContentionResponse', 'PFGameSaveFilesSetUiCallbacks',
+    'PFGameSaveFilesSetUiConflictResponse', 'PFGameSaveFilesSetUiOutOfStorageResponse',
+    'PFGameSaveFilesSetUiProgressResponse', 'PFGameSaveFilesSetUiSyncFailedResponse',
+    'PFGameSaveFilesSetWriteManifestsToDiskForDebug', 'PFGameSaveFilesUiProgressGetProgress',
+    'PFGameSaveFilesUninitializeAsync', 'PFGameSaveFilesUninitializeResult', 'PFGameSaveFilesUploadWithUiAsync',
+    'PFGameSaveFilesUploadWithUiResult',
+)
+
+
+def pe_exports(data):
+    """(export address table size, [(name, ordinal index, forwarder or None) for each named export]) of an x64
+    PE image, or None. The table size also counts exports that have no name."""
+    def u16(offset):
+        return int.from_bytes(data[offset:offset + 2], 'little')
+
+    def u32(offset):
+        return int.from_bytes(data[offset:offset + 4], 'little')
+
+    def string(offset):
+        end = data.find(b'\0', offset)
+        return None if offset is None or end < 0 else data[offset:end].decode('ascii', 'replace')
+
+    if len(data) < 256 or data[:2] != b'MZ':
+        return None
+    pe = u32(60)
+    if data[pe:pe + 4] != b'PE\0\0' or u16(pe + 4) != 0x8664:
+        return None
+    count, optional_size = u16(pe + 6), u16(pe + 20)
+    optional = pe + 24
+    if optional_size < 120 or u16(optional) != 0x20B or u32(optional + 108) < 1:
+        return None
+    sections = optional + optional_size
+
+    def offset_of(address):
+        for index in range(count):
+            section = sections + index * 40
+            start, size, raw = u32(section + 12), u32(section + 16), u32(section + 20)
+            if start <= address < start + size and raw + address - start < len(data):
+                return raw + address - start
+        return None
+
+    directory_rva, directory_size = u32(optional + 112), u32(optional + 116)
+    directory = offset_of(directory_rva)
+    if directory is None or u32(directory + 16) != 1:
+        return None
+    functions, names = u32(directory + 20), u32(directory + 24)
+    function_table, name_table, ordinal_table = (offset_of(u32(directory + 28)), offset_of(u32(directory + 32)),
+                                                 offset_of(u32(directory + 36)))
+    if None in (function_table, name_table, ordinal_table):
+        return None
+    exports = []
+    for index in range(names):
+        name = string(offset_of(u32(name_table + 4 * index)))
+        ordinal = u16(ordinal_table + 2 * index)
+        address = u32(function_table + 4 * ordinal) if ordinal < functions else 0
+        if name is None or not address:
+            return None
+        forward = string(offset_of(address)) if directory_rva <= address < directory_rva + directory_size else None
+        exports.append((name, ordinal, forward))
+    return functions, exports
+
+
+def playfab_sdk(data):
+    """The PlayFab Game Saves SDK the proxy was written for: exactly its 40 exports, all named, none forwarded."""
+    parsed = pe_exports(data)
+    if parsed is None or parsed[0] != len(PGS_EXPORTS):
+        return False
+    exports = parsed[1]
+    return ([(name, ordinal) for name, ordinal, _ in exports] == list(zip(PGS_EXPORTS, range(len(PGS_EXPORTS))))
+            and all(forward is None for _, _, forward in exports))
+
+
+def playfab_proxy(data):
+    """A save-folder proxy (this one or an earlier build): the same 40 exports, forwarding into nexus_pgs_native."""
+    parsed = pe_exports(data)
+    if parsed is None or parsed[0] != len(PGS_EXPORTS):
+        return False
+    exports = parsed[1]
+    return ([name for name, _, _ in exports] == list(PGS_EXPORTS)
+            and any((forward or '').startswith(PGS_NATIVE[:-4] + '.') for _, _, forward in exports))
+
+
+def kept_sdk(native):
+    """True when nexus_pgs_native.dll is a regular file holding a recognised SDK."""
+    return not native.is_symlink() and native.is_file() and playfab_sdk(native.read_bytes())
+
+
+def replace_file(directory, name, data):
+    descriptor, temporary = tempfile.mkstemp(prefix='.droiddeck-pgs-', dir=directory)
+    try:
+        with os.fdopen(descriptor, 'wb') as file:
+            file.write(data)
+            file.flush()
+            os.fsync(file.fileno())
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, Path(directory) / name)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def stage_playfab_proxy(folder):
+    """Put the save-folder proxy in front of every PlayFab Game Saves SDK in the game folder. Returns how many."""
+    try:
+        proxy = PGS_PROXY.read_bytes()
+    except OSError:
+        return 0
+    staged = 0
+    for root, _, files in os.walk(folder):
+        directory = Path(root)
+        for name in files:
+            if name.lower() != 'playfabgamesave.dll':
+                continue
+            path = directory / name
+            native = directory / PGS_NATIVE
+            try:
+                if path.is_symlink():
+                    continue
+                data = path.read_bytes()
+                if playfab_sdk(data):
+                    # A first launch, or a game update that brought a new SDK: the update's copy becomes the native one,
+                    # but only in place of nothing or of an earlier SDK copy, never over an unknown file or a link.
+                    if os.path.lexists(native) and not kept_sdk(native):
+                        print('droiddeck-xbox: unknown %s next to the PlayFab Game Saves SDK in %s; left unchanged'
+                              % (PGS_NATIVE, directory), file=sys.stderr)
+                        continue
+                    replace_file(directory, PGS_NATIVE, data)
+                elif not playfab_proxy(data):
+                    print('droiddeck-xbox: PlayFab Game Saves SDK with unknown exports in %s; left unchanged' % directory,
+                          file=sys.stderr)
+                    continue
+                elif not kept_sdk(native):
+                    print('droiddeck-xbox: PlayFab save proxy without its SDK in %s; left unchanged' % directory,
+                          file=sys.stderr)
+                    continue
+                if data != proxy:
+                    replace_file(directory, name, proxy)
+                staged += 1
+            except OSError as error:
+                print('droiddeck-xbox: PlayFab save proxy not staged in %s (%s)' % (directory, error), file=sys.stderr)
+    return staged
+
+
 def renew_lease(ask, channel, product, lease, stopped):
     while not stopped.wait(15):
         response = ask(channel, {'op': 'xbox-renew', 'id': product, 'lease': lease}, timeout=10)
@@ -255,6 +421,12 @@ def launch(command, env):
                         pass
             if roots:
                 owned_env['XODUS_CONTENT_ROOTS'] = ';'.join(roots)
+            # No DLL override for the proxy or the kept SDK: Wine has no builtin of either, so both load from the
+            # game folder as they are. Forcing them native-only (as Nexus does) made Forza Horizon 6 fail with E:0-0-4.
+            try:
+                stage_playfab_proxy(folder)
+            except Exception as error:
+                print('droiddeck-xbox: PlayFab save proxy skipped (%s)' % error, file=sys.stderr)
             return wine([reply['exe']], owned_env)
     finally:
         stopped.set()

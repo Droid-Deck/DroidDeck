@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -110,7 +111,16 @@ internal class BottomScreenTextInput(private val fallback: TextInputService) : P
 }
 
 @Composable
-internal fun TypingPanel(request: TypingRequest, onDone: () -> Unit) {
+internal fun TypingPanel(
+    request: TypingRequest,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    title: String = stringResource(R.string.dual_typing_title),
+    done: String = stringResource(R.string.dual_typing_done),
+    onCancel: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
+    showKeyboard: Boolean = true,
+    onDone: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     var field by remember(request) { mutableStateOf(request.value) }
     LaunchedEffect(request.value) {
@@ -120,19 +130,22 @@ internal fun TypingPanel(request: TypingRequest, onDone: () -> Unit) {
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(request) {
         kotlinx.coroutines.delay(120)
+        if (!showKeyboard) return@LaunchedEffect
         runCatching { focus.requestFocus() }
         keyboard?.show()
     }
     val options = request.imeOptions
     val secret = options.keyboardType == KeyboardType.Password || options.keyboardType == KeyboardType.NumberPassword
     Column(
-        Modifier.fillMaxSize().background(colors.background).padding(horizontal = 20.dp, vertical = 14.dp),
+        modifier.background(colors.background).padding(horizontal = 20.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.dual_typing_title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            leading?.invoke()
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Button(onClick = onDone, modifier = Modifier.testTag("dual-typing-done")) { Text(stringResource(R.string.dual_typing_done)) }
+            if (onCancel != null) OutlinedButton(onClick = onCancel, modifier = Modifier.testTag("dual-typing-cancel")) { Text(stringResource(R.string.common_cancel)) }
+            Button(onClick = onDone, modifier = Modifier.testTag("dual-typing-done")) { Text(done) }
         }
         OutlinedTextField(
             value = field,

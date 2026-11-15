@@ -107,6 +107,7 @@ class SteamTouchControls(
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
 
     private var editing = false
+    var onEditingChanged: ((Boolean) -> Unit)? = null
     private var editElements: MutableList<Element> = mutableListOf()
     private var hidden: MutableList<Element> = mutableListOf()
     private var selected = -1
@@ -617,6 +618,7 @@ class SteamTouchControls(
             }
             return true
         }
+        if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_MOUSE) return false
         val index = event.actionIndex
         lastTouchMs = android.os.SystemClock.uptimeMillis()
         if (faded) { faded = false; invalidate() }
@@ -705,6 +707,7 @@ class SteamTouchControls(
     fun startEditing() {
         releaseAll()
         editing = true
+        onEditingChanged?.invoke(true)
         editSets.clear()
         selected = -1
         pendingBindings.clear()
@@ -755,8 +758,13 @@ class SteamTouchControls(
         actionSet = saved
     }
 
+    fun cancelEditing() {
+        if (editing) stopEditing()
+    }
+
     private fun stopEditing() {
         editing = false
+        onEditingChanged?.invoke(false)
         trayOpen = false
         trayDrag = null
         selected = -1

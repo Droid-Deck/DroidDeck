@@ -6,13 +6,13 @@
 #define VK_GLOBAL_FUNCS(X) X(CreateInstance) X(EnumerateInstanceExtensionProperties)
 
 #define VK_INSTANCE_FUNCS(X) \
-    X(EnumeratePhysicalDevices) X(GetPhysicalDeviceProperties) \
+    X(DestroyInstance) X(EnumeratePhysicalDevices) X(GetPhysicalDeviceProperties) \
     X(GetPhysicalDeviceQueueFamilyProperties) X(GetPhysicalDeviceSurfaceSupportKHR) \
     X(GetPhysicalDeviceSurfaceCapabilitiesKHR) X(GetPhysicalDeviceSurfaceFormatsKHR) \
     X(CreateAndroidSurfaceKHR) X(DestroySurfaceKHR) X(CreateDevice) \
     X(GetDeviceProcAddr) X(EnumerateDeviceExtensionProperties) \
     X(GetPhysicalDeviceMemoryProperties) X(GetPhysicalDeviceFormatProperties2) \
-    X(GetPhysicalDeviceImageFormatProperties2)
+    X(GetPhysicalDeviceImageFormatProperties2) X(GetPhysicalDeviceProperties2)
 
 #define VK_DEVICE_FUNCS(X) \
     X(GetDeviceQueue) X(CreateSwapchainKHR) X(DestroySwapchainKHR) X(GetSwapchainImagesKHR) \
@@ -43,6 +43,7 @@ extern struct vk_api g_vk;
 
 int vk_loader_open(const char *driver_path, const char *library_name,
                    const char *native_lib_dir);
+void vk_loader_close(void);
 void vk_loader_load_instance(VkInstance instance);
 void vk_loader_load_device(VkDevice device);
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void);

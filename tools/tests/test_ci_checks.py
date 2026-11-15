@@ -48,34 +48,68 @@ class CiChecksTest(unittest.TestCase):
 
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
-        for name in ('xbox', 'components', 'python-tests'):
+        for name in ('xbox', 'python-tests', 'components-runner'):
             self.assertEqual(jobs[name]['needs'], 'source')
-        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox'})
+        self.assertEqual(set(jobs['components']['needs']), {'source', 'components-runner'})
+        self.assertEqual(jobs['build-runner']['needs'], ['components'])
+        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox', 'build-runner'})
 
     def test_dependency_update_errors_block_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             sudo = root / 'sudo'
-            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\nexit "${APT_RESULT:-0}"\n')
+            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\n'
+                            'for arg; do case "$arg" in Dir::Etc::sourcelist=*) '
+                            'grep -h "^URIs:" "${arg#*=}" >> "$APT_LOG.mirrors";; esac; done\n'
+                            'exit "${APT_RESULT:-0}"\n')
             sudo.chmod(0o755)
             query = root / 'dpkg-query'
             query.write_text('#!/bin/sh\nexit 1\n')
             query.chmod(0o755)
+            dpkg = root / 'dpkg'
+            dpkg.write_text('#!/bin/sh\necho "${DPKG_ARCH:-amd64}"\n')
+            dpkg.chmod(0o755)
             log = root / 'apt.log'
-            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], APT_LOG=str(log))
+            sources = root / 'ubuntu.sources'
+            sources.write_text('URIs: http://mirror.invalid/ubuntu\n')
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], APT_LOG=str(log),
+                       UBUNTU_SOURCES_FILE=str(sources))
             installer = ROOT / 'tools/ci/install-ubuntu-packages.sh'
             result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17'))
             self.assertEqual(result.returncode, 17)
-            self.assertEqual(len(log.read_text().splitlines()), 2)
+            self.assertEqual(len(log.read_text().splitlines()), 3)
+            mirrors = Path(str(log) + '.mirrors')
+            self.assertEqual(mirrors.read_text().splitlines(), [
+                'URIs: http://mirror.invalid/ubuntu',
+                'URIs: https://archive.ubuntu.com/ubuntu',
+                'URIs: https://mirrors.edge.kernel.org/ubuntu',
+            ])
             log.unlink()
+            mirrors.unlink()
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17', DPKG_ARCH='arm64'))
+            self.assertEqual(result.returncode, 17)
+            self.assertEqual(mirrors.read_text().splitlines()[1:], [
+                'URIs: https://ports.ubuntu.com/ubuntu-ports',
+                'URIs: https://mirrors.ocf.berkeley.edu/ubuntu-ports',
+            ])
+            log.unlink()
+            mirrors.unlink()
             subprocess.run(['bash', str(installer), 'qemu-user'], env=env, check=True)
             update, install = log.read_text().splitlines()
             for command in (update, install):
                 self.assertIn('Dir::Etc::sourceparts=-', command)
+                self.assertIn(f'Dir::Etc::sourcelist={sources}', command)
                 self.assertIn('Acquire::https::Timeout=15', command)
                 self.assertIn('Acquire::Retries=1', command)
             self.assertIn('APT::Update::Error-Mode=any', update)
             self.assertIn('install -y -q --no-install-recommends qemu-user', install)
+
+            log.unlink()
+            absent = dict(env, UBUNTU_SOURCES_FILE=str(root / 'missing.sources'), APT_RESULT='17')
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=absent)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(len(log.read_text().splitlines()), 1)
+            self.assertNotIn('Dir::Etc::sourceparts', log.read_text())
 
     def test_required_status_rejects_failed_cancelled_or_skipped_test_jobs(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']

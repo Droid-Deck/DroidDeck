@@ -45,6 +45,30 @@ class LibraryShortcutsLastPlayedTest {
         assertEquals(mapOf(3388195926L to 1792931476L, 1234L to 1700000000L), Library.shortcutsLastPlayed(root))
     }
 
+    @Test fun aLaunchedAddedGameRemembersItsPlayTime() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val added = Library.SteamGame(-1, "World of Warcraft", null, Library.ADDED, gameId = 0xC0FFEE0002000000uL.toLong())
+        val steam = Library.SteamGame(570, "Dota 2", null, "/steam")
+        assertEquals(0L, Library.recordedPlay(context, added.gameId))
+        val before = System.currentTimeMillis() / 1000
+        Library.recordPlayed(context, added)
+        Library.recordPlayed(context, steam)
+        assert(Library.recordedPlay(context, added.gameId) >= before)
+        assertEquals(0L, Library.recordedPlay(context, steam.gameId))
+    }
+
+    @Test fun anAddedGameBuiltAgainKeepsItsRecordedPlayTime() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val dir = tmp.newFolder("Celeste")
+        val exe = File(dir, "Celeste.exe").apply { writeText("x") }
+        val g = AddedGames.Game(dir, "Celeste", exe, "/g/Celeste.exe", "/g", 0x82000003L, 0x82000003L, emptyList())
+        val shown = Library.addedGame(context, g, emptyList())
+        assertEquals(0L, shown.lastPlayed)
+        Library.recordPlayed(context, shown)
+        assertEquals(Library.recordedPlay(context, g.gameId), Library.addedGame(context, g, emptyList()).lastPlayed)
+        assertEquals(1900000000L, Library.addedGame(context, g, emptyList(), lastPlayed = 1900000000L).lastPlayed)
+    }
+
     @Test fun missingOrBrokenShortcutsGiveNothing() {
         val root = steamRoot()
         assertEquals(emptyMap<Long, Long>(), Library.shortcutsLastPlayed(root))

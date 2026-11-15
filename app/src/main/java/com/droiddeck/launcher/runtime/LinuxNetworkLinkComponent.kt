@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.RouteInfo
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -23,6 +24,7 @@ import java.io.File
 import java.io.IOException
 import java.net.Inet4Address
 import java.net.Inet6Address
+import java.net.InetAddress
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -155,9 +157,7 @@ class LinuxNetworkLinkComponent(
         synchronized(lock) {
             try {
                 file.parentFile?.mkdirs()
-                val staged = File(file.path + ".staged")
-                staged.writeText(describe(properties))
-                if (!staged.renameTo(file)) throw IOException("Could not replace $file")
+                replace(file, describe(properties, capabilities))
             } catch (e: IOException) {
                 Log.w(TAG, "Could not publish the network link", e)
             }
@@ -210,11 +210,7 @@ class LinuxNetworkLinkComponent(
                 }
             })
             put("gateways", JSONArray().apply {
-                properties?.routes.orEmpty().filter { it.isDefaultRoute }.forEach {
-                    it.gateway?.takeUnless { address -> address.isAnyLocalAddress }?.let { address ->
-                        put(address.hostAddress?.substringBefore('%'))
-                    }
-                }
+                gateways(properties, capabilities).forEach { put(it.hostAddress?.substringBefore('%')) }
             })
             put("dns", JSONArray().apply {
                 properties?.dnsServers.orEmpty().filter { !it.isLinkLocalAddress }.forEach {
@@ -243,9 +239,7 @@ class LinuxNetworkLinkComponent(
         }
         try {
             val file = File(rootDir, "etc/droiddeck-network.json")
-            val staged = File(file.path + ".staged")
-            staged.writeText(state.toString())
-            if (!staged.renameTo(file)) throw IOException("Could not replace network state")
+            replace(file, state.toString())
         } catch (e: IOException) {
             Log.w(TAG, "Could not publish the network state", e)
         }
@@ -274,6 +268,19 @@ class LinuxNetworkLinkComponent(
         return Pair(servers.sortedWith(order), gateways.sortedWith(order))
     }
 
+    /**
+     * Writes [text] to [file] through a staged copy. The copy is synced before the rename, or a
+     * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
+     */
+    private fun replace(file: File, text: String) {
+        val staged = File(file.path + ".staged")
+        java.io.FileOutputStream(staged).use { out ->
+            out.write(text.toByteArray())
+            out.fd.sync()
+        }
+        if (!staged.renameTo(file)) throw IOException("Could not replace $file")
+    }
+
     private fun writeResolver(properties: LinkProperties?) {
         val own = properties?.dnsServers.orEmpty()
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
@@ -288,9 +295,7 @@ class LinuxNetworkLinkComponent(
         }
         try {
             val etc = File(rootDir, "etc")
-            val staged = File(etc, "resolv.conf.staged")
-            staged.writeText(text)
-            if (!staged.renameTo(File(etc, "resolv.conf"))) throw IOException("Could not replace resolv.conf")
+            replace(File(etc, "resolv.conf"), text)
             val hosts = File(etc, "hosts")
             if (!hosts.isFile || !hosts.readText().contains("localhost")) {
                 hosts.writeText("127.0.0.1 localhost\n::1 localhost\n")
@@ -301,7 +306,7 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun describe(properties: LinkProperties?): String {
+    internal fun describe(properties: LinkProperties?, capabilities: NetworkCapabilities?): String {
         val addresses = properties?.linkAddresses.orEmpty()
             .filter { it.address is Inet4Address || it.address is Inet6Address }
         val name = properties?.interfaceName?.takeIf { addresses.isNotEmpty() } ?: OFFLINE_NAME
@@ -316,10 +321,7 @@ class LinuxNetworkLinkComponent(
             for (address in addresses) {
                 append("addr ${address.address.hostAddress?.substringBefore('%')} ${address.prefixLength}\n")
             }
-            for (family in listOf(Inet4Address::class.java, Inet6Address::class.java)) {
-                val gateway = properties?.routes.orEmpty()
-                    .firstOrNull { it.isDefaultRoute && family.isInstance(it.gateway) && !it.gateway!!.isAnyLocalAddress }
-                    ?.gateway ?: continue
+            for (gateway in gateways(properties, capabilities)) {
                 append("gw ${gateway.hostAddress?.substringBefore('%')}\n")
             }
         }
@@ -329,6 +331,27 @@ class LinuxNetworkLinkComponent(
         seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        internal fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?): List<InetAddress> =
+            listOf(Inet4Address::class.java, Inet6Address::class.java).mapNotNull { family ->
+                properties?.routes.orEmpty()
+                    .firstOrNull { it.isDefaultRoute && family.isInstance(it.gateway) && !it.gateway!!.isAnyLocalAddress }
+                    ?.gateway
+                    ?: if (family == Inet4Address::class.java &&
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true &&
+                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                        properties?.interfaceName != null &&
+                        properties.routes.any {
+                            it.destination.address is Inet4Address &&
+                                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || it.type == RouteInfo.RTN_UNICAST)
+                        }
+                    ) {
+                        properties.linkAddresses.firstOrNull {
+                            it.address is Inet4Address && !it.address.isAnyLocalAddress &&
+                                !it.address.isLoopbackAddress && !it.address.isLinkLocalAddress
+                        }?.address
+                    } else null
+            }
+
         internal fun seededMac(readId: () -> String?): String {
             val id = runCatching(readId).getOrNull() ?: "bannerlator"
             val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())

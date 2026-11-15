@@ -1,0 +1,26 @@
+diff --git a/src/dxvk/dxvk_presenter.cpp b/src/dxvk/dxvk_presenter.cpp
+index 643f7c5..4dc8c4d 100644
+--- a/src/dxvk/dxvk_presenter.cpp
++++ b/src/dxvk/dxvk_presenter.cpp
+@@ -161,6 +161,10 @@ namespace dxvk {
+
+     // Return relevant Vulkan objects for the acquired image
+     sync = m_semaphores.at(m_frameIndex);
++    // Without a present fence, reacquiring this image is the only guarantee
++    // that its previous presentation has consumed the wait semaphore.
++    if (!m_hasSwapchainMaintenance1)
++      sync.present = m_semaphores.at(m_imageIndex).present;
+     image = m_images.at(m_imageIndex);
+
+     m_presentPending = true;
+@@ -239,7 +243,9 @@ namespace dxvk {
+
+     VkPresentInfoKHR info = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+     info.waitSemaphoreCount = 1;
+-    info.pWaitSemaphores    = &currSync.present;
++    info.pWaitSemaphores    = m_hasSwapchainMaintenance1
++                           ? &currSync.present
++                           : &m_semaphores.at(m_imageIndex).present;
+     info.swapchainCount     = 1;
+     info.pSwapchains        = &m_swapchain;
+     info.pImageIndices      = &m_imageIndex;

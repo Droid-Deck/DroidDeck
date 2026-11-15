@@ -1,0 +1,33 @@
+query getLegacyEntitlements($limit: Int, $next: String, $storeFronts: [UserLegacyEntitlementStorefront!]!) {
+  me {
+    legacyEntitlements(
+        paging: {limit: $limit, next: $next},
+        storefronts: $storeFronts,
+        status: [ACTIVE, DISABLED]
+    ) {
+      next
+      items {
+        cdKey
+        entitlementTag
+        entitlementType
+        externalType
+        grantDate
+        groupName
+        id
+        isSubscription
+        isSubscriptionExpired
+        lastModifiedDate
+        originPermissions
+        productId
+        status
+        statusReasonCode
+        terminationDate
+        trialTimeRemainingSeconds
+        useCount
+        version
+        __typename
+      }
+      __typename
+    }
+  }
+}

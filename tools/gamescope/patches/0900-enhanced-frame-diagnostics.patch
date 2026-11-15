@@ -1,0 +1,333 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 953765a..73ab9cc 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -14,2 +14,3 @@
+ #include "Utils/WaylandScaling.h"
++#include "droiddeck_frame_trace.hpp"
+ 
+@@ -1002,2 +1003,4 @@ namespace gamescope
+ 
++        droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputRelease );
++
+         xdg_log.debugf( "buffer_release: %p", pBuffer );
+@@ -1079,2 +1082,3 @@ namespace gamescope
+     {
++        droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputPresent );
+         UpdateFullscreenState();
+@@ -1485,2 +1489,3 @@ namespace gamescope
+         {
++            droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputAttach );
+             assert( oState->pBuffer );
+@@ -1633,2 +1638,3 @@ namespace gamescope
+         {
++            droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputDetach );
+             wl_surface_attach( m_pSurface, nullptr, 0, 0 );
+@@ -1650,2 +1656,3 @@ namespace gamescope
+     {
++        droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputCommit );
+         if ( m_bNeedsDecorCommit )
+diff --git a/src/droiddeck_frame_trace.hpp b/src/droiddeck_frame_trace.hpp
+new file mode 100644
+index 0000000..2c57f65
+--- /dev/null
++++ b/src/droiddeck_frame_trace.hpp
+@@ -0,0 +1,191 @@
++#pragma once
++
++#include <atomic>
++#include <chrono>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++
++#ifndef DROIDDECK_FRAME_TRACE_FAST_INTERVAL_MS
++#define DROIDDECK_FRAME_TRACE_FAST_INTERVAL_MS 2000
++#endif
++#ifndef DROIDDECK_FRAME_TRACE_SLOW_INTERVAL_MS
++#define DROIDDECK_FRAME_TRACE_SLOW_INTERVAL_MS 15000
++#endif
++#ifndef DROIDDECK_FRAME_TRACE_FAST_DURATION_MS
++#define DROIDDECK_FRAME_TRACE_FAST_DURATION_MS 120000
++#endif
++#ifndef DROIDDECK_FRAME_TRACE_DURATION_MS
++#define DROIDDECK_FRAME_TRACE_DURATION_MS 86400000
++#endif
++
++namespace droiddeck::frame_trace
++{
++
++enum class Event : uint32_t
++{
++	X11Damage,
++	X11DamageCurrent,
++	X11DamageOther,
++	SurfaceCommit,
++	SurfaceCommitBuffer,
++	SurfaceCommitNoBuffer,
++	CommitDequeued,
++	CommitDequeuedCurrent,
++	CommitDequeuedOther,
++	ImportSucceeded,
++	ImportSucceededCurrent,
++	ImportSucceededOther,
++	ImportFailed,
++	ImportFailedCurrent,
++	ImportFailedOther,
++	FenceReady,
++	FenceWaited,
++	CommitDone,
++	CommitDoneCurrent,
++	CommitDoneOther,
++	BaseLatched,
++	BaseLatchedCurrent,
++	BaseLatchedOther,
++	OutputPresent,
++	OutputAttach,
++	OutputDetach,
++	OutputCommit,
++	OutputRelease,
++	Count,
++};
++
++class State
++{
++public:
++	State()
++		: m_enabled( EnabledByEnvironment() )
++	{
++	}
++
++	void Start()
++	{
++		if ( !m_enabled || m_started.exchange( true, std::memory_order_relaxed ) )
++			return;
++
++		m_startedAt = std::chrono::steady_clock::now();
++		m_nextSummaryMs = kFastIntervalMs;
++		std::fprintf( stderr,
++			"DROIDDECK_FRAME_TRACE schema=1 fast_interval_ms=%ld slow_interval_ms=%ld "
++			"fast_duration_ms=%ld duration_ms=%ld\n",
++			kFastIntervalMs, kSlowIntervalMs, kFastDurationMs, kDurationMs );
++		PrintSummary( 0 );
++	}
++
++	void Record( Event event )
++	{
++		if ( !m_enabled || !m_started.load( std::memory_order_relaxed ) ||
++			!m_active.load( std::memory_order_relaxed ) )
++			return;
++		m_counts[static_cast<uint32_t>( event )].fetch_add( 1, std::memory_order_relaxed );
++	}
++
++	void Tick()
++	{
++		if ( !m_enabled || !m_started.load( std::memory_order_relaxed ) ||
++			!m_active.load( std::memory_order_relaxed ) )
++			return;
++
++		const int64_t elapsed = ElapsedMs();
++		if ( elapsed >= kDurationMs )
++		{
++			PrintSummary( kDurationMs );
++			m_active.store( false, std::memory_order_relaxed );
++			return;
++		}
++		if ( elapsed < m_nextSummaryMs )
++			return;
++
++		PrintSummary( elapsed );
++		m_nextSummaryMs = elapsed + ( elapsed < kFastDurationMs ? kFastIntervalMs : kSlowIntervalMs );
++	}
++
++private:
++	static constexpr int64_t kFastIntervalMs = DROIDDECK_FRAME_TRACE_FAST_INTERVAL_MS;
++	static constexpr int64_t kSlowIntervalMs = DROIDDECK_FRAME_TRACE_SLOW_INTERVAL_MS;
++	static constexpr int64_t kFastDurationMs = DROIDDECK_FRAME_TRACE_FAST_DURATION_MS;
++	static constexpr int64_t kDurationMs = DROIDDECK_FRAME_TRACE_DURATION_MS;
++
++	static bool EnabledByEnvironment()
++	{
++		const char *value = std::getenv( "DROIDDECK_ENHANCED_DIAGNOSTICS" );
++		return value != nullptr && std::strcmp( value, "1" ) == 0;
++	}
++
++	int64_t ElapsedMs() const
++	{
++		return std::chrono::duration_cast<std::chrono::milliseconds>(
++			std::chrono::steady_clock::now() - m_startedAt ).count();
++	}
++
++	uint64_t Count( Event event ) const
++	{
++		return m_counts[static_cast<uint32_t>( event )].load( std::memory_order_relaxed );
++	}
++
++	void PrintSummary( int64_t elapsed ) const
++	{
++		std::fprintf( stderr,
++			"DROIDDECK_FRAME_TRACE t_ms=%ld x11_damage=%lu x11_damage_current=%lu x11_damage_other=%lu "
++			"surface_commit=%lu surface_buffer=%lu surface_no_buffer=%lu dequeued=%lu dequeued_current=%lu "
++			"dequeued_other=%lu import_ok=%lu import_ok_current=%lu import_ok_other=%lu import_failed=%lu "
++			"import_failed_current=%lu import_failed_other=%lu fence_ready=%lu fence_waited=%lu commit_done=%lu "
++			"commit_done_current=%lu commit_done_other=%lu base_latched=%lu base_latched_current=%lu "
++			"base_latched_other=%lu output_present=%lu output_attach=%lu "
++			"output_detach=%lu output_commit=%lu output_release=%lu\n",
++			elapsed,
++			Count( Event::X11Damage ), Count( Event::X11DamageCurrent ), Count( Event::X11DamageOther ),
++			Count( Event::SurfaceCommit ), Count( Event::SurfaceCommitBuffer ), Count( Event::SurfaceCommitNoBuffer ),
++			Count( Event::CommitDequeued ), Count( Event::CommitDequeuedCurrent ), Count( Event::CommitDequeuedOther ),
++			Count( Event::ImportSucceeded ), Count( Event::ImportSucceededCurrent ), Count( Event::ImportSucceededOther ),
++			Count( Event::ImportFailed ), Count( Event::ImportFailedCurrent ), Count( Event::ImportFailedOther ),
++			Count( Event::FenceReady ), Count( Event::FenceWaited ), Count( Event::CommitDone ),
++			Count( Event::CommitDoneCurrent ), Count( Event::CommitDoneOther ), Count( Event::BaseLatched ),
++			Count( Event::BaseLatchedCurrent ), Count( Event::BaseLatchedOther ), Count( Event::OutputPresent ),
++			Count( Event::OutputAttach ), Count( Event::OutputDetach ), Count( Event::OutputCommit ),
++			Count( Event::OutputRelease ) );
++		std::fflush( stderr );
++	}
++
++	bool m_enabled;
++	std::atomic<bool> m_started{ false };
++	std::atomic<bool> m_active{ true };
++	std::chrono::steady_clock::time_point m_startedAt{};
++	int64_t m_nextSummaryMs = 0;
++	std::atomic<uint64_t> m_counts[static_cast<uint32_t>( Event::Count )]{};
++};
++
++inline State &GetState()
++{
++	static State state;
++	return state;
++}
++
++inline void Start()
++{
++	GetState().Start();
++}
++
++inline void Record( Event event )
++{
++	GetState().Record( event );
++}
++
++inline void RecordWindow( Event total, Event focused, Event other, bool isFocused )
++{
++	Record( total );
++	Record( isFocused ? focused : other );
++}
++
++inline void Tick()
++{
++	GetState().Tick();
++}
++
++}
+diff --git a/src/main.cpp b/src/main.cpp
+index eef4264..1d22ba4 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -35,2 +35,3 @@
+ #include "Utils/Version.h"
++#include "droiddeck_frame_trace.hpp"
+ 
+@@ -718,2 +719,3 @@ int main(int argc, char **argv)
+ 	g_argv = argv;
++	droiddeck::frame_trace::Start();
+ 
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index b4c6830..46e7a6c 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -32,2 +32,3 @@
+ #include "backend.h"
++#include "droiddeck_frame_trace.hpp"
+ #include "gamescope_shared.h"
+@@ -6419,2 +6420,9 @@ damage_win(xwayland_ctx_t *ctx, XDamageNotifyEvent *de)
+ 
++	global_focus_t *pTraceFocus = GetCurrentFocus();
++	droiddeck::frame_trace::RecordWindow(
++		droiddeck::frame_trace::Event::X11Damage,
++		droiddeck::frame_trace::Event::X11DamageCurrent,
++		droiddeck::frame_trace::Event::X11DamageOther,
++		pTraceFocus != nullptr && pTraceFocus->focusWindow == w );
++
+ 	if (w->IsAnyOverlay() && !w->opacity)
+@@ -7999,2 +8007,8 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
+ 		{
++			global_focus_t *pTraceFocus = GetCurrentFocus();
++			droiddeck::frame_trace::RecordWindow(
++				droiddeck::frame_trace::Event::CommitDone,
++				droiddeck::frame_trace::Event::CommitDoneCurrent,
++				droiddeck::frame_trace::Event::CommitDoneOther,
++				pTraceFocus != nullptr && pTraceFocus->focusWindow == w );
+ 			gpuvis_trace_printf( "commit %lu done", w->commit_queue[ j ]->commitID );
+@@ -8049,3 +8063,10 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
+ 					if ( !cv_paint_debug_pause_base_plane )
++					{
+ 						pFocus->HeldCommits[ HELD_COMMIT_BASE ] = w->commit_queue[ j ];
++						droiddeck::frame_trace::RecordWindow(
++							droiddeck::frame_trace::Event::BaseLatched,
++							droiddeck::frame_trace::Event::BaseLatchedCurrent,
++							droiddeck::frame_trace::Event::BaseLatchedOther,
++							pFocus == GetCurrentFocus() );
++					}
+ 					hasRepaint = true;
+@@ -8397,2 +8418,4 @@ static void note_commit_fence( bool bReadyAtImport )
+ {
++	droiddeck::frame_trace::Record( bReadyAtImport ? droiddeck::frame_trace::Event::FenceReady
++												 : droiddeck::frame_trace::Event::FenceWaited );
+ 	static uint64_t s_ulReady = 0, s_ulWaited = 0, s_ulLastLog = 0;
+@@ -8412,2 +8435,9 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ {
++	global_focus_t *pTraceFocus = GetCurrentFocus();
++	const bool bTraceCurrent = pTraceFocus != nullptr && pTraceFocus->focusWindow == w;
++	droiddeck::frame_trace::RecordWindow(
++		droiddeck::frame_trace::Event::CommitDequeued,
++		droiddeck::frame_trace::Event::CommitDequeuedCurrent,
++		droiddeck::frame_trace::Event::CommitDequeuedOther,
++		bTraceCurrent );
+ 	struct wlr_buffer *buf = reslistentry.buf;
+@@ -8501,2 +8531,7 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 	{
++		droiddeck::frame_trace::RecordWindow(
++			droiddeck::frame_trace::Event::ImportFailed,
++			droiddeck::frame_trace::Event::ImportFailedCurrent,
++			droiddeck::frame_trace::Event::ImportFailedOther,
++			bTraceCurrent );
+ 		// Import failed to import, early exit.
+@@ -8504,2 +8539,7 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 	}
++	droiddeck::frame_trace::RecordWindow(
++		droiddeck::frame_trace::Event::ImportSucceeded,
++		droiddeck::frame_trace::Event::ImportSucceededCurrent,
++		droiddeck::frame_trace::Event::ImportSucceededOther,
++		bTraceCurrent );
+ 
+@@ -8679,3 +8719,2 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 	}
+-
+ 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
+@@ -10256,2 +10295,3 @@ steamcompmgr_main(int argc, char **argv)
+ 	{
++		droiddeck::frame_trace::Tick();
+ 		{
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index 5733871..ed4dbc3 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -24,2 +24,3 @@
+ #include "WaylandServer/GamescopeLimiter.h"
++#include "droiddeck_frame_trace.hpp"
+ 
+@@ -210,2 +211,8 @@ void xwayland_surface_commit(struct wlr_surface *wlr_surface) {
+ 
++	droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::SurfaceCommit );
++	droiddeck::frame_trace::Record(
++		( wlr_surface->current.committed & WLR_SURFACE_STATE_BUFFER )
++			? droiddeck::frame_trace::Event::SurfaceCommitBuffer
++			: droiddeck::frame_trace::Event::SurfaceCommitNoBuffer );
++
+ 	wlr_surface->current.committed = 0;
+
