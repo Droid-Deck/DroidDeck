@@ -201,8 +201,23 @@ object AgentSetup {
         if (fixed != text) runCatching { bashrc.writeText(fixed) }
     }
 
+    /**
+     * Written beside [target] and renamed over it, so a symlink left there by a hand-made setup is
+     * replaced rather than followed: its absolute target is a userland path the app cannot reach,
+     * and the failed write stopped every helper after it, the droiddeckctl guide included.
+     */
     private fun copyAsset(app: Context, asset: String, target: File) {
-        app.assets.open(asset).use { input -> target.outputStream().use { input.copyTo(it) } }
-        target.setExecutable(true, false)
+        app.assets.open(asset).use { replaceFile(it, target) }
+    }
+
+    /** Replaces [target], or the symlink at it, with [input]. */
+    internal fun replaceFile(input: java.io.InputStream, target: File) {
+        val staged = File(target.parentFile, ".${target.name}.part")
+        staged.outputStream().use { input.copyTo(it) }
+        staged.setExecutable(true, false)
+        if (!staged.renameTo(target)) {
+            staged.delete()
+            throw java.io.IOException("could not replace $target")
+        }
     }
 }

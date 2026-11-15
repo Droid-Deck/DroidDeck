@@ -48,6 +48,9 @@ gamescope and the session's processes are only reachable through `guest`.
 **What applies when.**
 - Many session settings (black frame insertion, environment, Proton) are read when a session or
   game starts. After changing one, restart the game or the session before judging it.
+- With "Return after game" on (the default), quitting a game DroidDeck launched ends the whole
+  session; `start steam --wait --reuse` before the next launch. Launching a game that is already
+  running makes Steam show "Game already running" and `launch` time out.
 - Session scripts (`tools/linuxfs/overlay/usr/local/bin/droiddeck-*`, `steam-compatibility`) are
   APK assets, copied into the rootfs at every session start over any local edit. A Lab build
   carries app code and resources only, so a script, native or asset change needs a new APK: the
