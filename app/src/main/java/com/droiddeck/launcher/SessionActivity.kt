@@ -4635,21 +4635,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 gamePictureBounds[2], gamePictureBounds[3]
             )
 
-            val outputWidth: Int
-            val outputHeight: Int
+            val nativeWidth: Int
+            val nativeHeight: Int
             if (glassesOutputActive) {
                 val mode = glassesScreen?.display?.mode ?: return null
-                outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
-                outputHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
+                nativeWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
+                nativeHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
             } else {
-                outputWidth = width.takeIf { it > 0 } ?: return null
-                outputHeight = height.takeIf { it > 0 } ?: return null
+                val nativeSize = IntArray(2)
+                if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
+                nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
+                nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             }
-
-            val nativeSize = IntArray(2)
-            if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
-            val nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
-            val nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             val scaleX = width.toFloat() / nativeWidth
             val scaleY = height.toFloat() / nativeHeight
 
