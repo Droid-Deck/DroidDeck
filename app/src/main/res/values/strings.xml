@@ -1284,6 +1284,7 @@
     <string name="agent_hint_working">Type to queue the next message</string>
     <string name="agent_queue">Queue</string>
     <string name="agent_queued">Next: %1$s</string>
+    <string name="agent_tools_missing">Agent tools not installed: %1$s</string>
     <string name="agent_unqueue">Don\'t send</string>
     <string name="agent_attach">Attach</string>
     <string name="agent_remove_attachment">Remove</string>

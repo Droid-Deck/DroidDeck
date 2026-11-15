@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Въведете, за да наредите следващото съобщение</string>
     <string name="agent_queue">В опашката</string>
     <string name="agent_queued">Следващо: %1$s</string>
+    <string name="agent_tools_missing">Инструментите на агента не са инсталирани: %1$s</string>
     <string name="agent_unqueue">Не изпращай</string>
     <string name="agent_attach">Прикачи</string>
     <string name="agent_remove_attachment">Премахни</string>

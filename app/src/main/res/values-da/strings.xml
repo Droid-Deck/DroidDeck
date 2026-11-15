@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Skriv for at sætte den næste besked i kø</string>
     <string name="agent_queue">Sæt i kø</string>
     <string name="agent_queued">Næste: %1$s</string>
+    <string name="agent_tools_missing">Agentens værktøjer er ikke installeret: %1$s</string>
     <string name="agent_unqueue">Send ikke</string>
     <string name="agent_attach">Vedhæft</string>
     <string name="agent_remove_attachment">Fjern</string>

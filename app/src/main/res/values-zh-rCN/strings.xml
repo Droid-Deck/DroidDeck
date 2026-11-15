@@ -1263,6 +1263,7 @@
     <string name="agent_hint_working">输入以排队下一条消息</string>
     <string name="agent_queue">排队</string>
     <string name="agent_queued">下一条：%1$s</string>
+    <string name="agent_tools_missing">智能体工具未安装：%1$s</string>
     <string name="agent_unqueue">不发送</string>
     <string name="agent_attach">添加附件</string>
     <string name="agent_remove_attachment">移除</string>

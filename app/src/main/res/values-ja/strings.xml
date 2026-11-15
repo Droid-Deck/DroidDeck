@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">入力すると次のメッセージをキューに追加できます</string>
     <string name="agent_queue">キューに追加</string>
     <string name="agent_queued">次: %1$s</string>
+    <string name="agent_tools_missing">エージェントのツールが未インストール: %1$s</string>
     <string name="agent_unqueue">送信しない</string>
     <string name="agent_attach">添付</string>
     <string name="agent_remove_attachment">削除</string>

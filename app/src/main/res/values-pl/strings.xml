@@ -1189,6 +1189,7 @@
     <string name="agent_hint_working">Wpisz, aby zakolejkować następną wiadomość</string>
     <string name="agent_queue">Zakolejkuj</string>
     <string name="agent_queued">Następna: %1$s</string>
+    <string name="agent_tools_missing">Narzędzia agenta nie są zainstalowane: %1$s</string>
     <string name="agent_unqueue">Nie wysyłaj</string>
     <string name="agent_attach">Załącz</string>
     <string name="agent_remove_attachment">Usuń</string>

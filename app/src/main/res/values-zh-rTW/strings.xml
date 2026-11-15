@@ -1179,6 +1179,7 @@
     <string name="agent_hint_working">輸入以排入下一則訊息</string>
     <string name="agent_queue">排入佇列</string>
     <string name="agent_queued">下一則：%1$s</string>
+    <string name="agent_tools_missing">智慧代理工具未安裝：%1$s</string>
     <string name="agent_unqueue">不要傳送</string>
     <string name="agent_attach">附加</string>
     <string name="agent_remove_attachment">移除</string>
