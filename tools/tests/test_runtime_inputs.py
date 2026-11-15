@@ -200,6 +200,13 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'rockstar pack provides'):
             runtime.check_apk(apk, self.root)
 
+    def test_a_packed_file_the_manifest_does_not_list_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Unlisted.bin'
+        self.assertNotIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'helper data'})
+        with self.assertRaisesRegex(ValueError, 'Unlisted.bin, which the rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
     def test_a_stale_rockstar_pack_is_rejected(self):
         apk = self.current_apk(self.root / 'current.apk')
         self.pack('rockstar', {'Launcher32.exe': b'MZ older launcher', 'Launcher64.exe': b'MZ launcher 64'})

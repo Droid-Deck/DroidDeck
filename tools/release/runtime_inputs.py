@@ -229,6 +229,10 @@ def check_apk(apk, root=ROOT):
              if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
     with ZipFile(apk) as package:
         names = set(package.namelist())
+        for name in sorted(names):
+            prefix = next((p for p in PACKED if name.startswith(p)), None)
+            if prefix:
+                raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
         for library in PACKED_LIBRARIES:
             if library in names:
                 raise ValueError('APK still carries ' + library + ', which the tracking pack provides')
