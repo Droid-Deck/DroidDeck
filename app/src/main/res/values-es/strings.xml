@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck no pudo reiniciarse automáticamente. Cierra la app por completo y vuelve a abrirla.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>La primera vez se descarga Steam. Puede tardar unos minutos.</item>
-        <item>De forma predeterminada, al salir de la app Steam se pausa y continúa donde lo dejaste cuando vuelves.</item>
-        <item>Tu mando aparece como un mando Xbox 360. Si no, usa los controles en pantalla.</item>
+        <item>La primera ejecución descarga Steam. Puede tardar unos minutos.</item>
+        <item>Tu control aparece en Steam como un control de Steam Deck. Cámbialo a Steam Controller, DualShock 4, DualSense o Xbox 360 en los ajustes de la sesión; se aplica en la próxima sesión.</item>
+        <item>Mantén Atrás en tu control para abrir el menú Quick Access de Steam. «Mantener Atrás para atajos de Steam» debe estar activado en los ajustes de la sesión.</item>
+        <item>Comportamiento en segundo plano decide qué pasa al salir de la app: Nativo prepara Steam para suspenderse, Auto lo pausa, Manual espera a Reanudar y Nunca lo mantiene en ejecución.</item>
+        <item>Los juegos de Steam usan el Límite de fotogramas de Steam en Quick Access. La pantalla cambia a una frecuencia de actualización que el límite divida exactamente, si existe.</item>
+        <item>El Modo de baja latencia del menú de sesión envía la entrada del control a 1000 Hz en lugar de 250 Hz, a cambio de un poco más de CPU y batería.</item>
+        <item>Cada juego tiene su propio perfil con Proton, FEX, componentes y ajustes de entorno.</item>
+        <item>El menú de sesión tiene un interruptor de micrófono para el chat de voz y un botón Suspender ahora para congelar la sesión cuando quieras.</item>
+        <item>Arrastra el HUD de DroidDeck para moverlo, pellizca para cambiar su tamaño y empújalo contra un borde para acoplarlo como una pequeña pestaña de FPS.</item>
+        <item>En consolas portátiles de doble pantalla, la pantalla inferior puede mostrar descargas, notificaciones, capturas de pantalla y el chat de Steam. Intercambiar pantallas pone el juego allí.</item>
+        <item>Añade bibliotecas de Steam desde una tarjeta SD, una unidad USB o un SSD, y DroidDeck mantiene los juegos juntos en tu Biblioteca.</item>
+        <item>Tiendas te permite iniciar sesión en Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io y Game Jolt, y luego instalar y actualizar sus juegos desde DroidDeck.</item>
+        <item>Componentes como FEX, DXVK y VKD3D-Proton se actualizan solos, y Proton Experimental ARM64 es el predeterminado, o Proton 11.0 ARM64 una vez instalada esa versión.</item>
+        <item>Comprimir Steam mientras se ejecuta un juego libera RAM en dispositivos con poca memoria.</item>
+        <item>Desliza desde el borde derecho para abrir el menú de sesión: modo touchpad, Teclado de PC, Modo de baja latencia, perfil del juego y más.</item>
+        <item>¿El juego va lento? Limita la tasa de fotogramas en Quick Access y prueba otra versión de Proton o un ajuste preestablecido de FEX en los componentes del juego.</item>
+        <item>¿Audio del juego entrecortado o ausente? Prueba el interruptor DirectAudio para juegos en los ajustes de Steam, en Audio.</item>
+        <item>Configuración, y luego Almacenamiento, puede borrar cachés de shaders y prefijos sobrantes de juegos que quitaste.</item>
+        <item>¿Encontraste un error? Compartir registros en el menú de sesión reúne los datos de diagnóstico. Publícalos en #bug-reports en Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>La primera vez se prepara el escritorio. Puede tardar unos minutos.</item>
-        <item>De forma predeterminada, al salir de la app la sesión se pausa y continúa donde la dejaste cuando vuelves.</item>
+        <item>La primera ejecución configura el escritorio. Puede tardar unos minutos.</item>
         <item>El tacto funciona como un touchpad: arrastra para mover el puntero y toca para hacer clic.</item>
-        <item>Tu mando aparece como un mando Xbox 360. Si no, usa los controles en pantalla.</item>
+        <item>Comportamiento en segundo plano decide qué pasa al salir de la app: Manual espera a Reanudar de forma predeterminada, Auto pausa y Nunca lo mantiene en ejecución.</item>
+        <item>Desliza desde el borde derecho para abrir el menú de sesión y elige Teclado de PC para escribir en apps que ignoran el teclado de Android.</item>
+        <item>El Teclado de PC del menú de sesión tiene tamaño, opacidad y grupos de teclas ajustables.</item>
+        <item>Tu control aparece como un control Xbox 360. Si no, usa los controles en pantalla.</item>
+        <item>El menú de sesión tiene un interruptor de micrófono y un botón Suspender ahora para congelar la sesión cuando quieras.</item>
+        <item>¿Encontraste un error? Compartir registros en el menú de sesión reúne los datos de diagnóstico. Publícalos en #bug-reports en Discord.</item>
     </string-array>
     <string name="session_channel">Sesión</string>
     <string name="session_channel_description">Se muestra mientras hay una sesión de Steam o de escritorio abierta</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Directo</string>
     <string name="mode_touch_note">Auto: touchpad en Escritorio, directo en Steam.</string>
+    <string name="mode_pen">Lápiz</string>
+    <string name="mode_pen_mouse">Ratón</string>
+    <string name="mode_pen_touch">Táctil</string>
+    <string name="mode_pen_button">Botón lateral</string>
     <string name="mode_osc">Controles en pantalla</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto muestra los controles cuando no hay ningún mando conectado.</string>
@@ -606,6 +630,8 @@
     <string name="perf_cap_off">Desactivado</string>
     <string name="perf_cap_auto">Predeterminado del controlador</string>
     <string name="perf_zram_client">Comprimir Steam mientras se ejecuta un juego</string>
+    <string name="perf_zram_idle">Comprimir memoria inactiva del juego</string>
+    <string name="perf_zram_idle_hint">Comprime la memoria inactiva del juego cuando queda poca RAM. Desactívalo si los juegos se congelan unos segundos cada medio minuto aproximadamente. Se aplica la próxima vez que se inicie la sesión.</string>
     <string name="perf_zram_client_hint">20 s después de que empiece un juego, el cliente de Steam se comprime en zRAM para dejarle más memoria al juego, y se vuelve a leer cuando el juego se cierra. Desactívalo si la sesión se cierra poco después de iniciar los juegos. Un límite de RAM definido arriba sigue comprimiendo Steam cuando la sesión lo supera.</string>
     <string name="perf_ram_cap">Límite de RAM</string>
     <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener tirones mientras se recuperan las páginas.</string>
@@ -616,7 +642,7 @@
     <string name="perf_gpuclock_hint">Solo Adreno. Menos tirones, más consumo de batería y calor.</string>
     <string name="perf_fixes">Correcciones de sesión</string>
     <string name="perf_sysmem">Turnip: renderizado sysmem</string>
-    <string name="perf_sysmem_hint">Más rápido para el cliente de Steam; en los juegos, el controlador elige entre renderizado por mosaicos o en memoria del sistema en cada pasada. Obligatorio en Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Se aplica al cliente de Steam y a los juegos. Obligatorio en Adreno 710/720/722.</string>
     <string name="perf_xalia">Omitir el asistente xalia de Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Un sustituto en espacio de usuario del controlador ntsync de Linux. Mientras está activado, Proton lo usa en lugar de droiddeck-esync y droiddeck-fsync. Funciona con Proton Experimental ARM64, GE-Proton y proton-cachyos. Se aplica en la próxima sesión.</string>
@@ -1853,6 +1879,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Borrar</string>
     <string name="game_sync_err_runtime">Instala primero el runtime</string>
     <string name="game_sync_err_steam_library">La biblioteca de Steam no está disponible</string>
     <string name="game_sync_err_previous_sd">La biblioteca anterior de la SD no está disponible</string>
@@ -3876,8 +3903,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, la tecla Win y el botón Inicio se quedan en la sesión</string>
     <string name="integration_shortcuts_maybe_restricted">¿Aparece en gris en Android? Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
     <string name="integration_shortcuts_restricted">Bloqueado por Android · Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
-    <string name="integration_shortcuts_service">Teclas del sistema de DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Mantiene Alt+Tab, la tecla Win y el botón Inicio en una sesión activa de DroidDeck en lugar de Android.</string>
     <string name="integration_brightness_needed">Activa Brillo en Configuración → Integración con Steam</string>
     <string name="setup_gpu_bridge_off">Puente Mali: desactivado</string>
     <string name="setup_gpu_bridge_unusable">%1$s no puede usar el puente Mali (necesita una GPU Mali sin ruta de controlador del sistema), así que este interruptor no tiene efecto aquí.</string>
@@ -4039,10 +4064,11 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se ha podido importar esta disposición</string>
+    <string name="epic_third_party_managed">Se instala mediante %1$s</string>
 
     <string name="theme_white_red">Nieve escarlata</string>
     <string name="theme_white_red_detail">Superficies blancas con acentos rojos.</string>
-    
+
     <string name="rail_soundtracks">Bandas sonoras</string>
     <string name="rail_music">Música</string>
     <string name="soundtracks_options">Opciones de reproducción</string>

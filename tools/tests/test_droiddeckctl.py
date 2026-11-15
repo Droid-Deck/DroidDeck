@@ -55,6 +55,19 @@ FAKE_ADB = textwrap.dedent('''\
         print("Result: Bundle[{json=" + json.dumps(answers) + "}]")
     elif args[:3] == ["shell", "dumpsys", "display"]:
         print(config.get("dumpsys_display", ""))
+    elif args[:3] == ["shell", "dumpsys", "input"]:
+        print(config.get("dumpsys_input", ""))
+    elif args[:3] == ["shell", "uinput", "-"]:
+        entry["stdin"] = sys.stdin.read()
+        if "uinput_stdout" in config:
+            print(config["uinput_stdout"])
+        else:
+            for line in entry["stdin"].splitlines():
+                command = json.loads(line)
+                if command["command"] == "sync":
+                    print(json.dumps({"reason": "sync", "id": command["id"], "syncToken": command["syncToken"]}))
+    elif args[:1] == ["shell"] and len(args) == 2 and "command -v uinput" in args[1]:
+        print(config.get("uinput_probe", ""))
     elif args[:3] == ["shell", "dumpsys", "power"]:
         print("  mWakefulness=Awake")
     elif args[:3] == ["shell", "dumpsys", "SurfaceFlinger"] and "-dump" in args:
@@ -331,6 +344,21 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertTrue(target.read_bytes().startswith(b"\x89PNG"))
         shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
         self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
+
+    def test_screenshot_with_two_screens_takes_the_main_display(self):
+        self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "111"], shot["args"])
+
+    def test_screenshot_with_one_screen_names_no_display(self):
+        one = DUMPSYS_DISPLAY.split("  Display 4:")[0]
+        self.configure({}, dumpsys_display=one)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p"], shot["args"])
 
     def test_displays(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)

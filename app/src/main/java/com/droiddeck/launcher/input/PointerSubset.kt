@@ -23,13 +23,20 @@ internal fun MotionEvent.pointerSubset(pointerIdBits: Int): MotionEvent? {
     }
     val properties = Array(indices.size) { MotionEvent.PointerProperties() }
     val coordinates = Array(indices.size) { MotionEvent.PointerCoords() }
-    indices.forEachIndexed { target, index ->
-        getPointerProperties(index, properties[target])
-        getPointerCoords(index, coordinates[target])
+    indices.forEachIndexed { target, index -> getPointerProperties(index, properties[target]) }
+    fun sample(position: Int): Array<MotionEvent.PointerCoords> {
+        indices.forEachIndexed { target, index ->
+            if (position < historySize) getHistoricalPointerCoords(index, position, coordinates[target])
+            else getPointerCoords(index, coordinates[target])
+        }
+        return coordinates
     }
-    return MotionEvent.obtain(
-        downTime, eventTime, splitAction, indices.size, properties, coordinates,
+    fun time(position: Int) = if (position < historySize) getHistoricalEventTime(position) else eventTime
+    val split = MotionEvent.obtain(
+        downTime, time(0), splitAction, indices.size, properties, sample(0),
         metaState, buttonState, xPrecision, yPrecision,
         deviceId, edgeFlags, source, flags,
     )
+    for (position in 1..historySize) split.addBatch(time(position), sample(position), metaState)
+    return split
 }

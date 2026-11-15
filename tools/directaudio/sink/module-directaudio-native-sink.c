@@ -65,6 +65,7 @@ PA_MODULE_USAGE(
 #define DA_RING_CAP_MS_LOCAL  250
 #define DA_FREEZE_GAP_NS      500000000ull
 #define DA_CB_STALL_NS        1000000000ull
+#define DA_HOST_RESTART_STALLS 3
 #define DA_DECAY_QUIET_NS     10000000000ull
 #define DA_DECAY_PUNISH_NS    5000000000ull
 #define DA_DECAY_MAX_BACKOFF  32
@@ -106,6 +107,7 @@ struct userdata {
     uint64_t last_cb_ns, last_xrun_ns, last_decay_ns, wd_last_tick_ns;
     int32_t base_buf_frames, decay_floor;
     unsigned int decay_backoff, cb_count, wd_last_cb;
+    uint64_t stall_state;
     int reopen_running, reopen_redo;
     int consuming, primed, starved;
     int suspended;
@@ -154,6 +156,13 @@ static void limit(float *p, uint32_t samples) {
     }
 }
 
+static void record_callback(struct userdata *u) {
+    uint64_t state = __atomic_load_n(&u->stall_state, __ATOMIC_SEQ_CST);
+
+    while (!__atomic_compare_exchange_n(&u->stall_state, &state,
+            ((state >> 32) + 1) << 32, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {}
+}
+
 static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user, void *audioData, int32_t numFrames) {
     struct userdata *u = user;
     struct da_ring *r = u->ring;
@@ -169,6 +178,8 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user, void *
         memset(out, 0, (size_t) frames * DA_RING_CHANNELS * sizeof(float));
         return AAUDIO_CALLBACK_RESULT_CONTINUE;
     }
+
+    record_callback(u);
 
     ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
     avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
@@ -412,10 +423,12 @@ static void request_reopen(struct userdata *u, const char *why) {
 static void watchdog(struct userdata *u) {
     uint64_t now = now_ns(), last_cb, prev_tick;
     unsigned int cb;
+    uint64_t stalled;
 
     if (!u->watchdog_on) return;
     if (!__atomic_load_n(&u->aq, __ATOMIC_SEQ_CST)) return;
 
+    stalled = __atomic_load_n(&u->stall_state, __ATOMIC_SEQ_CST);
     prev_tick = u->wd_last_tick_ns;
     u->wd_last_tick_ns = now;
     cb = __atomic_load_n(&u->cb_count, __ATOMIC_SEQ_CST);
@@ -431,6 +444,13 @@ static void watchdog(struct userdata *u) {
     if (!last_cb || now - last_cb < DA_CB_STALL_NS) return;
 
     __atomic_store_n(&u->last_cb_ns, now, __ATOMIC_SEQ_CST);
+    if (__atomic_load_n(&u->cb_count, __ATOMIC_SEQ_CST) != cb) return;
+    if (!__atomic_compare_exchange_n(&u->stall_state, &stalled, stalled + 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) return;
+    if ((uint32_t) (stalled + 1) >= DA_HOST_RESTART_STALLS) {
+        pa_log("directaudio-native-sink: no data callback after %u stream recoveries; restarting the audio host", (unsigned int) (stalled + 1));
+        _exit(EXIT_FAILURE);
+        return;
+    }
     request_reopen(u, "data callback stalled");
 }
 

@@ -145,11 +145,30 @@ internal fun AgentPage(
 internal fun AgentPageWithControls(
     modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true,
     showControlsWithoutKeyboard: Boolean,
-) = AgentPageContent(modifier, inputModifier, visible, hidesPet = true)
+) = AgentPageContent(modifier, inputModifier, visible, hidesPet = true, drawer = true)
+
+/** Whether the session drawer's chat keeps the model, usage and menu in the editor's row, giving the conversation that row's height. */
+internal object AgentDrawerLayout {
+    private const val KEY = "drawer_inline_controls"
+    var inline by mutableStateOf(true)
+        private set
+    private var loaded = false
+
+    fun load(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        inline = AgentHost.prefs(context).getBoolean(KEY, true)
+    }
+
+    fun set(context: android.content.Context, on: Boolean) {
+        inline = on
+        AgentHost.prefs(context).edit().putBoolean(KEY, on).apply()
+    }
+}
 
 @Composable
 private fun AgentPageContent(
-    modifier: Modifier, inputModifier: Modifier, visible: Boolean, hidesPet: Boolean, menuSlot: AgentMenuSlot? = null,
+    modifier: Modifier, inputModifier: Modifier, visible: Boolean, hidesPet: Boolean, menuSlot: AgentMenuSlot? = null, drawer: Boolean = false,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -164,6 +183,8 @@ private fun AgentPageContent(
         }
     }
     remember { AgentHost.refresh(context) }
+    remember { AgentDrawerLayout.load(context) }
+    val inline = drawer && AgentDrawerLayout.inline
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
     // A stopped activity keeps its composition; the page is only on screen while its host is started.
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
@@ -190,11 +211,15 @@ private fun AgentPageContent(
     val focusManager = LocalFocusManager.current
     val togglePanel: (AgentPanel) -> Unit = { panel = if (panel == it) AgentPanel.NONE else it }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
-    val topBar: @Composable () -> Unit = {
-        AgentTopBar(panel, togglePanel, inputModifier) {
-            AgentMenu(menuOpen, { menuOpen = it }, onPanel = { panel = it }, onSetup = { setup = true })
-        }
+    val menu: @Composable () -> Unit = {
+        AgentMenu(menuOpen, { menuOpen = it }, onPanel = { panel = it }, onSetup = { setup = true })
     }
+    val topBar: @Composable () -> Unit = { AgentTopBar(panel, togglePanel, inputModifier, menu) }
+    val inlineControls: (@Composable () -> Unit)? = if (inline) ({
+        ModelChip(panel, togglePanel, inputModifier, compact = true)
+        ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+        menu()
+    }) else null
     // A host with a title bar shows the top bar there.
     val inSlot = menuSlot != null && panel != AgentPanel.HISTORY && panel != AgentPanel.PROCESSES && panel != AgentPanel.TOOLS
     if (menuSlot != null) DisposableEffect(menuSlot, inSlot) {
@@ -226,7 +251,7 @@ private fun AgentPageContent(
                 AgentToolsPanel(Modifier.weight(1f))
             }
             else -> {
-                if (menuSlot == null) Box(Modifier.padding(bottom = 6.dp)) { topBar() }
+                if (menuSlot == null && !inline) Box(Modifier.padding(bottom = 6.dp)) { topBar() }
                 when (panel) {
                     AgentPanel.MODEL -> Box(Modifier.padding(bottom = 8.dp)) { AgentModelPicker() }
                     AgentPanel.USAGE -> Box(Modifier.padding(bottom = 8.dp)) { AgentUsage() }
@@ -279,7 +304,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, visible, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible, inlineControls, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
@@ -315,24 +340,31 @@ internal class AgentMenuSlot {
 /** The model and how full the context is, then the [menu]. */
 @Composable
 private fun AgentTopBar(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, menu: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val pal = LocalPalette.current
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            val model = AgentHost.models(context).firstOrNull { it.id == AgentHost.model }?.label ?: AgentHost.model ?: stringResource(R.string.agent_model_default)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false).height(36.dp).clip(Shape12).then(firstControl).clickable { onPanel(AgentPanel.MODEL) }
-                    .padding(horizontal = 8.dp).testTag("agent-model"),
-            ) {
-                val parts = listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
-                Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            }
+            ModelChip(panel, onPanel, firstControl, Modifier.weight(1f, fill = false))
             ContextRing("agent-usage", onClick = { onPanel(AgentPanel.USAGE) })
         }
         menu()
+    }
+}
+
+/** The harness, model, effort and plan mode, opening the model picker; [compact] names only the model. */
+@Composable
+private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    val model = AgentHost.models(context).firstOrNull { it.id == AgentHost.model }?.label ?: AgentHost.model ?: stringResource(R.string.agent_model_default)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.then(if (compact) Modifier.widthIn(max = 120.dp) else Modifier).height(36.dp).clip(Shape12).then(firstControl)
+            .clickable { onPanel(AgentPanel.MODEL) }.padding(horizontal = 8.dp).testTag("agent-model"),
+    ) {
+        val parts = if (compact) listOf(model)
+        else listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
+        Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -620,7 +652,10 @@ internal fun usagePercent(): Int? {
 internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.resetsAt * 1000 < System.currentTimeMillis()) 0 else limit.usedPercent
 
 @Composable
-private fun AgentComposer(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, onPanel: (AgentPanel) -> Unit, onSent: () -> Unit) {
+private fun AgentComposer(
+    composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?,
+    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit,
+) {
     val context = LocalContext.current
     var draft by draftState
     var labOpen by rememberSaveable { mutableStateOf(false) }
@@ -650,13 +685,13 @@ private fun AgentComposer(composer: ComposerState, draftState: MutableState<Stri
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
         ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-        AgentEditor(composer, draftState, visible, send)
+        AgentEditor(composer, draftState, visible, controls, send)
     }
 }
 
-/** The text with attach, stop and send beside it. */
+/** The text with attach, stop and send beside it, and [controls] while the text is not being typed in. */
 @Composable
-private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, send: () -> Unit) {
+private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -717,6 +752,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     maxLines = 8,
                 )
             }
+            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
             if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
                 AgentHost.stop(context)
             }
