@@ -361,6 +361,35 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
+DS_SIZE = 86479872
+DS_WINDOW_OFFSET = 0x38FE190
+DS_WINDOW = bytes.fromhex("48895c240848896c2410488974241848897c242041564883ec70458bf1498bf0488bfa488be94885c9")
+DS_ORIGINAL = bytes.fromhex("0f85a5000000")
+DS_FIXED = bytes.fromhex("e9a600000090")
+
+
+def death_stranding_allocator(exe):
+    # The game's bundled mimalloc tries one random address between 4 and 8 TiB and never falls back,
+    # but a 39-bit kernel cannot map anything above 512 GiB. Jumping straight to its aligned path avoids it.
+    if os.path.basename(exe).lower() != "ds.exe":
+        return False
+    try:
+        with open(exe, "r+b") as game:
+            if os.fstat(game.fileno()).st_size != DS_SIZE:
+                return False
+            game.seek(DS_WINDOW_OFFSET)
+            seen = game.read(len(DS_WINDOW) + len(DS_ORIGINAL))
+            if seen[:len(DS_WINDOW)] != DS_WINDOW or seen[len(DS_WINDOW):] != DS_ORIGINAL:
+                return False
+            game.seek(DS_WINDOW_OFFSET + len(DS_WINDOW))
+            game.write(DS_FIXED)
+    except OSError as error:
+        print("droiddeck-game-env: Death Stranding allocator fix not applied (%s)" % error, file=sys.stderr)
+        return False
+    print("droiddeck-game-env: Death Stranding: memory allocator no longer needs a high address (39-bit kernels)", file=sys.stderr)
+    return True
+
+
 def win_components(compat, app_id, proton=None, env=None):
     if not compat:
         return ""
@@ -1300,6 +1329,8 @@ def main():
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
+            if len(command) > 2:
+                death_stranding_allocator(command[2])
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
