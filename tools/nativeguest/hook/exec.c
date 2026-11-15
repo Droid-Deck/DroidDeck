@@ -182,19 +182,22 @@ static int exec_preflight(const char *path) {
     if (syscall(SYS_fstat, fd, &st) != 0) err = errno;
     else if (!S_ISREG(st.st_mode)) err = EACCES;
     else if (syscall(SYS_faccessat, AT_FDCWD, path, X_OK, 0) != 0) err = EACCES;
-    else if (syscall(SYS_read, fd, magic, sizeof(magic)) != (long)sizeof(magic) ||
+    else if (syscall(SYS_read, fd, magic, 2) == 2 && magic[0] == '#' && magic[1] == '!') err = -1;
+    else if (syscall(SYS_pread64, fd, magic, sizeof(magic), 0) != (long)sizeof(magic) ||
              magic[0] != 0x7f || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F') err = ENOEXEC;
     else err = exec_interp_missing(fd);
     syscall(SYS_close, fd);
     return err;
 }
 
-// "libddexec.so <path> <argv...>"; NULL when [path] is executed directly. *err is set when the
-// exec would fail.
+// "libddexec.so <path> <argv...>"; NULL when [path] is executed directly, as a "#!" script the
+// kernel hands to its interpreter is. *err is set when the exec would fail.
 static char **loader_argv(const char *path, char *const argv[], int *err) {
     *err = 0;
     if (exec_directly(path)) return NULL;
-    *err = exec_preflight(path);
+    int preflight = exec_preflight(path);
+    if (preflight == -1) return NULL;
+    *err = preflight;
     if (*err) return NULL;
     int argc = 0;
     while (argv && argv[argc]) argc++;

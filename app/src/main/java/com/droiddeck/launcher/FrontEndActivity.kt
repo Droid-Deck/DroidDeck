@@ -1863,8 +1863,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         }
 
-        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled(cold = true) }
-        else {
+        val askAllFiles = Build.VERSION.SDK_INT >= 30 && com.droiddeck.launcher.files.AllFilesAccess.missing() &&
+            !SessionPrefs.allFilesAsked(this)
+        if (savedInstanceState == null) {
+            if (!askAllFiles) ui.post { startSteamAtStartupIfEnabled(cold = true) }
+        } else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
@@ -1873,7 +1876,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val wanted = ArrayList<String>()
         if (Build.VERSION.SDK_INT >= 30) {
             // From targetSdk 30, shared storage outside the app's own folders is all-files access or nothing.
-            if (com.droiddeck.launcher.files.AllFilesAccess.missing() && !SessionPrefs.allFilesAsked(this)) {
+            if (askAllFiles) {
                 SessionPrefs.setAllFilesAsked(this)
                 com.droiddeck.launcher.files.AllFilesAccess.open(this)
             }
