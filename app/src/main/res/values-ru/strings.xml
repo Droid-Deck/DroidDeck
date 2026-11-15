@@ -1189,6 +1189,7 @@
     <string name="agent_hint_working">Введите текст, чтобы поставить следующее сообщение в очередь</string>
     <string name="agent_queue">В очередь</string>
     <string name="agent_queued">Далее: %1$s</string>
+    <string name="agent_tools_missing">Инструменты агента не установлены: %1$s</string>
     <string name="agent_unqueue">Не отправлять</string>
     <string name="agent_attach">Прикрепить</string>
     <string name="agent_remove_attachment">Удалить</string>

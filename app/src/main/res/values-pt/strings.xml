@@ -1185,6 +1185,7 @@
     <string name="agent_hint_working">Digite para enfileirar a próxima mensagem</string>
     <string name="agent_queue">Enfileirar</string>
     <string name="agent_queued">Próxima: %1$s</string>
+    <string name="agent_tools_missing">Ferramentas do agente não instaladas: %1$s</string>
     <string name="agent_unqueue">Não enviar</string>
     <string name="agent_attach">Anexar</string>
     <string name="agent_remove_attachment">Remover</string>

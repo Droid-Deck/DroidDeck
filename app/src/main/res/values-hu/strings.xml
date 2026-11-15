@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Gépelj a következő üzenet sorba állításához</string>
     <string name="agent_queue">Sorba állítás</string>
     <string name="agent_queued">Következő: %1$s</string>
+    <string name="agent_tools_missing">Az ügynök eszközei nincsenek telepítve: %1$s</string>
     <string name="agent_unqueue">Ne küldd el</string>
     <string name="agent_attach">Csatolás</string>
     <string name="agent_remove_attachment">Eltávolítás</string>

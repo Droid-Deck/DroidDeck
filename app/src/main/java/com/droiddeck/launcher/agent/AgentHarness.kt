@@ -37,6 +37,8 @@ interface AgentHarness {
     fun parse(line: String): AgentEvent?
     /** The folder, under the userland's root, where the CLI loads user skills (`<name>/SKILL.md`). */
     val skills: String
+    /** The CLI's global instructions file under the userland's root, where DroidDeck keeps its rules in a marked block. */
+    val instructions: String
     /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
     fun prepare(rootfs: File) {}
     /** Context and plan limits the CLI keeps on disk rather than printing, read once a turn of [conversation] is done. */
@@ -86,6 +88,7 @@ object ClaudeCode : AgentHarness {
      * default. Only keys the user has not set are written, so their own choice stays.
      */
     override val skills = "root/.claude/skills"
+    override val instructions = "root/.claude/CLAUDE.md"
     override fun prepare(rootfs: File) {
         val file = File(rootfs, "root/.claude/settings.json")
         val settings = if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() ?: return else JSONObject()
@@ -258,6 +261,7 @@ object Codex : AgentHarness {
     override val name = "Codex"
     override val binary = "/root/.local/bin/codex"
     override val skills = "root/.codex/skills"
+    override val instructions = "root/.codex/AGENTS.md"
     // Code mode runs in a helper that each release ships as its own download.
     private const val HOST = "/root/.local/bin/codex-code-mode-host"
     override val files get() = listOf(binary, HOST)

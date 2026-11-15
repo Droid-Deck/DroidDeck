@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Skriv for å legge neste melding i kø</string>
     <string name="agent_queue">Legg i kø</string>
     <string name="agent_queued">Neste: %1$s</string>
+    <string name="agent_tools_missing">Agentverktøy er ikke installert: %1$s</string>
     <string name="agent_unqueue">Ikke send</string>
     <string name="agent_attach">Legg ved</string>
     <string name="agent_remove_attachment">Fjern</string>

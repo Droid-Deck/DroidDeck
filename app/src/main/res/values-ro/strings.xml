@@ -1186,6 +1186,7 @@
     <string name="agent_hint_working">Scrie pentru a pune următorul mesaj în coadă</string>
     <string name="agent_queue">Pune în coadă</string>
     <string name="agent_queued">Următorul: %1$s</string>
+    <string name="agent_tools_missing">Instrumentele agentului nu sunt instalate: %1$s</string>
     <string name="agent_unqueue">Nu trimite</string>
     <string name="agent_attach">Atașează</string>
     <string name="agent_remove_attachment">Elimină</string>

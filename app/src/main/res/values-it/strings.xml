@@ -1178,6 +1178,7 @@
     <string name="agent_hint_working">Digita per mettere in coda il messaggio successivo</string>
     <string name="agent_queue">Metti in coda</string>
     <string name="agent_queued">Prossimo: %1$s</string>
+    <string name="agent_tools_missing">Strumenti dell’agente non installati: %1$s</string>
     <string name="agent_unqueue">Non inviare</string>
     <string name="agent_attach">Allega</string>
     <string name="agent_remove_attachment">Rimuovi</string>

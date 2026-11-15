@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Kirjoita lisätäksesi seuraavan viestin jonoon</string>
     <string name="agent_queue">Jono</string>
     <string name="agent_queued">Seuraava: %1$s</string>
+    <string name="agent_tools_missing">Agentin työkaluja ei ole asennettu: %1$s</string>
     <string name="agent_unqueue">Älä lähetä</string>
     <string name="agent_attach">Liitä</string>
     <string name="agent_remove_attachment">Poista</string>

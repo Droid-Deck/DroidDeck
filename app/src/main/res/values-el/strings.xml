@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Γράψτε για να προσθέσετε το επόμενο μήνυμα στην ουρά</string>
     <string name="agent_queue">Στην ουρά</string>
     <string name="agent_queued">Επόμενο: %1$s</string>
+    <string name="agent_tools_missing">Τα εργαλεία του πράκτορα δεν εγκαταστάθηκαν: %1$s</string>
     <string name="agent_unqueue">Να μην σταλεί</string>
     <string name="agent_attach">Επισύναψη</string>
     <string name="agent_remove_attachment">Αφαίρεση</string>

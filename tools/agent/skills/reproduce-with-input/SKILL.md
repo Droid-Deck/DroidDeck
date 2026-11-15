@@ -19,9 +19,8 @@ description: Reproduce a reported game problem by launching the game and driving
    should change the screen.
 4. Measure: `droiddeckctl pacing --seconds 20` (`fpsOnScreen`, `offCadencePercent`). For flicker
    or stutter a still cannot show, `droiddeckctl record ./clip.mp4 --seconds 8 --display 0`.
-5. Make it replayable: write the steps as a scenario and run it with
-   `/root/DroidDeck/tools/droiddeck-scenario` (in the source checkout that the Agent tab's build
-   tools set up; not on PATH). `--help` documents the format. Give screenshot steps a display:
+5. Make it replayable: write the steps as a scenario and run it with `droiddeck-scenario`
+   (installed beside `droiddeckctl`); `--help` documents the format. Give screenshot steps a display:
 
    ```json
    {"name": "nfs-menu", "vars": {"appId": 47870}, "repeat": 1,

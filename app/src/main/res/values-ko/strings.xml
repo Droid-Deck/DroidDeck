@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">입력하면 다음 메시지가 대기열에 추가됩니다</string>
     <string name="agent_queue">대기열에 추가</string>
     <string name="agent_queued">다음: %1$s</string>
+    <string name="agent_tools_missing">에이전트 도구가 설치되지 않음: %1$s</string>
     <string name="agent_unqueue">보내지 않기</string>
     <string name="agent_attach">첨부</string>
     <string name="agent_remove_attachment">제거</string>

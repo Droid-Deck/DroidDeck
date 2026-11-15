@@ -51,4 +51,31 @@ class AgentHelpersTest {
         assertEquals("mine", mine.readText())
         assertFalse(File(root, "${ClaudeCode.skills}/diagnose-game/SKILL.md").canExecute())
     }
+
+    @Test fun theRulesGoFirstInAFileThatHasNoBlockYetAndKeepTheUsersOwn() {
+        val text = AgentSetup.withBlock("# Mine\nAlways answer in French.\n", "rules v1")
+        assertEquals("${AgentSetup.BLOCK_BEGIN}\nrules v1\n${AgentSetup.BLOCK_END}\n\n# Mine\nAlways answer in French.\n", text)
+    }
+
+    @Test fun onlyTheBlockIsReplacedOnTheNextTurn() {
+        val first = AgentSetup.withBlock("before\n", "rules v1") + "after\n"
+        val second = AgentSetup.withBlock(first, "rules v2")
+        assertEquals(first.replace("rules v1", "rules v2"), second)
+        assertEquals(second, AgentSetup.withBlock(second, "rules v2"))
+    }
+
+    @Test fun anEmptyOrMissingFileGetsJustTheBlock() {
+        assertEquals("${AgentSetup.BLOCK_BEGIN}\nrules\n${AgentSetup.BLOCK_END}\n", AgentSetup.withBlock(null, "rules\n"))
+        assertEquals(AgentSetup.withBlock(null, "rules"), AgentSetup.withBlock("  \n", "rules"))
+    }
+
+    @Test fun everyHarnessGetsTheRules() {
+        val root = tmp.newFolder("rootfs2")
+        val claude = File(root, ClaudeCode.instructions).apply { parentFile!!.mkdirs(); writeText("my rule\n") }
+
+        assertEquals(emptyList<String>(), AgentSetup.installInstructions(root, "rules"))
+
+        for (harness in AgentHarness.all) assertTrue(File(root, harness.instructions).readText().contains("rules"))
+        assertTrue(claude.readText().endsWith("\nmy rule\n"))
+    }
 }

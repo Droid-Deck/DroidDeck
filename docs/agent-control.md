@@ -24,52 +24,14 @@ and reports every run.
 
 ## On the device
 
-Notes for the agent in DroidDeck's Agent tab, from what tripped it up on real devices.
-
-**Where it runs.** The agent runs in DroidDeck's Linux userland, apart from the Steam session.
-`droiddeckctl stop`, `start steam` and `resume` end or restart only the session: the agent and its
-turn keep running, so it can restart Steam itself to test a change. The two share one filesystem:
-Steam's files and its own logs (`/root/.local/share/Steam/logs`) and the app's session logs
-(`/data/user/0/com.droiddeck.launcher/files/logs/<session id>/`, the id is in `state`) are
-readable directly. That folder is the live copy; `logs latest` archives part of it. X properties,
-gamescope and the session's processes are only reachable through `guest`.
-
-**Commands.**
-- `guest` runs one program, not a shell line: write `droiddeckctl guest -- sh -c '...'` for pipes,
-  `$(...)` or `DISPLAY=:0 xprop ...`. Its answer is JSON; the output is in `stdout.text`.
-- `screenshot` takes the path as an argument (`screenshot /tmp/top.png --display 0`), and
-  `prefs get` takes a file (`prefs get session`).
-- `input` drives a game session that has drawn a frame. For the launcher's own screens use
-  `adb -s $ADB_SERIAL shell input keyevent KEYCODE_BACK` and similar.
-- Before killing a pid, check what it is (`ps -o pid,args -p <pid>`); a pid seen in a game's
-  process list can be the Steam client.
-- `DEVICE_RESOLUTION_FAILED`: run `adb devices` and use the serial it lists.
-
-**What applies when.**
-- Many session settings (black frame insertion, environment, Proton) are read when a session or
-  game starts. After changing one, restart the game or the session before judging it.
-- With "Return after game" on (the default), quitting a game DroidDeck launched ends the whole
-  session; `start steam --wait --reuse` before the next launch. Launching a game that is already
-  running makes Steam show "Game already running" and `launch` time out.
-- Session scripts (`tools/linuxfs/overlay/usr/local/bin/droiddeck-*`, `steam-compatibility`) are
-  APK assets, copied into the rootfs at every session start over any local edit. A Lab build
-  carries app code and resources only, so a script, native or asset change needs a new APK: the
-  CI test build of its pull request (Updates > Test builds).
-
-**Skills.** `tools/agent/skills/<name>/SKILL.md` ship in the APK, and before every turn the app
-writes them into each harness's own skills folder (`~/.claude/skills`, `~/.codex/skills`), so every
-agent gets the same ones. Skills the user added there are left alone. Edit them here, not on the device.
-
-**Building and testing.**
-- The checkout often has the user's uncommitted work and a stale local `main`. Branch from
-  `origin/main` in a worktree (`git worktree add -b <branch> ../<dir> origin/main`).
-- Python tests run from the repository root: `python3 -m unittest tools.tests.test_x`. Some fail
-  on the device on `origin/main` as well; run them on a worktree of `origin/main` before blaming a change.
-- Gradle unit tests rarely run on the device (no `rustup`, the `MaliBridge` submodule is missing in
-  a worktree, asset staging fails). Leave them to CI and say so rather than retrying.
-- If `git push` asks for credentials, run `gh auth setup-git` once.
-- Do not chain `sleep` before a check. Start long work with `run_in_background`; its completion
-  starts a new turn.
+The agent in DroidDeck's Agent tab gets its working rules from `tools/agent/AGENTS.md` and its
+skills from `tools/agent/skills`. Both ship in the APK; before every turn the app writes the rules
+as a marked block into each harness's global instructions (`~/.claude/CLAUDE.md`,
+`~/.codex/AGENTS.md`) and the skills into its skills folder (`~/.claude/skills`, `~/.codex/skills`).
+Only DroidDeck's own block and skills are replaced: rules the user writes outside the block, and
+skills they add, stay. `droiddeckctl`, `droiddeck-scenario` and this guide are installed in
+`~/.local/share/droiddeck/ctl` (with `droiddeckctl` and `droiddeck-scenario` on PATH). If any of
+these cannot be installed, the Agent tab shows which.
 
 ## Access
 

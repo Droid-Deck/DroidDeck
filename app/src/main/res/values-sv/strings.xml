@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Skriv för att köa nästa meddelande</string>
     <string name="agent_queue">Köa</string>
     <string name="agent_queued">Nästa: %1$s</string>
+    <string name="agent_tools_missing">Agentens verktyg är inte installerade: %1$s</string>
     <string name="agent_unqueue">Skicka inte</string>
     <string name="agent_attach">Bifoga</string>
     <string name="agent_remove_attachment">Ta bort</string>
