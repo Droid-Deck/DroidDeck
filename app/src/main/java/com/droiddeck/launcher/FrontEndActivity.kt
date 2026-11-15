@@ -3084,6 +3084,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         vkBridge = SessionPrefs.vkBridge(this)
+        venus = SessionPrefs.venus(this)
+        venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
