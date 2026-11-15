@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">Ketik untuk mengantrekan pesan berikutnya</string>
     <string name="agent_queue">Antrekan</string>
     <string name="agent_queued">Berikutnya: %1$s</string>
+    <string name="agent_tools_missing">Alat agen tidak terpasang: %1$s</string>
     <string name="agent_unqueue">Jangan kirim</string>
     <string name="agent_attach">Lampirkan</string>
     <string name="agent_remove_attachment">Hapus</string>
@@ -4076,4 +4077,7 @@
     <string name="hud_readings_shown">Ditampilkan</string>
     <string name="hud_readings_count">%1$d dari %2$d</string>
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+
+    <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
+    <string name="display_integer_scaling_hint">Menggunakan faktor skala bilangan bulat terbesar yang muat. Jika sumber terlalu besar, seluruh gambar disesuaikan agar tidak terpotong. Resolusi diatur secara terpisah.</string>
 </resources>

@@ -1195,6 +1195,7 @@
     <string name="agent_hint_working">اكتب لإضافة الرسالة التالية إلى الانتظار</string>
     <string name="agent_queue">إضافة إلى الانتظار</string>
     <string name="agent_queued">التالي: %1$s</string>
+    <string name="agent_tools_missing">أدوات الوكيل غير مثبتة: %1$s</string>
     <string name="agent_unqueue">لا تُرسل</string>
     <string name="agent_attach">إرفاق</string>
     <string name="agent_remove_attachment">إزالة</string>
@@ -4266,4 +4267,7 @@
     <string name="hud_readings_shown">المعروض</string>
     <string name="hud_readings_count">%1$d من %2$d</string>
     <string name="exit_hint_back">اضغط زر الرجوع مرة أخرى للخروج</string>
+
+    <string name="display_integer_scaling">تحجيم صحيح بالأعداد الصحيحة</string>
+    <string name="display_integer_scaling_hint">يستخدم أكبر معامل تحجيم صحيح يناسب الشاشة. إذا كان المصدر كبيرًا جدًا، يتم تصغير الصورة كاملة لتجنب الاقتصاص. يتم ضبط الدقة بشكل منفصل.</string>
 </resources>

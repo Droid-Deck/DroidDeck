@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Gépelj a következő üzenet sorba állításához</string>
     <string name="agent_queue">Sorba állítás</string>
     <string name="agent_queued">Következő: %1$s</string>
+    <string name="agent_tools_missing">Az ügynök eszközei nincsenek telepítve: %1$s</string>
     <string name="agent_unqueue">Ne küldd el</string>
     <string name="agent_attach">Csatolás</string>
     <string name="agent_remove_attachment">Eltávolítás</string>
@@ -4106,4 +4107,7 @@
     <string name="hud_readings_shown">Megjelenítve</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
+
+    <string name="display_integer_scaling">Egész számú méretezés</string>
+    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezési tényezőt használja. Ha a forrás túl nagy, a teljes képet hozzáigazítja a levágás elkerüléséhez. A felbontás külön állítható.</string>
 </resources>

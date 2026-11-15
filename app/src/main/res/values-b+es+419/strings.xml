@@ -1213,6 +1213,7 @@
     <string name="agent_hint_working">Escribe para encolar el siguiente mensaje</string>
     <string name="agent_queue">Encolar</string>
     <string name="agent_queued">Siguiente: %1$s</string>
+    <string name="agent_tools_missing">Herramientas del agente sin instalar: %1$s</string>
     <string name="agent_unqueue">No enviar</string>
     <string name="agent_attach">Adjuntar</string>
     <string name="agent_remove_attachment">Quitar</string>
@@ -4117,4 +4118,7 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
+
+    <string name="display_integer_scaling">Escalado de píxeles enteros</string>
+    <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que quepa. Si la imagen de origen es demasiado grande, ajusta la imagen completa para evitar recortes. La resolución se configura por separado.</string>
 </resources>

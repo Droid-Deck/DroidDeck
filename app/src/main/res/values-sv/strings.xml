@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Skriv för att köa nästa meddelande</string>
     <string name="agent_queue">Köa</string>
     <string name="agent_queued">Nästa: %1$s</string>
+    <string name="agent_tools_missing">Agentens verktyg är inte installerade: %1$s</string>
     <string name="agent_unqueue">Skicka inte</string>
     <string name="agent_attach">Bifoga</string>
     <string name="agent_remove_attachment">Ta bort</string>
@@ -4106,4 +4107,7 @@
     <string name="hud_readings_shown">Visade</string>
     <string name="hud_readings_count">%1$d av %2$d</string>
     <string name="exit_hint_back">Tryck tillbaka igen för att avsluta</string>
+
+    <string name="display_integer_scaling">Heltalsskalning</string>
+    <string name="display_integer_scaling_hint">Använder den största hela skalningsfaktorn som får plats. Om källbilden är för stor anpassas hela bilden för att undvika beskärning. Upplösningen ställs in separat.</string>
 </resources>

@@ -1269,6 +1269,7 @@
     <string name="agent_no_reply">Ended without a reply</string>
     <string name="agent_retry">Retry</string>
     <string name="agent_setting_up">Setting up the agent</string>
+    <string name="agent_waiting_background">Waiting for background work</string>
     <string name="agent_rebuild_lab">Rebuild my Lab build %1$s for the installed version of DroidDeck and restart on it.</string>
     <string name="agent_tokens">%1$s in · %2$s out</string>
     <string name="agent_thinking">Thinking</string>
@@ -1283,6 +1284,7 @@
     <string name="agent_hint_working">Type to queue the next message</string>
     <string name="agent_queue">Queue</string>
     <string name="agent_queued">Next: %1$s</string>
+    <string name="agent_tools_missing">Agent tools not installed: %1$s</string>
     <string name="agent_unqueue">Don\'t send</string>
     <string name="agent_attach">Attach</string>
     <string name="agent_remove_attachment">Remove</string>
@@ -2658,6 +2660,10 @@
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
+    <string name="display_integer_scaling">Integer scaling</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. If the source is too large, fits the full image to avoid cropping. Resolution is configured separately.</string>
+    <string name="display_scaling_fit">Fit</string>
+    <string name="display_scaling_auto">Auto</string>
     <string name="display_filter">Scaling filter</string>
     <string name="display_filter_hint">Shared by Steam and Desktop.</string>
     <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
@@ -2976,6 +2982,14 @@
     <string name="edit_launch_options_steam_hint">Shared with Steam\'s Properties: a change in either one shows in both.</string>
     <string name="edit_launch_options_not_saved">Could not save the launch options to Steam. Try again.</string>
     <string name="edit_launch_options_desktop">Steam may be open in the desktop session. Change the launch options in its Properties, or close the session first.</string>
+    <string name="edit_steam_input_override">Steam Input</string>
+    <string name="edit_steam_input_default">Use Steam\'s default</string>
+    <string name="edit_steam_input_enable">Enable Steam Input</string>
+    <string name="edit_steam_input_disable">Disable Steam Input</string>
+    <string name="edit_steam_input_hint">Same as the game\'s Controller setting in Steam Properties.</string>
+    <string name="edit_steam_input_running">Close the Steam or desktop session before changing this setting.</string>
+    <string name="edit_steam_input_not_saved">Could not save the Steam Input setting. Close Steam and try again.</string>
+    <string name="edit_steam_input_unavailable">Could not read this game\'s Steam Input setting.</string>
     <string name="edit_artwork">Artwork</string>
     <string name="edit_other_exe">Other exe…</string>
     <string name="edit_remove">Remove</string>

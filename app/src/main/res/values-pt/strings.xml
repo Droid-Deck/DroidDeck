@@ -1185,6 +1185,7 @@
     <string name="agent_hint_working">Digite para enfileirar a próxima mensagem</string>
     <string name="agent_queue">Enfileirar</string>
     <string name="agent_queued">Próxima: %1$s</string>
+    <string name="agent_tools_missing">Ferramentas do agente não instaladas: %1$s</string>
     <string name="agent_unqueue">Não enviar</string>
     <string name="agent_attach">Anexar</string>
     <string name="agent_remove_attachment">Remover</string>
@@ -4153,4 +4154,7 @@
     <string name="hud_readings_shown">Exibidos</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Pressione o botão Voltar novamente para sair</string>
+
+    <string name="display_integer_scaling">Escala por números inteiros</string>
+    <string name="display_integer_scaling_hint">Usa o maior fator de escala inteiro que couber. Se a imagem de origem for grande demais, ajusta a imagem completa para evitar cortes. A resolução é configurada separadamente.</string>
 </resources>

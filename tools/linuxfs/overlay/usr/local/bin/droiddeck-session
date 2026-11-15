@@ -1292,6 +1292,33 @@ case $mode in
         pv=${pv# }
         pv=${pv:-$2}
       }
+      # Steam logs its saved Scaling Mode and Filter at startup but does not
+      # write them to gamescope until they are changed in the QAM, so a saved
+      # Fill shows in the menu while the game stays on Auto. Replay the values
+      # it logged since it last started, once, if gamescope has none yet.
+      scaling_restored=
+      restore_steam_scaling() {
+        local log="$steam_root/logs/systemperfmanager.txt" mode= filter= v
+        [ -n "$scaling_restored" ] && return 0
+        scaling_restored=1
+        xprop -root GAMESCOPE_NEW_SCALING_SCALER 2>/dev/null | grep -q '= ' && return 0
+        [ -f "$log" ] || return 0
+        while read -r v; do
+          case $v in
+            client*) mode= filter= ;;
+            mode\ *) mode=${v#mode } ;;
+            filter\ *) filter=${v#filter } ;;
+          esac
+        done < <(sed -n 's/.*\] Client version:.*/client/p; s/.*\] Set scaling mode: \([0-9]*\).*/mode \1/p; s/.*\] Set scaling filter: \([0-9]*\).*/filter \1/p' "$log")
+        case $mode in [1-5]) bl_xprop_set_all GAMESCOPE_NEW_SCALING_SCALER $((mode - 1)) \
+          && echo "== scaling: applied the client's saved scaling mode $mode" ;; esac
+        case $filter in
+          1) v=0 ;; 2) v=1 ;; 3) v=2 ;; *) v= ;;
+        esac
+        [ -n "$v" ] && bl_xprop_set_all GAMESCOPE_NEW_SCALING_FILTER "$v" \
+          && echo "== scaling: applied the client's saved scaling filter $filter"
+        return 0
+      }
       tmode= app= prev=
       while read -r line; do
         case $line in
@@ -1310,6 +1337,7 @@ case $mode in
                 printf '%s\n' "$app" > "$BL_LAUNCH_DIR/steam-focused-app.tmp" && mv -f "$BL_LAUNCH_DIR/steam-focused-app.tmp" "$BL_LAUNCH_DIR/steam-focused-app"
               fi
             fi
+            case $pv in ''|0|769|*[!0-9]*) ;; *) restore_steam_scaling ;; esac
             [ "$restore" = 1 ] || continue
             case $pv in ''|*[!0-9]*) prev=; continue ;; esac
             if [ "$prev" = 769 ] && [ "$pv" != 769 ]; then

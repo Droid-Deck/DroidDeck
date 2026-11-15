@@ -1175,6 +1175,7 @@
     <string name="agent_hint_working">Sonraki mesajı sıraya almak için yazın</string>
     <string name="agent_queue">Sıraya ekle</string>
     <string name="agent_queued">Sıradaki: %1$s</string>
+    <string name="agent_tools_missing">Ajan araçları yüklenmedi: %1$s</string>
     <string name="agent_unqueue">Gönderme</string>
     <string name="agent_attach">Ekle</string>
     <string name="agent_remove_attachment">Kaldır</string>
@@ -4106,4 +4107,7 @@
     <string name="hud_readings_shown">Gösterilen</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
+
+    <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
+    <string name="display_integer_scaling_hint">Sığan en büyük tam sayı ölçekleme katsayısını kullanır. Kaynak çok büyükse kırpmayı önlemek için görüntünün tamamını sığdırır. Çözünürlük ayrı ayarlanır.</string>
 </resources>

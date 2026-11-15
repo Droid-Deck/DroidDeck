@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">입력하면 다음 메시지가 대기열에 추가됩니다</string>
     <string name="agent_queue">대기열에 추가</string>
     <string name="agent_queued">다음: %1$s</string>
+    <string name="agent_tools_missing">에이전트 도구가 설치되지 않음: %1$s</string>
     <string name="agent_unqueue">보내지 않기</string>
     <string name="agent_attach">첨부</string>
     <string name="agent_remove_attachment">제거</string>
@@ -4076,4 +4077,7 @@
     <string name="hud_readings_shown">표시됨</string>
     <string name="hud_readings_count">%2$d 중 %1$d</string>
     <string name="exit_hint_back">한 번 더 뒤로를 누르면 종료됩니다</string>
+
+    <string name="display_integer_scaling">정수 배율 조정</string>
+    <string name="display_integer_scaling_hint">화면에 맞는 가장 큰 정수 배율을 사용합니다. 원본이 너무 크면 잘림을 방지하기 위해 전체 이미지를 맞춥니다. 해상도는 별도로 설정합니다.</string>
 </resources>

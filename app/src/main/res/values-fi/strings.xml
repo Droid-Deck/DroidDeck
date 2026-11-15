@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Kirjoita lisätäksesi seuraavan viestin jonoon</string>
     <string name="agent_queue">Jono</string>
     <string name="agent_queued">Seuraava: %1$s</string>
+    <string name="agent_tools_missing">Agentin työkaluja ei ole asennettu: %1$s</string>
     <string name="agent_unqueue">Älä lähetä</string>
     <string name="agent_attach">Liitä</string>
     <string name="agent_remove_attachment">Poista</string>
@@ -4106,4 +4107,7 @@
     <string name="hud_readings_shown">Näkyvissä</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
+
+    <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
+    <string name="display_integer_scaling_hint">Käyttää suurinta mahtuvaa kokonaislukukerrointa. Jos lähdekuva on liian suuri, koko kuva sovitetaan rajauksen välttämiseksi. Tarkkuus määritetään erikseen.</string>
 </resources>

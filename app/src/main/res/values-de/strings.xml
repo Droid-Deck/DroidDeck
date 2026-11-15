@@ -1175,6 +1175,7 @@
     <string name="agent_hint_working">Tippen, um die nächste Nachricht einzureihen</string>
     <string name="agent_queue">Einreihen</string>
     <string name="agent_queued">Als Nächstes: %1$s</string>
+    <string name="agent_tools_missing">Agent-Werkzeuge nicht installiert: %1$s</string>
     <string name="agent_unqueue">Nicht senden</string>
     <string name="agent_attach">Anhängen</string>
     <string name="agent_remove_attachment">Entfernen</string>
@@ -4106,4 +4107,7 @@
     <string name="hud_readings_shown">Angezeigt</string>
     <string name="hud_readings_count">%1$d von %2$d</string>
     <string name="exit_hint_back">Noch einmal zurück drücken zum Beenden</string>
+
+    <string name="display_integer_scaling">Ganzzahlige Skalierung</string>
+    <string name="display_integer_scaling_hint">Verwendet den größten ganzzahligen Skalierungsfaktor, der passt. Ist die Quelle zu groß, wird das gesamte Bild eingepasst, um Beschneidung zu vermeiden. Die Auflösung wird separat eingestellt.</string>
 </resources>

@@ -1189,6 +1189,7 @@
     <string name="agent_hint_working">Psaním zařadíte další zprávu do fronty</string>
     <string name="agent_queue">Zařadit do fronty</string>
     <string name="agent_queued">Další: %1$s</string>
+    <string name="agent_tools_missing">Nástroje agenta nejsou nainstalované: %1$s</string>
     <string name="agent_unqueue">Neposílat</string>
     <string name="agent_attach">Přiložit</string>
     <string name="agent_remove_attachment">Odebrat</string>
@@ -4186,4 +4187,7 @@
     <string name="hud_readings_shown">Zobrazeno</string>
     <string name="hud_readings_count">%1$d z %2$d</string>
     <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
+
+    <string name="display_integer_scaling">Celočíselné škálování</string>
+    <string name="display_integer_scaling_hint">Použije největší celočíselný násobek měřítka, který se vejde. Pokud je zdroj příliš velký, přizpůsobí celý obraz, aby nedošlo k oříznutí. Rozlišení se nastavuje samostatně.</string>
 </resources>

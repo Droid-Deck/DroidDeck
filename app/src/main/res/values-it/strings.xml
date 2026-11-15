@@ -1178,6 +1178,7 @@
     <string name="agent_hint_working">Digita per mettere in coda il messaggio successivo</string>
     <string name="agent_queue">Metti in coda</string>
     <string name="agent_queued">Prossimo: %1$s</string>
+    <string name="agent_tools_missing">Strumenti dell’agente non installati: %1$s</string>
     <string name="agent_unqueue">Non inviare</string>
     <string name="agent_attach">Allega</string>
     <string name="agent_remove_attachment">Rimuovi</string>
@@ -4145,4 +4146,7 @@
     <string name="hud_readings_shown">Mostrati</string>
     <string name="hud_readings_count">%1$d di %2$d</string>
     <string name="exit_hint_back">Premi di nuovo indietro per uscire</string>
+
+    <string name="display_integer_scaling">Ridimensionamento intero</string>
+    <string name="display_integer_scaling_hint">Usa il più grande fattore di scala intero che entra nello schermo. Se la sorgente è troppo grande, adatta l’intera immagine per evitare ritagli. La risoluzione si configura separatamente.</string>
 </resources>

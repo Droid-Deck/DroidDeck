@@ -100,6 +100,36 @@ class SteamLaunchOptionsTest {
 
     private fun localConfig(home: File, account: String) = File(home, "userdata/$account/config/localconfig.vdf").apply { parentFile!!.mkdirs() }
 
+    private fun withRootApp(text: String, appId: Int, key: String, value: String) = text.replaceFirst(
+        "{\n\t\"Software\"",
+        "{\n\t\"apps\"\n\t{\n\t\t\"$appId\"\n\t\t{\n\t\t\t\"$key\"\t\t\"$value\"\n\t\t}\n\t}\n\t\"Software\"",
+    )
+
+    @Test fun steamInputIsReadFromTheRootAppsSection() {
+        val home = steamHome()
+        localConfig(home, "60974196").writeText(withRootApp(config(apps(*sparking)), 1790600, "UseSteamControllerConfig", "2"))
+        assertEquals("2", SteamLaunchOptions.steamAppSetting(home, 1790600, "UseSteamControllerConfig", "1"))
+        assertEquals("1", SteamLaunchOptions.steamAppSetting(home, 400, "UseSteamControllerConfig", "1"))
+    }
+
+    @Test fun steamInputIsWrittenToTheRootAppsSectionAndAnOldCopyIsDropped() {
+        val home = steamHome()
+        val legacy = arrayOf(
+            "\t\t\t\t\t\"1790600\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"LaunchOptions\"\t\t\"-dx11\"",
+            "\t\t\t\t\t\t\"UseSteamControllerConfig\"\t\t\"0\"", "\t\t\t\t\t}",
+        )
+        val file = localConfig(home, "60974196").apply { writeText(config(apps(*legacy))) }
+        assertEquals("0", SteamLaunchOptions.steamAppSetting(home, 1790600, "UseSteamControllerConfig", "1"))
+        assertTrue(SteamLaunchOptions.writeSteamAppSetting(home, 1790600, "UseSteamControllerConfig", "0", "2", "1"))
+        val written = file.readText()
+        assertEquals("2", SteamLaunchOptions.steamAppSetting(home, 1790600, "UseSteamControllerConfig", "1"))
+        assertEquals(1, Regex("UseSteamControllerConfig").findAll(written).count())
+        assertFalse(written.substring(written.indexOf("\"Software\""), written.indexOf("\"WebStorage\"")).contains("UseSteamControllerConfig"))
+        assertEquals("-dx11", SteamLaunchOptions.launchOptions(written, 1790600))
+        assertTrue(SteamLaunchOptions.writeSteamAppSetting(home, 1790600, "UseSteamControllerConfig", "2", null, "1"))
+        assertFalse(file.readText().contains("UseSteamControllerConfig"))
+    }
+
     @Test fun aChangeGoesToTheSignedInAccountOnly() {
         val home = steamHome()
         val signedIn = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
