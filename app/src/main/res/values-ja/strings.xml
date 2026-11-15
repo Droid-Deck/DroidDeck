@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR のグラフィックが停止しました</string>
     <string name="steamvr_recovery_countdown">グラフィックをリセットして SteamVR を開き直すため、DroidDeck は%1$d秒後に再起動します。実行中のゲームは終了し、保存されていない進行状況は復元できません。</string>
@@ -357,7 +357,7 @@
     <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
     <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_shader_precache">シェーダーの事前キャッシュ</string>
-    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」>「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
+    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」&gt;「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 
     <string name="display_integer_scaling">整数スケーリング</string>
-    <string name="display_integer_scaling_hint">画面に収まる最大の整数倍スケールを使用します。より大きな整数倍スケールを使うため、画面の端がわずかに切り取られる場合があります。入力画像が出力より大きい場合は、画像全体が表示されるように縮小します。解像度は別途設定します。 この場合は、1920×1080から1280×720への変換のように、倍率が整数ではないスケーリングを使用します。</string>
+    <string name="display_integer_scaling_hint">画面に収まる最大の整数倍スケールを使用します。より大きな整数倍スケールを使うため、画面の端がわずかに切り取られる場合があります。入力画像が出力より大きい場合は、画像全体が表示されるように縮小します。解像度は別途設定します。この場合は、1920×1080から1280×720への変換のように、倍率が整数ではないスケーリングを使用します。</string>
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
 </resources>

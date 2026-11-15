@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">กราฟิกของ SteamVR หยุดทำงาน</string>
     <string name="steamvr_recovery_countdown">DroidDeck จะรีสตาร์ทใน %1$d วินาทีเพื่อรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง เกมที่กำลังเล่นอยู่จะถูกปิด และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
@@ -357,7 +357,7 @@
     <string name="mode_return_after_game">กลับไปที่ DroidDeck หลังเล่นเกม</string>
     <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก DroidDeck หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
     <string name="mode_shader_precache">แคชเชเดอร์ล่วงหน้า</string>
-    <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads > Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
+    <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads &gt; Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
     <string name="mode_steam_repair">ซ่อมแซมไคลเอนต์ Steam</string>
     <string name="mode_steam_repair_hint">ดาวน์โหลดไคลเอนต์ Steam ใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน ใช้เมื่อ Steam ค้างอยู่ที่หน้าจอโหลด เกม การลงชื่อเข้าใช้ และการตั้งค่ายังคงอยู่</string>
     <string name="mode_steam_repair_queued">ไคลเอนต์ Steam จะถูกดาวน์โหลดใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน</string>
@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
 
     <string name="display_integer_scaling">การปรับขนาดจำนวนเต็ม</string>
-    <string name="display_integer_scaling_hint">ใช้การขยายแบบจำนวนเต็มที่ใหญ่ที่สุดซึ่งพอดีกับหน้าจอ ขอบภาพอาจถูกตัดเล็กน้อยเพื่อใช้การขยายจำนวนเต็มที่ใหญ่ขึ้น หากภาพต้นฉบับใหญ่กว่าภาพที่แสดง จะปรับให้แสดงภาพได้ครบทั้งภาพ โดยตั้งค่าความละเอียดแยกต่างหาก. กรณีนี้จะใช้การปรับขนาดแบบเศษส่วน เช่น จาก 1920×1080 เป็น 1280×720</string>
+    <string name="display_integer_scaling_hint">ใช้การขยายแบบจำนวนเต็มที่ใหญ่ที่สุดซึ่งพอดีกับหน้าจอ ขอบภาพอาจถูกตัดเล็กน้อยเพื่อใช้การขยายจำนวนเต็มที่ใหญ่ขึ้น หากภาพต้นฉบับใหญ่กว่าภาพที่แสดง จะปรับให้แสดงภาพได้ครบทั้งภาพ โดยตั้งค่าความละเอียดแยกต่างหาก กรณีนี้จะใช้การปรับขนาดแบบเศษส่วน เช่น จาก 1920×1080 เป็น 1280×720</string>
     <string name="display_scaling_integer">จำนวนเต็ม</string>
     <string name="display_scaling_fit">พอดีหน้าจอ</string>
 </resources>

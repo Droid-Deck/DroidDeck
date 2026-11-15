@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR 圖形已停止運作</string>
     <string name="steamvr_recovery_countdown">DroidDeck 將於 %1$d 秒後重新啟動，以重設圖形並重新開啟 SteamVR。正在運行的遊戲會被關閉，未儲存的進度無法還原。</string>
@@ -357,7 +357,7 @@
     <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
     <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_shader_precache">著色器預先快取</string>
-    <string name="mode_shader_precache_hint">Steam 會為你的遊戲下載預先編譯的著色器並在背景處理，讓遊戲較不卡頓。關閉可節省流動數據用量、儲存空間和電量；遊戲則會改為在執行時編譯著色器。與 Steam 的「下載」>「著色器預先快取」為同一個設定。下次工作階段生效。</string>
+    <string name="mode_shader_precache_hint">Steam 會為你的遊戲下載預先編譯的著色器並在背景處理，讓遊戲較不卡頓。關閉可節省流動數據用量、儲存空間和電量；遊戲則會改為在執行時編譯著色器。與 Steam 的「下載」&gt;「著色器預先快取」為同一個設定。下次工作階段生效。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停留在載入畫面，請使用此功能。遊戲、登入資料和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>
@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">再按一次返回鍵退出</string>
 
     <string name="display_integer_scaling">整數縮放</string>
-    <string name="display_integer_scaling_hint">使用可容納的最大整數倍縮放。為使用更大的整數倍，畫面邊緣可能會被輕微裁切。如果來源影像大於輸出尺寸，會縮放以完整顯示影像。解像度需另行設定。 此時會使用非整數倍縮放，例如由 1920×1080 縮放至 1280×720。</string>
+    <string name="display_integer_scaling_hint">使用可容納的最大整數倍縮放。為使用更大的整數倍，畫面邊緣可能會被輕微裁切。如果來源影像大於輸出尺寸，會縮放以完整顯示影像。解像度需另行設定。此時會使用非整數倍縮放，例如由 1920×1080 縮放至 1280×720。</string>
     <string name="display_scaling_integer">整數</string>
     <string name="display_scaling_fit">配合畫面</string>
 </resources>
