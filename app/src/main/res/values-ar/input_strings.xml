@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">ملفات تعريف الإدخال</string>
+    <string name="input_profiles">ملفات التعريف</string>
+    <string name="input_physical">وحدة تحكم فعلية</string>
+    <string name="input_primary">الشاشة الرئيسية</string>
+    <string name="input_secondary">الشاشة الثانوية</string>
+    <string name="input_native">أصلي / Steam Input</string>
+    <string name="input_native_target">أصلي: %1$s</string>
+    <string name="input_remap_native">إرسال تحكم آخر من وحدة التحكم</string>
+    <string name="input_disabled">معطّل</string>
+    <string name="input_keys">مفتاح أو مجموعة مفاتيح</string>
+    <string name="input_direction_keys">مفاتيح الاتجاه</string>
+    <string name="input_pointer">تحريك المؤشر</string>
+    <string name="input_pointer_speed">سرعة المؤشر: %1$d</string>
+    <string name="input_scroll">تمرير</string>
+    <string name="input_scroll_vertical">تمرير عمودي</string>
+    <string name="input_mouse_left">زر الفأرة الأيسر</string>
+    <string name="input_mouse_right">زر الفأرة الأيمن</string>
+    <string name="input_mouse_middle">زر الفأرة الأوسط</string>
+    <string name="input_command_menu">فتح قائمة DroidDeck</string>
+    <string name="input_command_keyboard">إظهار لوحة المفاتيح</string>
+    <string name="input_command_steam">فتح قائمة Steam</string>
+    <string name="input_command_qam">فتح الوصول السريع في Steam</string>
+    <string name="input_remove_element">إزالة عنصر التحكم</string>
+    <string name="input_add_element">إضافة عنصر تحكم</string>
+    <string name="input_extra_keys">أزرار خاصة بالجهاز</string>
+    <string name="input_capture">تعيين زر فعلي</string>
+    <string name="input_capture_confirm">حرّر الزر ثم اختر تحرير أو إعادة المحاولة أو إلغاء. يلغي B أو رجوع بعد التحرير.</string>
+    <string name="input_capture_retry">إعادة المحاولة</string>
+    <string name="input_capture_hint">اضغط زرًا، بما في ذلك زر رجوع يُبلّغ عنه كمفتاح. مفاتيح الصوت ومفاتيح نظام Android محجوزة. ينطبق التعيين على هذا الجهاز فقط.</string>
+    <string name="input_remove_binding">إزالة التعيين</string>
+    <string name="input_latency">تشخيص الإدخال</string>
+    <string name="input_measure">تسجيل زمن إرسال الإدخال</string>
+    <string name="input_read_timing">قراءة القياسات</string>
+    <string name="input_latency_hint">يقيس الإرسال من Android حتى النشر في ناقل الإدخال الحالي. لا يشمل وصول Bluetooth أو استعلام الضيف أو العرض أو زمن استجابة الشاشة. التسجيل متوقف افتراضيًا.</string>
+    <string name="input_normal_binding">استخدام تعيين الإدخال العادي</string>
+</resources>

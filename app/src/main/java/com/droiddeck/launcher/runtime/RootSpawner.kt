@@ -120,8 +120,7 @@ object RootSpawner {
         val builder = if (NativeGuest.forSession(context)) {
             NativeGuest.processBuilder(context, root, binds, guest, cwd)
         } else {
-            val cmd = LinuxRuntime.prootPrefix(context, root, cwd, true)
-            cmd.add(1, "--link2symlink")
+            val cmd = LinuxRuntime.rootPrefix(context, root, cwd)
             binds.forEach { cmd.add("-b"); cmd.add(it) }
             cmd.addAll(guest)
             ProcessBuilder(cmd).directory(root).also { b ->
