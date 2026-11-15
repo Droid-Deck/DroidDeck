@@ -71,6 +71,29 @@ class ExternalOutputHandoffTest {
         assertFalse(active())
     }
 
+    @Test fun theBottomScreenTakesPrecedenceOverTheMonitor() {
+        val bottom = bottomScreen()
+        ReflectionHelpers.setField(activity, "bottomGame", bottom)
+
+        assertSame(bottom.holder, outputHolder())
+        attach(screen.holder)
+        assertFalse(active())
+    }
+
+    @Test fun droppingTheMonitorLeavesTheBottomScreenOutputAlone() {
+        val bottom = bottomScreen()
+        ReflectionHelpers.setField(activity, "bottomGame", bottom)
+        attach(bottom.holder)
+        ReflectionHelpers.setField(activity, "surfaceW", 1240)
+        ReflectionHelpers.setField(activity, "surfaceH", 1080)
+
+        restore()
+
+        assertEquals(View.INVISIBLE, phone.visibility)
+        assertEquals(1240, ReflectionHelpers.getField<Int>(activity, "surfaceW"))
+        assertSame(bottom.holder, outputHolder())
+    }
+
     @Test fun latePhoneDestructionDoesNotResetTheMonitorOutput() {
         attach(screen.holder)
         ReflectionHelpers.setField(activity, "surfaceW", 1920)
@@ -152,6 +175,8 @@ class ExternalOutputHandoffTest {
         shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
         return display
     }
+
+    private fun bottomScreen() = BottomGameScreen(activity, presentationDisplay(), activity, { false }, { false })
 
     private fun attach(holder: SurfaceHolder) {
         ReflectionHelpers.callInstanceMethod<Void>(activity, "onOutputAttached", from(SurfaceHolder::class.java, holder))
