@@ -10,14 +10,34 @@
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää Steamin; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
+        <item>Ohjaimesi näkyy Steamille Steam Deck -ohjaimena. Vaihda se Steam Controller-, DualShock 4-, DualSense- tai Xbox 360 -ohjaimeksi istunnon asetuksissa; muutos tulee voimaan seuraavassa istunnossa.</item>
+        <item>Pidä ohjaimen Takaisin-painiketta pohjassa avataksesi Steamin Pikavalikon. Asetuksen Pidä Takaisin pohjassa Steam-pikanäppäimille on oltava päällä istunnon asetuksissa.</item>
+        <item>Taustatoiminta määrää, mitä tapahtuu, kun poistut sovelluksesta: Natiivi valmistelee Steamin lepotilaan, Automaattinen keskeyttää sen, Manuaalinen odottaa Jatka-painiketta, Ei koskaan pitää sen käynnissä.</item>
+        <item>Steam-pelit käyttävät Steamin Kuvanopeusrajaa Pikavalikossa. Näyttö vaihtaa virkistystaajuuteen, jolla raja jakautuu tasan, jos sellainen on.</item>
+        <item>Matalan viiveen tila istuntovalikossa lähettää ohjaimen syötteen 1000 Hz:n taajuudella 250 Hz:n sijaan, hieman suuremmalla suoritin- ja akunkulutuksella.</item>
+        <item>Jokaisella pelillä on oma profiilinsa, jossa on Proton-, FEX-, komponentti- ja ympäristöasetukset.</item>
+        <item>Istuntovalikossa on mikrofonin kytkin puhekeskustelua varten ja Keskeytä nyt -painike istunnon jäädyttämiseen tarvittaessa.</item>
+        <item>Siirrä DroidDeckin HUD vetämällä, muuta sen kokoa nipistämällä ja telakoi se pieneksi FPS-välilehdeksi työntämällä se reunan yli.</item>
+        <item>Kaksinäyttöisissä käsikonsoleissa alanäyttö voi näyttää lataukset, ilmoitukset, kuvakaappaukset ja Steam-chatin. Vaihda näytöt siirtää pelin sinne.</item>
+        <item>Lisää Steam-kirjastoja SD-kortilta, USB-asemalta tai SSD-levyltä, ja DroidDeck pitää pelit yhdessä Kirjastossasi.</item>
+        <item>Kaupat-osiossa voit kirjautua sisään palveluihin Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
+        <item>Komponentit, kuten FEX, DXVK ja VKD3D-Proton, päivittyvät itsestään, ja oletuksena on Proton Experimental ARM64 tai Proton 11.0 ARM64, kun kyseinen versio on asennettu.</item>
+        <item>Pakkaa Steam pelin ollessa käynnissä vapauttaa RAM-muistia laitteilla, joilla muisti on vähissä.</item>
+        <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon: kosketuslevytila, PC-näppäimistö, matalan viiveen tila, pelin profiili ja muuta.</item>
+        <item>Peli pyörii hitaasti? Rajoita kuvanopeutta Pikavalikossa ja kokeile sitten toista Proton-versiota tai FEX-esiasetusta pelin komponenteissa.</item>
+        <item>Rätisevä tai puuttuva pelin ääni? Kokeile Steamin asetuksissa kohdassa Ääni asetusta DirectAudio peleille.</item>
+        <item>Asetukset ja sen alla Tallennustila voi tyhjentää shader-välimuistit ja poistettujen pelien jäljelle jääneet prefixit.</item>
+        <item>Osuitko virheeseen? Jaa lokit istuntovalikossa kokoaa diagnostiikkatiedot. Julkaise ne kanavalla #bug-reports Discordissa.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Ensimmäinen käynnistys määrittää työpöydän. Tämä voi kestää muutaman minuutin.</item>
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää istunnon; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Kosketus toimii kosketuslevynä: vedä liikuttaaksesi osoitinta, napauta napsauttaaksesi.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
+        <item>Ensimmäinen käynnistys valmistelee työpöydän. Tämä voi kestää muutaman minuutin.</item>
+        <item>Kosketus toimii kosketuslevynä: siirrä osoitinta vetämällä, napsauta napauttamalla.</item>
+        <item>Taustatoiminta määrää, mitä tapahtuu, kun poistut sovelluksesta: Manuaalinen odottaa oletuksena Jatka-painiketta, Automaattinen keskeyttää, Ei koskaan pitää käynnissä.</item>
+        <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon ja valitse PC-näppäimistö kirjoittaaksesi sovelluksissa, jotka ohittavat Androidin näppäimistön.</item>
+        <item>Istuntovalikon PC-näppäimistön koko, peittävyys ja näppäinryhmät ovat säädettävissä.</item>
+        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muuten käytä näytön ohjaimia.</item>
+        <item>Istuntovalikossa on mikrofonin kytkin ja Keskeytä nyt -painike istunnon jäädyttämiseen tarvittaessa.</item>
+        <item>Osuitko virheeseen? Jaa lokit istuntovalikossa kokoaa diagnostiikkatiedot. Julkaise ne kanavalla #bug-reports Discordissa.</item>
     </string-array>
     <string name="session_channel">Istunto</string>
     <string name="session_channel_description">Näkyy, kun Steam- tai työpöytäistunto on käynnissä</string>
@@ -608,6 +628,8 @@
     <string name="perf_cap_off">Pois</string>
     <string name="perf_cap_auto">Ajurin oletus</string>
     <string name="perf_zram_client">Pakkaa Steam pelin ollessa käynnissä</string>
+    <string name="perf_zram_idle">Pakkaa pelin käyttämätöntä muistia</string>
+    <string name="perf_zram_idle_hint">Siirtää pelin käyttämätöntä muistia zRAMiin, kun RAM-muisti vähenee. Poista tämä käytöstä, jos pelit jäätyvät muutamaksi sekunniksi noin puolen minuutin välein. Tulee voimaan, kun istunto käynnistyy seuraavan kerran.</string>
     <string name="perf_zram_client_hint">20 s pelin käynnistymisen jälkeen Steam-asiakasohjelma pakataan zRAMiin, jotta pelille jää enemmän muistia, ja luetaan takaisin, kun peli sulkeutuu. Poista tämä käytöstä, jos istunto sulkeutuu pian pelien käynnistymisen jälkeen. Yllä oleva RAM-raja pakkaa silti Steamin, kun istunto ylittää sen.</string>
     <string name="perf_ram_cap">RAM-raja</string>
     <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
@@ -1838,6 +1860,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Tyhjennä</string>
     <string name="game_sync_err_runtime">Asenna ajoympäristö ensin</string>
     <string name="game_sync_err_steam_library">Steam-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_previous_sd">Aiempi SD-kirjasto ei ole käytettävissä</string>
@@ -3841,8 +3864,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-näppäin ja Koti-painike pysyvät istunnossa</string>
     <string name="integration_shortcuts_maybe_restricted">Harmaana Androidissa? Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_restricted">Androidin estämä · Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
-    <string name="integration_shortcuts_service">DroidDeckin järjestelmänäppäimet</string>
-    <string name="integration_shortcuts_service_description">Pitää Alt+Tabin, Win-näppäimen ja Koti-painikkeen aktiivisessa DroidDeck-istunnossa Androidin sijaan.</string>
     <string name="integration_brightness_needed">Ota Kirkkaus käyttöön kohdassa Käyttöönotto → Steam-integraatio</string>
     <string name="setup_gpu_bridge_off">Mali-silta: pois</string>
     <string name="setup_gpu_bridge_unusable">%1$s ei voi käyttää Mali-siltaa (se vaatii Mali-GPU:n, jolla ei ole järjestelmäajurireittiä), joten tällä kytkimellä ei ole vaikutusta tässä.</string>
@@ -4083,4 +4104,5 @@
     <string name="hud_metric_hdr">HDR-tila</string>
     <string name="hud_readings_shown">Näkyvissä</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
 </resources>

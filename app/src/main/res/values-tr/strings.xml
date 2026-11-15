@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck otomatik olarak yeniden başlatılamadı. Uygulamayı tamamen kapatıp yeniden açın.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
+        <item>İlk çalıştırmada Steam indirilir. Bu birkaç dakika sürebilir.</item>
+        <item>Kumandan Steam\'e Steam Deck kumandası olarak görünür. Oturum ayarlarından Steam Controller, DualShock 4, DualSense veya Xbox 360 kumandasına geçebilirsin; bir sonraki oturumda geçerli olur.</item>
+        <item>Steam\'in Hızlı erişim menüsünü açmak için kumandada Geri\'yi basılı tut. Oturum ayarlarında "Steam kısayolları için Geri\'yi basılı tut" açık olmalı.</item>
+        <item>Arka plan davranışı, uygulamadan çıkınca ne olacağını belirler: Yerel Steam\'i uykuya hazırlar, Otomatik duraklatır, Manuel Devam et\'i bekler, Asla çalışmaya devam ettirir.</item>
+        <item>Steam oyunları Hızlı erişim\'deki Steam Kare sınırı ayarını kullanır. Sınırın tam bölündüğü bir yenileme hızı varsa ekran ona geçer.</item>
+        <item>Oturum menüsündeki Düşük gecikme modu, kumanda girişini 250 Hz yerine 1000 Hz ile gönderir; karşılığında biraz daha CPU ve pil harcar.</item>
+        <item>Her oyunun Proton, FEX, bileşenler ve ortam ayarlarını içeren kendi profili vardır.</item>
+        <item>Oturum menüsünde sesli sohbet için bir mikrofon düğmesi ve oturumu istediğin an dondurmak için Şimdi askıya al düğmesi bulunur.</item>
+        <item>DroidDeck HUD\'unu taşımak için sürükle, boyutlandırmak için iki parmakla yakınlaştır ve küçük bir FPS sekmesi olarak yuvalamak için kenara doğru it.</item>
+        <item>Çift ekranlı el konsollarında alt ekran indirmeleri, bildirimleri, ekran görüntülerini ve Steam sohbetini gösterebilir. Ekranları değiştir oyunu bunun yerine alta koyar.</item>
+        <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
+        <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
+        <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
+        <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
+        <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>
+        <item>Oyun yavaş mı çalışıyor? Hızlı erişim\'de kare hızını sınırla, sonra oyunun bileşenlerinde başka bir Proton sürümü veya FEX ön ayarı dene.</item>
+        <item>Oyun sesinde cızırtı var ya da ses yok mu? Steam ayarlarında Ses altındaki Oyunlar için DirectAudio düğmesini dene.</item>
+        <item>Kurulum, ardından Depolama, kaldırdığın oyunlardan kalan gölgelendirici önbelleklerini ve artakalan önekleri temizleyebilir.</item>
+        <item>Bir hata mı buldun? Oturum menüsündeki Günlükleri paylaş tanılama bilgilerini paketler. Bunları Discord\'da #bug-reports kanalına gönder.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>İlk çalıştırmada masaüstü kurulur. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
+        <item>İlk çalıştırmada masaüstü kurulur. Bu birkaç dakika sürebilir.</item>
+        <item>Dokunma, dokunmatik yüzey gibi çalışır: imleci taşımak için sürükle, tıklamak için dokun.</item>
+        <item>Arka plan davranışı, uygulamadan çıkınca ne olacağını belirler: Manuel varsayılan olarak Devam et\'i bekler, Otomatik duraklatır, Asla çalışmaya devam ettirir.</item>
+        <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır, ardından Android klavyesini yok sayan uygulamalarda yazmak için PC klavyesi\'ni seç.</item>
+        <item>Oturum menüsündeki PC klavyesinin boyutu, opaklığı ve tuş grupları ayarlanabilir.</item>
+        <item>Kumandan Xbox 360 kumandası olarak görünür. Yoksa ekrandaki kontrolleri kullan.</item>
+        <item>Oturum menüsünde bir mikrofon düğmesi ve oturumu istediğin an dondurmak için Şimdi askıya al düğmesi bulunur.</item>
+        <item>Bir hata mı buldun? Oturum menüsündeki Günlükleri paylaş tanılama bilgilerini paketler. Bunları Discord\'da #bug-reports kanalına gönder.</item>
     </string-array>
     <string name="session_channel">Oturum</string>
     <string name="session_channel_description">Steam veya masaüstü oturumu açıkken gösterilir</string>
@@ -608,6 +628,8 @@
     <string name="perf_cap_off">Kapalı</string>
     <string name="perf_cap_auto">Sürücü varsayılanı</string>
     <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
+    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
+    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır. Oyunlar yaklaşık her yarım dakikada birkaç saniye donuyorsa kapatın. Oturum bir sonraki başlatıldığında geçerli olur.</string>
     <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
     <string name="perf_ram_cap">RAM sınırı</string>
     <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
@@ -1830,6 +1852,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Temizle</string>
     <string name="game_sync_err_runtime">Önce çalışma ortamını yükleyin</string>
     <string name="game_sync_err_steam_library">Steam kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_previous_sd">Önceki SD kütüphanesi kullanılamıyor</string>
@@ -3841,8 +3864,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win tuşu ve Ana Ekran düğmesi oturumda kalır</string>
     <string name="integration_shortcuts_maybe_restricted">Android\'de gri mi görünüyor? Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_restricted">Android tarafından engellendi · Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
-    <string name="integration_shortcuts_service">DroidDeck sistem tuşları</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win tuşu ve Ana Ekran düğmesini Android yerine etkin DroidDeck oturumunda tutar.</string>
     <string name="integration_brightness_needed">Kurulum → Steam entegrasyonu bölümünde Parlaklık\'ı açın</string>
     <string name="setup_gpu_bridge_off">Mali köprüsü: kapalı</string>
     <string name="setup_gpu_bridge_unusable">%1$s Mali köprüsünü kullanamaz (sistem sürücüsü yolu olmayan bir Mali GPU gerekir), bu yüzden bu anahtarın burada etkisi yok.</string>
@@ -4083,4 +4104,5 @@
     <string name="hud_metric_hdr">HDR durumu</string>
     <string name="hud_readings_shown">Gösterilen</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
 </resources>
