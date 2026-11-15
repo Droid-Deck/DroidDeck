@@ -4786,8 +4786,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun externalMouseAttached(): Boolean {
-        lastExternalMouse = InputDevice.getDeviceIds().map { InputDevice.getDevice(it) }
-            .firstOrNull { device -> device != null && com.droiddeck.launcher.input.MouseBackInput.isExternalMouse(device) }
+        lastExternalMouse = com.droiddeck.launcher.input.MouseBackInput.externalMouse(
+            InputDevice.getDeviceIds().map { InputDevice.getDevice(it) })
         return lastExternalMouse != null
     }
 
