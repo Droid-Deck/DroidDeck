@@ -36,6 +36,10 @@ class RuntimeInputsTest(unittest.TestCase):
         service = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
         service.parent.mkdir(parents=True)
         service.write_bytes(b'MZ service')
+        rockstar = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar'
+        rockstar.mkdir(parents=True)
+        (rockstar / 'Launcher32.exe').write_bytes(b'MZ launcher 32')
+        (rockstar / 'Launcher64.exe').write_bytes(b'MZ launcher 64')
         self.audio(['pactl', 'modules/arm64/module-aaudio-sink.so', 'modules/arm64/module-directaudio-native-sink.so'])
         self.packs()
 
@@ -187,6 +191,19 @@ class RuntimeInputsTest(unittest.TestCase):
         self.assertIn(name, runtime.outputs(self.root))
         apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ service'})
         with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_rockstar_service_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Launcher32.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ launcher 32'})
+        with self.assertRaisesRegex(ValueError, 'rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_a_stale_rockstar_pack_is_rejected(self):
+        apk = self.current_apk(self.root / 'current.apk')
+        self.pack('rockstar', {'Launcher32.exe': b'MZ older launcher', 'Launcher64.exe': b'MZ launcher 64'})
+        with self.assertRaisesRegex(ValueError, 'rockstar is missing or has a stale'):
             runtime.check_apk(apk, self.root)
 
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):

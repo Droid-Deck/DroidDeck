@@ -36,35 +36,56 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+    private val STORE_SERVICES = mapOf(
+        AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
+        AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+    )
 
     /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
-    fun ensureUbisoftService(context: Context) {
-        AddonPack.UBISOFT.ensure(context) { app ->
+    fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
+
+    fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    private fun ensureStoreService(context: Context, pack: AddonPack) {
+        pack.ensure(context) { app ->
             com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
-                ?.let { stageUbisoftService(app, it, null) }
+                ?.let { stageStoreService(app, it, pack, null) }
         }
     }
 
+    /** Blocks until the store's service pack is installed and staged in [root]; false when it could not be fetched. */
+    fun awaitStoreService(context: Context, store: String, root: File): Boolean {
+        val pack = STORE_SERVICES.keys.firstOrNull { it.name == store } ?: return false
+        if (!pack.await(context)) return false
+        return stageStoreService(context, root, pack, null)
+    }
+
     @Synchronized
-    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
-        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
-        val target = File(root, UBISOFT_SERVICE)
-        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
-        val staged = File(target.parentFile, target.name + ".staged")
-        var installed = false
-        try {
-            target.parentFile?.mkdirs()
-            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
-                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+    private fun stageStoreService(context: Context, root: File, pack: AddonPack, ledger: StageLedger?): Boolean {
+        val dir = pack.takeIf { it.installed(context) }?.dir(context) ?: return false
+        val base = STORE_SERVICES.getValue(pack)
+        var all = true
+        for (file in dir.listFiles().orEmpty().filter { it.isFile && it.name != AddonPack.COMPLETE }.sortedBy { it.name }) {
+            val relative = "$base/${file.name}"
+            val target = File(root, relative)
+            if (ledger?.current(relative, target) == true) continue
+            val staged = File(target.parentFile, target.name + ".staged")
+            var installed = false
+            try {
+                target.parentFile?.mkdirs()
+                file.inputStream().use { input ->
+                    staged.outputStream().use { output -> FileUtils.copy(input, output) }
+                }
+                installed = staged.setExecutable(true, false) && staged.renameTo(target)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not stage the ${pack.name} launcher service", e)
+            } finally {
+                if (!installed) staged.delete()
             }
-            installed = staged.setExecutable(true, false) && staged.renameTo(target)
-        } catch (e: Exception) {
-            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
-        } finally {
-            if (!installed) staged.delete()
+            if (installed) ledger?.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
+            all = all && installed
         }
-        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+        return all
     }
 
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
@@ -73,8 +94,6 @@ object SessionFiles {
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
-            "rockstar/helpers/Launcher32.exe" to "usr/local/lib/droiddeck-rockstar/Launcher32.exe",
-            "rockstar/helpers/Launcher64.exe" to "usr/local/lib/droiddeck-rockstar/Launcher64.exe",
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
             "usr/local/bin/droiddeck-game-debug" to "usr/local/bin/droiddeck-game-debug",
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
@@ -248,7 +267,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                (if (asset.startsWith("rockstar/")) requireNotNull(javaClass.getResourceAsStream("/$asset")) else context.assets.open("linuxfs/$asset")).use { input ->
+                context.assets.open("linuxfs/$asset").use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)
@@ -290,7 +309,7 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
-        stageUbisoftService(context, root, ledger)
+        for (pack in STORE_SERVICES.keys) stageStoreService(context, root, pack, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
