@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Екран</string>
     <string name="drawer_frame_limit">Ограничение на кадрите</string>
     <string name="drawer_frame_limit_note">Ограничава тази игра. Екранът преминава към честота на опресняване, която се дели точно на ограничението, ако има такава; другите ограничения може да изглеждат неравномерни. Игрите в Steam използват Frame Limit на Steam в менюто Quick Access.</string>
+    <string name="drawer_bfi">Вмъкване на черни кадри</string>
+    <string name="drawer_bfi_note">По-ясно движение: след всеки кадър следва черно опресняване. Нужни са 100 Hz или повече; играта върви на половината честота и изглежда по-тъмна. Изключено при генериране на кадри.</string>
     <string name="drawer_page_effects">Ефекти</string>
     <string name="drawer_page_controls">Контроли</string>
     <string name="drawer_page_components">Компоненти</string>
@@ -4111,5 +4113,7 @@
     <string name="input_duplicate_element">Дублиране на контрола</string>
 
     <string name="display_integer_scaling">Целочислено мащабиране</string>
-    <string name="display_integer_scaling_hint">Използва най-големия цял коефициент на мащабиране, който се побира. Ако източникът е твърде голям, побира цялото изображение, за да избегне изрязване. Разделителната способност се настройва отделно.</string>
+    <string name="display_integer_scaling_hint">Използва най-големия цял коефициент на мащабиране, който се побира. Възможно е изрязване на краищата. Ако източникът е по-голям от изхода, дробното мащабиране показва цялото изображение. Разделителната способност се настройва отделно.</string>
+    <string name="display_scaling_integer">Цяло число</string>
+    <string name="display_scaling_fit">Побиране</string>
 </resources>

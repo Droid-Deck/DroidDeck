@@ -357,7 +357,7 @@
     <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
     <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_shader_precache">シェーダーの事前キャッシュ</string>
-    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」>「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
+    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」&gt;「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
@@ -673,6 +673,8 @@
     <string name="drawer_page_display">表示</string>
     <string name="drawer_frame_limit">フレームレート制限</string>
     <string name="drawer_frame_limit_note">このゲームのフレームレートを制限します。上限で割り切れるリフレッシュレートがあれば画面はそれに切り替わり、それ以外の上限では表示が不均一になることがあります。SteamゲームではクイックアクセスメニューにあるSteamのフレームレート制限を使用します。</string>
+    <string name="drawer_bfi">黒フレーム挿入</string>
+    <string name="drawer_bfi_note">動きがくっきり: 各フレームの後に黒いリフレッシュが入ります。100 Hz 以上が必要で、ゲームはリフレッシュレートの半分で動作し、画面は暗くなります。フレーム生成中はオフです。</string>
     <string name="drawer_page_effects">エフェクト</string>
     <string name="drawer_page_controls">コントロール</string>
     <string name="drawer_page_components">コンポーネント</string>
@@ -4081,5 +4083,7 @@
     <string name="input_duplicate_element">コントロールを複製</string>
 
     <string name="display_integer_scaling">整数スケーリング</string>
-    <string name="display_integer_scaling_hint">収まる最大の整数倍率を使用します。元の画像が大きすぎる場合は、切り抜きを避けるため画像全体を収めます。解像度は別途設定します。</string>
+    <string name="display_integer_scaling_hint">画面に収まる最大の整数倍率を使用します。画面の端が切れる場合があります。元画像が出力より大きい場合、小数倍率で画像全体を表示します。解像度は別途設定します。</string>
+    <string name="display_scaling_integer">整数</string>
+    <string name="display_scaling_fit">画面に合わせる</string>
 </resources>

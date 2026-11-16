@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Kijelző</string>
     <string name="drawer_frame_limit">Képkockakorlát</string>
     <string name="drawer_frame_limit_note">Korlátozza ezt a játékot. A kijelző olyan frissítési frekvenciára vált, amelyet a korlát egyenletesen oszt, ha van ilyen; más korlátok egyenetlennek tűnhetnek. A Steam-játékok a Steam képkockakorlátját használják a Gyors hozzáférés menüben.</string>
+    <string name="drawer_bfi">Fekete képkocka beszúrása</string>
+    <string name="drawer_bfi_note">Élesebb mozgás: minden képkockát fekete frissítés követ. Legalább 100 Hz kell; a játék a frissítési frekvencia felével fut és sötétebb. Képkocka-generálás közben ki van kapcsolva.</string>
     <string name="drawer_page_effects">Effektek</string>
     <string name="drawer_page_controls">Vezérlők</string>
     <string name="drawer_page_components">Összetevők</string>
@@ -4111,5 +4113,7 @@
     <string name="input_duplicate_element">Vezérlő duplikálása</string>
 
     <string name="display_integer_scaling">Egész számú méretezés</string>
-    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezési tényezőt használja. Ha a forrás túl nagy, a teljes képet hozzáigazítja a levágás elkerüléséhez. A felbontás külön állítható.</string>
+    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezést használja. A szélek levágódhatnak. Ha a forrás nagyobb a kimenetnél, a tört méretezés a teljes képet jeleníti meg. A felbontás külön állítható.</string>
+    <string name="display_scaling_integer">Egész szám</string>
+    <string name="display_scaling_fit">Igazítás</string>
 </resources>

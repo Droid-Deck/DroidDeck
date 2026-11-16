@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Skärm</string>
     <string name="drawer_frame_limit">Bildgräns</string>
     <string name="drawer_frame_limit_note">Begränsar det här spelet. Skärmen byter till en uppdateringsfrekvens som gränsen delar jämnt när en sådan finns; andra gränser kan se ojämna ut. Steam-spel använder Steams Frame Limit i snabbåtkomstmenyn.</string>
+    <string name="drawer_bfi">Infogning av svarta bilder</string>
+    <string name="drawer_bfi_note">Skarpare rörelser: varje bild följs av en svart uppdatering. Kräver 100 Hz eller mer; spelet körs på halva uppdateringsfrekvensen och ser mörkare ut. Av medan bildgenerering är på.</string>
     <string name="drawer_page_effects">Effekter</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
@@ -4111,5 +4113,7 @@
     <string name="input_duplicate_element">Duplicera kontroll</string>
 
     <string name="display_integer_scaling">Heltalsskalning</string>
-    <string name="display_integer_scaling_hint">Använder den största hela skalningsfaktorn som får plats. Om källbilden är för stor anpassas hela bilden för att undvika beskärning. Upplösningen ställs in separat.</string>
+    <string name="display_integer_scaling_hint">Använder den största heltalsskalningen som får plats. Kan beskära skärmkanterna. Om källan är större än utdata visar bråkskalning hela bilden. Upplösningen ställs in separat.</string>
+    <string name="display_scaling_integer">Heltal</string>
+    <string name="display_scaling_fit">Anpassa</string>
 </resources>

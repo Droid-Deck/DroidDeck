@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Pantalla</string>
     <string name="drawer_frame_limit">Límite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este juego. La pantalla cambia a una frecuencia de actualización que sea múltiplo exacto del límite cuando la hay; otros límites pueden verse irregulares. Los juegos de Steam usan el Límite de fotogramas de Steam en el menú Quick Access.</string>
+    <string name="drawer_bfi">Inserción de fotogramas negros</string>
+    <string name="drawer_bfi_note">Movimiento más nítido: cada fotograma va seguido de un refresco negro. Requiere 100 Hz o más; el juego va a la mitad de la frecuencia y se ve más oscuro. Desactivado con la generación de fotogramas.</string>
     <string name="drawer_page_effects">Efectos</string>
     <string name="drawer_page_controls">Controles</string>
     <string name="drawer_page_components">Componentes</string>
@@ -4151,5 +4153,7 @@
     <string name="input_duplicate_element">Duplicar control</string>
 
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
-    <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que quepa. Si la imagen de origen es demasiado grande, ajusta la imagen completa para evitar recortes. La resolución se configura por separado.</string>
+    <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
+    <string name="display_scaling_integer">Entero</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

@@ -673,6 +673,8 @@
     <string name="drawer_page_display">Tampilan</string>
     <string name="drawer_frame_limit">Batas frame</string>
     <string name="drawer_frame_limit_note">Membatasi gim ini. Layar beralih ke refresh rate yang habis dibagi batas tersebut jika ada; batas lain bisa terlihat tidak rata. Gim Steam menggunakan Frame Limit milik Steam di menu Quick Access.</string>
+    <string name="drawer_bfi">Penyisipan bingkai hitam</string>
+    <string name="drawer_bfi_note">Gerakan lebih tajam: setiap bingkai diikuti refresh hitam. Butuh 100 Hz atau lebih; game berjalan di setengah refresh rate dan terlihat lebih gelap. Mati saat pembuatan bingkai aktif.</string>
     <string name="drawer_page_effects">Efek</string>
     <string name="drawer_page_controls">Kontrol</string>
     <string name="drawer_page_components">Komponen</string>
@@ -4081,5 +4083,7 @@
     <string name="input_duplicate_element">Duplikat kontrol</string>
 
     <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
-    <string name="display_integer_scaling_hint">Menggunakan faktor skala bilangan bulat terbesar yang muat. Jika sumber terlalu besar, seluruh gambar disesuaikan agar tidak terpotong. Resolusi diatur secara terpisah.</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala bilangan bulat terbesar yang muat. Tepi layar mungkin terpotong. Jika sumber lebih besar daripada keluaran, penskalaan pecahan menampilkan seluruh gambar. Resolusi diatur secara terpisah.</string>
+    <string name="display_scaling_integer">Bilangan bulat</string>
+    <string name="display_scaling_fit">Sesuaikan</string>
 </resources>

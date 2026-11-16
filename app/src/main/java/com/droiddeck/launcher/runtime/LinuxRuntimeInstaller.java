@@ -384,7 +384,7 @@ public final class LinuxRuntimeInstaller {
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
             if (!LinuxRuntime.patchedProot(context) && !AddonPack.PROOT.await(context, () -> true, packProgress(listener, downloading))
-                    && !SessionPrefs.allowStockProot(context))
+                    && !LinuxRuntime.stockProotAllowed(context))
                 return fail("Cannot download proot", AddonPack.PROOT.getFailure());
             if (!AddonPack.DIRECTAUDIO.await(context, () -> true, packProgress(listener, downloading)))
                 return fail("Cannot download DirectAudio", AddonPack.DIRECTAUDIO.getFailure());

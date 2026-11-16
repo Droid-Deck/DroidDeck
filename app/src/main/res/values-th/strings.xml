@@ -357,7 +357,7 @@
     <string name="mode_return_after_game">กลับไปที่ DroidDeck หลังเล่นเกม</string>
     <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก DroidDeck หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
     <string name="mode_shader_precache">แคชเชเดอร์ล่วงหน้า</string>
-    <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads > Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
+    <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads &gt; Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
     <string name="mode_steam_repair">ซ่อมแซมไคลเอนต์ Steam</string>
     <string name="mode_steam_repair_hint">ดาวน์โหลดไคลเอนต์ Steam ใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน ใช้เมื่อ Steam ค้างอยู่ที่หน้าจอโหลด เกม การลงชื่อเข้าใช้ และการตั้งค่ายังคงอยู่</string>
     <string name="mode_steam_repair_queued">ไคลเอนต์ Steam จะถูกดาวน์โหลดใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน</string>
@@ -673,6 +673,8 @@
     <string name="drawer_page_display">หน้าจอ</string>
     <string name="drawer_frame_limit">จำกัดเฟรม</string>
     <string name="drawer_frame_limit_note">จำกัดเฟรมเรตของเกมนี้ หน้าจอจะเปลี่ยนไปใช้อัตรารีเฟรชที่หารด้วยค่าที่จำกัดได้ลงตัวหากมี ค่าอื่นอาจดูไม่สม่ำเสมอ เกม Steam ใช้ Frame Limit ของ Steam ในเมนู Quick Access</string>
+    <string name="drawer_bfi">แทรกเฟรมสีดำ</string>
+    <string name="drawer_bfi_note">ภาพเคลื่อนไหวคมขึ้น: ทุกเฟรมตามด้วยการรีเฟรชสีดำ ต้องใช้ 100 Hz ขึ้นไป เกมจะทำงานที่ครึ่งหนึ่งของรีเฟรชเรตและดูมืดลง ปิดอยู่ขณะเปิดการสร้างเฟรม</string>
     <string name="drawer_page_effects">เอฟเฟกต์</string>
     <string name="drawer_page_controls">การควบคุม</string>
     <string name="drawer_page_components">คอมโพเนนต์</string>
@@ -4081,5 +4083,7 @@
     <string name="input_duplicate_element">ทำสำเนาตัวควบคุม</string>
 
     <string name="display_integer_scaling">การปรับขนาดจำนวนเต็ม</string>
-    <string name="display_integer_scaling_hint">ใช้ตัวคูณการปรับขนาดจำนวนเต็มที่ใหญ่ที่สุดที่พอดี หากภาพต้นฉบับใหญ่เกินไป จะปรับภาพทั้งหมดให้พอดีเพื่อหลีกเลี่ยงการตัดภาพ โดยตั้งค่าความละเอียดแยกต่างหาก</string>
+    <string name="display_integer_scaling_hint">ใช้ตัวคูณจำนวนเต็มที่ใหญ่ที่สุดที่พอดีกับหน้าจอ ขอบภาพอาจถูกตัด หากภาพต้นฉบับใหญ่กว่าภาพขาออก การปรับขนาดแบบเศษส่วนจะแสดงภาพทั้งหมด โดยตั้งค่าความละเอียดแยกต่างหาก</string>
+    <string name="display_scaling_integer">จำนวนเต็ม</string>
+    <string name="display_scaling_fit">พอดีหน้าจอ</string>
 </resources>

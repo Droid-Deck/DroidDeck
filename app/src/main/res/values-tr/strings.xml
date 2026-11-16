@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Ekran</string>
     <string name="drawer_frame_limit">Kare sınırı</string>
     <string name="drawer_frame_limit_note">Bu oyunu sınırlar. Ekran, varsa sınırın tam böldüğü bir yenileme hızına geçer; diğer sınırlar düzensiz görünebilir. Steam oyunları Hızlı erişim menüsündeki Steam\'in Kare Sınırı ayarını kullanır.</string>
+    <string name="drawer_bfi">Siyah kare ekleme</string>
+    <string name="drawer_bfi_note">Daha net hareket: her kareyi siyah bir yenileme izler. 100 Hz veya üzeri gerekir; oyun yenileme hızının yarısında çalışır ve daha koyu görünür. Kare üretimi açıkken kapalıdır.</string>
     <string name="drawer_page_effects">Efektler</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
@@ -4111,5 +4113,7 @@
     <string name="input_duplicate_element">Denetimi çoğalt</string>
 
     <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
-    <string name="display_integer_scaling_hint">Sığan en büyük tam sayı ölçekleme katsayısını kullanır. Kaynak çok büyükse kırpmayı önlemek için görüntünün tamamını sığdırır. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_integer_scaling_hint">Ekrana sığan en büyük tam sayı ölçeğini kullanır. Ekran kenarları kırpılabilir. Kaynak görüntü çıktıdan büyükse kesirli ölçekleme görüntünün tamamını gösterir. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_scaling_integer">Tam sayı</string>
+    <string name="display_scaling_fit">Sığdır</string>
 </resources>

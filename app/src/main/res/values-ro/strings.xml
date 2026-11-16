@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Afișaj</string>
     <string name="drawer_frame_limit">Limită de cadre</string>
     <string name="drawer_frame_limit_note">Limitează acest joc. Afișajul trece la o rată de reîmprospătare pe care limita o împarte exact, dacă există; alte limite pot părea neuniforme. Jocurile Steam folosesc Limita de cadre a Steam din meniul Acces rapid.</string>
+    <string name="drawer_bfi">Inserare de cadre negre</string>
+    <string name="drawer_bfi_note">Mișcare mai clară: fiecare cadru este urmat de o reîmprospătare neagră. Necesită 100 Hz sau mai mult; jocul rulează la jumătate din rată și pare mai întunecat. Oprit cât timp generarea de cadre e activă.</string>
     <string name="drawer_page_effects">Efecte</string>
     <string name="drawer_page_controls">Comenzi</string>
     <string name="drawer_page_components">Componente</string>
@@ -4151,5 +4153,7 @@
     <string name="input_duplicate_element">Duplică controlul</string>
 
     <string name="display_integer_scaling">Scalare cu numere întregi</string>
-    <string name="display_integer_scaling_hint">Folosește cel mai mare factor întreg de scalare care încape. Dacă sursa este prea mare, adaptează întreaga imagine pentru a evita decuparea. Rezoluția se configurează separat.</string>
+    <string name="display_integer_scaling_hint">Folosește cea mai mare scară întreagă care încape. Marginile ecranului pot fi decupate. Dacă sursa este mai mare decât ieșirea, scalarea fracționară afișează imaginea completă. Rezoluția se configurează separat.</string>
+    <string name="display_scaling_integer">Număr întreg</string>
+    <string name="display_scaling_fit">Potrivire</string>
 </resources>
