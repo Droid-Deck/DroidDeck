@@ -4108,7 +4108,7 @@
     <string name="hud_readings_count">%1$d av %2$d</string>
     <string name="exit_hint_back">Trykk tilbake én gang til for å avslutte</string>
     <string name="display_integer_scaling">Heltallsskalering</string>
-    <string name="display_integer_scaling_hint">Bruker den største heltallsfaktoren som får plass på skjermen. Kan beskjære kantene litt for å bruke en større heltallsfaktor. Hvis kildebildet er større enn utdataene, brukes brøkbasert skalering for å vise hele bildet (for eksempel fra 1920×1080 til 1280×720). Oppløsningen stilles inn separat.</string>
+    <string name="display_integer_scaling_hint">Bruker den største heltallsskalaen som får plass. Kan beskjære skjermkantene. Hvis kilden er større enn utdataene, viser brøkbasert skalering hele bildet. Oppløsningen stilles inn separat.</string>
     <string name="display_scaling_integer">Heltall</string>
     <string name="display_scaling_fit">Tilpass</string>
 </resources>

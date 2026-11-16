@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Noch einmal zurück drücken zum Beenden</string>
 
     <string name="display_integer_scaling">Ganzzahlige Skalierung</string>
-    <string name="display_integer_scaling_hint">Verwendet die größte passende ganzzahlige Skalierung. Für einen größeren ganzzahligen Faktor können die Bildschirmränder leicht abgeschnitten werden. Ist die Quelle größer als die Ausgabe, wird das vollständige Bild passend skaliert. Die Auflösung wird separat eingestellt. Dafür wird eine nicht ganzzahlige Skalierung verwendet, z. B. von 1920×1080 auf 1280×720.</string>
+    <string name="display_integer_scaling_hint">Verwendet die größte passende ganzzahlige Skalierung. Bildschirmränder können abgeschnitten werden. Ist die Quelle größer als die Ausgabe, zeigt eine gebrochene Skalierung das vollständige Bild. Die Auflösung wird separat eingestellt.</string>
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
 </resources>

@@ -4149,7 +4149,7 @@
     <string name="exit_hint_back">Pulsa atrás una vez más para salir</string>
 
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
-    <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que cabe. Puede recortar ligeramente los bordes para permitir un factor entero mayor. Si la imagen de origen supera la salida, se ajusta para mostrarla completa. La resolución se configura por separado. Esto utiliza escalado fraccionario, por ejemplo, de 1920×1080 a 1280×720.</string>
+    <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
     <string name="display_scaling_integer">Entero</string>
     <string name="display_scaling_fit">Ajustar</string>
 </resources>

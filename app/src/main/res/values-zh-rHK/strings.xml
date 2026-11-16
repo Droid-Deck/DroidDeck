@@ -4079,7 +4079,7 @@
     <string name="exit_hint_back">再按一次返回鍵退出</string>
 
     <string name="display_integer_scaling">整數縮放</string>
-    <string name="display_integer_scaling_hint">使用可容納的最大整數倍縮放。為使用更大的整數倍，畫面邊緣可能會被輕微裁切。如果來源影像大於輸出尺寸，會縮放以完整顯示影像。解像度需另行設定。此時會使用非整數倍縮放，例如由 1920×1080 縮放至 1280×720。</string>
+    <string name="display_integer_scaling_hint">使用螢幕可容納的最大整數倍縮放，可能會裁切螢幕邊緣。如果來源圖像大於輸出尺寸，分數縮放會顯示完整圖像。解像度需另外設定。</string>
     <string name="display_scaling_integer">整數</string>
     <string name="display_scaling_fit">配合畫面</string>
 </resources>

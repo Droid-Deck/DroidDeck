@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Druk nog één keer op terug om af te sluiten</string>
 
     <string name="display_integer_scaling">Gehele-getallenschaal</string>
-    <string name="display_integer_scaling_hint">Gebruikt de grootste gehele schaalfactor die op het scherm past. De randen kunnen iets worden afgesneden om een grotere gehele schaalfactor te gebruiken. Als de bron groter is dan de uitvoer, wordt fractionele schaling gebruikt om het volledige beeld weer te geven (bijvoorbeeld van 1920×1080 naar 1280×720). De resolutie wordt afzonderlijk ingesteld.</string>
+    <string name="display_integer_scaling_hint">Gebruikt de grootste passende gehele schaalfactor. Schermranden kunnen worden afgesneden. Als de bron groter is dan de uitvoer, toont fractionele schaling de volledige afbeelding. De resolutie wordt apart ingesteld.</string>
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
 </resources>

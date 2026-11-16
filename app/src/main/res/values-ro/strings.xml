@@ -4149,7 +4149,7 @@
     <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
 
     <string name="display_integer_scaling">Scalare cu numere întregi</string>
-    <string name="display_integer_scaling_hint">Folosește cel mai mare factor de scalare întreg care încape pe ecran. Marginile pot fi decupate ușor pentru a permite un factor întreg mai mare. Dacă sursa este mai mare decât ieșirea, imaginea este ajustată pentru a fi afișată integral. Rezoluția se configurează separat. Pentru aceasta se folosește scalarea fracționară, de exemplu de la 1920×1080 la 1280×720.</string>
+    <string name="display_integer_scaling_hint">Folosește cea mai mare scară întreagă care încape. Marginile ecranului pot fi decupate. Dacă sursa este mai mare decât ieșirea, scalarea fracționară afișează imaginea completă. Rezoluția se configurează separat.</string>
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
 </resources>

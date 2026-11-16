@@ -4189,7 +4189,7 @@
     <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
 
     <string name="display_integer_scaling">Skalowanie całkowite</string>
-    <string name="display_integer_scaling_hint">Używa największej całkowitej skali, która mieści się na ekranie. Aby użyć większej skali całkowitej, krawędzie ekranu mogą zostać lekko przycięte. Jeśli źródło jest większe niż wyjście, obraz zostanie dopasowany tak, aby był widoczny w całości. Rozdzielczość ustawia się osobno. Wykorzystuje to skalowanie ułamkowe, np. z 1920×1080 do 1280×720.</string>
+    <string name="display_integer_scaling_hint">Używa największej całkowitej skali, która się mieści. Krawędzie ekranu mogą zostać przycięte. Jeśli źródło jest większe niż wynik, skalowanie ułamkowe wyświetla cały obraz. Rozdzielczość ustawia się osobno.</string>
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
 </resources>

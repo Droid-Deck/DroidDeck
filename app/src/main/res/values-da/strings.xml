@@ -4109,7 +4109,7 @@
     <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
 
     <string name="display_integer_scaling">Heltalsskalering</string>
-    <string name="display_integer_scaling_hint">Bruger den største heltalsbaserede skalering, der kan være på skærmen. Kan beskære kanterne en smule for at bruge en større heltalsskalering. Hvis kilden er større end outputtet, tilpasses hele billedet. Opløsningen indstilles separat. Her bruges brøkbaseret skalering, f.eks. fra 1920×1080 til 1280×720.</string>
+    <string name="display_integer_scaling_hint">Bruger den største hele skalering, der kan være på skærmen. Kan beskære kanterne. Hvis kilden er større end outputtet, viser brøkbaseret skalering hele billedet. Opløsningen indstilles separat.</string>
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Tilpas</string>
 </resources>

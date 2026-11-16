@@ -4189,7 +4189,7 @@
     <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
 
     <string name="display_integer_scaling">Celočíselné škálování</string>
-    <string name="display_integer_scaling_hint">Použije největší celočíselné měřítko, které se vejde. Pro použití většího celočíselného měřítka může dojít k mírnému oříznutí okrajů. Pokud je zdroj větší než výstup, zmenší se tak, aby byl celý viditelný. Rozlišení se nastavuje samostatně. Použije se zde zlomkové měřítko, například z 1920×1080 na 1280×720.</string>
+    <string name="display_integer_scaling_hint">Použije největší celočíselné měřítko, které se vejde. Může oříznout okraje. Pokud je zdroj větší než výstup, zlomkové měřítko zobrazí celý obraz. Rozlišení se nastavuje samostatně.</string>
     <string name="display_scaling_integer">Celé číslo</string>
     <string name="display_scaling_fit">Přizpůsobit</string>
 </resources>
