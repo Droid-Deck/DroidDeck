@@ -1,8 +1,8 @@
 diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
-index c8d5ebf..86b7014 100644
+index c8d5ebf..978c351 100644
 --- a/crates/xodus-cli/src/commands/extract_eappx.rs
 +++ b/crates/xodus-cli/src/commands/extract_eappx.rs
-@@ -1,80 +1,394 @@
+@@ -1,80 +1,406 @@
 -use std::path::PathBuf;
 +use std::path::{Path, PathBuf};
  use std::process::ExitCode;
@@ -274,6 +274,10 @@ index c8d5ebf..86b7014 100644
 +    let mut nested: Vec<PathBuf> = std::fs::read_dir(outdir)
 +        .map_err(|e| Failure::at("list", outdir, &e.to_string()))?
 +        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
++        // The container being unpacked may itself sit in the destination, which is
++        // what `extract-eappx ./title.eappx .` asks for. Re-entering it would
++        // recurse into the same bytes and then delete the caller's file.
++        .filter(|path| std::fs::canonicalize(path).ok() != std::fs::canonicalize(infile).ok())
 +        .filter(|path| path.is_file() && is_eappx(path))
 +        .collect();
 +    nested.sort();
@@ -415,6 +419,14 @@ index c8d5ebf..86b7014 100644
 +                    // keeps the per-file path identical to its own extraction.
 +                    info.filehash = package.filehash_bytes();
 +                    info.block_hashes = Some(package.block_hashes());
++                    // The blockmap's length and the footer's must agree, or the
++                    // file written would be silently short.
++                    if info.uncompressed_length != package.size {
++                        if let Ok(mut slot) = failure.lock() {
++                            *slot = Some("a package entry disagrees with its blockmap about its size".to_string());
++                        }
++                        return;
++                    }
 +                    if let Err(error) = eappx.save_file_to_fs(&mut stream, info, outdir, &package.name) {
 +                        if let Ok(mut slot) = failure.lock() {
 +                            *slot = Some(error.to_string());

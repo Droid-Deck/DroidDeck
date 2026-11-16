@@ -1,3 +1,27 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index f8189f4..88b8287 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -7185,6 +7185,7 @@ dependencies = [
+  "console-subscriber",
+  "ctrlc",
+  "eappx",
++ "flate2",
+  "fs2",
+  "futures-util",
+  "indicatif",
+diff --git a/crates/xodus-cli/Cargo.toml b/crates/xodus-cli/Cargo.toml
+index 5894ef9..faf566b 100644
+--- a/crates/xodus-cli/Cargo.toml
++++ b/crates/xodus-cli/Cargo.toml
+@@ -25,6 +25,7 @@ futures-util = "0.3.34"
+ uuid = "1.25.0"
+ indicatif = "0.18.6"
+ fs2 = "0.4.3"
++flate2 = "1.0.28"
+ tempfile = "3.27.0"
+ rustix = "1.1.4"
+ ctrlc = "3.5.2"
 diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
 index 36b101b..581770d 100644
 --- a/crates/xodus-cli/src/commands.rs
@@ -18,10 +42,10 @@ index 36b101b..581770d 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..3f087c3
+index 0000000..7a44cee
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,927 @@
+@@ -0,0 +1,1092 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -59,6 +83,8 @@ index 0000000..3f087c3
 +const FRAMEWORK_DIR: &str = ".droiddeck-frameworks";
 +/// Marks a framework whose libraries are already beside the title.
 +const INSTALLED: &str = ".installed";
++/// The libraries `copy_libraries` put beside the title, one name per line.
++const COPIED: &str = ".droiddeck-copied";
 +
 +fn is_legacy_name(name: &str) -> bool {
 +    let name = name.to_ascii_lowercase();
@@ -171,6 +197,17 @@ index 0000000..3f087c3
 +    fn advance(&mut self, delta: u64) {
 +        self.completed = self.completed.saturating_add(delta);
 +        if self.last.elapsed() >= Duration::from_millis(200) {
++            self.emit();
++        }
++    }
++
++    /// Reports unpacking, which counts bytes neither the download nor a file list
++    /// can see, so the bar advances while a multi-gigabyte member is decrypted.
++    fn bytes(&mut self, completed: u64, total: u64) {
++        self.phase = "installing";
++        self.completed = completed;
++        self.total = Some(total);
++        if self.last.elapsed() >= Duration::from_millis(700) {
 +            self.emit();
 +        }
 +    }
@@ -365,13 +402,24 @@ index 0000000..3f087c3
 +    // the device at the end of an eighty gigabyte install.
 +    if let Some(free) = free_bytes(&destination) {
 +        let needed = total.saturating_add(largest.saturating_mul(2));
-+        if free < needed {
++        // A container this run fetches again is truncated before it is written, so
++        // what a stopped attempt already holds is available to the retry. Without
++        // this, an interrupted install could demand deletion of the very file the
++        // retry would have reclaimed.
++        let mut held = 0u64;
++        for container in &install.containers {
++            let Some(name) = Path::new(&container.name).file_name() else { continue };
++            if let Ok(meta) = std::fs::metadata(destination.join(CONTAINER_DIR).join(name)) {
++                held = held.saturating_add(meta.len());
++            }
++        }
++        if free.saturating_add(held) < needed {
 +            return fail(
 +                "insufficient-space",
 +                &format!(
 +                    "An install this size needs about {} GB free to unpack, and {} GB is available",
 +                    needed / 1_000_000_000,
-+                    free / 1_000_000_000
++                    free.saturating_add(held) / 1_000_000_000
 +                ),
 +            );
 +        }
@@ -415,6 +463,16 @@ index 0000000..3f087c3
 +            return fail("unusable-name", "Microsoft returned an unusable package name");
 +        };
 +        let target = store.join(name);
++        // A container a stopped attempt finished is not fetched again: it is most
++        // of an install this size, and the failure that stopped the run was almost
++        // never in its bytes.
++        if let Ok(meta) = tokio::fs::metadata(&target).await {
++            if container.size > 0 && meta.len() == container.size {
++                progress.advance(meta.len());
++                downloaded.push(target);
++                continue;
++            }
++        }
 +        let response = match delivery_client.get(&container.url).send().await {
 +            Ok(response) => response,
 +            Err(_) => return fail("download-request-failed", "Could not reach the download server"),
@@ -445,15 +503,54 @@ index 0000000..3f087c3
 +        downloaded.push(target);
 +    }
 +
-+    progress.phase("finalizing");
++    progress.phase("installing");
 +    let key_file_text = key_file.display().to_string();
++    let meter = std::sync::Arc::new(crate::commands::extract_eappx::Meter::default());
++    // Taken before the first byte is written, so growth of the folder is the
++    // progress of the unpack and not the container that was already downloaded.
++    let baseline = crate::commands::extract_eappx::tree_size(&destination);
++    let mut high = 0u64;
 +    for container in &downloaded {
-+        let extracted = crate::commands::extract_eappx::run(
-+            container.display().to_string(),
-+            destination.display().to_string(),
-+            Some(key_file_text.clone()),
-+        )
-+        .await;
++        let source = container.display().to_string();
++        // Unpacking never yields, so it runs on a blocking thread and this task
++        // reports the counter while it works. Without that, the phase would only
++        // be visible once it had finished.
++        let unpacking = tokio::task::spawn_blocking({
++            let destination = destination.clone();
++            let key_file_text = key_file_text.clone();
++            let meter = meter.clone();
++            move || {
++                crate::commands::extract_eappx::run_blocking(
++                    source,
++                    destination.display().to_string(),
++                    Some(key_file_text),
++                    Some(&meter),
++                    // A full title is tens of gigabytes. Holding the container
++                    // while its members are decrypted can fill the device.
++                    true,
++                )
++            }
++        });
++        let extracted = loop {
++            if unpacking.is_finished() {
++                break unpacking.await.unwrap_or(ExitCode::FAILURE);
++            }
++            tokio::time::sleep(Duration::from_millis(700)).await;
++            let total = meter.all();
++            if total == 0 {
++                continue;
++            }
++            let mut done = meter.done();
++            // A bundle member is one file, so its bytes are only visible on disk.
++            if meter.written.load(std::sync::atomic::Ordering::Relaxed) == 0 {
++                let on_disk = crate::commands::extract_eappx::tree_size(&destination).saturating_sub(baseline);
++                done = done.max(on_disk);
++            }
++            // Deleting the container takes bytes off the disk, so the reported
++            // figure only ever moves forward.
++            high = high.max(done.min(total));
++            progress.bytes(high, total);
++        };
 +        if extracted != ExitCode::SUCCESS {
 +            return fail("extract-failed", "Could not unpack the package; the download is kept for a retry");
 +        }
@@ -732,29 +829,35 @@ index 0000000..3f087c3
 +
 +/// Removes the libraries an earlier attempt copied, so a replaced framework does
 +/// not leave the old architecture's files beside the title.
++///
++/// Only names this code recorded as copied are removed. A title can ship a DLL of
++/// the same name, and `copy_libraries` leaves such a file alone; deleting by
++/// basename would then remove the title's own library.
 +fn withdraw_libraries(from: &Path, to: &Path) {
-+    let Ok(entries) = std::fs::read_dir(from) else { return };
-+    for entry in entries.filter_map(Result::ok) {
-+        let path = entry.path();
-+        if path.is_dir() {
-+            withdraw_libraries(&path, to);
++    let Ok(list) = std::fs::read_to_string(from.join(COPIED)) else { return };
++    for name in list.lines().filter(|line| !line.trim().is_empty()) {
++        if Path::new(name).components().count() != 1 {
 +            continue;
 +        }
-+        if !path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("dll")) {
-+            continue;
-+        }
-+        if let Some(file_name) = path.file_name() {
-+            let _ = std::fs::remove_file(to.join(file_name));
-+        }
++        let _ = std::fs::remove_file(to.join(name));
 +    }
 +}
 +
-+/// Copies the framework's libraries next to the title, never over its own files.
-+fn copy_libraries(from: &Path, to: &Path) -> Result<(), String> {    let entries = std::fs::read_dir(from).map_err(|error| format!("framework read failed: {error}"))?;
++/// Copies the framework's libraries next to the title, never over its own files,
++/// and records what it copied so a later attempt can take exactly that back.
++fn copy_libraries(from: &Path, to: &Path) -> Result<(), String> {
++    let mut copied: Vec<String> = Vec::new();
++    copy_libraries_into(from, to, &mut copied)?;
++    std::fs::write(from.join(COPIED), copied.join("\n")).map_err(|error| format!("framework copy list failed: {error}"))?;
++    Ok(())
++}
++
++fn copy_libraries_into(from: &Path, to: &Path, copied: &mut Vec<String>) -> Result<(), String> {
++    let entries = std::fs::read_dir(from).map_err(|error| format!("framework read failed: {error}"))?;
 +    for entry in entries.filter_map(Result::ok) {
 +        let path = entry.path();
 +        if path.is_dir() {
-+            copy_libraries(&path, to)?;
++            copy_libraries_into(&path, to, copied)?;
 +            continue;
 +        }
 +        let named = path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("dll"));
@@ -767,6 +870,7 @@ index 0000000..3f087c3
 +            continue;
 +        }
 +        std::fs::copy(&path, &target).map_err(|error| format!("framework copy failed: {error}"))?;
++        copied.push(file_name.to_string_lossy().into_owned());
 +    }
 +    Ok(())
 +}
@@ -784,17 +888,13 @@ index 0000000..3f087c3
 +/// Add-on content is stored without a manifest, so nothing to lift is not an
 +/// error; anything other than exactly one candidate is, because a wrong guess
 +/// here would move game files.
++///
++/// An install over a folder that already holds a manifest is an update: the new
++/// package is lifted over the old one file by file, since leaving it nested would
++/// report success while the previous version stayed in place.
 +fn hoist(destination: &Path) -> Result<(), String> {
-+    if has_manifest(destination) {
-+        return Ok(());
-+    }
-+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(destination)
-+        .map_err(|error| format!("Could not list the install folder: {error}"))?
-+        .filter_map(Result::ok)
-+        .map(|entry| entry.path())
-+        .filter(|path| path.is_dir() && !path.ends_with(CONTAINER_DIR) && !path.ends_with(KEYS_DIR))
-+        .filter(|path| has_manifest(path))
-+        .collect();
++    let updating = has_manifest(destination);
++    let mut candidates = nested_packages(destination);
 +    if candidates.is_empty() {
 +        return Ok(());
 +    }
@@ -811,13 +911,50 @@ index 0000000..3f087c3
 +    {
 +        let target = destination.join(entry.file_name());
 +        if target.exists() {
-+            return Err(format!("Extraction would overwrite {}", target.display()));
++            if !updating {
++                return Err(format!("Extraction would overwrite {}", target.display()));
++            }
++            let replaced = if target.is_dir() {
++                std::fs::remove_dir_all(&target)
++            } else {
++                std::fs::remove_file(&target)
++            };
++            replaced.map_err(|error| format!("Could not replace an installed file: {error}"))?;
 +        }
 +        std::fs::rename(entry.path(), &target)
 +            .map_err(|error| format!("Could not move an extracted file: {error}"))?;
 +    }
 +    std::fs::remove_dir(&inner).map_err(|error| format!("Could not remove the package folder: {error}"))?;
 +    Ok(())
++}
++
++/// Folders below [root] that carry a manifest, at the depth a nested bundle can
++/// write one. A bundle of a bundle is the deepest the extractor produces.
++fn nested_packages(root: &Path) -> Vec<PathBuf> {
++    let mut found = Vec::new();
++    let mut level = vec![root.to_path_buf()];
++    for _ in 0..3 {
++        let mut next = Vec::new();
++        for folder in level {
++            let Ok(entries) = std::fs::read_dir(&folder) else { continue };
++            for entry in entries.filter_map(Result::ok) {
++                let path = entry.path();
++                if !path.is_dir() || path.ends_with(CONTAINER_DIR) || path.ends_with(KEYS_DIR) || path.ends_with(FRAMEWORK_DIR) {
++                    continue;
++                }
++                if has_manifest(&path) {
++                    found.push(path);
++                } else {
++                    next.push(path);
++                }
++            }
++        }
++        if next.is_empty() {
++            break;
++        }
++        level = next;
++    }
++    found
 +}
 +
 +#[cfg(test)]
@@ -890,6 +1027,58 @@ index 0000000..3f087c3
 +        hoist(&root).unwrap();
 +
 +        assert!(root.join("Content").is_dir());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_replaces_the_previous_install_when_the_manifest_is_already_there() {
++        let root = scratch("update");
++        std::fs::write(root.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(root.join("ForzaHorizon4.exe"), b"old").unwrap();
++        let inner = root.join("Microsoft.SunriseBaseGame");
++        std::fs::create_dir_all(root.join("Content")).unwrap();
++        std::fs::create_dir_all(inner.join("Content")).unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(inner.join("ForzaHorizon4.exe"), b"new").unwrap();
++        std::fs::write(inner.join("Content").join("pack.bin"), b"data").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert_eq!(std::fs::read(root.join("ForzaHorizon4.exe")).unwrap(), b"new");
++        assert!(root.join("Content").join("pack.bin").is_file());
++        assert!(!inner.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_finds_a_manifest_inside_a_nested_bundle() {
++        let root = scratch("deep");
++        let inner = root.join("bundle").join("Microsoft.SunriseBaseGame");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(inner.join("ForzaHorizon4.exe"), b"MZ").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(LEGACY_MANIFEST).is_file());
++        assert!(root.join("ForzaHorizon4.exe").is_file());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn withdrawing_a_framework_keeps_a_dll_it_never_copied() {
++        let root = scratch("withdraw");
++        let framework = root.join("framework");
++        std::fs::create_dir_all(&framework).unwrap();
++        std::fs::write(framework.join("vcruntime140.dll"), b"framework").unwrap();
++        std::fs::write(framework.join("title-only.dll"), b"framework").unwrap();
++        std::fs::write(root.join("title-only.dll"), b"title").unwrap();
++
++        std::fs::write(framework.join(COPIED), "vcruntime140.dll").unwrap();
++        withdraw_libraries(&framework, &root);
++
++        assert!(!root.join("vcruntime140.dll").exists());
++        assert_eq!(std::fs::read(root.join("title-only.dll")).unwrap(), b"title");
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
@@ -1386,7 +1575,7 @@ index 0000000..1927514
 +}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
-index 0000000..9781e32
+index 0000000..1a503e1
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/unzip.rs
 @@ -0,0 +1,185 @@
@@ -1446,22 +1635,22 @@ index 0000000..9781e32
 +        }
 +        let method = u16::from_le_bytes([header[10], header[11]]);
 +        let uncompressed = u32::from_le_bytes([header[24], header[25], header[26], header[27]]);
-+        let mut compressed = u32::from_le_bytes([header[20], header[21], header[22], header[23]]);
++        let mut compressed = u64::from(u32::from_le_bytes([header[20], header[21], header[22], header[23]]));
 +        let name_length = u16::from_le_bytes([header[28], header[29]]) as usize;
 +        let extra_length = u16::from_le_bytes([header[30], header[31]]) as usize;
 +        let comment_length = u16::from_le_bytes([header[32], header[33]]) as usize;
-+        let mut local = u32::from_le_bytes([header[42], header[43], header[44], header[45]]);
++        let mut local = u64::from(u32::from_le_bytes([header[42], header[43], header[44], header[45]]));
 +        let mut name = vec![0u8; name_length];
 +        file.read_exact(&mut name).map_err(|error| format!("package name failed: {error}"))?;
 +        let mut extra = vec![0u8; extra_length];
 +        file.read_exact(&mut extra).map_err(|error| format!("package extra failed: {error}"))?;
 +        offset += 46 + name_length as u64 + extra_length as u64 + comment_length as u64;
-+        if compressed == SATURATED || local == SATURATED || uncompressed == SATURATED {
-+            let wide = zip64_entry(&extra, uncompressed == SATURATED, compressed == SATURATED, local == SATURATED);
-+            if compressed == SATURATED {
++        if compressed == u64::from(SATURATED) || local == u64::from(SATURATED) || uncompressed == SATURATED {
++            let wide = zip64_entry(&extra, uncompressed == SATURATED, compressed == u64::from(SATURATED), local == u64::from(SATURATED));
++            if compressed == u64::from(SATURATED) {
 +                compressed = wide.compressed.ok_or("a package entry has no wide size")?;
 +            }
-+            if local == SATURATED {
++            if local == u64::from(SATURATED) {
 +                local = wide.local.ok_or("a package entry has no wide offset")?;
 +            }
 +        }
@@ -1474,14 +1663,14 @@ index 0000000..9781e32
 +        if let Some(parent) = target.parent() {
 +            std::fs::create_dir_all(parent).map_err(|error| format!("package folder failed: {error}"))?;
 +        }
-+        file.seek(SeekFrom::Start(u64::from(local))).map_err(|error| format!("package seek failed: {error}"))?;
++        file.seek(SeekFrom::Start(local)).map_err(|error| format!("package seek failed: {error}"))?;
 +        let mut local_header = [0u8; 30];
 +        file.read_exact(&mut local_header).map_err(|error| format!("package header failed: {error}"))?;
 +        let local_name = u16::from_le_bytes([local_header[26], local_header[27]]) as usize;
 +        let local_extra = u16::from_le_bytes([local_header[28], local_header[29]]) as usize;
 +        file.seek(SeekFrom::Current((local_name + local_extra) as i64))
 +            .map_err(|error| format!("package seek failed: {error}"))?;
-+        let mut body = (&mut file).take(u64::from(compressed));
++        let mut body = (&mut file).take(compressed);
 +        let mut written = std::fs::File::create(&target).map_err(|error| format!("package write failed: {error}"))?;
 +        match method {
 +            0 => {
@@ -1546,8 +1735,8 @@ index 0000000..9781e32
 +                Some(value)
 +            };
 +            take(has_size);
-+            wide.compressed = take(has_compressed).map(|value| value as u32);
-+            wide.local = take(has_local).map(|value| value as u32);
++            wide.compressed = take(has_compressed);
++            wide.local = take(has_local);
 +            return wide;
 +        }
 +        at = body + size;
@@ -1557,8 +1746,8 @@ index 0000000..9781e32
 +
 +#[derive(Default)]
 +struct Wide {
-+    compressed: Option<u32>,
-+    local: Option<u32>,
++    compressed: Option<u64>,
++    local: Option<u64>,
 +}
 +
 +/// The entry's relative path, or nothing when it would land outside the folder.

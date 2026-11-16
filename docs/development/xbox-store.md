@@ -105,17 +105,21 @@ The verb resolves, licenses, downloads, extracts, then hoists the manifest to th
 - **Space.** Free space is checked up front against the download plus two copies of the largest
   container, because a bundle is expanded in place. Each container is removed as soon as it is
   unpacked, so the peak is the archive plus its contents rather than both plus the earlier
-  archives.
+  archives. A container a stopped attempt finished is counted as reclaimable, since the retry
+  truncates it before writing.
 - **Pause and resume.** A legacy download has no control channel: Stop kills the downloader, and
-  the next attempt starts that container again from byte zero. Nothing is checkpointed, so a
-  stopped legacy install costs the bytes already transferred.
+  the next attempt starts an unfinished container again from byte zero, while a container that
+  completed is kept and reused. Nothing is checkpointed inside a container.
 - **Frameworks.** An installed package gets its `PackageDependency` frameworks from the package
   graph; an unpacked folder has none, so the loader fails with `0xc0000135` on
   `VCRUNTIME140_APP.dll` and friends. The verb fetches each declared framework from its Windows
   Update category and copies its libraries beside the title, which is where the loader looks. A
   category lists one package per architecture under identifier-only names, so each is unpacked
   until one declares `ProcessorArchitecture="x64"`; taking the first one puts 32-bit DLLs into a
-  64-bit folder and every load fails with `0xc000007b`.
+  64-bit folder and every load fails with `0xc000007b`. Only the libraries that copy put there
+  are withdrawn when a framework is replaced, so a title's own DLL of the same name survives.
+- **Updates.** Installing over a folder that already holds a manifest lifts the new package over
+  the old files; on a first install an existing target is an error rather than a merge.
 - **Failure detail.** A release build hides logcat from adb, so a failed install writes the
   backend's stderr tail to `files/xbox-install.log` beside the app and repeats the last lines in
   the failure message.
@@ -139,7 +143,9 @@ Verified during development:
 - Unpacking that bundle ran at about 40 MB/s on one thread and about 200 MB/s
   across four, measured as growth of the destination folder. The container is
   deleted once its members are on disk, so the peak footprint is one package at
-  a time rather than the archive plus everything under it.
+  a time rather than the archive plus everything under it. The install bubble
+  advances through this stage: each file's declared length is counted as it is
+  written, and a bundle member is one file, so the folder's growth covers it.
 - A launch of this title through Xodus/ARM64 Proton reaches the loader with every declared
   framework in place, then fails inside Wine: its manifest names `EntryPoint="Forza.App"`, a UWP
   application that expects the app model to activate a view, which Wine has no host for. The
