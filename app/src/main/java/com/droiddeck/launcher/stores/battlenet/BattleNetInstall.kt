@@ -14,6 +14,7 @@ import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -133,6 +134,8 @@ object BattleNetInstall {
             val uid = installUid(app, game)
             if (uid == null) {
                 Log.w(TAG, "no Battle.net install matches ${game.folder}")
+                StoresState.logLine("Battle.net: no registration matches ${game.folder.name}; update it from Battle.net")
+                StoresState.post { updates.remove(updateKey(game.sidecar.id, game.folder)) }
             } else {
                 enqueue(app, updateItem(game, uid), game.folder, update = true)
             }
@@ -305,12 +308,14 @@ internal class BattleNetInstaller(
         if (!cancelled.get() && !ownership.known) {
             val found = runCatching { registration() }.getOrNull()
             ownership.preexisting = found == null || found.isNotEmpty()
-            ownership.known = true
-            SavedQueue.remember(
-                app,
-                item.copy(extra = item.extra + (BattleNetInstall.PREEXISTING to if (ownership.preexisting) "1" else "0")),
-                folder.parentFile?.parentFile,
-            )
+            ownership.known = found != null
+            if (found != null) {
+                SavedQueue.remember(
+                    app,
+                    item.copy(extra = item.extra + (BattleNetInstall.PREEXISTING to if (ownership.preexisting) "1" else "0")),
+                    folder.parentFile?.parentFile,
+                )
+            }
         }
         started.set(true)
         try {
@@ -378,6 +383,7 @@ internal class BattleNetInstaller(
         if (!cleanupStarted.compareAndSet(false, true)) return
         if (!started.get() && !ownership.known) ownership.preexisting = true
         val cleanup = Thread({
+            var discarding = false
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
                 if (!stopped) {
@@ -385,6 +391,8 @@ internal class BattleNetInstaller(
                 } else if (ownership.preexisting) {
                     Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
                 } else {
+                    StoreInstalls.beginDiscard(folder)
+                    discarding = true
                     val created = runCatching { registration() }.getOrNull()
                     if (created == null) {
                         Log.w("BattleNetInstall", "could not read registrations for ${folder.path}; leaving cleanup to the user")
@@ -398,6 +406,7 @@ internal class BattleNetInstaller(
                     }
                 }
             } finally {
+                if (discarding) StoreInstalls.endDiscard(folder)
                 DownloadQueue.cleanupFinished(queueKey)
             }
         }, "battlenet-cancel")

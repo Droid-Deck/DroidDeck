@@ -272,7 +272,10 @@ class DownloadQueueRetryTest {
     }
 
     @Test fun aFactorylessFailedBattleNetEntryDoesNotBlockAReplacement() {
-        val entry = DownloadEntry(Store.BATTLENET, "factoryless-failure", "Factoryless failure")
+        val entry = DownloadEntry(
+            Store.BATTLENET, "factoryless-failure", "Factoryless failure",
+            cleanupKey = "${Store.BATTLENET.id}:factoryless-failure",
+        )
         DownloadQueue.recordFailed(app, entry, "failed before a job existed")
         DownloadQueue.clear(app, entry.key)
         DownloadQueue.enqueue(app, entry) {
@@ -428,6 +431,40 @@ class DownloadQueueRetryTest {
         val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
         assertFalse(DownloadQueue.isCancelling(entry.key))
+    }
+
+    @Test fun aCancelledBattleNetJobHoldsRemovalUntilItsCleanupFinishes() {
+        val entry = DownloadEntry(
+            Store.BATTLENET, "hold-during-cleanup", "Hold during cleanup",
+            cleanupKey = "${Store.BATTLENET.id}:hold-during-cleanup",
+        )
+        val cancelled = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val job = object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? = null
+            override fun cancel(deleteFiles: Boolean) {
+                if (!deleteFiles) return
+                cancelled.countDown()
+                Thread({
+                    release.await(5, TimeUnit.SECONDS)
+                    DownloadQueue.cleanupFinished(entry.key)
+                }, "test-hold-cleanup").start()
+            }
+        }
+        DownloadQueue.enqueue(app, entry) { job }
+        val failed = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.entry(entry.key)?.state != DownloadState.FAILED && System.nanoTime() < failed) Thread.sleep(10)
+        DownloadQueue.cancel(app, entry.key)
+        assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+        assertFalse(DownloadQueue.holdForRemoval(entry.key))
+        val held = CountDownLatch(1)
+        Thread({
+            if (DownloadQueue.holdForRemovalWhenFree(entry.key)) held.countDown()
+        }, "test-hold-removal").start()
+        assertFalse("removal must wait for the cancellation cleanup", held.await(300, TimeUnit.MILLISECONDS))
+        release.countDown()
+        assertTrue(held.await(5, TimeUnit.SECONDS))
+        DownloadQueue.releaseRemoval(entry.key)
     }
 
     @Test fun heldPausedBackendRestoresAndResumesWithoutAPlaceholder() {

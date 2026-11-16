@@ -7,6 +7,7 @@ import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
@@ -390,10 +391,6 @@ class BattleNetTest {
         assertEquals("s2c", BattleNet.title("s2_cn_zhcn")?.product)
         assertEquals("osic", BattleNet.title("osic_zhcn")?.product)
         assertEquals("anbs", BattleNet.title("anbs_cn_zhcn")?.product)
-        assertFalse(BattleNet.notInstalled(BattleNet.title("osi")!!, listOf("osic")))
-        assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
-        assertFalse(BattleNet.notInstalled(BattleNet.title("diablo3")!!, listOf("d3cn")))
-
     }
 
     @Test fun theFolderPicksBetweenTwoDiabloThreeInstalls() {
@@ -476,6 +473,28 @@ class BattleNetTest {
         assertEquals("osic", seen.get())
     }
 
+    @Test fun aCancelledInstallsCleanupHoldsTheFolderForUninstall() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
+        )
+        val holding = AtomicBoolean(false)
+        val done = CountDownLatch(1)
+        val installer = BattleNetInstaller(context, item, folder, false, uninstall = { uid ->
+            holding.set(StoreInstalls.isDiscarding(folder))
+            done.countDown()
+            true
+        }) { listOf("osic") }
+        installer.cancel(true)
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertTrue("the cleanup must hold the folder against uninstall", holding.get())
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (StoreInstalls.isDiscarding(folder) && System.nanoTime() < until) Thread.sleep(10)
+        assertFalse(StoreInstalls.isDiscarding(folder))
+        assertFalse(folder.exists())
+    }
+
     @Test fun aLateRegistrationReportedWhileTheWorkerStopsIsUsedForCancellation() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
@@ -518,7 +537,7 @@ class BattleNetTest {
             true
         }) { null }
         runCatching { installer.run(DownloadQueue.JobHandle("battlenet:snapshot-failure", AtomicBoolean(false))) }
-        assertTrue(ownership.known)
+        assertFalse("a failed read must not become a final ownership decision", ownership.known)
         assertTrue(ownership.preexisting)
         installer.cancel(true)
         Thread.sleep(100)
@@ -638,8 +657,9 @@ class BattleNetTest {
         assertFalse(BattleNet.STORE.any { it.code == "WoWC" || it.code == "WoWF" })
         assertEquals("fenris", BattleNet.STORE.first { it.code == "Fen" }.uid)
         assertTrue(BattleNet.STORE.all { it.uid.matches(Regex("[a-z0-9_]{1,32}")) })
-        val installed = listOf("fenris", "diablo3_enus", null)
-        val offered = BattleNet.STORE.filter { BattleNet.notInstalled(it, installed) }.map { it.code }
+        val installedUids = listOf("fenris", "diablo3_enus", null)
+            .mapNotNull { uid -> uid?.let { BattleNet.title(it)?.uid } }.toSet()
+        val offered = BattleNet.STORE.filterNot { it.uid in installedUids }.map { it.code }
         assertFalse("Fen" in offered || "D3" in offered)
         assertTrue("OSI" in offered)
     }

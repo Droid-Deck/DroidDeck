@@ -78,9 +78,6 @@ object BattleNet {
         else Title(title.uid, title.name, alias.code ?: title.code, title.steam, title.shop, alias.product ?: title.product, title.flavor)
     }
 
-    fun notInstalled(title: Title, installedIds: Collection<String?>) =
-        installedIds.mapNotNull { id -> id?.let(::title)?.uid }.none { it == title.uid }
-
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
     internal fun artTitle(title: Title) = TITLES.firstOrNull { it.code == title.code } ?: title

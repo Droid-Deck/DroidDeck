@@ -109,7 +109,9 @@ object DownloadQueue {
 
     fun holdForRemoval(key: String): Boolean = synchronized(lock) {
         val item = items[key]
-        if (item?.entry?.isActive == true || item?.job != null || key in cleaningUp || key in removing) return@synchronized false
+        if (item?.entry?.isActive == true || item?.job != null || key in cleaningUp || key in removing || key in cancelling) {
+            return@synchronized false
+        }
         removing.add(key)
         true
     }
@@ -120,7 +122,7 @@ object DownloadQueue {
         while (true) {
             val item = items[key]
             if (item?.entry?.isActive == true || item?.job != null) return@synchronized false
-            if (key !in cleaningUp && key !in removing) break
+            if (key !in cleaningUp && key !in removing && key !in cancelling) break
             (lock as Object).wait()
         }
         removing.add(key)
@@ -183,7 +185,10 @@ object DownloadQueue {
 
     internal fun cleanupFinished(key: String?) {
         if (key == null) return
-        synchronized(lock) { cancelling.remove(key) }
+        synchronized(lock) {
+            cancelling.remove(key)
+            (lock as Object).notifyAll()
+        }
     }
 
     fun enqueue(context: Context, entry: DownloadEntry, onAccepted: (() -> Unit)? = null, factory: () -> DownloadJob): Boolean {
