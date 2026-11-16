@@ -480,9 +480,10 @@ object OpenCode : AgentHarness {
             writeJson(authFile, auth, private = true)
         } catch (e: Exception) {
             val undone = runCatching {
-                if (before != null) writeFile(configFile, before) else check(configFile.delete() || !configFile.exists()) { "Could not remove $configFile" }
+                if (before != null) writeFile(configFile, before) else java.nio.file.Files.deleteIfExists(configFile.toPath())
             }
-            undone.exceptionOrNull()?.let { throw IllegalStateException("${e.message}; the server config could not be put back: ${it.message}", e) }
+            // First, since the setup row shows two lines of the message.
+            undone.exceptionOrNull()?.let { throw IllegalStateException("The server config could not be put back (${it.message}): ${e.message}", e) }
             throw e
         }
     }
