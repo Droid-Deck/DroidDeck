@@ -86,7 +86,16 @@ void main() {
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(abs(nw - se), abs(ne - sw));
     float cornerFactor = 1.0 - 0.18 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
-    float weight = clamp(areaWeight * endpointArea * edgeConfidence * cornerFactor, 0.0, 0.42);
+    float baseWeight = areaWeight * endpointArea * edgeConfidence * cornerFactor;
+
+    float diagonalStrength = max(abs(nw - se), abs(ne - sw));
+    float diagonalPattern = smoothstep(threshold, threshold * 2.5, diagonalStrength);
+    float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence * cornerFactor;
+
+    float weight = clamp(
+        baseWeight <= 0.0001 ? diagonalFallback : baseWeight,
+        0.0, 0.42
+    );
     vec3 across = texture(InputTexture, uv + normal * px).rgb;
     outColor = vec4(mix(center.rgb, across, weight), center.a);
 }
