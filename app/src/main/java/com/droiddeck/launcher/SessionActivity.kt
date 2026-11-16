@@ -3834,13 +3834,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     /** PixelCopy reads the last queued buffer, which black frame insertion makes black every other refresh. */
     private fun withPictureFrame(copy: (done: () -> Unit) -> Unit) {
-        if (!blackFrameInsertion || !CompositorHost.isStarted) {
-            copy {}
-            return
-        }
-        WaylandCompositor.nativeSetBlackFrameInsertion(false)
+        val hold = CompositorHost.holdPicture() ?: return copy {}
         uiHandler.postDelayed({
-            copy { if (blackFrameInsertion) WaylandCompositor.nativeSetBlackFrameInsertion(true) }
+            var released = false
+            copy {
+                if (!released) CompositorHost.releasePicture(hold)
+                released = true
+            }
         }, BFI_PICTURE_SETTLE_MS)
     }
 
