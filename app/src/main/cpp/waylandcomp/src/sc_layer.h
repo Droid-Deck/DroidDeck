@@ -31,6 +31,10 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
 
 void sc_layer_set_frame_rate(float fps);
 
+struct present_cadence_stats;
+void sc_layer_set_present_cadence(int on);
+void sc_layer_cadence_take(struct present_cadence_stats *out);
+
 int sc_layer_overlay_affordable(void);
 
 int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int translucent);

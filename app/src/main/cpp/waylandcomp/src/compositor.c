@@ -22,6 +22,7 @@
 #include "xdg-shell-server-protocol.h"
 #include "linux-dmabuf-v1-server-protocol.h"
 #include "sc_layer.h"
+#include "present_cadence.h"
 #include "ahb_swapchain.h"
 #include "viewporter-server-protocol.h"
 #include "banner-desktop-v1-server-protocol.h"
@@ -3939,6 +3940,15 @@ static int on_stats_timer(void *data) {
                    g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
                    g_pace.renders, g_pace.commit_renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
                    g_pace.presented, g_pace.replaced, g_pace.undrawn);
+    }
+    {
+        struct present_cadence_stats cs;
+        sc_layer_cadence_take(&cs);
+        if (cs.paced)
+            droiddeck_log("pacing", "last 10 s: %u game frames held to a steady cadence (every %u refreshes at the end), "
+                       "%.2f/%.2f ms from arrival to screen, %u applied too late for their refresh, %u shown unpaced",
+                       cs.paced, cs.interval, (double)cs.latency_ns / 1e6 / cs.paced, (double)cs.latency_max_ns / 1e6,
+                       cs.late, cs.unpaced);
     }
     if (g_bfi_stats.lit || g_bfi_stats.dark || g_bfi_stats.failed) {
         droiddeck_log("bfi", "last 10 s: %u pictures, %u black refreshes, %u black refreshes not presented",

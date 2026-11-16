@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <android/log.h>
@@ -14,6 +15,7 @@
 #include "droiddeck_ext.h"
 #include "ahb_swapchain.h"
 #include "sc_layer.h"
+#include "present_cadence.h"
 #include "effects_chain.h"
 #include "cardboard.h"
 #include "droiddeck_color.h"
@@ -363,6 +365,25 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
     droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsyncTimeline(JNIEnv *env, jclass clazz, jlong frameTimeNanos,
+                                                                         jlong expectedPresentNanos, jlong deadlineNanos,
+                                                                         jlong periodNanos) {
+    (void)env; (void)clazz;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    present_cadence_set_timeline((int64_t)expectedPresentNanos, (int64_t)deadlineNanos, (int64_t)periodNanos,
+                                 (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec);
+    droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetPresentCadence(JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    sc_layer_set_present_cadence(on);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "game layer cadence pacing %s", on ? "on" : "off");
 }
 
 JNIEXPORT void JNICALL

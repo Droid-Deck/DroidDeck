@@ -180,6 +180,10 @@ public final class WaylandCompositor {
 
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeVsyncTimeline(long frameTimeNanos, long expectedPresentNanos, long deadlineNanos, long periodNanos);
+
+    public static native void nativeSetPresentCadence(boolean on);
+
     public static native void nativeSetClockControl(String path);
 
     public static native int nativeCompositorTid();

@@ -2,6 +2,7 @@
 #include "sc_layer.h"
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
+#include "present_cadence.h"
 #include "vk_present.h"
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
@@ -64,6 +65,7 @@ static struct {
     void (*setHdrMetadata_cta861_3)(ASurfaceTransaction *, ASurfaceControl *, const struct droiddeck_hdr_cta861_3 *);
     const void *(*getNativeHandle)(const AHardwareBuffer *);
     void (*setDesiredHdrHeadroom)(ASurfaceTransaction *, ASurfaceControl *, float);
+    void (*setDesiredPresentTime)(ASurfaceTransaction *, int64_t);
     int state;
 } api;
 
@@ -105,6 +107,7 @@ static int load_api(void) {
     SYM(setHdrMetadata_smpte2086, "ASurfaceTransaction_setHdrMetadata_smpte2086");
     SYM(setHdrMetadata_cta861_3, "ASurfaceTransaction_setHdrMetadata_cta861_3");
     SYM(setDesiredHdrHeadroom, "ASurfaceTransaction_setDesiredHdrHeadroom");
+    SYM(setDesiredPresentTime, "ASurfaceTransaction_setDesiredPresentTime");
 #undef SYM
     if (!api.createFromWindow || !api.release || !api.txCreate || !api.txDelete || !api.txApply ||
         !api.setBuffer || !api.setZOrder || !api.setVisibility || !api.setGeometry ||
@@ -749,8 +752,50 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
     return old;
 }
 
+static atomic_int g_cadence_on = 1;
+static struct present_cadence g_cadence;
+static struct present_cadence_stats g_cadence_stats;
+static const void *g_cadence_frame;
+
+void sc_layer_set_present_cadence(int on) {
+    atomic_store(&g_cadence_on, on ? 1 : 0);
+}
+
+void sc_layer_cadence_take(struct present_cadence_stats *out) {
+    *out = g_cadence_stats;
+    memset(&g_cadence_stats, 0, sizeof(g_cadence_stats));
+}
+
+static int64_t cadence_desired(int64_t arrival_ns, const void *frame) {
+    if (!atomic_load(&g_cadence_on) || !api.setDesiredPresentTime) {
+        present_cadence_reset(&g_cadence);
+        g_cadence_frame = NULL;
+        return 0;
+    }
+    if (frame && frame == g_cadence_frame) {
+        g_cadence.target_ns = 0;
+        return 0;
+    }
+    g_cadence_frame = frame;
+    int64_t grid = 0, lead = 0, period = 0;
+    if (!present_cadence_timeline(arrival_ns, &grid, &lead, &period)) grid = lead = period = 0;
+    const int64_t target = present_cadence_plan(&g_cadence, arrival_ns, grid, period, lead);
+    if (!target) {
+        g_cadence_stats.unpaced++;
+        return 0;
+    }
+    const int64_t latency = target - arrival_ns;
+    g_cadence_stats.paced++;
+    g_cadence_stats.interval = g_cadence.interval;
+    g_cadence_stats.latency_ns += latency;
+    if (latency > g_cadence_stats.latency_max_ns) g_cadence_stats.latency_max_ns = latency;
+    /* SurfaceFlinger holds a transaction while its desired present time is at or after the
+     * expected present time of the frame being composed. */
+    return target - period / 2;
+}
+
 static int present_slot(struct layer *l, int idx, const int r[8], const struct droiddeck_color *color,
-                        int translucent) {
+                        int translucent, int64_t arrival_ns, const void *frame) {
     struct slot *s = &l->slots[idx];
     ASurfaceTransaction *tx = api.txCreate();
     if (!tx) return -1;
@@ -766,10 +811,14 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     if (old) retire_ops(tx, old);
     if (add_complete_on(tx, l, old ? old : l->sc, l->cur_slot, l->cur_token, old ? 1 : 0) != 0 && old)
         api.release(old);
+    const int paced = arrival_ns > 0 && l == &g_layers[SC_LAYER_GAME];
+    const int64_t desired = paced ? cadence_desired(arrival_ns, frame) : 0;
+    if (desired) api.setDesiredPresentTime(tx, desired);
     pthread_mutex_lock(&g_lock);
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
     api.txApply(tx);
+    if (paced && present_cadence_applied(&g_cadence, arrival_ns, now_ns())) g_cadence_stats.late++;
     api.txDelete(tx);
     l->cur_slot = idx;
     l->cur_token = NULL;
@@ -850,6 +899,7 @@ unavailable:
 
 int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     if (!src || ensure_sc(l) != 0) return -1;
     int sw = vkp_image_width(src), sh = vkp_image_height(src);
     int r[8];
@@ -861,7 +911,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, color, 0) != 0) return -1;
+    if (present_slot(l, idx, r, color, 0, arrival, src) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
     if (!l->first_logged) {
         l->first_logged = 1;
@@ -875,6 +925,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 
 int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int scene_h) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     int rw = 0, rh = 0, r[8];
     if (!draws || n <= 0 || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
@@ -884,7 +935,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, NULL, 0) != 0) return -1;
+    if (present_slot(l, idx, r, NULL, 0, arrival, draws[0].img) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         droiddeck_log("layer", "presenting %dx%d frames on their own SurfaceControl layer (%s pool, %d buffers); "
@@ -900,6 +951,7 @@ static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
                                int scene_w, int scene_h, const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     int rw = 0, rh = 0, r[8];
     if (!draws || n <= 0 || !hf || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
@@ -918,7 +970,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     }
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
+    if (present_slot(l, idx, r, tm ? NULL : color, 0, arrival, draws[0].img) != 0) return -1;
     if (color && color->dataspace)
         droiddeck_color_frame_shown(color, tm ? DROIDDECK_HDR_TONEMAPPED : DROIDDECK_HDR_COMPOSED, tm ? AHB_RGBA8 : g_hdr_pool_fmt);
     static int said = -1;
@@ -988,7 +1040,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
+    if (present_slot(l, idx, geo, NULL, translucent, 0, NULL) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         log_layer_count();
