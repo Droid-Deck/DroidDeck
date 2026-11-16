@@ -479,7 +479,10 @@ object OpenCode : AgentHarness {
         try {
             writeJson(authFile, auth, private = true)
         } catch (e: Exception) {
-            runCatching { if (before != null) writeFile(configFile, before) else configFile.delete() }.exceptionOrNull()?.let(e::addSuppressed)
+            val undone = runCatching {
+                if (before != null) writeFile(configFile, before) else check(configFile.delete() || !configFile.exists()) { "Could not remove $configFile" }
+            }
+            undone.exceptionOrNull()?.let { throw IllegalStateException("${e.message}; the server config could not be put back: ${it.message}", e) }
             throw e
         }
     }
