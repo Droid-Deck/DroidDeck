@@ -52,6 +52,7 @@ static void render_scene(void) { renders++; g_dirty = 0; g_dirty_since_ns = 0; g
 static int on_fallback_timer(void *data) { return 0; }
 static void on_commit_idle(void *data);
 volatile int g_bfi;
+volatile int g_bfi_picture_hold;
 static int g_bfi_running, g_scene_layer_only, cardboard, quest, blacks;
 static unsigned g_bfi_phase;
 static const char *g_bfi_blocked;
@@ -210,6 +211,17 @@ int main(void) {
         }
         assert(g_bfi_running == 1 && idles_added == idles_before);
         assert(renders - r0 == 5 && blacks - b0 == 5 && g_bfi_stats.lit == 5 && g_bfi_stats.dark == 5);
+
+        /* a capture's picture hold presents only pictures and keeps BFI composing the scene */
+        g_bfi_picture_hold = 1;
+        r0 = renders;
+        const int hb = blacks;
+        for (int i = 0; i < 4; i++) tick(t += refresh);
+        assert(g_bfi_running == 1 && renders - r0 == 4 && blacks == hb);
+        g_bfi_picture_hold = 0;
+        r0 = renders;
+        for (int i = 0; i < 4; i++) tick(t += refresh);
+        assert(renders - r0 == 2 && blacks - hb == 2);
 
         /* frame generation, a slow screen or a layer-only game make it wait and the tick draws as before */
         framegen = 1;
