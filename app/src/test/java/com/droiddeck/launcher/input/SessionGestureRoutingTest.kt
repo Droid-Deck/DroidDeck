@@ -228,14 +228,7 @@ class SessionGestureRoutingTest {
             override fun cancel() {}
         }).also { it.configure(config) }
         setField("directTouchHold", directHold)
-        setField("twoFingerGestures", TwoFingerGestures(16f, object : TwoFingerGestures.Listener {
-            override fun cancelTouch() {}
-            override fun replay(event: MotionEvent) {}
-            override fun rightClick(x: Float, y: Float) {}
-            override fun scrollStart(x: Float, y: Float) {}
-            override fun scroll(dx: Float, dy: Float) {}
-            override fun scrollEnd() {}
-        }))
+        setField("twoFingerGestures", inertTwoFingerGestures())
         launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
             override fun onMove(x: Float, y: Float) { scrollPositions += x to y }
             override fun onButton(button: Int, pressed: Boolean) {}

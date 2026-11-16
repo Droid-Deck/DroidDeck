@@ -360,6 +360,7 @@ class SessionPenRoutingTest {
         field("routedTouchMode", SessionPrefs.TOUCH_DIRECT)
         field("padMouseCheckedAt", android.os.SystemClock.uptimeMillis())
         field("threeFingerTap", ThreeFingerTap(8f))
+        field("twoFingerGestures", inertTwoFingerGestures())
         field("directTouchHold", DirectTouchHold(8f, object : PointerGestures.Listener {
             override fun onMove(x: Float, y: Float) {}
             override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {}
