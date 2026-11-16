@@ -77,22 +77,15 @@ void main() {
     float ne = luma(texture(InputTexture, uv + vec2(px.x, -px.y)).rgb);
     float sw = luma(texture(InputTexture, uv + vec2(-px.x, px.y)).rgb);
     float se = luma(texture(InputTexture, uv + vec2(px.x, px.y)).rgb);
-
-    // Endpoint asymmetry distinguishes a finite edge/corner from a straight run.
     float endpointPattern = clamp(abs(negativeRun - positiveRun) / max(span, 1.0), 0.0, 1.0);
     float endpointArea = endpointPattern / (1.0 + span * 0.055);
-
-    // Compare perpendicular edge crossings on both sides of the pixel. A native-
-    // resolution straight boundary has matching crossings, so its area weight is 0.
     float crossingA = verticalEdge ? abs(nw - ne) : abs(nw - sw);
     float crossingB = verticalEdge ? abs(sw - se) : abs(ne - se);
     float crossingContrast = abs(crossingA - crossingB);
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
-
     float diagonalContrast = max(abs(nw - se), abs(ne - sw));
     float cornerFactor = 1.0 - 0.18 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
-
     float weight = clamp(areaWeight * endpointArea * edgeConfidence * cornerFactor, 0.0, 0.42);
     vec3 across = texture(InputTexture, uv + normal * px).rgb;
     outColor = vec4(mix(center.rgb, across, weight), center.a);
