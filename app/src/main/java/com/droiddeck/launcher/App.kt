@@ -20,6 +20,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.droiddeck.launcher.runtime.NativeGuest.init(this)
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
@@ -82,7 +83,7 @@ class App : Application() {
         Thread({
             runCatching {
                 if (com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).isDirectory) {
-                    com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
+                    if (!com.droiddeck.launcher.runtime.LinuxRuntime.patchedProot(app)) com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
                     com.droiddeck.launcher.core.AddonPack.DIRECTAUDIO.ensure(app)
                     com.droiddeck.launcher.session.SessionFiles.ensureDirtStandIn(app)
                 }
