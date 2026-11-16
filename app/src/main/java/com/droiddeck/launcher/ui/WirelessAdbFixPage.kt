@@ -110,8 +110,11 @@ fun WirelessAdbFixPage(
                                     step = 2
                                     message = null
                                 } else {
-                                    message = context.getString(R.string.wadb_apply_failed, applyError)
-                                    messageIsError = true
+                                    message = LegacySyncRecoveryDialog.displayError(context, applyError).let {
+                                        if (applyError == LegacySyncRecoveryDialog.CANCELLED) it
+                                        else context.getString(R.string.wadb_apply_failed, it)
+                                    }
+                                    messageIsError = applyError != LegacySyncRecoveryDialog.CANCELLED
                                 }
                             }
                         }
@@ -134,8 +137,8 @@ fun WirelessAdbFixPage(
                     step = 2
                     message = null
                 } else {
-                    message = error
-                    messageIsError = true
+                    message = LegacySyncRecoveryDialog.displayError(context, error)
+                    messageIsError = error != LegacySyncRecoveryDialog.CANCELLED
                 }
             }
         }
