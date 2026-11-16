@@ -223,8 +223,10 @@ class StoreLoginActivity : ComponentActivity() {
         browserLogin = com.droiddeck.launcher.stores.epic.EpicBrowserLogin.begin(this) { problem ->
             settle(problem, attempt)
         }
-        if (browserLogin == null) android.widget.Toast.makeText(this, R.string.stores_login_error_generic, android.widget.Toast.LENGTH_LONG).show()
-        else showError(getString(R.string.epic_browser_sign_in_waiting))
+        if (browserLogin == null) {
+            android.widget.Toast.makeText(this, R.string.stores_login_error_generic, android.widget.Toast.LENGTH_LONG).show()
+            reloadLogin()
+        } else showError(getString(R.string.epic_browser_sign_in_waiting))
     }
 
     private fun reloadLogin() {
