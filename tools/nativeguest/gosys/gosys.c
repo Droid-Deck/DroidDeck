@@ -34,7 +34,7 @@ enum {
     NR_LLISTXATTR = 12, NR_REMOVEXATTR = 14, NR_LREMOVEXATTR = 15, NR_GETCWD = 17,
     NR_INOTIFY_ADD_WATCH = 27, NR_MKNODAT = 33, NR_MKDIRAT = 34, NR_UNLINKAT = 35, NR_SYMLINKAT = 36,
     NR_LINKAT = 37, NR_RENAMEAT = 38, NR_STATFS = 43, NR_TRUNCATE = 45, NR_FACCESSAT = 48,
-    NR_CHDIR = 49, NR_CHROOT = 51, NR_FCHMODAT = 53, NR_FCHOWNAT = 54, NR_OPENAT = 56,
+    NR_CHDIR = 49, NR_CHROOT = 51, NR_FCHMODAT = 53, NR_FCHOWNAT = 54, NR_OPENAT = 56, NR_CLOSE = 57,
     NR_READLINKAT = 78, NR_NEWFSTATAT = 79, NR_UTIMENSAT = 88, NR_BIND = 200, NR_CONNECT = 203,
     NR_EXECVE = 221, NR_NAME_TO_HANDLE_AT = 264, NR_RENAMEAT2 = 276, NR_STATX = 291,
     NR_OPENAT2 = 437, NR_FACCESSAT2 = 439, NR_FCHMODAT2 = 452, NR_SETREGID = 143, NR_SETGID = 144,
@@ -269,17 +269,17 @@ static i64 unmap_prefix(const struct gosys_hdr *h, char *buf, i64 n, int nul) {
 
 // ---- Unix sockets ------------------------------------------------------------------------
 
-static void put_hex16(char *out, u64 v) {
-    static const char digits[] = "0123456789abcdef";
-    for (int i = 15; i >= 0; i--) {
-        out[i] = digits[v & 15];
-        v >>= 4;
-    }
+static u64 put_dec(char *out, u64 v) {
+    char digits[20];
+    u64 n = 0;
+    do {
+        digits[n++] = (char)('0' + v % 10);
+        v /= 10;
+    } while (v);
+    for (u64 i = 0; i < n; i++) out[i] = digits[n - 1 - i];
+    return n;
 }
 
-// bind() and connect() of a Unix socket with a path: mapped like hook/setup.c does, and hashed
-// into /tmp when it does not fit the 108 bytes of sun_path (the same name, so a Go server and a
-// program using the C library find each other)
 static i64 with_sockaddr(const struct gosys_hdr *h, u32 *held, i64 nr, i64 a0, i64 a1, i64 a2) {
     const unsigned char *sa = (const unsigned char *)a1;
     if (!sa || a2 < 4 || a2 > 128 || sa[0] != 1 /* AF_UNIX */ || sa[1] != 0 || sa[2] != '/')
@@ -290,7 +290,7 @@ static i64 with_sockaddr(const struct gosys_hdr *h, u32 *held, i64 nr, i64 a0, i
     if (max > 108) max = 108;
     mcopy(orig, (const char *)sa + 2, max);
     orig[max] = '\0';
-    const char *rw = rw_path(h, orig, slot + SLOT_PATH_B, SLOT_PATH_CAP);
+    char *rw = (char *)rw_path(h, orig, slot + SLOT_PATH_B, SLOT_PATH_CAP);
     u64 rl = slen(rw);
     char *out = slot + SLOT_ARGV;
     out[0] = 1;
@@ -299,18 +299,25 @@ static i64 with_sockaddr(const struct gosys_hdr *h, u32 *held, i64 nr, i64 a0, i
         mcopy(out + 2, rw, rl + 1);
         return sc(nr, a0, (i64)out, (i64)(2 + rl + 1), 0, 0, 0);
     }
-    u64 hash = 14695981039346656037ULL;
-    for (const char *p = rw; *p; p++) {
-        hash ^= (unsigned char)*p;
-        hash *= 1099511628211ULL;
+    u64 cut = rl;
+    while (cut > 0 && rw[cut - 1] != '/') cut--;
+    if (cut < 2 || cut == rl) return sc(nr, a0, a1, a2, 0, 0, 0);
+    rw[cut - 1] = '\0';
+    i64 dir = sc(NR_OPENAT, -100 /* AT_FDCWD */, (i64)rw, 0x200000 | 0x4000 | 0x80000 /* O_PATH | O_DIRECTORY | O_CLOEXEC */, 0, 0, 0);
+    if (dir < 0) return dir;
+    mcopy(out + 2, "/proc/self/fd/", 14);
+    u64 n = 14;
+    n += put_dec(out + 2 + n, (u64)dir);
+    out[2 + n++] = '/';
+    u64 name = rl - cut;
+    if (n + name + 1 > 108) {
+        sc(NR_CLOSE, dir, 0, 0, 0, 0, 0);
+        return -36 /* ENAMETOOLONG */;
     }
-    u64 n = h->root_len;
-    if (n + 5 + 11 + 16 + 1 > 108) return sc(nr, a0, a1, a2, 0, 0, 0);
-    mcopy(out + 2, h->root, n);
-    mcopy(out + 2 + n, "/tmp/.ctx_sock_", 15);
-    put_hex16(out + 2 + n + 15, hash);
-    out[2 + n + 15 + 16] = '\0';
-    return sc(nr, a0, (i64)out, (i64)(2 + n + 15 + 16 + 1), 0, 0, 0);
+    mcopy(out + 2 + n, rw + cut, name + 1);
+    i64 r = sc(nr, a0, (i64)out, (i64)(2 + n + name + 1), 0, 0, 0);
+    sc(NR_CLOSE, dir, 0, 0, 0, 0, 0);
+    return r;
 }
 
 // ---- Starting programs -------------------------------------------------------------------
