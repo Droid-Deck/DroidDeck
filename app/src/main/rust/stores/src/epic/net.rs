@@ -28,6 +28,7 @@ pub enum Method {
     Get,
     Post,
     Put,
+    Delete,
 }
 
 pub enum Body {
@@ -72,6 +73,13 @@ impl<'a> Request<'a> {
         Request {
             method: Method::Put,
             body,
+            ..Request::get(url)
+        }
+    }
+
+    pub fn delete(url: &'a str) -> Self {
+        Request {
+            method: Method::Delete,
             ..Request::get(url)
         }
     }
@@ -143,6 +151,7 @@ async fn send_async(request: Request<'_>) -> Result<Reply, String> {
         Method::Get => client.get(request.url),
         Method::Post => client.post(request.url),
         Method::Put => client.put(request.url),
+        Method::Delete => client.delete(request.url),
     };
     if let Some(token) = request.bearer {
         builder = builder.header(AUTHORIZATION, format!("Bearer {token}"));

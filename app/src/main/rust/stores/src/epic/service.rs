@@ -21,21 +21,19 @@ fn dispatch(op: &str, req: &Value) -> Value {
     let token = str_of(req, "accessToken");
     match op {
         "auth.config" => json!({
-            "startUrl": account::start_url(),
-            "redirectPrefix": account::REDIRECT_PREFIX,
             "webViewUserAgent": account::WEBVIEW_USER_AGENT,
         }),
-        "auth.codeFromPage" => match account::code_from_page_text(str_of(req, "text")) {
-            Some(code) => json!({ "code": code }),
-            None => json!({}),
-        },
-        "auth.browserStart" => {
-            let redirect = account::loopback_redirect(req.get("port").and_then(Value::as_u64).unwrap_or(0) as u16);
-            json!({ "url": account::browser_start_url(&redirect, str_of(req, "state")), "redirectUri": redirect })
-        }
-        "auth.signIn" => match account::sign_in_with_code(str_of(req, "code"), Some(str_of(req, "redirectUri"))) {
-            Ok(t) => t.to_json(),
+        "auth.deviceStart" => match account::device_start() {
+            Ok(d) => json!({
+                "url": d.url, "userCode": d.user_code, "deviceCode": d.device_code,
+                "interval": d.interval_s, "expiresIn": d.expires_in_s,
+            }),
             Err(e) => error(e),
+        },
+        "auth.devicePoll" => match account::device_poll(str_of(req, "deviceCode")) {
+            account::DevicePoll::Pending => json!({ "pending": true }),
+            account::DevicePoll::Done(t) => t.to_json(),
+            account::DevicePoll::Failed(e) => error(e),
         },
         "auth.refresh" => match account::refresh(str_of(req, "refreshToken")) {
             Ok(t) => t.to_json(),
@@ -191,11 +189,8 @@ mod tests {
         let v: Value = serde_json::from_str(&call("locale", r#"{"language":"pt","region":"BR"}"#)).unwrap();
         assert_eq!(v["key"], "pt-BR");
         assert_eq!(v["launchLocale"], "pt");
-        let v: Value = serde_json::from_str(&call("auth.codeFromPage", r#"{"text":"{\"authorizationCode\":\"c1\"}"}"#)).unwrap();
-        assert_eq!(v["code"], "c1");
-        let v: Value = serde_json::from_str(&call("auth.browserStart", r#"{"port":5,"state":"s"}"#)).unwrap();
-        assert_eq!(v["redirectUri"], "http://localhost:5/launcher/authorized");
-        assert!(v["url"].as_str().unwrap().ends_with("redirect_uri=http%3A%2F%2Flocalhost%3A5%2Flauncher%2Fauthorized&state=s"));
+        let v: Value = serde_json::from_str(&call("auth.config", "{}")).unwrap();
+        assert!(v["webViewUserAgent"].as_str().unwrap().starts_with("UELauncher/"));
         let v: Value = serde_json::from_str(&call("nope", "{}")).unwrap();
         assert!(v["error"].is_string());
         let v: Value = serde_json::from_str(&call("launch.args", r#"{"namespace":"ns","appName":"A"}"#)).unwrap();

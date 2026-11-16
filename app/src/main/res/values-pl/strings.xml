@@ -2814,9 +2814,6 @@
     <string name="stores_login_reload">Odśwież</string>
     <string name="stores_login_close">Zamknij</string>
     <string name="stores_login_retry">Spróbuj ponownie</string>
-    <string name="stores_login_in_browser">Przeglądarka</string>
-    <string name="epic_browser_sign_in_waiting">Dokończ logowanie do Epic Games w przeglądarce, a potem wróć tutaj.</string>
-    <string name="epic_browser_sign_in_return">Wróć do DroidDeck, aby dokończyć logowanie do Epic Games.</string>
     <string name="stores_login_finishing">Kończenie logowania…</string>
     <string name="stores_xbox_sign_in_again">Microsoft odrzucił logowanie do Xbox. Wyloguj się z Xbox w Sklepach, zaloguj się ponownie, a potem wznów.</string>
     <string name="stores_login_error_network">Nie udało się wczytać strony logowania: %1$s</string>

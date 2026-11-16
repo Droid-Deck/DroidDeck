@@ -85,8 +85,6 @@ class StoreLoginActivity : ComponentActivity() {
     private lateinit var closeButton: ImageButton
     private lateinit var retryButton: Button
     private var oauthState: String? = null
-    private var browserLogin: java.io.Closeable? = null
-    private var browserAttempt = 0
     private val captured = AtomicBoolean(false)
     private var flooded = false
     private val chromeUa by lazy { chromeUserAgent(runCatching { WebSettings.getDefaultUserAgent(this) }.getOrNull()) }
@@ -158,12 +156,6 @@ class StoreLoginActivity : ComponentActivity() {
             setTextColor(0xFFF2F4F7.toInt()); textSize = 16f; setPadding(dp(16), 0, dp(8), 0)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        val browser = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
-            text = getString(R.string.stores_login_in_browser); setTextColor(0xFFF2F4F7.toInt()); isAllCaps = false
-            visibility = if (store == Store.EPIC && clientUrl == null) View.VISIBLE else View.GONE
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48))
-            setOnClickListener { startBrowserSignIn() }
-        }
         val reload = ImageButton(this).apply {
             setImageResource(android.R.drawable.ic_menu_rotate); setBackgroundColor(Color.TRANSPARENT)
             contentDescription = getString(R.string.stores_login_reload); layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
@@ -175,7 +167,7 @@ class StoreLoginActivity : ComponentActivity() {
             setOnClickListener { finish() }
         }
         topBar = bar; reloadButton = reload; closeButton = close
-        bar.addView(titleText); bar.addView(browser); bar.addView(reload); bar.addView(close)
+        bar.addView(titleText); bar.addView(reload); bar.addView(close)
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100; isIndeterminate = false
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3))
@@ -217,21 +209,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun clearError() { runOnUiThread { errorPanel.visibility = View.GONE } }
 
-    private fun startBrowserSignIn() {
-        browserLogin?.close()
-        val attempt = ++browserAttempt
-        browserLogin = com.droiddeck.launcher.stores.epic.EpicBrowserLogin.begin(this) { problem ->
-            settle(problem, attempt)
-        }
-        if (browserLogin == null) {
-            android.widget.Toast.makeText(this, R.string.stores_login_error_generic, android.widget.Toast.LENGTH_LONG).show()
-            reloadLogin()
-        } else showError(getString(R.string.epic_browser_sign_in_waiting))
-    }
-
     private fun reloadLogin() {
-        browserLogin?.close(); browserLogin = null
-        browserAttempt++
         dismissPopup(); clearError()
         captured.set(false)
         val fresh = generateState()
@@ -352,30 +330,28 @@ class StoreLoginActivity : ComponentActivity() {
         }
     }
 
-    private fun readPage(view: WebView, f: Flow, attempt: Int, left: Int) {
+    private fun readPage(view: WebView, f: Flow, left: Int) {
         view.evaluateJavascript(f.pageScript) { json ->
             val result = json ?: ""
-            if (!f.pageReady(result) && left > 0) view.postDelayed({ readPage(view, f, attempt, left - 1) }, PAGE_RETRY_MS)
-            else Thread({ settle(f.finish(this, view, result), attempt) }, "store-login").start()
+            if (!f.pageReady(result) && left > 0) view.postDelayed({ readPage(view, f, left - 1) }, PAGE_RETRY_MS)
+            else Thread({ settle(f.finish(this, view, result)) }, "store-login").start()
         }
     }
 
     private fun complete(view: WebView, url: String) {
         if (!captured.compareAndSet(false, true)) return
         val f = flow ?: return
-        val attempt = browserAttempt
         dismissPopup()
         runOnUiThread {
             clearError()
             titleText.text = getString(R.string.stores_login_finishing)
             if (!f.readsPage) view.stopLoading()
         }
-        if (f.readsPage) readPage(view, f, attempt, PAGE_TRIES) else Thread({ settle(f.finish(this, view, url), attempt) }, "store-login").start()
+        if (f.readsPage) readPage(view, f, PAGE_TRIES) else Thread({ settle(f.finish(this, view, url)) }, "store-login").start()
     }
 
-    private fun settle(problem: String?, attempt: Int) {
+    private fun settle(problem: String?) {
         runOnUiThread {
-            if (problem != null && attempt != browserAttempt) return@runOnUiThread
             if (problem == null) { StoresState.refresh(this); finish(); return@runOnUiThread }
             captured.set(false)
             if (!isFinishing && !isDestroyed) android.widget.Toast.makeText(this, problem, android.widget.Toast.LENGTH_LONG).show()
@@ -400,7 +376,6 @@ class StoreLoginActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        browserLogin?.close(); browserLogin = null
         popupWebView?.let { popupWebView = null; destroyPopupView(it) }
         webViewRef?.let { it.webChromeClient = null; (it.parent as? ViewGroup)?.removeView(it); it.destroy() }
         webViewRef = null

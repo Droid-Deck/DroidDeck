@@ -2751,9 +2751,6 @@
     <string name="stores_login_reload">Yeniden yükle</string>
     <string name="stores_login_close">Kapat</string>
     <string name="stores_login_retry">Yeniden dene</string>
-    <string name="stores_login_in_browser">Tarayıcı</string>
-    <string name="epic_browser_sign_in_waiting">Epic Games oturumunu tarayıcınızda tamamlayın, ardından buraya dönün.</string>
-    <string name="epic_browser_sign_in_return">Epic Games oturumunu tamamlamak için DroidDeck\'e dönün.</string>
     <string name="stores_login_finishing">Oturum açma tamamlanıyor…</string>
     <string name="stores_xbox_sign_in_again">Microsoft, Xbox oturum açmayı reddetti. Mağazalar\'da Xbox oturumunu kapatın, yeniden oturum açın ve devam edin.</string>
     <string name="stores_login_error_network">Oturum açma sayfası yüklenemedi: %1$s</string>

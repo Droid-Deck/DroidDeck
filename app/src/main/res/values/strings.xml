@@ -2962,9 +2962,6 @@
     <string name="stores_login_reload">Reload</string>
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
-    <string name="stores_login_in_browser">Browser</string>
-    <string name="epic_browser_sign_in_waiting">Finish signing in to Epic Games in your browser, then return here.</string>
-    <string name="epic_browser_sign_in_return">Return to DroidDeck to finish signing in to Epic Games.</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
     <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>

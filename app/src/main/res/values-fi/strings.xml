@@ -2762,9 +2762,6 @@
     <string name="stores_login_reload">Lataa uudelleen</string>
     <string name="stores_login_close">Sulje</string>
     <string name="stores_login_retry">Yritä uudelleen</string>
-    <string name="stores_login_in_browser">Selain</string>
-    <string name="epic_browser_sign_in_waiting">Viimeistele Epic Games -kirjautuminen selaimessa ja palaa sitten tänne.</string>
-    <string name="epic_browser_sign_in_return">Palaa DroidDeckiin viimeistelläksesi Epic Games -kirjautumisen.</string>
     <string name="stores_login_finishing">Viimeistellään kirjautumista…</string>
     <string name="stores_xbox_sign_in_again">Microsoft hylkäsi Xbox-kirjautumisen. Kirjaudu ulos Xboxista Kaupoissa, kirjaudu uudelleen sisään ja jatka sitten.</string>
     <string name="stores_login_error_network">Kirjautumissivua ei voitu latata: %1$s</string>

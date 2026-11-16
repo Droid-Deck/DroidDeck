@@ -2762,9 +2762,6 @@
     <string name="stores_login_reload">Презареди</string>
     <string name="stores_login_close">Затвори</string>
     <string name="stores_login_retry">Опитай отново</string>
-    <string name="stores_login_in_browser">Браузър</string>
-    <string name="epic_browser_sign_in_waiting">Завършете входа в Epic Games в браузъра си, след което се върнете тук.</string>
-    <string name="epic_browser_sign_in_return">Върнете се в DroidDeck, за да завършите входа в Epic Games.</string>
     <string name="stores_login_finishing">Завършване на входа…</string>
     <string name="stores_xbox_sign_in_again">Microsoft отхвърли входа в Xbox. Излезте от Xbox в Магазини, влезте отново и след това продължете.</string>
     <string name="stores_login_error_network">Страницата за вход не можа да се зареди: %1$s</string>

@@ -2737,9 +2737,6 @@
     <string name="stores_login_reload">โหลดใหม่</string>
     <string name="stores_login_close">ปิด</string>
     <string name="stores_login_retry">ลองใหม่</string>
-    <string name="stores_login_in_browser">เบราว์เซอร์</string>
-    <string name="epic_browser_sign_in_waiting">ลงชื่อเข้าใช้ Epic Games ให้เสร็จในเบราว์เซอร์ แล้วกลับมาที่นี่</string>
-    <string name="epic_browser_sign_in_return">กลับไปที่ DroidDeck เพื่อลงชื่อเข้าใช้ Epic Games ให้เสร็จ</string>
     <string name="stores_login_finishing">กำลังเสร็จสิ้นการลงชื่อเข้าใช้…</string>
     <string name="stores_xbox_sign_in_again">Microsoft ปฏิเสธการลงชื่อเข้าใช้ Xbox ลงชื่อออกจาก Xbox ในสโตร์ ลงชื่อเข้าใช้อีกครั้ง แล้วดำเนินการต่อ</string>
     <string name="stores_login_error_network">ไม่สามารถโหลดหน้าลงชื่อเข้าใช้ได้: %1$s</string>

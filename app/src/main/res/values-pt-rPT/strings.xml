@@ -2776,9 +2776,6 @@
     <string name="stores_login_reload">Recarregar</string>
     <string name="stores_login_close">Fechar</string>
     <string name="stores_login_retry">Tentar novamente</string>
-    <string name="stores_login_in_browser">Navegador</string>
-    <string name="epic_browser_sign_in_waiting">Conclua o início de sessão no Epic Games no seu navegador e depois volte aqui.</string>
-    <string name="epic_browser_sign_in_return">Volte ao DroidDeck para concluir o início de sessão no Epic Games.</string>
     <string name="stores_login_finishing">A concluir o início de sessão…</string>
     <string name="stores_xbox_sign_in_again">A Microsoft recusou o início de sessão da Xbox. Termine a sessão da Xbox em Lojas, inicie sessão novamente e retome.</string>
     <string name="stores_login_error_network">Não foi possível carregar a página de início de sessão: %1$s</string>

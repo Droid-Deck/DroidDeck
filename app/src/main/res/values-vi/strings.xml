@@ -2737,9 +2737,6 @@
     <string name="stores_login_reload">Tải lại</string>
     <string name="stores_login_close">Đóng</string>
     <string name="stores_login_retry">Thử lại</string>
-    <string name="stores_login_in_browser">Trình duyệt</string>
-    <string name="epic_browser_sign_in_waiting">Hoàn tất đăng nhập Epic Games trong trình duyệt rồi quay lại đây.</string>
-    <string name="epic_browser_sign_in_return">Quay lại DroidDeck để hoàn tất đăng nhập Epic Games.</string>
     <string name="stores_login_finishing">Đang hoàn tất đăng nhập…</string>
     <string name="stores_xbox_sign_in_again">Microsoft đã từ chối đăng nhập Xbox. Hãy đăng xuất Xbox trong Cửa hàng game, đăng nhập lại rồi tiếp tục.</string>
     <string name="stores_login_error_network">Không thể tải trang đăng nhập: %1$s</string>

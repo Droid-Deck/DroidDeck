@@ -2762,9 +2762,6 @@
     <string name="stores_login_reload">Újratöltés</string>
     <string name="stores_login_close">Bezárás</string>
     <string name="stores_login_retry">Próbálja újra</string>
-    <string name="stores_login_in_browser">Böngésző</string>
-    <string name="epic_browser_sign_in_waiting">Fejezd be az Epic Games bejelentkezést a böngészőben, majd térj vissza ide.</string>
-    <string name="epic_browser_sign_in_return">Térj vissza a DroidDeckbe az Epic Games bejelentkezés befejezéséhez.</string>
     <string name="stores_login_finishing">A bejelentkezés befejezése…</string>
     <string name="stores_xbox_sign_in_again">A Microsoft elutasította az Xbox-bejelentkezést. Az Áruházakban jelentkezz ki az Xboxból, jelentkezz be újra, majd folytasd.</string>
     <string name="stores_login_error_network">Nem sikerült betölteni a bejelentkezési oldalt: %1$s</string>

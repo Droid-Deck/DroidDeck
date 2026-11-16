@@ -2788,9 +2788,6 @@
     <string name="stores_login_reload">Reîncarcă</string>
     <string name="stores_login_close">Închide</string>
     <string name="stores_login_retry">Încearcă din nou</string>
-    <string name="stores_login_in_browser">Browser</string>
-    <string name="epic_browser_sign_in_waiting">Finalizați autentificarea la Epic Games în browser, apoi reveniți aici.</string>
-    <string name="epic_browser_sign_in_return">Reveniți în DroidDeck pentru a finaliza autentificarea la Epic Games.</string>
     <string name="stores_login_finishing">Se finalizează autentificarea…</string>
     <string name="stores_xbox_sign_in_again">Microsoft a respins conectarea la Xbox. Deconectează-te de la Xbox în Magazine, conectează-te din nou, apoi reia.</string>
     <string name="stores_login_error_network">Pagina de autentificare nu a putut fi încărcată: %1$s</string>

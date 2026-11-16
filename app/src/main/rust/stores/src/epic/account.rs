@@ -6,32 +6,96 @@ pub const CLIENT_ID: &str = "34a02cf8f4414e29b15921876da36f9a";
 pub const CLIENT_SECRET: &str = "daafbccc737745039dffe53d94fc76cf";
 const ACCOUNT_HOST: &str = "https://account-public-service-prod03.ol.epicgames.com";
 
-pub const REDIRECT_PREFIX: &str = "https://www.epicgames.com/id/api/redirect";
-
-const BROWSER_AUTHORIZE_URL: &str = "https://www.epicgames.com/id/authorize";
-const LOOPBACK_REDIRECT_HOST: &str = "localhost";
-const LOOPBACK_REDIRECT_PATH: &str = "/launcher/authorized";
+// Epic's login page diverts the launcher client to a welcome page that needs the desktop
+// launcher's JS bridge, so a browser sign-in goes through this client's device grant and an
+// exchange code instead.
+const DEVICE_CLIENT_ID: &str = "98f7e42c2e3a4f86a74eb43fbb41ed39";
+const DEVICE_CLIENT_SECRET: &str = "0a2449a2-001a-451e-afec-3e812901c4d7";
 
 pub const WEBVIEW_USER_AGENT: &str =
     "UELauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit";
 
 const DEFAULT_EXPIRES_IN: i64 = 7200;
 
-pub fn start_url() -> String {
-    let redirect = format!("{REDIRECT_PREFIX}?clientId={CLIENT_ID}&responseType=code");
-    format!("https://www.epicgames.com/id/login?redirectUrl={}", net::percent_encode(&redirect))
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeviceStart {
+    pub url: String,
+    pub user_code: String,
+    pub device_code: String,
+    pub interval_s: i64,
+    pub expires_in_s: i64,
 }
 
-pub fn loopback_redirect(port: u16) -> String {
-    format!("http://{LOOPBACK_REDIRECT_HOST}:{port}{LOOPBACK_REDIRECT_PATH}")
+pub fn parse_device_start(body: &Value) -> Option<DeviceStart> {
+    Some(DeviceStart {
+        url: non_empty(body, "verification_uri_complete")?,
+        user_code: non_empty(body, "user_code")?,
+        device_code: non_empty(body, "device_code")?,
+        interval_s: body.get("interval").and_then(Value::as_i64).unwrap_or(10).max(1),
+        expires_in_s: body.get("expires_in").and_then(Value::as_i64).unwrap_or(600),
+    })
 }
 
-pub fn browser_start_url(redirect_uri: &str, state: &str) -> String {
-    format!(
-        "{BROWSER_AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code&prompt=login&redirect_uri={}&state={}",
-        net::percent_encode(redirect_uri),
-        net::percent_encode(state)
-    )
+pub fn device_start() -> Result<DeviceStart, String> {
+    let url = format!("{ACCOUNT_HOST}/account/api/oauth/token");
+    let grant = vec![("grant_type".to_string(), "client_credentials".to_string())];
+    let reply = net::send(Request::post(&url, Body::Form(grant)).basic(DEVICE_CLIENT_ID, DEVICE_CLIENT_SECRET))?;
+    if !reply.ok() {
+        return Err(format!("client token answered HTTP {}", reply.status));
+    }
+    let body = reply.json().ok_or("client token answer is not JSON")?;
+    let client_token = non_empty(&body, "access_token").ok_or("client token answer has no token")?;
+    let url = format!("{ACCOUNT_HOST}/account/api/oauth/deviceAuthorization");
+    let reply = net::send(Request::post(&url, Body::Form(Vec::new())).bearer(&client_token))?;
+    if !reply.ok() {
+        return Err(format!("device authorization answered HTTP {}", reply.status));
+    }
+    parse_device_start(&reply.json().ok_or("device authorization answer is not JSON")?)
+        .ok_or_else(|| "device authorization answer is incomplete".into())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DevicePoll {
+    Pending,
+    Done(Tokens),
+    Failed(String),
+}
+
+fn pending(body: &Value) -> bool {
+    matches!(
+        net::str_of(body, "errorCode"),
+        "errors.com.epicgames.account.oauth.authorization_pending" | "errors.com.epicgames.common.slow_down"
+    ) || matches!(net::str_of(body, "error"), "authorization_pending" | "slow_down")
+}
+
+pub fn device_poll(device_code: &str) -> DevicePoll {
+    let url = format!("{ACCOUNT_HOST}/account/api/oauth/token");
+    let grant = vec![
+        ("grant_type".to_string(), "device_code".to_string()),
+        ("device_code".to_string(), device_code.to_string()),
+    ];
+    let reply = match net::send(Request::post(&url, Body::Form(grant)).basic(DEVICE_CLIENT_ID, DEVICE_CLIENT_SECRET)) {
+        Ok(r) => r,
+        Err(_) => return DevicePoll::Pending,
+    };
+    let body = reply.json().unwrap_or(Value::Null);
+    if !reply.ok() {
+        if pending(&body) || reply.status >= 500 {
+            return DevicePoll::Pending;
+        }
+        let code = net::str_of(&body, "errorCode");
+        return DevicePoll::Failed(if code.is_empty() { format!("device grant answered HTTP {}", reply.status) } else { code.to_string() });
+    }
+    let Some(device_token) = non_empty(&body, "access_token") else {
+        return DevicePoll::Failed("device grant answer has no access token".into());
+    };
+    let result = exchange_code(&device_token).and_then(|code| token_request(&[("grant_type", "exchange_code"), ("exchange_code", &code)]));
+    let kill = format!("{ACCOUNT_HOST}/account/api/oauth/sessions/kill/{device_token}");
+    let _ = net::send(Request::delete(&kill).bearer(&device_token));
+    match result {
+        Ok(tokens) => DevicePoll::Done(tokens),
+        Err(e) => DevicePoll::Failed(e),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -102,18 +166,6 @@ fn token_request(grant: &[(&str, &str)]) -> Result<Tokens, String> {
     parse_token_reply(&body, now_ms()).ok_or_else(|| "token answer has no access token".into())
 }
 
-fn code_grant<'a>(code: &'a str, redirect_uri: Option<&'a str>) -> Vec<(&'a str, &'a str)> {
-    let mut grant = vec![("grant_type", "authorization_code"), ("code", code)];
-    if let Some(uri) = redirect_uri.filter(|u| !u.is_empty()) {
-        grant.push(("redirect_uri", uri));
-    }
-    grant
-}
-
-pub fn sign_in_with_code(code: &str, redirect_uri: Option<&str>) -> Result<Tokens, String> {
-    token_request(&code_grant(code, redirect_uri))
-}
-
 pub fn refresh(refresh_token: &str) -> Result<Tokens, String> {
     token_request(&[("grant_type", "refresh_token"), ("refresh_token", refresh_token)])
 }
@@ -128,68 +180,35 @@ pub fn exchange_code(access_token: &str) -> Result<String, String> {
     non_empty(&body, "code").ok_or_else(|| "exchange answer has no code".into())
 }
 
-pub fn code_from_page_text(raw: &str) -> Option<String> {
-    let mut text = raw.trim();
-    if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
-        text = &text[1..text.len() - 1];
-    }
-    let text = text.replace("\\n", "").replace("\\r", "").replace("\\\"", "\"");
-    let key = "\"authorizationCode\"";
-    let mut from = 0;
-    while let Some(at) = text[from..].find(key) {
-        let rest = text[from + at + key.len()..].trim_start();
-        from += at + key.len();
-        let Some(rest) = rest.strip_prefix(':') else { continue };
-        let Some(rest) = rest.trim_start().strip_prefix('"') else { continue };
-        let Some(end) = rest.find('"') else { continue };
-        let value = &rest[..end];
-        if !value.is_empty() {
-            return Some(value.to_string());
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn start_url_wraps_the_redirect() {
+    fn device_start_reads_epic_answer() {
+        let body = serde_json::json!({
+            "user_code": "LQWFTNKF", "device_code": "U1BC", "verification_uri": "https://www.epicgames.com/activate",
+            "verification_uri_complete": "https://www.epicgames.com/activate?userCode=LQWFTNKF",
+            "expires_in": 600, "interval": 10,
+        });
         assert_eq!(
-            start_url(),
-            "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fid%2Fapi%2Fredirect%3FclientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode"
+            parse_device_start(&body),
+            Some(DeviceStart {
+                url: "https://www.epicgames.com/activate?userCode=LQWFTNKF".into(),
+                user_code: "LQWFTNKF".into(),
+                device_code: "U1BC".into(),
+                interval_s: 10,
+                expires_in_s: 600,
+            })
         );
+        assert_eq!(parse_device_start(&serde_json::json!({ "user_code": "A", "device_code": "B" })), None);
     }
 
     #[test]
-    fn browser_start_url_carries_the_loopback_redirect_and_state() {
-        let redirect = loopback_redirect(43210);
-        assert_eq!(redirect, "http://localhost:43210/launcher/authorized");
-        assert_eq!(
-            browser_start_url(&redirect, "a-b_c"),
-            "https://www.epicgames.com/id/authorize?client_id=34a02cf8f4414e29b15921876da36f9a&response_type=code&prompt=login&redirect_uri=http%3A%2F%2Flocalhost%3A43210%2Flauncher%2Fauthorized&state=a-b_c"
-        );
-    }
-
-    #[test]
-    fn code_grant_repeats_the_redirect_only_when_given() {
-        assert_eq!(code_grant("c", None), vec![("grant_type", "authorization_code"), ("code", "c")]);
-        assert_eq!(code_grant("c", Some("")), code_grant("c", None));
-        assert_eq!(
-            code_grant("c", Some("http://localhost:1/launcher/authorized")),
-            vec![("grant_type", "authorization_code"), ("code", "c"), ("redirect_uri", "http://localhost:1/launcher/authorized")]
-        );
-    }
-
-    #[test]
-    fn code_from_the_redirect_page() {
-        let page = r#""{\"warning\":\"x\",\"redirectUrl\":\"https://localhost/launcher/authorized?code=abc\",\"authorizationCode\":\"0123abcd\",\"exchangeCode\":null,\"sid\":null}\n""#;
-        assert_eq!(code_from_page_text(page).as_deref(), Some("0123abcd"));
-        assert_eq!(code_from_page_text(r#"{"authorizationCode": "zz"}"#).as_deref(), Some("zz"));
-        assert_eq!(code_from_page_text(r#"{"authorizationCode":null}"#), None);
-        assert_eq!(code_from_page_text(r#"{"authorizationCode":""}"#), None);
-        assert_eq!(code_from_page_text("<html>sign in</html>"), None);
+    fn device_grant_waits_while_the_user_has_not_confirmed() {
+        assert!(pending(&serde_json::json!({ "errorCode": "errors.com.epicgames.account.oauth.authorization_pending" })));
+        assert!(pending(&serde_json::json!({ "error": "slow_down" })));
+        assert!(!pending(&serde_json::json!({ "errorCode": "errors.com.epicgames.account.oauth.authorization_code_not_found" })));
     }
 
     #[test]

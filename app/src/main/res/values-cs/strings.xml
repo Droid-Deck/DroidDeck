@@ -2814,9 +2814,6 @@
     <string name="stores_login_reload">Znovu načíst</string>
     <string name="stores_login_close">Zavřít</string>
     <string name="stores_login_retry">Zkusit znovu</string>
-    <string name="stores_login_in_browser">Prohlížeč</string>
-    <string name="epic_browser_sign_in_waiting">Dokončete přihlášení k Epic Games v prohlížeči a poté se vraťte sem.</string>
-    <string name="epic_browser_sign_in_return">Vraťte se do DroidDeck a dokončete přihlášení k Epic Games.</string>
     <string name="stores_login_finishing">Dokončování přihlášení…</string>
     <string name="stores_xbox_sign_in_again">Microsoft odmítl přihlášení k Xboxu. V Obchodech se z Xboxu odhlaste, znovu se přihlaste a pak pokračujte.</string>
     <string name="stores_login_error_network">Přihlašovací stránku se nepodařilo načíst: %1$s</string>

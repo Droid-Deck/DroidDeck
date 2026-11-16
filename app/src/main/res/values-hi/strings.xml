@@ -2762,9 +2762,6 @@
     <string name="stores_login_reload">फिर से लोड करें</string>
     <string name="stores_login_close">बंद करें</string>
     <string name="stores_login_retry">फिर कोशिश करें</string>
-    <string name="stores_login_in_browser">ब्राउज़र</string>
-    <string name="epic_browser_sign_in_waiting">अपने ब्राउज़र में Epic Games का साइन-इन पूरा करें, फिर यहाँ लौट आएँ।</string>
-    <string name="epic_browser_sign_in_return">Epic Games का साइन-इन पूरा करने के लिए DroidDeck पर लौटें।</string>
     <string name="stores_login_finishing">साइन-इन पूरा हो रहा है…</string>
     <string name="stores_xbox_sign_in_again">Microsoft ने Xbox साइन-इन अस्वीकार कर दिया। स्टोर्स में Xbox से साइन आउट करें, फिर से साइन इन करें, फिर जारी रखें।</string>
     <string name="stores_login_error_network">साइन-इन पेज लोड नहीं हो सका: %1$s</string>
