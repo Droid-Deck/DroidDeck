@@ -68,23 +68,37 @@ class AddedGamesSteamEditsTest {
         assertEquals(main.path, SessionPrefs.addedGameExe(context, folder.path))
     }
 
-    @Test fun aTargetChangedInSteamStaysOutOfTheSteamAppsRouteBeforeAndAfterItIsAdopted() {
+    @Test fun aTargetChosenInSteamKeepsTheSteamAppsRouteBeforeAndAfterItIsAdopted() {
         val first = scanned()
         val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
         routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
         assertEquals(250900, scanned().steamAppId)
-        assertTrue(scanned().steamProgram)
 
         record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
         val adopted = scanned()
         assertEquals(other, adopted.exe)
-        assertNull(adopted.steamAppId)
-        assertTrue(!adopted.steamProgram)
+        assertEquals(250900, adopted.steamAppId)
+        assertTrue(adopted.steamProgram)
 
         val later = scanned()
         assertEquals(other, later.exe)
-        assertNull(later.steamAppId)
-        assertTrue(!later.steamProgram)
+        assertEquals(250900, later.steamAppId)
+        assertTrue(later.steamProgram)
+    }
+
+    @Test fun aProgramChosenInDroidDeckAfterASteamEditLeavesTheSteamAppsRoute() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
+        assertEquals(other, scanned().exe)
+
+        val third = File(folder, "Third.exe").apply { writeBytes(ByteArray(4)) }
+        SessionPrefs.setAddedGameExe(context, folder.path, third.path)
+        val chosen = scanned()
+        assertEquals(third, chosen.exe)
+        assertNull(chosen.steamAppId)
+        assertTrue(!chosen.steamProgram)
     }
 
     @Test fun theListingTellsTheSessionWhichSteamEditTheAppHasTaken() {

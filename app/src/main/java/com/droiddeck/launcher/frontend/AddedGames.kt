@@ -471,7 +471,8 @@ object AddedGames {
             val guestDir = SessionPrefs.addedGameStartIn(context, folder.path).takeIf { sidecar == null && it.isNotEmpty() }
                 ?: sidecarDir
                 ?: guestPath(context, (if (adopted != null) adopted else launch).parentFile ?: folder) ?: return
-            val steamProgram = candidates.firstOrNull()?.let { canonical(it) == canonical(exe) } ?: true
+            val steamProgram = candidates.firstOrNull()?.let { canonical(it) == canonical(exe) } ?: true ||
+                SessionPrefs.addedGameAdopted(context, folder.path, "Exe")?.let { canonical(File(it)) == canonical(exe) } == true
             val steamId = config?.takeIf { steamProgram }?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,
                 steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId,

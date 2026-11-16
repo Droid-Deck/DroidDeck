@@ -524,6 +524,13 @@ def release(steam_root, game, stale, reason):
         print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
+def release_stale(steam_root, game, stale):
+    try:
+        release(steam_root, game, stale, "names another Steam app now")
+    except OSError as error:
+        print(f"droiddeck-steam-games: earlier import not undone ({error})")
+
+
 PREFIX_LINKS = ".droiddeck-prefix-links.json"
 
 
@@ -602,6 +609,7 @@ def route(steam_root, acct, games):
             shortcuts.append(game)
             continue
         if not steam_program(game):
+            release_stale(steam_root, game, lambda old: old == SPACEWAR)
             share_prefix(steam_root, game)
             shortcuts.append(game)
             continue
@@ -611,11 +619,7 @@ def route(steam_root, acct, games):
         recorded = sources.get(folder, sources.get(legacy_path(folder)))
         current = stamp is not None and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:])
         named = isinstance(appid, int) and 0 < appid < 0x80000000 and appid != SPACEWAR
-        try:
-            release(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid),
-                    "names another Steam app now")
-        except OSError as error:
-            print(f"droiddeck-steam-games: earlier import not undone ({error})")
+        release_stale(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid))
         confirmed = named and current and owned.get(str(appid)) is True
         if confirmed:
             try:
