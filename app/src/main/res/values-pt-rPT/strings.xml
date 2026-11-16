@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Bloquear posição</string>
-    <string name="hud_locked_hint">Arraste o HUD para o mover; um toque longo bloqueia-o ou desbloqueia-o. Enquanto estiver bloqueado, os controlos no ecrã por baixo dele continuam a funcionar.</string>
+    <string name="hud_locked_hint">Arraste o HUD para o mover. Enquanto estiver bloqueado, os controlos no ecrã por baixo dele continuam a funcionar.</string>
+    <string name="hud_hold">Toque longo</string>
+    <string name="hud_hold_collapse">Recolher ou expandir</string>
+    <string name="hud_hold_lock">Bloquear ou desbloquear</string>
     <string name="hud_snap">Encaixar nas laterais</string>
     <string name="hud_snap_hint">Solte o HUD e ele vai para a lateral mais próxima do ecrã. Um gesto rápido lança-o nessa direção.</string>
     <string name="hud_group_look">Aspeto</string>
