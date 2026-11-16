@@ -51,13 +51,16 @@ internal object XboxLibraryCache {
             val cloudId = row.optString("cloudId").takeIf { it.matches(Regex("[A-Z0-9]{12}")) }.orEmpty()
             val format = row.optString("format").takeIf { XboxCatalog.installableFormat(it) }.orEmpty()
             require(id.matches(Regex("[A-Z0-9]{12}")) && title.isNotBlank() && access in setOf("owned", "gamepass"))
+            // A title with no legacy format keeps the plain shape a cache written
+            // before formats existed has, so a restart round-trips unchanged.
+            val extra = linkedMapOf("market" to market, "access" to access,
+                "pc" to XboxCatalog.flag(row.getBoolean("pc")), "cloud" to XboxCatalog.flag(row.getBoolean("cloud")), "cloudId" to cloudId)
+            if (format.isNotEmpty()) extra["format"] = format
             CatalogItem(Store.XBOX, id, title, row.optString("image").takeIf { it.isNotEmpty() },
                 tallImageUrl = row.optString("poster").takeIf { it.isNotEmpty() },
                 description = row.optString("description"), developer = row.optString("developer"), publisher = row.optString("publisher"),
                 sizeBytes = row.optLong("size"), owned = access == "owned", subscription = access == "gamepass",
-                storeUrl = "https://www.xbox.com/games/store/$id", extra = mapOf("market" to market, "access" to access,
-                    "pc" to XboxCatalog.flag(row.getBoolean("pc")), "cloud" to XboxCatalog.flag(row.getBoolean("cloud")), "cloudId" to cloudId,
-                    "format" to format))
+                storeUrl = "https://www.xbox.com/games/store/$id", extra = extra)
         }
         require(games.map { it.id }.distinct().size == games.size)
         Snapshot(games, savedAt)
