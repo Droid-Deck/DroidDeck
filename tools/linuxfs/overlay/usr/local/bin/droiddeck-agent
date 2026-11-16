@@ -403,8 +403,13 @@ class FocusWatcher(threading.Thread):
         body = {k: v for k, v in snap.items() if k != "t"}
         if body == self.last:
             return
+        try:
+            write_json(self.path, dict(snap, seq=self.seq + 1))
+        except OSError as e:
+            log("focus publication failed: %s" % e)
+            self.changed.set()
+            return
         self.seq += 1
-        write_json(self.path, dict(snap, seq=self.seq))
         self.last = body
 
     def listen(self):
