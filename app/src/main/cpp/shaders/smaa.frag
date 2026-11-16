@@ -54,8 +54,6 @@ void main() {
         return;
     }
 
-    // Fused mobile SMAA-style path: edge detection, bounded edge search,
-    // local area estimation and neighborhood blending in one fragment pass.
     bool verticalEdge = vertical >= horizontal;
     vec2 tangent = verticalEdge ? vec2(0.0, px.y) : vec2(px.x, 0.0);
     vec2 normal = verticalEdge
