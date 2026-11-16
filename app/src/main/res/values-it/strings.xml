@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Blocca in posizione</string>
-    <string name="hud_locked_hint">Trascina l\'HUD per spostarlo; una pressione prolungata lo blocca o lo sblocca. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
+    <string name="hud_locked_hint">Trascina l\'HUD per spostarlo. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
+    <string name="hud_hold">Pressione prolungata</string>
+    <string name="hud_hold_collapse">Comprimi o espandi</string>
+    <string name="hud_hold_lock">Blocca o sblocca</string>
     <string name="hud_snap">Aggancia ai lati</string>
     <string name="hud_snap_hint">Rilascia l\'HUD e si sposta sul lato più vicino dello schermo. Un gesto rapido lo lancia in quella direzione.</string>
     <string name="hud_group_look">Aspetto</string>

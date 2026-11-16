@@ -714,7 +714,10 @@
     <string name="hud_size_mega">Мега</string>
     <string name="hud_size_strip">Смуга</string>
     <string name="hud_locked">Закріпити на місці</string>
-    <string name="hud_locked_hint">Перетягніть HUD, щоб перемістити його; довге натискання закріплює або відкріплює його. Поки його закріплено, екранні елементи керування під ним працюють і далі.</string>
+    <string name="hud_locked_hint">Перетягніть HUD, щоб перемістити його. Поки його закріплено, екранні елементи керування під ним працюють і далі.</string>
+    <string name="hud_hold">Довге натискання</string>
+    <string name="hud_hold_collapse">Згорнути або розгорнути</string>
+    <string name="hud_hold_lock">Закріпити або відкріпити</string>
     <string name="hud_snap">Прилипання до боків</string>
     <string name="hud_snap_hint">Відпустіть HUD, і він переміститься до ближчого боку екрана. Різкий жест відкине його в той бік.</string>
     <string name="hud_group_look">Вигляд</string>
