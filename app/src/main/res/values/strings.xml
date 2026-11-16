@@ -738,7 +738,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Strip</string>
     <string name="hud_locked">Lock in place</string>
-    <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it. While it is locked, on-screen controls under it still work.</string>
+    <string name="hud_locked_hint">Drag the HUD to move it. While it is locked, on-screen controls under it still work.</string>
+    <string name="hud_hold">Long press</string>
+    <string name="hud_hold_collapse">Collapse or expand</string>
+    <string name="hud_hold_lock">Lock or unlock</string>
     <string name="hud_snap">Snap to sides</string>
     <string name="hud_snap_hint">Let go of the HUD and it moves to the nearer side of the screen. A flick throws it that way.</string>
     <string name="hud_group_look">Look</string>
