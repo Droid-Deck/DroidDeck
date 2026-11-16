@@ -969,12 +969,17 @@ def app_manifest(steam_root, app):
     return None
 
 
-def manifest_flags(tokens):
+def manifest_number(tokens, key):
+    quoted = '"%s"' % key.lower()
     for i in range(len(tokens) - 1):
-        if tokens[i].lower() == '"stateflags"':
+        if tokens[i].lower() == quoted:
             value = tokens[i + 1].strip('"')
             return int(value) if value.isdigit() else 0
     return 0
+
+
+def manifest_flags(tokens):
+    return manifest_number(tokens, "StateFlags")
 
 
 def tool_downloads(steam_root):
