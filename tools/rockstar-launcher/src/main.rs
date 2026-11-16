@@ -169,26 +169,35 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let mut child = command.spawn()?;
     let pid = child.id();
     log("game process started");
-    for listener in identity_listeners {
+    for (name, listener) in identity_names.into_iter().zip(identity_listeners) {
         std::thread::spawn(move || {
             let serve = || -> std::io::Result<()> {
+                log(&format!("launcher identity {name}: waiting for connection"));
                 let mut pipe = listener.accept()?.with_deadline(Duration::from_secs(90));
+                log(&format!("launcher identity {name}: connected"));
                 if pipe.client_pid()? != pid {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::PermissionDenied,
                         "unexpected launcher identity client",
                     ));
                 }
-                let reply = droiddeck_rockstar_launcher::identity::exchange(&mut pipe)?;
+                log(&format!("launcher identity {name}: client verified"));
+                let reply =
+                    droiddeck_rockstar_launcher::identity::exchange_observed(&mut pipe, |stage| {
+                        log(&format!("launcher identity {name}: {stage}"))
+                    })?;
+                log(&format!("launcher identity {name}: writing reply"));
                 pipe.write_all(&reply)?;
-                log("launcher identity challenge complete");
+                log(&format!("launcher identity {name}: challenge complete"));
                 pipe = pipe.with_timeout(Duration::from_secs(86400));
                 let mut progress = [0; 4096];
                 while matches!(pipe.read(&mut progress), Ok(size) if size > 0) {}
                 Ok(())
             };
             if let Err(error) = serve() {
-                log(&format!("launcher identity exchange ended: {error}"));
+                log(&format!(
+                    "launcher identity {name}: exchange ended: {error}"
+                ));
             }
         });
     }

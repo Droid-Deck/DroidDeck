@@ -128,6 +128,14 @@ fn scan(reader: &mut impl Read, names: &mut Names, budget: &mut u64) -> io::Resu
 }
 
 pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
+    exchange_observed(reader, |_| {})
+}
+
+pub fn exchange_observed(
+    reader: &mut impl Read,
+    mut observe: impl FnMut(&'static str),
+) -> io::Result<Vec<u8>> {
+    observe("reading header");
     let mut header = [0; 4];
     reader.read_exact(&mut header)?;
     let framed = header != *b"INIT";
@@ -137,9 +145,11 @@ pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
             return Err(invalid());
         }
         let mut bytes = vec![0; size];
+        observe("reading framed request");
         reader.read_exact(&mut bytes)?;
         bytes
     } else {
+        observe("reading unframed request");
         let mut bytes = header.to_vec();
         let mut byte = [0];
         reader.read_exact(&mut byte)?;
@@ -170,6 +180,7 @@ pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
     {
         return Err(invalid());
     }
+    observe("request validated");
     let mut reply = b"TINI:launcher:".to_vec();
     reply.extend_from_slice(challenge);
     if framed {
@@ -353,6 +364,41 @@ mod tests {
                 "HLauncherPipe"
             ]
         );
+    }
+
+    #[test]
+    fn identity_observations_preserve_replies_and_report_incomplete_stages() {
+        let request = b"INIT:private-challenge:";
+        let mut framed = (request.len() as u32).to_le_bytes().to_vec();
+        framed.extend_from_slice(request);
+        for (bytes, stage) in [
+            (request.to_vec(), "reading unframed request"),
+            (framed, "reading framed request"),
+        ] {
+            let mut stages = Vec::new();
+            let reply =
+                exchange_observed(&mut Cursor::new(&bytes), |stage| stages.push(stage)).unwrap();
+            assert_eq!(reply, exchange(&mut Cursor::new(&bytes)).unwrap());
+            assert_eq!(stages, ["reading header", stage, "request validated"]);
+            for end in 0..bytes.len() {
+                let mut stages = Vec::new();
+                assert!(exchange_observed(&mut Cursor::new(&bytes[..end]), |stage| {
+                    stages.push(stage)
+                })
+                .is_err());
+                assert_eq!(
+                    stages,
+                    if end < 4 {
+                        vec!["reading header"]
+                    } else {
+                        vec!["reading header", stage]
+                    }
+                );
+            }
+        }
+        let mut stages = Vec::new();
+        assert!(exchange_observed(&mut Cursor::new([255; 4]), |stage| stages.push(stage)).is_err());
+        assert_eq!(stages, ["reading header"]);
     }
 
     #[test]
