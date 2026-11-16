@@ -2737,6 +2737,9 @@
     <string name="stores_login_reload">再読み込み</string>
     <string name="stores_login_close">閉じる</string>
     <string name="stores_login_retry">再試行</string>
+    <string name="stores_login_in_browser">ブラウザ</string>
+    <string name="epic_browser_sign_in_waiting">ブラウザーで Epic Games へのログインを完了してから、ここに戻ってください。</string>
+    <string name="epic_browser_sign_in_return">DroidDeck に戻って Epic Games へのログインを完了してください。</string>
     <string name="stores_login_finishing">ログインを完了しています…</string>
     <string name="stores_xbox_sign_in_again">Microsoft が Xbox のサインインを拒否しました。ストアで Xbox からサインアウトし、もう一度サインインしてから再開してください。</string>
     <string name="stores_login_error_network">ログインページを読み込めませんでした：%1$s</string>

@@ -29,7 +29,11 @@ fn dispatch(op: &str, req: &Value) -> Value {
             Some(code) => json!({ "code": code }),
             None => json!({}),
         },
-        "auth.signIn" => match account::sign_in_with_code(str_of(req, "code")) {
+        "auth.browserStart" => {
+            let redirect = account::loopback_redirect(req.get("port").and_then(Value::as_u64).unwrap_or(0) as u16);
+            json!({ "url": account::browser_start_url(&redirect, str_of(req, "state")), "redirectUri": redirect })
+        }
+        "auth.signIn" => match account::sign_in_with_code(str_of(req, "code"), Some(str_of(req, "redirectUri"))) {
             Ok(t) => t.to_json(),
             Err(e) => error(e),
         },
@@ -189,6 +193,9 @@ mod tests {
         assert_eq!(v["launchLocale"], "pt");
         let v: Value = serde_json::from_str(&call("auth.codeFromPage", r#"{"text":"{\"authorizationCode\":\"c1\"}"}"#)).unwrap();
         assert_eq!(v["code"], "c1");
+        let v: Value = serde_json::from_str(&call("auth.browserStart", r#"{"port":5,"state":"s"}"#)).unwrap();
+        assert_eq!(v["redirectUri"], "http://localhost:5/launcher/authorized");
+        assert!(v["url"].as_str().unwrap().ends_with("redirect_uri=http%3A%2F%2Flocalhost%3A5%2Flauncher%2Fauthorized&state=s"));
         let v: Value = serde_json::from_str(&call("nope", "{}")).unwrap();
         assert!(v["error"].is_string());
         let v: Value = serde_json::from_str(&call("launch.args", r#"{"namespace":"ns","appName":"A"}"#)).unwrap();

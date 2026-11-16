@@ -2762,6 +2762,9 @@
     <string name="stores_login_reload">Läs in på nytt</string>
     <string name="stores_login_close">Stäng</string>
     <string name="stores_login_retry">Försök igen</string>
+    <string name="stores_login_in_browser">Webbläsare</string>
+    <string name="epic_browser_sign_in_waiting">Slutför inloggningen till Epic Games i webbläsaren och kom sedan tillbaka hit.</string>
+    <string name="epic_browser_sign_in_return">Gå tillbaka till DroidDeck för att slutföra inloggningen till Epic Games.</string>
     <string name="stores_login_finishing">Slutför inloggningen…</string>
     <string name="stores_xbox_sign_in_again">Microsoft avvisade Xbox-inloggningen. Logga ut från Xbox under Butiker, logga in igen och återuppta sedan.</string>
     <string name="stores_login_error_network">Inloggningssidan kunde inte läsas in: %1$s</string>

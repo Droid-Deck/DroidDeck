@@ -8,6 +8,10 @@ const ACCOUNT_HOST: &str = "https://account-public-service-prod03.ol.epicgames.c
 
 pub const REDIRECT_PREFIX: &str = "https://www.epicgames.com/id/api/redirect";
 
+const BROWSER_AUTHORIZE_URL: &str = "https://www.epicgames.com/id/authorize";
+const LOOPBACK_REDIRECT_HOST: &str = "localhost";
+const LOOPBACK_REDIRECT_PATH: &str = "/launcher/authorized";
+
 pub const WEBVIEW_USER_AGENT: &str =
     "UELauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit";
 
@@ -16,6 +20,18 @@ const DEFAULT_EXPIRES_IN: i64 = 7200;
 pub fn start_url() -> String {
     let redirect = format!("{REDIRECT_PREFIX}?clientId={CLIENT_ID}&responseType=code");
     format!("https://www.epicgames.com/id/login?redirectUrl={}", net::percent_encode(&redirect))
+}
+
+pub fn loopback_redirect(port: u16) -> String {
+    format!("http://{LOOPBACK_REDIRECT_HOST}:{port}{LOOPBACK_REDIRECT_PATH}")
+}
+
+pub fn browser_start_url(redirect_uri: &str, state: &str) -> String {
+    format!(
+        "{BROWSER_AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={}&state={}",
+        net::percent_encode(redirect_uri),
+        net::percent_encode(state)
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,8 +102,16 @@ fn token_request(grant: &[(&str, &str)]) -> Result<Tokens, String> {
     parse_token_reply(&body, now_ms()).ok_or_else(|| "token answer has no access token".into())
 }
 
-pub fn sign_in_with_code(code: &str) -> Result<Tokens, String> {
-    token_request(&[("grant_type", "authorization_code"), ("code", code)])
+fn code_grant<'a>(code: &'a str, redirect_uri: Option<&'a str>) -> Vec<(&'a str, &'a str)> {
+    let mut grant = vec![("grant_type", "authorization_code"), ("code", code)];
+    if let Some(uri) = redirect_uri.filter(|u| !u.is_empty()) {
+        grant.push(("redirect_uri", uri));
+    }
+    grant
+}
+
+pub fn sign_in_with_code(code: &str, redirect_uri: Option<&str>) -> Result<Tokens, String> {
+    token_request(&code_grant(code, redirect_uri))
 }
 
 pub fn refresh(refresh_token: &str) -> Result<Tokens, String> {
@@ -135,6 +159,26 @@ mod tests {
         assert_eq!(
             start_url(),
             "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fid%2Fapi%2Fredirect%3FclientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode"
+        );
+    }
+
+    #[test]
+    fn browser_start_url_carries_the_loopback_redirect_and_state() {
+        let redirect = loopback_redirect(43210);
+        assert_eq!(redirect, "http://localhost:43210/launcher/authorized");
+        assert_eq!(
+            browser_start_url(&redirect, "a-b_c"),
+            "https://www.epicgames.com/id/authorize?client_id=34a02cf8f4414e29b15921876da36f9a&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A43210%2Flauncher%2Fauthorized&state=a-b_c"
+        );
+    }
+
+    #[test]
+    fn code_grant_repeats_the_redirect_only_when_given() {
+        assert_eq!(code_grant("c", None), vec![("grant_type", "authorization_code"), ("code", "c")]);
+        assert_eq!(code_grant("c", Some("")), code_grant("c", None));
+        assert_eq!(
+            code_grant("c", Some("http://localhost:1/launcher/authorized")),
+            vec![("grant_type", "authorization_code"), ("code", "c"), ("redirect_uri", "http://localhost:1/launcher/authorized")]
         );
     }
 

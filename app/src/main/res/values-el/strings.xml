@@ -2762,6 +2762,9 @@
     <string name="stores_login_reload">Επαναφόρτωση</string>
     <string name="stores_login_close">Κλείσιμο</string>
     <string name="stores_login_retry">Δοκιμάστε ξανά</string>
+    <string name="stores_login_in_browser">Πρόγραμμα περιήγησης</string>
+    <string name="epic_browser_sign_in_waiting">Ολοκληρώστε τη σύνδεση στο Epic Games στο πρόγραμμα περιήγησής σας και μετά επιστρέψτε εδώ.</string>
+    <string name="epic_browser_sign_in_return">Επιστρέψτε στο DroidDeck για να ολοκληρώσετε τη σύνδεση στο Epic Games.</string>
     <string name="stores_login_finishing">Ολοκλήρωση σύνδεσης…</string>
     <string name="stores_xbox_sign_in_again">Η Microsoft απέρριψε τη σύνδεση στο Xbox. Αποσυνδεθείτε από το Xbox στα Καταστήματα, συνδεθείτε ξανά και μετά συνεχίστε.</string>
     <string name="stores_login_error_network">Δεν ήταν δυνατή η φόρτωση της σελίδας σύνδεσης: %1$s</string>

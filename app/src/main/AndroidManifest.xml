@@ -257,10 +257,18 @@
 
         <activity
             android:name=".stores.StoreLoginActivity"
-            android:exported="false"
+            android:exported="true"
+            android:launchMode="singleTop"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
+            android:theme="@style/AppTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="droiddeck" android:host="sign-in-return" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".agent.AgentStartActivity"

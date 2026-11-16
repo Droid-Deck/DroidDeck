@@ -2762,6 +2762,9 @@
     <string name="stores_login_reload">Genindlæs</string>
     <string name="stores_login_close">Luk</string>
     <string name="stores_login_retry">Forsøg igen</string>
+    <string name="stores_login_in_browser">Browser</string>
+    <string name="epic_browser_sign_in_waiting">Afslut login til Epic Games i din browser, og vend derefter tilbage hertil.</string>
+    <string name="epic_browser_sign_in_return">Vend tilbage til DroidDeck for at afslutte login til Epic Games.</string>
     <string name="stores_login_finishing">Afslutter login…</string>
     <string name="stores_xbox_sign_in_again">Microsoft afviste Xbox-login. Log ud af Xbox under Butikker, log ind igen, og genoptag derefter.</string>
     <string name="stores_login_error_network">Loginsiden kunne ikke indlæses: %1$s</string>

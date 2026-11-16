@@ -2737,6 +2737,9 @@
     <string name="stores_login_reload">Muat ulang</string>
     <string name="stores_login_close">Tutup</string>
     <string name="stores_login_retry">Coba lagi</string>
+    <string name="stores_login_in_browser">Peramban</string>
+    <string name="epic_browser_sign_in_waiting">Selesaikan proses masuk ke Epic Games di peramban Anda, lalu kembali ke sini.</string>
+    <string name="epic_browser_sign_in_return">Kembali ke DroidDeck untuk menyelesaikan proses masuk ke Epic Games.</string>
     <string name="stores_login_finishing">Menyelesaikan proses masuk…</string>
     <string name="stores_xbox_sign_in_again">Microsoft menolak masuk Xbox. Keluar dari Xbox di Toko, masuk lagi, lalu lanjutkan.</string>
     <string name="stores_login_error_network">Halaman masuk tidak dapat dimuat: %1$s</string>

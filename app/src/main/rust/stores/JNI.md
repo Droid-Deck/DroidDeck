@@ -155,7 +155,8 @@ synchronous on the calling thread (network calls block: call them off the main t
 |---|---|---|
 | `auth.config` | – | `startUrl`, `redirectPrefix`, `webViewUserAgent` for the login WebView |
 | `auth.codeFromPage` | `text` (the redirect page body as the WebView returns it) | `code`, or `{}` |
-| `auth.signIn` | `code` | `access_token`, `refresh_token`?, `account_id`?, `display_name`?, `expires_at` (epoch ms) |
+| `auth.browserStart` | `port`, `state` | `url` (the browser sign-in page), `redirectUri` (the loopback address Epic sends the browser back to) |
+| `auth.signIn` | `code`, `redirectUri`? (the one the code was issued for) | `access_token`, `refresh_token`?, `account_id`?, `display_name`?, `expires_at` (epoch ms) |
 | `auth.refresh` | `refreshToken` | same as `auth.signIn` (absent fields: keep the stored ones) |
 | `auth.exchange` | `accessToken` | `code` (single-use launch exchange code) |
 | `library.owned` | `accessToken` | `records[]` of `appName`, `namespace`, `catalogItemId` (all pages; filtered to installable Windows games). A refused token answers `{"error":…, "signIn": true}`; any failed page fails the whole call |

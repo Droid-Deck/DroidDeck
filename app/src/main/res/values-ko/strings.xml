@@ -2737,6 +2737,9 @@
     <string name="stores_login_reload">새로 고침</string>
     <string name="stores_login_close">닫기</string>
     <string name="stores_login_retry">다시 시도</string>
+    <string name="stores_login_in_browser">브라우저</string>
+    <string name="epic_browser_sign_in_waiting">브라우저에서 Epic Games 로그인을 완료한 뒤 여기로 돌아오세요.</string>
+    <string name="epic_browser_sign_in_return">DroidDeck으로 돌아가 Epic Games 로그인을 완료하세요.</string>
     <string name="stores_login_finishing">로그인 완료 중…</string>
     <string name="stores_xbox_sign_in_again">Microsoft에서 Xbox 로그인을 거부했습니다. 스토어에서 Xbox 로그아웃 후 다시 로그인한 다음 재개하세요.</string>
     <string name="stores_login_error_network">로그인 페이지를 불러올 수 없습니다: %1$s</string>

@@ -2751,6 +2751,9 @@
     <string name="stores_login_reload">Neu laden</string>
     <string name="stores_login_close">Schließen</string>
     <string name="stores_login_retry">Erneut versuchen</string>
+    <string name="stores_login_in_browser">Browser</string>
+    <string name="epic_browser_sign_in_waiting">Schließe die Anmeldung bei Epic Games in deinem Browser ab und kehre dann hierher zurück.</string>
+    <string name="epic_browser_sign_in_return">Kehre zu DroidDeck zurück, um die Anmeldung bei Epic Games abzuschließen.</string>
     <string name="stores_login_finishing">Anmeldung wird abgeschlossen…</string>
     <string name="stores_xbox_sign_in_again">Microsoft hat die Xbox-Anmeldung abgelehnt. Melde dich unter Stores von Xbox ab, melde dich erneut an und setze dann fort.</string>
     <string name="stores_login_error_network">Die Anmeldeseite konnte nicht geladen werden: %1$s</string>

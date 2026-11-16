@@ -2762,6 +2762,9 @@
     <string name="stores_login_reload">Opnieuw laden</string>
     <string name="stores_login_close">Sluiten</string>
     <string name="stores_login_retry">Probeer het opnieuw</string>
+    <string name="stores_login_in_browser">Browser</string>
+    <string name="epic_browser_sign_in_waiting">Rond het aanmelden bij Epic Games af in je browser en kom dan hier terug.</string>
+    <string name="epic_browser_sign_in_return">Keer terug naar DroidDeck om het aanmelden bij Epic Games af te ronden.</string>
     <string name="stores_login_finishing">Aanmelden afronden…</string>
     <string name="stores_xbox_sign_in_again">Microsoft heeft de Xbox-aanmelding geweigerd. Meld je af bij Xbox in Winkels, meld je opnieuw aan en hervat daarna.</string>
     <string name="stores_login_error_network">De aanmeldpagina kon niet worden geladen: %1$s</string>

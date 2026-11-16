@@ -2866,6 +2866,9 @@
     <string name="stores_login_reload">إعادة التحميل</string>
     <string name="stores_login_close">إغلاق</string>
     <string name="stores_login_retry">حاوِل مرة أخرى</string>
+    <string name="stores_login_in_browser">المتصفح</string>
+    <string name="epic_browser_sign_in_waiting">أكمل تسجيل الدخول إلى Epic Games في متصفحك، ثم عد إلى هنا.</string>
+    <string name="epic_browser_sign_in_return">عد إلى DroidDeck لإكمال تسجيل الدخول إلى Epic Games.</string>
     <string name="stores_login_finishing">جارٍ إنهاء تسجيل الدخول…</string>
     <string name="stores_xbox_sign_in_again">رفضت Microsoft تسجيل الدخول إلى Xbox. سجّل الخروج من Xbox في المتاجر، ثم سجّل الدخول مجددًا، ثم استأنف.</string>
     <string name="stores_login_error_network">تعذّر تحميل صفحة تسجيل الدخول: %1$s</string>

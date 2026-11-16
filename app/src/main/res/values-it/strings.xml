@@ -2776,6 +2776,9 @@
     <string name="stores_login_reload">Ricarica</string>
     <string name="stores_login_close">Chiudi</string>
     <string name="stores_login_retry">Riprova</string>
+    <string name="stores_login_in_browser">Browser</string>
+    <string name="epic_browser_sign_in_waiting">Completa l\'accesso a Epic Games nel browser, poi torna qui.</string>
+    <string name="epic_browser_sign_in_return">Torna su DroidDeck per completare l\'accesso a Epic Games.</string>
     <string name="stores_login_finishing">Completamento dell\'accesso…</string>
     <string name="stores_xbox_sign_in_again">Microsoft ha rifiutato l\'accesso a Xbox. Esci da Xbox in Negozi, accedi di nuovo, poi riprendi.</string>
     <string name="stores_login_error_network">Impossibile caricare la pagina di accesso: %1$s</string>

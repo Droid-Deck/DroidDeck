@@ -2784,6 +2784,9 @@
     <string name="stores_login_reload">Recarregar</string>
     <string name="stores_login_close">Fechar</string>
     <string name="stores_login_retry">Tentar de novo</string>
+    <string name="stores_login_in_browser">Navegador</string>
+    <string name="epic_browser_sign_in_waiting">Conclua o login no Epic Games no seu navegador e depois volte aqui.</string>
+    <string name="epic_browser_sign_in_return">Volte ao DroidDeck para concluir o login no Epic Games.</string>
     <string name="stores_login_finishing">Concluindo o login…</string>
     <string name="stores_xbox_sign_in_again">A Microsoft recusou o login do Xbox. Saia do Xbox em Lojas, entre novamente e depois retome.</string>
     <string name="stores_login_error_network">Não foi possível carregar a página de login: %1$s</string>
