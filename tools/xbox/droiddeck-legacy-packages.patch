@@ -1,8 +1,8 @@
 diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
-index c8d5ebf..ab67b8b 100644
+index c8d5ebf..86b7014 100644
 --- a/crates/xodus-cli/src/commands/extract_eappx.rs
 +++ b/crates/xodus-cli/src/commands/extract_eappx.rs
-@@ -1,80 +1,192 @@
+@@ -1,80 +1,394 @@
 -use std::path::PathBuf;
 +use std::path::{Path, PathBuf};
  use std::process::ExitCode;
@@ -10,21 +10,7 @@ index c8d5ebf..ab67b8b 100644
  use eappx::EAppxFile;
 -use eappx::keys::KeyCollection;
 +use eappx::keys::{KeyCollection, KeyId};
- 
--/// Extracts a locally-stored EAppx/EMSIX package.
--///
--/// This is intentionally local-only for now: no store lookup or download.
--/// See issue #91 - the initial goal is understanding/unpacking the format,
--/// not full download integration, which can build on this once it lands.
--pub async fn run(path: String, destination: String, key_file: Option<String>) -> ExitCode {
--    let infile = PathBuf::from(&path);
--    let outdir = PathBuf::from(&destination);
--
--    let file = match std::fs::File::open(&infile) {
--        Ok(f) => f,
--        Err(e) => {
--            eprintln!("Failed to open {:?}: {e}", infile);
--            return ExitCode::FAILURE;
++
 +/// A bundle header names each content key as a pair of GUIDs, `(content id,
 +/// package id)`, while the licence names the same key by its 16-byte content id
 +/// alone. The crate reads a 16-byte id as `(static prefix, content id)`, so the
@@ -34,15 +20,7 @@ index c8d5ebf..ab67b8b 100644
 +    for id in needed {
 +        if keys.keys.contains_key(id) {
 +            continue;
-         }
--    };
--    let mut reader = std::io::BufReader::new(file);
--
--    let mut eappx = match EAppxFile::from_stream(&mut reader) {
--        Ok(e) => e,
--        Err(e) => {
--            eprintln!("Failed to parse EAppx header: {e}");
--            return ExitCode::FAILURE;
++        }
 +        let KeyId::Guid((content, other)) = id else { continue };
 +        let carried = keys.keys.iter().find_map(|(candidate, data)| match candidate {
 +            KeyId::Guid((_, listed)) if listed == content && listed != other => Some(data.clone()),
@@ -50,23 +28,107 @@ index c8d5ebf..ab67b8b 100644
 +        });
 +        if let Some(data) = carried {
 +            keys.add(id.clone(), data);
-         }
--    };
++        }
 +    }
 +}
- 
--    println!("{eappx}");
++
 +/// A bundle can hold another bundle, but nesting is bounded so a malformed
 +/// archive cannot drive unbounded recursion.
 +const MAX_BUNDLE_DEPTH: usize = 3;
  
-+/// Extracts a locally-stored EAppx/EMSIX package.
-+///
+ /// Extracts a locally-stored EAppx/EMSIX package.
+ ///
+-/// This is intentionally local-only for now: no store lookup or download.
+-/// See issue #91 - the initial goal is understanding/unpacking the format,
+-/// not full download integration, which can build on this once it lands.
 +/// A bundle is extracted in place, then each inner package that is itself an
 +/// EAppx container is decrypted with the same content keys. Inner files that
 +/// are plain ZIP-based packages are left as extracted: they carry no EAppx
 +/// header, so there is nothing to decrypt.
-+pub async fn run(path: String, destination: String, key_file: Option<String>) -> ExitCode {
+ pub async fn run(path: String, destination: String, key_file: Option<String>) -> ExitCode {
+-    let infile = PathBuf::from(&path);
+-    let outdir = PathBuf::from(&destination);
+-
+-    let file = match std::fs::File::open(&infile) {
+-        Ok(f) => f,
+-        Err(e) => {
+-            eprintln!("Failed to open {:?}: {e}", infile);
+-            return ExitCode::FAILURE;
+-        }
+-    };
+-    let mut reader = std::io::BufReader::new(file);
++    run_metered(path, destination, key_file, None).await
++}
+ 
+-    let mut eappx = match EAppxFile::from_stream(&mut reader) {
+-        Ok(e) => e,
+-        Err(e) => {
+-            eprintln!("Failed to parse EAppx header: {e}");
+-            return ExitCode::FAILURE;
+-        }
+-    };
++/// Where the extraction of the current package begins and how much it will write.
++///
++/// A bundle's inner package is one enormous member, so counting finished files
++/// leaves the bar frozen for the whole of it. The counter is exact: it advances by
++/// each file's declared length as that file is written.
++#[derive(Default)]
++pub struct Meter {
++    /// Bytes written by the package being unpacked now.
++    pub written: std::sync::atomic::AtomicU64,
++    /// Bytes written by packages that already finished.
++    pub banked: std::sync::atomic::AtomicU64,
++    /// Bytes the package being unpacked now will write in total.
++    pub total: std::sync::atomic::AtomicU64,
++}
+ 
+-    println!("{eappx}");
++impl Meter {
++    pub fn done(&self) -> u64 {
++        use std::sync::atomic::Ordering::Relaxed;
++        self.banked.load(Relaxed) + self.written.load(Relaxed)
++    }
++
++    pub fn all(&self) -> u64 {
++        use std::sync::atomic::Ordering::Relaxed;
++        self.banked.load(Relaxed) + self.total.load(Relaxed)
++    }
++
++    /// Closes the package being unpacked and opens the next one.
++    fn roll(&self, total: u64) {
++        use std::sync::atomic::Ordering::Relaxed;
++        self.banked
++            .fetch_add(self.total.load(Relaxed), Relaxed);
++        self.written.store(0, Relaxed);
++        self.total.store(total, Relaxed);
++    }
++}
+ 
++/// Extracts a package, publishing the size of the work in progress to `meter`.
++///
++/// `release` deletes the container once its members are on disk. A bundle of a
++/// full title is tens of gigabytes, and holding it while the members are
++/// decrypted can fill the device partway through.
++pub async fn run_metered(
++    path: String,
++    destination: String,
++    key_file: Option<String>,
++    meter: Option<&Meter>,
++) -> ExitCode {
++    run_blocking(path, destination, key_file, meter, false)
++}
++
++/// The extraction itself, without the async wrapper.
++///
++/// Callers that keep reporting while it works run this on a blocking thread,
++/// because it never yields: decryption and inflation are plain synchronous work.
++pub fn run_blocking(
++    path: String,
++    destination: String,
++    key_file: Option<String>,
++    meter: Option<&Meter>,
++    release: bool,
++) -> ExitCode {
      let mut key_collection = KeyCollection::default();
      if let Some(key_file) = key_file {
          let mut keyfile = match std::fs::File::open(&key_file) {
@@ -74,7 +136,7 @@ index c8d5ebf..ab67b8b 100644
              Err(e) => {
 -                eprintln!("Failed to open key file {:?}: {e}", key_file);
 -                return ExitCode::FAILURE;
-+                return report(
++                return report_failure(
 +                    &Failure::new("key-file-open", &key_file, &e.to_string()),
 +                    ExitCode::FAILURE,
 +                );
@@ -85,7 +147,7 @@ index c8d5ebf..ab67b8b 100644
              Err(e) => {
 -                eprintln!("Failed to parse key file: {e}");
 -                return ExitCode::FAILURE;
-+                return report(
++                return report_failure(
 +                    &Failure::new("key-file-parse", &key_file, &e.to_string()),
 +                    ExitCode::FAILURE,
 +                );
@@ -96,16 +158,19 @@ index c8d5ebf..ab67b8b 100644
 -    if !key_collection.has_required_keys(&eappx.header.key_ids) {
 -        eprintln!("Missing one or more required content keys for this package");
 -        return ExitCode::FAILURE;
-+    match derive(Path::new(&path), Path::new(&destination), &key_collection, 0) {
++    match derive(
++        Path::new(&path),
++        Path::new(&destination),
++        &key_collection,
++        0,
++        meter,
++        release,
++    ) {
 +        Ok(()) => ExitCode::SUCCESS,
-+        Err(failure) => report(&failure, ExitCode::FAILURE),
-     }
++        Err(failure) => report_failure(&failure, ExitCode::FAILURE),
++    }
 +}
- 
--    if let Err(e) = eappx.load_keys(&key_collection) {
--        eprintln!("Failed to load keys: {e}");
--        return ExitCode::FAILURE;
--    }
++
 +/// A failure the launcher can name without printing a device path.
 +///
 +/// The app only forwards stderr lines that are on a known allowlist, so the two
@@ -117,29 +182,16 @@ index c8d5ebf..ab67b8b 100644
 +    name: String,
 +    reason: String,
 +}
- 
--    if !outdir.exists() {
--        if let Err(e) = std::fs::create_dir_all(&outdir) {
--            eprintln!("Failed to create output directory {:?}: {e}", outdir);
--            return ExitCode::FAILURE;
++
 +impl Failure {
 +    fn new(code: &'static str, name: &str, reason: &str) -> Self {
 +        Self {
 +            code,
 +            name: sanitize(name, 60),
 +            reason: sanitize(reason, 120),
-         }
-     }
- 
--    match eappx.extract(&mut reader, &outdir) {
--        Ok(_) => {
--            println!("Extracted {:?} to {:?}", infile, outdir);
--            ExitCode::SUCCESS
--        }
--        Err(e) => {
--            eprintln!("Extraction failed: {e}");
--            ExitCode::FAILURE
--        }
++        }
++    }
++
 +    fn at(code: &'static str, path: &Path, reason: &str) -> Self {
 +        let name = path.file_name().map(|name| name.to_string_lossy().into_owned());
 +        Self::new(code, &name.unwrap_or_default(), reason)
@@ -155,7 +207,7 @@ index c8d5ebf..ab67b8b 100644
 +        .to_string()
 +}
 +
-+fn report(failure: &Failure, code: ExitCode) -> ExitCode {
++fn report_failure(failure: &Failure, code: ExitCode) -> ExitCode {
 +    eprintln!("NEXUS_EXTRACT_DIAGNOSTIC_V1 {}", failure.code);
 +    eprintln!("NEXUS_EXTRACT_DETAIL_V1 {} {}", failure.name, failure.reason);
 +    eprintln!("Extraction failed: {}: {}: {}", failure.code, failure.name, failure.reason);
@@ -179,6 +231,8 @@ index c8d5ebf..ab67b8b 100644
 +    outdir: &Path,
 +    keys: &KeyCollection,
 +    depth: usize,
++    meter: Option<&Meter>,
++    release: bool,
 +) -> Result<(), Failure> {
 +    let file = std::fs::File::open(infile)
 +        .map_err(|e| Failure::at("open", infile, &e.to_string()))?;
@@ -202,7 +256,7 @@ index c8d5ebf..ab67b8b 100644
 +            &infile.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
 +            &format!("{} of {} content keys present", required.keys.len(), eappx.header.key_ids.len()),
 +        ));
-     }
++    }
 +
 +    eappx
 +        .load_keys(&required)
@@ -211,9 +265,9 @@ index c8d5ebf..ab67b8b 100644
 +    std::fs::create_dir_all(outdir)
 +        .map_err(|e| Failure::at("create-dir", outdir, &e.to_string()))?;
 +
-+    eappx
-+        .extract(&mut reader, outdir)
-+        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++    unpack(infile, &eappx, &mut reader, outdir, meter, release)?;
++    // The handle must close before a released container gives its space back.
++    drop(reader);
 +
 +    println!("Extracted {}", infile.file_name().unwrap_or_default().to_string_lossy());
 +
@@ -229,20 +283,163 @@ index c8d5ebf..ab67b8b 100644
 +    }
 +    if depth >= MAX_BUNDLE_DEPTH {
 +        return Err(Failure::at("nesting", infile, "bundle nesting exceeds the limit"));
-+    }
-+
+     }
+ 
+-    if let Err(e) = eappx.load_keys(&key_collection) {
+-        eprintln!("Failed to load keys: {e}");
+-        return ExitCode::FAILURE;
 +    for child in nested {
 +        let name = child
 +            .file_stem()
 +            .map(|name| name.to_string_lossy().into_owned())
 +            .ok_or_else(|| Failure::at("no-name", &child, "package without a usable name"))?;
-+        derive(&child, &outdir.join(&name), keys, depth + 1)?;
++        derive(&child, &outdir.join(&name), keys, depth + 1, meter, release)?;
 +        // The member's bytes are no longer needed once its contents are on disk.
 +        // A bundle of a full title holds tens of gigabytes, and keeping every
 +        // member beside the decrypted copy doubles what the install occupies.
 +        std::fs::remove_file(&child).ok();
+     }
+ 
+-    if !outdir.exists() {
+-        if let Err(e) = std::fs::create_dir_all(&outdir) {
+-            eprintln!("Failed to create output directory {:?}: {e}", outdir);
+-            return ExitCode::FAILURE;
++    Ok(())
++}
++
++/// Bytes currently on disk under `dir`.
++///
++/// A bundle member is written as one file, so a per-file counter says nothing
++/// until it is finished. Measuring the destination catches the bytes as they
++/// land, whatever is writing them.
++pub fn tree_size(dir: &Path) -> u64 {
++    let mut total = 0;
++    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
++    for entry in entries.flatten() {
++        let Ok(kind) = entry.file_type() else { continue };
++        if kind.is_dir() {
++            total += tree_size(&entry.path());
++        } else if let Ok(meta) = entry.metadata() {
++            total += meta.len();
+         }
+     }
++    total
++}
++
++/// Buffer sizes for each worker's own handle on the container.
++///
++/// The crate's default 8 KiB reader turns one 64 KiB block into eight system
++/// calls, and a full title is millions of blocks.
++const READ_BUFFER: usize = 1 << 20;
++
++/// Workers used to unpack one package.
++///
++/// Files sit at independent offsets, so each worker opens its own handle and
++/// takes every Nth file. Decryption and inflation are both CPU-bound and one
++/// core was saturated, so this is where the headroom is. The limit is the
++/// device's write speed, which is reached a few workers in.
++fn workers() -> usize {
++    std::thread::available_parallelism()
++        .map(|count| count.get())
++        .unwrap_or(1)
++        .clamp(1, 4)
++}
++
++/// Writes a package's files, publishing what is left to write.
++///
++/// This is the crate's own `extract`, split across workers and reported as it
++/// goes. The blockmap already totals every file's uncompressed length, so the
++/// end point is known before the first byte is written.
++fn unpack(
++    infile: &Path,
++    eappx: &EAppxFile,
++    reader: &mut std::io::BufReader<std::fs::File>,
++    outdir: &Path,
++    meter: Option<&Meter>,
++    release: bool,
++) -> Result<(), Failure> {
++    let total: u64 = eappx.blockmap.files.iter().map(|package| package.size).sum();
++    if let Some(meter) = meter {
++        meter.roll(total);
++    }
+ 
+-    match eappx.extract(&mut reader, &outdir) {
+-        Ok(_) => {
+-            println!("Extracted {:?} to {:?}", infile, outdir);
+-            ExitCode::SUCCESS
++    eappx
++        .extract_footprint_files(reader, outdir)
++        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++
++    if eappx.header.is_bundle() {
++        eappx
++            .extract_bundle_files(reader, outdir)
++            .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++        if release {
++            std::fs::remove_file(infile).ok();
+         }
+-        Err(e) => {
+-            eprintln!("Extraction failed: {e}");
+-            ExitCode::FAILURE
++        return Ok(());
 +    }
 +
++    let count = workers().min(eappx.blockmap.files.len().max(1));
++    let failure = std::sync::Mutex::new(None::<String>);
++    std::thread::scope(|scope| {
++        for shard in 0..count {
++            let failure = &failure;
++            scope.spawn(move || {
++                let Ok(handle) = std::fs::File::open(infile) else {
++                    if let Ok(mut slot) = failure.lock() {
++                        *slot = Some("a worker could not reopen the package".to_string());
++                    }
++                    return;
++                };
++                let mut stream = std::io::BufReader::with_capacity(READ_BUFFER, handle);
++                for (index, package) in eappx.blockmap.files.iter().enumerate() {
++                    if index % count != shard {
++                        continue;
++                    }
++                    if failure.lock().map(|slot| slot.is_some()).unwrap_or(true) {
++                        return;
++                    }
++                    let Some(footer) = eappx.find_footer_for_file(package.id()) else {
++                        if let Ok(mut slot) = failure.lock() {
++                            *slot = Some("the blockmap names a file the package does not hold".to_string());
++                        }
++                        return;
++                    };
++                    let mut info = eappx::FileInfo::from(footer);
++                    // The crate checks these only when asked, but filling them
++                    // keeps the per-file path identical to its own extraction.
++                    info.filehash = package.filehash_bytes();
++                    info.block_hashes = Some(package.block_hashes());
++                    if let Err(error) = eappx.save_file_to_fs(&mut stream, info, outdir, &package.name) {
++                        if let Ok(mut slot) = failure.lock() {
++                            *slot = Some(error.to_string());
++                        }
++                        return;
++                    }
++                    if let Some(meter) = meter {
++                        meter
++                            .written
++                            .fetch_add(package.size, std::sync::atomic::Ordering::Relaxed);
++                    }
++                }
++            });
+         }
++    });
++
++    if let Some(reason) = failure.into_inner().unwrap_or(None) {
++        return Err(Failure::at("extract", infile, &reason));
++    }
++
++    if release {
++        // The files are on disk; the container is not read again unless the
++        // install is retried from scratch.
++        std::fs::remove_file(infile).ok();
+     }
 +    Ok(())
  }
 diff --git a/crates/xodus-cli/src/commands/license.rs b/crates/xodus-cli/src/commands/license.rs
