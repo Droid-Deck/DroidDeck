@@ -120,18 +120,25 @@ class OpenCodeTest {
         assertNull(OpenCode.usage(root, session))
     }
 
+    private fun provider(id: String) = OpenCode.providers.first { it.id == id }
+
     @Test fun aSavedKeyKeepsOtherProvidersAndFreeIsItsOwnMark() {
         val root = Files.createTempDirectory("rootfs").toFile()
-        assertFalse(OpenCode.hasKey(root))
+        assertEquals(emptySet<String>(), OpenCode.keys(root))
         val auth = File(root, "root/.local/share/opencode/auth.json").apply { parentFile!!.mkdirs() }
-        auth.writeText("""{"openai":{"type":"oauth","refresh":"r"}}""")
-        assertFalse(OpenCode.hasKey(root))
-        OpenCode.saveKey(root, "  sk-zen \n")
+        auth.writeText("""{"openai-codex":{"type":"oauth","refresh":"r"}}""")
+        assertEquals(emptySet<String>(), OpenCode.keys(root))
+        OpenCode.saveKey(root, provider("opencode"), "  sk-zen \n")
+        OpenCode.saveKey(root, provider("ollama-cloud"), "ol-key")
         val saved = JSONObject(auth.readText())
-        assertEquals("r", saved.getJSONObject("openai").getString("refresh"))
+        assertEquals("r", saved.getJSONObject("openai-codex").getString("refresh"))
         assertEquals("sk-zen", saved.getJSONObject("opencode").getString("key"))
-        assertEquals("api", saved.getJSONObject("opencode").getString("type"))
-        assertTrue(OpenCode.hasKey(root))
+        assertEquals("api", saved.getJSONObject("ollama-cloud").getString("type"))
+        assertEquals("ol-key", saved.getJSONObject("ollama-cloud").getString("key"))
+        assertEquals(setOf("opencode", "ollama-cloud"), OpenCode.keys(root))
+        OpenCode.removeKey(root, provider("opencode"))
+        assertEquals(setOf("ollama-cloud"), OpenCode.keys(root))
+        assertTrue(JSONObject(auth.readText()).has("openai-codex"))
         OpenCode.useFree(root)
         assertTrue(File(root, "root/.config/opencode/.droiddeck-free").exists())
     }
@@ -140,15 +147,74 @@ class OpenCodeTest {
         val root = Files.createTempDirectory("rootfs").toFile()
         val auth = File(root, "root/.local/share/opencode/auth.json").apply { parentFile!!.mkdirs() }
         auth.writeText("{not json")
-        assertTrue(runCatching { OpenCode.saveKey(root, "sk-zen") }.isFailure)
+        assertTrue(runCatching { OpenCode.saveKey(root, provider("opencode"), "sk-zen") }.isFailure)
         assertEquals("{not json", auth.readText())
-        assertFalse(OpenCode.hasKey(root))
+        assertEquals(emptySet<String>(), OpenCode.keys(root))
     }
 
-    @Test fun signInIsTheKeyOrTheFreeMark() {
+    @Test fun aCustomServerBecomesAProviderWithTheModelsItLists() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val config = File(root, "root/.config/opencode/opencode.json").apply { parentFile!!.mkdirs() }
+        config.writeText("""{"theme":"tokyonight","provider":{"mine":{"npm":"x"}}}""")
+        val asked = mutableListOf<Pair<String, String?>>()
+        OpenCode.saveKey(root, provider("droiddeck"), "", "192.168.1.20:11434/") { url, key ->
+            asked += url to key
+            """{"object":"list","data":[{"id":"qwen3:8b"},{"id":"gpt-oss:20b"},{"id":"qwen3:8b"}]}"""
+        }
+        assertEquals(listOf("http://192.168.1.20:11434/v1/models" to null), asked)
+        val saved = JSONObject(config.readText())
+        assertEquals("tokyonight", saved.getString("theme"))
+        assertTrue(saved.getJSONObject("provider").has("mine"))
+        val custom = saved.getJSONObject("provider").getJSONObject("droiddeck")
+        assertEquals("@ai-sdk/openai-compatible", custom.getString("npm"))
+        assertEquals("192.168.1.20", custom.getString("name"))
+        assertEquals("http://192.168.1.20:11434/v1", custom.getJSONObject("options").getString("baseURL"))
+        assertEquals(setOf("qwen3:8b", "gpt-oss:20b"), custom.getJSONObject("models").keys().asSequence().toSet())
+        assertEquals(setOf("droiddeck"), OpenCode.keys(root))
+        assertFalse(JSONObject(File(root, "root/.local/share/opencode/auth.json").readText()).has("droiddeck"))
+
+        OpenCode.saveKey(root, provider("droiddeck"), "sk-lan", "https://llm.example/api/v1") { url, key -> asked += url to key; """{"data":[{"id":"m"}]}""" }
+        assertEquals("https://llm.example/api/v1/models" to "sk-lan", asked.last())
+        assertEquals("sk-lan", JSONObject(File(root, "root/.local/share/opencode/auth.json").readText()).getJSONObject("droiddeck").getString("key"))
+
+        OpenCode.removeKey(root, provider("droiddeck"))
+        assertEquals(emptySet<String>(), OpenCode.keys(root))
+        assertTrue(JSONObject(config.readText()).getJSONObject("provider").has("mine"))
+    }
+
+    @Test fun modelIdsSkipWhatTheUserlandPrintsFirst() {
+        assertEquals(listOf("m"), OpenCode.modelIds("proot warning: can't sanitize binding \"/proc/self/fd/1\"\n{\"data\":[{\"id\":\"m\"}]}\n"))
+        assertEquals(emptyList<String>(), OpenCode.modelIds("curl: (7) Failed to connect"))
+    }
+
+    @Test fun aServerWithoutModelsIsNotSaved() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val error = runCatching { OpenCode.saveKey(root, provider("droiddeck"), "", "localhost:1234") { _, _ -> """{"data":[]}""" } }.exceptionOrNull()
+        assertEquals("No models at http://localhost:1234/v1", error?.message)
+        assertFalse(File(root, "root/.config/opencode/opencode.json").exists())
+    }
+
+    @Test fun providerModelsAreLabelledWithTheProvider() {
+        val (models, _) = OpenCode.listModels("""
+            ollama-cloud/gpt-oss:120b
+            {
+              "providerID": "ollama-cloud",
+              "name": "gpt-oss:120b"
+            }
+            droiddeck/qwen3:8b
+            {
+              "providerID": "droiddeck",
+              "name": "qwen3:8b"
+            }
+        """.trimIndent())
+        assertEquals(listOf(AgentHarness.Model("ollama-cloud/gpt-oss:120b", "gpt-oss:120b · Ollama Cloud"), AgentHarness.Model("droiddeck/qwen3:8b", "qwen3:8b")), models)
+    }
+
+    @Test fun signInIsAKeyTheFreeMarkOrACustomServer() {
         val probe = OpenCode.signedIn.last()
         assertTrue(probe.contains("/root/.local/share/opencode/auth.json"))
         assertTrue(probe.contains("[ -e /root/.config/opencode/.droiddeck-free ]"))
+        assertTrue(probe.contains("grep -q '\"droiddeck\"' /root/.config/opencode/opencode.json"))
         assertTrue(probe.contains("models --verbose > /root/.cache/droiddeck/opencode-models.$$"))
         assertEquals(listOf("/root/.local/bin/android-open", "https://opencode.ai/auth"), OpenCode.signIn)
     }

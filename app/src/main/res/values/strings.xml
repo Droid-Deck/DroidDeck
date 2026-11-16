@@ -1372,10 +1372,13 @@
     <string name="agent_action_sign_in">Sign in</string>
     <string name="agent_action_free">Free models</string>
     <string name="agent_action_add_key">Add key</string>
-    <string name="agent_key_hint">Paste your API key from opencode.ai/auth</string>
+    <string name="agent_key_hint">Paste your %1$s key</string>
+    <string name="agent_key_optional_hint">API key, if the server needs one</string>
+    <string name="agent_key_server_hint">Server address, like 192.168.1.20:11434</string>
+    <string name="agent_key_get">Get key</string>
     <string name="agent_key_save">Save</string>
-    <string name="agent_step_sign_in_key_hint">Free models, or a Zen key from opencode.ai/auth</string>
-    <string name="agent_step_free_models">Free models · add a Zen key for the rest</string>
+    <string name="agent_step_sign_in_key_hint">Free models, or a key from your provider</string>
+    <string name="agent_step_free_models">Free models · add a key for more</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
