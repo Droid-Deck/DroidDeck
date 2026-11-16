@@ -818,7 +818,7 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
     api.txApply(tx);
-    if (paced && present_cadence_applied(&g_cadence, arrival_ns, now_ns())) g_cadence_stats.late++;
+    if (paced && present_cadence_applied(&g_cadence, now_ns())) g_cadence_stats.late++;
     api.txDelete(tx);
     l->cur_slot = idx;
     l->cur_token = NULL;
