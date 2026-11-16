@@ -226,7 +226,8 @@ object BattleNet {
         runCatching { games(context) }.getOrNull()?.let { launchCode(it, uid, folder) }
 
     internal fun launchCode(games: List<Game>, uid: String, folder: File?): String? {
-        val same = games.filter { it.uid == uid }
+        val canonical = title(uid)?.uid ?: uid
+        val same = games.filter { it.uid == canonical }
         if (folder != null) return same.firstOrNull { it.folder.absolutePath == folder.absolutePath }?.code
         return same.singleOrNull()?.code ?: title(uid)?.code
     }

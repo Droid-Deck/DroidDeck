@@ -444,6 +444,7 @@ class BattleNetTest {
             field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III China"))))),
         ))
         assertEquals("D3CN", BattleNet.launchCode(context, "diablo3", china))
+        assertEquals("D3CN", BattleNet.launchCode(context, "d3cn", china))
         assertEquals("D3", BattleNet.launchCode(context, "diablo3", legacy))
         assertEquals("D3", BattleNet.launchCode(context, "diablo3", null))
         assertNull(BattleNet.launchCode(context, "diablo3", File(china, "missing")))
@@ -565,13 +566,13 @@ class BattleNetTest {
             Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
             extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
         )
+        val ownership = Ownership(item)
         val uninstalled = AtomicBoolean(false)
-        val installer = BattleNetInstaller(context, item, folder, false, registrationWaitMs = 0, uninstall = {
+        val installer = BattleNetInstaller(context, item, folder, false, ownership = ownership, registrationWaitMs = 0, uninstall = {
             uninstalled.set(true)
             false
         }) { emptyList() }
-        BattleNetInstaller::class.java.getDeclaredField("createdFolder").apply { isAccessible = true }
-            .set(installer, AtomicBoolean(true))
+        ownership.createdFolder.set(true)
         BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
             .set(installer, AtomicBoolean(true))
         val ended = BattleNetInstaller::class.java.getDeclaredField("ended").apply { isAccessible = true }

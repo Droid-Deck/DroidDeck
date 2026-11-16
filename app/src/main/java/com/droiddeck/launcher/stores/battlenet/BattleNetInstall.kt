@@ -282,6 +282,7 @@ object BattleNetInstall {
 internal class Ownership(item: CatalogItem) {
     @Volatile var known = item.extra[BattleNetInstall.PREEXISTING] in setOf("0", "1")
     @Volatile var preexisting = item.extra[BattleNetInstall.PREEXISTING] == "1"
+    val createdFolder = AtomicBoolean(false)
 }
 
 internal class BattleNetInstaller(
@@ -299,7 +300,6 @@ internal class BattleNetInstaller(
     private val cancelled = AtomicBoolean(false)
     private val cleanupStarted = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
-    private val createdFolder = AtomicBoolean(false)
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
 
@@ -334,7 +334,7 @@ internal class BattleNetInstaller(
         val title = BattleNet.title(item.id)
         val product = title?.product ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, item.id))
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: title.uid
-        if (!update && folder.mkdirs()) createdFolder.set(true)
+        if (!update && folder.mkdirs()) ownership.createdFolder.set(true)
         val guest = AddedGames.guestPath(app, folder) ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, folder.path))
         val (country, region) = BattleNetInstall.country(Locale.getDefault())
         val args = if (update) listOf("agent-update", uid)
@@ -414,7 +414,7 @@ internal class BattleNetInstaller(
                     } else {
                         val uid = created.firstOrNull()
                         val gone = uid?.let(uninstall) ?: false
-                        if (gone || uid == null && (createdFolder.get() || folder.isDirectory && folder.list().isNullOrEmpty())) {
+                        if (gone || uid == null && (ownership.createdFolder.get() || folder.isDirectory && folder.list().isNullOrEmpty())) {
                             com.droiddeck.launcher.core.FileUtils.delete(folder)
                         }
                         Log.i("BattleNetInstall", "cancelled install of ${uid ?: "a task without a registration"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
