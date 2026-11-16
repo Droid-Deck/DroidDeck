@@ -85,6 +85,7 @@ def capped_log(path, limit, mirror=False):
 
     def pump():
         remaining = limit
+        mirror_ok = mirror
         with os.fdopen(read, "rb") as source, handle:
             while True:
                 chunk = source.read1(65536)
@@ -92,15 +93,20 @@ def capped_log(path, limit, mirror=False):
                     break
                 saved = chunk[:remaining]
                 remaining -= len(saved)
+                if not saved:
+                    continue
                 try:
-                    if saved:
-                        handle.write(saved)
-                        handle.flush()
-                        if mirror:
-                            sys.stderr.write(saved.decode("utf-8", "replace"))
-                            sys.stderr.flush()
+                    handle.write(saved)
+                    handle.flush()
                 except (OSError, ValueError):
                     remaining = 0
+                    continue
+                if mirror_ok:
+                    try:
+                        sys.stderr.write(saved.decode("utf-8", "replace"))
+                        sys.stderr.flush()
+                    except (OSError, ValueError):
+                        mirror_ok = False
 
     thread = threading.Thread(target=pump, daemon=True)
     thread.start()
