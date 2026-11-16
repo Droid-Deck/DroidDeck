@@ -25,6 +25,17 @@ body{display:grid;place-items:center;overflow:hidden}
 @keyframes dot{0%,10%{opacity:0;transform:scale(0)}24%,76%{opacity:1;transform:scale(1)}90%,100%{opacity:0;transform:scale(0)}}
 @keyframes copy{0%,22%{opacity:0;transform:translateY(12%)}32%,76%{opacity:1;transform:none}88%,100%{opacity:0;transform:translateY(-5%)}}
 @keyframes rule{0%,25%{transform:scaleX(0)}36%,76%{transform:scaleX(1)}88%,100%{transform:scaleX(0)}}
+@media (max-width:600px) and (orientation:portrait){
+body{display:block;overflow:auto}
+.stage{width:100%;min-height:100vh;aspect-ratio:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:32px 20px;overflow:visible}
+.mark{position:relative;left:auto;top:auto;width:min(32vw,120px);flex:none;transform:none}
+.arc{border-width:clamp(4px,3vw,12px)}
+.copy{position:relative;inset:auto;width:100%}
+.name{font-size:clamp(32px,10vw,52px)}
+.rule{width:40px;margin:18px auto}
+.message{font-size:clamp(16px,4.5vw,22px)}
+.thanks{margin-top:18px;font-size:16px;line-height:1.4}
+}
 @media (prefers-reduced-motion:reduce){.arc.top,.arc.bottom,.dot,.copy,.rule{animation:none}}
 </style>
 </head>
