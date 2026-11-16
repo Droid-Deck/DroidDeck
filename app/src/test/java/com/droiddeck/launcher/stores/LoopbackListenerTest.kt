@@ -161,6 +161,20 @@ class LoopbackListenerTest {
         idle.use { assertTrue(endsWithin(it, 2_000)) }
     }
 
+    @Test fun a_connection_closed_before_its_worker_starts_ends_quietly() {
+        val l = listen()
+        java.net.ServerSocket(0, 1, loopback).use { server ->
+            Socket(loopback, server.localPort).use {
+                val accepted = server.accept()
+                accepted.close()
+                l.serve(accepted)
+            }
+        }
+        assertTrue(outcomes.isEmpty())
+        assertEquals(200, get(l.port, "/launcher/authorized?code=c&state=state-1").first)
+        assertTrue(settled.await(5, TimeUnit.SECONDS))
+    }
+
     @Test fun the_wait_ends_when_nobody_comes_back() {
         listen(timeoutMs = 300)
         assertTrue(settled.await(5, TimeUnit.SECONDS))

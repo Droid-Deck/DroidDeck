@@ -84,7 +84,7 @@ internal class LoopbackListener(
         return true
     }
 
-    private fun serve(socket: Socket) {
+    internal fun serve(socket: Socket) {
         try {
             val request = try { readRequest(socket) } catch (e: IOException) { return }
             val outcome = outcomeOf(request)

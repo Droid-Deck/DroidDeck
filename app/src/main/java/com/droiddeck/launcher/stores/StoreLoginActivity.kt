@@ -221,7 +221,7 @@ class StoreLoginActivity : ComponentActivity() {
         browserLogin?.close()
         val attempt = ++browserAttempt
         browserLogin = com.droiddeck.launcher.stores.epic.EpicBrowserLogin.begin(this) { problem ->
-            runOnUiThread { if (problem == null || attempt == browserAttempt) settle(problem) }
+            settle(problem, attempt)
         }
         if (browserLogin == null) android.widget.Toast.makeText(this, R.string.stores_login_error_generic, android.widget.Toast.LENGTH_LONG).show()
         else showError(getString(R.string.epic_browser_sign_in_waiting))
@@ -350,28 +350,30 @@ class StoreLoginActivity : ComponentActivity() {
         }
     }
 
-    private fun readPage(view: WebView, f: Flow, left: Int) {
+    private fun readPage(view: WebView, f: Flow, attempt: Int, left: Int) {
         view.evaluateJavascript(f.pageScript) { json ->
             val result = json ?: ""
-            if (!f.pageReady(result) && left > 0) view.postDelayed({ readPage(view, f, left - 1) }, PAGE_RETRY_MS)
-            else Thread({ settle(f.finish(this, view, result)) }, "store-login").start()
+            if (!f.pageReady(result) && left > 0) view.postDelayed({ readPage(view, f, attempt, left - 1) }, PAGE_RETRY_MS)
+            else Thread({ settle(f.finish(this, view, result), attempt) }, "store-login").start()
         }
     }
 
     private fun complete(view: WebView, url: String) {
         if (!captured.compareAndSet(false, true)) return
         val f = flow ?: return
+        val attempt = browserAttempt
         dismissPopup()
         runOnUiThread {
             clearError()
             titleText.text = getString(R.string.stores_login_finishing)
             if (!f.readsPage) view.stopLoading()
         }
-        if (f.readsPage) readPage(view, f, PAGE_TRIES) else Thread({ settle(f.finish(this, view, url)) }, "store-login").start()
+        if (f.readsPage) readPage(view, f, attempt, PAGE_TRIES) else Thread({ settle(f.finish(this, view, url), attempt) }, "store-login").start()
     }
 
-    private fun settle(problem: String?) {
+    private fun settle(problem: String?, attempt: Int) {
         runOnUiThread {
+            if (problem != null && attempt != browserAttempt) return@runOnUiThread
             if (problem == null) { StoresState.refresh(this); finish(); return@runOnUiThread }
             captured.set(false)
             if (!isFinishing && !isDestroyed) android.widget.Toast.makeText(this, problem, android.widget.Toast.LENGTH_LONG).show()
