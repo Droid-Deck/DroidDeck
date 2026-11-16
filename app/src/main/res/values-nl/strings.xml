@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Balk</string>
     <string name="hud_locked">Vastzetten</string>
-    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
+    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
+    <string name="hud_hold">Lang drukken</string>
+    <string name="hud_hold_collapse">Samenvouwen of uitklappen</string>
+    <string name="hud_hold_lock">Vastzetten of losmaken</string>
     <string name="hud_snap">Vastklikken aan zijkanten</string>
     <string name="hud_snap_hint">Laat de HUD los en hij gaat naar de dichtstbijzijnde kant van het scherm. Met een snelle veeg gooi je hem die kant op.</string>
     <string name="hud_group_look">Weergave</string>

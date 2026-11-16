@@ -708,7 +708,10 @@
     <string name="hud_size_mega">เมกะ</string>
     <string name="hud_size_strip">แถบ</string>
     <string name="hud_locked">ล็อกตำแหน่ง</string>
-    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย กดค้างเพื่อล็อกหรือปลดล็อก ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
+    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
+    <string name="hud_hold">กดค้าง</string>
+    <string name="hud_hold_collapse">ย่อหรือขยาย</string>
+    <string name="hud_hold_lock">ล็อกหรือปลดล็อก</string>
     <string name="hud_snap">ยึดติดด้านข้าง</string>
     <string name="hud_snap_hint">ปล่อย HUD แล้วจะย้ายไปด้านที่ใกล้กว่าของหน้าจอ ปัดเร็วๆ เพื่อเหวี่ยงไปทางนั้น</string>
     <string name="hud_group_look">รูปลักษณ์</string>

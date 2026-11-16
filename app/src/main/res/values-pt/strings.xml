@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Travar posição</string>
-    <string name="hud_locked_hint">Arraste o HUD para movê-lo; um toque longo o trava ou destrava. Enquanto estiver travado, os controles na tela embaixo dele continuam funcionando.</string>
+    <string name="hud_locked_hint">Arraste o HUD para movê-lo. Enquanto estiver travado, os controles na tela embaixo dele continuam funcionando.</string>
+    <string name="hud_hold">Toque longo</string>
+    <string name="hud_hold_collapse">Recolher ou expandir</string>
+    <string name="hud_hold_lock">Travar ou destravar</string>
     <string name="hud_snap">Encaixar nas laterais</string>
     <string name="hud_snap_hint">Solte o HUD e ele vai para a lateral mais próxima da tela. Um gesto rápido o lança nessa direção.</string>
     <string name="hud_group_look">Aparência</string>

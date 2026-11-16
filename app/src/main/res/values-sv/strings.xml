@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
-    <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
+    <string name="hud_locked_hint">Dra HUD:en för att flytta den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
+    <string name="hud_hold">Långt tryck</string>
+    <string name="hud_hold_collapse">Fäll ihop eller fäll ut</string>
+    <string name="hud_hold_lock">Lås eller lås upp</string>
     <string name="hud_snap">Fäst mot sidorna</string>
     <string name="hud_snap_hint">Släpp HUD:en så flyttas den till skärmens närmaste sida. En snabb svepning kastar den åt det hållet.</string>
     <string name="hud_group_look">Utseende</string>

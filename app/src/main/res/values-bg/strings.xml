@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Мега</string>
     <string name="hud_size_strip">Лента</string>
     <string name="hud_locked">Заключване на място</string>
-    <string name="hud_locked_hint">Плъзнете HUD, за да го преместите; продължително натискане го заключва или отключва. Докато е заключен, екранните контроли под него продължават да работят.</string>
+    <string name="hud_locked_hint">Плъзнете HUD, за да го преместите. Докато е заключен, екранните контроли под него продължават да работят.</string>
+    <string name="hud_hold">Продължително натискане</string>
+    <string name="hud_hold_collapse">Свиване или разгъване</string>
+    <string name="hud_hold_lock">Заключване или отключване</string>
     <string name="hud_snap">Залепване отстрани</string>
     <string name="hud_snap_hint">Пуснете HUD и той отива към по-близката страна на екрана. Бързо плъзване го хвърля в тази посока.</string>
     <string name="hud_group_look">Визия</string>
