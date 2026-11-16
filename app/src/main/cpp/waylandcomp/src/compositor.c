@@ -256,6 +256,7 @@ struct surface {
     struct wl_list child_link;
     int sub_x, sub_y, sub_pending_x, sub_pending_y, sub_pending;
     int below_parent;
+    int sub_desync;
     int fullscreen;
     int toplevel_committed;
 
@@ -324,6 +325,7 @@ struct pending_release {
     struct wl_resource *buffer;
     struct wl_listener destroy;
     struct surface *surface;
+    struct surface *held_by;
     int64_t at_ns;
     int64_t since_ns;
     struct wl_list link;
@@ -426,10 +428,41 @@ static void pending_release_free(struct pending_release *pr) {
     free(pr);
 }
 
+static void release_due_buffers(void);
+static void arm_release_timer(void);
+
 static void pending_releases_forget_surface(struct surface *s) {
     struct pending_release *pr;
-    wl_list_for_each(pr, &g_pending_releases, link)
+    int unheld = 0;
+    wl_list_for_each(pr, &g_pending_releases, link) {
         if (pr->surface == s) pr->surface = NULL;
+        if (pr->held_by == s) { pr->held_by = NULL; unheld = 1; }
+    }
+    if (unheld) { release_due_buffers(); arm_release_timer(); }
+}
+
+static void pending_releases_cancel(struct wl_resource *buffer) {
+    struct pending_release *pr, *tmp;
+    wl_list_for_each_safe(pr, tmp, &g_pending_releases, link)
+        if (pr->buffer == buffer) pending_release_free(pr);
+}
+
+static void pending_releases_apply(struct surface *holder) {
+    struct pending_release *pr;
+    int unheld = 0;
+    wl_list_for_each(pr, &g_pending_releases, link)
+        if (pr->held_by == holder) { pr->held_by = NULL; unheld = 1; }
+    if (unheld) { release_due_buffers(); arm_release_timer(); }
+}
+
+static struct surface *sync_holder(struct surface *s) {
+    struct surface *holder = NULL;
+    int sync = 0;
+    for (int depth = 0; s && s->role == ROLE_SUBSURFACE && s->parent && depth < 8; depth++) {
+        if (!s->sub_desync) sync = 1;
+        holder = s = s->parent;
+    }
+    return sync ? holder : NULL;
 }
 
 static void on_pending_release_buffer_destroyed(struct wl_listener *l, void *data) {
@@ -442,20 +475,18 @@ static void arm_release_timer(void) {
     int64_t earliest = 0;
     if (g_release_timer_fd < 0) return;
     wl_list_for_each(pr, &g_pending_releases, link)
-        if (!buffer_release_blocked(pr->buffer) && (!earliest || pr->at_ns < earliest))
+        if (!pr->held_by && !buffer_release_blocked(pr->buffer) && (!earliest || pr->at_ns < earliest))
             earliest = pr->at_ns;
     struct itimerspec its = {0};
     if (earliest) { its.it_value.tv_sec = earliest / 1000000000LL; its.it_value.tv_nsec = earliest % 1000000000LL; }
     timerfd_settime(g_release_timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
 }
 
-static int on_release_timer(int fd, uint32_t mask, void *data) {
+static void release_due_buffers(void) {
     struct pending_release *pr, *tmp;
-    uint64_t expirations;
     int64_t now = now_ns() + 300000;
-    if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
-        if (pr->at_ns <= now && !buffer_release_blocked(pr->buffer)) {
+        if (!pr->held_by && pr->at_ns <= now && !buffer_release_blocked(pr->buffer)) {
             /* Attached again since (to its surface or another): that surface releases it later. */
             if (buffer_shown_elsewhere(pr->buffer, NULL)) {
                 pending_release_free(pr);
@@ -466,28 +497,39 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
             pending_release_free(pr);
         }
     }
+}
+
+static int on_release_timer(int fd, uint32_t mask, void *data) {
+    uint64_t expirations;
+    if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
+    release_due_buffers();
     wl_display_flush_clients(g_display);
     arm_release_timer();
     return 0;
 }
 
-static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
+static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns, struct surface *holder) {
     /* No allocation or immediate-release fallback is allowed for a quarantined
      * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
     if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
+    const int paced = !g_release_unpaced && interval > 0 && g_release_timer_fd >= 0;
+    if (!paced && !holder) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
-    int64_t at = s->next_release_ns + interval;
-    int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
-    if (at < now) at = now;
-    if (at > latest) at = latest;
-    s->next_release_ns = at;
+    int64_t at = now;
+    if (paced) {
+        int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
+        at = s->next_release_ns + interval;
+        if (at < now) at = now;
+        if (at > latest) at = latest;
+        s->next_release_ns = at;
+    }
     struct pending_release *pr = calloc(1, sizeof(*pr));
     if (!pr) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     pr->buffer = buffer;
     pr->surface = s;
+    pr->held_by = holder;
     pr->at_ns = at;
     pr->since_ns = since_ns;
     pr->destroy.notify = on_pending_release_buffer_destroyed;
@@ -713,7 +755,7 @@ static void drop_dmabuf(struct surface *s, int paced) {
         wl_list_remove(&s->dmabuf_destroy.link);
         if (buffer_shown_elsewhere(s->dmabuf, s)) {
         } else if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
-            if (paced) release_buffer(s, s->dmabuf, now_ns());
+            if (paced) release_buffer(s, s->dmabuf, now_ns(), sync_holder(s));
             else send_buffer_release(s->dmabuf);
         }
         s->dmabuf = NULL;
@@ -879,6 +921,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         s->last_dmabuf = buffer;
         pace_note_buffer(buffer);
         drop_dmabuf(s, 1);
+        pending_releases_cancel(buffer);
         s->dmabuf = buffer;
         s->dmabuf_buf = b;
         b->refs++;
@@ -969,7 +1012,7 @@ void droiddeck_dmabuf_ref(struct dmabuf_buffer *b) { b->refs++; }
 void droiddeck_dmabuf_unref(struct dmabuf_buffer *b) { dmabuf_buffer_unref(b); }
 void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns) {
     if (buffer_release_blocked(buffer)) return;
-    if (paced && s) release_buffer(s, buffer, since_ns);
+    if (paced && s) release_buffer(s, buffer, since_ns, NULL);
     else { send_buffer_release(buffer); perf_note_release(since_ns); }
 }
 void droiddeck_surface_describe(const struct surface *s, char *out, size_t size) { describe(s, out, size); }
@@ -1257,6 +1300,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_attach = 0;
 
         surface_drop_idle(s);
+        buf_trace_attach(buffer);
         if (s->role == ROLE_CURSOR) {
             if (!buffer) {
                 cursor_publish_hidden();
@@ -1267,7 +1311,6 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
-            buf_trace_attach(buffer);
             take_dmabuf(s, db, buffer);
         } else if (shm) {
             drop_dmabuf(s, 1);
@@ -1281,6 +1324,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
             if (buffer) send_buffer_release(buffer);
         }
     }
+    pending_releases_apply(s);
 
     wl_list_for_each(child, &s->children, child_link) {
         if (child->sub_pending) {
@@ -1478,8 +1522,14 @@ static void subsurface_place_below(struct wl_client *c, struct wl_resource *r,
                                    struct wl_resource *sibling) {
     restack_child(wl_resource_get_user_data(r), wl_resource_get_user_data(sibling), 0);
 }
-static void subsurface_set_sync(struct wl_client *c, struct wl_resource *r) {}
-static void subsurface_set_desync(struct wl_client *c, struct wl_resource *r) {}
+static void subsurface_set_sync(struct wl_client *c, struct wl_resource *r) {
+    struct surface *s = wl_resource_get_user_data(r);
+    if (s) s->sub_desync = 0;
+}
+static void subsurface_set_desync(struct wl_client *c, struct wl_resource *r) {
+    struct surface *s = wl_resource_get_user_data(r);
+    if (s) s->sub_desync = 1;
+}
 static const struct wl_subsurface_interface subsurface_impl = {
     .destroy = subsurface_destroy,
     .set_position = subsurface_set_position,
@@ -1513,6 +1563,7 @@ static void subcompositor_get_subsurface(struct wl_client *c, struct wl_resource
     s->subsurface = sub;
     s->parent = p;
     s->below_parent = 0;
+    s->sub_desync = 0;
     s->sub_x = s->sub_y = 0;
     wl_list_insert(p->children.prev, &s->child_link);
 }
