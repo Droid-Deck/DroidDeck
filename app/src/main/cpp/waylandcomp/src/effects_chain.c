@@ -152,6 +152,10 @@ int vkp_effects_upscaling(void) {
     return spatial_mode(g_cur.scaling) && g_cur.scaling != 6;
 }
 
+int vkp_effects_sharpening(void) {
+    return vkp_effects_upscaling() || cas_active(&g_cur);
+}
+
 int vkp_effects_postprocessing(void) {
     vkp_effects_sync();
     return effect_count(&g_cur) > 0;

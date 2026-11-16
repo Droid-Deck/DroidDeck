@@ -11,6 +11,7 @@ int vkp_effects_sync(void);
 int vkp_effects_active(void);
 
 int vkp_effects_upscaling(void);
+int vkp_effects_sharpening(void);
 int vkp_effects_postprocessing(void);
 
 VkFilter vkp_effects_blit_filter(void);
