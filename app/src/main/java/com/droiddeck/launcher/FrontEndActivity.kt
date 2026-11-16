@@ -1206,7 +1206,8 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
      */
     protected open fun handOff(savedInstanceState: Bundle?): Boolean {
         if (savedInstanceState != null || !forwardToHome(intent)) return false
-        finish()
+        // A plain finish() leaves the emptied task behind as a card on the recents screen.
+        if (isTaskRoot) finishAndRemoveTask() else finish()
         @Suppress("DEPRECATION") overridePendingTransition(0, 0)
         return true
     }
