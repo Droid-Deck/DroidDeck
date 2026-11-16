@@ -2878,7 +2878,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
-        val running = display?.refreshRate?.takeIf { it > 1f }
+        // Display.refreshRate reports a per-app frame rate override (Game Mode FPS) instead of the panel's mode.
+        val running = display?.mode?.refreshRate?.takeIf { it > 1f }
         val hz = listOfNotNull(requested, running).minOrNull() ?: 60f
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
