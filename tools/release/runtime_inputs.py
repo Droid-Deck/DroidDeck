@@ -17,8 +17,10 @@ PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxf
           'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
           'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
-PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
-                'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
+# DrWeb flags proot itself as Tool.Linux.Proot; the app runs the pack's copy through Android's linker.
+PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
+# The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
+PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
@@ -227,6 +229,9 @@ def check_apk(apk, root=ROOT):
     data = verify(root)
     packs = {name: pack_digests(root, name) for name in PACK_NAMES
              if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
+    for name, rel in PROOT_LOADER.items():
+        if packs['proot'].get(rel) != data['outputs'][name]['sha256']:
+            raise ValueError('Add-on pack proot is missing or has a stale ' + rel)
     with ZipFile(apk) as package:
         names = set(package.namelist())
         for name in sorted(names):

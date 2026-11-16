@@ -3,8 +3,8 @@
 Built by `tools/proot/build.sh` with the NDK on top of termux/proot `4dba3afb` (Termux's
 5.1.107-70 package, the proot the Linux runtime ships at `opt/android-host/proot`; every
 `file.c:line` site in that binary matches this commit). talloc is linked in statically from
-Samba's release tarball, so the apk carries one self-contained `libproot.so` plus
-`libproot-loader.so`, and `LinuxRuntime` prefers them over the runtime's copy.
+Samba's release tarball, so the proot add-on pack carries one self-contained `libproot.so`, which
+Android's linker runs from app data, and the apk carries `libproot-loader.so`, which proot execs.
 
 Ported from WinNative (`feature/proot-enhancements`, e7af0f24):
 
