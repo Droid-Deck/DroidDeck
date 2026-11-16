@@ -1,0 +1,27 @@
+DroidDeck bionic runtime pack: sources, credits and licences
+
+Built by DroidDeck's CI with tools/bionic-runtime/build.sh (GPL-3.0, like DroidDeck). Exact pins and the
+sha256 of every file are in MANIFEST.txt.
+
+Built from source in this pack:
+- layer/libVkLayer_FROG_gamescope_wsi_aarch64.so: gamescope's Vulkan WSI layer (Valve Corporation, BSD-2-Clause,
+  https://github.com/ValveSoftware/gamescope) at the pinned tag with DroidDeck's patches 0117 and 0119
+  (tools/gamescope/patches), using vkroots by Joshua Ashton (vkroots.h: Apache-2.0 OR MIT,
+  https://github.com/Joshua-Ashton/vkroots) and the Khronos Vulkan-Headers (Apache-2.0 / MIT).
+- preload/libfakeinput.so: DroidDeck's app/src/main/cpp/fakeinput_steam.cpp, taken from WinNative by maxjivi05
+  (GPL-3.0, https://github.com/WinNative-Emu/WinNative), mmap ring controller input by ribbit384 (WinNative #345).
+- preload/libnotag.so, bin/gstag: DroidDeck (GPL-3.0).
+
+Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The412Banner/Bannerlator):
+- lib/: Android builds of open-source libraries from Bannerlator's base imagefs
+  (https://github.com/The412Banner/winlator-contents, release base-assets-v1), among them X.Org libX11/libXext/...
+  and libxcb (MIT/X11), Wayland (MIT), SDL2 (zlib), GStreamer and its plugins, GLib, PulseAudio, GnuTLS, libsndfile,
+  alsa-lib, libiconv (LGPL-2.1 or later), FreeType (FTL or GPL-2.0), Fontconfig (MIT), libxml2 (MIT), libffi (MIT),
+  PCRE2 (BSD-3-Clause), zlib (zlib), and FFmpeg 8 libraries (LGPL-2.1 or later) from Bannerlator's ffmpeg8.tzst.
+  share/X11 and etc/ (fonts, tls) come from the same imagefs.
+- adapter/libvulkan_wrapper.so: the Wayland adapter built from https://github.com/The412Banner/bionic-vulkan-wrapper
+  (branch banner/wayland-wsi-bgra-native), a Mesa tree (MIT) in the line of Pipetto-crypto's wrapper and leegao's
+  bionic Vulkan wrapper. adapter/adapter.json records the exact build.
+
+Not in this pack: the bionic DroidDeck-Proton layer (The412Banner/proton-wine releases), GPU drivers, DXVK/VKD3D
+and FEX (DroidDeck components).
