@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Schermo</string>
     <string name="drawer_frame_limit">Limite frame</string>
     <string name="drawer_frame_limit_note">Limita questo gioco. Lo schermo passa a una frequenza di aggiornamento divisibile per il limite, se disponibile; altri limiti possono risultare irregolari. I giochi Steam usano il Limite frame di Steam nel menu di accesso rapido.</string>
+    <string name="drawer_bfi">Inserimento di fotogrammi neri</string>
+    <string name="drawer_bfi_note">Movimento più nitido: ogni fotogramma è seguito da un refresh nero. Richiede almeno 100 Hz; il gioco gira a metà della frequenza e appare più scuro. Disattivato con la generazione di fotogrammi.</string>
     <string name="drawer_page_effects">Effetti</string>
     <string name="drawer_page_controls">Controlli</string>
     <string name="drawer_page_components">Componenti</string>

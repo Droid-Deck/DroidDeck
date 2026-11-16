@@ -679,6 +679,8 @@
     <string name="drawer_page_display">Displej</string>
     <string name="drawer_frame_limit">Limit snímků</string>
     <string name="drawer_frame_limit_note">Omezí tuto hru. Displej se přepne na obnovovací frekvenci, kterou limit beze zbytku dělí, pokud nějakou má; jiné limity mohou působit nerovnoměrně. Hry ze Steamu používají Limit snímků Steamu v nabídce Rychlý přístup.</string>
+    <string name="drawer_bfi">Vkládání černých snímků</string>
+    <string name="drawer_bfi_note">Ostřejší pohyb: po každém snímku následuje černé obnovení. Vyžaduje 100 Hz a více; hra běží na polovině obnovovací frekvence a je tmavší. Vypnuto při generování snímků.</string>
     <string name="drawer_page_effects">Efekty</string>
     <string name="drawer_page_controls">Ovládání</string>
     <string name="drawer_page_components">Komponenty</string>
