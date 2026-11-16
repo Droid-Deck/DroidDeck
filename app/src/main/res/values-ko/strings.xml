@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR 그래픽 중지됨</string>
     <string name="steamvr_recovery_countdown">그래픽을 초기화하고 SteamVR을 다시 열기 위해 %1$d초 후 DroidDeck이 다시 시작됩니다. 실행 중인 게임은 종료되며, 저장하지 않은 진행 상황은 복구할 수 없습니다.</string>
@@ -332,7 +332,7 @@
     <string name="mode_return_after_game">게임 종료 후 DroidDeck으로 돌아가기</string>
     <string name="mode_return_after_game_hint">DroidDeck 또는 다른 런처에서 실행한 게임을 닫으면 Steam이 정상적으로 종료되고(클라우드 저장 동기화를 먼저 완료) 실행한 곳으로 돌아갑니다. 끄면 Steam에 머무릅니다.</string>
     <string name="mode_shader_precache">셰이더 사전 캐싱</string>
-    <string name="mode_shader_precache_hint">Steam이 게임용으로 미리 빌드된 셰이더를 다운로드해 백그라운드에서 처리하므로 게임 끊김이 줄어듭니다. 끄면 데이터, 저장 공간, 배터리를 절약하지만 게임이 플레이 중에 셰이더를 빌드합니다. Steam의 다운로드 > 셰이더 사전 캐싱과 같은 설정입니다. 다음 세션에 적용됩니다.</string>
+    <string name="mode_shader_precache_hint">Steam이 게임용으로 미리 빌드된 셰이더를 다운로드해 백그라운드에서 처리하므로 게임 끊김이 줄어듭니다. 끄면 데이터, 저장 공간, 배터리를 절약하지만 게임이 플레이 중에 셰이더를 빌드합니다. Steam의 다운로드 &gt; 셰이더 사전 캐싱과 같은 설정입니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_steam_repair">Steam 클라이언트 복구</string>
     <string name="mode_steam_repair_hint">다음에 Steam을 시작할 때 Steam 클라이언트를 다시 다운로드합니다. Steam이 로딩 화면에서 넘어가지 않을 때 사용하세요. 게임, 로그인 정보 및 설정은 유지됩니다.</string>
     <string name="mode_steam_repair_queued">다음에 Steam을 시작할 때 Steam 클라이언트를 다시 다운로드합니다.</string>
@@ -3730,5 +3730,5 @@
     <string name="soundtracks_repeat_one">한 곡 반복</string>
     <string name="soundtracks_volume">볼륨</string>
     <string name="soundtracks_no_tracks">이 사운드트랙에 오디오 파일이 없습니다</string>
-    <string name="drawer_antialiasing">안티앨िय어싱</string>
+    <string name="drawer_antialiasing">안티앨리어싱</string>
 </resources>
