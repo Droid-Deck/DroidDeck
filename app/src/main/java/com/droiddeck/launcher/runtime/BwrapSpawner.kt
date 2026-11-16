@@ -543,7 +543,7 @@ object BwrapSpawner {
                 .also { b -> b.environment().apply { clear(); putAll(native.second) } }
         } else {
             val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
-            if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
+            if (verbose != null) { cmd.add("-v"); cmd.add(verbose.toString()) }
             plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
             val envTool = hasEnvTool(plan)
             if (envTool) {

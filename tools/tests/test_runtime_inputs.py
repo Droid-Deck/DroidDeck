@@ -57,7 +57,9 @@ class RuntimeInputsTest(unittest.TestCase):
     def packs(self):
         self.pack('tracking', {library.rsplit('/', 1)[1]: b'library' for library in runtime.PACKED_LIBRARIES})
         proot = {}
-        for name, rel in runtime.PROOT_FALLBACK.items():
+        for name, (pack, rel) in runtime.PACKED_FILES.items():
+            proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
+        for name, rel in runtime.PROOT_LOADER.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
         self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
@@ -79,15 +81,22 @@ class RuntimeInputsTest(unittest.TestCase):
         path = self.root / 'app/build/prepared-assets/pulseaudio.tzst'
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
 
-    def test_a_stale_proot_fallback_pack_is_rejected(self):
-        apk = self.current_apk(self.root / 'current.apk')
-        self.pack('proot', {'libproot.so': b'older proot', 'libproot-loader.so': b'loader'})
-        with self.assertRaisesRegex(ValueError, 'proot is missing or has a stale libproot.so'):
+    def test_an_apk_still_carrying_proot_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk', {'lib/arm64-v8a/libproot.so': b'prepared runtime'})
+        with self.assertRaisesRegex(ValueError, 'proot pack provides'):
             runtime.check_apk(apk, self.root)
 
-    def test_proot_ships_in_the_apk(self):
-        for name in ('lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so'):
-            self.assertTrue(self.in_apk(name))
+    def test_a_stale_proot_loader_in_the_pack_is_rejected(self):
+        apk = self.current_apk(self.root / 'current.apk')
+        loader = (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot-loader.so').read_bytes()
+        self.pack('proot', {'libproot.so': (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').read_bytes(),
+                            'libproot-loader.so': loader + b'older'})
+        with self.assertRaisesRegex(ValueError, 'proot is missing or has a stale libproot-loader.so'):
+            runtime.check_apk(apk, self.root)
+
+    def test_only_the_proot_loader_ships_in_the_apk(self):
+        self.assertFalse(self.in_apk('lib/arm64-v8a/libproot.so'))
+        self.assertTrue(self.in_apk('lib/arm64-v8a/libproot-loader.so'))
         runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
     def test_missing_proot_cannot_be_attested(self):

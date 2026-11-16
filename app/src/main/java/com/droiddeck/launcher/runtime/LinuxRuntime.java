@@ -81,31 +81,26 @@ public final class LinuxRuntime {
     }
 
     /** Android 10+ refuses to execute files from app data for targetSdk 29+, but executes the APK's extracted libraries. */
-    private static File bundledProot(Context context, String name) {
-        File file = new File(context.getApplicationInfo().nativeLibraryDir, name);
+    private static File bundledLoader(Context context) {
+        File file = new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
         return file.isFile() ? file : null;
     }
 
-    private static boolean bundledProotReady(Context context) {
-        return bundledProot(context, "libproot.so") != null && bundledProot(context, "libproot-loader.so") != null;
-    }
-
     public static boolean patchedProot(Context context) {
-        return bundledProotReady(context) || AddonPack.PROOT.installed(context);
+        return AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
-        if (bundledProotReady(context)) return bundledProot(context, "libproot.so");
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
-        if (bundledProotReady(context)) return bundledProot(context, "libproot-loader.so");
-        if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
+        File bundled = bundledLoader(context);
+        if (AddonPack.PROOT.installed(context)) return bundled != null ? bundled : AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
-        return AddonPack.PROOT.file(context, "libproot-loader.so");
+        return bundled != null ? bundled : AddonPack.PROOT.file(context, "libproot-loader.so");
     }
 
     public static String prootSource(Context context) {
@@ -193,13 +188,13 @@ public final class LinuxRuntime {
 
     public static List<String> rootPrefix(Context context, File root, String cwd) {
         List<String> cmd = prootPrefix(context, root, cwd, true);
-        cmd.add(1, "--link2symlink");
+        cmd.add("--link2symlink");
         return cmd;
     }
 
     public static List<String> prootPrefix(Context context, File root, String cwd, boolean fakeRoot) {
         List<String> cmd = new ArrayList<>();
-        cmd.add(prootBinary(context).getPath());
+        cmd.addAll(com.droiddeck.launcher.core.HostProcess.dataExecutable(prootBinary(context).getPath()));
         cmd.add("--kill-on-exit");
         cmd.add("--kernel-release=" + guestUtsname(SessionPrefs.guestHostname(context)));
         int uid = Process.myUid();
