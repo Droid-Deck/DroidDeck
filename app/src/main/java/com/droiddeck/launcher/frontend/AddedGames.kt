@@ -335,7 +335,10 @@ object AddedGames {
         val path = canonical(exe)
         val owner = ownerFolder(app, exe)
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
-            single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let { return AddResult.Existing(it) }
+            single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let {
+                AddedExes.put(app, AddedExes.Entry(owner.path, exe.path))
+                return AddResult.Existing(it)
+            }
         }
         if (guestPath(app, exe) == null) {
             (owner ?: exe.parentFile)?.takeIf { guestPath(app, it) == null }?.let { bindFolder(app, it) }
@@ -344,7 +347,7 @@ object AddedGames {
         val folder = owner ?: exe.parentFile ?: return AddResult.NotFound
         SessionPrefs.setAddedGameRemoved(app, folder.path, false)
         SessionPrefs.setAddedGameExe(app, folder.path, exe.path)
-        if (owner == null) AddedExes.put(app, AddedExes.Entry(folder.path, exe.path))
+        AddedExes.put(app, AddedExes.Entry(folder.path, exe.path))
         val game = single(app, folder.path) ?: return AddResult.NotFound
         AddedGamesPublisher.later(app) { com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(app, listOf(game)) { true } }
         Log.i(TAG, "added ${game.name} from its exe")
