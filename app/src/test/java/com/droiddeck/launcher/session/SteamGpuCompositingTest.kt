@@ -43,22 +43,27 @@ class SteamGpuCompositingTest {
     }
 
     @Test fun untouchedPreferenceIsNotAChoice() {
-        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, true))
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_STEAM))
     }
 
     @Test fun savedGpuChoiceIsAChoice() {
         SessionPrefs.setSteamGpuCompositing(context, true)
-        assertTrue(SessionPrefs.steamGpuCompositingChosen(context, true))
+        assertTrue(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_STEAM))
     }
 
     @Test fun savedSoftwareChoiceIsNotChosenGpu() {
         SessionPrefs.setSteamGpuCompositing(context, false)
-        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, true))
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_STEAM))
     }
 
-    @Test fun nonSteamSessionNeverReceivesChosenGpuCompositing() {
+    @Test fun desktopSessionNeverReceivesChosenGpuCompositing() {
         SessionPrefs.setSteamGpuCompositing(context, true)
-        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, false))
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_DESKTOP))
+    }
+
+    @Test fun runSessionNeverReceivesChosenGpuCompositing() {
+        SessionPrefs.setSteamGpuCompositing(context, true)
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_RUN))
     }
 
     @Test fun untouchedPreferenceShowsSoftwareOnSystemDriverPath() {
@@ -83,7 +88,7 @@ class SteamGpuCompositingTest {
 
     @Test fun firstToggleFromUntouchedSystemDriverRowSavesGpu() {
         SessionPrefs.setSteamGpuCompositing(context, !SessionPrefs.steamGpuDrawingShown(context, true))
-        assertTrue(SessionPrefs.steamGpuCompositingChosen(context, true))
+        assertTrue(SessionPrefs.steamGpuCompositingChosen(context, SessionService.MODE_STEAM))
     }
 
     @Test fun systemDriverPathIsOffOnDevicesWithoutThePowerVrDriver() {
