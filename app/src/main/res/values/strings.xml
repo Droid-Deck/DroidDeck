@@ -811,6 +811,8 @@
     <string name="drawer_gamma">Gamma</string>
     <string name="drawer_saturation">Saturation</string>
     <string name="drawer_fxaa">FXAA (edge smoothing)</string>
+    <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="drawer_smaa">SMAA</string>
     <string name="drawer_toon">Toon outlines</string>
     <string name="drawer_crt">CRT</string>
     <string name="drawer_ntsc">NTSC</string>
