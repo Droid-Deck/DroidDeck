@@ -4140,8 +4140,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         if (directTouchTapsOff && !programLocksPointer()) {
-            lockedSwipeX = event.x
-            lockedSwipeY = event.y
+            anchorLockedSwipe(event)
             val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
             if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
                 moveDirectPointer(event.x, event.y)
@@ -4154,14 +4153,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return forwarded
     }
 
+    private fun anchorLockedSwipe(event: MotionEvent) {
+        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
+        lockedSwipeX = event.getX(anchor)
+        lockedSwipeY = event.getY(anchor)
+    }
+
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
         val swipeX = lockedSwipeX
         val swipeY = lockedSwipeY
         if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE && !lockedSwipeUsed &&
             abs(event.x - swipeX) <= touchSlop && abs(event.y - swipeY) <= touchSlop) return true
-        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
-        lockedSwipeX = event.getX(anchor)
-        lockedSwipeY = event.getY(anchor)
+        anchorLockedSwipe(event)
         if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) && lockedSwipeUsed) {
             lockedSwipeUsed = false
             directTouchHold.cancel()

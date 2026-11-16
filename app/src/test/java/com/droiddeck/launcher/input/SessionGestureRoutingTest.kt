@@ -297,6 +297,39 @@ class SessionGestureRoutingTest {
             .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))))
     }
 
+    @Test fun lockedSwipeAnchorsToTheRemainingFingerWhenPointerZeroLiftsDuringSuppressedStream() {
+        prepare(SessionPrefs.TOUCH_DIRECT)
+        SessionState.outputSize = 1000 to 600
+        val controls = OnScreenControls(activity, null).apply {
+            updateLayout(SavedInputLayout("test", "Test", listOf(InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)), aspect = 1000f / 600f))
+            measure(android.view.View.MeasureSpec.makeMeasureSpec(1000, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(600, android.view.View.MeasureSpec.EXACTLY))
+            layout(0, 0, 1000, 600)
+            visibility = android.view.View.VISIBLE
+        }
+        setField("onScreenControls", controls)
+        setField("inputProfile", InputProfile.defaults(InputProfile.DESKTOP)
+            .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274)))
+        val down = SystemClock.uptimeMillis()
+        fun send(action: Int, index: Int, xs: List<Float>) {
+            val properties = Array(xs.size) { MotionEvent.PointerProperties().apply { id = it; toolType = MotionEvent.TOOL_TYPE_FINGER } }
+            val coordinates = Array(xs.size) { MotionEvent.PointerCoords().apply { x = xs[it]; y = 300f; pressure = 1f } }
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                xs.size, properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+            try { ReflectionHelpers.callInstanceMethod<Any?>(activity, "dispatchDirectTouch",
+                ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event)) } finally { event.recycle() }
+        }
+        send(MotionEvent.ACTION_DOWN, 0, listOf(100f))
+        send(MotionEvent.ACTION_POINTER_DOWN, 1, listOf(100f, 500f))
+        send(MotionEvent.ACTION_POINTER_UP, 0, listOf(100f, 500f))
+        assertEquals(500f, ReflectionHelpers.getField<Float>(activity, "lockedSwipeX"))
+        setField("directTouchTapsOff", false)
+        setField("pointerLocked", true)
+        CompositorShadow.sceneInputs = 0
+        send(MotionEvent.ACTION_MOVE, 0, listOf(500f))
+        assertEquals(0, CompositorShadow.sceneInputs)
+    }
+
     private fun tapThreeFingers(expectSteamGesture: Boolean) {
         val down = SystemClock.uptimeMillis()
         fun send(action: Int, index: Int, count: Int) {
