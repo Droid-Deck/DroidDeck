@@ -703,6 +703,8 @@
     <string name="drawer_page_display">Display</string>
     <string name="drawer_frame_limit">Frame limit</string>
     <string name="drawer_frame_limit_note">Caps this game. The display switches to a refresh rate the cap divides evenly when it has one; other caps can look uneven. Steam games use Steam\'s Frame Limit in the Quick Access menu.</string>
+    <string name="drawer_bfi">Black frame insertion</string>
+    <string name="drawer_bfi_note">Sharper motion: a black refresh follows every frame. Needs 100 Hz or more; the game runs at half the refresh rate and looks dimmer. Off while frame generation is on.</string>
     <string name="drawer_page_effects">Effects</string>
     <string name="drawer_page_controls">Controls</string>
     <string name="drawer_page_components">Components</string>

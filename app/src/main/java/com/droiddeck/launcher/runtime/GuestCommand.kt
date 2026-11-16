@@ -58,7 +58,7 @@ object GuestCommand {
             NativeGuest.processBuilder(context, root, binds, guest).redirectErrorStream(true)
         } else {
             val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
-            if (linkDir != null) cmd.add(1, "--link2symlink")
+            if (linkDir != null) cmd.add("--link2symlink")
             binds.forEach { cmd.add("-b"); cmd.add(it) }
             cmd += guest
             ProcessBuilder(cmd).directory(root).redirectErrorStream(true).also { b ->

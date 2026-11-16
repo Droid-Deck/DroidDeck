@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Näyttö</string>
     <string name="drawer_frame_limit">Kuvanopeusraja</string>
     <string name="drawer_frame_limit_note">Rajoittaa tätä peliä. Näyttö vaihtaa virkistystaajuuteen, joka on rajan tasakerrannainen, jos sellainen on; muut rajat voivat näyttää epätasaisilta. Steam-pelit käyttävät Steamin Frame Limit -asetusta Pikavalikossa.</string>
+    <string name="drawer_bfi">Mustien kuvien lisäys</string>
+    <string name="drawer_bfi_note">Terävämpi liike: jokaista kuvaa seuraa musta päivitys. Vaatii vähintään 100 Hz; peli pyörii puolella virkistystaajuudesta ja näyttää tummemmalta. Pois päältä kuvien generoinnin aikana.</string>
     <string name="drawer_page_effects">Tehosteet</string>
     <string name="drawer_page_controls">Ohjaimet</string>
     <string name="drawer_page_components">Komponentit</string>

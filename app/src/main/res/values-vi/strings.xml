@@ -673,6 +673,8 @@
     <string name="drawer_page_display">Hiển thị</string>
     <string name="drawer_frame_limit">Giới hạn khung hình</string>
     <string name="drawer_frame_limit_note">Giới hạn game này. Màn hình chuyển sang tần số quét chia hết cho mức giới hạn nếu có; các mức khác có thể trông không đều. Game Steam dùng Frame Limit của Steam trong menu Quick Access.</string>
+    <string name="drawer_bfi">Chèn khung hình đen</string>
+    <string name="drawer_bfi_note">Chuyển động sắc nét hơn: mỗi khung hình được theo sau bởi một lần làm mới màu đen. Cần 100 Hz trở lên; trò chơi chạy ở một nửa tần số quét và trông tối hơn. Tắt khi bật tạo khung hình.</string>
     <string name="drawer_page_effects">Hiệu ứng</string>
     <string name="drawer_page_controls">Điều khiển</string>
     <string name="drawer_page_components">Thành phần</string>
