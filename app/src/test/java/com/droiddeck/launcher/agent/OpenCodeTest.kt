@@ -192,6 +192,23 @@ class OpenCodeTest {
         assertEquals(emptyList<String>(), OpenCode.modelIds("curl: (7) Failed to connect"))
     }
 
+    @Test fun aFailedKeyWritePutsTheServerConfigBack() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val config = File(root, "root/.config/opencode/opencode.json").apply { parentFile!!.mkdirs() }
+        val previous = """{"provider":{"droiddeck":{"options":{"baseURL":"http://a/v1"}}}}"""
+        config.writeText(previous)
+        // A folder where the key file's temporary copy goes makes that write fail after the config is written.
+        File(root, "root/.local/share/opencode/.auth.json.tmp").mkdirs()
+        assertTrue(runCatching { OpenCode.saveKey(root, provider("droiddeck"), "k", "b:1") { _, _ -> """{"data":[{"id":"m"}]}""" } }.isFailure)
+        assertEquals(previous, config.readText())
+        assertFalse(File(root, "root/.config/opencode/.opencode.json.tmp").exists())
+
+        config.delete()
+        File(root, "root/.local/share/opencode/.auth.json.tmp").mkdirs()
+        assertTrue(runCatching { OpenCode.saveKey(root, provider("droiddeck"), "k", "b:1") { _, _ -> """{"data":[{"id":"m"}]}""" } }.isFailure)
+        assertFalse(config.exists())
+    }
+
     @Test fun aServerWithoutModelsIsNotSaved() {
         val root = Files.createTempDirectory("rootfs").toFile()
         val error = runCatching { OpenCode.saveKey(root, provider("droiddeck"), "", "localhost:1234") { _, _ -> """{"data":[]}""" } }.exceptionOrNull()

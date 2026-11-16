@@ -479,7 +479,7 @@ object OpenCode : AgentHarness {
         try {
             writeJson(authFile, auth, private = true)
         } catch (e: Exception) {
-            if (before != null) configFile.writeText(before) else configFile.delete()
+            runCatching { if (before != null) writeFile(configFile, before) else configFile.delete() }.exceptionOrNull()?.let(e::addSuppressed)
             throw e
         }
     }
@@ -512,11 +512,13 @@ object OpenCode : AgentHarness {
         writeJson(file, readJson(file).also(edit), private)
 
     /** Writes beside [file] and moves it into place, so a write that stops partway leaves the old file. */
-    private fun writeJson(file: File, json: JSONObject, private: Boolean = false) {
+    private fun writeJson(file: File, json: JSONObject, private: Boolean = false) = writeFile(file, json.toString(2) + "\n", private)
+
+    private fun writeFile(file: File, text: String, private: Boolean = false) {
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, ".${file.name}.tmp")
         try {
-            temp.writeText(json.toString(2) + "\n")
+            temp.writeText(text)
             if (private) {
                 temp.setReadable(false, false)
                 temp.setReadable(true, true)
