@@ -166,12 +166,19 @@ object SteamTouchConfig {
 
     fun steamRoot(context: Context) = com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context)
 
+    private fun controllerConfigs(context: Context) = File(steamRoot(context), "steamapps/common/Steam Controller Configs")
+
     fun configDir(context: Context): File? {
-        val base = File(steamRoot(context), "steamapps/common/Steam Controller Configs")
+        val base = controllerConfigs(context)
         val account = accountId(context)
         if (account != null) File(base, "$account/config").takeIf { it.isDirectory }?.let { return it }
         return base.listFiles()?.filter { it.name.all(Char::isDigit) && File(it, "config").isDirectory }
             ?.maxByOrNull { it.lastModified() }?.let { File(it, "config") }
+    }
+
+    private fun writableConfigDir(context: Context): File? {
+        val account = accountId(context) ?: return configDir(context)
+        return File(controllerConfigs(context), "$account/config").apply { mkdirs() }.takeIf { it.isDirectory }
     }
 
     private fun accountId(context: Context): Long? = try {
@@ -389,8 +396,9 @@ object SteamTouchConfig {
         bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
         options: Options? = null,
     ): File? {
-        val dir = configDir(context) ?: return null
-        val base = config.text ?: if (config.file == null && bindings.isEmpty()) "\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n}\n" else return null
+        val dir = writableConfigDir(context) ?: return null.also { Log.w(TAG, "steam touch: no controller config folder to save app $appId in") }
+        val base = config.text ?: if (config.file == null && bindings.isEmpty()) "\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n}\n"
+        else return null.also { Log.w(TAG, "steam touch: ${config.file?.path ?: "default layout"} has no readable text to save into") }
         val source = bindings.entries.fold(base) { text, (ref, change) ->
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
@@ -408,11 +416,11 @@ object SteamTouchConfig {
         val existing = Regex("""\n\s*"touch_layout"\s+"[0-9a-fA-F]*"""")
         val text = if (existing.containsMatchIn(source)) source.replace(existing, "\n$line")
         else source.replaceFirst(Regex("""("controller_type"\s+"controller_mobile_touch"[^\n]*)"""), "$1\n$line")
-        if (!text.contains("touch_layout")) return null
+        if (!text.contains("touch_layout")) return null.also { Log.w(TAG, "steam touch: ${config.file?.path} is no controller_mobile_touch config") }
         target.parentFile?.mkdirs()
         val tmp = File(target.path + ".tmp")
         tmp.writeText(text)
-        if (!tmp.renameTo(target)) return null
+        if (!tmp.renameTo(target)) return null.also { Log.w(TAG, "steam touch: could not replace ${target.path}") }
         selectAutosave(dir, key)
         dropDeviceEntry(dir, key)
         Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
@@ -430,7 +438,7 @@ object SteamTouchConfig {
 
     private fun selectAutosave(dir: File, key: String) {
         val file = File(dir, CONFIGSET)
-        val text = if (file.isFile) file.readText() else "\"controller_config\"\n{\n}\n"
+        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('}') } ?: "\"controller_config\"\n{\n}\n"
         val entry = "\t\"$key\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
         val block = Regex("""\n\s*"${Regex.escape(key)}"\s*\{[^}]*\}""", RegexOption.IGNORE_CASE)
         val next = if (block.containsMatchIn(text)) text.replace(block) { "\n$entry" }

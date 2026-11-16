@@ -60,6 +60,62 @@ class SteamTouchConfigFilesTest {
 
     private val template get() = File(steam, "controller_base/templates/controller_mobile_touch_gamepad_joystick.vdf")
 
+    private fun login() = File(steam, "config/loginusers.vdf").apply { parentFile!!.mkdirs() }
+        .writeText("\"users\"\n{\n\t\"76561197960265851\"\n\t{\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n")
+
+    private fun saveDefault(app: Int): File? {
+        val elements = listOf(SteamTouchConfig.Element(SteamTouchConfig.A, true, 0.5f, 0.6f))
+        return SteamTouchConfig.saveLayouts(context, app, SteamTouchConfig.load(context, app), mapOf(1 to elements))
+    }
+
+    private fun assertSavedA(app: Int, saved: File?) {
+        val loaded = SteamTouchConfig.load(context, app)
+        assertEquals(saved, loaded.file)
+        val a = SteamTouchConfig.elementsFor(loaded, 1, emptyList()).first { it.type == SteamTouchConfig.A }
+        assertEquals(0.5f, a.x, 0.002f)
+        assertEquals(0.6f, a.y, 0.002f)
+    }
+
+    @Test fun savesWhenSteamHasNotCreatedTheAccountsControllerFolder() {
+        File(steam, "steamapps/common/Steam Controller Configs").deleteRecursively()
+        login()
+        val saved = saveDefault(413150)
+        assertEquals(File(dir, "413150/controller_mobile_touch.vdf"), saved)
+        assertSavedA(413150, saved)
+    }
+
+    @Test fun savesIntoTheSignedInAccountNotAnotherAccountsFolder() {
+        dir.parentFile!!.deleteRecursively()
+        val other = File(steam, "steamapps/common/Steam Controller Configs/456/config").apply { mkdirs() }
+        login()
+        val saved = saveDefault(413150)
+        assertEquals(File(dir, "413150/controller_mobile_touch.vdf"), saved)
+        assertFalse(File(other, "413150").exists())
+        assertSavedA(413150, saved)
+    }
+
+    @Test fun withoutAnAccountOrControllerFolderNothingIsWritten() {
+        File(steam, "steamapps/common/Steam Controller Configs").deleteRecursively()
+        assertEquals(null, saveDefault(413150))
+        assertFalse(File(steam, "steamapps/common/Steam Controller Configs").exists())
+    }
+
+    @Test fun anEmptyConfigsetIsRebuiltInsteadOfFailingTheSave() {
+        File(dir, "configset_controller_mobile_touch.vdf").writeText("")
+        val saved = saveDefault(413150)
+        assertEquals(File(dir, "413150/controller_mobile_touch.vdf"), saved)
+        assertTrue(File(dir, "configset_controller_mobile_touch.vdf").readText().contains("\"413150\""))
+        assertSavedA(413150, saved)
+    }
+
+    @Test fun anExistingConfigsetKeepsItsOtherEntries() {
+        configset("configset_controller_mobile_touch.vdf", "8400" to "\"workshop\"\t\t\"7\"")
+        saveDefault(413150)
+        val text = File(dir, "configset_controller_mobile_touch.vdf").readText()
+        assertTrue(text.contains("\"8400\""))
+        assertTrue(text.contains("\"413150\""))
+    }
+
     private fun shortcut(name: String): Int {
         val shortcut = 2702387189L.toInt()
         template.apply { parentFile!!.mkdirs(); writeText(touch("Gamepad with Joystick")) }
@@ -67,8 +123,7 @@ class SteamTouchConfigFilesTest {
             "!! Controller 0 attributes:\n  Type: 43\n" +
                 "Loaded Config for Last Resort Path for App ID 2702387189, Controller 0: /root/.local/share/Steam//controller_base/templates/controller_mobile_touch_gamepad_joystick.vdf\n",
         )
-        File(steam, "config/loginusers.vdf").apply { parentFile!!.mkdirs() }
-            .writeText("\"users\"\n{\n\t\"76561197960265851\"\n\t{\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n")
+        login()
         val vdf = java.io.ByteArrayOutputStream().apply {
             write("\u0000shortcuts\u0000\u00000\u0000\u0002appid\u0000".toByteArray())
             write(java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(shortcut).array())
