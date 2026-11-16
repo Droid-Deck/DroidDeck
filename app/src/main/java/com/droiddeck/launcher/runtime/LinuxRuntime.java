@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime;
 
 import com.droiddeck.launcher.core.AddonPack;
 import android.content.Context;
+import android.os.Build;
 import android.os.Process;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -77,7 +78,12 @@ public final class LinuxRuntime {
     }
 
     private static boolean rootfsProotReady(Context context) {
-        return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
+        return Build.VERSION.SDK_INT < 29 && rootfsProot(context).isFile() && rootfsLoader(context).isFile();
+    }
+
+    /** proot execs its loader, and targetSdk 29+ may exec only the APK's libraries, which hold the pack's matching loader. */
+    public static boolean stockProotAllowed(Context context) {
+        return Build.VERSION.SDK_INT < 29 && SessionPrefs.allowStockProot(context);
     }
 
     /** Android 10+ refuses to execute files from app data for targetSdk 29+, but executes the APK's extracted libraries. */
@@ -92,14 +98,14 @@ public final class LinuxRuntime {
 
     public static File prootBinary(Context context) {
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
-        if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
+        if (stockProotAllowed(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
         File bundled = bundledLoader(context);
         if (AddonPack.PROOT.installed(context)) return bundled != null ? bundled : AddonPack.PROOT.file(context, "libproot-loader.so");
-        if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
+        if (stockProotAllowed(context)) return rootfsLoader(context);
         return bundled != null ? bundled : AddonPack.PROOT.file(context, "libproot-loader.so");
     }
 
