@@ -126,10 +126,14 @@ Verified during development:
   no files for that product, which is why the WU route exists.
 - `AppxManifest.xml` identity and executable extraction, and its rejection rules,
   are unit-tested against a manifest of that shape.
-- An install of that bundle ran on Thor and fetched the container at roughly
-  1 GB/min. The full download, its extraction and the manifest hoist were still
-  in progress when this was written; treat a completed legacy install, its
-  decrypted contents and a launch from the hoisted root as unverified.
+- An install of that bundle completed on Thor. The 85,219,173,025-byte container
+  produced 79.3 GB at the game root with `AppxManifest.xml` and the package DLLs
+  directly beneath it, which the launcher reports as installed.
+- Unpacking that bundle ran at about 40 MB/s on one thread and about 200 MB/s
+  across four, measured as growth of the destination folder. The container is
+  deleted once its members are on disk, so the peak footprint is one package at
+  a time rather than the archive plus everything under it.
+- A launch of this title through Xodus/ARM64 Proton is not yet verified.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this
