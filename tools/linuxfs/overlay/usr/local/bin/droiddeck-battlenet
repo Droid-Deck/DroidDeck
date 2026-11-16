@@ -321,6 +321,15 @@ def install_path(root, library):
     return letter.upper() + ":\\" + path[len(target):].strip("/").replace("/", "\\")
 
 
+def keeps_open(root):
+    try:
+        with open(os.path.join(drive_c(root), *CONFIG), encoding="utf-8-sig") as f:
+            client = json.load(f).get("Client")
+    except (OSError, ValueError, AttributeError):
+        return False
+    return isinstance(client, dict) and LAUNCH_BEHAVIOR[0] in client and client[LAUNCH_BEHAVIOR[0]] != LAUNCH_BEHAVIOR[1]
+
+
 def write_config(root, library=None):
     path = os.path.join(drive_c(root), *CONFIG)
     key, value = LAUNCH_BEHAVIOR
@@ -338,7 +347,7 @@ def write_config(root, library=None):
         return None
     client = config["Client"]
     changes = []
-    if client.get(key) != value:
+    if key not in client:
         client[key] = value
         changes.append("launch")
     if client.get("HardwareAcceleration") != "false":
@@ -875,6 +884,9 @@ class Tidy:
             self.game_since = self.game_since if self.game_since is not None else now
             if own and not self.closed_for_game and now - self.game_since >= self.settle:
                 self.closed_for_game, self.agent_seen, self.agent_lost = True, False, None
+                if keeps_open(steam_root()):
+                    say("Battle.net is set to stay open as a game launches: left open")
+                    return False
                 if any(is_client(argv) for _, argv in own) and any(shares_sign_in(argv) for argv in games):
                     say("Battle.net stayed open beside a game signing in with its token: left open")
                     return False
