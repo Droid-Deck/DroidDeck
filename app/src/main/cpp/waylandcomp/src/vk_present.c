@@ -1999,7 +1999,9 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                    1 + vkp_framegen_extra_images(), vkp_framegen_extra_images() ? "s" : "");
         destroy_swapchain();
     }
-    const int want_hdr = hf && !hf->tonemap && g_colorspace_ext && !g_swap_hdr_unavailable;
+    /* A black refresh carries no HDR frame; it keeps the swapchain's colour mode rather than flipping it. */
+    const int want_hdr = (g_plain_frame && !hf) ? (g_swapchain && g_swap_is_hdr)
+                                                : (hf && !hf->tonemap && g_colorspace_ext && !g_swap_hdr_unavailable);
     if (g_swapchain && want_hdr != g_swap_is_hdr) {
         droiddeck_log("color", want_hdr ? "HDR frames with frame generation: rebuilding the screen swapchain as HDR10"
                             : hf     ? "HDR output switched off: rebuilding the screen swapchain as SDR (frames tone-mapped)"
