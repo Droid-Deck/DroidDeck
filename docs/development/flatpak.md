@@ -82,15 +82,17 @@ the folder to `flatpak-data/<id>` beside the library, checks the copy's size, an
 internal one. `FlatpakData.binds` then binds the card folder over `/root/.var/app/<id>` in every session,
 and `BwrapSpawner` translates the sandbox's binds through it like any other session bind.
 
-- The move is per app and refused from session start until its teardown finishes, when the data holds symlinks (exFAT and FAT
+- The move is per app and refused from session start until its teardown finishes, when the data holds symlinks in either location (exFAT and FAT
   cannot store them), or when the card lacks the size plus 64 MB.
 - `.ld.so` is not moved. Flatpak fills it with a symlink to the runtime's linker cache, so it stays
   internal and is bound over the card folder.
-- The destination is journaled before anything is written (`flatpakDataMoving`). A move that is
-  interrupted, or whose old copy cannot be removed, leaves data only in the location the app does not
-  use; the next move into it, or the next session start for the card case, clears it first. A folder
-  that cannot be listed fails the move instead of counting as empty.
-- With the card detached, the app uses its internal folder for that session; the choice is kept.
+- The destination and its path are journaled (`flatpakDataMoving`) before anything is written. A later
+  move clears a non-empty destination only when the journal names that same folder; otherwise it is
+  refused. The old copy is renamed to `.<id>.old` beside it and then deleted, so leftovers are always
+  recognisable and the next move or session start removes them. Live data is never deleted to tidy up. A
+  folder that cannot be listed fails the move instead of counting as empty.
+- With the card detached, the app uses its internal folder for that session; the choice is kept. Those
+  files stay untouched when the card returns, and a move back is refused while they are there.
 - "Move data to internal storage" reverses it.
 
 ## The store

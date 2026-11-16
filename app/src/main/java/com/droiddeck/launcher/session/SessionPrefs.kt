@@ -1917,7 +1917,7 @@ object SessionPrefs {
 
     fun flatpakDataMoving(context: Context): Set<String> = idSet(context, "flatpakDataMoving")
 
-    fun setFlatpakDataMoving(context: Context, id: String, on: Boolean): Boolean = commitId(context, "flatpakDataMoving", id, on)
+    fun setFlatpakDataMoving(context: Context, marker: String, on: Boolean): Boolean = commitId(context, "flatpakDataMoving", marker, on)
 
     private fun idSet(context: Context, key: String): Set<String> = prefs(context).getStringSet(key, null)?.toSet().orEmpty()
 

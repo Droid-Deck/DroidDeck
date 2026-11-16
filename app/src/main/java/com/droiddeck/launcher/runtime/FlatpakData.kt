@@ -21,6 +21,7 @@ object FlatpakData {
     private const val KEPT = ".ld.so"
     private const val RESERVE = 64L shl 20
     private val ID = Regex("(?!\\.+$)[A-Za-z0-9_.-]+")
+    private const val SEP = ">"
     private val lock = Any()
 
     fun enabled(context: Context): Set<String> = SessionPrefs.flatpakCardData(context)
@@ -43,7 +44,12 @@ object FlatpakData {
             val card = cardDir(context, id) ?: return@flatMap emptyList()
             val guest = internalDir(context, id)
             val kept = File(guest, KEPT)
-            if (id in SessionPrefs.flatpakDataMoving(context)) discardLeftovers(context, id, guest)
+            try {
+                purge(guest)
+                purge(card)
+            } catch (e: Exception) {
+                Log.w(TAG, "$id: the old copy of a moved folder could not be removed", e)
+            }
             if (!card.isDirectory && !card.mkdirs() || !kept.isDirectory && !kept.mkdirs() || !File(card, KEPT).isDirectory && !File(card, KEPT).mkdirs()) {
                 Log.w(TAG, "$id: data folder could not be prepared; internal this session")
                 return@flatMap emptyList()
@@ -64,16 +70,22 @@ object FlatpakData {
         val to = if (toCard) card else internal
         onProgress(context.getString(R.string.store_data_moving), -1)
         val staging = File(to.parentFile, ".${to.name}.moving")
+        val marker = marker(id, to)
         val placed = ArrayList<File>()
         try {
-            if (toCard && hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
+            if (hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
             if (!to.isDirectory && !to.mkdirs()) throw IOException("could not create ${to.path}")
-            if (id in SessionPrefs.flatpakDataMoving(context)) clear(to)
-            else if (entries(to).isNotEmpty()) return@synchronized context.getString(R.string.store_data_failed)
+            purge(from)
+            purge(to)
+            if (entries(to).isNotEmpty()) {
+                if (marker !in SessionPrefs.flatpakDataMoving(context)) return@synchronized context.getString(R.string.store_data_failed)
+                clear(to)
+            }
             val bytes = size(from)
             val free = freeBytes(to)
             if (free < bytes + RESERVE) return@synchronized context.getString(R.string.store_data_space, com.droiddeck.launcher.core.FileUtils.sizeToString(free))
-            if (!SessionPrefs.setFlatpakDataMoving(context, id, true)) throw IOException("could not record the move")
+            SessionPrefs.flatpakDataMoving(context).filter { it.startsWith("$id$SEP") && it != marker }.forEach { SessionPrefs.setFlatpakDataMoving(context, it, false) }
+            if (!SessionPrefs.setFlatpakDataMoving(context, marker, true)) throw IOException("could not record the move")
             if (staging.exists() && !staging.deleteRecursively()) throw IOException("could not clear ${staging.path}")
             staging.mkdirs()
             entries(from).forEach { it.copyRecursively(File(staging, it.name), overwrite = true) }
@@ -90,14 +102,14 @@ object FlatpakData {
             }
         } catch (e: Exception) {
             Log.w(TAG, "$id: move to ${if (toCard) "game storage" else "internal"} failed", e)
-            placed.forEach { it.deleteRecursively() }
-            staging.deleteRecursively()
+            val cleaned = placed.map { it.deleteRecursively() }.all { it } && (!staging.exists() || staging.deleteRecursively())
+            if (cleaned) SessionPrefs.setFlatpakDataMoving(context, marker, false)
             return@synchronized context.getString(R.string.store_data_failed)
         }
         try {
-            clear(from)
+            retire(from)
             if (!toCard && !from.deleteRecursively()) throw IOException("could not remove ${from.path}")
-            SessionPrefs.setFlatpakDataMoving(context, id, false)
+            SessionPrefs.setFlatpakDataMoving(context, marker, false)
             null
         } catch (e: Exception) {
             Log.w(TAG, "$id: the data moved but the old copy could not be removed", e)
@@ -105,13 +117,23 @@ object FlatpakData {
         }
     }
 
-    private fun discardLeftovers(context: Context, id: String, dir: File) {
-        try {
-            clear(dir)
-            SessionPrefs.setFlatpakDataMoving(context, id, false)
-        } catch (e: Exception) {
-            Log.w(TAG, "$id: leftover data from an interrupted move could not be removed", e)
-        }
+    internal fun marker(id: String, to: File) = "$id$SEP${to.path}"
+
+    private fun trash(dir: File) = File(dir.parentFile, ".${dir.name}.old")
+
+    private fun purge(dir: File) {
+        val old = trash(dir)
+        if (old.exists() && !old.deleteRecursively()) throw IOException("could not remove ${old.path}")
+    }
+
+    private fun retire(dir: File) {
+        purge(dir)
+        val old = trash(dir)
+        val entries = entries(dir)
+        if (entries.isEmpty()) return
+        if (!old.mkdirs()) throw IOException("could not create ${old.path}")
+        entries.forEach { if (!it.renameTo(File(old, it.name))) throw IOException("could not retire ${it.path}") }
+        purge(dir)
     }
 
     private fun clear(dir: File) {

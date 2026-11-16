@@ -157,19 +157,22 @@ class FlatpakDataTest {
         val release = java.util.concurrent.CountDownLatch(1)
         var result: String? = "pending"
         val mover = Thread {
-            result = FlatpakData.move(app, id, true, { _, _ -> }, { inMove.countDown(); release.await(); free })
+            result = FlatpakData.move(app, id, true, { _, _ -> }, { inMove.countDown(); release.await(10, java.util.concurrent.TimeUnit.SECONDS); free })
         }
         mover.start()
         assertTrue(inMove.await(10, java.util.concurrent.TimeUnit.SECONDS))
         SessionState.running = true
         var binds: List<String>? = null
         val session = Thread { binds = FlatpakData.binds(app) }
-        session.start()
-        session.join(300)
-        assertTrue(session.isAlive)
-        release.countDown()
-        mover.join(10_000)
-        session.join(10_000)
+        try {
+            session.start()
+            session.join(300)
+            assertTrue(session.isAlive)
+        } finally {
+            release.countDown()
+            mover.join(10_000)
+            session.join(10_000)
+        }
         assertNull(result)
         assertEquals(2, binds!!.size)
         assertTrue(binds!!.first().startsWith(File(card, "flatpak-data/$id").path))
@@ -193,39 +196,74 @@ class FlatpakDataTest {
         assertNull(move(id, true))
     }
 
+    private fun cardFolder() = File(card, "flatpak-data/$id")
+
     @Test fun aMoveInterruptedMidPlacementCanBeRetried() {
         seed()
-        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
-        File(card, "flatpak-data/$id/.srb2kart").mkdirs()
-        File(card, "flatpak-data/$id/partial.bin").writeText("half")
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, cardFolder()), true))
+        File(cardFolder(), ".srb2kart").mkdirs()
+        File(cardFolder(), "partial.bin").writeText("half")
         assertNull(move(id, true))
-        val onCard = File(card, "flatpak-data/$id")
-        assertFalse(File(onCard, "partial.bin").exists())
-        assertEquals(1000, File(onCard, ".srb2kart/addons/map.pk3").length())
+        assertFalse(File(cardFolder(), "partial.bin").exists())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
         assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
         assertTrue(FlatpakData.entries(FlatpakData.internalDir(app, id)).isEmpty())
     }
 
-    @Test fun staleDataLeftAtTheSourceIsDroppedAtSessionStart() {
+    @Test fun aJournalForAnotherDestinationNeverAuthorisesClearingThisOne() {
         seed()
-        assertNull(move(id, true))
-        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
-        File(FlatpakData.internalDir(app, id), "stale.bin").writeText("old")
-        assertEquals(2, FlatpakData.binds(app).size)
-        assertEquals(listOf(".ld.so"), FlatpakData.internalDir(app, id).list()!!.toList())
-        assertEquals(1000, File(card, "flatpak-data/$id/.srb2kart/addons/map.pk3").length())
-        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+        val other = File(tmp.newFolder("other"), "flatpak-data/$id")
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, other), true))
+        File(cardFolder(), "keep.txt").apply { parentFile!!.mkdirs() }.writeText("old")
+        assertEquals(app.getString(R.string.store_data_failed), move(id, true))
+        assertEquals("old", File(cardFolder(), "keep.txt").readText())
+        assertTrue(File(FlatpakData.internalDir(app, id), ".srb2kart/addons/map.pk3").isFile)
     }
 
-    @Test fun staleDataAtTheDestinationIsDroppedBeforeMovingBack() {
+    @Test fun anInterruptedMoveBackCanBeRetried() {
         seed()
         assertNull(move(id, true))
-        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
-        File(FlatpakData.internalDir(app, id), "stale.bin").writeText("old")
-        assertNull(move(id, false))
         val internal = FlatpakData.internalDir(app, id)
-        assertFalse(File(internal, "stale.bin").exists())
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, internal), true))
+        File(internal, "partial.bin").writeText("half")
+        assertNull(move(id, false))
+        assertFalse(File(internal, "partial.bin").exists())
         assertEquals(1000, File(internal, ".srb2kart/addons/map.pk3").length())
+    }
+
+    @Test fun oldDataLeftAtTheSourceIsDroppedAtSessionStart() {
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        File(internal.parentFile, ".${internal.name}.old").apply { mkdirs() }.let { File(it, "stale.bin").writeText("old") }
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertFalse(File(internal.parentFile, ".${internal.name}.old").exists())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+    }
+
+    @Test fun dataWrittenWhileTheCardWasDetachedSurvivesItsReturn() {
+        seed()
+        assertNull(move(id, true))
+        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/x/files/steam", "gone")
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        val save = File(FlatpakData.internalDir(app, id), "save.dat").apply { writeText("new") }
+        SessionPrefs.setGameStorage(app, card.path, "SD")
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertEquals("new", save.readText())
+        assertEquals(app.getString(R.string.store_data_failed), move(id, false))
+        assertEquals("new", save.readText())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+    }
+
+    @Test fun aSymlinkOnTheCardRefusesTheMoveBack() {
+        seed()
+        assertNull(move(id, true))
+        Files.createSymbolicLink(File(cardFolder(), "link").toPath(), File("config").toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, false))
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertTrue(FlatpakData.entries(FlatpakData.internalDir(app, id)).isEmpty())
     }
 
     @Test fun anUnreadableSourceIsNotTreatedAsEmpty() {
