@@ -303,6 +303,7 @@ volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
 volatile int g_bfi;
+volatile int g_bfi_picture_hold;
 static int g_bfi_running;
 static unsigned g_bfi_phase;
 static const char *g_bfi_blocked;
@@ -2515,7 +2516,12 @@ static void bfi_update(void) {
 }
 
 static void bfi_tick(void) {
-    if ((g_bfi_phase++ & 1) == 0) {
+    /* A capture copies the surface's last buffer: present pictures only, still composed into that surface. */
+    if (g_bfi_picture_hold) {
+        g_bfi_phase = 0;
+        g_bfi_stats.lit++;
+        render_scene();
+    } else if ((g_bfi_phase++ & 1) == 0) {
         g_bfi_stats.lit++;
         render_scene();
     } else if (vkp_render_plain(g_scene_w, g_scene_h) == 0) {

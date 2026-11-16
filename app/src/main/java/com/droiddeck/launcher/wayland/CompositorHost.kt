@@ -54,8 +54,6 @@ object CompositorHost {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)
-        pictureHoldGeneration++
-        pictureHolds = 0
         WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
@@ -77,7 +75,6 @@ object CompositorHost {
 
     private var blackFrameInsertion = false
     private var pictureHolds = 0
-    private var pictureHoldGeneration = 0
 
     private fun pace(refreshHz: Float, fpsLimit: Int) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
@@ -94,22 +91,22 @@ object CompositorHost {
     @Synchronized
     fun setBlackFrameInsertion(on: Boolean, refreshHz: Float, fpsLimit: Int) {
         blackFrameInsertion = on
-        WaylandCompositor.nativeSetBlackFrameInsertion(on && pictureHolds == 0)
+        WaylandCompositor.nativeSetBlackFrameInsertion(on)
         if (started) pace(refreshHz, fpsLimit)
     }
 
-    /** Pauses black frame insertion so the next presents are pictures; null when nothing is strobing. */
+    /** Presents only pictures until the matching release; false when nothing is strobing. */
     @Synchronized
-    fun holdPicture(): Int? {
-        if (!started || !blackFrameInsertion) return null
-        if (pictureHolds++ == 0) WaylandCompositor.nativeSetBlackFrameInsertion(false)
-        return pictureHoldGeneration
+    fun holdPicture(): Boolean {
+        if (!started || !blackFrameInsertion) return false
+        if (pictureHolds++ == 0) WaylandCompositor.nativeSetPictureHold(true)
+        return true
     }
 
     @Synchronized
-    fun releasePicture(hold: Int) {
-        if (hold != pictureHoldGeneration || pictureHolds == 0) return
-        if (--pictureHolds == 0) WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
+    fun releasePicture() {
+        if (pictureHolds == 0) return
+        if (--pictureHolds == 0) WaylandCompositor.nativeSetPictureHold(false)
     }
 
     @Synchronized

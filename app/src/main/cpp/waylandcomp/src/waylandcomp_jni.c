@@ -42,6 +42,7 @@ extern volatile int g_fps_limit;
 extern volatile int g_release_unpaced;
 extern volatile int g_render_on_commit;
 extern volatile int g_bfi;
+extern volatile int g_bfi_picture_hold;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
@@ -654,6 +655,11 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetBlackFrameInsertion(JNIEnv *env, jclass clazz, jboolean on) {
     g_bfi = on ? 1 : 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "black frame insertion %s", on ? "requested" : "off");
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetPictureHold(JNIEnv *env, jclass clazz, jboolean on) {
+    g_bfi_picture_hold = on ? 1 : 0;
 }
 
 JNIEXPORT void JNICALL
