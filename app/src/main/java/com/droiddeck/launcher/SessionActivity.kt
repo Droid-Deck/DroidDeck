@@ -1374,7 +1374,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 applyOutputPacing()
             },
             blackFrameInsertion = blackFrameInsertion,
-            blackFrameInsertionAvailable = blackFrameInsertionAvailable(),
+            blackFrameInsertionAvailable = blackFrameInsertion || blackFrameInsertionAvailable(),
             onBlackFrameInsertion = { on ->
                 SessionPrefs.setBlackFrameInsertion(this@SessionActivity, on)
                 blackFrameInsertion = on
@@ -2520,7 +2520,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesScreen?.display?.let { glasses ->
             return (glasses.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f) >= PerfMode.BFI_MIN_REFRESH_HZ
         }
-        val display = if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+        val display = bottomGame?.takeIf { bottomOutputActive }?.display
+            ?: if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
         val peak = display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f
         return minOf(peak, PerfMode.peakRefreshCap(this)) >= PerfMode.BFI_MIN_REFRESH_HZ
     }
