@@ -270,7 +270,7 @@ public final class GogDownloadManager {
             long planned = 0;
             boolean sized = true;
             for (InstallerPart part : parts) { planned += part.size; if (part.size <= 0) sized = false; }
-            long needed = installerBytesNeeded(sized ? planned : 0, GogLibrary.INSTANCE.sizeOf(ctx, game.gameId));
+            long needed = installerBytesNeeded(knownPartBytes(parts), GogLibrary.INSTANCE.sizeOf(ctx, game.gameId));
             long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
             if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(needed, usable)) {
                 throw new InstallException("Not enough free space: need " + formatBytes(needed) + ", only " + formatBytes(usable) + " free");
@@ -332,6 +332,12 @@ public final class GogDownloadManager {
         }
         if (cancelled.get()) return;
         if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
+    }
+
+    static long knownPartBytes(List<InstallerPart> parts) {
+        long known = 0;
+        for (InstallerPart part : parts) if (part.size > 0) known += part.size;
+        return known;
     }
 
     static long installerBytesNeeded(long downloadBytes, long installedBytes) {

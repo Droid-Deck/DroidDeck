@@ -110,6 +110,17 @@ class GogInstallerPartsTest {
         assertEquals(0L, GogDownloadManager.installerBytesNeeded(0L, -1L))
     }
 
+    @Test fun aPartWithoutASizeStillCountsTheKnownBytesOfTheOthers() {
+        val parts = listOf(
+            GogDownloadManager.InstallerPart("u0", "setup.exe", 0L),
+            GogDownloadManager.InstallerPart("u1", "setup-1.bin", 60 * gib),
+        )
+        val needed = GogDownloadManager.installerBytesNeeded(GogDownloadManager.knownPartBytes(parts), 70 * gib)
+        assertEquals(130 * gib, needed)
+        assertTrue(StoreInstallRoot.insufficientSpace(needed, 95 * gib))
+        assertEquals(0L, GogDownloadManager.knownPartBytes(emptyList()))
+    }
+
     @Test fun anotherPlatformOrNoDownloadsAddsNothing() {
         assertEquals(0, GogDownloadManager.installerParts(downloads("""{"installers":[{"os":"linux","manualUrl":"https://example.invalid/x"}]}"""), "1").size)
         assertEquals(0, GogDownloadManager.installerParts(downloads("{}"), "1").size)
