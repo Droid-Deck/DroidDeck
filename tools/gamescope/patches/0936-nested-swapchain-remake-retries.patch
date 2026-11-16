@@ -19,7 +19,20 @@ index 0835bfe..21a287d 100644
  #include "Utils/Algorithm.h"
  
  #if defined(__linux__)
-@@ -3224,7 +3228,10 @@ bool acquire_next_image( void )
+@@ -2629,2 +2633,4 @@
+ 			}
++			g_device.vk.DestroyImage( g_device.device(), m_vkImage, nullptr );
++			m_vkImage = VK_NULL_HANDLE;
+ 			return false;
+@@ -2654,2 +2660,7 @@
+ 			    memRequirements.memoryTypeBits, fdProperties.memoryTypeBits );
++		if ( m_vkImageMemory == VK_NULL_HANDLE )
++		{
++			g_device.vk.DestroyImage( g_device.device(), m_vkImage, nullptr );
++			m_vkImage = VK_NULL_HANDLE;
++		}
+ 		return false;
+@@ -3224,7 +3235,10 @@ bool acquire_next_image( void )
  {
  	VkResult res = g_device.vk.AcquireNextImageKHR( g_device.device(), g_output.swapChain, UINT64_MAX, VK_NULL_HANDLE, g_output.acquireFence, &g_output.nOutImage );
  	if ( res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR )
@@ -30,7 +43,7 @@ index 0835bfe..21a287d 100644
  	if ( g_device.vk.WaitForFences( g_device.device(), 1, &g_output.acquireFence, false, UINT64_MAX ) != VK_SUCCESS )
  		return false;
  	return g_device.vk.ResetFences( g_device.device(), 1, &g_output.acquireFence ) == VK_SUCCESS;
-@@ -3330,7 +3337,8 @@ void vulkan_present_to_window( void )
+@@ -3330,7 +3344,8 @@ void vulkan_present_to_window( void )
  		.pImageIndices = &g_output.nOutImage,
  	};
  
@@ -40,7 +53,7 @@ index 0835bfe..21a287d 100644
  	{
  		if ( g_device.supportsPresentWait() )
  		{
-@@ -3339,7 +3347,11 @@ void vulkan_present_to_window( void )
+@@ -3339,7 +3354,11 @@ void vulkan_present_to_window( void )
  		}
  	}
  	else
@@ -52,7 +65,7 @@ index 0835bfe..21a287d 100644
  
  	while ( !acquire_next_image() )
  		vulkan_remake_swapchain();
-@@ -3461,2 +3473,6 @@
+@@ -3461,2 +3480,6 @@
 -	if ( g_device.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR( g_device.physDev(), pOutput->surface, &pOutput->surfaceCaps ) != VK_SUCCESS )
 -		return false;
 +	VkResult capsResult = g_device.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR( g_device.physDev(), pOutput->surface, &pOutput->surfaceCaps );
@@ -61,7 +74,7 @@ index 0835bfe..21a287d 100644
 +		vk_errorf( capsResult, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed" );
 +		return false;
 +	}
-@@ -3559,7 +3575,12 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+@@ -3559,7 +3582,12 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
  		.clipped = VK_TRUE,
  	};
  
@@ -75,7 +88,7 @@ index 0835bfe..21a287d 100644
  		return false;
  	}
  
-@@ -3606,6 +3627,19 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+@@ -3606,6 +3634,19 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
  	return true;
  }
  
@@ -95,7 +108,7 @@ index 0835bfe..21a287d 100644
  bool vulkan_remake_swapchain( void )
  {
  	std::unique_lock lock(present_wait_lock);
-@@ -3618,9 +3652,3 @@ bool vulkan_remake_swapchain( void )
+@@ -3618,9 +3659,3 @@ bool vulkan_remake_swapchain( void )
  
 -	pOutput->outputImages.clear();
 -	pOutput->presentationImages.clear();
@@ -106,7 +119,7 @@ index 0835bfe..21a287d 100644
 -	g_device.vk.DestroySwapchainKHR( g_device.device(), pOutput->swapChain, nullptr );
 +	vulkan_release_swapchain( pOutput );
  
-@@ -3630,9 +3658,18 @@ bool vulkan_remake_swapchain( void )
+@@ -3630,9 +3665,18 @@ bool vulkan_remake_swapchain( void )
  	for (auto& pCaptureTexture : pOutput->pCaptureTextures)
  		pCaptureTexture = nullptr;
  

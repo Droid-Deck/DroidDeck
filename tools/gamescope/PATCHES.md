@@ -138,7 +138,10 @@ app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the
   `vkQueuePresentKHR` and `vkAcquireNextImageKHR` calls now log their VkResult. A failed attempt
   releases whatever it created, so a retry never finds the surface still owned by a half-built
   swapchain, and is retried up to 10 times, 100 ms apart. A swapchain that still cannot be made
-  ends gamescope with a logged reason instead of the assertion.
+  ends gamescope with a logged reason instead of the assertion. A texture whose
+  `vkAllocateMemory` (or bind onto shared memory) failed kept its `VkImage`, which the destructor only
+  destroys together with owned memory; it is destroyed on that failure, so a retry that succeeds
+  leaves nothing behind.
 
 The shared DroidDeck patch also includes `0116-release-cursor-shm-buffers.patch`: pointer cursor
 surfaces have no X11/xdg window association, so routing their commits through `g_PendingCommits`
