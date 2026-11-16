@@ -962,6 +962,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (game.source == com.droiddeck.launcher.stores.Store.XBOX.id &&
+            game.gameFiles?.let { com.droiddeck.launcher.stores.xbox.XboxManifest.needsAppModel(it) } == true) {
+            android.widget.Toast.makeText(this, getString(R.string.game_needs_app_model, game.name), android.widget.Toast.LENGTH_LONG).show()
+            return false
+        }
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome, onHandled)
         onHandled()
         if (SessionState.running) {

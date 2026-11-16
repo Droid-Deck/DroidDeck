@@ -143,8 +143,16 @@ Verified during development:
 - A launch of this title through Xodus/ARM64 Proton reaches the loader with every declared
   framework in place, then fails inside Wine: its manifest names `EntryPoint="Forza.App"`, a UWP
   application that expects the app model to activate a view, which Wine has no host for. The
-  launch reports `uwp-entry-point` rather than dying silently. A package naming
-  `Windows.FullTrustApplication` starts as an ordinary Win32 executable instead.
+  Play action reads that entry point from `AppxManifest.xml` and refuses the launch with a
+  message, and a launch that does reach the runtime reports `uwp-entry-point` rather than dying
+  silently. A package naming `Windows.FullTrustApplication` starts as an ordinary Win32
+  executable instead.
+- Activation itself is not the missing piece. A DLL registered under
+  `HKLM\Software\Microsoft\WindowsRuntime\ActivatableClassId\Windows.ApplicationModel.Core.CoreApplication`
+  is loaded by `combase.dll`, and its `DllGetActivationFactory` is called for that class. Such a
+  title still stops earlier: `GetCurrentPackageFullName` and `GetCurrentPackageFamilyName` are
+  Wine stubs, so a package has no identity, and an activation factory alone cannot supply the
+  `IFrameworkViewSource`/`CoreWindow` host the view asks for.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this

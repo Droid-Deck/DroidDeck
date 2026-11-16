@@ -5,11 +5,12 @@ import org.xmlpull.v1.XmlPullParser
 
 internal object XboxManifest {
     data class Info(val storeId: String, val name: String, val publisher: String, val version: String,
-        val dependency: String, val related: List<String>, val executables: List<String>)
+        val dependency: String, val related: List<String>, val executables: List<String>, val entryPoint: String)
 
     /** A GameCore title describes itself with the config; a legacy package does not. */
     private const val GAME_CONFIG = "MicrosoftGame.config"
     private const val APPX_MANIFEST = "AppxManifest.xml"
+    private const val FULL_TRUST = "Windows.FullTrustApplication"
 
     fun read(folder: File): Info {
         // Both manifests are read the same way: an identity, an executable path and,
@@ -27,6 +28,7 @@ internal object XboxManifest {
         val dependencies = ArrayList<String>()
         val related = ArrayList<String>()
         val entries = ArrayList<String>()
+        val entryPoints = ArrayList<String>()
         fun attribute(name: String) = parser.getAttributeValue(null, name).orEmpty()
         var root = false
         var elements = 0
@@ -50,6 +52,7 @@ internal object XboxManifest {
                                 val path = attribute("Name").ifEmpty { attribute("Executable") }.replace('\\', '/')
                                 if (path.endsWith(".exe", true) && attribute("TargetDeviceFamily") in listOf("", "PC", "Windows.Desktop") &&
                                     !attribute("IsDevOnly").equals("true", true)) entries.add(path)
+                                if (parser.name == "Application") attribute("EntryPoint").takeIf { it.isNotEmpty() }?.let(entryPoints::add)
                             }
                         }
                     }
@@ -59,9 +62,21 @@ internal object XboxManifest {
         require(root && identities.size <= 1 && storeIds.size <= 1 && dependencies.size <= 1) { "Invalid Xbox game manifest." }
         val ids = related.distinct()
         require(ids.size <= 128 && ids.all { it.matches(Regex("[A-Z0-9]{12}")) })
+        val entry = entryPoints.distinct()
+        require(entry.size <= 1) { "Invalid Xbox game manifest." }
         val identity = identities.singleOrNull()
         return Info(storeIds.singleOrNull().orEmpty(), identity?.get(0).orEmpty(), identity?.get(1).orEmpty(), identity?.get(2).orEmpty(),
-            dependencies.singleOrNull().orEmpty(), ids, entries)
+            dependencies.singleOrNull().orEmpty(), ids, entries, entry.singleOrNull().orEmpty())
+    }
+
+    /**
+     * A full trust package starts its executable directly. Anything else is activated
+     * through the Windows app model, which this runtime has no host for, so starting
+     * the executable would only crash.
+     */
+    fun needsAppModel(folder: File): Boolean {
+        val entry = runCatching { read(folder).entryPoint }.getOrDefault("")
+        return entry.isNotEmpty() && !entry.equals(FULL_TRUST, true)
     }
 
     fun executable(folder: File): String {
