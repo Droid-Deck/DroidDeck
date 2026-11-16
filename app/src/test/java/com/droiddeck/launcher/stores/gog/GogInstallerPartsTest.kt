@@ -121,6 +121,61 @@ class GogInstallerPartsTest {
         assertEquals(0L, GogDownloadManager.knownPartBytes(emptyList()))
     }
 
+    private fun installDir(): File = Files.createTempDirectory("gog-parts").toFile()
+
+    @Test fun partsKeptFromACancelledInstallCountAsFreeSpaceOnRetry() {
+        val dir = installDir()
+        try {
+            File(dir, "setup.exe").writeBytes(ByteArray(1000))
+            File(dir, "setup-1.bin").writeBytes(ByteArray(500))
+            val parts = listOf(
+                GogDownloadManager.InstallerPart("u0", "setup.exe", 1000L),
+                GogDownloadManager.InstallerPart("u1", "setup-1.bin", 1000L),
+            )
+            val reclaimed = GogDownloadManager.reclaimableInstallerBytes(dir, parts)
+            assertEquals(1500L, reclaimed)
+            val needed = GogDownloadManager.installerBytesNeeded(GogDownloadManager.knownPartBytes(parts), 0L)
+            val free = 600L
+            assertTrue(StoreInstallRoot.insufficientSpace(needed, free))
+            assertFalse(StoreInstallRoot.insufficientSpace(needed, free + reclaimed))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun aMissingPartOrADirectoryReclaimsNothing() {
+        val dir = installDir()
+        try {
+            File(dir, "folder.bin").mkdir()
+            val parts = listOf(
+                GogDownloadManager.InstallerPart("u0", "setup.exe", 1000L),
+                GogDownloadManager.InstallerPart("u1", "folder.bin", 1000L),
+            )
+            assertEquals(0L, GogDownloadManager.reclaimableInstallerBytes(dir, parts))
+            assertEquals(0L, GogDownloadManager.reclaimableInstallerBytes(dir, emptyList()))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun aLinkedPartOrAnEscapingNameReclaimsNothing() {
+        val dir = installDir()
+        val outside = installDir()
+        try {
+            val target = File(outside, "big.bin").apply { writeBytes(ByteArray(4000)) }
+            Files.createSymbolicLink(File(dir, "setup.exe").toPath(), target.toPath())
+            File(dir.parentFile, "escape.bin").also { it.writeBytes(ByteArray(4000)); it.deleteOnExit() }
+            val parts = listOf(
+                GogDownloadManager.InstallerPart("u0", "setup.exe", 1000L),
+                GogDownloadManager.InstallerPart("u1", "../escape.bin", 1000L),
+            )
+            assertEquals(0L, GogDownloadManager.reclaimableInstallerBytes(dir, parts))
+        } finally {
+            dir.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
     @Test fun anotherPlatformOrNoDownloadsAddsNothing() {
         assertEquals(0, GogDownloadManager.installerParts(downloads("""{"installers":[{"os":"linux","manualUrl":"https://example.invalid/x"}]}"""), "1").size)
         assertEquals(0, GogDownloadManager.installerParts(downloads("{}"), "1").size)
