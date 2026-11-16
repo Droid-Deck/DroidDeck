@@ -53,12 +53,15 @@ object AgentSetup {
 
     fun useFree(context: Context) = signInLocally(context) { harness, root -> harness.useFree(root) }
 
+    private val signInLock = Any()
+
     private fun signInLocally(context: Context, write: (AgentHarness, File) -> Unit) {
         val app = context.applicationContext
         val harness = AgentHost.harness
         set(Step.SIGN_IN, Status.WORKING)
         Thread({
-            val result = runCatching { write(harness, LinuxRuntime.rootDir(app)) }
+            // Each write reads the files the one before it left, including across a save's model request.
+            val result = synchronized(signInLock) { runCatching { write(harness, LinuxRuntime.rootDir(app)) } }
             main.post {
                 // A failure stays on the row with the key field open, since the next check would clear it.
                 val error = result.exceptionOrNull()
