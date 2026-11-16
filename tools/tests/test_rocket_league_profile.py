@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import runpy
 import tempfile
@@ -85,3 +86,38 @@ class RocketLeagueProfileTest(unittest.TestCase):
             self.assertIsNone(self.apply())
             self.env.pop(name)
         self.assertEqual([], list(self.game.iterdir()))
+
+    def test_case_variants_are_preserved_before_any_write(self):
+        for name in ('DXGI.dll', 'D3D11.DLL', 'D3D10Core.dll'):
+            with self.subTest(name=name):
+                target = self.game / name
+                target.write_bytes(b'user mod')
+                self.assertIn('preserving', self.apply())
+                self.assertEqual([target], list(self.game.iterdir()))
+                self.assertEqual(b'user mod', target.read_bytes())
+                target.unlink()
+
+    def test_case_variant_beside_owned_copy_blocks_update(self):
+        self.apply()
+        variant = self.game / 'DXGI.dll'
+        variant.write_bytes(b'user mod')
+        (self.source / 'dxgi.dll').write_bytes(pe(0x8664, b'updated'))
+        self.assertIn('preserving', self.apply())
+        self.assertEqual(pe(0x8664), (self.game / 'dxgi.dll').read_bytes())
+        self.assertEqual(b'user mod', variant.read_bytes())
+
+    def test_opt_out_cleans_unchanged_files_but_preserves_modified_file_and_record(self):
+        self.apply()
+        target = self.game / 'dxgi.dll'
+        target.write_bytes(b'user mod')
+        self.env['DROIDDECK_ROCKET_LEAGUE_X64_DXVK'] = '0'
+        self.apply()
+        self.assertEqual(b'user mod', target.read_bytes())
+        self.assertFalse((self.game / 'd3d11.dll').exists())
+        self.assertFalse((self.game / 'd3d10core.dll').exists())
+        record = self.game / '.droiddeck-rocket-dxvk.json'
+        self.assertEqual(['dxgi.dll'], list(json.loads(record.read_text())))
+        self.apply()
+        self.assertEqual(b'user mod', target.read_bytes())
+        self.env.pop('DROIDDECK_ROCKET_LEAGUE_X64_DXVK')
+        self.assertIn('preserving', self.apply())

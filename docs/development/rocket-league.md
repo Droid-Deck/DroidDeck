@@ -9,14 +9,15 @@ problem is suspected; the root cause has not been established.
 
 The launch wrapper validates all three DLL architectures before installing them.
 It records hashes, refreshes its own copies when the bundled component changes,
-and preserves existing or modified game-local DLLs. Proton's shared installation
+and preserves existing or modified game-local DLLs, including case variants. Proton's shared installation
 and prefix graphics DLLs are unchanged. Other games and prefix maintenance
 commands do not use the profile. Explicit graphics DLL overrides, WineD3D,
 x64 Wine, and the PowerVR runtime take precedence.
 
 To opt out, set `DROIDDECK_ROCKET_LEAGUE_X64_DXVK=0` in Rocket League's Game
 environment and relaunch. The next launch removes unchanged files owned by the
-profile. Modified files are preserved for manual review. Resetting the game
+profile. Modified files and their ownership records are preserved for manual review;
+unchanged owned files are still removed independently. Resetting the game
 profile restores the default automatic workaround. A crash during installation
 can leave unowned copies; the wrapper preserves those rather than overwriting
 files it cannot prove it owns.

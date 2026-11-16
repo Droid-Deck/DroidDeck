@@ -1238,6 +1238,17 @@ def system_graphics_launch(command, env):
 ROCKET_DXVK_FILES = ("dxgi.dll", "d3d11.dll", "d3d10core.dll")
 
 
+def rocket_dxvk_record(record, hashes):
+    handle, staged = tempfile.mkstemp(prefix=".rocket-dxvk-", dir=record.parent)
+    try:
+        with os.fdopen(handle, "w") as output:
+            json.dump(hashes, output)
+        os.replace(staged, record)
+    finally:
+        if os.path.exists(staged):
+            os.unlink(staged)
+
+
 def rocket_league_dxvk(command, env):
     if (len(command) < 3 or command[1] != "waitforexitandrun"
             or game_id(env) != "252950" or Path(command[2]).name.lower() != "rocketleague.exe"):
@@ -1247,11 +1258,6 @@ def rocket_league_dxvk(command, env):
     owned = json.loads(record.read_text()) if record.exists() else {}
     if not isinstance(owned, dict) or any(name not in ROCKET_DXVK_FILES for name in owned):
         raise ValueError("invalid Rocket League DXVK ownership record")
-    for name in ROCKET_DXVK_FILES:
-        target = folder / name
-        if target.is_symlink() or (target.exists() and
-                hashlib.sha256(target.read_bytes()).hexdigest() != owned.get(name)):
-            return "Rocket League: preserving user graphics DLLs; x64 DXVK workaround skipped"
     active = (env.get("DROIDDECK_ROCKET_LEAGUE_X64_DXVK", "1") != "0"
               and env.get("PROTON_USE_ARM64", "1") != "0"
               and env.get("PROTON_USE_WINED3D", "0") == "0"
@@ -1261,10 +1267,29 @@ def rocket_league_dxvk(command, env):
     native = Path(command[0]).parent / "files/lib/wine/dxvk/aarch64-windows/dxgi.dll"
     active = active and pe_machine(native) in (0xAA64, 0xA641)
     if not active:
-        for name in owned:
-            (folder / name).unlink(missing_ok=True)
-        record.unlink(missing_ok=True)
+        remaining = dict(owned)
+        for name, digest in owned.items():
+            target = folder / name
+            if target.is_symlink():
+                continue
+            if not target.exists():
+                remaining.pop(name)
+            elif hashlib.sha256(target.read_bytes()).hexdigest() == digest:
+                target.unlink()
+                remaining.pop(name)
+        if remaining:
+            rocket_dxvk_record(record, remaining)
+        else:
+            record.unlink(missing_ok=True)
         return None
+    if any(entry.name.lower() in ROCKET_DXVK_FILES and entry.name != entry.name.lower()
+           for entry in folder.iterdir()):
+        return "Rocket League: preserving user graphics DLLs; x64 DXVK workaround skipped"
+    for name in ROCKET_DXVK_FILES:
+        target = folder / name
+        if target.is_symlink() or (target.exists() and
+                hashlib.sha256(target.read_bytes()).hexdigest() != owned.get(name)):
+            return "Rocket League: preserving user graphics DLLs; x64 DXVK workaround skipped"
     payload = {name: (source / name).read_bytes() for name in ROCKET_DXVK_FILES}
     if any(pe_machine(source / name) != 0x8664 for name in ROCKET_DXVK_FILES):
         return "Rocket League: bundled x64 DXVK unavailable; workaround skipped"
@@ -1280,14 +1305,7 @@ def rocket_league_dxvk(command, env):
         finally:
             if os.path.exists(staged):
                 os.unlink(staged)
-    handle, staged = tempfile.mkstemp(prefix=".rocket-dxvk-", dir=folder)
-    try:
-        with os.fdopen(handle, "w") as output:
-            json.dump(hashes, output)
-        os.replace(staged, record)
-    finally:
-        if os.path.exists(staged):
-            os.unlink(staged)
+    rocket_dxvk_record(record, hashes)
     return "Rocket League: bundled x64 DXVK avoids the native graphics entry-point crash"
 
 
