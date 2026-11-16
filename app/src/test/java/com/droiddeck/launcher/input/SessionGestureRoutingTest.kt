@@ -303,10 +303,14 @@ class SessionGestureRoutingTest {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
             return directTouches.size
         }
+        CompositorShadow.pointerMoves.clear()
         assertEquals(1, tapWith(InputProfile.defaults(InputProfile.DESKTOP)))
+        assertTrue(CompositorShadow.pointerMoves.isEmpty())
         assertEquals(0, tapWith(InputProfile.defaults(InputProfile.DESKTOP)
             .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))))
+        assertEquals(1, CompositorShadow.pointerMoves.size)
         assertEquals(1, tapWith(InputProfile.defaults(InputProfile.DESKTOP)))
+        assertEquals(1, CompositorShadow.pointerMoves.size)
     }
 
     private fun tapThreeFingers(expectSteamGesture: Boolean) {
@@ -337,7 +341,9 @@ class SessionGestureRoutingTest {
     class CompositorShadow {
         companion object {
             @JvmStatic var sceneInputs = 0
+            @JvmStatic val pointerMoves = mutableListOf<Pair<Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
+            @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointerMoves += x to y }
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) { sceneInputs++ }
         }

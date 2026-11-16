@@ -4917,7 +4917,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            if (!pointerLocked) showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
+            if (!pointerLocked) {
+                val x = event.x.coerceIn(rect.left, rect.right)
+                val y = event.y.coerceIn(rect.top, rect.bottom)
+                if (directTouchHold.tapClicks) showCursor(x, y) else movePointer(x, y)
+            }
             if (WaylandCompositor.nativeFocusTakesTouch()) {
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     heldButtons.set(1, it, false)
