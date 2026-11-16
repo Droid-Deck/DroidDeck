@@ -88,7 +88,7 @@ void main() {
     float cornerFactor = 1.0 - 0.18 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
     float baseWeight = areaWeight * endpointArea * edgeConfidence * cornerFactor;
 
-    float diagonalStrength = max(abs(nw - se), abs(ne - sw));
+    float diagonalStrength = abs(abs(nw - se) - abs(ne - sw));
     float diagonalPattern = smoothstep(threshold, threshold * 2.5, diagonalStrength);
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence * cornerFactor;
 
