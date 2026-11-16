@@ -54,6 +54,8 @@ class GameProfileManagerTest {
         SessionPrefs.setGameTextureAnisotropy(context, other, 8)
         WinComponents.setPicks(context, game, listOf("vcrun2022"))
         WinComponents.setPicks(context, other, listOf("dotnet48"))
+        ControllerPrefs.setDeadZone(context, 25)
+        ControllerPrefs.setJoyConVr(context, false)
         ControllerPrefs.setNintendoLayout(context, game, true)
         ControllerPrefs.setNintendoLayout(context, other, true)
 
@@ -72,6 +74,8 @@ class GameProfileManagerTest {
         assertEquals(listOf("dotnet48"), WinComponents.picks(context, other))
         assertFalse(ControllerPrefs.nintendoLayout(context, game))
         assertTrue(ControllerPrefs.nintendoLayout(context, other))
+        assertEquals(25, ControllerPrefs.deadZone(context))
+        assertFalse(ControllerPrefs.joyConVr(context))
     }
 
     @Test

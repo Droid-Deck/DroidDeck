@@ -295,6 +295,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
+    private var nintendoScope: String? = null
     private var gameStarts by mutableIntStateOf(0)
     private var gestureSettingsOpen by mutableStateOf(false)
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
@@ -1195,9 +1196,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         }
                         frameGenActiveGameName = target.second?.name
                     }
-                    if (nextGame != gestureGame) {
-                        if (nextGame != null) gameStarts++
+                    val nextNintendoScope = if (SessionState.mode == SessionService.MODE_RUN) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            com.droiddeck.launcher.session.NoSteamLaunch.scopeOf(SessionState.program, SessionState.programArgs) {
+                                com.droiddeck.launcher.session.NoSteamLaunch.battleNetTitleScope(this@SessionActivity, it)
+                            }
+                        }
+                    } else nextGame
+                    if (nextGame != gestureGame || nextNintendoScope != nintendoScope) {
+                        if (nextGame != null && nextGame != gestureGame) gameStarts++
                         gestureGame = nextGame
+                        nintendoScope = nextNintendoScope
                         refreshGestureConfig()
                         applyNintendoLayout()
                     }
@@ -3689,7 +3698,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun applyNintendoLayout() {
-        padBridge?.setNintendoLayout(ControllerPrefs.nintendoLayout(this, gestureGame))
+        padBridge?.setNintendoLayout(ControllerPrefs.nintendoLayout(this, nintendoScope))
     }
 
     private fun refreshGestureConfig() {

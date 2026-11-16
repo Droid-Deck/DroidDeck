@@ -2,6 +2,9 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.view.KeyEvent
+import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.session.NoSteamLaunch
+import com.droiddeck.launcher.stores.epic.EpicClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -67,5 +70,43 @@ class NintendoLayoutTest {
         ControllerPrefs.setNintendoLayout(context, "42", false)
         assertFalse(ControllerPrefs.nintendoLayout(context, "42"))
         assertFalse(ControllerPrefs.prefs(context).contains("nintendo.42"))
+    }
+
+    @Test fun aDirectLaunchLooksUpTheKeyTheSettingsScreenWrites() {
+        val epic = Library.SteamGame(EpicClient.LAUNCHER_APP_ID, Library.EPIC_LAUNCHER_NAME, null, Library.EPIC_LAUNCHER, source = "epic")
+        val added = Library.SteamGame((2733369024L).toInt(), "Added", null, Library.ADDED, source = "epic")
+        val proton = Library.SteamGame(413150, "Proton", null, "internal")
+        val launches = listOf(
+            epic to NoSteamLaunch.scopeOf(NoSteamLaunch.EPIC, listOf("run")),
+            added to NoSteamLaunch.scopeOf(NoSteamLaunch.PROTON_RUN, listOf("--app", "2733369024")),
+            proton to NoSteamLaunch.scopeOf(NoSteamLaunch.PROTON_RUN, listOf("--app", "413150")),
+        )
+        for ((game, lookup) in launches) {
+            val written = NoSteamLaunch.scope(game)!!
+            assertEquals(written, lookup)
+            ControllerPrefs.setNintendoLayout(context, written, true)
+            assertTrue(ControllerPrefs.nintendoLayout(context, lookup))
+            ControllerPrefs.setNintendoLayout(context, written, false)
+        }
+        ControllerPrefs.setNintendoLayout(context, NoSteamLaunch.scope(proton)!!, true)
+        assertFalse(ControllerPrefs.nintendoLayout(context, NoSteamLaunch.scope(added)))
+        assertFalse(ControllerPrefs.nintendoLayout(context, NoSteamLaunch.scope(epic)))
+        assertFalse(ControllerPrefs.nintendoLayout(context, "program:${NoSteamLaunch.PROTON_RUN}"))
+    }
+
+    @Test fun otherControllerPreferencesSurviveEnablingAndResettingTheLayout() {
+        ControllerPrefs.setDeadZone(context, 25)
+        ControllerPrefs.setJoyConVr(context, false)
+        val before = ControllerPrefs.prefs(context).all.toMap()
+        ControllerPrefs.setNintendoLayout(context, "42", true)
+        ControllerPrefs.setNintendoLayout(context, "43", true)
+        assertEquals(25, ControllerPrefs.read(context).deadZone)
+        assertFalse(ControllerPrefs.joyConVr(context))
+        ControllerPrefs.setNintendoLayout(context, "42", false)
+        assertEquals(25, ControllerPrefs.read(context).deadZone)
+        assertFalse(ControllerPrefs.joyConVr(context))
+        assertTrue(ControllerPrefs.nintendoLayout(context, "43"))
+        ControllerPrefs.setNintendoLayout(context, "43", false)
+        assertEquals(before, ControllerPrefs.prefs(context).all.toMap())
     }
 }
