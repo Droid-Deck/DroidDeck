@@ -1144,7 +1144,7 @@
     <string name="lab_off_title">Lab 版本已關閉</string>
     <string name="lab_off_other_install">它是為另一個 DroidDeck 版本建置的，目前保留在「更新」中。</string>
     <string name="lab_off_did_not_start">DroidDeck 用它啟動失敗兩次</string>
-    <string name="rail_agent">AI 代理</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">AI 代理</string>
     <string name="agent_working">AI 代理正在處理</string>
     <string name="agent_missing">請在 Linux 使用者環境安裝 Claude Code，才能使用 AI 代理。</string>

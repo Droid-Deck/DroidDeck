@@ -1219,7 +1219,7 @@
     <string name="lab_off_title">Lab build turned off</string>
     <string name="lab_off_other_install">It was built for another version of DroidDeck. It is kept in Updates.</string>
     <string name="lab_off_did_not_start">DroidDeck did not start on it twice</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent is working</string>
     <string name="agent_drawer_inline">Compact chat in the session drawer</string>

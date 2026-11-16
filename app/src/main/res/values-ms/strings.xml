@@ -1145,7 +1145,7 @@
     <string name="lab_off_title">Binaan Lab dimatikan</string>
     <string name="lab_off_other_install">Ia dibina untuk versi DroidDeck yang lain. Ia disimpan dalam Kemas Kini.</string>
     <string name="lab_off_did_not_start">DroidDeck tidak dimulakan padanya dua kali</string>
-    <string name="rail_agent">Ejen</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ejen</string>
     <string name="agent_working">Ejen sedang bekerja</string>
     <string name="agent_missing">Pasang Claude Code dalam ruang pengguna Linux untuk menggunakan ejen.</string>

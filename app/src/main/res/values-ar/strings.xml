@@ -1160,7 +1160,7 @@
     <string name="lab_off_title">تم إيقاف نسخة المختبر</string>
     <string name="lab_off_other_install">بُنيت لإصدار آخر من DroidDeck. وهي محفوظة في التحديثات.</string>
     <string name="lab_off_did_not_start">لم يبدأ DroidDeck عليها مرتين</string>
-    <string name="rail_agent">الوكيل</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">الوكيل</string>
     <string name="agent_working">الوكيل يعمل</string>
     <string name="agent_missing">ثبّت Claude Code في بيئة مستخدم Linux لاستخدام الوكيل.</string>

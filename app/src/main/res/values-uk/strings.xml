@@ -1154,7 +1154,7 @@
     <string name="lab_off_title">Збірку Lab вимкнено</string>
     <string name="lab_off_other_install">Її зібрано для іншої версії DroidDeck. Вона зберігається в «Оновленнях».</string>
     <string name="lab_off_did_not_start">DroidDeck двічі не запустився на цій збірці</string>
-    <string name="rail_agent">Агент</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Агент</string>
     <string name="agent_working">Агент працює</string>
     <string name="agent_missing">Встановіть Claude Code у користувацькому середовищі Linux, щоб користуватися агентом.</string>

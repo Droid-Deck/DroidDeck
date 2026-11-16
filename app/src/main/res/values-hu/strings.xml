@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">A Lab build kikapcsolva</string>
     <string name="lab_off_other_install">A DroidDeck egy másik verziójához készült. A Frissítések tartalmazza.</string>
     <string name="lab_off_did_not_start">A DroidDeck kétszer nem indult el rajta</string>
-    <string name="rail_agent">Ügynök</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ügynök</string>
     <string name="agent_working">Az ügynök dolgozik</string>
     <string name="agent_missing">Az ügynök használatához telepítse a Claude Code alkalmazást a Linux felhasználói terébe.</string>
