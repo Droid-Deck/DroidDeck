@@ -51,36 +51,40 @@ object FlatpakData {
     internal fun internalDir(context: Context, id: String) = File(LinuxRuntime.rootDir(context), "$HOST/$id")
 
     fun binds(context: Context, writable: (File) -> Boolean = { it.canWrite() }): List<String> = synchronized(lock) {
-        val pinned = pins(context).toSortedMap()
-        if (pinned.isEmpty()) return@synchronized emptyList()
-        pinned.flatMap { (id, storage) ->
-            if (!GameStorage.attached(storage)) {
-                Log.w(TAG, "$id: its game storage is not attached; internal data this session")
-                return@flatMap emptyList()
+        pins(context).toSortedMap().flatMap { (id, storage) ->
+            bind(context, id, storage, writable).also {
+                if (it.isEmpty()) SessionPrefs.setFlatpakDataMoving(context, marker(id, internalDir(context, id)), false)
             }
-            val card = cardIn(storage, id)
-            val guest = internalDir(context, id)
-            val kept = File(guest, KEPT)
-            if (isLink(card) || isLink(guest)) {
-                Log.w(TAG, "$id: a data folder is a symbolic link; internal this session")
-                return@flatMap emptyList()
-            }
-            try {
-                purge(guest)
-                purge(card)
-            } catch (e: Exception) {
-                Log.w(TAG, "$id: the old copy of a moved folder could not be removed", e)
-            }
-            if (!card.isDirectory && !card.mkdirs() || !kept.isDirectory && !kept.mkdirs() || !File(card, KEPT).isDirectory && !File(card, KEPT).mkdirs()) {
-                Log.w(TAG, "$id: data folder could not be prepared; internal this session")
-                return@flatMap emptyList()
-            }
-            if (!writable(card)) {
-                Log.w(TAG, "$id: game storage is read-only; internal this session")
-                return@flatMap emptyList()
-            }
-            listOf("${card.path}:$GUEST/$id", "${kept.path}:$GUEST/$id/$KEPT")
         }
+    }
+
+    private fun bind(context: Context, id: String, storage: File, writable: (File) -> Boolean): List<String> {
+        if (!GameStorage.attached(storage)) {
+            Log.w(TAG, "$id: its game storage is not attached; internal data this session")
+            return emptyList()
+        }
+        val card = cardIn(storage, id)
+        val guest = internalDir(context, id)
+        val kept = File(guest, KEPT)
+        if (isLink(card) || isLink(guest)) {
+            Log.w(TAG, "$id: a data folder is a symbolic link; internal this session")
+            return emptyList()
+        }
+        try {
+            purge(guest)
+            purge(card)
+        } catch (e: Exception) {
+            Log.w(TAG, "$id: the old copy of a moved folder could not be removed", e)
+        }
+        if (!card.isDirectory && !card.mkdirs() || !kept.isDirectory && !kept.mkdirs() || !File(card, KEPT).isDirectory && !File(card, KEPT).mkdirs()) {
+            Log.w(TAG, "$id: data folder could not be prepared; internal this session")
+            return emptyList()
+        }
+        if (!writable(card)) {
+            Log.w(TAG, "$id: game storage is read-only; internal this session")
+            return emptyList()
+        }
+        return listOf("${card.path}:$GUEST/$id", "${kept.path}:$GUEST/$id/$KEPT")
     }
 
     fun move(
@@ -131,7 +135,7 @@ object FlatpakData {
             }
         } catch (e: Exception) {
             Log.w(TAG, "$id: move to ${if (toCard) "game storage" else "internal"} failed", e)
-            val cleaned = placed.map { remove(it) }.all { it } && remove(staging)
+            val cleaned = placed.map { remove(it) }.all { it } && remove(staging) && runCatching { entries(to).isEmpty() }.getOrDefault(false)
             if (cleaned) SessionPrefs.setFlatpakDataMoving(context, marker, false)
             return@synchronized context.getString(R.string.store_data_failed)
         }

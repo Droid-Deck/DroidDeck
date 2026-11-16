@@ -238,6 +238,51 @@ class FlatpakDataTest {
         assertEquals(1000, File(internal, ".srb2kart/addons/map.pk3").length())
     }
 
+    @Test fun aFailedRetryKeepsTheJournalUntilTheDestinationIsVerifiedEmpty() {
+        seed()
+        val marker = FlatpakData.marker(id, cardFolder())
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, marker, true))
+        File(card, "flatpak-data").mkdirs()
+        cardFolder().writeText("blocked")
+        assertEquals(app.getString(R.string.store_data_failed), move(id, true))
+        assertEquals(setOf(marker), SessionPrefs.flatpakDataMoving(app))
+        assertTrue(cardFolder().delete())
+        File(cardFolder(), ".srb2kart").mkdirs()
+        File(cardFolder(), "partial.bin").writeText("half")
+        assertNull(move(id, true))
+        assertFalse(File(cardFolder(), "partial.bin").exists())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+    }
+
+    @Test fun savesWrittenWhileDetachedAreNotClearedByAnInterruptedMoveBackRetry() {
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, internal), true))
+        File(internal, "partial.bin").writeText("half")
+        pinTo(gone)
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        val save = File(internal, "save.dat").apply { writeText("new") }
+        pinTo(card.path)
+        assertEquals(app.getString(R.string.store_data_failed), move(id, false))
+        assertEquals("new", save.readText())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+    }
+
+    @Test fun anInterruptedMoveBackStaysRetryableWhenTheCardSessionRanAttached() {
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, internal), true))
+        File(internal, "partial.bin").writeText("half")
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertNull(move(id, false))
+        assertFalse(File(internal, "partial.bin").exists())
+        assertEquals(1000, File(internal, ".srb2kart/addons/map.pk3").length())
+    }
+
     @Test fun oldDataLeftAtTheSourceIsDroppedAtSessionStart() {
         seed()
         assertNull(move(id, true))
