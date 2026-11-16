@@ -1027,6 +1027,14 @@
     <string name="store_open">Aç</string>
     <string name="store_details">Ayrıntılar</string>
     <string name="store_remove">Kaldır</string>
+    <string name="store_data_to_card">Verileri oyun depolamasına taşı</string>
+    <string name="store_data_to_internal">Verileri dahili depolamaya taşı</string>
+    <string name="store_data_moving">Veriler taşınıyor…</string>
+    <string name="store_data_symlinks">Veriler, kartın depolayamadığı sembolik bağlantılar içeriyor</string>
+    <string name="store_data_space">Yeterli boş alan yok (%1$s boş)</string>
+    <string name="store_data_failed">Veriler taşınamadı</string>
+    <string name="store_data_session">Önce çalışan oturumu kapatın</string>
+    <string name="store_data_no_storage">Oyun depolaması bağlı değil</string>
     <string name="store_press_again">Kaldırmak için tekrar basın</string>
     <string name="store_installing">Yükleniyor…</string>
     <string name="store_install">Yükle</string>

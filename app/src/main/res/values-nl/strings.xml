@@ -1035,6 +1035,14 @@
     <string name="store_open">Openen</string>
     <string name="store_details">Details</string>
     <string name="store_remove">Verwijderen</string>
+    <string name="store_data_to_card">Gegevens verplaatsen naar spelopslag</string>
+    <string name="store_data_to_internal">Gegevens verplaatsen naar interne opslag</string>
+    <string name="store_data_moving">Gegevens verplaatsen…</string>
+    <string name="store_data_symlinks">De gegevens bevatten symbolische koppelingen die de kaart niet kan opslaan</string>
+    <string name="store_data_space">Niet genoeg vrije ruimte (%1$s vrij)</string>
+    <string name="store_data_failed">De gegevens konden niet worden verplaatst</string>
+    <string name="store_data_session">Sluit eerst de lopende sessie</string>
+    <string name="store_data_no_storage">Het spelopslag is niet aangesloten</string>
     <string name="store_press_again">Druk nogmaals om te verwijderen</string>
     <string name="store_installing">Installeren…</string>
     <string name="store_install">Installeren</string>

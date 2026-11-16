@@ -1032,6 +1032,14 @@
     <string name="store_open">Buka</string>
     <string name="store_details">Detail</string>
     <string name="store_remove">Hapus</string>
+    <string name="store_data_to_card">Pindahkan data ke penyimpanan game</string>
+    <string name="store_data_to_internal">Pindahkan data ke penyimpanan internal</string>
+    <string name="store_data_moving">Memindahkan data…</string>
+    <string name="store_data_symlinks">Data berisi symlink yang tidak dapat disimpan oleh kartu</string>
+    <string name="store_data_space">Ruang kosong tidak cukup (%1$s tersisa)</string>
+    <string name="store_data_failed">Data tidak dapat dipindahkan</string>
+    <string name="store_data_session">Tutup sesi yang sedang berjalan terlebih dahulu</string>
+    <string name="store_data_no_storage">Penyimpanan game tidak terpasang</string>
     <string name="store_press_again">Tekan lagi untuk menghapus</string>
     <string name="store_installing">Menginstal…</string>
     <string name="store_install">Instal</string>

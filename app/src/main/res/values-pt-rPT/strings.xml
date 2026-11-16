@@ -1030,6 +1030,14 @@
     <string name="store_open">Abrir</string>
     <string name="store_details">Detalhes</string>
     <string name="store_remove">Remover</string>
+    <string name="store_data_to_card">Mover os dados para o armazenamento de jogos</string>
+    <string name="store_data_to_internal">Mover os dados para o armazenamento interno</string>
+    <string name="store_data_moving">A mover os dados…</string>
+    <string name="store_data_symlinks">Os dados contêm ligações simbólicas que o cartão não consegue guardar</string>
+    <string name="store_data_space">Espaço livre insuficiente (%1$s livres)</string>
+    <string name="store_data_failed">Não foi possível mover os dados</string>
+    <string name="store_data_session">Feche primeiro a sessão em curso</string>
+    <string name="store_data_no_storage">O armazenamento de jogos não está ligado</string>
     <string name="store_press_again">Prima novamente para remover</string>
     <string name="store_installing">A instalar…</string>
     <string name="store_install">Instalar</string>

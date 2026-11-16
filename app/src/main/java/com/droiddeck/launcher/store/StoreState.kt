@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.runtime.FlatpakData
 import com.droiddeck.launcher.runtime.FlatpakManager
 
 object StoreState {
@@ -23,6 +24,10 @@ object StoreState {
     var checkingUpdates by mutableStateOf(false)
         private set
     var updatesChecked by mutableStateOf(false)
+        private set
+    var cardData by mutableStateOf<Set<String>>(emptySet())
+        private set
+    var cardAvailable by mutableStateOf(false)
         private set
     var busy by mutableStateOf<String?>(null)
         private set
@@ -52,7 +57,9 @@ object StoreState {
         Thread({
             val r = FlatpakManager.ready(app)
             val list = if (r) FlatpakManager.installedApps(app) else emptyList()
-            main.post { ready = r; installed = list; updates = updates.filter { id -> list.any { it.id == id } }.toSet() }
+            val data = FlatpakData.enabled(app)
+            val card = FlatpakData.available(app)
+            main.post { ready = r; installed = list; cardData = data; cardAvailable = card; updates = updates.filter { id -> list.any { it.id == id } }.toSet() }
         }, "store-refresh").start()
     }
 
@@ -102,9 +109,11 @@ object StoreState {
             }
             val r = FlatpakManager.ready(app)
             val list = if (r) FlatpakManager.installedApps(app) else emptyList()
+            val data = FlatpakData.enabled(app)
+            val card = FlatpakData.available(app)
             main.post {
                 busy = null; stage = null; percent = -1
-                ready = r; installed = list
+                ready = r; installed = list; cardData = data; cardAvailable = card
                 if (problem != null) Toast.makeText(app, app.getString(R.string.store_problem, label, problem), Toast.LENGTH_LONG).show()
             }
         }, "store-$what").start()
@@ -117,6 +126,9 @@ object StoreState {
 
     fun uninstall(context: Context, id: String, name: String) =
         run(context, id, name) { c, p -> FlatpakManager.uninstall(c, id, p).also { if (it == null) main.post { updates = updates - id } } }
+
+    fun moveData(context: Context, id: String, name: String, toCard: Boolean) =
+        run(context, id, name) { c, p -> FlatpakData.move(c, id, toCard, p) }
 
     fun update(context: Context, id: String?, name: String) =
         run(context, id ?: "update-all", name) { c, p ->

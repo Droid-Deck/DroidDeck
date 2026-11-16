@@ -39,6 +39,17 @@ class BwrapSpawnerTest {
         assertEquals("/data/files/.wayland-rt/wayland-1", BwrapSpawner.hostPath(session, "/rootfs", "/data/files/.wayland-rt/wayland-1"))
     }
 
+    @Test fun anAppDataFolderOnTheCardReachesTheSandboxWhileItsLinkerCacheStaysInternal() {
+        val id = "org.example.App"
+        val binds = listOf(
+            Bind("/mnt/media_rw/AAAA-0000/flatpak-data/$id", "/root/.var/app/$id"),
+            Bind("/rootfs/root/.var/app/$id/.ld.so", "/root/.var/app/$id/.ld.so"),
+        )
+        assertEquals("/mnt/media_rw/AAAA-0000/flatpak-data/$id/data", BwrapSpawner.hostPath(binds, "/rootfs", "/root/.var/app/$id/data"))
+        assertEquals("/rootfs/root/.var/app/$id/.ld.so/active", BwrapSpawner.hostPath(binds, "/rootfs", "/root/.var/app/$id/.ld.so/active"))
+        assertEquals("/rootfs/root/.var/app/org.example.Other/data", BwrapSpawner.hostPath(binds, "/rootfs", "/root/.var/app/org.example.Other/data"))
+    }
+
     @Test fun hostPathFallsBackToTheRootfs() {
         assertEquals("/rootfs/root/.local/share/flatpak", BwrapSpawner.hostPath(session, "/rootfs/", "/root/.local/share/flatpak"))
     }

@@ -1035,6 +1035,14 @@
     <string name="store_open">Avaa</string>
     <string name="store_details">Tiedot</string>
     <string name="store_remove">Poista</string>
+    <string name="store_data_to_card">Siirrä tiedot pelien tallennustilaan</string>
+    <string name="store_data_to_internal">Siirrä tiedot sisäiseen tallennustilaan</string>
+    <string name="store_data_moving">Siirretään tietoja…</string>
+    <string name="store_data_symlinks">Tiedot sisältävät symbolisia linkkejä, joita kortti ei voi tallentaa</string>
+    <string name="store_data_space">Vapaata tilaa ei ole tarpeeksi (%1$s vapaana)</string>
+    <string name="store_data_failed">Tietoja ei voitu siirtää</string>
+    <string name="store_data_session">Sulje ensin käynnissä oleva istunto</string>
+    <string name="store_data_no_storage">Pelien tallennustilaa ei ole liitetty</string>
     <string name="store_press_again">Paina uudelleen poistaaksesi</string>
     <string name="store_installing">Asennetaan…</string>
     <string name="store_install">Asenna</string>

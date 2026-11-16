@@ -1104,6 +1104,14 @@
     <string name="store_open">Open</string>
     <string name="store_details">Details</string>
     <string name="store_remove">Remove</string>
+    <string name="store_data_to_card">Move data to game storage</string>
+    <string name="store_data_to_internal">Move data to internal storage</string>
+    <string name="store_data_moving">Moving data…</string>
+    <string name="store_data_symlinks">The data holds symlinks, which the card cannot store</string>
+    <string name="store_data_space">Not enough free space (%1$s free)</string>
+    <string name="store_data_failed">Could not move the data</string>
+    <string name="store_data_session">Close the running session first</string>
+    <string name="store_data_no_storage">Game storage is not attached</string>
     <string name="store_press_again">Press again to remove</string>
     <string name="store_installing">Installing…</string>
     <string name="store_install">Install</string>

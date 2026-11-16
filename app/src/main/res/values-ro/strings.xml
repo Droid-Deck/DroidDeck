@@ -1038,6 +1038,14 @@
     <string name="store_open">Deschide</string>
     <string name="store_details">Detalii</string>
     <string name="store_remove">Elimină</string>
+    <string name="store_data_to_card">Mută datele în stocarea jocurilor</string>
+    <string name="store_data_to_internal">Mută datele în stocarea internă</string>
+    <string name="store_data_moving">Se mută datele…</string>
+    <string name="store_data_symlinks">Datele conțin legături simbolice pe care cardul nu le poate stoca</string>
+    <string name="store_data_space">Spațiu liber insuficient (%1$s liber)</string>
+    <string name="store_data_failed">Datele nu au putut fi mutate</string>
+    <string name="store_data_session">Închide mai întâi sesiunea în curs</string>
+    <string name="store_data_no_storage">Stocarea jocurilor nu este conectată</string>
     <string name="store_press_again">Apasă din nou pentru a elimina</string>
     <string name="store_installing">Se instalează…</string>
     <string name="store_install">Instalează</string>

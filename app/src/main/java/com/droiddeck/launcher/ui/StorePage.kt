@@ -620,6 +620,11 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
             if (installed) {
                 PrimaryButton(if (busyHere) stringResource(R.string.common_working) else stringResource(R.string.store_open), enabled = !busyHere, main = true) { a.onFlatpakApp(id, name) }
                 if (id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), enabled = StoreState.busy == null) { StoreState.update(ctx, id, name) }
+                val onCard = id in StoreState.cardData
+                if (onCard || StoreState.cardAvailable) SecondaryButton(
+                    stringResource(if (onCard) R.string.store_data_to_internal else R.string.store_data_to_card),
+                    enabled = StoreState.busy == null,
+                ) { StoreState.moveData(ctx, id, name, !onCard) }
             } else {
                 var at by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {

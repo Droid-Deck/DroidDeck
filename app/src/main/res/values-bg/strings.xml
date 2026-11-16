@@ -1035,6 +1035,14 @@
     <string name="store_open">Отвори</string>
     <string name="store_details">Подробности</string>
     <string name="store_remove">Премахни</string>
+    <string name="store_data_to_card">Преместване на данните в хранилището за игри</string>
+    <string name="store_data_to_internal">Преместване на данните във вътрешната памет</string>
+    <string name="store_data_moving">Данните се преместват…</string>
+    <string name="store_data_symlinks">Данните съдържат символни връзки, които картата не може да съхранява</string>
+    <string name="store_data_space">Няма достатъчно свободно място (%1$s свободни)</string>
+    <string name="store_data_failed">Данните не можаха да бъдат преместени</string>
+    <string name="store_data_session">Първо затворете текущата сесия</string>
+    <string name="store_data_no_storage">Хранилището за игри не е свързано</string>
     <string name="store_press_again">Натиснете отново, за да премахнете</string>
     <string name="store_installing">Инсталиране…</string>
     <string name="store_install">Инсталиране</string>

@@ -1911,6 +1911,12 @@ object SessionPrefs {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
     }
 
+    fun flatpakCardData(context: Context): Set<String> = prefs(context).getStringSet("flatpakCardData", null)?.toSet().orEmpty()
+
+    fun setFlatpakCardData(context: Context, id: String, on: Boolean) {
+        prefs(context).edit().putStringSet("flatpakCardData", if (on) flatpakCardData(context) + id else flatpakCardData(context) - id).apply()
+    }
+
     fun steamLibraries(context: Context): String = prefs(context).getString("steamLibraries", "") ?: ""
 
     fun setSteamLibraries(context: Context, json: String) {

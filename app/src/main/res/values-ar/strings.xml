@@ -1047,6 +1047,14 @@
     <string name="store_open">فتح</string>
     <string name="store_details">التفاصيل</string>
     <string name="store_remove">إزالة</string>
+    <string name="store_data_to_card">نقل البيانات إلى مساحة الألعاب</string>
+    <string name="store_data_to_internal">نقل البيانات إلى التخزين الداخلي</string>
+    <string name="store_data_moving">جارٍ نقل البيانات…</string>
+    <string name="store_data_symlinks">تحتوي البيانات على روابط رمزية لا تستطيع البطاقة تخزينها</string>
+    <string name="store_data_space">لا توجد مساحة كافية (المتاح %1$s)</string>
+    <string name="store_data_failed">تعذر نقل البيانات</string>
+    <string name="store_data_session">أغلق الجلسة الجارية أولاً</string>
+    <string name="store_data_no_storage">مساحة الألعاب غير متصلة</string>
     <string name="store_press_again">اضغط مرة أخرى للإزالة</string>
     <string name="store_installing">جارٍ التثبيت…</string>
     <string name="store_install">تثبيت</string>

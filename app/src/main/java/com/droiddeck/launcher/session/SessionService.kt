@@ -1256,6 +1256,7 @@ class SessionService : Service() {
         } else {
             Log.i(TAG, "game storage: internal only")
         }
+        binds.addAll(com.droiddeck.launcher.runtime.FlatpakData.binds(this))
         if (SessionState.mode == MODE_STEAM && SessionPrefs.storageDiagnosticsEnabled(this)) {
             val target = storageDiagnosticLibrary ?: File(LinuxRuntime.rootDir(this), "root/.local/share/Steam")
             val device = StorageDiagnostics.writeSnapshot(

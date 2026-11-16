@@ -73,6 +73,22 @@ launcher also starts a session bus when there is none. On the Linux desktop, the
 menu entries appear in Plasma's launcher. Games are wrapped through `droiddeck-gpu` like the
 rootfs's own, since the desktop composites in software.
 
+## App data on game storage
+
+The runtime keeps `/root/.var/app/<id>` (an app's config, cache and saved or downloaded data) inside the
+rootfs on internal storage, apart from the game storage chosen for Steam libraries. With a game storage
+attached, an installed app's Store page offers "Move data to game storage". `FlatpakData.move` copies
+the folder to `flatpak-data/<id>` beside the library, checks the copy's size, and only then clears the
+internal one. `FlatpakData.binds` then binds the card folder over `/root/.var/app/<id>` in every session,
+and `BwrapSpawner` translates the sandbox's binds through it like any other session bind.
+
+- The move is per app and refused while a session runs, when the data holds symlinks (exFAT and FAT
+  cannot store them), or when the card lacks the size plus 64 MB.
+- `.ld.so` is not moved. Flatpak fills it with a symlink to the runtime's linker cache, so it stays
+  internal and is bound over the card folder.
+- With the card detached, the app uses its internal folder for that session; the choice is kept.
+- "Move data to internal storage" reverses it.
+
 ## The store
 
 `FlathubApi` reads flathub.org's public API: collections, search filtered to `aarch64`, and

@@ -1041,6 +1041,14 @@
     <string name="store_open">Otevřít</string>
     <string name="store_details">Podrobnosti</string>
     <string name="store_remove">Odebrat</string>
+    <string name="store_data_to_card">Přesunout data do úložiště her</string>
+    <string name="store_data_to_internal">Přesunout data do interního úložiště</string>
+    <string name="store_data_moving">Přesouvám data…</string>
+    <string name="store_data_symlinks">Data obsahují symbolické odkazy, které karta neumí uložit</string>
+    <string name="store_data_space">Není dost volného místa (volných %1$s)</string>
+    <string name="store_data_failed">Data se nepodařilo přesunout</string>
+    <string name="store_data_session">Nejdřív zavřete běžící relaci</string>
+    <string name="store_data_no_storage">Úložiště her není připojeno</string>
     <string name="store_press_again">Pro odebrání stiskněte znovu</string>
     <string name="store_installing">Instaluje se…</string>
     <string name="store_install">Instalovat</string>

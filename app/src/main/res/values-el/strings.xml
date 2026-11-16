@@ -1035,6 +1035,14 @@
     <string name="store_open">Άνοιγμα</string>
     <string name="store_details">Λεπτομέρειες</string>
     <string name="store_remove">Αφαίρεση</string>
+    <string name="store_data_to_card">Μετακίνηση δεδομένων στον χώρο αποθήκευσης παιχνιδιών</string>
+    <string name="store_data_to_internal">Μετακίνηση δεδομένων στην εσωτερική αποθήκευση</string>
+    <string name="store_data_moving">Μετακίνηση δεδομένων…</string>
+    <string name="store_data_symlinks">Τα δεδομένα περιέχουν συμβολικούς συνδέσμους που η κάρτα δεν μπορεί να αποθηκεύσει</string>
+    <string name="store_data_space">Δεν υπάρχει αρκετός ελεύθερος χώρος (%1$s ελεύθερα)</string>
+    <string name="store_data_failed">Δεν ήταν δυνατή η μετακίνηση των δεδομένων</string>
+    <string name="store_data_session">Κλείστε πρώτα την τρέχουσα συνεδρία</string>
+    <string name="store_data_no_storage">Ο χώρος αποθήκευσης παιχνιδιών δεν είναι συνδεδεμένος</string>
     <string name="store_press_again">Πατήστε ξανά για αφαίρεση</string>
     <string name="store_installing">Εγκατάσταση…</string>
     <string name="store_install">Εγκατάσταση</string>

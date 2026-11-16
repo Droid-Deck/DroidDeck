@@ -1031,6 +1031,14 @@
     <string name="store_open">開啟</string>
     <string name="store_details">詳細資料</string>
     <string name="store_remove">移除</string>
+    <string name="store_data_to_card">將資料移到遊戲儲存空間</string>
+    <string name="store_data_to_internal">將資料移到內部儲存空間</string>
+    <string name="store_data_moving">正在移動資料…</string>
+    <string name="store_data_symlinks">資料包含符號連結，儲存卡無法儲存</string>
+    <string name="store_data_space">可用空間不足（剩餘 %1$s）</string>
+    <string name="store_data_failed">無法移動資料</string>
+    <string name="store_data_session">請先關閉執行中的工作階段</string>
+    <string name="store_data_no_storage">遊戲儲存空間未連線</string>
     <string name="store_press_again">再次點擊以移除</string>
     <string name="store_installing">正在安裝…</string>
     <string name="store_install">安裝</string>

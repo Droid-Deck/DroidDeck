@@ -1041,6 +1041,14 @@
     <string name="store_open">Открыть</string>
     <string name="store_details">Подробности</string>
     <string name="store_remove">Удалить</string>
+    <string name="store_data_to_card">Переместить данные в хранилище игр</string>
+    <string name="store_data_to_internal">Переместить данные во внутреннюю память</string>
+    <string name="store_data_moving">Перемещение данных…</string>
+    <string name="store_data_symlinks">В данных есть символические ссылки, которые карта не может хранить</string>
+    <string name="store_data_space">Недостаточно свободного места (свободно %1$s)</string>
+    <string name="store_data_failed">Не удалось переместить данные</string>
+    <string name="store_data_session">Сначала закройте текущую сессию</string>
+    <string name="store_data_no_storage">Хранилище игр не подключено</string>
     <string name="store_press_again">Нажмите еще раз для удаления</string>
     <string name="store_installing">Установка…</string>
     <string name="store_install">Установить</string>
