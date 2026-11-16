@@ -3734,4 +3734,5 @@
     <string name="soundtracks_repeat_one">单曲重复</string>
     <string name="soundtracks_volume">音量</string>
     <string name="soundtracks_no_tracks">此原声音乐中没有音频文件</string>
+    <string name="drawer_antialiasing">抗锯齿</string>
 </resources>

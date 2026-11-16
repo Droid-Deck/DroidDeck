@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">एक दोहराएँ</string>
     <string name="soundtracks_volume">वॉल्यूम</string>
     <string name="soundtracks_no_tracks">इस साउंडट्रैक में कोई ऑडियो फ़ाइल नहीं है</string>
+    <string name="drawer_antialiasing">एंटी-अलियासिंग</string>
 </resources>

@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Birini tekrarla</string>
     <string name="soundtracks_volume">Ses düzeyi</string>
     <string name="soundtracks_no_tracks">Bu oyun müziğinde ses dosyası yok</string>
+    <string name="drawer_antialiasing">Kenar yumuşatma</string>
 </resources>

@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Повтаряне на една</string>
     <string name="soundtracks_volume">Сила на звука</string>
     <string name="soundtracks_no_tracks">В този саундтрак няма аудиофайлове</string>
+    <string name="drawer_antialiasing">Заглаждане на ръбовете</string>
 </resources>

@@ -3799,4 +3799,5 @@
     <string name="soundtracks_repeat_one">Répéter une piste</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Aucun fichier audio dans cette bande originale</string>
+    <string name="drawer_antialiasing">Anticrénelage</string>
 </resources>

@@ -3916,4 +3916,5 @@
     <string name="soundtracks_repeat_one">تكرار مقطع واحد</string>
     <string name="soundtracks_volume">مستوى الصوت</string>
     <string name="soundtracks_no_tracks">لا توجد ملفات صوتية في هذه الموسيقى التصويرية</string>
+    <string name="drawer_antialiasing">تنعيم الحواف</string>
 </resources>

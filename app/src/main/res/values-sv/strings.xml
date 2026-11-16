@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Upprepa ett</string>
     <string name="soundtracks_volume">Volym</string>
     <string name="soundtracks_no_tracks">Inga ljudfiler i detta soundtrack</string>
+    <string name="drawer_antialiasing">Kantutjämning</string>
 </resources>

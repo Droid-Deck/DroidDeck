@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Επανάληψη ενός</string>
     <string name="soundtracks_volume">Ένταση</string>
     <string name="soundtracks_no_tracks">Δεν υπάρχουν αρχεία ήχου σε αυτό το soundtrack</string>
+    <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
 </resources>

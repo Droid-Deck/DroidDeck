@@ -3730,4 +3730,5 @@
     <string name="soundtracks_repeat_one">เล่นซ้ำหนึ่งเพลง</string>
     <string name="soundtracks_volume">ระดับเสียง</string>
     <string name="soundtracks_no_tracks">ไม่พบไฟล์เสียงในซาวด์แทร็กนี้</string>
+    <string name="drawer_antialiasing">การลบรอยหยัก</string>
 </resources>

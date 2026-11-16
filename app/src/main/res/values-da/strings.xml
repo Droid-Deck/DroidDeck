@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Gentag én</string>
     <string name="soundtracks_volume">Lydstyrke</string>
     <string name="soundtracks_no_tracks">Ingen lydfiler i dette soundtrack</string>
+    <string name="drawer_antialiasing">Kantudjævning</string>
 </resources>

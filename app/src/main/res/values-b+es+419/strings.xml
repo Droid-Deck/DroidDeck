@@ -3771,4 +3771,5 @@
     <string name="soundtracks_repeat_one">Repetir una</string>
     <string name="soundtracks_volume">Volumen</string>
     <string name="soundtracks_no_tracks">No hay archivos de audio en esta banda sonora</string>
+    <string name="drawer_antialiasing">Antialiasing</string>
 </resources>

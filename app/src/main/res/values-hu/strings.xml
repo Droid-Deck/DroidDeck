@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Egy ismétlése</string>
     <string name="soundtracks_volume">Hangerő</string>
     <string name="soundtracks_no_tracks">Nincs hangfájl ebben a soundtrackben</string>
+    <string name="drawer_antialiasing">Élsimítás</string>
 </resources>

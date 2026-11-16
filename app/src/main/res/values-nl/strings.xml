@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Eén herhalen</string>
     <string name="soundtracks_volume">Volume</string>
     <string name="soundtracks_no_tracks">Geen audiobestanden in deze soundtrack</string>
+    <string name="drawer_antialiasing">Anti-aliasing</string>
 </resources>

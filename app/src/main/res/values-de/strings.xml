@@ -3760,4 +3760,5 @@
     <string name="soundtracks_repeat_one">Titel wiederholen</string>
     <string name="soundtracks_volume">Lautstärke</string>
     <string name="soundtracks_no_tracks">Keine Audiodateien in diesem Soundtrack</string>
+    <string name="drawer_antialiasing">Kantenglättung</string>
 </resources>

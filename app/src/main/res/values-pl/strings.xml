@@ -3838,4 +3838,5 @@
     <string name="soundtracks_repeat_one">Powtarzaj jeden</string>
     <string name="soundtracks_volume">Głośność</string>
     <string name="soundtracks_no_tracks">Brak plików audio w tej ścieżce dźwiękowej</string>
+    <string name="drawer_antialiasing">Wygładzanie krawędzi</string>
 </resources>
