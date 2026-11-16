@@ -946,7 +946,7 @@ object SessionPrefs {
                 prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
             return false
         }
-        return prefs(context).getBoolean("steamGpuCompositing", false)
+        return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
     fun steamGpuCompositingAllowed(): Boolean =
