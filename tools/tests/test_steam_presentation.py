@@ -21,7 +21,7 @@ class SteamPresentationTest(unittest.TestCase):
                   + 'steam_client=("$steam_root/steamrtarm64/steam")\n'
                   + source[command:command_end])
         env = dict(os.environ)
-        for key in ("BL_STEAM_GL_PRESENT", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):
+        for key in ("BL_STEAM_GL_PRESENT", "BL_STEAM_SOFT_COMPOSITING", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):
             env.pop(key, None)
         if enabled is not None:
             env["BL_STEAM_GL_PRESENT"] = enabled
@@ -62,6 +62,24 @@ class SteamPresentationTest(unittest.TestCase):
         self.assertEqual(result["disable"], "1")
         self.assertEqual(result["kopper"], "true")
         self.assertEqual(result["args"][-1], "steam://open/main")
+
+    def test_explicit_software_compositing_keeps_gpu_raster(self):
+        result = self.launch(inherited={"BL_STEAM_SOFT_COMPOSITING": "1"})
+        self.assertIn("-cef-disable-gpu-compositing", result["args"])
+        self.assertIn("-cef-force-gpu", result["args"])
+        self.assertIn("-cef-use-angle=vulkan", result["args"])
+        self.assertNotIn("-cef-disable-gpu", result["args"])
+
+    def test_explicit_gpu_compositing_preserves_vulkan(self):
+        result = self.launch(inherited={"BL_STEAM_SOFT_COMPOSITING": "0"})
+        self.assertNotIn("-cef-disable-gpu-compositing", result["args"])
+        self.assertIn("-cef-force-gpu", result["args"])
+        self.assertIn("-cef-use-angle=vulkan", result["args"])
+
+    def test_powervr_presentation_keeps_its_software_fallback(self):
+        result = self.launch("1", {"BL_STEAM_SOFT_COMPOSITING": "0"})
+        self.assertIn("-cef-disable-gpu-compositing", result["args"])
+        self.assertIn("-cef-use-angle=gl", result["args"])
 
     def test_disabled_option_preserves_existing_environment(self):
         result = self.launch("0", {"DISABLE_GAMESCOPE_WSI": "0", "LIBGL_KOPPER_DISABLE": "false"})

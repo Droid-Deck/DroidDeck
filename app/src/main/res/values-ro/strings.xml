@@ -1186,6 +1186,7 @@
     <string name="agent_hint_working">Scrie pentru a pune următorul mesaj în coadă</string>
     <string name="agent_queue">Pune în coadă</string>
     <string name="agent_queued">Următorul: %1$s</string>
+    <string name="agent_tools_missing">Instrumentele agentului nu sunt instalate: %1$s</string>
     <string name="agent_unqueue">Nu trimite</string>
     <string name="agent_attach">Atașează</string>
     <string name="agent_remove_attachment">Elimină</string>
@@ -4146,6 +4147,9 @@
     <string name="hud_readings_shown">Afișate</string>
     <string name="hud_readings_count">%1$d din %2$d</string>
     <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
-    
+
     <string name="input_duplicate_element">Duplică controlul</string>
+
+    <string name="display_integer_scaling">Scalare cu numere întregi</string>
+    <string name="display_integer_scaling_hint">Folosește cel mai mare factor întreg de scalare care încape. Dacă sursa este prea mare, adaptează întreaga imagine pentru a evita decuparea. Rezoluția se configurează separat.</string>
 </resources>

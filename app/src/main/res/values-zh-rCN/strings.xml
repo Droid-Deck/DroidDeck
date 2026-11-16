@@ -1263,6 +1263,7 @@
     <string name="agent_hint_working">输入以排队下一条消息</string>
     <string name="agent_queue">排队</string>
     <string name="agent_queued">下一条：%1$s</string>
+    <string name="agent_tools_missing">智能体工具未安装：%1$s</string>
     <string name="agent_unqueue">不发送</string>
     <string name="agent_attach">添加附件</string>
     <string name="agent_remove_attachment">移除</string>
@@ -4076,6 +4077,9 @@
     <string name="hud_readings_shown">已显示</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">再按一次返回键退出</string>
-    
+
     <string name="input_duplicate_element">复制控件</string>
+
+    <string name="display_integer_scaling">整数缩放</string>
+    <string name="display_integer_scaling_hint">使用能够容纳的最大整数缩放倍数。如果源图像过大，则缩放整张图像以避免裁切。分辨率单独设置。</string>
 </resources>

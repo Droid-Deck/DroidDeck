@@ -1180,6 +1180,7 @@
     <string name="agent_hint_working">Nhập để xếp tin nhắn tiếp theo vào hàng đợi</string>
     <string name="agent_queue">Xếp hàng</string>
     <string name="agent_queued">Tiếp theo: %1$s</string>
+    <string name="agent_tools_missing">Chưa cài công cụ của tác tử: %1$s</string>
     <string name="agent_unqueue">Không gửi</string>
     <string name="agent_attach">Đính kèm</string>
     <string name="agent_remove_attachment">Xóa</string>
@@ -4076,6 +4077,9 @@
     <string name="hud_readings_shown">Đang hiển thị</string>
     <string name="hud_readings_count">%1$d trên %2$d</string>
     <string name="exit_hint_back">Nhấn lại để thoát</string>
-    
+
     <string name="input_duplicate_element">Nhân đôi điều khiển</string>
+
+    <string name="display_integer_scaling">Tỷ lệ nguyên</string>
+    <string name="display_integer_scaling_hint">Sử dụng hệ số tỷ lệ nguyên lớn nhất có thể vừa màn hình. Nếu nguồn quá lớn, toàn bộ hình ảnh sẽ được thu vừa để tránh bị cắt. Độ phân giải được thiết lập riêng.</string>
 </resources>

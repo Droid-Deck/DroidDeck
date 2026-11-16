@@ -141,6 +141,7 @@ object RockstarAuth {
             StoreAccounts.clear(context.applicationContext, Store.ROCKSTAR)
             return "ticket"
         }
+        com.droiddeck.launcher.session.SessionFiles.ensureRockstarService(context)
         return null
     }
 

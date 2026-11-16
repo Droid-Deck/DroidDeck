@@ -1189,6 +1189,7 @@
     <string name="agent_hint_working">Введіть текст, щоб поставити наступне повідомлення в чергу</string>
     <string name="agent_queue">Поставити в чергу</string>
     <string name="agent_queued">Далі: %1$s</string>
+    <string name="agent_tools_missing">Інструменти агента не встановлено: %1$s</string>
     <string name="agent_unqueue">Не надсилати</string>
     <string name="agent_attach">Прикріпити</string>
     <string name="agent_remove_attachment">Видалити</string>
@@ -4186,6 +4187,9 @@
     <string name="hud_readings_shown">Показано</string>
     <string name="hud_readings_count">%1$d з %2$d</string>
     <string name="exit_hint_back">Натисніть «Назад» ще раз, щоб вийти</string>
-    
+
     <string name="input_duplicate_element">Дублювати елемент</string>
+
+    <string name="display_integer_scaling">Цілочисельне масштабування</string>
+    <string name="display_integer_scaling_hint">Використовує найбільший цілий коефіцієнт масштабування, який поміщається. Якщо вихідне зображення завелике, воно вміщується повністю без обрізання. Роздільна здатність налаштовується окремо.</string>
 </resources>

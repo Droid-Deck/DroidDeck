@@ -1186,6 +1186,7 @@
     <string name="agent_hint_working">Tapez pour mettre le prochain message en attente</string>
     <string name="agent_queue">Mettre en attente</string>
     <string name="agent_queued">Suivant : %1$s</string>
+    <string name="agent_tools_missing">Outils de l’agent non installés : %1$s</string>
     <string name="agent_unqueue">Ne pas envoyer</string>
     <string name="agent_attach">Joindre</string>
     <string name="agent_remove_attachment">Supprimer</string>
@@ -4145,6 +4146,9 @@
     <string name="hud_readings_shown">Affichés</string>
     <string name="hud_readings_count">%1$d sur %2$d</string>
     <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
-    
+
     <string name="input_duplicate_element">Dupliquer la commande</string>
+
+    <string name="display_integer_scaling">Mise à l’échelle entière</string>
+    <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier possible. Si la source est trop grande, l’image entière est ajustée pour éviter le recadrage. La résolution se règle séparément.</string>
 </resources>

@@ -1189,6 +1189,7 @@
     <string name="agent_hint_working">Wpisz, aby zakolejkować następną wiadomość</string>
     <string name="agent_queue">Zakolejkuj</string>
     <string name="agent_queued">Następna: %1$s</string>
+    <string name="agent_tools_missing">Narzędzia agenta nie są zainstalowane: %1$s</string>
     <string name="agent_unqueue">Nie wysyłaj</string>
     <string name="agent_attach">Załącz</string>
     <string name="agent_remove_attachment">Usuń</string>
@@ -4186,6 +4187,9 @@
     <string name="hud_readings_shown">Pokazane</string>
     <string name="hud_readings_count">%1$d z %2$d</string>
     <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
-    
+
     <string name="input_duplicate_element">Duplikuj kontrolkę</string>
+
+    <string name="display_integer_scaling">Skalowanie całkowite</string>
+    <string name="display_integer_scaling_hint">Używa największego całkowitego współczynnika skalowania, który się mieści. Jeśli źródło jest zbyt duże, dopasowuje cały obraz, aby uniknąć przycinania. Rozdzielczość ustawia się osobno.</string>
 </resources>

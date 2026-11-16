@@ -312,4 +312,27 @@ class InputLayoutToolsTest {
         assertEquals(listOf(true, true), restored.map { it.classicStyle })
         assertFalse(source.copy(buttonShape = InputButtonShape.ROUNDED).duplicate("r", listOf(source)).classicStyle)
     }
+
+    @Test fun duplicateOfRightStickKeepsItsHandedness() {
+        val right = InputSurfaceElement(InputControl.RS, .1f, .1f, .4f, .2f, buttonShape = InputButtonShape.CIRCLE)
+        val left = InputSurfaceElement(InputControl.LS, .5f, .1f, .4f, .2f, buttonShape = InputButtonShape.CIRCLE)
+        val custom = InputSurfaceElement(InputControl.LS, .5f, .5f, .2f, .2f, "custom", InputElementKind.STICK)
+        assertTrue(right.rightStick)
+        assertFalse(left.rightStick)
+        assertFalse(custom.rightStick)
+        val copy = right.duplicate("copy", listOf(right))
+        assertEquals(InputControl.LS, copy.control)
+        assertTrue(copy.rightStick)
+        assertFalse(left.duplicate("copy", listOf(left)).rightStick)
+        assertFalse(custom.duplicate("copy", listOf(custom)).rightStick)
+    }
+
+    @Test fun rightStickHandednessSurvivesSaving() {
+        val right = InputSurfaceElement(InputControl.RS, .1f, .1f, .4f, .2f, buttonShape = InputButtonShape.CIRCLE)
+        val copy = right.duplicate("copy", listOf(right))
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!.copy(elements = listOf(right, copy))
+        val restored = InputLibraries.decode(InputLibraries.encode(library.withLayout(layout)))!!.layout("game", InputRole.SECONDARY)!!.elements
+        assertEquals(listOf(true, true), restored.map { it.rightStick })
+    }
 }

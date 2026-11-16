@@ -641,6 +641,13 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
+    fun integerScaling(context: Context): Boolean =
+        prefs(context).getBoolean("integerScaling", false)
+
+    fun setIntegerScaling(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("integerScaling", enabled).apply()
+    }
+
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
@@ -939,7 +946,7 @@ object SessionPrefs {
                 prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
             return false
         }
-        return prefs(context).getBoolean("steamGpuCompositing", false)
+        return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
     fun steamGpuCompositingAllowed(): Boolean =

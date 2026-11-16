@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Въведете, за да наредите следващото съобщение</string>
     <string name="agent_queue">В опашката</string>
     <string name="agent_queued">Следващо: %1$s</string>
+    <string name="agent_tools_missing">Инструментите на агента не са инсталирани: %1$s</string>
     <string name="agent_unqueue">Не изпращай</string>
     <string name="agent_attach">Прикачи</string>
     <string name="agent_remove_attachment">Премахни</string>
@@ -4106,6 +4107,9 @@
     <string name="hud_readings_shown">Показани</string>
     <string name="hud_readings_count">%1$d от %2$d</string>
     <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
-    
+
     <string name="input_duplicate_element">Дублиране на контрола</string>
+
+    <string name="display_integer_scaling">Целочислено мащабиране</string>
+    <string name="display_integer_scaling_hint">Използва най-големия цял коефициент на мащабиране, който се побира. Ако източникът е твърде голям, побира цялото изображение, за да избегне изрязване. Разделителната способност се настройва отделно.</string>
 </resources>

@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Skriv for å legge neste melding i kø</string>
     <string name="agent_queue">Legg i kø</string>
     <string name="agent_queued">Neste: %1$s</string>
+    <string name="agent_tools_missing">Agentverktøy er ikke installert: %1$s</string>
     <string name="agent_unqueue">Ikke send</string>
     <string name="agent_attach">Legg ved</string>
     <string name="agent_remove_attachment">Fjern</string>
@@ -4106,6 +4107,9 @@
     <string name="hud_readings_shown">Vist</string>
     <string name="hud_readings_count">%1$d av %2$d</string>
     <string name="exit_hint_back">Trykk tilbake én gang til for å avslutte</string>
-    
+
     <string name="input_duplicate_element">Dupliser kontroll</string>
+
+    <string name="display_integer_scaling">Heltallsskalering</string>
+    <string name="display_integer_scaling_hint">Bruker den største hele skaleringsfaktoren som får plass. Hvis kilden er for stor, tilpasses hele bildet for å unngå beskjæring. Oppløsningen stilles inn separat.</string>
 </resources>

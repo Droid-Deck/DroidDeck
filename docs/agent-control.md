@@ -22,6 +22,18 @@ and reports every run.
   works on every display and window. UI Automator, by contrast, dumps whichever window has focus,
   which on a dual-screen device is often another app's.
 
+## On the device
+
+The agent in DroidDeck's Agent tab gets its working rules from `tools/agent/AGENTS.md` and its
+skills from `tools/agent/skills`. Both ship in the APK; before every turn the app writes the rules
+as a marked block into each harness's global instructions (`~/.claude/CLAUDE.md`,
+`~/.codex/AGENTS.md`) and the skills into its skills folder (`~/.claude/skills`, `~/.codex/skills`).
+Only DroidDeck's own block and skills (folders holding a `.droiddeck` file) are replaced: rules
+the user writes outside the block, and skills they add, stay. A symlinked instructions file is
+followed, so the block lands in the file it points to. `droiddeckctl`, `droiddeck-scenario` and this guide are installed in
+`~/.local/share/droiddeck/ctl` (with `droiddeckctl` and `droiddeck-scenario` on PATH). If any of
+these cannot be installed, the Agent tab shows which.
+
 ## Access
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,

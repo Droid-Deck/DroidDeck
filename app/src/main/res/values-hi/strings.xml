@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">अगला संदेश कतार में जोड़ने के लिए टाइप करें</string>
     <string name="agent_queue">कतार में जोड़ें</string>
     <string name="agent_queued">अगला: %1$s</string>
+    <string name="agent_tools_missing">एजेंट टूल इंस्टॉल नहीं हुए: %1$s</string>
     <string name="agent_unqueue">न भेजें</string>
     <string name="agent_attach">संलग्न करें</string>
     <string name="agent_remove_attachment">हटाएँ</string>
@@ -4106,6 +4107,9 @@
     <string name="hud_readings_shown">दिखाए गए</string>
     <string name="hud_readings_count">%2$d में से %1$d</string>
     <string name="exit_hint_back">बाहर निकलने के लिए फिर से बैक दबाएँ</string>
-    
+
     <string name="input_duplicate_element">नियंत्रण डुप्लिकेट करें</string>
+
+    <string name="display_integer_scaling">पूर्णांक स्केलिंग</string>
+    <string name="display_integer_scaling_hint">फिट होने वाले सबसे बड़े पूर्णांक स्केल का उपयोग करता है। स्रोत बहुत बड़ा होने पर काटने से बचाने के लिए पूरी छवि को फिट करता है। रिज़ॉल्यूशन अलग से सेट किया जाता है।</string>
 </resources>

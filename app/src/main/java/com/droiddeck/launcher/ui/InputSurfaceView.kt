@@ -356,7 +356,7 @@ class InputSurfaceView(
                 canvas.drawBitmap(it, null, imageRect, labelPaint)
                 return
             }
-            if (classic && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
+            if (classic && element.icon == InputButtonIcons.KEYBOARD && tint != null) { drawKeyboard(canvas, cx, height / 2f, lit); return }
             if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
             labelPaint.style = Paint.Style.FILL
@@ -518,14 +518,14 @@ class InputSurfaceView(
 
         fun captures(x: Float, y: Float): Boolean {
             val cx = centreX()
-            val dx = if (element.control == InputControl.LS) maxOf(0f, x - cx) else x - cx
+            val dx = if (!element.rightStick) maxOf(0f, x - cx) else x - cx
             val limit = reach() * ADAPTIVE_REACH
             return dx * dx + (y - height / 2f) * (y - height / 2f) <= limit * limit
         }
 
         fun centreX() = when {
             !classic(element) || width <= height -> width / 2f
-            element.control == InputControl.LS -> width - height / 2f
+            !element.rightStick -> width - height / 2f
             else -> height / 2f
         }
 

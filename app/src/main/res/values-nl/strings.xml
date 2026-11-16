@@ -1183,6 +1183,7 @@
     <string name="agent_hint_working">Typ om het volgende bericht in de wachtrij te zetten</string>
     <string name="agent_queue">In wachtrij</string>
     <string name="agent_queued">Volgende: %1$s</string>
+    <string name="agent_tools_missing">Agenttools niet geïnstalleerd: %1$s</string>
     <string name="agent_unqueue">Niet verzenden</string>
     <string name="agent_attach">Bijvoegen</string>
     <string name="agent_remove_attachment">Verwijderen</string>
@@ -4106,6 +4107,9 @@
     <string name="hud_readings_shown">Getoond</string>
     <string name="hud_readings_count">%1$d van %2$d</string>
     <string name="exit_hint_back">Druk nog één keer op terug om af te sluiten</string>
-    
+
     <string name="input_duplicate_element">Bediening dupliceren</string>
+
+    <string name="display_integer_scaling">Gehele-getallenschaal</string>
+    <string name="display_integer_scaling_hint">Gebruikt de grootste gehele schaalfactor die past. Als de bron te groot is, wordt de volledige afbeelding passend gemaakt om bijsnijden te voorkomen. De resolutie wordt apart ingesteld.</string>
 </resources>

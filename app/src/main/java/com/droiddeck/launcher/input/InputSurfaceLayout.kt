@@ -37,6 +37,7 @@ data class InputSurfaceElement(
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
     val builtIn: Boolean = isBuiltInId(id, control),
+    val rightStick: Boolean = control == InputControl.RS,
 ) {
     val classicStyle get() = builtIn && (buttonShape == InputButtonShape.CIRCLE || buttonShape == InputButtonShape.PILL)
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
