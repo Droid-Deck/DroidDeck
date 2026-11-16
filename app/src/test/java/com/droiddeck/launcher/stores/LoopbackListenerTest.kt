@@ -19,8 +19,8 @@ class LoopbackListenerTest {
 
     @After fun stop() { listener?.close() }
 
-    private fun listen(timeoutMs: Long = 30_000): LoopbackListener =
-        LoopbackListener("state-1", "<p>done</p>", timeoutMs) { outcomes.add(it); settled.countDown() }
+    private fun listen(timeoutMs: Long = 30_000, requestTimeoutMs: Int = 5_000): LoopbackListener =
+        LoopbackListener("state-1", "<p>done</p>", timeoutMs, requestTimeoutMs) { outcomes.add(it); settled.countDown() }
             .also { it.start("/launcher/authorized"); listener = it }
 
     private fun get(port: Int, target: String, host: String = "localhost:$port"): Pair<Int, String> =
@@ -89,6 +89,60 @@ class LoopbackListenerTest {
             assertEquals(200, get(l.port, "/launcher/authorized?code=c&state=state-1").first)
         }
         assertTrue(settled.await(5, TimeUnit.SECONDS))
+    }
+
+    private fun endsWithin(socket: Socket, ms: Int): Boolean {
+        socket.soTimeout = ms
+        return try { socket.getInputStream().read() < 0 } catch (e: java.net.SocketTimeoutException) { false } catch (e: java.io.IOException) { true }
+    }
+
+    @Test fun connections_beyond_the_limit_are_closed_at_once() {
+        val l = listen()
+        val held = List(LoopbackListener.MAX_CONNECTIONS) { Socket(loopback, l.port) }
+        Thread.sleep(500)
+        try {
+            Socket(loopback, l.port).use { assertTrue(endsWithin(it, 2_000)) }
+            assertTrue(held.none { endsWithin(it, 100) })
+        } finally { held.forEach { it.close() } }
+    }
+
+    @Test fun a_slot_frees_up_when_a_connection_ends() {
+        val l = listen()
+        val held = List(LoopbackListener.MAX_CONNECTIONS) { Socket(loopback, l.port) }
+        Thread.sleep(500)
+        held.first().close()
+        Thread.sleep(500)
+        try {
+            assertEquals(200, get(l.port, "/launcher/authorized?code=c&state=state-1").first)
+        } finally { held.forEach { it.close() } }
+    }
+
+    @Test fun a_slow_request_is_cut_off_after_the_request_timeout() {
+        val l = listen(requestTimeoutMs = 600)
+        Socket(loopback, l.port).use { s ->
+            var closed = false
+            for (i in 0 until 40) {
+                try { s.getOutputStream().write('G'.code); s.getOutputStream().flush() } catch (e: java.io.IOException) { closed = true; break }
+                Thread.sleep(100)
+            }
+            assertTrue(closed)
+        }
+    }
+
+    @Test fun open_connections_are_closed_when_the_listener_closes() {
+        val l = listen()
+        val idle = Socket(loopback, l.port)
+        Thread.sleep(500)
+        l.close()
+        idle.use { assertTrue(endsWithin(it, 2_000)) }
+    }
+
+    @Test fun open_connections_are_closed_once_the_callback_settles() {
+        val l = listen()
+        val idle = Socket(loopback, l.port)
+        Thread.sleep(500)
+        assertEquals(200, get(l.port, "/launcher/authorized?code=c&state=state-1").first)
+        idle.use { assertTrue(endsWithin(it, 2_000)) }
     }
 
     @Test fun the_wait_ends_when_nobody_comes_back() {

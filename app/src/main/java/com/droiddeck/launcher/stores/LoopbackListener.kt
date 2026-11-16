@@ -15,6 +15,7 @@ internal class LoopbackListener(
     private val state: String,
     private val answerPage: String,
     private val timeoutMs: Long,
+    private val requestTimeoutMs: Int = REQUEST_TIMEOUT_MS,
     private val onOutcome: (Outcome) -> Unit,
 ) : Closeable {
     sealed interface Outcome {
@@ -25,6 +26,8 @@ internal class LoopbackListener(
 
     private val server = ServerSocket(0, BACKLOG, InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
     private val finished = AtomicBoolean(false)
+    private val lock = Any()
+    private val open = HashSet<Socket>()
     @Volatile private var path = ""
 
     val port: Int get() = server.localPort
@@ -36,7 +39,24 @@ internal class LoopbackListener(
 
     override fun close() {
         finished.set(true)
+        shutDown()
+    }
+
+    private fun shutDown() {
         runCatching { server.close() }
+        synchronized(lock) {
+            open.forEach { runCatching { it.close() } }
+            open.clear()
+        }
+    }
+
+    private fun admit(socket: Socket): Boolean = synchronized(lock) {
+        if (finished.get() || open.size >= MAX_CONNECTIONS) false else open.add(socket)
+    }
+
+    private fun release(socket: Socket) {
+        synchronized(lock) { open.remove(socket) }
+        runCatching { socket.close() }
     }
 
     private fun acceptLoop() {
@@ -52,26 +72,29 @@ internal class LoopbackListener(
             } catch (e: IOException) {
                 return
             }
+            if (!admit(socket)) { runCatching { socket.close() }; continue }
             Thread({ serve(socket) }, "loopback-request").apply { isDaemon = true }.start()
         }
     }
 
     private fun settle(outcome: Outcome): Boolean {
         if (!finished.compareAndSet(false, true)) return false
-        runCatching { server.close() }
+        shutDown()
         onOutcome(outcome)
         return true
     }
 
     private fun serve(socket: Socket) {
-        socket.use {
-            it.soTimeout = REQUEST_TIMEOUT_MS
-            val request = try { readRequest(it) } catch (e: IOException) { return }
+        try {
+            socket.soTimeout = requestTimeoutMs
+            val request = try { readRequest(socket) } catch (e: IOException) { return }
             val outcome = outcomeOf(request)
-            if (outcome == null) { respond(it, 400, "Bad Request", ""); return }
-            if (finished.get()) { respond(it, 410, "Gone", ""); return }
-            respond(it, 200, "OK", answerPage)
+            if (outcome == null) { respond(socket, 400, "Bad Request", ""); return }
+            if (finished.get()) { respond(socket, 410, "Gone", ""); return }
+            respond(socket, 200, "OK", answerPage)
             settle(outcome)
+        } finally {
+            release(socket)
         }
     }
 
@@ -80,7 +103,9 @@ internal class LoopbackListener(
     private fun readRequest(socket: Socket): Request? {
         val input = socket.getInputStream()
         val head = StringBuilder()
+        val deadline = System.nanoTime() + requestTimeoutMs * 1_000_000L
         while (head.length < MAX_HEAD) {
+            if (System.nanoTime() > deadline) throw SocketTimeoutException()
             val b = input.read()
             if (b < 0) break
             head.append(b.toChar())
@@ -130,6 +155,7 @@ internal class LoopbackListener(
 
     companion object {
         private const val BACKLOG = 8
+        internal const val MAX_CONNECTIONS = 16
         private const val REQUEST_TIMEOUT_MS = 5_000
         private const val MAX_HEAD = 8192
 

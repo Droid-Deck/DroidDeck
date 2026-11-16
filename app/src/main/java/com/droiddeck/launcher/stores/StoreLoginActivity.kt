@@ -86,6 +86,7 @@ class StoreLoginActivity : ComponentActivity() {
     private lateinit var retryButton: Button
     private var oauthState: String? = null
     private var browserLogin: java.io.Closeable? = null
+    private var browserAttempt = 0
     private val captured = AtomicBoolean(false)
     private var flooded = false
     private val chromeUa by lazy { chromeUserAgent(runCatching { WebSettings.getDefaultUserAgent(this) }.getOrNull()) }
@@ -218,13 +219,17 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun startBrowserSignIn() {
         browserLogin?.close()
-        browserLogin = com.droiddeck.launcher.stores.epic.EpicBrowserLogin.begin(this) { problem -> settle(problem) }
+        val attempt = ++browserAttempt
+        browserLogin = com.droiddeck.launcher.stores.epic.EpicBrowserLogin.begin(this) { problem ->
+            runOnUiThread { if (problem == null || attempt == browserAttempt) settle(problem) }
+        }
         if (browserLogin == null) android.widget.Toast.makeText(this, R.string.stores_login_error_generic, android.widget.Toast.LENGTH_LONG).show()
         else showError(getString(R.string.epic_browser_sign_in_waiting))
     }
 
     private fun reloadLogin() {
         browserLogin?.close(); browserLogin = null
+        browserAttempt++
         dismissPopup(); clearError()
         captured.set(false)
         val fresh = generateState()
