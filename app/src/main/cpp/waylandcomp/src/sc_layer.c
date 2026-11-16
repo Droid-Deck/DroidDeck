@@ -386,13 +386,14 @@ static void pacer_init(void) {
 }
 
 static void pacer_lock(void) {
-    pthread_once(&g_pacer_once, pacer_init);
     pthread_mutex_lock(&g_pacer_lock);
 }
 
 /* Takes the transaction. slot_ns 0 applies it now, or with the frame queued last if one is held. */
 static void pacer_submit(ASurfaceTransaction *tx, int64_t slot_ns) {
+    if (slot_ns) pthread_once(&g_pacer_once, pacer_init);
     pacer_lock();
+    if (slot_ns && !g_blank2) make_blank(&g_blank2);
     if (!g_pacer_ok || (!slot_ns && !g_pacer_n)) {
         api.txApply(tx);
         api.txDelete(tx);
@@ -438,7 +439,6 @@ int sc_layer_base_black(int width, int height) {
 
 static int base_black_locked(int width, int height) {
     if (g_base_sc && g_base_shown && width == g_base_w && height == g_base_h) return 0;
-    make_blank(&g_blank2);
     AHardwareBuffer *black = blank_buffer();
     if (!black) return -1;
     if (!g_base_sc) g_base_sc = api.createFromWindow(vkp_window(), "droiddeck_wayland_black");
