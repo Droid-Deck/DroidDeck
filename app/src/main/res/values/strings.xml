@@ -1258,6 +1258,7 @@
     <string name="agent_storage_confirm">Remove now</string>
     <string name="agent_storage_claude">Claude Code</string>
     <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_opencode">OpenCode</string>
     <string name="agent_storage_source">DroidDeck source</string>
     <string name="agent_storage_caches">Download caches</string>
     <string name="agent_storage_source_warning">Changes that are not pushed are lost</string>
@@ -1364,6 +1365,12 @@
     <string name="agent_action_pair">Pair</string>
     <string name="agent_action_install">Install</string>
     <string name="agent_action_sign_in">Sign in</string>
+    <string name="agent_action_free">Free models</string>
+    <string name="agent_action_add_key">Add key</string>
+    <string name="agent_key_hint">Paste your API key from opencode.ai/auth</string>
+    <string name="agent_key_save">Save</string>
+    <string name="agent_step_sign_in_key_hint">Free models, or a Zen key from opencode.ai/auth</string>
+    <string name="agent_step_free_models">Free models · add a Zen key for the rest</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
