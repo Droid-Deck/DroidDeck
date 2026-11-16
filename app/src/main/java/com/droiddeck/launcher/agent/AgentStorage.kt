@@ -16,13 +16,14 @@ import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * What the agent adds to the Linux userland, measured and removable piece by piece. Sign-ins
- * (~/.claude, ~/.codex, gh's config) are left alone, so removing a CLI and installing it again
- * does not sign out.
+ * (~/.claude, ~/.codex, ~/.local/share/opencode, gh's config) are left alone, so removing a CLI
+ * and installing it again does not sign out.
  */
 object AgentStorage {
     enum class Item(val paths: List<String>) {
         CLAUDE_CODE(listOf("/root/.local/share/claude", "/root/.local/bin/claude", "/root/cc")),
         CODEX(listOf("/root/.local/bin/codex", "/root/.local/bin/codex-code-mode-host")),
+        OPENCODE(listOf("/root/.opencode")),
         BUILD_TOOLS(listOf("/root/android-sdk", "/root/aapt2", "/root/x86root", "/root/.gradle")),
         SOURCE(listOf("/root/DroidDeck")),
         CACHES(listOf("/root/.cache", "/root/.npm")),
