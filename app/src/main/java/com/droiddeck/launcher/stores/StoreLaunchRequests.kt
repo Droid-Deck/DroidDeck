@@ -185,7 +185,7 @@ object StoreLaunchRequests {
     internal fun reasonFor(error: Throwable): String {
         val text = error.message.orEmpty()
             .split(' ')
-            .filterNot { it.startsWith("/") || it.startsWith("http") }
+            .filterNot { it.contains('/') || it.startsWith("http") }
             .joinToString(" ")
             .filter { it.isLetterOrDigit() || it in " .,:;_-()'" }
             .trim()
