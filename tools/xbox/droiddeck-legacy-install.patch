@@ -16,10 +16,10 @@ index 36b101b..79ca8d1 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100644
-index 0000000..4e8f118
+index 0000000..20dc27a
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,699 @@
+@@ -0,0 +1,751 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -154,6 +154,20 @@ index 0000000..4e8f118
 +    fn advance(&mut self, delta: u64) {
 +        self.completed = self.completed.saturating_add(delta);
 +        if self.last.elapsed() >= Duration::from_millis(200) {
++            self.emit();
++        }
++    }
++
++    /// Progress through the unpacking stage, in bytes written.
++    ///
++    /// Bytes rather than files: a bundle's inner package is a single member, so a
++    /// count of finished files would hold one value for the half hour it takes to
++    /// write it.
++    fn bytes(&mut self, done: u64, total: u64) {
++        self.phase = "installing";
++        self.completed = done;
++        self.total = Some(total);
++        if self.last.elapsed() >= Duration::from_millis(400) || done >= total {
 +            self.emit();
 +        }
 +    }
@@ -488,13 +502,54 @@ index 0000000..4e8f118
 +
 +    progress.phase("finalizing");
 +    let key_file_text = key_file.display().to_string();
++    let meter = std::sync::Arc::new(crate::commands::extract_eappx::Meter::default());
++    // Taken before the first byte is written, so growth of the folder is the
++    // progress of the unpack and not the container that was already downloaded.
++    let baseline = crate::commands::extract_eappx::tree_size(&destination);
++    let mut high = 0u64;
 +    for container in &downloaded {
-+        let extracted = crate::commands::extract_eappx::run(
-+            container.display().to_string(),
-+            destination.display().to_string(),
-+            Some(key_file_text.clone()),
-+        )
-+        .await;
++        let source = container.display().to_string();
++        // Unpacking never yields, so it runs on a blocking thread and this task
++        // reports the counter while it works. Without that, the phase would only
++        // be visible once it had finished.
++        let mut unpacking = tokio::task::spawn_blocking({
++            let destination = destination.clone();
++            let key_file_text = key_file_text.clone();
++            let meter = meter.clone();
++            move || {
++                crate::commands::extract_eappx::run_blocking(
++                    source,
++                    destination.display().to_string(),
++                    Some(key_file_text),
++                    Some(&meter),
++                    // A full title is tens of gigabytes. Holding the container
++                    // while its members are decrypted can fill the device, and a
++                    // retry re-downloads rather than failing on free space.
++                    true,
++                )
++            }
++        });
++        let extracted = loop {
++            if unpacking.is_finished() {
++                break unpacking.await.unwrap_or(ExitCode::FAILURE);
++            }
++            tokio::time::sleep(Duration::from_millis(700)).await;
++            let total = meter.all();
++            if total == 0 {
++                continue;
++            }
++            let mut done = meter.done();
++            // A bundle member is one file, so its bytes are only visible on disk.
++            if meter.written.load(std::sync::atomic::Ordering::Relaxed) == 0 {
++                let on_disk = crate::commands::extract_eappx::tree_size(&destination)
++                    .saturating_sub(baseline);
++                done = done.max(on_disk);
++            }
++            // Deleting the container takes bytes off the disk, so the reported
++            // figure only ever moves forward.
++            high = high.max(done.min(total));
++            progress.bytes(high, total);
++        };
 +        if extracted != ExitCode::SUCCESS {
 +            let name = container
 +                .file_name()
@@ -502,12 +557,9 @@ index 0000000..4e8f118
 +                .unwrap_or_default();
 +            return fail(
 +                "extract-failed",
-+                &format!("Could not unpack {name}; the download is kept for a retry"),
++                &format!("Could not unpack {name}; run the install again to re-download it"),
 +            );
 +        }
-+        // Drop each container as soon as it is unpacked: a full title is tens of
-+        // gigabytes, and holding the archive and its contents at once can fill
-+        // the device mid-install.
 +        tokio::fs::remove_file(container).await.ok();
 +    }
 +
