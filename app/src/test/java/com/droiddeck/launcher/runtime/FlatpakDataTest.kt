@@ -266,6 +266,53 @@ class FlatpakDataTest {
         assertTrue(FlatpakData.entries(FlatpakData.internalDir(app, id)).isEmpty())
     }
 
+    @Test fun aSymlinkAtTheDataFolderRootRefusesTheMove() {
+        val other = "org.other.App"
+        seed(other)
+        val internal = FlatpakData.internalDir(app, id)
+        internal.parentFile!!.mkdirs()
+        Files.createSymbolicLink(internal.toPath(), FlatpakData.internalDir(app, other).toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, true))
+        assertEquals(1000, File(FlatpakData.internalDir(app, other), ".srb2kart/addons/map.pk3").length())
+        assertTrue(Files.isSymbolicLink(internal.toPath()))
+    }
+
+    @Test fun aSymlinkAtTheCardFolderRootRefusesTheMoveBack() {
+        val other = "org.other.App"
+        seed(other)
+        val cardDir = File(card, "flatpak-data/$id")
+        cardDir.parentFile!!.mkdirs()
+        Files.createSymbolicLink(cardDir.toPath(), FlatpakData.internalDir(app, other).toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, false))
+        assertEquals(1000, File(FlatpakData.internalDir(app, other), ".srb2kart/addons/map.pk3").length())
+    }
+
+    @Test fun cleaningAnOldCopyNeverFollowsALinkIntoAnotherApp() {
+        val other = "org.other.App"
+        seed(other)
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        val old = File(internal.parentFile, ".${internal.name}.old")
+        Files.createSymbolicLink(old.toPath(), FlatpakData.internalDir(app, other).toPath())
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertFalse(Files.exists(old.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+        assertEquals(1000, File(FlatpakData.internalDir(app, other), ".srb2kart/addons/map.pk3").length())
+    }
+
+    @Test fun cleaningAnOldCopyNeverFollowsALinkInsideIt() {
+        val other = "org.other.App"
+        seed(other)
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        val old = File(internal.parentFile, ".${internal.name}.old").apply { mkdirs() }
+        Files.createSymbolicLink(File(old, "link").toPath(), FlatpakData.internalDir(app, other).toPath())
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertFalse(old.exists())
+        assertEquals(1000, File(FlatpakData.internalDir(app, other), ".srb2kart/addons/map.pk3").length())
+    }
+
     @Test fun anUnreadableSourceIsNotTreatedAsEmpty() {
         FlatpakData.internalDir(app, id).apply { parentFile!!.mkdirs() }.writeText("not a folder")
         assertEquals(app.getString(R.string.store_data_failed), move(id, true))

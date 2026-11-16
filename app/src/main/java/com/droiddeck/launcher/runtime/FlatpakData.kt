@@ -11,7 +11,11 @@ import com.droiddeck.launcher.session.SessionState
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.FileVisitResult
 import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 
 object FlatpakData {
     private const val TAG = "FlatpakData"
@@ -86,7 +90,7 @@ object FlatpakData {
             if (free < bytes + RESERVE) return@synchronized context.getString(R.string.store_data_space, com.droiddeck.launcher.core.FileUtils.sizeToString(free))
             SessionPrefs.flatpakDataMoving(context).filter { it.startsWith("$id$SEP") && it != marker }.forEach { SessionPrefs.setFlatpakDataMoving(context, it, false) }
             if (!SessionPrefs.setFlatpakDataMoving(context, marker, true)) throw IOException("could not record the move")
-            if (staging.exists() && !staging.deleteRecursively()) throw IOException("could not clear ${staging.path}")
+            if (!remove(staging)) throw IOException("could not clear ${staging.path}")
             staging.mkdirs()
             entries(from).forEach { it.copyRecursively(File(staging, it.name), overwrite = true) }
             if (size(staging) != bytes) throw IOException("copy is ${size(staging)} bytes, expected $bytes")
@@ -95,20 +99,20 @@ object FlatpakData {
                 if (!entry.renameTo(target)) throw IOException("could not place ${target.path}")
                 placed.add(target)
             }
-            staging.deleteRecursively()
+            remove(staging)
             if (!SessionPrefs.setFlatpakCardData(context, id, toCard)) {
                 SessionPrefs.setFlatpakCardData(context, id, !toCard)
                 throw IOException("could not save the data location")
             }
         } catch (e: Exception) {
             Log.w(TAG, "$id: move to ${if (toCard) "game storage" else "internal"} failed", e)
-            val cleaned = placed.map { it.deleteRecursively() }.all { it } && (!staging.exists() || staging.deleteRecursively())
+            val cleaned = placed.map { remove(it) }.all { it } && remove(staging)
             if (cleaned) SessionPrefs.setFlatpakDataMoving(context, marker, false)
             return@synchronized context.getString(R.string.store_data_failed)
         }
         try {
             retire(from)
-            if (!toCard && !from.deleteRecursively()) throw IOException("could not remove ${from.path}")
+            if (!toCard && !remove(from)) throw IOException("could not remove ${from.path}")
             SessionPrefs.setFlatpakDataMoving(context, marker, false)
             null
         } catch (e: Exception) {
@@ -123,7 +127,7 @@ object FlatpakData {
 
     private fun purge(dir: File) {
         val old = trash(dir)
-        if (old.exists() && !old.deleteRecursively()) throw IOException("could not remove ${old.path}")
+        if (!remove(old)) throw IOException("could not remove ${old.path}")
     }
 
     private fun retire(dir: File) {
@@ -137,7 +141,7 @@ object FlatpakData {
     }
 
     private fun clear(dir: File) {
-        entries(dir).forEach { if (!it.deleteRecursively()) throw IOException("could not remove ${it.path}") }
+        entries(dir).forEach { if (!remove(it)) throw IOException("could not remove ${it.path}") }
     }
 
     internal fun entries(dir: File): List<File> {
@@ -146,10 +150,33 @@ object FlatpakData {
         return all.filter { it.name != KEPT }
     }
 
+    private fun remove(path: File): Boolean {
+        val target = path.toPath()
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return true
+        return try {
+            Files.walkFileTree(target, object : SimpleFileVisitor<Path>() {
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    Files.delete(file)
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+                    if (exc != null) throw exc
+                    Files.delete(dir)
+                    return FileVisitResult.CONTINUE
+                }
+            })
+            true
+        } catch (e: IOException) {
+            Log.w(TAG, "could not remove ${path.path}", e)
+            false
+        }
+    }
+
     private fun walk(top: File) = top.walkTopDown().onFail { _, e -> throw e }
 
     internal fun hasSymlink(dir: File): Boolean =
-        entries(dir).any { top -> walk(top).any { Files.isSymbolicLink(it.toPath()) } }
+        Files.isSymbolicLink(dir.toPath()) || entries(dir).any { top -> walk(top).any { Files.isSymbolicLink(it.toPath()) } }
 
     internal fun size(dir: File): Long =
         entries(dir).sumOf { top -> walk(top).filter { Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) }.sumOf { it.length() } }
