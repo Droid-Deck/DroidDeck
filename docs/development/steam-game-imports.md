@@ -60,7 +60,9 @@ missing prefix is removed first, and nothing is copied.
 
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not
-inherit those routes. A program that is not the folder's default executable (for example a mod launcher beside the game's own executable) is never routed: it stays its own shortcut and tile. Managed shortcuts are replaced; user-created shortcuts and
+inherit those routes. A program other than the folder's default executable, whether chosen in DroidDeck or
+set in the Steam shortcut's properties (for example a mod launcher beside the game's own executable), is
+never routed: it stays its own shortcut and tile. Managed shortcuts are replaced; user-created shortcuts and
 unreadable shortcut files are preserved. Both routes use the existing ARM64 Proton
 registration.
 

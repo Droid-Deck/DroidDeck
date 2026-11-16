@@ -68,6 +68,25 @@ class AddedGamesSteamEditsTest {
         assertEquals(main.path, SessionPrefs.addedGameExe(context, folder.path))
     }
 
+    @Test fun aTargetChangedInSteamStaysOutOfTheSteamAppsRouteBeforeAndAfterItIsAdopted() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        assertEquals(250900, scanned().steamAppId)
+        assertTrue(scanned().steamProgram)
+
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
+        val adopted = scanned()
+        assertEquals(other, adopted.exe)
+        assertNull(adopted.steamAppId)
+        assertTrue(!adopted.steamProgram)
+
+        val later = scanned()
+        assertEquals(other, later.exe)
+        assertNull(later.steamAppId)
+        assertTrue(!later.steamProgram)
+    }
+
     @Test fun theListingTellsTheSessionWhichSteamEditTheAppHasTaken() {
         val first = scanned()
         record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 3)
