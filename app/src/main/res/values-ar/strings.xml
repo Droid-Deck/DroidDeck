@@ -1736,6 +1736,7 @@
     <string name="upd_stage_downloading">جارٍ التنزيل</string>
     <string name="upd_stage_installing">جارٍ التثبيت</string>
     <string name="upd_stage_confirm">في انتظار تأكيدك</string>
+    <string name="epic_sign_in_fortnite_note">تسمي صفحة Epic تسجيل الدخول هذا Fortnite</string>
     <string name="upd_failed">فشل التحديث</string>
     <string name="upd_not_offered">لم يعرض Android تثبيت التحديث</string>
 

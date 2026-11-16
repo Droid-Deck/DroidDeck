@@ -1684,6 +1684,7 @@
     <string name="upd_stage_downloading">Downloaden</string>
     <string name="upd_stage_installing">Installeren</string>
     <string name="upd_stage_confirm">Wachten op je bevestiging</string>
+    <string name="epic_sign_in_fortnite_note">Epics pagina noemt deze aanmelding Fortnite</string>
     <string name="upd_failed">De update is mislukt</string>
     <string name="upd_not_offered">Android heeft niet aangeboden om de update te installeren</string>
 

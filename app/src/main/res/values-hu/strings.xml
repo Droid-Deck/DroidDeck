@@ -1684,6 +1684,7 @@
     <string name="upd_stage_downloading">Letöltés</string>
     <string name="upd_stage_installing">Telepítés</string>
     <string name="upd_stage_confirm">Megerősítésre várakozás</string>
+    <string name="epic_sign_in_fortnite_note">Az Epic oldala ezt a bejelentkezést Fortnite-nak nevezi</string>
     <string name="upd_failed">A frissítés sikertelen</string>
     <string name="upd_not_offered">Az Android nem ajánlotta fel a frissítés telepítését</string>
 

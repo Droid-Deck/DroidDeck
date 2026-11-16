@@ -1684,6 +1684,7 @@
     <string name="upd_stage_downloading">Laster ned</string>
     <string name="upd_stage_installing">Installerer</string>
     <string name="upd_stage_confirm">Venter på at du bekrefter</string>
+    <string name="epic_sign_in_fortnite_note">Epics side kaller denne påloggingen Fortnite</string>
     <string name="upd_failed">Oppdateringen mislyktes</string>
     <string name="upd_not_offered">Android tilbød ikke å installere oppdateringen</string>
 

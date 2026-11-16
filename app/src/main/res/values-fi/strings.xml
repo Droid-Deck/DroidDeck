@@ -1684,6 +1684,7 @@
     <string name="upd_stage_downloading">Latausta</string>
     <string name="upd_stage_installing">Asennusta</string>
     <string name="upd_stage_confirm">Odotetaan vahvistustasi</string>
+    <string name="epic_sign_in_fortnite_note">Epicin sivu kutsuu tätä kirjautumista nimellä Fortnite</string>
     <string name="upd_failed">Päivitys epäonnistui</string>
     <string name="upd_not_offered">Android ei tarjonnut päivityksen asentamista</string>
 

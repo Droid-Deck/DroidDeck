@@ -1672,6 +1672,7 @@
     <string name="upd_stage_downloading">ダウンロード中</string>
     <string name="upd_stage_installing">インストール中</string>
     <string name="upd_stage_confirm">確認を待機中</string>
+    <string name="epic_sign_in_fortnite_note">Epic のページではこのサインインが Fortnite と表示されます</string>
     <string name="upd_failed">アップデートに失敗しました</string>
     <string name="upd_not_offered">Androidがアップデートのインストールを表示しませんでした</string>
 

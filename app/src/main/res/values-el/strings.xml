@@ -1684,6 +1684,7 @@
     <string name="upd_stage_downloading">Λήψη</string>
     <string name="upd_stage_installing">Εγκατάσταση</string>
     <string name="upd_stage_confirm">Περιμένει να επιβεβαιώσετε</string>
+    <string name="epic_sign_in_fortnite_note">Η σελίδα της Epic ονομάζει αυτή τη σύνδεση Fortnite</string>
     <string name="upd_failed">Η ενημέρωση απέτυχε</string>
     <string name="upd_not_offered">Το Android δεν πρότεινε την εγκατάσταση της ενημέρωσης</string>
 

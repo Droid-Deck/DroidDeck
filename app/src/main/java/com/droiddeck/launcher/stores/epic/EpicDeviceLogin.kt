@@ -46,7 +46,8 @@ internal object EpicDeviceLogin {
             Log.w(TAG, "device sign-in did not start: ${start?.optString("error").orEmpty().ifEmpty { "no answer" }}")
             return fail(app, mine)
         }
-        val floated = main.await { DeviceCodeActivity.show(app, userCode, url, 0, Store.EPIC.label) }
+        val floated = main.await { DeviceCodeActivity.show(app, userCode, url, 0, Store.EPIC.label,
+            app.getString(R.string.upd_stage_confirm), app.getString(R.string.epic_sign_in_fortnite_note)) }
         if (!floated && !openBrowser(app, url)) return fail(app, mine)
         val intervalMs = start!!.optLong("interval", 10).coerceAtLeast(1) * 1000
         val deadline = System.currentTimeMillis() + start.optLong("expiresIn", 600) * 1000

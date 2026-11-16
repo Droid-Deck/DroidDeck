@@ -1697,6 +1697,7 @@
     <string name="upd_stage_downloading">Se descarcă</string>
     <string name="upd_stage_installing">Se instalează</string>
     <string name="upd_stage_confirm">Se așteaptă confirmarea ta</string>
+    <string name="epic_sign_in_fortnite_note">Pagina Epic numește această conectare Fortnite</string>
     <string name="upd_failed">Actualizarea a eșuat</string>
     <string name="upd_not_offered">Android nu a oferit instalarea actualizării</string>
 

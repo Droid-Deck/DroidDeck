@@ -1672,6 +1672,7 @@
     <string name="upd_stage_downloading">다운로드 중</string>
     <string name="upd_stage_installing">설치 중</string>
     <string name="upd_stage_confirm">확인 대기 중</string>
+    <string name="epic_sign_in_fortnite_note">Epic 페이지에는 이 로그인이 Fortnite로 표시됩니다</string>
     <string name="upd_failed">업데이트 실패</string>
     <string name="upd_not_offered">Android에서 업데이트 설치를 진행하지 않았습니다</string>
 

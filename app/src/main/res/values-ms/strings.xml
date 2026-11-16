@@ -1672,6 +1672,7 @@
     <string name="upd_stage_downloading">Memuat turun</string>
     <string name="upd_stage_installing">Memasang</string>
     <string name="upd_stage_confirm">Menunggu pengesahan anda</string>
+    <string name="epic_sign_in_fortnite_note">Halaman Epic memanggil log masuk ini Fortnite</string>
     <string name="upd_failed">Kemas kini gagal</string>
     <string name="upd_not_offered">Android tidak menawarkan untuk memasang kemas kini</string>
 

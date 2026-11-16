@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.core.AppLanguage
@@ -45,6 +46,8 @@ import java.lang.ref.WeakReference
 class DeviceCodeActivity : ComponentActivity() {
     private var code by mutableStateOf("")
     private var label by mutableStateOf("")
+    private var message by mutableStateOf<String?>(null)
+    private var note by mutableStateOf<String?>(null)
     private var agent = true
     private var url = ""
     private var display: Int? = null
@@ -98,6 +101,8 @@ class DeviceCodeActivity : ComponentActivity() {
         url = intent.getStringExtra(EXTRA_URL).orEmpty()
         label = intent.getStringExtra(EXTRA_LABEL) ?: getString(R.string.agent_step_github)
         agent = intent.getBooleanExtra(EXTRA_AGENT, true)
+        message = intent.getStringExtra(EXTRA_MESSAGE)
+        note = intent.getStringExtra(EXTRA_NOTE)
         display = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it > 0 }
         if (agent) copy()
     }
@@ -136,9 +141,12 @@ class DeviceCodeActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(if (inPip) 2.dp else 16.dp),
             ) {
                 Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
-                FitText(code, maxSize = if (inPip) 40.sp else 56.sp, fontWeight = FontWeight.Bold, color = accent,
+                val shown = message
+                if (shown != null) FitText(shown, maxSize = if (inPip) 22.sp else 32.sp, fontWeight = FontWeight.Bold, color = accent,
                     modifier = Modifier.fillMaxWidth())
-                Text(Uri.parse(url).let { it.host + it.path }, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1)
+                else FitText(code, maxSize = if (inPip) 40.sp else 56.sp, fontWeight = FontWeight.Bold, color = accent,
+                    modifier = Modifier.fillMaxWidth())
+                Text(note ?: Uri.parse(url).let { it.host + it.path }, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
                 if (!inPip) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PrimaryButton(stringResource(R.string.fm_copy), onClick = ::copy)
                     SecondaryButton(stringResource(R.string.common_close), onClick = ::finish)
@@ -153,14 +161,17 @@ class DeviceCodeActivity : ComponentActivity() {
         private const val EXTRA_DISPLAY = "display"
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_AGENT = "agent"
+        private const val EXTRA_MESSAGE = "message"
+        private const val EXTRA_NOTE = "note"
         private var current: WeakReference<DeviceCodeActivity>? = null
 
         /** False when this device cannot float a window, so the caller opens the page itself. */
-        fun show(context: Context, code: String, url: String, display: Int, label: String? = null): Boolean {
+        /** [message] replaces the code for a page whose link already carries it; [note] replaces the address line. */
+        fun show(context: Context, code: String, url: String, display: Int, label: String? = null, message: String? = null, note: String? = null): Boolean {
             if (!PairingGuideActivity.canFloat(context)) return false
             val intent = Intent(context, DeviceCodeActivity::class.java)
                 .putExtra(EXTRA_CODE, code).putExtra(EXTRA_URL, url).putExtra(EXTRA_DISPLAY, display)
-                .putExtra(EXTRA_AGENT, label == null).also { if (label != null) it.putExtra(EXTRA_LABEL, label) }
+                .putExtra(EXTRA_AGENT, label == null).also { if (label != null) it.putExtra(EXTRA_LABEL, label); if (message != null) it.putExtra(EXTRA_MESSAGE, message); if (note != null) it.putExtra(EXTRA_NOTE, note) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             return runCatching {
                 if (display > 0) context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())

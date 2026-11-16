@@ -1671,6 +1671,7 @@
     <string name="upd_stage_downloading">正在下載</string>
     <string name="upd_stage_installing">正在安裝</string>
     <string name="upd_stage_confirm">正在等待你確認</string>
+    <string name="epic_sign_in_fortnite_note">Epic 頁面會將此登入顯示為 Fortnite</string>
     <string name="upd_failed">更新失敗</string>
     <string name="upd_not_offered">Android 沒有提供安裝更新的選項</string>
 
