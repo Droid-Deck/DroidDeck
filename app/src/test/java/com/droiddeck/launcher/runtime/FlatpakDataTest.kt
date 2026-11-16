@@ -49,6 +49,13 @@ class FlatpakDataTest {
 
     private fun move(app: String, toCard: Boolean) = FlatpakData.move(this.app, app, toCard, { _, _ -> }, { free })
 
+    private val gone = "/storage/0000-0000/Android/data/x/files/steam"
+
+    private fun pinTo(storage: String) {
+        SessionPrefs.flatpakCardData(app).filter { it.startsWith("$id>") }.forEach { SessionPrefs.setFlatpakCardData(app, it, false) }
+        SessionPrefs.setFlatpakCardData(app, "$id>$storage", true)
+    }
+
     @Test fun nothingIsBoundUntilAnAppOptsIn() {
         seed()
         assertTrue(FlatpakData.binds(app).isEmpty())
@@ -120,7 +127,7 @@ class FlatpakDataTest {
     @Test fun anUnattachedCardFallsBackToInternalWithoutForgettingTheChoice() {
         seed()
         assertNull(move(id, true))
-        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/x/files/steam", "gone")
+        pinTo(gone)
         assertTrue(FlatpakData.binds(app).isEmpty())
         assertEquals(setOf(id), FlatpakData.enabled(app))
         assertEquals(app.getString(R.string.store_data_no_storage), move(id, false))
@@ -244,10 +251,10 @@ class FlatpakDataTest {
     @Test fun dataWrittenWhileTheCardWasDetachedSurvivesItsReturn() {
         seed()
         assertNull(move(id, true))
-        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/x/files/steam", "gone")
+        pinTo(gone)
         assertTrue(FlatpakData.binds(app).isEmpty())
         val save = File(FlatpakData.internalDir(app, id), "save.dat").apply { writeText("new") }
-        SessionPrefs.setGameStorage(app, card.path, "SD")
+        pinTo(card.path)
         assertEquals(2, FlatpakData.binds(app).size)
         assertEquals("new", save.readText())
         assertEquals(app.getString(R.string.store_data_failed), move(id, false))
@@ -323,5 +330,87 @@ class FlatpakDataTest {
     @Test fun anAppWithoutDataMovesAsAnEmptyFolder() {
         assertNull(move(id, true))
         assertEquals(setOf(id), FlatpakData.enabled(app))
+    }
+
+    private fun otherWithOnlyKept(): File {
+        val other = FlatpakData.internalDir(app, "org.other.App")
+        File(other, ".ld.so/real").apply { mkdirs() }
+        return other
+    }
+
+    @Test fun aSymlinkAtTheInternalFolderRootRefusesTheMoveBack() {
+        seed()
+        assertNull(move(id, true))
+        val other = otherWithOnlyKept()
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(internal.deleteRecursively())
+        Files.createSymbolicLink(internal.toPath(), other.toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, false))
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertTrue(File(other, ".ld.so/real").exists())
+        assertEquals(listOf(".ld.so"), other.list()!!.toList())
+        assertTrue(Files.isSymbolicLink(internal.toPath()))
+    }
+
+    @Test fun aSymlinkAtTheInternalFolderRootIsNeverBoundOrCleaned() {
+        seed()
+        assertNull(move(id, true))
+        val other = otherWithOnlyKept()
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(internal.deleteRecursively())
+        Files.createSymbolicLink(internal.toPath(), other.toPath())
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertEquals(listOf(".ld.so"), other.list()!!.toList())
+    }
+
+    @Test fun aSymlinkAtTheCardFolderRootIsNeverBound() {
+        seed()
+        assertNull(move(id, true))
+        val other = otherWithOnlyKept()
+        assertTrue(cardFolder().deleteRecursively())
+        Files.createSymbolicLink(cardFolder().toPath(), other.toPath())
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        assertEquals(listOf(".ld.so"), other.list()!!.toList())
+    }
+
+    @Test fun dataStaysBoundToTheCardItWasMovedTo() {
+        seed()
+        assertNull(move(id, true))
+        val second = tmp.newFolder("second")
+        SessionPrefs.setGameStorage(app, second.path, "SD2")
+        assertEquals(listOf("${cardFolder().path}:/root/.var/app/$id", "${FlatpakData.internalDir(app, id).path}/.ld.so:/root/.var/app/$id/.ld.so"), FlatpakData.binds(app))
+        assertFalse(File(second, "flatpak-data").exists())
+        assertNull(move(id, false))
+        assertEquals(1000, File(FlatpakData.internalDir(app, id), ".srb2kart/addons/map.pk3").length())
+        assertFalse(cardFolder().exists())
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+    }
+
+    @Test fun aReadOnlyCardRefusesTheMoveAndKeepsTheData() {
+        seed()
+        assertEquals(app.getString(R.string.store_data_failed), FlatpakData.move(app, id, true, { _, _ -> }, { free }, { false }))
+        assertEquals(1000, File(FlatpakData.internalDir(app, id), ".srb2kart/addons/map.pk3").length())
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+        assertTrue(FlatpakData.entries(cardFolder()).isEmpty())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+    }
+
+    @Test fun aReadOnlyCardRefusesTheMoveBackAndKeepsTheChoice() {
+        seed()
+        assertNull(move(id, true))
+        assertEquals(app.getString(R.string.store_data_failed), FlatpakData.move(app, id, false, { _, _ -> }, { free }, { false }))
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
+        assertTrue(FlatpakData.entries(FlatpakData.internalDir(app, id)).isEmpty())
+    }
+
+    @Test fun aReadOnlyCardFallsBackToInternalDataWithoutForgettingTheChoice() {
+        seed()
+        assertNull(move(id, true))
+        assertTrue(FlatpakData.binds(app) { false }.isEmpty())
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+        assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
     }
 }

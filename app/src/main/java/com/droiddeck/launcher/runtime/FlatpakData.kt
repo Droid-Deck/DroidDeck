@@ -28,26 +28,43 @@ object FlatpakData {
     private const val SEP = ">"
     private val lock = Any()
 
-    fun enabled(context: Context): Set<String> = SessionPrefs.flatpakCardData(context)
+    fun enabled(context: Context): Set<String> = SessionPrefs.flatpakCardData(context).map { it.substringBefore(SEP) }.toSet()
 
     fun available(context: Context): Boolean = GameStorage.effective(context) != null
 
-    internal fun cardDir(context: Context, id: String): File? =
-        GameStorage.effective(context)?.let { File(File(SecondaryLibrary.contentPath(File(it.path)), DIR), id) }
+    private fun pins(context: Context): Map<String, File> =
+        SessionPrefs.flatpakCardData(context).mapNotNull { entry ->
+            val id = entry.substringBefore(SEP)
+            val path = entry.substringAfter(SEP, "")
+            if (path.isEmpty() || !ID.matches(id)) null else id to File(path)
+        }.toMap()
+
+    private fun storage(context: Context, id: String): File? {
+        val pinned = pins(context)[id] ?: return GameStorage.effective(context)?.let { File(it.path) }
+        return pinned.takeIf { GameStorage.attached(it) }
+    }
+
+    private fun cardIn(storage: File, id: String) = File(File(SecondaryLibrary.contentPath(storage), DIR), id)
+
+    internal fun cardDir(context: Context, id: String): File? = storage(context, id)?.let { cardIn(it, id) }
 
     internal fun internalDir(context: Context, id: String) = File(LinuxRuntime.rootDir(context), "$HOST/$id")
 
-    fun binds(context: Context): List<String> = synchronized(lock) {
-        val ids = enabled(context).filter { ID.matches(it) }.sorted()
-        if (ids.isEmpty()) return@synchronized emptyList()
-        if (!available(context)) {
-            Log.w(TAG, "game storage is not attached; ${ids.size} app(s) use their internal data this session")
-            return@synchronized emptyList()
-        }
-        ids.flatMap { id ->
-            val card = cardDir(context, id) ?: return@flatMap emptyList()
+    fun binds(context: Context, writable: (File) -> Boolean = { it.canWrite() }): List<String> = synchronized(lock) {
+        val pinned = pins(context).toSortedMap()
+        if (pinned.isEmpty()) return@synchronized emptyList()
+        pinned.flatMap { (id, storage) ->
+            if (!GameStorage.attached(storage)) {
+                Log.w(TAG, "$id: its game storage is not attached; internal data this session")
+                return@flatMap emptyList()
+            }
+            val card = cardIn(storage, id)
             val guest = internalDir(context, id)
             val kept = File(guest, KEPT)
+            if (isLink(card) || isLink(guest)) {
+                Log.w(TAG, "$id: a data folder is a symbolic link; internal this session")
+                return@flatMap emptyList()
+            }
             try {
                 purge(guest)
                 purge(card)
@@ -58,6 +75,10 @@ object FlatpakData {
                 Log.w(TAG, "$id: data folder could not be prepared; internal this session")
                 return@flatMap emptyList()
             }
+            if (!writable(card)) {
+                Log.w(TAG, "$id: game storage is read-only; internal this session")
+                return@flatMap emptyList()
+            }
             listOf("${card.path}:$GUEST/$id", "${kept.path}:$GUEST/$id/$KEPT")
         }
     }
@@ -65,10 +86,13 @@ object FlatpakData {
     fun move(
         context: Context, id: String, toCard: Boolean, onProgress: (String, Int) -> Unit,
         freeBytes: (File) -> Long = { runCatching { StatFs(it.path).availableBytes }.getOrDefault(0L) },
+        writable: (File) -> Boolean = { it.canWrite() },
     ): String? = synchronized(lock) {
         if (!ID.matches(id)) return@synchronized context.getString(R.string.store_data_failed)
         if (SessionState.occupied) return@synchronized context.getString(R.string.store_data_session)
-        val card = cardDir(context, id) ?: return@synchronized context.getString(R.string.store_data_no_storage)
+        val storage = storage(context, id) ?: return@synchronized context.getString(R.string.store_data_no_storage)
+        val card = cardIn(storage, id)
+        val pin = marker(id, storage)
         val internal = internalDir(context, id)
         val from = if (toCard) internal else card
         val to = if (toCard) card else internal
@@ -77,8 +101,9 @@ object FlatpakData {
         val marker = marker(id, to)
         val placed = ArrayList<File>()
         try {
-            if (hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
+            if (isLink(to) || hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
             if (!to.isDirectory && !to.mkdirs()) throw IOException("could not create ${to.path}")
+            if (card.exists() && !writable(card)) throw IOException("${card.path} is read-only")
             purge(from)
             purge(to)
             if (entries(to).isNotEmpty()) {
@@ -100,8 +125,8 @@ object FlatpakData {
                 placed.add(target)
             }
             remove(staging)
-            if (!SessionPrefs.setFlatpakCardData(context, id, toCard)) {
-                SessionPrefs.setFlatpakCardData(context, id, !toCard)
+            if (!SessionPrefs.setFlatpakCardData(context, pin, toCard)) {
+                SessionPrefs.setFlatpakCardData(context, pin, !toCard)
                 throw IOException("could not save the data location")
             }
         } catch (e: Exception) {
@@ -175,8 +200,10 @@ object FlatpakData {
 
     private fun walk(top: File) = top.walkTopDown().onFail { _, e -> throw e }
 
+    private fun isLink(dir: File) = Files.isSymbolicLink(dir.toPath())
+
     internal fun hasSymlink(dir: File): Boolean =
-        Files.isSymbolicLink(dir.toPath()) || entries(dir).any { top -> walk(top).any { Files.isSymbolicLink(it.toPath()) } }
+        isLink(dir) || entries(dir).any { top -> walk(top).any { Files.isSymbolicLink(it.toPath()) } }
 
     internal fun size(dir: File): Long =
         entries(dir).sumOf { top -> walk(top).filter { Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) }.sumOf { it.length() } }

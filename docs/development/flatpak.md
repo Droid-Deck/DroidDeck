@@ -83,7 +83,8 @@ internal one. `FlatpakData.binds` then binds the card folder over `/root/.var/ap
 and `BwrapSpawner` translates the sandbox's binds through it like any other session bind.
 
 - The move is per app and refused from session start until its teardown finishes, when the data holds symlinks in either location (exFAT and FAT
-  cannot store them), or when the card lacks the size plus 64 MB.
+  cannot store them) or either data folder itself is a symlink, when the card is read-only, or when the
+  card lacks the size plus 64 MB.
 - `.ld.so` is not moved. Flatpak fills it with a symlink to the runtime's linker cache, so it stays
   internal and is bound over the card folder.
 - The destination and its path are journaled (`flatpakDataMoving`) before anything is written. A later
@@ -91,7 +92,9 @@ and `BwrapSpawner` translates the sandbox's binds through it like any other sess
   refused. The old copy is renamed to `.<id>.old` beside it and then deleted, so leftovers are always
   recognisable and the next move or session start removes them. Live data is never deleted to tidy up. A
   folder that cannot be listed fails the move instead of counting as empty.
-- With the card detached, the app uses its internal folder for that session; the choice is kept. Those
+- The choice records the game storage the data was moved to (`flatpakCardData`, `<id>><storage path>`).
+  Sessions and the move back keep using that volume when the game storage setting later points elsewhere.
+- With that card detached or read-only, the app uses its internal folder for that session; the choice is kept. Those
   files stay untouched when the card returns, and a move back is refused while they are there.
 - "Move data to internal storage" reverses it.
 
