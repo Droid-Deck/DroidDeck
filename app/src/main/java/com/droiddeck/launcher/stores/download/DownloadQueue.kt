@@ -202,11 +202,12 @@ object DownloadQueue {
             if (entry.key in removing) { Log.i(TAG, "${entry.key}: being uninstalled"); return false }
             items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return false } }
             items.remove(entry.key)
+            // The callback records the task's ownership snapshot; run it before advance() can see the item.
+            onAccepted?.invoke()
             val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
             items[entry.key] = Item(entry.copy(state = state, stage = DownloadStage.MANIFEST, startedAt = System.currentTimeMillis()), factory)
             renumber()
         }
-        onAccepted?.invoke()
         StoresState.logLine("${entry.store.label}: queued \"${entry.name}\"" + if (entry.bytesTotal > 0) " (${com.droiddeck.launcher.stores.formatBytes(entry.bytesTotal)})" else "")
         publish(app)
         advance(app)
