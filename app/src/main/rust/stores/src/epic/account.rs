@@ -28,7 +28,7 @@ pub fn loopback_redirect(port: u16) -> String {
 
 pub fn browser_start_url(redirect_uri: &str, state: &str) -> String {
     format!(
-        "{BROWSER_AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={}&state={}",
+        "{BROWSER_AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code&prompt=login&redirect_uri={}&state={}",
         net::percent_encode(redirect_uri),
         net::percent_encode(state)
     )
@@ -168,7 +168,7 @@ mod tests {
         assert_eq!(redirect, "http://localhost:43210/launcher/authorized");
         assert_eq!(
             browser_start_url(&redirect, "a-b_c"),
-            "https://www.epicgames.com/id/authorize?client_id=34a02cf8f4414e29b15921876da36f9a&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A43210%2Flauncher%2Fauthorized&state=a-b_c"
+            "https://www.epicgames.com/id/authorize?client_id=34a02cf8f4414e29b15921876da36f9a&response_type=code&prompt=login&redirect_uri=http%3A%2F%2Flocalhost%3A43210%2Flauncher%2Fauthorized&state=a-b_c"
         );
     }
 
